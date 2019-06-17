@@ -1,5 +1,5 @@
 from abc import *
-from McUtils.Plots import Plot
+from McUtils.Plots import Graphics
 
 class Wavefunction:
     """Represents a single wavefunction object"""
@@ -13,7 +13,7 @@ class Wavefunction:
         """Uses matplotlib to plot the wavefunction on the passed figure (makes a new one if none)
 
         :param figure:
-        :type figure: Plot
+        :type figure: Graphics
         :return:
         :rtype:
         """
@@ -79,7 +79,7 @@ class Wavefunctions:
         k = "plot_defaults"
         opts = dict(self.opts[k] if k in self.opts else (), **opts)
 
-        p = Plot(**opts)
+        p = Graphics(**opts)
         for wfn in self:
             wfn.plot(p)
 

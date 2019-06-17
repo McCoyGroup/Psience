@@ -12,8 +12,22 @@ class CoordinateSystem(metaclass=abc.ABCMeta):
 
     """
     @abc.abstractmethod
-    def __init__(self):
-        pass
+    def __init__(self, name = None, basis = None, matrix = None, dimension = None):
+        self.name = name
+        self._basis = basis
+        self._matrix = matrix
+        self._dimension = dimension
+        self._validate()
+
+    def _validate(self):
+        if self._matrix is None:
+            return True
+        elif len(self._matrix.shape) != 2:
+            raise CoordinateSystemException("{}: expansion matrix must be a matrix".format(type(self).__name__))
+        elif self._matrix.shape[0] != self._matrix.shape[1]:
+            raise CoordinateSystemException("{}: expansion matrix must square".format(type(self).__name__))
+        else:
+            return True
 
     @property
     @abc.abstractmethod
@@ -23,7 +37,7 @@ class CoordinateSystem(metaclass=abc.ABCMeta):
         :return:
         :rtype: CoordinateSystem
         """
-        pass
+        return self._basis
 
     @property
     @abc.abstractmethod
@@ -34,7 +48,7 @@ class CoordinateSystem(metaclass=abc.ABCMeta):
         :return:
         :rtype:
         """
-        pass
+        return self._matrix
 
     @property
     @abc.abstractmethod
@@ -45,6 +59,12 @@ class CoordinateSystem(metaclass=abc.ABCMeta):
         :return:
         :rtype: int or None
         """
-        pass
+        return self._dimension
 
-
+######################################################################################################
+##
+##                                   CoordinateSystemException Class
+##
+######################################################################################################
+class CoordinateSystemException(Exception):
+    pass
