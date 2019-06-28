@@ -54,7 +54,7 @@ class ZMatrixCoordinateSystem(InternalCoordinateSystem):
     def __init__(self):
         super().__init__(dimension=6)
     def jacobian_prep_coordinates(self, coord, displacements, values):
-        values = values[:, :, (1, 3, 5)]
+        values = values[:, :, :, (1, 3, 5)]
         # we will want to make sure all angles and dihedrals stay within a range of eachother...
         return displacements, values
 ZMatrixCoordinates = ZMatrixCoordinateSystem()

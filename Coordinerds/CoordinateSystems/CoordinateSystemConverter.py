@@ -83,6 +83,27 @@ class CoordinateSystemConverters:
                 )
         return converter
 
+    @classmethod
+    def register_converter(cls, system1, system2, converter):
+        """Registers a converter between two coordinate systems
+
+        :param system1:
+        :type system1: CoordinateSystem
+        :param system2:
+        :type system2: CoordinateSystem
+        :return:
+        :rtype:
+        """
+
+        if not isinstance(converter, CoordinateSystemConverter):
+            raise TypeError('{}: registered converters should be subclasses of {}'.format(
+                cls.__name__,
+                CoordinateSystemConverter.__name__
+            ))
+
+        cls.converters[(system1, system2)] = converter
+
+
 ######################################################################################################
 ##
 ##                                   CoordinateSystemConverter Class
@@ -123,17 +144,3 @@ class CoordinateSystemConverter(metaclass=abc.ABCMeta):
         :type kwargs:
         """
         pass
-
-    def Jacobian(self, system, dimension = 1, step_size = .001, **kw):
-        """Numerically computes derivatives to go from the current coordinate system to a new one
-
-        :param system: the target coordinate system
-        :type system:
-        :param dimension:
-        :type dimension:
-        :param kw:
-        :type kw:
-        :return:
-        :rtype:
-        """
-

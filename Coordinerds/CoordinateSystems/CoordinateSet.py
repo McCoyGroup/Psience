@@ -196,10 +196,12 @@ class CoordinateSet(np.ndarray):
         #           {2}
         #           ]
 
+        from Peeves import Timer
 
         shape = self.shape
         coord_shape = shape[-2:]
 
+        # with Timer("setup code"):
         displacement = self.system.displacement(mesh_spacing) # provides a default displacement to work with
         if isinstance(displacement, float):
             displacement = np.full(coord_shape, displacement)
@@ -228,7 +230,6 @@ class CoordinateSet(np.ndarray):
             if prep is None:
                 prep = lambda c, a, b: (a, b)
 
-
         fdf = FiniteDifferenceFunction.RegularGridFunction([ 1 ]*order,
                                                            end_point_precision = 0,
                                                            only_core = True,
@@ -249,6 +250,7 @@ class CoordinateSet(np.ndarray):
         for coord_num, coord in enumerate(to_gen):
             # not too worried about looping over coordinates since the number of loops will be like max in the small hundreds
 
+            # with Timer("create displacements ({})".format(order)):
             num_displacements = np.product(stencil_widths)
             displacement_shape = (num_displacements, ) + coords.shape[1:]
             displacements = np.zeros(displacement_shape)
@@ -266,48 +268,54 @@ class CoordinateSet(np.ndarray):
                 displacements[idx] = to_set
 
             # then we broadcast *this* up to the total number of walkers we have
+            # with Timer("create displaced coords ({})".format(order)):
             full_target_shape = (len(coords), ) + displacement_shape
             coords_expanded = np.expand_dims(coords, 1)
             displaced_coords = np.broadcast_to(coords_expanded, full_target_shape) # creates the displaced coordinate sets
             full_full_displacement = np.broadcast_to(displacements, full_target_shape)
             displaced_coords = displaced_coords + full_full_displacement
 
-            # finally we can convert all of our walkers in batch
+            # with Timer("convert displaced coords ({})".format(order)):
+                # finally we can convert all of our walkers in batch
             conv = self.convert_coords(displaced_coords, system)
 
             # now we loop over each of these walkers in turn... this could be slow so I probably need a way to
             # optimize this to do just like a single call...
-            for config_num, converted_coords in enumerate(conv):
+            # with Timer("finite difference stuff ({})".format(order)):
+            # for config_num, converted_coords in enumerate(conv):
 
-                disp, converted_coords = prep(coord, displacements, converted_coords)
-                num_coords = np.product(np.array(converted_coords.shape[-2:]))
-                new_coord_shape = converted_coords.shape[:-2] + (num_coords, )
+            disp, converted_coords = prep(coord, displacements, conv)
 
-                converted_coords = converted_coords.reshape(new_coord_shape)
+            # converted_coords is for _all_ of the walkers so we need to reshape it
+            num_coords = np.product(converted_coords.shape[-2:])
+            new_coord_shape = converted_coords.shape[:-2] + (num_coords, )
+            # raise Exception(new_coord_shape)
+            converted_coords = converted_coords.reshape(new_coord_shape)
 
-                # now we potentially filter out some coords...
-                if gen_partners is not None:
-                    converted_coords = converted_coords[:, gen_partners]
+            # now we potentially filter out some coords...
+            if gen_partners is not None:
+                converted_coords = converted_coords[:, gen_partners]
 
-                # finally we restructure this into a tensor of the appropriate dimension for feeding into the FD code
-                converted_coords = converted_coords.reshape(stencil_widths +  converted_coords.shape[-1:])
+            # finally we restructure this into a tensor of the appropriate dimension for feeding into the FD code
+            converted_coords = converted_coords.reshape((len(conv), ) + stencil_widths +  converted_coords.shape[-1:])
 
-                def _get_diff(c):
-                    diffs = np.abs(np.diff(disp[(..., ) + tuple(c) ]))
-                    return np.sort(diffs)[-1] # get the only diff > 0 (assumes we have a regular grid)
+            def _get_diff(c):
+                diffs = np.abs(np.diff(disp[(..., ) + tuple(c) ]))
+                return np.sort(diffs)[-1] # get the only diff > 0 (assumes we have a regular grid)
 
-                h = [ _get_diff(c) for c in coord ]
-                derivs = finite_difference(converted_coords, h = h)
+            h = [ _get_diff(c) for c in coord ]
+            derivs = finite_difference(converted_coords, h = h, axis = 1)
 
-                deriv_center = tuple( int(np.floor(s/2)) for s in derivs.shape[:order] )
-                derivs = derivs[deriv_center]
+            deriv_center = tuple( int(np.floor(s/2)) for s in derivs.shape[:order] )
+            derivs = derivs[deriv_center]
 
-                if full_jacob is None: # we finally know what size it'll be...
-                    jacob_shape = tuple( len( np.unique( to_gen[:, i], axis=0 ) ) for i in range(order) )
-                    full_jacob = np.zeros((len(coords), ) + jacob_shape + derivs.shape)
+            if full_jacob is None: # we finally know what size it'll be...
+                jacob_shape = tuple( len( np.unique( to_gen[:, i], axis=0 ) ) for i in range(order) )
+                full_jacob = np.zeros((len(coords), ) + jacob_shape + derivs.shape[1:])
 
+            for config_num in range(len(coords)): # a python loop but hopefully a relatively cheap one...
                 set_index = (config_num, ) + tuple( np.ravel_multi_index(c, coord_shape) for c in coord )
-                full_jacob[set_index] = derivs
+                full_jacob[set_index] = derivs[config_num]
 
         if not self.multiconfig:
             full_jacob = full_jacob[0]

@@ -28,4 +28,4 @@ class NormalModes(CoordinateSystem):
             weighted_fcs = g * fcs
 
         freqs, modes = np.linalg.eigh(weighted_fcs)
-        cls(modes.T, freqs = freqs, **opts)
+        return cls(modes.T, freqs = freqs, **opts)

@@ -1,4 +1,4 @@
-import abc, numpy as np
+import numpy as np
 from .CoordinateSystemConverter import CoordinateSystemConverters as converters
 
 ######################################################################################################
@@ -7,12 +7,11 @@ from .CoordinateSystemConverter import CoordinateSystemConverters as converters
 ##
 ######################################################################################################
 
-class CoordinateSystem(metaclass=abc.ABCMeta):
+class CoordinateSystem:
     """A representation of a coordinate system. It doesn't do much on its own but it *does* provide a way
     to unify internal, cartesian, derived type coordinates
 
     """
-    @abc.abstractmethod
     def __init__(self, name = None, basis = None, matrix = None, dimension = None):
         self.name = name
         self._basis = basis
@@ -31,7 +30,6 @@ class CoordinateSystem(metaclass=abc.ABCMeta):
             return True
 
     @property
-    @abc.abstractmethod
     def basis(self):
         """The basis for the representation of CoordinateSystem.matrix
 
@@ -41,7 +39,6 @@ class CoordinateSystem(metaclass=abc.ABCMeta):
         return self._basis
 
     @property
-    @abc.abstractmethod
     def matrix(self):
         """The matrix representation in the CoordinateSystem.basis
         None is shorthand for the identity matrix
@@ -52,7 +49,6 @@ class CoordinateSystem(metaclass=abc.ABCMeta):
         return self._matrix
 
     @property
-    @abc.abstractmethod
     def dimension(self):
         """The dimension of the coordinate system
         None means unspecified dimension
@@ -113,13 +109,3 @@ class BaseCoordinateSystem(CoordinateSystem):
 
     def __init__(self, name, dimension = None, matrix = None):
         super().__init__(name=name, dimension=dimension, basis=self, matrix=matrix)
-
-    @property
-    def basis(self):
-        return self._basis
-    @property
-    def matrix(self):
-        return self._matrix
-    @property
-    def dimension(self):
-        return self._dimension
