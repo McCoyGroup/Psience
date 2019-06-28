@@ -1,4 +1,5 @@
-import abc
+import abc, numpy as np
+from .CoordinateSystemConverter import CoordinateSystemConverters as converters
 
 ######################################################################################################
 ##
@@ -61,6 +62,34 @@ class CoordinateSystem(metaclass=abc.ABCMeta):
         """
         return self._dimension
 
+    def converter(self, system):
+        """Gets the converter from the current system to a new system
+
+        :param system: the target CoordinateSystem
+        :type system: CoordinateSystem
+        :return:
+        :rtype: CoordinateSystem
+        """
+
+        return converters.get_converter(self, system)
+
+    def displacement(self, amts):
+        """Generates a displacement or matrix of displacements based on the vector or matrix amts
+
+        :param amts:
+        :type amts: np.ndarray
+        :return:
+        :rtype: np.ndarray
+        """
+        if self.matrix is None:
+            return amts
+        else:
+            if isinstance(amts, (float, int, np.integer, np.float)):
+                amts = np.full(self.matrix.shape[-1], amts)
+            return np.matmul(self.matrix, amts)
+
+    jacobian_prep_coordinates = None # used unsurprisingly in prepping data fed into Jacobian calculation
+
 ######################################################################################################
 ##
 ##                                   CoordinateSystemException Class
@@ -68,3 +97,29 @@ class CoordinateSystem(metaclass=abc.ABCMeta):
 ######################################################################################################
 class CoordinateSystemException(Exception):
     pass
+
+
+######################################################################################################
+##
+##                                   BaseCoordinateSystem Class
+##
+######################################################################################################
+
+class BaseCoordinateSystem(CoordinateSystem):
+    """A CoordinateSystem object that can't be reduced further.
+    A common choice might be Cartesian coordinates or internal coordinates
+
+    """
+
+    def __init__(self, name, dimension = None, matrix = None):
+        super().__init__(name=name, dimension=dimension, basis=self, matrix=matrix)
+
+    @property
+    def basis(self):
+        return self._basis
+    @property
+    def matrix(self):
+        return self._matrix
+    @property
+    def dimension(self):
+        return self._dimension

@@ -123,3 +123,17 @@ class CoordinateSystemConverter(metaclass=abc.ABCMeta):
         :type kwargs:
         """
         pass
+
+    def Jacobian(self, system, dimension = 1, step_size = .001, **kw):
+        """Numerically computes derivatives to go from the current coordinate system to a new one
+
+        :param system: the target coordinate system
+        :type system:
+        :param dimension:
+        :type dimension:
+        :param kw:
+        :type kw:
+        :return:
+        :rtype:
+        """
+

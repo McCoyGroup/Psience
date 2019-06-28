@@ -1,8 +1,8 @@
 
 
-from .CoordinateSet import *
-from .BaseCoordinateSystem import *
-from .CommonCoordinateSystems import InternalCoordinateSystem, CartesianCoordinateSystem
+from .CoordinateSet import CoordinateSet
+from .CommonCoordinateSystems import InternalCoordinateSystem, CartesianCoordinateSystem, ZMatrixCoordinateSystem, \
+    SphericalCoordinateSystem
 from .CommonCoordinateSystems import CartesianCoordinates3D, ZMatrixCoordinates, SphericalCoordinates
 from .CoordinateSystem import *
 from .CoordinateSystemConverter import *

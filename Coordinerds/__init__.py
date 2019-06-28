@@ -5,3 +5,7 @@ coordinate system. A flexible system for converting between coordinate systems a
 provided.
 
 """
+
+from .CoordinateSystems import CoordinateSet, CartesianCoordinates3D, ZMatrixCoordinates, SphericalCoordinates,\
+    InternalCoordinateSystem, CartesianCoordinateSystem, ZMatrixCoordinateSystem, SphericalCoordinateSystem, \
+    BaseCoordinateSystem, CoordinateSystem
