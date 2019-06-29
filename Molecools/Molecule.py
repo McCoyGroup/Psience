@@ -1,4 +1,9 @@
-from collections import OrderedDict
+"""
+Provides a simple Molecule class that we can adapt as we need
+Most standard functionality should be served by OpenBabel
+Uses AtomData to get properties and whatnot
+"""
+
 from McUtils.Data import AtomData
 
 class Molecule:
@@ -8,29 +13,115 @@ class Molecule:
     # TODO:
     #   We'll need a) a set of atoms b) a coordinate set
     #    there might be some point at which connectivity would be helpful so I guess we can include that too
-    #   The coordinate set should also allow for multiconfiguration systems I think.
-    #    that way we can store the
-    def __init__(self, atoms, coords, bonds = None):
+    #   The coordinate set should also allow for multiconfiguration systems I think
+    #    that way we can store many copies of a molecule at once
 
-        self._ats = [ AtomData[atom] for atom in atoms ]
+    PYBEL_SUPPORTED = None
+    def __init__(self, atoms, coords, bonds = None, mol = None, **kw):
+        import numpy as np
+        self._ats = [ AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms ]
         self._coords = coords
         self._bonds = bonds
+        self._mol = mol
+        self._kw = kw
 
     @property
     def atoms(self):
         return tuple(a["Symbol"] for a in self._ats)
 
-    def from_zmat(self, zmat):
-        pass
-    def from_file(self, file):
-        pass
+    @classmethod
+    def from_zmat(cls, zmat, **opts):
+        """Little z-matrix importer
+
+        :param zmat:
+        :type zmat: str | tuple
+        :return:
+        :rtype: Molecule
+        """
+        from ..Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
+
+        if isinstance(zmat, str):
+            from McUtils.Parsers.ParserUtils import pull_zmat
+            zmcs = pull_zmat(zmat)
+        else:
+            zmcs = zmat
+
+        coords = CoordinateSet([ zmcs[1] ], ZMatrixCoordinates).convert(CartesianCoordinates3D)
+
+        return cls(zmcs[0], coords, **opts)
+
+    @classmethod
+    def from_pybel(cls, mol, **opts):
+        """
+
+        :param mol:
+        :type mol: pybel.mol
+        :return:
+        :rtype:
+        """
+        import openbabel.openbabel as ob
+        bonds = list(ob.OBMolBondIter(mol.OBMol))
+        atoms = list(mol.atoms)
+
+        opts = dict({'bonds':bonds, 'mol':mol}, **opts)
+        return cls(atoms, [a.coords for a in atoms], **opts)
+
+    @classmethod
+    def from_file(cls, file, **opts):
+        """In general we'll delegate to pybel except for like Fchk and Log files
+
+        :param file:
+        :type file:
+        :return:
+        :rtype:
+        """
+        import os
+        path, ext = os.path.splitext(file)
+
+        if ext == '.log':
+            from McUtils.GaussianInterface import GaussianLogReader
+            with GaussianLogReader(file) as gr:
+                parse = gr.parse('CartesianCoordinates', num=1)
+            spec, coords = parse['CartesianCoordinates']
+            return cls(
+                [ int(a[1]) for a in spec ],
+                coords[0],
+                **opts
+            )
+        elif ext == '.fchk':
+            from McUtils.GaussianInterface import GaussianFChkReader
+            with GaussianFChkReader(file) as gr:
+                parse = gr.parse(['Coordinates', 'AtomicNumbers'])
+            return cls(
+                parse["AtomicNumbers"],
+                parse["Coordinates"],
+                **opts
+            )
+        elif cls._pybel_installed():
+            import openbabel.pybel as pybel
+            mol = next(pybel.readfile(ext, file))
+            return cls.from_pybel(mol)
+        else:
+            raise IOError("{} doesn't support file type {} without OpenBabel installed.".format(cls.__name__, ext))
+
+    @classmethod
+    def _pybel_installed(cls):
+        if cls.PYBEL_SUPPORTED is None:
+            try:
+                import openbabel.pybel
+            except ImportError:
+                cls.PYBEL_SUPPORTED = False
+            else:
+                cls.PYBEL_SUPPORTED = True
+
+        return cls.PYBEL_SUPPORTED
 
     def plot(self,
              figure = None,
              bond_radius = .1, atom_radius_scaling = .25,
              atom_style = None,
              bond_style = None,
-             mode = 'real'
+             mode = 'fast'
              ):
         from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk
 
@@ -48,7 +139,7 @@ class Molecule:
         if bond_style is None:
             bond_style = {}
 
-        if bond_style is not False:
+        if bond_style is not False and self._bonds is not None:
             c_class = Line if mode == 'fast' else Cylinder
             for b in self._bonds:
                 atom1 = b[0]
