@@ -7,7 +7,7 @@ import numpy as np
 def is_multiconfig(coords):
     return len(coords.shape) > 2
 
-def mc_safe_apply(self, fun, coords = None):
+def mc_safe_apply(fun, coords):
     """Applies fun to the coords in such a way that it will apply to an array of valid
     coordinates (as determined by dimension of the basis). This will either be a single configuration
     or multiple configurations
@@ -17,8 +17,7 @@ def mc_safe_apply(self, fun, coords = None):
     :return:
     :rtype:
     """
-    if coords is None:
-        coords = self
+
     if is_multiconfig(coords):
         base_shape = coords.shape
         new_shape = (np.product(base_shape[:-2]),) + base_shape[-2:]

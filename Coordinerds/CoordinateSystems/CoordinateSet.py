@@ -106,6 +106,10 @@ class CoordinateSet(np.ndarray):
         :rtype:
         """
 
-        return self.system.jacobian(self, system, order=order, mesh_spacing=mesh_spacing, prep=prep, coordinates=coordinates,
+        return self.system.jacobian(self, system,
+                                    order=order,
+                                    mesh_spacing=mesh_spacing,
+                                    prep=prep,
+                                    coordinates=coordinates,
                                     **fd_options
                                     )

@@ -2,5 +2,5 @@
 Molecules provides wrapper utilities for working with and visualizing molecular systems
 """
 
-from .Modes import NormalModes
+from .Vibrations import NormalModeCoordiantes
 from .Molecule import Molecule
