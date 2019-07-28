@@ -267,7 +267,6 @@ class CoordinateSystem:
 class CoordinateSystemException(Exception):
     pass
 
-
 ######################################################################################################
 ##
 ##                                   BaseCoordinateSystem Class

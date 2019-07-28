@@ -4,7 +4,7 @@ Provides the conversion framework between coordinate systems
 
 from collections import OrderedDict as odict
 import os, abc, numpy as np
-from ..Utilities.ExtensionLoader import ExtensionLoader
+from McUtils.Misc import ExtensionLoader
 
 ######################################################################################################
 ##
