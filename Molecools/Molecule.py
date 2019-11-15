@@ -22,6 +22,7 @@ class Molecule:
     #    that way we can store many copies of a molecule at once
 
     PYBEL_SUPPORTED = None
+    OC_SUPPORTED = None
     def __init__(self, atoms, coords,
                  bonds = None,
                  mol = None,
@@ -52,7 +53,7 @@ class Molecule:
         """
 
         if isinstance(zmat, str):
-            from McUtils.Parsers.ParserUtils import pull_zmat
+            from McUtils.Parsers.RegexPatterns import pull_zmat
             zmcs = pull_zmat(zmat)
         else:
             zmcs = zmat
@@ -115,6 +116,7 @@ class Molecule:
             import openbabel.pybel as pybel
             mol = next(pybel.readfile(ext, file))
             return cls.from_pybel(mol)
+
         else:
             raise IOError("{} doesn't support file type {} without OpenBabel installed.".format(cls.__name__, ext))
 
@@ -130,13 +132,25 @@ class Molecule:
 
         return cls.PYBEL_SUPPORTED
 
+    @classmethod
+    def _oc_installed(cls):
+        if cls.OC_SUPPORTED is None:
+            try:
+                import openchemistry.io
+            except ImportError:
+                cls.OC_SUPPORTED = False
+            else:
+                cls.OC_SUPPORTED = True
+
+        return cls.OC_SUPPORTED
+
     def plot(self,
              *geometries,
              figure = None,
              bond_radius = .1, atom_radius_scaling = .25,
              atom_style = None,
              bond_style = None,
-             mode = 'fast',
+             mode = 'normal',
              objects = False,
              **plot_ops
              ):
@@ -146,7 +160,7 @@ class Molecule:
             geometries = (self._coords, )
 
         if figure is None:
-            figure = Graphics3D(**plot_ops)
+            figure = Graphics3D(backend="VTK", **plot_ops)
 
         colors = [ at["IconColor"] for at in self._ats ]
         radii = [ atom_radius_scaling * at["IconRadius"] for at in self._ats ]

@@ -1,5 +1,7 @@
 from abc import *
-from McUtils.Plots import Graphics
+
+class WavefunctionException(Exception):
+    pass
 
 class Wavefunction:
     """Represents a single wavefunction object"""
@@ -9,11 +11,11 @@ class Wavefunction:
         self.parent = parent
         self.opts   = opts
     @abstractmethod
-    def plot(self, figure = None):
-        """Uses matplotlib to plot the wavefunction on the passed figure (makes a new one if none)
+    def plot(self, figure = None, **opts):
+        """Uses McUtils to plot the wavefunction on the passed figure (makes a new one if none)
 
         :param figure:
-        :type figure: Graphics
+        :type figure: Graphics | Graphics3D
         :return:
         :rtype:
         """
@@ -67,7 +69,10 @@ class Wavefunctions:
         for eng,wfn in zip(self.energies, self.wavefunctions):
             yield self.wavefunction_class(eng, wfn, parent = self, **self.opts)
 
-    def plot(self, **opts):
+    def frequencies(self, start_at = 0):
+        return self.energies[1+start_at:] - self.energies[start_at]
+
+    def plot(self, figure = None, graphics_class = None, plot_style = None, **opts):
         """Plots all of the wavefunctions on one set of axes
 
         :param opts:
@@ -75,12 +80,29 @@ class Wavefunctions:
         :return:
         :rtype:
         """
+        from McUtils.Plots import Graphics, Graphics3D
 
         k = "plot_defaults"
         opts = dict(self.opts[k] if k in self.opts else (), **opts)
 
-        p = Graphics(**opts)
-        for wfn in self:
-            wfn.plot(p)
+        if figure == None:
+            dim = self.opts['dimension'] if 'dimension' in self.opts else 1
+            if graphics_class is None:
+                if dim ==1:
+                    graphics_class = Graphics
+                elif dim == 2:
+                    graphics_class = Graphics3D
+                else:
+                    raise WavefunctionException(
+                        "{}.{}: don't know how to plot wavefunctions of dimension {}".format(
+                            type(self).__name__, 'plot', dim
+                        )
+                    )
+            figure = graphics_class(**opts)
 
-        return p
+        if plot_style is None:
+            plot_style = {}
+        for wfn in self:
+            wfn.plot(figure, **plot_style)
+
+        return figure

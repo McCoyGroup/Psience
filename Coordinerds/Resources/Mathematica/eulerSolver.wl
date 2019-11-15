@@ -40,7 +40,7 @@ getPyEulerMat[orientation_]:=
       strlens,
       paddedStrings
       },
-    mat=mat/.{Cos[x_]:>"c["<>ToString[x]<>"]",Sin[x_]:>"s["<>ToString[x]<>"]"};
+    mat=mat/.{Cos[x_]:>"compiled["<>ToString[x]<>"]",Sin[x_]:>"s["<>ToString[x]<>"]"};
     mat=pyReduce[mat];
     strlens=Max/@Map[StringLength, Transpose[mat], {2}];
     paddedStrings=
