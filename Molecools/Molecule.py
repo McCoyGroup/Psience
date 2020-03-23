@@ -4,11 +4,12 @@ Most standard functionality should be served by OpenBabel
 Uses AtomData to get properties and whatnot
 """
 
-from McUtils.Data import AtomData
-from ..Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
+from McUtils.Data import AtomData, UnitsData, BondData
+from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
 
 __all__ = [
-    "Molecule"
+    "Molecule",
+    "MolecoolException"
 ]
 
 class Molecule:
@@ -42,6 +43,12 @@ class Molecule:
     def atoms(self):
         return tuple(a["Symbol"] for a in self._ats)
 
+    @property
+    def bonds(self):
+        if self._bonds is None:
+            self._bonds = self.guess_bonds()
+        return self._bonds
+
     @classmethod
     def from_zmat(cls, zmat, **opts):
         """Little z-matrix importer
@@ -53,14 +60,65 @@ class Molecule:
         """
 
         if isinstance(zmat, str):
-            from McUtils.Parsers.RegexPatterns import pull_zmat
-            zmcs = pull_zmat(zmat)
+            from McUtils.Parsers import StringParser, ZMatPattern
+            zmcs = StringParser(ZMatPattern).parse(zmat)
         else:
             zmcs = zmat
 
         coords = CoordinateSet([ zmcs[1] ], ZMatrixCoordinates).convert(CartesianCoordinates3D)
 
         return cls(zmcs[0], coords, **opts)
+
+    def guess_bonds(self, tol=1.05, guess_type=True):
+        """
+        Guesses the bonds for the molecule by finding the ones that are less than some percentage of a single bond for that
+        pair of elements
+
+        :return:
+        :rtype:
+        """
+        import numpy as np, itertools as ip
+
+        #TODO: generalize this to work for multiple configurations at once
+        cds = np.asarray(self._coords)[:, np.newaxis]
+        dist_mat = np.linalg.norm(cds - cds.transpose(1, 0, 2), axis=2)
+        atoms = np.array([a["ElementSymbol"] for a in self._ats])
+        pair_dists = np.array([ BondData.get_distance((a1, a2, 1), default=-1) for a1, a2 in ip.product(atoms, atoms) ]).reshape(
+            len(atoms), len(atoms)
+        )
+        pair_dists[np.tril_indices_from(pair_dists)] = -1
+
+        pair_dists *= tol
+        pos = np.array(np.where(dist_mat < pair_dists)).T
+
+        if len(pos) == 0:
+            return []
+
+        if guess_type:
+            bonds = [None] * len(pos)
+            for i,ats in enumerate(pos):
+                a1, a2 = ats
+                test_data = BondData[atoms[a1], atoms[a2], None]
+                key = None
+                ref = 100
+                dist = dist_mat[a1, a2]
+                for t,d in test_data.items():
+                    if dist < tol*d and d < ref:
+                        ref = d
+                        key = t
+                if key == "Single":
+                    key = 1
+                elif key == "Double":
+                    key = 2
+                elif key == "Triple":
+                    key = 3
+                bonds[i] = [a1, a2, key]
+        else:
+            bonds = np.column_stack(pos, np.full((len(pos), 1), 1) )
+
+        #TODO: should maybe put some valence checker in here?
+
+        return bonds
 
     @classmethod
     def from_pybel(cls, mol, **opts):
@@ -103,10 +161,13 @@ class Molecule:
         elif ext == '.fchk':
             from McUtils.GaussianInterface import GaussianFChkReader
             with GaussianFChkReader(file) as gr:
-                parse = gr.parse(['Coordinates', 'AtomicNumbers', "ForceConstants", "ForceDerivatives"])
+                parse = gr.parse(['Coordinates', 'AtomicNumbers', 'Integer atomic weights', "ForceConstants", "ForceDerivatives"])
+            nums = parse["AtomicNumbers"]
+            wts = parse['Integer atomic weights']
+            # print(nums, wts)
             mol = cls(
-                parse["AtomicNumbers"],
-                parse["Coordinates"],
+                [AtomData[a]["Symbol"]+str(b) for a,b in zip(nums, wts)],
+                UnitsData.convert("BohrRadius", "Angstroms") * parse["Coordinates"],
                 **opts
             )
             mol.force_constants = parse["ForceConstants"].array
@@ -150,17 +211,24 @@ class Molecule:
              bond_radius = .1, atom_radius_scaling = .25,
              atom_style = None,
              bond_style = None,
-             mode = 'normal',
+             mode = 'fast',
              objects = False,
              **plot_ops
              ):
         from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk
 
         if len(geometries) == 0:
-            geometries = (self._coords, )
+            geometries = CoordinateSet([self._coords], self._coords.system)
+        elif len(geometries) == 1 and isinstance(geometries[0], CoordinateSet):
+            geometries = geometries[0]
+        else:
+            geometries = CoordinateSet(geometries, self._coords.system)
+
+        geometries = geometries.convert(CartesianCoordinates3D)
 
         if figure is None:
-            figure = Graphics3D(backend="VTK", **plot_ops)
+            #backend = "VTK" -- once the VTK backend is more fleshed out we can use it...
+            figure = Graphics3D(**plot_ops)
 
         colors = [ at["IconColor"] for at in self._ats ]
         radii = [ atom_radius_scaling * at["IconRadius"] for at in self._ats ]
@@ -176,10 +244,11 @@ class Molecule:
         c_class = Line if mode == 'fast' else Cylinder
         s_class = Disk if mode == 'fast' else Sphere
         for i, geom in enumerate(geometries):
-            if bond_style is not False and self._bonds is not None:
+            bond_list = self.bonds
+            if bond_style is not False and bond_list is not None:
 
-                bonds[i] = [None] * len(self._bonds)
-                for j, b in enumerate(self._bonds):
+                bonds[i] = [None] * len(bond_list)
+                for j, b in enumerate(bond_list):
                     atom1 = b[0]
                     atom2 = b[1]
                     # i'm not supporting double or triple bonds for not because they're just too much of a pain...
@@ -218,25 +287,31 @@ class Molecule:
                     if objects:
                         atoms[i][j] = sphere
                     else:
-                        atoms[i][j] = sphere.plot(figure)[0]
+                        plops = sphere.plot(figure)
+                        if isinstance(plops, tuple):
+                            atoms[i][j] = plops[0]
+                        else:
+                            atoms[i][j] = plops
 
         return figure, atoms, bonds
 
+    def get_normal_modes(self, **kwargs):
+        from .Vibrations import NormalModeCoordinates, VibrationalModes
+
+        try:
+            fcs = self.force_constants
+        except AttributeError:
+            raise MolecoolException("{} needs '{}' bound to calculate {}".format(
+                type(self).__name__,
+                'force_constants',
+                'normal_modes'
+            ))
+
+        return VibrationalModes(self, NormalModeCoordinates.from_force_constants(fcs, self.atoms, **kwargs))
     @property
     def normal_modes(self):
         if self._normal_modes is None:
-            from .Vibrations import NormalModeCoordiantes, VibrationalModes
-
-            try:
-                fcs = self.force_constants
-            except AttributeError:
-                raise MolecoolException("{} needs '{}' bound to calculate {}".format(
-                    type(self).__name__,
-                    'force_constants',
-                    'normal_modes'
-                ))
-
-            self._normal_modes = VibrationalModes(self, NormalModeCoordiantes.from_force_constants(fcs, self.atoms))
+            self._normal_modes = self.get_normal_modes()
         return self._normal_modes
 
     def _get_ob_attr(self, item):

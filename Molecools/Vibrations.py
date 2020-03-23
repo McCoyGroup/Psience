@@ -1,12 +1,12 @@
-from ..Coordinerds.CoordinateSystems import CoordinateSystem, CartesianCoordinates3D, CoordinateSet
+from McUtils.Coordinerds.CoordinateSystems import CoordinateSystem, CartesianCoordinates3D, CoordinateSet
 from McUtils.Data import AtomData, UnitsData
 from .Molecule import Molecule
 
-import numpy as np
+import numpy as np, scipy.linalg as slag
 
 __all__ = [
-    "NormalModeCoordiantes",
-    "GMatrix"
+    "VibrationalModes",
+    "NormalModeCoordinates",
 ]
 
 class VibrationalModes:
@@ -24,31 +24,39 @@ class VibrationalModes:
         self._mol = molecule
         self._coords = init if init is not None else self._mol._coords
         self._basis = basis
-        self.freqs = freqs if freqs is not None else basis.freqs
+        if freqs is None and hasattr(basis, "freqs"):
+            freqs = basis.freqs
+        self.freqs = freqs
 
     def __len__(self):
         return self._basis.matrix.shape[0]
 
-    def displace(self, amt = .1, n = 1, which = 0):
+    def displace(self, displacements = None, amt = .1, n = 1, which = 0):
 
-        displacements = CoordinateSet(np.zeros((n, self._basis.dimension)), self._basis)
-        displacements[:, which] = self._basis.displacement(np.arange(1, n+1)*amt)
+        if displacements is None:
+            displacements = self._basis.displacement(np.arange(1, n+1)*amt)
+        displacements = np.asarray(displacements)
+        if displacements.ndim == 1:
+            disp_coords = CoordinateSet(np.zeros((n,) + self._basis.coordinate_shape), self._basis)
+            disp_coords[:, which] = displacements
+        else:
+            disp_coords = CoordinateSet(displacements, self._basis)
         coords = np.broadcast_to(self._coords, (n, ) + self._coords.shape)
-        displacements = displacements.convert(self._coords.system)
-        displaced = displacements + coords
+        disp_coords = disp_coords.convert(self._coords.system)
+        displaced = coords + disp_coords
         return displaced
 
-    def visualize(self, step_size = .1, steps = (5, 5), which = 0, anim_opts = None, **plot_args):
+    def visualize(self, step_size = .1, steps = (5, 5), which = 0, anim_opts = None, mode = 'fast', **plot_args):
         from McUtils.Plots import Animator
 
         if isinstance(steps, (int, np.integer)):
             steps = [steps, steps]
 
-        left  = np.flip(self.displace( -step_size, steps[0], which), axis=0)
-        right = self.displace(  step_size, steps[1], which)
+        left  = np.flip(self.displace(amt=-step_size, n=steps[0], which=which), axis=0)
+        right = self.displace(amt=step_size, n=steps[1], which=which)
         all_geoms = np.concatenate((left, np.broadcast_to(self._coords, (1, ) + self._coords.shape), right))
 
-        figure, atoms, bonds = self._mol.plot(*all_geoms, objects = True, **plot_args)
+        figure, atoms, bonds = self._mol.plot(*all_geoms, objects = True, mode = mode, **plot_args)
 
         def animate(*args, frame = 0, _atoms = atoms, _bonds = bonds, _figure = figure):
 
@@ -66,7 +74,11 @@ class VibrationalModes:
             if _bonds[frame] is not None:
                 for b in _bonds[frame]:
                     for bb in b:
-                        my_stuff.extend(bb.plot(figure))
+                        p = bb.plot(figure)
+                        try:
+                            my_stuff.extend(p)
+                        except ValueError:
+                            my_stuff.append(p)
 
             return my_stuff
 
@@ -74,7 +86,7 @@ class VibrationalModes:
             anim_opts = {}
         return Animator(figure, None, plot_method = animate, **anim_opts)
 
-class NormalModeCoordiantes(CoordinateSystem):
+class NormalModeCoordinates(CoordinateSystem):
     """A prettied up version of a Coordinerds CoordinateSystem object
     Has function for generating, though, too
     """
@@ -87,64 +99,63 @@ class NormalModeCoordiantes(CoordinateSystem):
         self.freqs = freqs
 
     @classmethod
-    def from_force_constants(cls, fcs, atoms = None, target_units = "Wavenumbers", **opts):
-        if atoms is None:
-            # intended for the internal coordinate case where it's hard to define masses in general
-            weighted_fcs = fcs
-        else:
-            masses = np.array([
-                AtomData[a, "Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-                    if isinstance(a, str) else
-                a
-                    for a in atoms
-            ])
-            masses = np.broadcast_to(masses, (len(masses), 3)).T.flatten()
-            g = 1/np.sqrt(masses)
-            g = np.outer(g, g)
-            weighted_fcs = g * fcs
+    def from_force_constants(cls, fcs,
+                             atoms = None,
+                             masses = None,
+                             mass_units = "AtomicMassUnits",
+                             inverse_mass_matrix = False,
+                             energy_units = "Wavenumbers",
+                             remove_transrot = True,
+                             normalize = True,
+                             **opts
+                             ):
+        """Generates normal modes from the specified force constants
 
-        freqs, modes = np.linalg.eigh(weighted_fcs)
+        :param fcs:
+        :type fcs:
+        :param atoms:
+        :type atoms:
+        :param masses:
+        :type masses:
+        :param target_units:
+        :type target_units:
+        :param opts:
+        :type opts:
+        :return:
+        :rtype:
+        """
+
+        if atoms is not None and masses is None:
+            masses = np.array([AtomData[a, "Mass"] if isinstance(a, str) else a for a in atoms])
+
+        if mass_units != "AtomicUnitOfMass" and mass_units != "ElectronMass":
+            mass_conv = UnitsData.convert(mass_units, "AtomicUnitOfMass"),
+        else:
+            mass_conv = 1
+
+        if masses is not None:
+            masses = np.asarray(masses)
+            masses = masses*mass_conv
+            if masses.ndim == 1:
+                masses = np.broadcast_to(masses, (len(masses), 3)).T.flatten()
+                masses = np.diag(masses)
+                inverse_mass_matrix = True
+        else:
+            masses = np.eye(len(fcs))
+
+        freqs, modes = slag.eigh(fcs, masses, type=(1 if inverse_mass_matrix else 3))
+        if normalize:
+            normalization = np.broadcast_to(1/np.linalg.norm(modes, axis=0), modes.shape)
+            modes = modes * normalization
+
         freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
         sorting = np.argsort(freqs)
+        if remove_transrot:
+            sorting = sorting[6:]
+
         freqs = freqs[sorting]
-        if target_units is not None and target_units == "Wavenumbers":
-            freqs = freqs * UnitsData.convert("Hartrees", "Wavenumbers")
-        modes = modes.T[sorting]
+        if energy_units is not None and energy_units != "Hartrees":
+            freqs = freqs * UnitsData.convert("Hartrees", energy_units)
+        modes = modes[:, sorting]
 
         return cls(modes, freqs = freqs, **opts)
-
-#TODO: make it possible to just extract certain G-matrix elements without computing the whole thing
-class GMatrix:
-    """Represents Wilson's G Matrix between two coordinate systems"""
-    def __init__(self, system1, system2, masses, **fd_opts):
-        self.sys1 = system1
-        self.sys2 = system2
-        self.masses = masses,
-        self.opts = fd_opts
-        self._jacobian = None
-
-    @property
-    def array(self):
-        """Returns the numpy array form of the G-matrix
-
-        :return:
-        :rtype: np.ndarray
-        """
-        return self.asarray()
-    @property
-    def jacobian(self):
-        if self._jacobian is None:
-            self._jacobian = self.sys1.jacobian(self.sys2, **self.opts)
-        return self._jacobian
-    def asarray(self, **opts):
-        if len(opts) == 0:
-            jacobian = self.jacobian
-        else:
-            opts = dict(self.opts, **opts)
-            jacobian = self.sys1.jacobian(self.sys2, **opts)
-        jj = np.matmul(jacobian, jacobian.T)
-        if self.masses is not None:
-            jj = self.masses * jj # mass weight by the rows
-        return jj
-
-

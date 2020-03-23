@@ -1,5 +1,11 @@
 from abc import *
 
+__all__ = [
+    "Wavefunction",
+    "Wavefunctions",
+    "WavefunctionException"
+]
+
 class WavefunctionException(Exception):
     pass
 
@@ -53,18 +59,20 @@ class Wavefunctions:
         self.wavefunction_class = wavefunction_class
         self.opts = opts
 
-    def __getitem__(self, item):
-        """Returns a single Wavefunction object"""
-        # iter comes for free with this
-        if isinstance(item, slice):
+    def get_wavefunctions(self, which):
+        if isinstance(which, slice):
             return type(self)(
-                energies = self.energies[item],
-                wavefunctions = self.wavefunctions[item],
+                energies = self.energies[which],
+                wavefunctions = self.wavefunctions[which],
                 wavefunction_class = self.wavefunction_class,
                 **self.opts
             )
         else:
-            self.wavefunction_class(self.energies[item], self.wavefunctions[item], parent = self, **self.opts)
+            return self.wavefunction_class(self.energies[which], self.wavefunctions[which], parent = self, **self.opts)
+    def __getitem__(self, item):
+        """Returns a single Wavefunction object"""
+        # iter comes for free with this
+        return self.get_wavefunctions(item)
     def __iter__(self):
         for eng,wfn in zip(self.energies, self.wavefunctions):
             yield self.wavefunction_class(eng, wfn, parent = self, **self.opts)
