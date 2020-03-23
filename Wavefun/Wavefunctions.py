@@ -47,6 +47,7 @@ class Wavefunction:
         """
         return self.expectation(lambda a:a, self)
 
+
 class Wavefunctions:
     """An object representing a set of wavefunctions.
     Provides concrete, but potentially inefficient methods for doing all the wavefunction ops.
