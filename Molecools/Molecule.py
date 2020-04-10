@@ -13,14 +13,9 @@ __all__ = [
 ]
 
 class Molecule:
-    """General purpose 'Molecule' class where the 'Molecule' need not be a molecule at all
-
     """
-    # TODO:
-    #   We'll need a) a set of atoms b) a coordinate set
-    #    there might be some point at which connectivity would be helpful so I guess we can include that too
-    #   The coordinate set should also allow for multiconfiguration systems I think
-    #    that way we can store many copies of a molecule at once
+    General purpose 'Molecule' class where the 'Molecule' need not be a molecule at all
+    """
 
     PYBEL_SUPPORTED = None
     OC_SUPPORTED = None
@@ -33,7 +28,13 @@ class Molecule:
         self._ats = [ AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms ]
         if not isinstance(coords, CoordinateSet):
             coords = CoordinateSet(coords)
+        if not coords.system is CartesianCoordinates3D:
+            sys = CartesianCoordinates3D
+            coords = coords.convert(CartesianCoordinates3D)
+        else:
+            sys = coords.system
         self._coords = coords
+        self._sys = sys
         self._bonds = bonds
         self._mol = mol
         self._kw = kw
@@ -42,12 +43,14 @@ class Molecule:
     @property
     def atoms(self):
         return tuple(a["Symbol"] for a in self._ats)
-
     @property
     def bonds(self):
         if self._bonds is None:
             self._bonds = self.guess_bonds()
         return self._bonds
+    @property
+    def coords(self):
+        return self._coords
 
     @classmethod
     def from_zmat(cls, zmat, **opts):
@@ -68,6 +71,17 @@ class Molecule:
         coords = CoordinateSet([ zmcs[1] ], ZMatrixCoordinates).convert(CartesianCoordinates3D)
 
         return cls(zmcs[0], coords, **opts)
+
+    def prop(self, name):
+        from .Properties import MolecularProperties, MolecularPropertyError
+        if hasattr(MolecularProperties, name):
+            return getattr(MolecularProperties, name)(self)
+        else:
+            raise MolecularPropertyError("{}.{}: property '{}' unknown".format(
+                type(self).__name__,
+                'prop',
+                name
+            ))
 
     def guess_bonds(self, tol=1.05, guess_type=True):
         """
