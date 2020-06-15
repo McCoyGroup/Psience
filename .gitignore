@@ -3,6 +3,9 @@
 Tests/TestData
 .DS_Store
 .idea
+CMakeLists.txt
+cmake-build-debug
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

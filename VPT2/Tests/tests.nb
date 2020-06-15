@@ -1,0 +1,97 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 12.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      2994,         89]
+NotebookOptionsPosition[      2293,         70]
+NotebookOutlinePosition[      2630,         85]
+CellTagsIndexPosition[      2587,         82]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[BoxData[
+ RowBox[{"<<", "PJLink`"}]], "Input",
+ CellChangeTimes->{{3.764945158597747*^9, 3.764945160619067*^9}},
+ CellLabel->
+  "In[799]:=",ExpressionUUID->"5746e926-aa34-4bdc-b50d-af8716ae6d7c"],
+
+Cell[CellGroupData[{
+
+Cell["Set Up Python", "Subsubsection",
+ CellChangeTimes->{{3.7675483072229757`*^9, 
+  3.767548310022983*^9}},ExpressionUUID->"c918a0f7-10d2-44ce-a745-\
+95becfed9ac3"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"dir", "=", 
+   RowBox[{"Nest", "[", 
+    RowBox[{"DirectoryName", ",", 
+     RowBox[{"NotebookDirectory", "[", "]"}], ",", " ", "2"}], "]"}]}], 
+  ";"}]], "Input",
+ CellChangeTimes->{{3.7675483301934958`*^9, 3.767548338975607*^9}, {
+  3.76754888881851*^9, 3.76754889512154*^9}},
+ CellLabel->
+  "In[807]:=",ExpressionUUID->"fee4d61c-4af4-44c7-8032-d50e153058e7"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"ClosePython", "[", "]"}], ";"}], "//", 
+  "Quiet"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"InstallPython", "[", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"PyEvaluateString", "[", 
+   RowBox[{
+   "\"\<import sys; sys.path.insert(0, '``');\>\"", "~", "TemplateApply", "~",
+     "dir"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"PyEvaluateString", "[", "\"\<import PyVPT\>\"", "]"}]}], "Input",
+ CellChangeTimes->{{3.767548298554201*^9, 3.767548328015829*^9}, {
+  3.767548370502742*^9, 3.767548385341516*^9}, {3.767548679275869*^9, 
+  3.767548687867073*^9}, {3.767548816473405*^9, 3.767548872624487*^9}},
+ CellLabel->
+  "In[808]:=",ExpressionUUID->"f5deddd9-aa94-46c6-af9d-9fbdb69a2077"]
+}, Open  ]],
+
+Cell["Test Gaussian", "Subsection",
+ CellChangeTimes->{{3.767548901175651*^9, 
+  3.767548921240357*^9}},ExpressionUUID->"db10acc3-33ce-46fe-a86d-\
+872406106a13"]
+},
+WindowSize->{808, 755},
+WindowMargins->{{33, Automatic}, {Automatic, 19}},
+FrontEndVersion->"12.0 for Mac OS X x86 (64-bit) (April 8, 2019)",
+StyleDefinitions->"Default.nb"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[558, 20, 200, 4, 30, "Input",ExpressionUUID->"5746e926-aa34-4bdc-b50d-af8716ae6d7c"],
+Cell[CellGroupData[{
+Cell[783, 28, 166, 3, 45, "Subsubsection",ExpressionUUID->"c918a0f7-10d2-44ce-a745-95becfed9ac3"],
+Cell[952, 33, 396, 10, 30, "Input",ExpressionUUID->"fee4d61c-4af4-44c7-8032-d50e153058e7"],
+Cell[1351, 45, 762, 17, 94, "Input",ExpressionUUID->"f5deddd9-aa94-46c6-af9d-9fbdb69a2077"]
+}, Open  ]],
+Cell[2128, 65, 161, 3, 54, "Subsection",ExpressionUUID->"db10acc3-33ce-46fe-a86d-872406106a13"]
+}
+]
+*)
+

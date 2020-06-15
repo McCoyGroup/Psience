@@ -4,7 +4,8 @@ Most standard functionality should be served by OpenBabel
 Uses AtomData to get properties and whatnot
 """
 
-from McUtils.Data import AtomData, UnitsData, BondData
+import os
+from McUtils.Data import AtomData, UnitsData
 from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
 
 __all__ = [
@@ -19,13 +20,23 @@ class Molecule:
 
     PYBEL_SUPPORTED = None
     OC_SUPPORTED = None
-    def __init__(self, atoms, coords,
-                 bonds = None,
-                 mol = None,
+    def __init__(self,
+                 atoms,
+                 coords,
+                 bonds=None,
+                 mol=None,
+                 charge=None,
+                 name=None,
+                 force_constants=None,
+                 dipole_surface=None,
+                 potential_surface=None,
                  **kw
                  ):
         import numpy as np
+        # convert "atoms" into list of atom data
         self._ats = [ AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms ]
+
+        # turn coordinates into a proper CoordinateSet object if necessary
         if not isinstance(coords, CoordinateSet):
             coords = CoordinateSet(coords)
         if not coords.system is CartesianCoordinates3D:
@@ -33,12 +44,26 @@ class Molecule:
             coords = coords.convert(CartesianCoordinates3D)
         else:
             sys = coords.system
+
+        # properties to be returned
         self._coords = coords
         self._sys = sys
         self._bonds = bonds
+        self._charge = charge
+        self._name = name
         self._mol = mol
         self._kw = kw
+        self._fcs = None
         self._normal_modes = None
+
+    def __repr__(self):
+        return "{cls}('{name}', formula='{formula}', shape={shape}, coord_sys={coord_sys})".format(
+            cls=type(self).__name__,
+            name=self.name,
+            formula=self.formula,
+            shape=self.coords.shape,
+            coord_sys=self.coords.system
+        )
 
     @property
     def atoms(self):
@@ -46,11 +71,22 @@ class Molecule:
     @property
     def bonds(self):
         if self._bonds is None:
-            self._bonds = self.guess_bonds()
+            self._bonds = self.prop("guessed_bonds", tol=1.05, guess_type=True)
         return self._bonds
     @property
     def coords(self):
         return self._coords
+    @property
+    def formula(self):
+        return self.prop('chemical_formula')
+    @property
+    def multiconfig(self):
+        return self.coords.multiconfig
+    @property
+    def force_constants(self):
+        if self._fcs is None:
+            self._fcs = self.load_force_constants()
+        return self._fcs
 
     @classmethod
     def from_zmat(cls, zmat, **opts):
@@ -67,15 +103,42 @@ class Molecule:
             zmcs = StringParser(ZMatPattern).parse(zmat)
         else:
             zmcs = zmat
-
-        coords = CoordinateSet([ zmcs[1] ], ZMatrixCoordinates).convert(CartesianCoordinates3D)
-
+        coords = CoordinateSet([zmcs[1]], ZMatrixCoordinates).convert(CartesianCoordinates3D)
         return cls(zmcs[0], coords, **opts)
 
-    def prop(self, name):
+    def take_submolecule(self, spec):
+        """
+        Takes a 'slice' of a molecule if working with Cartesian coords.
+        If not, need to do some corner case handling for that.
+
+        :param spec:
+        :type spec:
+        :return:
+        :rtype:
+        """
+        new_coords = self.coords[spec]
+        new_shape = new_coords.shape
+        cur_shape = self.coords.shape
+        # if we're no longer working with Cartesians, then we say "Abort!"
+        if new_shape[-1] != 3:
+            return new_coords
+        elif new_shape[-2] != cur_shape[-2]:
+            # we have a different number of atoms now...
+            raise IndexError("I haven't implemented slicing for molecules that changes the # of atoms")
+        else:
+            new = self.copy()
+            new._coords = new_coords
+            return new
+
+    def copy(self):
+        import copy
+        # just use the default and don't be fancy
+        return copy.copy(self)
+
+    def prop(self, name, *args, **kwargs):
         from .Properties import MolecularProperties, MolecularPropertyError
         if hasattr(MolecularProperties, name):
-            return getattr(MolecularProperties, name)(self)
+            return getattr(MolecularProperties, name)(self, *args, **kwargs)
         else:
             raise MolecularPropertyError("{}.{}: property '{}' unknown".format(
                 type(self).__name__,
@@ -83,56 +146,39 @@ class Molecule:
                 name
             ))
 
-    def guess_bonds(self, tol=1.05, guess_type=True):
+    def load_force_constants(self, file=None):
         """
-        Guesses the bonds for the molecule by finding the ones that are less than some percentage of a single bond for that
-        pair of elements
+        Loads force constants from a file (or from `source_file` if set)
 
+        :param file:
+        :type file:
         :return:
         :rtype:
         """
-        import numpy as np, itertools as ip
 
-        #TODO: generalize this to work for multiple configurations at once
-        cds = np.asarray(self._coords)[:, np.newaxis]
-        dist_mat = np.linalg.norm(cds - cds.transpose(1, 0, 2), axis=2)
-        atoms = np.array([a["ElementSymbol"] for a in self._ats])
-        pair_dists = np.array([ BondData.get_distance((a1, a2, 1), default=-1) for a1, a2 in ip.product(atoms, atoms) ]).reshape(
-            len(atoms), len(atoms)
-        )
-        pair_dists[np.tril_indices_from(pair_dists)] = -1
+        path, ext = os.path.splitext(file)
+        ext = ext.lower()
 
-        pair_dists *= tol
-        pos = np.array(np.where(dist_mat < pair_dists)).T
-
-        if len(pos) == 0:
-            return []
-
-        if guess_type:
-            bonds = [None] * len(pos)
-            for i,ats in enumerate(pos):
-                a1, a2 = ats
-                test_data = BondData[atoms[a1], atoms[a2], None]
-                key = None
-                ref = 100
-                dist = dist_mat[a1, a2]
-                for t,d in test_data.items():
-                    if dist < tol*d and d < ref:
-                        ref = d
-                        key = t
-                if key == "Single":
-                    key = 1
-                elif key == "Double":
-                    key = 2
-                elif key == "Triple":
-                    key = 3
-                bonds[i] = [a1, a2, key]
+        if ext == ".fchk":
+            from McUtils.GaussianInterface import GaussianFChkReader
+            with GaussianFChkReader(file) as gr:
+                parse = gr.parse(
+                    ['ForceConstants']#, 'ForceDerivatives']
+                )
+            return parse["ForceConstants"].array
+        elif ext == ".log":
+            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
+                type(self).__name__,
+                ext
+            ))
+            from McUtils.GaussianInterface import GaussianLogReader
         else:
-            bonds = np.column_stack(pos, np.full((len(pos), 1), 1) )
+            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
+                type(self).__name__,
+                ext
+            ))
 
-        #TODO: should maybe put some valence checker in here?
-
-        return bonds
+    #TODO: I should put pybel support into McUtils so that it can be used outside the context of a Molecule object
 
     @classmethod
     def from_pybel(cls, mol, **opts):
@@ -151,6 +197,40 @@ class Molecule:
         return cls(atoms, [a.coords for a in atoms], **opts)
 
     @classmethod
+    def _from_log_file(cls, file, **opts):
+        from McUtils.GaussianInterface import GaussianLogReader
+        with GaussianLogReader(file) as gr:
+            parse = gr.parse('StandardCartesianCoordinates', num=1)
+        spec, coords = parse['StandardCartesianCoordinates']
+        return cls(
+            [int(a[1]) for a in spec],
+            coords[0],
+            **opts
+        )
+    @classmethod
+    def _from_fchk_file(cls, file, **opts):
+        from McUtils.GaussianInterface import GaussianFChkReader
+        with GaussianFChkReader(file) as gr:
+            parse = gr.parse(
+                ['Coordinates', 'AtomicNumbers', 'Integer atomic weights']
+            )
+        nums = parse["AtomicNumbers"]
+        wts = parse['Integer atomic weights']
+        # print(nums, wts)
+        mol = cls(
+            [AtomData[a]["Symbol"] + str(b) for a, b in zip(nums, wts)],
+            UnitsData.convert("BohrRadius", "Angstroms") * parse["Coordinates"],
+            **opts
+        )
+        # mol.force_constants = parse["ForceConstants"].array
+        return mol
+
+    _from_file_format_dispatcher = {
+        ".log": _from_log_file,
+        ".fchk": _from_fchk_file
+    }
+
+    @classmethod
     def from_file(cls, file, **opts):
         """In general we'll delegate to pybel except for like Fchk and Log files
 
@@ -161,31 +241,12 @@ class Molecule:
         """
         import os
         path, ext = os.path.splitext(file)
+        ext = ext.lower()
+        opts['source_file'] = file
 
-        if ext == '.log':
-            from McUtils.GaussianInterface import GaussianLogReader
-            with GaussianLogReader(file) as gr:
-                parse = gr.parse('CartesianCoordinates', num=1)
-            spec, coords = parse['CartesianCoordinates']
-            return cls(
-                [ int(a[1]) for a in spec ],
-                coords[0],
-                **opts
-            )
-        elif ext == '.fchk':
-            from McUtils.GaussianInterface import GaussianFChkReader
-            with GaussianFChkReader(file) as gr:
-                parse = gr.parse(['Coordinates', 'AtomicNumbers', 'Integer atomic weights', "ForceConstants", "ForceDerivatives"])
-            nums = parse["AtomicNumbers"]
-            wts = parse['Integer atomic weights']
-            # print(nums, wts)
-            mol = cls(
-                [AtomData[a]["Symbol"]+str(b) for a,b in zip(nums, wts)],
-                UnitsData.convert("BohrRadius", "Angstroms") * parse["Coordinates"],
-                **opts
-            )
-            mol.force_constants = parse["ForceConstants"].array
-            return mol
+        if ext in cls._from_file_format_dispatcher:
+            loader = cls._from_file_format_dispatcher[ext]
+            return loader(file, **opts)
 
         elif cls._pybel_installed():
             import openbabel.pybel as pybel

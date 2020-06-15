@@ -1,9 +1,11 @@
 """
 A collection of methods used in computing molecule properties
 """
-import numpy as np, scipy.sparse as sp
+import numpy as np, scipy.sparse as sp, itertools as ip
 from McUtils.Coordinerds import CoordinateSet, CartesianCoordinateSystem, CartesianCoordinates3D
 from .Molecule import Molecule
+from .Transformations import MolecularTransformation
+from McUtils.Data import AtomData, UnitsData, BondData
 
 __all__ = [
     "MolecularProperties",
@@ -36,7 +38,7 @@ class MolecularProperties:
         :return:
         :rtype:
         """
-        return np.tensordot(masses, coords, axes=[0, -2]) / np.sum(masses)
+        return np.tensordot(masses / np.sum(masses), coords, axes=[0, -2])
 
     @classmethod
     def center_of_mass(cls, mol):
@@ -101,13 +103,17 @@ class MolecularProperties:
         :return:
         :rtype:
         """
+        from McUtils.Numputils import vec_crosses
 
         massy_doop = cls.get_prop_inertia_tensors(coords, masses)
-        return np.linalg.eigh(massy_doop)
+        moms, axes = np.linalg.eigh(massy_doop)
+        axes[:, :, 1] = vec_crosses(axes[:, :, 0], axes[:, :, 2]) # force right-handedness because we can
+        return moms, axes
 
     @classmethod
     def moments_of_inertia(cls, mol):
-        """Computes the moments of inertia
+        """
+        Computes the moments of inertia
 
         :param mol:
         :type mol: Molecule
@@ -116,6 +122,123 @@ class MolecularProperties:
         """
 
         return cls.get_prop_moments_of_inertia(mol.coords, mol.masses)
+
+    @classmethod
+    def get_prop_principle_axis_rotation(cls, coords, masses):
+        """
+        Generates the principle axis transformation for a set of coordinates and positions
+
+        :param coords:
+        :type coords: CoordinateSet
+        :param masses:
+        :type masses: np.ndarray
+        :return:
+        :rtype: MolecularTransformation | List[MolecularTransformation]
+        """
+
+        multiconf = coords.multiconfig
+        transforms = [None]*(1 if not multiconf else len(coords))
+        if multiconf:
+            coords = list(coords)
+        else:
+            coords = [coords]
+        mass = masses
+        for i,c in enumerate(coords):
+            com = cls.get_prop_center_of_mass(c, mass)
+            transf = MolecularTransformation(com)
+            c = transf.apply(c)
+            moms, axes = cls.get_prop_moments_of_inertia(c, mass)
+            transf = MolecularTransformation(transf, axes.T)
+            transforms[i] = transf
+
+        if not multiconf:
+            transforms = transforms[0]
+
+        return transforms
+
+    @classmethod
+    def principle_axis_rotation(cls, mol):
+        """
+        Generates the principle axis transformation for a Molecule
+
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+        return cls.get_prop_principle_axis_rotation(mol.coords, mol.masses)
+
+    @classmethod
+    def get_prop_eckart_transformation(cls, masses, ref, coords):
+        """
+        Computes Eckart transformations for a set of coordinates
+
+        :param masses:
+        :type masses: np.ndarray
+        :param ref:
+        :type ref: CoordinateSet
+        :param coords:
+        :type coords: CoordinateSet
+        :return:
+        :rtype: MolecularTransformation | List[MolecularTransformation]
+        """
+
+        # first we'll put everything in a principle axis frame
+        multiconf = coords.multiconfig
+        transforms = cls.get_prop_principle_axis_rotation(coords, masses)
+        if multiconf:
+            coords = list(coords)
+        else:
+            coords = [coords]
+
+        ref_transf = cls.get_prop_principle_axis_rotation(ref, masses)
+        ref = ref_transf.apply(ref)
+        planar_ref = np.allclose(ref[:, 3], 0.)
+
+        for i, ct in enumerate(zip(coords, transforms)):
+            c = ct[0]
+            t = ct[1] # type: MolecularTransformation
+            c = t.apply(c)
+
+            planar_struct = True if planar_ref else np.allclose(c[:, 3], 0.)
+            is_planar = planar_ref or planar_struct
+            if not is_planar:
+                # generate pair-wise product matrix
+                A = ref[:, :, np.newaxis] * c[:, np.newaxis, :]
+                # take SVD of this
+                U, S, V = np.linalg.svd(A)
+                rot = U @ V.T
+            else:
+                # generate pair-wise product matrix but only in 2D
+                A = ref[:, :2, np.newaxis] * c[:, np.newaxis, :2]
+                U, S, V = np.linalg.svd(A)
+                rot = np.identity(3, np.float)
+                rot[:2, :2] = U @ V.T
+
+            transf = MolecularTransformation(t, rot)
+            transforms[i] = transf
+
+        if not multiconf:
+            transforms = transforms[0]
+
+        return transforms
+
+    @classmethod
+    def eckart_transformation(cls, ref_mol, mol):
+        """
+
+        :param ref_mol:
+        :type ref_mol: Molecule
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+        m1 = ref_mol.masses
+        m2 = mol.masses
+        if m1 != m2:
+            raise ValueError("Eckart reference has different masses ?_?")
+        return cls.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords)
 
     @classmethod
     def get_prop_adjacency_matrix(cls, atoms, bonds):
@@ -250,5 +373,69 @@ class MolecularProperties:
         adj = cls.get_prop_adjacency_matrix(atoms, bonds)
         frags = cls.get_prop_fragments(atoms, bonds)
         conn = cls.get_prop_connectivity(atoms, adj)
+        # TODO: finish this off for real
+
+    @classmethod
+    def guessed_bonds(cls, mol, tol=1.05, guess_type=True):
+        """
+        Guesses the bonds for the molecule by finding the ones that are less than some percentage of a single bond for that
+        pair of elements
+
+        :return:
+        :rtype:
+        """
+
+        if mol.multiconfig:
+            coords = list(np.asarray(mol.coords))
+        else:
+            coords = [np.asarray(mol.coords)]
+        guessed_bonds = [None] * len(coords)
+        for i, coord in enumerate(coords):
+            # TODO: generalize this to work for multiple configurations at once
+            cds = coord[:, np.newaxis]
+            dist_mat = np.linalg.norm(cds - cds.transpose(1, 0, 2), axis=2)
+            atoms = np.array([a["ElementSymbol"] for a in mol._ats])
+            pair_dists = np.array(
+                [BondData.get_distance((a1, a2, 1), default=-1) for a1, a2 in ip.product(atoms, atoms)]).reshape(
+                len(atoms), len(atoms)
+            )
+            pair_dists[np.tril_indices_from(pair_dists)] = -1
+
+            pair_dists *= tol
+            pos = np.array(np.where(dist_mat < pair_dists)).T
+
+            if len(pos) == 0:
+                return []
+
+            if guess_type:
+                bonds = [None] * len(pos)
+                for i, ats in enumerate(pos):
+                    a1, a2 = ats
+                    test_data = BondData[atoms[a1], atoms[a2], None]
+                    key = None
+                    ref = 100
+                    dist = dist_mat[a1, a2]
+                    for t, d in test_data.items():
+                        if dist < tol * d and d < ref:
+                            ref = d
+                            key = t
+                    if key == "Single":
+                        key = 1
+                    elif key == "Double":
+                        key = 2
+                    elif key == "Triple":
+                        key = 3
+                    bonds[i] = [a1, a2, key]
+            else:
+                bonds = np.column_stack(pos, np.full((len(pos), 1), 1))
+
+            guessed_bonds[i] = bonds
+
+        # TODO: should maybe put some valence checker in here?
+        if not mol.multiconfig:
+            guessed_bonds = guessed_bonds[0]
+
+        return guessed_bonds
+
 
 
