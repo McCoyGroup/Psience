@@ -53,7 +53,9 @@ class Molecule:
         self._name = name
         self._mol = mol
         self._kw = kw
-        self._fcs = None
+        self._fcs = force_constants
+        self._dipoles = dipole_surface
+        self._pes = potential_surface
         self._normal_modes = None
 
     def __repr__(self):
@@ -83,16 +85,26 @@ class Molecule:
     def multiconfig(self):
         return self.coords.multiconfig
     @property
+    def name(self):
+        if self._name is None:
+            return "Unnamed"
+        else:
+            return self._name
+    @property
     def force_constants(self):
         if self._fcs is None:
             self._fcs = self.load_force_constants()
         return self._fcs
-
+    @property
+    def potential_surface(self):
+        if self._pes is None:
+            self._pes = self.load_potential_surface()
+        return self._pes
     @property
     def dipole_surface(self):
-        if self._fcs is None:
-            self._fcs = self.load_force_constants()
-        return self._fcs
+        if self._dipoles is None:
+            self._dipoles = self.load_dipole_surface()
+        return self._dipoles
 
     @classmethod
     def from_zmat(cls, zmat, **opts):
@@ -183,6 +195,10 @@ class Molecule:
                 type(self).__name__,
                 ext
             ))
+    def load_potential_surface(self):
+        raise NotImplemented
+    def load_dipole_surface(self):
+        raise NotImplemented
 
     #TODO: I should put pybel support into McUtils so that it can be used outside the context of a Molecule object
 
