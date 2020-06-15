@@ -231,11 +231,6 @@ class Molecule:
         # mol.force_constants = parse["ForceConstants"].array
         return mol
 
-    _from_file_format_dispatcher = {
-        ".log": _from_log_file,
-        ".fchk": _from_fchk_file
-    }
-
     @classmethod
     def from_file(cls, file, **opts):
         """In general we'll delegate to pybel except for like Fchk and Log files
@@ -246,12 +241,17 @@ class Molecule:
         :rtype:
         """
         import os
+
         path, ext = os.path.splitext(file)
         ext = ext.lower()
         opts['source_file'] = file
 
-        if ext in cls._from_file_format_dispatcher:
-            loader = cls._from_file_format_dispatcher[ext]
+        format_dispatcher = {
+            ".log": cls._from_log_file,
+            ".fchk": cls._from_fchk_file
+        }
+        if ext in format_dispatcher:
+            loader = format_dispatcher[ext]
             return loader(file, **opts)
 
         elif cls._pybel_installed():
