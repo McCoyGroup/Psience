@@ -88,6 +88,12 @@ class Molecule:
             self._fcs = self.load_force_constants()
         return self._fcs
 
+    @property
+    def dipole_surface(self):
+        if self._fcs is None:
+            self._fcs = self.load_force_constants()
+        return self._fcs
+
     @classmethod
     def from_zmat(cls, zmat, **opts):
         """Little z-matrix importer

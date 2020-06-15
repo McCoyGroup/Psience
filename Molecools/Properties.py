@@ -437,5 +437,24 @@ class MolecularProperties:
 
         return guessed_bonds
 
+    @classmethod
+    def get_prop_chemical_formula(cls, atoms):
+        """
 
+        :param atoms:
+        :type atoms: list[str]
+        :return:
+        :rtype:
+        """
+        return "".join(a+str(atoms.count(a)) for a in set(atoms))
+    @classmethod
+    def chemical_formula(cls, mol):
+        """
+
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+        return cls.get_prop_chemical_formula(mol.atoms)
 
