@@ -157,7 +157,7 @@ class MolecularProperties:
         return transforms
 
     @classmethod
-    def principle_axis_rotation(cls, mol):
+    def principle_axis_transformation(cls, mol):
         """
         Generates the principle axis transformation for a Molecule
 
@@ -224,7 +224,7 @@ class MolecularProperties:
         return transforms
 
     @classmethod
-    def eckart_transformation(cls, ref_mol, mol):
+    def eckart_transformation(cls, mol, ref_mol):
         """
 
         :param ref_mol:

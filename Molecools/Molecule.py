@@ -200,6 +200,11 @@ class Molecule:
     def load_dipole_surface(self):
         raise NotImplemented
 
+    def principle_axis_frame(self):
+        return self.prop('principle_axis_transformation')
+    def eckart_frame(self, mol):
+        return self.prop('eckart_transformation', mol)
+
     #TODO: I should put pybel support into McUtils so that it can be used outside the context of a Molecule object
 
     @classmethod
