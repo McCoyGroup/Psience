@@ -38,6 +38,7 @@ class MolecularProperties:
         :return:
         :rtype:
         """
+
         return np.tensordot(masses / np.sum(masses), coords, axes=[0, -2])
 
     @classmethod
@@ -105,9 +106,26 @@ class MolecularProperties:
         """
         from McUtils.Numputils import vec_crosses
 
+        if coords.ndim == 1:
+            raise ValueError("can't get moment of inertia for single point (?)")
+        elif coords.ndim == 2:
+            multiconfig = False
+            coords = coords[np.newaxis]
+            extra_shape = None
+        else:
+            multiconfig = True
+            extra_shape = coords.shape[:-2]
+            coords = coords.reshape((np.product(extra_shape),) + coords.shape[:-2])
+
         massy_doop = cls.get_prop_inertia_tensors(coords, masses)
         moms, axes = np.linalg.eigh(massy_doop)
         axes[:, :, 1] = vec_crosses(axes[:, :, 0], axes[:, :, 2]) # force right-handedness because we can
+        if multiconfig:
+            moms = moms.reshape(extra_shape + (3,))
+            axes = axes.reshape(extra_shape + (3, 3))
+        else:
+            moms = moms[0]
+            axes = axes[0]
         return moms, axes
 
     @classmethod
@@ -124,7 +142,7 @@ class MolecularProperties:
         return cls.get_prop_moments_of_inertia(mol.coords, mol.masses)
 
     @classmethod
-    def get_prop_principle_axis_rotation(cls, coords, masses):
+    def get_prop_principle_axis_rotation(cls, coords, masses, sel=None):
         """
         Generates the principle axis transformation for a set of coordinates and positions
 
@@ -138,6 +156,9 @@ class MolecularProperties:
 
         multiconf = coords.multiconfig
         transforms = [None]*(1 if not multiconf else len(coords))
+        if sel is not None:
+            coords = coords[..., sel, :]
+            masses = masses[sel]
         if multiconf:
             coords = list(coords)
         else:
@@ -157,7 +178,7 @@ class MolecularProperties:
         return transforms
 
     @classmethod
-    def principle_axis_transformation(cls, mol):
+    def principle_axis_transformation(cls, mol, sel=None):
         """
         Generates the principle axis transformation for a Molecule
 
@@ -166,10 +187,10 @@ class MolecularProperties:
         :return:
         :rtype:
         """
-        return cls.get_prop_principle_axis_rotation(mol.coords, mol.masses)
+        return cls.get_prop_principle_axis_rotation(mol.coords, mol.masses, sel=sel)
 
     @classmethod
-    def get_prop_eckart_transformation(cls, masses, ref, coords):
+    def get_prop_eckart_transformation(cls, masses, ref, coords, sel=None):
         """
         Computes Eckart transformations for a set of coordinates
 
@@ -185,26 +206,32 @@ class MolecularProperties:
 
         # first we'll put everything in a principle axis frame
         multiconf = coords.multiconfig
+        if sel is not None:
+            coords = coords[..., sel, :]
+            masses = masses[sel]
+            ref = ref[..., sel, :]
         transforms = cls.get_prop_principle_axis_rotation(coords, masses)
         if multiconf:
             coords = list(coords)
         else:
             coords = [coords]
+        if not multiconf:
+            transforms = [transforms]
 
         ref_transf = cls.get_prop_principle_axis_rotation(ref, masses)
         ref = ref_transf.apply(ref)
-        planar_ref = np.allclose(ref[:, 3], 0.)
+        planar_ref = np.allclose(ref[:, 2], 0.)
 
         for i, ct in enumerate(zip(coords, transforms)):
             c = ct[0]
             t = ct[1] # type: MolecularTransformation
             c = t.apply(c)
 
-            planar_struct = True if planar_ref else np.allclose(c[:, 3], 0.)
+            planar_struct = True if planar_ref else np.allclose(c[:, 2], 0.)
             is_planar = planar_ref or planar_struct
             if not is_planar:
                 # generate pair-wise product matrix
-                A = ref[:, :, np.newaxis] * c[:, np.newaxis, :]
+                A = np.tensordot(masses/np.sum(masses), ref[:, :, np.newaxis] * c[:, np.newaxis, :], axes=[0, 0])
                 # take SVD of this
                 U, S, V = np.linalg.svd(A)
                 rot = U @ V.T
@@ -224,21 +251,26 @@ class MolecularProperties:
         return transforms
 
     @classmethod
-    def eckart_transformation(cls, mol, ref_mol):
+    def eckart_transformation(cls, mol, ref_mol, sel=None):
         """
 
-        :param ref_mol:
+        :param ref_mol: reference geometry
         :type ref_mol: Molecule
-        :param mol:
+        :param mol: molecules to get Eckart embeddings for
         :type mol: Molecule
+        :param sel: coordinate selection to use when doing the Eckart stuff
+        :type mol:
         :return:
         :rtype:
         """
         m1 = ref_mol.masses
         m2 = mol.masses
-        if m1 != m2:
-            raise ValueError("Eckart reference has different masses ?_?")
-        return cls.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords)
+        if not np.all(m1 == m2):
+            raise ValueError("Eckart reference has different masses from scan ({}) vs. ({})".format(
+                m1,
+                m2
+            ))
+        return cls.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel)
 
     @classmethod
     def get_prop_adjacency_matrix(cls, atoms, bonds):

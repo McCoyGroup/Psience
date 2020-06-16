@@ -4,7 +4,7 @@ Most standard functionality should be served by OpenBabel
 Uses AtomData to get properties and whatnot
 """
 
-import os
+import os, numpy as np
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
 
@@ -70,6 +70,9 @@ class Molecule:
     @property
     def atoms(self):
         return tuple(a["Symbol"] for a in self._ats)
+    @property
+    def masses(self):
+        return np.array([a["Mass"] for a in self._ats])
     @property
     def bonds(self):
         if self._bonds is None:
@@ -200,10 +203,28 @@ class Molecule:
     def load_dipole_surface(self):
         raise NotImplemented
 
-    def principle_axis_frame(self):
-        return self.prop('principle_axis_transformation')
-    def eckart_frame(self, mol):
-        return self.prop('eckart_transformation', mol)
+    def principle_axis_frame(self, sel=None):
+        """
+        Gets the principle axis frame(s) for the molecule
+        :param mol:
+        :type mol:
+        :param sel: selection of atoms to use when getting the Eckart frame
+        :type sel:
+        :return:
+        :rtype:
+        """
+        return self.prop('principle_axis_transformation', sel=sel)
+    def eckart_frame(self, mol, sel=None):
+        """
+        Gets the Eckart frame(s) for the molecule
+        :param mol:
+        :type mol:
+        :param sel: selection of atoms to use when getting the Eckart frame
+        :type sel:
+        :return:
+        :rtype:
+        """
+        return self.prop('eckart_transformation', mol, sel=sel)
 
     #TODO: I should put pybel support into McUtils so that it can be used outside the context of a Molecule object
 
@@ -224,14 +245,15 @@ class Molecule:
         return cls(atoms, [a.coords for a in atoms], **opts)
 
     @classmethod
-    def _from_log_file(cls, file, **opts):
+    def _from_log_file(cls, file, num=None, **opts):
         from McUtils.GaussianInterface import GaussianLogReader
         with GaussianLogReader(file) as gr:
-            parse = gr.parse('StandardCartesianCoordinates', num=1)
+            parse = gr.parse('StandardCartesianCoordinates', num=num)
         spec, coords = parse['StandardCartesianCoordinates']
+
         return cls(
             [int(a[1]) for a in spec],
-            coords[0],
+            CoordinateSet(np.array(coords), CartesianCoordinates3D),
             **opts
         )
     @classmethod
