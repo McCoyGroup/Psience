@@ -64,7 +64,7 @@ class Molecule:
             name=self.name,
             formula=self.formula,
             shape=self.coords.shape,
-            coord_sys=self.coords.system
+            coord_sys=self.coords.system.name if isinstance(self.coords, CoordinateSet) else 'undefined'
         )
 
     @property
