@@ -30,6 +30,7 @@ class Molecule:
                  force_constants=None,
                  dipole_surface=None,
                  potential_surface=None,
+                 guess_bonds=True,
                  **kw
                  ):
         import numpy as np
@@ -57,6 +58,7 @@ class Molecule:
         self._dipoles = dipole_surface
         self._pes = potential_surface
         self._normal_modes = None
+        self.guess_bonds=guess_bonds
 
     def __repr__(self):
         return "{cls}('{name}', formula='{formula}', shape={shape}, coord_sys={coord_sys})".format(
@@ -75,7 +77,7 @@ class Molecule:
         return np.array([a["Mass"] for a in self._ats])
     @property
     def bonds(self):
-        if self._bonds is None:
+        if self._bonds is None and self.guess_bonds:
             self._bonds = self.prop("guessed_bonds", tol=1.05, guess_type=True)
         return self._bonds
     @property
@@ -151,6 +153,23 @@ class Molecule:
             new._coords = new_coords
             return new
 
+    @property
+    def shape(self):
+        return self.coords.shape
+    def __len__(self):
+        if self.multiconfig:
+            return self.coords.shape[0]
+        else:
+            return 1
+    def __iter__(self):
+        if self.multiconfig:
+            for i in range(len(self)):
+                yield self[i]
+        else:
+            yield self
+    def __getitem__(self, item):
+        return self.take_submolecule(item)
+
     def copy(self):
         import copy
         # just use the default and don't be fancy
@@ -211,7 +230,7 @@ class Molecule:
         :param sel: selection of atoms to use when getting the Eckart frame
         :type sel:
         :return:
-        :rtype:
+        :rtype: MolecularTransformation | List[MolecularTransformation]
         """
         return self.prop('principle_axis_transformation', sel=sel)
     def eckart_frame(self, mol, sel=None):
@@ -445,14 +464,22 @@ class Molecule:
             return getattr(self._mol, item)
 
     def __getattr__(self, item):
-        try:
-            res = self._kw[item]
-        except KeyError:
+        if '_kw' in self.__dict__:
+            needs_raise = False
             try:
-                res = self._get_ob_attr(item)
-            except AttributeError:
-                raise AttributeError("{} has no attribute '{}'".format(type(self). __name__, item))
-        return res
+                res = self._kw[item]
+            except KeyError:
+                try:
+                    res = self._get_ob_attr(item)
+                except AttributeError:
+                    res = None
+                    needs_raise = True
+            if needs_raise:
+                raise AttributeError("{} has no attribute '{}'".format(type(self).__name__, item))
+            return res
+        else:
+
+            raise AttributeError("{} has no attribute '{}'".format(type(self).__name__, item))
 
 class MolecoolException(Exception):
     pass

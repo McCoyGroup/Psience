@@ -166,10 +166,10 @@ class MolecularProperties:
         mass = masses
         for i,c in enumerate(coords):
             com = cls.get_prop_center_of_mass(c, mass)
-            transf = MolecularTransformation(com)
-            c = transf.apply(c)
+            transf = MolecularTransformation(-com)
+            c = transf(c)
             moms, axes = cls.get_prop_moments_of_inertia(c, mass)
-            transf = MolecularTransformation(transf, axes.T)
+            transf = MolecularTransformation(axes)(transf)
             transforms[i] = transf
 
         if not multiconf:
@@ -234,7 +234,7 @@ class MolecularProperties:
                 A = np.tensordot(masses/np.sum(masses), ref[:, :, np.newaxis] * c[:, np.newaxis, :], axes=[0, 0])
                 # take SVD of this
                 U, S, V = np.linalg.svd(A)
-                rot = U @ V.T
+                rot = U @ V
             else:
                 # generate pair-wise product matrix but only in 2D
                 A = ref[:, :2, np.newaxis] * c[:, np.newaxis, :2]
