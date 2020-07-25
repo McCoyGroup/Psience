@@ -1,18 +1,17 @@
 import numpy as np, scipy.sparse as sp, functools as fp, itertools as ip
+from McUtils.Numputils import SparseArray
+from McUtils.Coordinerds import CoordinateSystem, CoordinateSet, CartesianCoordinates3D, ZMatrixCoordinates, ZMatrixCoordinateSystem
+from McUtils.Data import UnitsData
 from ..Wavefun import Wavefunctions, Wavefunction
 from ..Molecools import NormalModeCoordinates
-from McUtils.Numputils import SparseArray
-from McUtils.Coordinerds import CoordinateSystem, CoordinateSet, CartesianCoordinates3D
-from McUtils.Data import UnitsData
+from .Common import PerturbationTheoryException
+from .Representations import SubHamiltonian, ProductOperator
+from .Terms import PotentialTerms, KineticTerms
 
 __all__ = [
     'PerturbationTheoryWavefunctions',
-    'PerturbationTheoryException',
     'PerturbationTheoryHamiltonian'
 ]
-
-class PerturbationTheoryException(Exception):
-    pass
 
 class PerturbationTheoryWavefunction(Wavefunction):
     @property
@@ -50,7 +49,7 @@ class PerturbationTheoryHamiltonian:
     :param modes: The Cartesian coordinate normal modes and the corresponding inverse
     :type modes: NormalModeCoordinates
     :param internals: The internal coordinate normal modes
-    :type internals: CoordinateSystem
+    :type internals: CoordinateSystem | None
     :param numbers_of_quanta: The numbers of quanta of excitation to use for every mode
     :type numbers_of_quanta: np.ndarray | Iterable[int]
     """
@@ -82,8 +81,8 @@ class PerturbationTheoryHamiltonian:
         else:
             modes_T, modes_V = modes, modes
         self.internals = internals
-        self.V_terms = self.PotentialTerms(pot_derivs, coords, masses, modes_V, internals)
-        self.G_terms = self.KineticTerms(coords, masses, modes_T, internals)
+        self.V_terms = PotentialTerms(pot_derivs, coords, masses, modes_V, internals)
+        self.G_terms = KineticTerms(coords, masses, modes_T, internals)
     def undimensionalize(self, masses, modes):
         L = modes.matrix
         freqs = modes.freqs
@@ -98,6 +97,17 @@ class PerturbationTheoryHamiltonian:
         return np.broadcast_to(masses, (len(masses), 3)).T.flatten()
     @classmethod
     def from_fchk(cls, file, internals = None, n_quanta = 3):
+        """
+
+        :param file:
+        :type file: str
+        :param internals: internal coordinate specification as a Z-matrix ordering
+        :type internals: Iterable[Iterable[int]]
+        :param n_quanta:
+        :type n_quanta: int | Iterable[int]
+        :return:
+        :rtype:
+        """
         from McUtils.GaussianInterface import GaussianFChkReader
 
         with GaussianFChkReader(file) as gr:
@@ -105,7 +115,10 @@ class PerturbationTheoryHamiltonian:
                               "ForceConstants", "ForceDerivatives", "VibrationalModes", "VibrationalData"])
 
         amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-        coords = UnitsData.convert("Angstroms", "AtomicUnitOfLength") * parse["Coordinates"]
+        coords = CoordinateSet(UnitsData.convert("Angstroms", "AtomicUnitOfLength") * parse["Coordinates"], CartesianCoordinates3D)
+        if internals is not None:
+            zmcs = coords.convert(ZMatrixCoordinates, ordering=internals)
+            internals = ZMatrixCoordinateSystem(**zmcs.converter_options)
 
         masses = amu_conv * parse["AtomicMasses"]
         modes = parse["VibrationalModes"]
@@ -149,442 +162,18 @@ class PerturbationTheoryHamiltonian:
             n_quanta=n_quanta # need a way to pull the internals from the FChk or provide an alternate way to get them...
         )
 
-    class ExpansionTerms:
-        def __init__(self):
-            self._terms = None
-        def get_terms(self):
-            raise NotImplemented
-        @property
-        def terms(self):
-            if self._terms is None:
-                self._terms = self.get_terms()
-            return self._terms
-        def __getitem__(self, item):
-            return self.terms[item]
-        @staticmethod
-        def _dot(*t, axes=None):
-            """
-            Flexible tensordot
-            """
-
-            if len(t) == 1:
-                return t[0]
-
-            if any(isinstance(x, int) for x in t):
-                return 0
-
-            tdot = lambda a, b, **kw: (a.tensordot(b, **kw) if hasattr(a, "tensordot") else np.tensordot(a, b, **kw))
-            td = lambda a, b: (0 if isinstance(a, int) or isinstance(b[0], int) else tdot(a, b[0], axes=b[1]))
-            if axes is None:
-                axes = [1] * (len(t) - 1)
-
-            return fp.reduce(td, zip(t[1:], axes), t[0])
-
-        @staticmethod
-        def _weight_derivatives(t):
-            if isinstance(t, int):
-                return t
-            weighted = t
-            order = len(t.shape)
-            if order > 1:
-                s = t.shape
-                weights = np.ones(s)
-                all_inds = list(range(len(s)))
-                for i in range(2, order + 1):
-                    for inds in ip.combinations(all_inds, i):
-                        # define a diagonal slice through
-                        sel = tuple(slice(None, None, None) if a not in inds else np.arange(s[a]) for a in all_inds)
-                        weights[sel] = 1 / np.math.factorial(i)
-                weighted = weighted * weights
-                # print(weights, weighted.array)
-            return weighted
-        @staticmethod
-        def _shift(a, *s):
-            if isinstance(a, int):
-                return a
-
-            def shift_inds(n, i, j):
-                if i < j:
-                    x = list(range(i)) + list(range(i + 1, j + 1)) + [i] + list(range(j + 1, n))
-                else:
-                    x = list(range(j)) + [i] + list(range(j, i)) + list(range(i + 1, n))
-                return x
-
-            shiftIJ = lambda a, ij: np.transpose(a, shift_inds(a.ndim, *ij))
-            return fp.reduce(shiftIJ, s, a)
-        @classmethod
-        def _get_tensor_derivs(cls, x_derivs, V_derivs, order=4, mixed_XQ=False):
-            """
-            Returns the derivative tensors of the potential with respect to the normal modes
-            (note that this is fully general and the "cartesians" and "normal modes" can be any coordinate sets)
-
-            :param x_derivs: The derivatives of the cartesians with respect to the normal modes
-            :type x_derivs:
-            :param V_derivs: The derivative of the potential with respect to the cartesians
-            :type V_derivs:
-            :param mixed_XQ: Whether the v_derivs[2] = V_Qxx and v_derivs[3] = V_QQxx or not
-            :type mixed_XQ: bool
-            """
-
-            dot = cls._dot
-            shift = cls._shift
-
-            derivs = [None]*order
-
-
-            # First Derivs
-            xQ = x_derivs[0]
-            Vx = V_derivs[0]
-            V_Q = dot(xQ, Vx)
-
-            derivs[0] = V_Q
-            if order == 1:
-                return tuple(derivs)
-
-            # Second Derivs
-            xQQ = x_derivs[1]
-            Vxx = V_derivs[1]
-
-            xQ_Vxx = dot(xQ, Vxx)
-            V_QQ = dot(xQQ, Vx) + dot(xQ_Vxx, xQ, axes=[[1, 1]])
-            derivs[1] = V_QQ
-            if order == 2:
-                return tuple(derivs)
-
-            # Third Derivs
-            xQQQ = x_derivs[2]
-            Vxxx = V_derivs[2]
-
-            # If Q is just an expansion in X all of these terms will disappear except for V_QQQ_5
-            xQQ_Vxx = dot(xQQ, Vxx)
-
-            V_QQQ_1 = dot(xQQQ, Vx)
-            V_QQQ_2 = dot(xQ_Vxx, xQQ, axes=[[-1, -1]])
-            V_QQQ_3 = dot(xQQ_Vxx, xQ, axes=[[-1, -1]])
-            V_QQQ_4 = shift(V_QQQ_2, (1, 0))
-
-            if not mixed_XQ:
-                VQxx = dot(xQ, Vxxx)
-            else:
-                VQxx = Vxxx
-
-            V_QQQ_5 = dot(VQxx, xQ, xQ, axes=[[2, 1], [1, 1]])
-
-            V_QQQ_terms = (
-                V_QQQ_1,
-                V_QQQ_2,
-                V_QQQ_3,
-                V_QQQ_4,
-                V_QQQ_5
-            )
-            # print(np.reshape(VQxx, (3, 81)))
-            V_QQQ = sum(x for x in V_QQQ_terms if not isinstance(x, int))
-            derivs[2] = V_QQQ
-            if order == 3:
-                return tuple(derivs)
-
-            # Fourth Derivs
-            # For now we'll just generate everything rather than being particularly clever about it
-
-            xQQQQ = x_derivs[3]
-            Vxxxx = V_derivs[3]
-            V_QQQQ_1 = dot(xQQQQ, Vx) + dot(xQ, Vxx, xQQQ, axes=[[-1, 0], [-1, -1]])
-
-            xQQQ_Vxx_xQ = dot(xQQQ, Vxx, xQ, axes=[[-1, 0], [-1, -1]])
-            xQ_22_Vxxx = dot(xQ, Vxxx, axes=[[-1, 1]])
-            xQQ_Vxx_xQQ = dot(xQQ_Vxx, xQQ, axes=[[-1, -1]])
-
-            V_QQQQ_2 = (
-                    xQQ_Vxx_xQQ +
-                    dot(xQ_22_Vxxx, xQ, xQQ, axes=[[0, -1], [1, -1]]) +
-                    shift(xQQQ_Vxx_xQ, (0, 1), (2, 3))
-            )
-
-            V_QQQQ_3 = (
-                    xQQQ_Vxx_xQ +
-                    dot(xQ_22_Vxxx, xQQ, xQ, axes=[[0, 2], [1, 1]]) +
-                    shift(xQQ_Vxx_xQQ, (0, 3))
-            )
-
-            V_QQQQ_4 = (
-                    shift(xQQ_Vxx_xQQ, (1, 2)) +
-                    shift(dot(xQ, VQxx, xQQ, axes=[[1, 1], [2, 2]]), (2, 3)) +
-                    shift(xQQQ_Vxx_xQ, (0, 1), (3, 1))
-            )
-
-            if not mixed_XQ:
-                VQQxx = dot(xQ, dot(xQ, Vxxxx), axes=[[1, 1]])
-            else:
-                VQQxx = Vxxxx
-
-            V_QQQQ_5 = (
-                    dot(xQQ, VQxx, xQ, axes=[[2, 1], [3, 1]]) +
-                    shift(dot(xQQ, VQxx, xQ, axes=[[2, 2], [2, 1]]), (3, 1)) +
-                    shift(dot(xQ, VQxx, xQQ, axes=[[1, 1], [2, 2]]), (2, 0)) +
-                    dot(VQQxx, xQ, xQ, axes=[[3, 1], [2, 1]])
-            )
-
-            V_QQQQ = (
-                    V_QQQQ_1 +
-                    V_QQQQ_2 +
-                    V_QQQQ_3 +
-                    V_QQQQ_4 +
-                    V_QQQQ_5
-            )
-
-            return V_Q, V_QQ, V_QQQ, V_QQQQ
-    class PotentialTerms(ExpansionTerms):
-        def __init__(self, v_derivs, coords, masses, modes, internals, mixed_derivs = True):
-            self.coords = coords
-            self.modes = modes
-            self.masses = masses
-            self.internals = internals
-            self.v_derivs = self._canonicalize_derivs(v_derivs)
-            self.mixed_derivs = mixed_derivs
-            super().__init__()
-
-        def _canonicalize_derivs(self, derivs):
-
-            grad, fcs, thirds, fourths = derivs
-
-            modes_n = len(self.modes.matrix)
-            coord_n = modes_n+6
-            if grad.shape != (coord_n,):
-                raise PerturbationTheoryException(
-                    "{0}.{1}: length of gradient array ({2[0]}) is not {3[0]}".format(
-                        type(self).__name__,
-                        "_canonicalize_force_constants",
-                        grad.shape,
-                        (coord_n,)
-                    )
-                )
-            if fcs.shape != (coord_n, coord_n):
-                raise PerturbationTheoryException(
-                    "{0}.{1}: dimension of force constant array ({2[0]}x{2[1]}) is not {3[0]}x{3[1]}".format(
-                        type(self).__name__,
-                        "_canonicalize_force_constants",
-                        fcs.shape,
-                        (coord_n, coord_n)
-                    )
-                )
-            if thirds.shape != (modes_n, coord_n, coord_n):
-                raise PerturbationTheoryException(
-                    "{0}.{1}: dimension of third derivative array ({2[0]}x{2[1]}x{2[2]}) is not ({3[0]}x{3[1]}x{3[2]})".format(
-                        type(self).__name__,
-                        "_canonicalize_derivs",
-                        thirds.shape,
-                        (modes_n, coord_n, coord_n)
-                    )
-                )
-            # this might need to change in the future
-            if fourths.shape != (modes_n, modes_n, coord_n, coord_n):
-                raise PerturbationTheoryException(
-                    "{0}.{1}: dimension of fourth derivative array ({2[0]}x{2[1]}x{2[2]}x{2[3]}) is not ({3[0]}x{3[1]}x{3[2]}x{3[3]})".format(
-                        type(self).__name__,
-                        "_canonicalize_derivs",
-                        fourths.shape,
-                        (modes_n, modes_n, coord_n, coord_n)
-                        )
-                )
-
-            return grad, fcs, thirds, fourths
-
-        def get_terms(self):
-            if self.internals is None:
-                # this is nice because it eliminates most of terms in the expansion
-                xQ = self.modes.matrix
-                xQQ = 0
-                xQQQ = 0
-                xQQQQ = 0
-            else:
-                # I think this could do with some sprucing up...
-                ccoords = CoordinateSet(self.coords, CartesianCoordinates3D)
-                xQ = self.internals.jacobian(ccoords, CartesianCoordinates3D, self.modes, 1)
-                xQQ = self.internals.jacobian(ccoords, CartesianCoordinates3D, self.modes, 2)
-                xQQQ = self.internals.jacobian(ccoords, CartesianCoordinates3D, self.modes, 3)
-                xQQQQ = self.internals.jacobian(ccoords, CartesianCoordinates3D, self.modes, 4)
-
-            x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
-
-            grad = self.v_derivs[0]
-            hess = self.v_derivs[1]
-            thirds = self.v_derivs[2]
-            fourths = self.v_derivs[3]
-            V_derivs = (grad, hess, thirds, fourths)
-
-            v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_XQ=self.mixed_derivs)
-
-            if self.mixed_derivs:
-                for i in range(v4.shape[0]):
-                    v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
-
-            # test = UnitsData.convert("Hartrees", "Wavenumbers") * np.array([
-            #     v4[2, 2, 2, 2],
-            #     v4[1, 1, 2, 2],
-            #     v4[1, 1, 1, 1],
-            #     v4[0, 0, 2, 2],
-            #     v4[0, 0, 1, 1],
-            #     v4[0, 0, 0, 0]
-            # ]).T
-
-            return v2, v3, v4
-    class KineticTerms(ExpansionTerms):
-        def __init__(self, coords, masses, modes, internals = None):
-            """Represents the KE coefficients
-
-            :param masses: masses of the atoms in the modes
-            :type masses: np.ndarray | None
-            :param modes: Cartesian displacement normal modes
-            :type modes: NormalModeCoordinates
-            :param internals: Optional internal coordinate set to rexpress in
-            :type internals: CoordinateSystem | None
-            """
-            self.coords = coords
-            self.masses = masses
-            self.modes = modes
-            self.internals = internals
-            super().__init__()
-
-        def get_terms(self):
-
-            dot = self._dot
-            shift = self._shift
-            got_the_terms = self.masses is not None and \
-                            len(self.masses) == 3 and \
-                            not isinstance(self.masses[0], (int, np.integer, float, np.floating))
-
-            if got_the_terms:
-                G, GQ, GQQ = self.masses
-            elif self.internals is None:
-                # this is nice because it eliminates a lot of terms in the expansion
-                J = self.modes.matrix
-                G = dot(J, J, axes=[[1, 1]])
-                GQ = 0
-                GQQ = 0
-            else:
-                # this is like _probably_ correct
-                L = self.modes.matrix
-
-                # we're dropping this because we want to go dimensionless
-                J = L#dot(L, m)
-
-                carts = CartesianCoordinates3D
-                ccoords = CoordinateSet(self.coords, CartesianCoordinates3D)
-                XR = ccoords.jacobian(self.internals, 1)
-                XRR = ccoords.jacobian(self.internals, 2)
-                intcds = ccoords.convert(self.internals)
-                RXX = intcds.jacobian(carts, 2)
-                RXXX = intcds.jacobian(carts, 3)
-                RQ = np.linalg.pinv(J)
-
-                YQ = dot(RQ, XR)
-                YQQ = dot(RQ, shift(dot(RQ, XRR, axes=[[1, 1]]), (1, 0)))
-                JY = dot(L, RXX)
-                JYY = dot(L, RXXX)
-
-                JQ = dot(YQ, JY)
-                JQQ = dot(YQQ, JY) + dot(YQ, shift(dot(YQ, JYY, axes=[[1, 1]]), (1, 0)))
-
-                G = dot(J, shift(J, (0, 1)))
-                GQ_1 = dot(JQ, J, axes=[[2, 1]])
-                GQ = GQ_1 + shift(GQ_1, (2, 3))
-                GQQ_1 = dot(JQQ, J, axes=[[3, 1]])
-                GQQ_2 = dot(JQ, JQ, axes=[[2, 2]])
-                GQQ = GQQ_1 + shift(GQQ_2, (2, 0)) + shift(GQQ_2, (2, 1)) + shift(GQQ_1, (2, 3))
-
-            G_terms = (G, GQ, GQQ)
-            return G_terms
-
-    class SubHamiltonian:
-        def __init__(self, compute, n_quanta):
-            self.compute = compute
-            self.dims = n_quanta
-        @property
-        def diag(self):
-            ndims = int(np.prod(self.dims))
-            return self[np.arange(ndims), np.arange(ndims)]
-        def get_element(self, n, m):
-            """Pulls elements of the Hamiltonian, first figures out if it's supposed to be pulling blocks...
-
-            :param n:
-            :type n:
-            :param m:
-            :type m:
-            :return:
-            :rtype:
-            """
-
-            dims = self.dims
-            ndims = int(np.prod(dims))
-            idx = (n, m)
-
-            pull_elements = True
-            if isinstance(n, np.ndarray) and isinstance(m, np.ndarray):
-                if len(n.shape) > 1 and len(m.shape) > 1:
-                    pull_elements = False
-            if pull_elements:
-                pull_elements = all(isinstance(x, (int, np.integer)) for x in idx)
-                if not pull_elements:
-                    pull_elements = all(not isinstance(x, (int, np.integer, slice)) for x in idx)
-                    if pull_elements:
-                        e1 = len(idx[0])
-                        pull_elements = all(len(x) == e1 for x in idx)
-            if not isinstance(n, int):
-                if isinstance(n, np.ndarray):
-                    n = n.flatten()
-                if not isinstance(n, slice):
-                    n = np.array(n)
-                n = np.arange(ndims)[n]
-            else:
-                n = [n]
-            if not isinstance(m, int):
-                if isinstance(m, np.ndarray):
-                    m = m.flatten()
-                if not isinstance(m, slice):
-                    m = np.array(m)
-                m = np.arange(ndims)[m]
-            else:
-                m = [m]
-            if pull_elements:
-                n = np.unravel_index(n, dims)
-                m = np.unravel_index(m, dims)
-            else:
-                blocks = np.array(list(ip.product(n, m)))
-                n = np.unravel_index(blocks[:, 0], dims)
-                m = np.unravel_index(blocks[:, 1], dims)
-            def pad_lens(a, b):
-                if isinstance(a, (int, np.integer)) and not isinstance(b, (int, np.integer)):
-                    a = np.full((len(b),), a)
-                if isinstance(b, (int, np.integer)) and not isinstance(a, (int, np.integer)):
-                    b = np.full((len(a),), b)
-                return a,b
-            i = tuple(pad_lens(a, b) for a,b in zip(n,m))
-            els = self.compute(i)
-            if pull_elements:
-                return els
-            else:
-                shp = (len(np.unique(blocks[:, 0])), len(np.unique(blocks[:, 1])))
-                return els.reshape(shp).squeeze()
-
-        def __getitem__(self, item):
-            if not isinstance(item, tuple):
-                item = (item,)
-            if len(item) == 1:
-                item = item + (slice(None, None, None),)
-            return self.get_element(*item)
-
     @property
     def H0(self):
-        def compute_H1(inds,
+        def compute_H0(inds,
                        G=self.G_terms[0],
                        V=self.V_terms[0],
-                       pp=self.ProductOperator.pp(self.n_quanta),
-                       QQ=self.ProductOperator.QQ(self.n_quanta),
+                       pp=ProductOperator.pp(self.n_quanta),
+                       QQ=ProductOperator.QQ(self.n_quanta),
                        H=self._compute_h0
                        ):
             return H(inds, G, V, pp, QQ)
 
-        return self.SubHamiltonian(compute_H1, self.n_quanta)
+        return SubHamiltonian(compute_H0, self.n_quanta)
 
     def _compute_h0(self, inds, G, F, pp, QQ):
         """
@@ -630,12 +219,12 @@ class PerturbationTheoryHamiltonian:
         def compute_H1(inds,
                        G=self.G_terms[1],
                        V=self.V_terms[1],
-                       pQp=self.ProductOperator.pQp(self.n_quanta),
-                       QQQ=self.ProductOperator.QQQ(self.n_quanta),
+                       pQp=ProductOperator.pQp(self.n_quanta),
+                       QQQ=ProductOperator.QQQ(self.n_quanta),
                        H=self._compute_h1
                        ):
             return H(inds, G, V, pQp, QQQ)
-        return self.SubHamiltonian(compute_H1, self.n_quanta)
+        return SubHamiltonian(compute_H1, self.n_quanta)
 
     def _compute_h1(self, inds, gmatrix_derivs, V_derivs, pQp, QQQ):
         """
@@ -683,13 +272,13 @@ class PerturbationTheoryHamiltonian:
         def compute_H2(inds,
                        G=self.G_terms[2],
                        V=self.V_terms[2],
-                       KE=self.ProductOperator.pQQp(self.n_quanta),
-                       PE=self.ProductOperator.QQQQ(self.n_quanta),
+                       KE=ProductOperator.pQQp(self.n_quanta),
+                       PE=ProductOperator.QQQQ(self.n_quanta),
                        H=self._compute_h2
                        ):
             return H(inds, G, V, KE, PE)
 
-        return self.SubHamiltonian(compute_H2, self.n_quanta)
+        return SubHamiltonian(compute_H2, self.n_quanta)
 
     def _compute_h2(self, inds, gmatrix_derivs, V_derivs, KE, PE):
         """
@@ -729,227 +318,6 @@ class PerturbationTheoryHamiltonian:
             pe = 0
 
         return 1/4*ke + 1/24*pe
-
-    class ProductOperator:
-        """
-        Provides a (usually) _lazy_ representation of an operator, which allows things like
-        QQQ and pQp to be calculated block-by-block
-        """
-        def __init__(self, funcs, quanta):
-            """
-
-            :param funcs:
-            :type funcs:
-            :param quanta:
-            :type quanta:
-            """
-            self.funcs = funcs
-            self.quanta = tuple(quanta)
-            self.mode_n = len(quanta)
-            self._tensor = None
-
-        @property
-        def ndim(self):
-            return len(self.funcs) + len(self.quanta)
-        @property
-        def shape(self):
-            return (self.mode_n,)*len(self.funcs) + self.quanta
-        @property
-        def tensor(self):
-            if self._tensor is None:
-                self._tensor = self.product_operator_tensor()
-            return self._tensor
-
-        def get_inner_indices(self):
-            """Gets the n-dimensional array of ijkl (e.g.) indices that functions will map over
-
-            :return:
-            :rtype:
-            """
-            funcs = self.funcs
-            dims = len(self.funcs)
-            shp = (self.mode_n,) * dims
-            inds = np.indices(shp, dtype=int)
-            tp = np.roll(np.arange(len(funcs) + 1), -1)
-            base_tensor = np.transpose(inds, tp)
-            return base_tensor
-
-        def __getitem__(self, item):
-            return self.get_elements(item)
-        def get_individual_elements(self, idx):
-            if len(idx) != len(self.quanta):
-                raise ValueError("number of indices requested must be the same as the number of modes")
-            inds = self.get_inner_indices()
-            idx = tuple(tuple(np.array([i]) if isinstance(i, (int, np.integer)) else i for i in j) for j in idx)
-            funcs = self.funcs
-            quants = self.quanta
-            def pull(inds, f=funcs, x=idx, qn = quants):
-                uinds = np.unique(inds)
-                mats = self._operator_submatrix(f, qn, inds, return_kron=False)
-                els = [m[x[i]] for m,i in zip(mats, uinds)]
-                if isinstance(els[0], np.matrix):
-                    els = [np.asarray(e).squeeze() for e in els]
-                res = np.prod(els, axis=0)
-                # print(inds, [len(x[i][0]) for i in inds])
-                return res
-            res = np.apply_along_axis(pull, -1, inds)
-            return res
-        def get_elements(self, idx):
-            if len(idx) != len(self.quanta):
-                raise ValueError("number of indices requested must be the same as the number of quanta")
-            inds = self.get_inner_indices()
-            idx = tuple(tuple(np.array([i]) if isinstance(i, (int, np.integer)) else i for i in j) for j in idx)
-            tens = self.tensor
-            quants = self.quanta
-            def pull(inds, t=tens, x=idx, qn = quants):
-                sly = t[tuple(inds)]
-                uinds = np.unique(inds)
-                sub = tuple(tuple(j) for i in uinds for j in x[i])
-                try:
-                    res = sly[sub]
-                except:
-                    print(sub)
-                    raise
-
-                missing = [i for i in range(len(x)) if i not in inds]
-                equivs = [x[i][0] == x[i][1] for i in missing]
-
-                orthog = np.prod(equivs, axis=0).astype(int)
-                return res * orthog
-            res = np.apply_along_axis(pull, -1, inds)
-            return SparseArray(res.squeeze())
-
-        def product_operator_tensor(self):
-            """Generates the tensor created from the product of funcs over the dimensions dims, except for the fact that it
-            makes a _ragged_ tensor in the final dimensions
-
-            :param funcs:
-            :type funcs:
-            :param dims:
-            :type dims:
-            :return:
-            :rtype:
-            """
-
-            dims = self.quanta
-            funcs = self.funcs
-            base_tensor = self.get_inner_indices()
-            news_boy = lambda inds, f=funcs, d=dims: self._operator_submatrix(f, d, inds)
-            news_boys = np.apply_along_axis(news_boy, -1, base_tensor)
-
-            return news_boys
-
-        def _operator_submatrix(self, funcs, dims, inds, padding = 3, return_kron = True):
-            """Returns the operator submatrix for a product operator like piQjpk or whatever
-
-            :param funcs: the functions that take a dimension size and return a matrix for the suboperator
-            :type funcs:
-            :param dims: dimensions of each coordinate (e.g. (5, 8, 2, 9))
-            :type dims: tuple | np.ndarray
-            :param inds: the list of indices
-            :type inds: tuple | np.ndarray
-            :param padding: the representation can be bad if too few terms are used so we add a padding
-            :type padding: int
-            :return:
-            :rtype:
-            """
-
-            uinds = np.unique(inds)
-            mm = {k:i for i,k in enumerate(uinds)}
-            ndim = len(uinds)
-            pieces = [None] * ndim
-            for f, i in zip(funcs, inds):
-                n = mm[i]
-                if pieces[n] is None:
-                    pieces[n] = f(dims[i]+padding)
-                else:
-                    pieces[n] = pieces[n].dot(f(dims[i]+padding))
-
-            # for j in np.setdiff1d(totinds, inds):
-            #     pieces[j] = sp.identity(dims[j])
-
-            if return_kron:
-                mat = sp.csr_matrix(fp.reduce(sp.kron, pieces))
-                sub_shape = tuple(dims[i]+padding for i in np.unique(inds) for j in range(2))
-                trans = tuple(j for i in zip(range(ndim), range(ndim, 2*ndim)) for j in i)
-                mat = SparseArray(mat, shape=sub_shape).transpose(trans)
-            else:
-                mat = pieces
-            return mat
-
-        @staticmethod
-        def pmatrix_ho(n):
-            """
-
-            :param n:
-            :type n:
-            :return:
-            :rtype: sp.csr_matrix
-            """
-            # the imaginary terms pull out and just become a negative sign
-            ar = 1/np.sqrt(2)*np.sqrt(np.arange(1, n))
-            bands = [
-                [ ar,  1],
-                [-ar, -1]
-            ]
-            return sp.csr_matrix(sp.diags([b[0] for b in bands], [b[1] for b in bands]))
-
-        @staticmethod
-        def qmatrix_ho(n):
-            """
-
-            :param n:
-            :type n:
-            :return:
-            :rtype: sp.csr_matrix
-            """
-
-            ar = 1/np.sqrt(2)*np.sqrt(np.arange(1, n))
-            bands = [
-                [ar, 1],
-                [ar, -1]
-            ]
-            return sp.csr_matrix(sp.diags([b[0] for b in bands], [b[1] for b in bands]))
-
-        @classmethod
-        def QQ(cls, n_quanta, qmatrix=None):
-            if qmatrix is None:
-                qmatrix = cls.qmatrix_ho
-            return cls((qmatrix, qmatrix), n_quanta)
-
-        @classmethod
-        def pp(cls, n_quanta, pmatrix=None):
-            if pmatrix is None:
-                pmatrix = cls.pmatrix_ho
-            return cls((pmatrix, pmatrix), n_quanta)
-
-        @classmethod
-        def QQQ(cls, n_quanta, qmatrix=None):
-            if qmatrix is None:
-                qmatrix = cls.qmatrix_ho
-            return cls((qmatrix, qmatrix, qmatrix), n_quanta)
-
-        @classmethod
-        def pQp(cls, n_quanta, pmatrix=None, qmatrix=None):
-            if pmatrix is None:
-                pmatrix = cls.pmatrix_ho
-            if qmatrix is None:
-                qmatrix = cls.qmatrix_ho
-            return cls((pmatrix, qmatrix, pmatrix), n_quanta)
-
-        @classmethod
-        def QQQQ(cls, n_quanta, qmatrix=None):
-            if qmatrix is None:
-                qmatrix = cls.qmatrix_ho
-            return cls((qmatrix, qmatrix, qmatrix, qmatrix), n_quanta)
-
-        @classmethod
-        def pQQp(cls, n_quanta, pmatrix=None, qmatrix=None):
-            if pmatrix is None:
-                pmatrix = cls.pmatrix_ho
-            if qmatrix is None:
-                qmatrix = cls.qmatrix_ho
-            return cls((pmatrix, qmatrix, qmatrix, pmatrix), n_quanta)
 
     def get_state_indices(self, states):
         if isinstance(states, (int, np.integer)):

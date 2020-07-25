@@ -161,8 +161,8 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
         if self.params['result'] == 'hamiltonian':
             return get_res()
 
-        wf = self.wavefunctions()
-        self.params['wavefunctions'] = DVRWavefunctions(*wf)
+        energies, wfn_data = self.wavefunctions()
+        self.params['wavefunctions'] = DVRWavefunctions(energies=energies, wavefunctions=wfn_data, **self.params)
         if self.params['result'] == 'wavefunctions':
             return get_res()
 
@@ -250,7 +250,11 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
         '''A default wavefunction implementation for reuse'''
         import numpy as np
 
-        return np.linalg.eigh(pars['hamiltonian'])
+        engs, wfns = np.linalg.eigh(pars['hamiltonian'])
+        if 'nodeless_ground_state' in pars and pars['nodeless_ground_state']:
+            s = np.sign(wfns[:, 0])
+            wfns *= s[np.newaxis, :]
+        return engs, wfns.T
 
     class Results:
         """
@@ -287,11 +291,13 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
 
             # get the grid for plotting
             MEHSH = self.grid
-            unrolly_polly_OLLY = np.roll(np.arange(len(MEHSH.shape)), 1)
-            mesh = MEHSH.transpose(unrolly_polly_OLLY)
-
+            dim = self.dimension
+            if dim == 1:
+                mesh = [MEHSH]
+            else:
+                unrolly_polly_OLLY = np.roll(np.arange(len(MEHSH.shape)), 1)
+                mesh = MEHSH.transpose(unrolly_polly_OLLY)
             if plot_class is None:
-                dim = self.dimension
                 if dim == 1:
                     plot_class = Plot
                 elif dim == 2:
@@ -303,7 +309,7 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
                         dim
                     ))
 
-            pot = self.potential_energy.diagonal().A
+            pot = self.potential_energy.diagonal()
 
             return plot_class(*mesh, pot.reshape(mesh[0].shape), **opts)
 

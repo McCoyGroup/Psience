@@ -17,7 +17,7 @@ class Wavefunction:
         self.parent = parent
         self.opts   = opts
     @abstractmethod
-    def plot(self, figure = None, **opts):
+    def plot(self, figure = None, index = 0, **opts):
         """Uses McUtils to plot the wavefunction on the passed figure (makes a new one if none)
 
         :param figure:
@@ -75,7 +75,9 @@ class Wavefunctions:
         # iter comes for free with this
         return self.get_wavefunctions(item)
     def __iter__(self):
-        for eng,wfn in zip(self.energies, self.wavefunctions):
+        eng_list = list(self.energies)
+        wf_list = list(self.wavefunctions)
+        for eng, wfn in zip(eng_list, wf_list):
             yield self.wavefunction_class(eng, wfn, parent = self, **self.opts)
 
     def frequencies(self, start_at = 0):
@@ -111,7 +113,7 @@ class Wavefunctions:
 
         if plot_style is None:
             plot_style = {}
-        for wfn in self:
-            wfn.plot(figure, **plot_style)
+        for i, wfn in enumerate(self):
+            wfn.plot(figure, index=i, **opts, **plot_style)
 
         return figure

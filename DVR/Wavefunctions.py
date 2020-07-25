@@ -5,7 +5,7 @@ Provides a DVRWavefunction class that inherits from the base Psience wavefunctio
 from Psience.Wavefun import Wavefunction, Wavefunctions
 
 class DVRWavefunction(Wavefunction):
-    def plot(self, figure = None, grid = None, **opts):
+    def plot(self, figure = None, grid = None, index=0, scaling=1, shift=0, **opts):
         import numpy as np
 
         if grid is None:
@@ -16,12 +16,17 @@ class DVRWavefunction(Wavefunction):
             unroll = np.roll(np.arange(len(grid.shape)), 1)
             grid = grid.transpose(unroll)
 
+        if not isinstance(scaling, (int, float, np.integer, np.floating)):
+            scaling = scaling[index]
+        if not isinstance(shift, (int, float, np.integer, np.floating)):
+            shift = shift[index]
+
         if dim == 1:
             if figure is None:
                 from McUtils.Plots import Plot
-                return Plot(grid, self.data, **opts)
+                return Plot(grid, self.data*scaling+shift, **opts)
             else:
-                return figure.plot(grid, self.data, **opts)
+                return figure.plot(grid, self.data*scaling+shift, **opts)
         else:
             if figure is None:
                 from McUtils.Plots import Plot3D
@@ -58,7 +63,10 @@ class DVRWavefunction(Wavefunction):
 
 class DVRWavefunctions(Wavefunctions):
     # most evaluations are most efficient done in batch for DVR wavefunctions so we focus on the batch object
-    def plot(self, figure = None, graphics_class = None, plot_style = None, **opts):
+    def __init__(self, energies=None, wavefunctions=None, wavefunction_class=DVRWavefunction, **opts):
+        super().__init__(energies=energies, wavefunctions=wavefunctions, wavefunction_class=wavefunction_class, **opts)
+
+    def plot(self, figure = None, graphics_class = None, plot_style = None, scaling=1, shift=0, **opts):
         import numpy as np
 
         grid = self.opts['grid']
@@ -72,6 +80,9 @@ class DVRWavefunctions(Wavefunctions):
             figure=figure,
             graphics_class=graphics_class,
             plot_style=plot_style,
+            grid=grid,
+            scaling=scaling,
+            shift=shift,
             **opts
         )
 
