@@ -1,9 +1,10 @@
-import numpy as np, scipy.sparse as sp, functools as fp, itertools as ip
-from McUtils.Numputils import SparseArray
-from McUtils.Coordinerds import CoordinateSystem, CoordinateSet, CartesianCoordinates3D, ZMatrixCoordinates, ZMatrixCoordinateSystem
+import numpy as np
+
 from McUtils.Data import UnitsData
+
 from ..Wavefun import Wavefunctions, Wavefunction
-from ..Molecools import NormalModeCoordinates
+from ..Molecools import Molecule
+
 from .Common import PerturbationTheoryException
 from .Representations import SubHamiltonian, ProductOperator
 from .Terms import PotentialTerms, KineticTerms
@@ -41,62 +42,43 @@ class PerturbationTheoryHamiltonian:
     """Represents the main handler used in the perturbation theory calculation
     I probably want it to rely on a Molecule object...
 
-    :param coords: The current coordinates of the system (used for computing the Jacobians)
-    :type coords: np.ndarray | CoordinateSet
-    :param masses: The masses of the coordinate system (used for computing the G-matrix and friends)
-    :param pot_derivs: The Cartesian derivatives of the potential
-    :type pot_derivs:
-    :param modes: The Cartesian coordinate normal modes and the corresponding inverse
-    :type modes: NormalModeCoordinates
-    :param internals: The internal coordinate normal modes
-    :type internals: CoordinateSystem | None
+    :param molecule: The molecule we're doing the perturbation theory on
+    :type molecule: Molecule
+    :param internals: The internal coordinate specification (z-matrix layout)
+    :type internals: None | Iterable[Iterable[int]]
     :param numbers_of_quanta: The numbers of quanta of excitation to use for every mode
     :type numbers_of_quanta: np.ndarray | Iterable[int]
     """
     def __init__(self,
                  *ignore,
-                 coords = None,
-                 masses = None,
-                 pot_derivs = None,
-                 modes = None,
-                 internals = None,
-                 n_quanta = 3,
-                 undimensionalize = True
+                 molecule=None,
+                 internals=None,
+                 n_quanta=3
                  ):
         if len(ignore) > 0:
-            raise PerturbationTheoryException("{} takes no positional arguments".format(
+            raise PerturbationTheoryException("{} is keyword-only (i.e. takes no positional arguments)".format(
                 type(self).__name__
             ))
-        mode_n = modes.matrix.shape[0]
+
+        if molecule is None:
+            raise PerturbationTheoryException("{} requires a Molecule to do its dirty-work")
+        self.molecule = molecule
+
+        modes = molecule.normal_modes
+        mode_n = modes.basis.matrix.shape[0]
         self.mode_n = mode_n
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
         # we assume that our modes are already in mass-weighted coordinates, so now we need to make them dimensionless
         # to make life easier, we include this undimensionalization differently for the kinetic and potential energy
         # the kinetic energy needs to be weighted by a sqrt(omega) term while the PE needs a 1/sqrt(omega)
         self.modes = modes
-        if isinstance(coords, CoordinateSet) and internals is None:
-            internals = coords.system
-        if undimensionalize:
-            modes_T, modes_V = self.undimensionalize(masses, modes)
-        else:
-            modes_T, modes_V = modes, modes
+
         self.internals = internals
-        self.V_terms = PotentialTerms(pot_derivs, coords, masses, modes_V, internals)
-        self.G_terms = KineticTerms(coords, masses, modes_T, internals)
-    def undimensionalize(self, masses, modes):
-        L = modes.matrix
-        freqs = modes.freqs
-        freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
-        mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
-        L, Linv = L * freq_conv * mass_conv, L / freq_conv / mass_conv
-        modes_T = NormalModeCoordinates(L, freqs=freqs)
-        modes_V = NormalModeCoordinates(Linv, freqs=freqs)
-        return modes_T, modes_V
-    @staticmethod
-    def _tripmass(masses):
-        return np.broadcast_to(masses, (len(masses), 3)).T.flatten()
+        self.V_terms = PotentialTerms(self.molecule)
+        self.G_terms = KineticTerms(self.molecule)
+
     @classmethod
-    def from_fchk(cls, file, internals = None, n_quanta = 3):
+    def from_fchk(cls, file, internals=None, n_quanta=3):
         """
 
         :param file:
@@ -108,59 +90,9 @@ class PerturbationTheoryHamiltonian:
         :return:
         :rtype:
         """
-        from McUtils.GaussianInterface import GaussianFChkReader
 
-        with GaussianFChkReader(file) as gr:
-            parse = gr.parse(["Coordinates", "Gradient", "AtomicMasses",
-                              "ForceConstants", "ForceDerivatives", "VibrationalModes", "VibrationalData"])
-
-        amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-        coords = CoordinateSet(UnitsData.convert("Angstroms", "AtomicUnitOfLength") * parse["Coordinates"], CartesianCoordinates3D)
-        if internals is not None:
-            zmcs = coords.convert(ZMatrixCoordinates, ordering=internals)
-            internals = ZMatrixCoordinateSystem(**zmcs.converter_options)
-
-        masses = amu_conv * parse["AtomicMasses"]
-        modes = parse["VibrationalModes"]
-        freqs = parse["VibrationalData"]["Frequencies"] * UnitsData.convert("Wavenumbers", "Hartrees")
-        fcs = parse["ForceConstants"].array
-
-        raw = np.sqrt(np.diag(np.dot(np.dot(modes, fcs), modes.T)))
-        reweight = freqs / raw
-        modes = modes * reweight[:, np.newaxis]
-        # new = np.sqrt(np.diag(np.dot(np.dot(modes, fcs), modes.T)))
-        # raise Exception(UnitsData.convert("Hartrees", "Wavenumbers")*new)
-
-        fds = parse["ForceDerivatives"]
-
-        m_conv = np.sqrt(cls._tripmass(masses))
-        f_conv = np.sqrt(freqs)
-
-        undimension_2 = np.outer(m_conv, m_conv)
-        fcs = fcs * undimension_2
-
-        undimension_3 = np.outer(m_conv, m_conv)[np.newaxis, :, :] / f_conv[:, np.newaxis, np.newaxis]
-        thirds = fds.third_deriv_array * (undimension_3 / np.sqrt(amu_conv))
-
-        wat = np.outer(m_conv, m_conv)[np.newaxis, :, :] / (f_conv**2)[:, np.newaxis, np.newaxis]
-        undimension_4 = SparseArray.from_diag(wat/ amu_conv)
-        fourths = fds.fourth_deriv_array
-        fourths = fourths * undimension_4
-        #symm4=np.tensordot(fourths.tensordot(modes, axes=[2, 1]), modes, axes=[2, 1])
-
-        # test4 = np.array([
-        #     [symm4[1, 2, 0], symm4[1, 0, 2]],
-        #     [symm4[0, 2, 1], symm4[2, 0, 1]]
-        # ])
-
-        return cls(
-            coords=coords,
-            masses=masses,
-            pot_derivs=[parse["Gradient"], fcs, thirds, fourths],
-            modes=NormalModeCoordinates(modes, freqs=freqs),
-            internals=internals,
-            n_quanta=n_quanta # need a way to pull the internals from the FChk or provide an alternate way to get them...
-        )
+        molecule = Molecule.from_file(file, mode='fchk')
+        return cls(molecule=molecule, internals=internals, n_quanta=n_quanta)
 
     @property
     def H0(self):

@@ -5,11 +5,11 @@ from .Molecule import Molecule
 import numpy as np, scipy.linalg as slag
 
 __all__ = [
-    "VibrationalModes",
+    "MolecularVibrations",
     "NormalModeCoordinates",
 ]
 
-class VibrationalModes:
+class MolecularVibrations:
 
     def __init__(self, molecule, basis, freqs = None, init = None):
         """Sets up a vibration for a Molecule object over the CoordinateSystem basis
@@ -27,6 +27,13 @@ class VibrationalModes:
         if freqs is None and hasattr(basis, "freqs"):
             freqs = basis.freqs
         self.freqs = freqs
+
+    @property
+    def coords(self):
+        return self._coords
+    @property
+    def basis(self):
+        return self._basis
 
     def __len__(self):
         return self._basis.matrix.shape[0]

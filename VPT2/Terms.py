@@ -1,5 +1,12 @@
+"""
+Stores all of the terms used inside the VPT2 representations
+"""
+
 import numpy as np, functools as fp, itertools as ip
-from McUtils.Coordinerds import CoordinateSystem, CoordinateSet, CartesianCoordinates3D, ZMatrixCoordinateSystem
+from McUtils.Numputils import SparseArray
+from McUtils.Data import UnitsData
+
+from ..Molecools import Molecule, NormalModeCoordinates
 from .Common import PerturbationTheoryException
 
 __all__ = [
@@ -11,6 +18,10 @@ __all__ = [
 class ExpansionTerms:
     def __init__(self):
         self._terms = None
+
+    @staticmethod
+    def _tripmass(masses):
+        return np.broadcast_to(masses, (len(masses), 3)).T.flatten()
 
     def get_terms(self):
         raise NotImplemented
@@ -215,19 +226,35 @@ class ExpansionTerms:
 
 
 class PotentialTerms(ExpansionTerms):
-    def __init__(self, v_derivs, coords, masses, modes, internals, mixed_derivs=True, non_degenerate=False):
-        self.coords = coords
-        self.modes = modes
-        self.masses = masses
-        self.internals = internals
-        self.v_derivs = self._canonicalize_derivs(v_derivs)
+    def __init__(self, molecule, mixed_derivs=True, non_degenerate=False):
+        self.molecule = molecule
+        self.internal_coordinates = molecule.internal_coordinates
+        self.coords = molecule.coords
+        self.modes = self.undimensionalize(molecule.masses, molecule.normal_modes.basis)
+        self.masses = molecule.masses
+        self.freqs = self.modes.freqs
+        self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.potential_derivatives)
         self.non_degenerate=non_degenerate
-        self.mixed_derivs = mixed_derivs
+        self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
         super().__init__()
 
-    def _canonicalize_derivs(self, derivs):
+    def undimensionalize(self, masses, modes):
+        L = modes.matrix
+        freqs = modes.freqs
+        freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
+        mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
+        Linv = L / freq_conv / mass_conv
+        modes_V = type(modes)(Linv, freqs=freqs)
+        return modes_V
 
-        grad, fcs, thirds, fourths = derivs
+    def _canonicalize_derivs(self, freqs, masses, derivs):
+
+        if len(derivs) == 3:
+            grad, fcs, fds = derivs
+            thirds = fds.third_deriv_array
+            fourths = fds.fourth_deriv_array
+        else:
+            grad, fcs, thirds, fourths = derivs
 
         modes_n = len(self.modes.matrix)
         coord_n = modes_n + 6
@@ -269,10 +296,27 @@ class PotentialTerms(ExpansionTerms):
                 )
             )
 
+        amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        m_conv = np.sqrt(self._tripmass(masses))
+        f_conv = np.sqrt(freqs)
+
+        undimension_2 = np.outer(m_conv, m_conv)
+        fcs = fcs * undimension_2
+
+        undimension_3 = np.outer(m_conv, m_conv)[np.newaxis, :, :] / f_conv[:, np.newaxis, np.newaxis]
+        thirds = thirds * (undimension_3 / np.sqrt(amu_conv))
+
+        wat = np.outer(m_conv, m_conv)[np.newaxis, :, :] / (f_conv ** 2)[:, np.newaxis, np.newaxis]
+        undimension_4 = SparseArray.from_diag(wat / amu_conv)
+        fourths = fourths
+        fourths = fourths * undimension_4
+
         return grad, fcs, thirds, fourths
 
     def get_terms(self):
-        if self.internals is None or not self.non_degenerate:
+        # Use the Molecule's coordinates which know about their embedding by default
+        intcds = self.internal_coordinates
+        if intcds is None or not self.non_degenerate:
             # this is nice because it eliminates most of terms in the expansion
             xQ = self.modes.matrix
             xQQ = 0
@@ -280,9 +324,9 @@ class PotentialTerms(ExpansionTerms):
             xQQQQ = 0
         else:
             # We need to compute all these terms then mass weight them
-            carts = CartesianCoordinates3D
-            ccoords = CoordinateSet(self.coords, CartesianCoordinates3D)
-            intcds = ccoords.convert(self.internals)
+            ccoords = self.coords
+            carts = ccoords.system
+            internals = intcds.system
             xQ = intcds.jacobian(carts, 1)
             xQQ = intcds.jacobian(carts, 2)
             xQQQ = intcds.jacobian(carts, 3)
@@ -312,7 +356,7 @@ class PotentialTerms(ExpansionTerms):
 
             # Put everything into proper normal modes
             dot = self._dot
-            RX = ccoords.jacobian(self.internals, 1)
+            RX = ccoords.jacobian(internals, 1)
             if RX.ndim == 3:
                 ncrd = np.prod(RX.shape[1:]).astype(int)
                 RX = RX.reshape((RX.shape[0], ncrd))
@@ -353,46 +397,55 @@ class PotentialTerms(ExpansionTerms):
 
 
 class KineticTerms(ExpansionTerms):
-    def __init__(self, coords, masses, modes, internals=None):
+    def __init__(self, molecule):
         """Represents the KE coefficients
 
-        :param masses: masses of the atoms in the modes
-        :type masses: np.ndarray | None
-        :param modes: Cartesian displacement normal modes
-        :type modes: NormalModeCoordinates
+        :param molecule: the molecule these modes are valid for
+        :type molecule: Molecule
         :param internals: Optional internal coordinate set to rexpress in
         :type internals: CoordinateSystem | None
         """
-        self.coords = coords
-        self.masses = masses
-        self.modes = modes
-        self.internals = internals
+        self.molecule = molecule
+        self.modes = self.undimensionalize(molecule.masses, molecule.normal_modes.basis)
+        self.internal_coordinates = molecule.internal_coordinates
+        self.coords = molecule.coords
         super().__init__()
+
+    def undimensionalize(self, masses, modes):
+        L = modes.matrix
+        freqs = modes.freqs
+        freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
+        mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
+        L = L * freq_conv * mass_conv
+        modes = type(modes)(L, freqs=freqs)
+        return modes
 
     def get_terms(self):
 
         dot = self._dot
         shift = self._shift
-        got_the_terms = self.masses is not None and \
-                        len(self.masses) == 3 and \
-                        not isinstance(self.masses[0], (int, np.integer, float, np.floating))
-
-        if got_the_terms:
-            G, GQ, GQQ = self.masses
-        elif self.internals is None:
+        # got_the_terms = self.masses is not None and \
+        #                 len(self.masses) == 3 and \
+        #                 not isinstance(self.masses[0], (int, np.integer, float, np.floating))
+        #
+        # if got_the_terms:
+        #     G, GQ, GQQ = self.masses
+        intcds = self.internal_coordinates
+        if intcds is None:
             # this is nice because it eliminates a lot of terms in the expansion
             J = self.modes.matrix
             G = dot(J, J, axes=[[1, 1]])
             GQ = 0
             GQQ = 0
         else:
-            carts = CartesianCoordinates3D
-            ccoords = CoordinateSet(self.coords, CartesianCoordinates3D)
+            ccoords = self.coords
+            carts = ccoords.system
+            internals = intcds.system
 
             # First we take derivatives of internals with respect to Cartesians
-            RX = ccoords.jacobian(self.internals, 1)
-            RXX = ccoords.jacobian(self.internals, 2)
-            RXXX = ccoords.jacobian(self.internals, 3)
+            RX = ccoords.jacobian(internals, 1)
+            RXX = ccoords.jacobian(internals, 2)
+            RXXX = ccoords.jacobian(internals, 3)
             # FD tracks too much shape
             def _contract_dim(R, targ_dim):
                 # we figure out how much we're off by
@@ -416,7 +469,6 @@ class KineticTerms(ExpansionTerms):
                 RXXX = _contract_dim(RXXX, 4)
 
             # Now we take derivatives of Cartesians with respect to internals
-            intcds = ccoords.convert(self.internals)
             XR = intcds.jacobian(carts, 1).squeeze()
             if XR.ndim > 2:
                 XR = _contract_dim(XR, 2)
@@ -433,8 +485,8 @@ class KineticTerms(ExpansionTerms):
             XRR  =  XRR[spec, spec, :]
 
             # next we need to mass-weight
-            masses = self.masses
-            mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
+            # masses = self.masses
+            # mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
             # RX = RX / mass_conv[:, np.newaxis]
             # RXX = RXX / (mass_conv[:, np.newaxis]*mass_conv[:, np.newaxis])
             # RXXX = RXXX / (
@@ -446,23 +498,14 @@ class KineticTerms(ExpansionTerms):
 
             # this assumes dimensionless coordinates
             QY = self.modes.matrix
-            L = dot(YQ, RX)
 
-            J = YQ
-            JY = RXX#dot(RXX, L, axes=[[2, 1]])
-            # JYY = dot(RXXX, L, axes=[[3, 1]])
-
-            # YQQ = dot(L, dot(L, XRR, axes=[[1, 1]]), axes=[[1, 1]])
-
-            # JY = RXX
-            JQ = dot(YQ, JY)
-            # JQQ = dot(YQQ, JY) + dot(YQ, dot(YQ, JYY, axes=[[1, 1]]), axes=[[1, 1]])
+            QYY = dot(RXX, XR, QY)
 
             wat = dot(XR, RX)
             from McUtils.Plots import ArrayPlot
             ArrayPlot(wat).show()
             raise Exception(wat)
-            G = dot(J, J, axes=[[1, 1]])
+            G = dot(J, J, axes=[[0, 0]])
             GQ_1 = dot(JQ, J, axes=[[1, 0]])
             GQ = GQ_1 + shift(GQ_1, (1, 2))
             # GQQ_1 = dot(JQQ, J, axes=[[2, 0]])
