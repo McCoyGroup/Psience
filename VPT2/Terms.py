@@ -15,26 +15,16 @@ __all__ = [
     "PotentialTerms"
 ]
 
-class ExpansionTerms:
-    def __init__(self):
-        self._terms = None
+class DumbTensor:
+    """
+    A wrapper to make tensor algebra suck less
+    """
 
-    @staticmethod
-    def _tripmass(masses):
-        return np.broadcast_to(masses, (len(masses), 3)).T.flatten()
-
-    def get_terms(self):
-        raise NotImplemented
-
+    def __init__(self, tensor):
+        self.t = tensor
     @property
-    def terms(self):
-        if self._terms is None:
-            self._terms = self.get_terms()
-        return self._terms
-
-    def __getitem__(self, item):
-        return self.terms[item]
-
+    def shape(self):
+        return self.t.shape
     @staticmethod
     def _dot(*t, axes=None):
         """
@@ -68,25 +58,10 @@ class ExpansionTerms:
             axes = [1] * (len(t) - 1)
 
         return fp.reduce(td, zip(t[1:], axes), t[0])
-
-    @staticmethod
-    def _weight_derivatives(t):
-        if isinstance(t, int):
-            return t
-        weighted = t
-        order = len(t.shape)
-        if order > 1:
-            s = t.shape
-            weights = np.ones(s)
-            all_inds = list(range(len(s)))
-            for i in range(2, order + 1):
-                for inds in ip.combinations(all_inds, i):
-                    # define a diagonal slice through
-                    sel = tuple(slice(None, None, None) if a not in inds else np.arange(s[a]) for a in all_inds)
-                    weights[sel] = 1 / np.math.factorial(i)
-            weighted = weighted * weights
-            # print(weights, weighted.array)
-        return weighted
+    def dot(self, b, *args, **kwargs):
+        if isinstance(b, DumbTensor):
+            b = b.t
+        return type(self)(self._dot(self.t, b, *args, **kwargs))
 
     @staticmethod
     def _shift(a, *s):
@@ -102,6 +77,66 @@ class ExpansionTerms:
 
         shiftIJ = lambda a, ij: np.transpose(a, shift_inds(a.ndim, *ij))
         return fp.reduce(shiftIJ, s, a)
+    def shift(self, *args, **kwargs):
+        return type(self)(self._shift(self.t, *args, **kwargs))
+
+    def __add__(self, other):
+        if isinstance(other, DumbTensor):
+            other = other.t
+        return type(self)(self.t+other)
+    def __radd__(self, other):
+        if isinstance(other, DumbTensor):
+            other = other.t
+        return type(self)(self.t+other)
+    def __matmul__(self, other):
+        return self.dot(other)
+    def __getitem__(self, item):
+        """
+        :type item: slice
+        """
+        a = item.start
+        b = item.stop
+        return self.shift([a, b])
+
+class ExpansionTerms:
+    def __init__(self):
+        self._terms = None
+
+    @staticmethod
+    def _tripmass(masses):
+        return np.broadcast_to(masses, (len(masses), 3)).T.flatten()
+
+    def get_terms(self):
+        raise NotImplemented
+
+    @property
+    def terms(self):
+        if self._terms is None:
+            self._terms = self.get_terms()
+        return self._terms
+
+    def __getitem__(self, item):
+        return self.terms[item]
+
+    @staticmethod
+    def _weight_derivatives(t, order = None):
+        if isinstance(t, int):
+            return t
+        weighted = t
+        if order is None:
+            order = len(t.shape)
+        if order > 1:
+            s = t.shape
+            weights = np.ones(s)
+            all_inds = list(range(len(s)))
+            for i in range(2, order + 1):
+                for inds in ip.combinations(all_inds, i):
+                    # define a diagonal slice through
+                    sel = tuple(slice(None, None, None) if a not in inds else np.arange(s[a]) for a in all_inds)
+                    weights[sel] = 1 / np.math.factorial(i)
+            weighted = weighted * weights
+            # print(weights, weighted.array)
+        return weighted
 
     @classmethod
     def _get_tensor_derivs(cls, x_derivs, V_derivs, order=4, mixed_XQ=False):
@@ -117,8 +152,8 @@ class ExpansionTerms:
         :type mixed_XQ: bool
         """
 
-        dot = cls._dot
-        shift = cls._shift
+        dot = DumbTensor._dot
+        shift = DumbTensor._shift
 
         derivs = [None] * order
 
@@ -230,8 +265,8 @@ class PotentialTerms(ExpansionTerms):
         self.molecule = molecule
         self.internal_coordinates = molecule.internal_coordinates
         self.coords = molecule.coords
-        self.modes = self.undimensionalize(molecule.masses, molecule.normal_modes.basis)
-        self.masses = molecule.masses
+        self.masses = molecule.masses*UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        self.modes = self.undimensionalize(self.masses, molecule.normal_modes.basis)
         self.freqs = self.modes.freqs
         self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.potential_derivatives)
         self.non_degenerate=non_degenerate
@@ -239,18 +274,19 @@ class PotentialTerms(ExpansionTerms):
         super().__init__()
 
     def undimensionalize(self, masses, modes):
-        L = modes.matrix
+        L = modes.matrix.T
         freqs = modes.freqs
         freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
         mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
         Linv = L / freq_conv / mass_conv
-        modes_V = type(modes)(Linv, freqs=freqs)
+        modes_V = type(modes)(self.molecule, Linv, freqs=freqs)
         return modes_V
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
 
         if len(derivs) == 3:
             grad, fcs, fds = derivs
+            fcs = fcs.array
             thirds = fds.third_deriv_array
             fourths = fds.fourth_deriv_array
         else:
@@ -406,24 +442,25 @@ class KineticTerms(ExpansionTerms):
         :type internals: CoordinateSystem | None
         """
         self.molecule = molecule
-        self.modes = self.undimensionalize(molecule.masses, molecule.normal_modes.basis)
+        self.masses = molecule.masses*UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        self.modes = self.undimensionalize(self.masses, molecule.normal_modes.basis)
         self.internal_coordinates = molecule.internal_coordinates
         self.coords = molecule.coords
         super().__init__()
 
     def undimensionalize(self, masses, modes):
-        L = modes.matrix
+        L = modes.matrix.T
         freqs = modes.freqs
         freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
         mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
         L = L * freq_conv * mass_conv
-        modes = type(modes)(L, freqs=freqs)
+        modes = type(modes)(self.molecule, L.T, freqs=freqs)
         return modes
 
     def get_terms(self):
 
-        dot = self._dot
-        shift = self._shift
+        dot = DumbTensor._dot
+        shift = DumbTensor._shift
         # got_the_terms = self.masses is not None and \
         #                 len(self.masses) == 3 and \
         #                 not isinstance(self.masses[0], (int, np.integer, float, np.floating))
@@ -441,6 +478,7 @@ class KineticTerms(ExpansionTerms):
             ccoords = self.coords
             carts = ccoords.system
             internals = intcds.system
+            # raise Exception([ccoords.convert(internals) - intcds])
 
             # First we take derivatives of internals with respect to Cartesians
             RX = ccoords.jacobian(internals, 1)
@@ -477,43 +515,79 @@ class KineticTerms(ExpansionTerms):
             if XRR.ndim > 3:
                 XRR = _contract_dim(XRR, 3)
 
-            non_garbage_coords = spec = (0, 3, 4)
-            RX   =   RX[:, spec]
-            RXX  =  RXX[:, :, spec]
-            RXXX = RXXX[:, :, :, spec]
-            XR   =  XR[spec, :]
-            XRR  =  XRR[spec, spec, :]
+            # non_garbage_coords = spec = (0, 3, 4)
+            # RX   =   RX[:, spec]
+            # RXX  =  RXX[:, :, spec]
+            # RXXX = RXXX[:, :, :, spec]
+            # XR   =  XR[spec, :]
+            # XRR  =  XRR[spec, spec, :]
 
             # next we need to mass-weight
-            # masses = self.masses
-            # mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
-            # RX = RX / mass_conv[:, np.newaxis]
-            # RXX = RXX / (mass_conv[:, np.newaxis]*mass_conv[:, np.newaxis])
-            # RXXX = RXXX / (
-            #         mass_conv[:, np.newaxis, np.newaxis, np.newaxis]
-            #         * mass_conv[np.newaxis, :, np.newaxis, np.newaxis]
-            #         * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
-            # )
-            # XRR = XRR * mass_conv[np.newaxis, np.newaxis]
+            masses = self.masses
+            mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
+            RY = RX / mass_conv[:, np.newaxis]
+            RYY = RXX / (mass_conv[:, np.newaxis]*mass_conv[:, np.newaxis])
+            RYYY = RXXX / (
+                    mass_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                    * mass_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                    * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
+            )
+            YR = XR * mass_conv[np.newaxis]
+            YRR = XRR * mass_conv[np.newaxis, np.newaxis]
 
-            # this assumes dimensionless coordinates
             QY = self.modes.matrix
+            YQ = self.modes.matrix.T / self.modes.freqs[:, np.newaxis]
+            G = dot(QY, QY, axes=[[0, 0]])
 
-            QYY = dot(RXX, XR, QY)
+            QYY = dot(RYY, YR, QY)
+            J = DumbTensor(QY)
+            Jd = DumbTensor(YQ)
+            H = YQQ = 0
+            K = DumbTensor(QYY)
+            U = K.dot(J, axes=[[1, 0]])
+            L = DumbTensor(dot(RYYY, YR, QY))
+            K22 = K.dot(K, axes=[[1, 1]])
+            V = L[3:2]@J + K22[2:0]
 
-            wat = dot(XR, RX)
-            from McUtils.Plots import ArrayPlot
-            ArrayPlot(wat).show()
-            raise Exception(wat)
-            G = dot(J, J, axes=[[0, 0]])
-            GQ_1 = dot(JQ, J, axes=[[1, 0]])
-            GQ = GQ_1 + shift(GQ_1, (1, 2))
-            # GQQ_1 = dot(JQQ, J, axes=[[2, 0]])
-            # GQQ_2 = dot(JQ, JQ, axes=[[1, 1]])
-            # GQQ = GQQ_1 + shift(GQQ_2, (1, 0)) + shift(GQQ_2, (2, 1)) + shift(GQQ_1, (2, 3))
-            GQQ = 0
-        # from McUtils.Plots import TensorPlot
-        # TensorPlot(GQ).show()
-        raise Exception([G, GQ])
+            GQ = Jd@(U+U[2:1])
+            GQ = GQ.t
+
+            GQQ = Jd@(Jd@(V+V[3:2]))[0:1]
+            GQQ = GQQ.t
+
+            GQQ = self._weight_derivatives(GQQ, 2)
+
+            # import McUtils.Plots as plt
+            #
+            # QR = dot(YR, QY)
+            # RQ = dot(YQ, RY)
+
+            # plot_style = dict(vmin=-5e-4, vmax=.5e-4, cmap='cividis')
+            # toot = plt.ArrayPlot(dot(YR, RY))
+            # plt.ArrayPlot(dot(RY, YR))
+            # plt.ArrayPlot(dot(QY, YQ))
+            # plt.ArrayPlot(dot(QR, RQ))
+            # plt.ArrayPlot(dot(RQ, QR))
+            # toot = plt.ArrayPlot(YQ, image_size=(900, 300), aspect_ratio=1/3)
+            # plt.ArrayPlot(np.round(QR.T, 3), image_size=(900, 300), aspect_ratio=1 / 3)
+            # plt.ArrayPlot(dot(YQ, QY))
+            # toot.show()
+            # tp = plt.TensorPlot(GQ)
+            # wat = dot(RYY, QR)
+            # woop = np.average(wat, axis=0)
+            # plt.TensorPlot(wat.reshape(3, 3, 9, 9))
+            # plt.ArrayPlot(woop)
+            # diff_woop = np.round((wat - woop[np.newaxis, :, :])/np.max(wat), 2)
+            # plt.TensorPlot(diff_woop.reshape(3, 3, 9, 9)).show()
+            # plt.TensorPlot(QYY.reshape(3, 3, 9, 3)).show()
+            # tp.colorbar = True
+            # plt.ArrayPlot(GQ[0], colorbar={'tick_padding':50}, padding=((1, 80), (1, 1))).show()
+            # meh = np.round(G, 4)
+            # plt.ArrayPlot(meh).show()
+            # toot.show()
+            # raise Exception([np.average(G), np.average(GQ), np.average(GQQ)])
+
+            # GQ = GQ * self.modes.freqs[:, np.newaxis, np.newaxis]
+
         G_terms = (G, GQ, GQQ)
         return G_terms

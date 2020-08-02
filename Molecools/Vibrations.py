@@ -97,16 +97,19 @@ class NormalModeCoordinates(CoordinateSystem):
     """A prettied up version of a Coordinerds CoordinateSystem object
     Has function for generating, though, too
     """
-    def __init__(self, coeffs, basis = CartesianCoordinates3D, name = None, freqs = None):
+    name="MolecularNormalModes"
+    def __init__(self, molecule, coeffs, name=None, freqs=None):
         super().__init__(
-            matrix = coeffs,
-            name = name,
-            basis = basis
+            matrix=coeffs,
+            name=self.name if name is None else name,
+            basis=molecule.sys
         )
         self.freqs = freqs
 
     @classmethod
-    def from_force_constants(cls, fcs,
+    def from_force_constants(cls,
+                             molecule,
+                             fcs,
                              atoms = None,
                              masses = None,
                              mass_units = "AtomicMassUnits",
@@ -165,4 +168,4 @@ class NormalModeCoordinates(CoordinateSystem):
             freqs = freqs * UnitsData.convert("Hartrees", energy_units)
         modes = modes[:, sorting]
 
-        return cls(modes, freqs = freqs, **opts)
+        return cls(molecule, modes, freqs = freqs, **opts)

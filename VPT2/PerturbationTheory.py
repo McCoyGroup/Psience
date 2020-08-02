@@ -52,7 +52,6 @@ class PerturbationTheoryHamiltonian:
     def __init__(self,
                  *ignore,
                  molecule=None,
-                 internals=None,
                  n_quanta=3
                  ):
         if len(ignore) > 0:
@@ -65,7 +64,7 @@ class PerturbationTheoryHamiltonian:
         self.molecule = molecule
 
         modes = molecule.normal_modes
-        mode_n = modes.basis.matrix.shape[0]
+        mode_n = modes.basis.matrix.shape[1]
         self.mode_n = mode_n
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
         # we assume that our modes are already in mass-weighted coordinates, so now we need to make them dimensionless
@@ -73,7 +72,6 @@ class PerturbationTheoryHamiltonian:
         # the kinetic energy needs to be weighted by a sqrt(omega) term while the PE needs a 1/sqrt(omega)
         self.modes = modes
 
-        self.internals = internals
         self.V_terms = PotentialTerms(self.molecule)
         self.G_terms = KineticTerms(self.molecule)
 
@@ -91,8 +89,8 @@ class PerturbationTheoryHamiltonian:
         :rtype:
         """
 
-        molecule = Molecule.from_file(file, mode='fchk')
-        return cls(molecule=molecule, internals=internals, n_quanta=n_quanta)
+        molecule = Molecule.from_file(file, zmatrix=internals, mode='fchk')
+        return cls(molecule=molecule, n_quanta=n_quanta)
 
     @property
     def H0(self):
@@ -128,9 +126,9 @@ class PerturbationTheoryHamiltonian:
             # takes a 5-dimensional SparseTensor and turns it into a contracted 2D one
             subKE = pp[inds]
             if isinstance(subKE, np.ndarray):
-                ke = np.tensordot(subKE.squeeze(), -G, axes=[[0, 1], [0, 1]])
+                ke = np.tensordot(subKE.squeeze(), G, axes=[[0, 1], [0, 1]])
             else:
-                ke = subKE.tensordot(-G, axes=[[0, 1], [0, 1]]).squeeze()
+                ke = subKE.tensordot(G, axes=[[0, 1], [0, 1]]).squeeze()
         else:
             ke = 0
 
@@ -144,7 +142,7 @@ class PerturbationTheoryHamiltonian:
         else:
             pe = 0
 
-        return 1/2*ke + 1/2*pe
+        return -1/2*ke + 1/2*pe
 
     @property
     def H1(self):
@@ -178,9 +176,9 @@ class PerturbationTheoryHamiltonian:
             subpQp = pQp[inds]
             if isinstance(subpQp, np.ndarray):
                 subpQp = subpQp.squeeze()
-                ke = np.tensordot(subpQp, -gmatrix_derivs, axes=[[0, 1, 2], [0, 1, 2]])
+                ke = np.tensordot(subpQp, gmatrix_derivs, axes=[[0, 1, 2], [0, 1, 2]])
             else:
-                ke = subpQp.tensordot(-gmatrix_derivs, axes=[[0, 1, 2], [0, 1, 2]]).squeeze()
+                ke = subpQp.tensordot(gmatrix_derivs, axes=[[0, 1, 2], [0, 1, 2]]).squeeze()
         else:
             ke = 0
 
@@ -197,7 +195,7 @@ class PerturbationTheoryHamiltonian:
 
         # test = UnitsData.convert("Hartrees", "Wavenumbers")/6*subQQQ*V_derivs
 
-        return 1/2*ke + 1/6 * pe
+        return -1/2*ke + 1/6 * pe
 
     @property
     def H2(self):
@@ -232,9 +230,9 @@ class PerturbationTheoryHamiltonian:
         if not isinstance(gmatrix_derivs, int):
             keTens = KE[inds]
             if isinstance(keTens, np.ndarray):
-                ke = np.tensordot(keTens.squeeze(), -gmatrix_derivs, axes=[[0, 1, 2, 3], [0, 1, 2, 3]])
+                ke = np.tensordot(keTens.squeeze(), gmatrix_derivs, axes=[[0, 1, 2, 3], [0, 1, 2, 3]])
             else:
-                ke = keTens.tensordot(-gmatrix_derivs, axes=[[0, 1, 2, 3], [0, 1, 2, 3]]).squeeze()
+                ke = keTens.tensordot(gmatrix_derivs, axes=[[0, 1, 2, 3], [0, 1, 2, 3]]).squeeze()
         else:
             ke = 0
 
@@ -249,7 +247,7 @@ class PerturbationTheoryHamiltonian:
         else:
             pe = 0
 
-        return 1/4*ke + 1/24*pe
+        return -1/4*ke + 1/24*pe
 
     def get_state_indices(self, states):
         if isinstance(states, (int, np.integer)):

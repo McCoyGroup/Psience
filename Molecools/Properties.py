@@ -51,7 +51,7 @@ class MolecularProperties:
         :rtype:
         """
 
-        return cls.get_prop_moments_of_inertia(mol.coords, mol.masses)
+        return cls.get_prop_center_of_mass(mol.coords, mol.masses)
 
     @classmethod
     def get_prop_inertia_tensors(cls, coords, masses):

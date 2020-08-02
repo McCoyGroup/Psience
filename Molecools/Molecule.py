@@ -138,6 +138,9 @@ class Molecule:
     def coords(self):
         return self._coords
     @property
+    def sys(self):
+        return self._coords.system
+    @property
     def formula(self):
         return self.prop('chemical_formula')
     @property
@@ -187,7 +190,8 @@ class Molecule:
     @property
     def internal_coordinates(self):
         if self._ints is None and self._zmat is not None:
-            self._ints = self.coords.convert(MolecularZMatrixCoordinateSystem(self), ordering=self._zmat)
+            self._ints = self.coords.convert(MolecularZMatrixCoordinateSystem(self, ordering=self._zmat))
+
         return self._ints
     @property
     def normal_modes(self):
@@ -305,12 +309,11 @@ class Molecule:
 
         if ext == ".fchk":
             from McUtils.GaussianInterface import GaussianFChkReader
+            keys= ['Gradient', 'ForceConstants', 'ForceDerivatives']
             with GaussianFChkReader(file) as gr:
-                parse = gr.parse(
-                    ['Gradient', 'ForceConstants', 'ForceDerivatives']
-                )
+                parse = gr.parse(keys)
 
-            return parse
+            return tuple(parse[k] for k in keys)
         elif ext == ".log":
             raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
                 type(self).__name__,
@@ -352,7 +355,7 @@ class Molecule:
             reweight = freqs / raw
             modes = modes * reweight[:, np.newaxis]
 
-            return NormalModeCoordinates(modes, freqs=freqs)
+            return NormalModeCoordinates(self, modes.T, freqs=freqs)
         elif ext == ".log":
             raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
                 type(self).__name__,
@@ -599,32 +602,35 @@ class Molecule:
                     'force_constants',
                     'normal_modes'
                 ))
-            vibs = MolecularVibrations(self, NormalModeCoordinates.from_force_constants(fcs, self.atoms, **kwargs))
+            vibs = MolecularVibrations(self, NormalModeCoordinates.from_force_constants(self, fcs, self.atoms, **kwargs))
 
         return vibs
 
     def _get_ob_attr(self, item):
-        if self._mol is not None:
+        if self._mol is None:
             raise AttributeError("No pybel molecule")
         else:
             return getattr(self._mol, item)
 
-    def __getattr__(self, item):
-        if '_kw' in self.__dict__:
-            needs_raise = False
-            try:
-                res = self._kw[item]
-            except KeyError:
-                try:
-                    res = self._get_ob_attr(item)
-                except AttributeError:
-                    res = None
-                    needs_raise = True
-            if needs_raise:
-                raise AttributeError("{} has no attribute '{}'".format(type(self).__name__, item))
-            return res
-        else:
-            raise AttributeError("{} has no attribute '{}'".format(type(self).__name__, item))
+    # def __getattr__(self, item):
+    #     if '_kw' in self.__dict__:
+    #         needs_raise = False
+    #         try:
+    #             res = self._kw[item]
+    #         except KeyError:
+    #             if self._mol is not None:
+    #                 try:
+    #                     res = self._get_ob_attr(item)
+    #                 except AttributeError:
+    #                     res = None
+    #                     needs_raise = True
+    #             else:
+    #                 needs_raise = True
+    #         if needs_raise:
+    #             raise AttributeError("{} has no attribute '{}'".format(type(self).__name__, item))
+    #         return res
+    #     else:
+    #         raise AttributeError("{} has no attribute '{}'".format(type(self).__name__, item))
 
 class MolecoolException(Exception):
     pass
