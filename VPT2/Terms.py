@@ -83,6 +83,24 @@ class DumbTensor:
     def shift(self, *args, **kwargs):
         return type(self)(self._shift(self.t, *args, **kwargs))
 
+    @staticmethod
+    def _contract_dim(R, targ_dim):
+        # we figure out how much we're off by
+        # and go from there, assuming that pairs of
+        # dimensions to be contracted show up at the end
+        for i in range(R.ndim - targ_dim):
+            l_pos = R.ndim - (i + 2)
+            gloobers = R.shape[:l_pos]
+            if i > 0:
+                r_pos = -i
+                groobers = R.shape[r_pos:]
+            else:
+                groobers = ()
+            R = R.reshape(gloobers + (-1,) + groobers)
+        return R
+    def contract_dim(self, targ_dim):
+        return type(self)(self._contract_dim(self.t, targ_dim))
+
     def __add__(self, other):
         if isinstance(other, DumbTensor):
             other = other.t
@@ -372,41 +390,41 @@ class PotentialTerms(ExpansionTerms):
             ccoords = self.coords
             carts = ccoords.system
             internals = intcds.system
-            xQ = intcds.jacobian(carts, 1)
-            xQQ = intcds.jacobian(carts, 2)
-            xQQQ = intcds.jacobian(carts, 3)
-            xQQQQ = intcds.jacobian(carts, 4, stencil=6)
+            XR = intcds.jacobian(carts, 1).squeeze()
+            XRR = intcds.jacobian(carts, 2).squeeze()
+            XRRR = intcds.jacobian(carts, 3).squeeze()
+            XRRRR = 0
+            XRRRR = intcds.jacobian(carts, 4).squeeze()
+            # this will need to be optimized out at some point, as will the thirds, maybe
 
             # The finite difference preserves too much shape by default
-            if xQ.ndim == 3:  # means we have NX3-type coords
-                ncoords = np.product(xQ.shape[1:]).astype(int)
-                xQ = xQ.reshape((xQ.shape[0], ncoords))
-            if xQQ.ndim == 4:  # means we have NX3-type coords
-                ncoords = np.product(xQQ.shape[2:]).astype(int)
-                xQQ = xQQ.reshape(xQQ.shape[:2] + (ncoords,))
-            if xQQQ.ndim == 5:  # means we have NX3-type coords
-                ncoords = np.product(xQQQ.shape[3:]).astype(int)
-                xQQQ = xQQQ.reshape(xQQQ.shape[:3] + (ncoords,))
-            if xQQQQ.ndim == 6:  # means we have NX3-type coords
-                ncoords = np.product(xQQQQ.shape[4:]).astype(int)
-                xQQQQ = xQQQQ.reshape(xQQQQ.shape[:4] + (ncoords,))
+            _contract_dim = DumbTensor._contract_dim
+            if XR.ndim > 2:
+                XR = _contract_dim(XR, 2)
+            if XRR.ndim > 3:
+                XRR = _contract_dim(XRR, 3)
+            if XRRR.ndim > 4:
+                XRRR = _contract_dim(XRRR, 4)
+            if XRRRR.ndim > 5:
+                XRRRR = _contract_dim(XRRRR, 5)
+
+            RX = ccoords.jacobian(internals, 1)
+            if RX.ndim > 2:
+                RX = _contract_dim(RX, 2)
 
             # Need to then mass weight
             masses = self.masses
             mass_conv = np.sqrt(np.broadcast_to(masses[np.newaxis], (len(masses), 3)).flatten())
-            # xQ /= mass_conv[np.newaxis]
-            # xQQ /= mass_conv[np.newaxis, np.newaxis]
-            # xQQQ /= mass_conv[np.newaxis, np.newaxis, np.newaxis]
-            # xQQQQ /= mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis]
+            xQ = XR * mass_conv[np.newaxis]
+            xQQ = XRR * mass_conv[np.newaxis, np.newaxis]
+            xQQQ = XRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis]
+            xQQQQ = XRRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis]
+            RY = RX / mass_conv[:, np.newaxis]
 
             # Put everything into proper normal modes
-            dot = self._dot
-            RX = ccoords.jacobian(internals, 1)
-            if RX.ndim == 3:
-                ncrd = np.prod(RX.shape[1:]).astype(int)
-                RX = RX.reshape((RX.shape[0], ncrd))
-            YQ = self.modes.matrix
-            L = dot(YQ, RX)
+            dot = DumbTensor._dot
+            YQ = self.modes.matrix.T
+            L = dot(YQ, RY)
             xQ = dot(L, xQ, axes=[[1, 0]])
             for i in range(2):
                 xQQ = dot(L, xQQ, axes=[[1, i]])
@@ -493,20 +511,8 @@ class KineticTerms(ExpansionTerms):
             RXX = ccoords.jacobian(internals, 2, mesh_spacing=.001, stencil=9)
             RXXX = ccoords.jacobian(internals, 3, mesh_spacing=.001, stencil=9)
             # FD tracks too much shape
-            def _contract_dim(R, targ_dim):
-                # we figure out how much we're off by
-                # and go from there, assuming that pairs of
-                # dimensions to be contracted show up at the end
-                for i in range(R.ndim - targ_dim):
-                    l_pos = R.ndim - (i + 2)
-                    gloobers = R.shape[:l_pos]
-                    if i > 0:
-                        r_pos = -i
-                        groobers = R.shape[r_pos:]
-                    else:
-                        groobers = ()
-                    R = R.reshape(gloobers + (-1,) + groobers)
-                return R
+
+            _contract_dim = DumbTensor._contract_dim
             if RX.ndim > 2:
                 RX = _contract_dim(RX, 2)
             if RXX.ndim > 3:
@@ -585,9 +591,7 @@ class KineticTerms(ExpansionTerms):
             # plt.TensorPlot(GQ).show()
             # raise Exception(...)
 
-            GQQ = Jd@(Jd@(V+V[3:2]))[0:1]
-            GQQ = GQQ.t
-            GQQ = 0
+            GQQ = (Jd@(Jd@(V+V[3:2]))[0:1]).t
 
         G_terms = (G, GQ, GQQ)
         return G_terms

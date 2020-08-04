@@ -414,8 +414,9 @@ class Molecule:
         else:
             frame = self.eckart_frame(ref, inverse=True)
         new = frame.apply(self)
-        nf = new.inertial_axes
-        # might want to embed dipoles and other things, too...
+        if self.normal_modes is not None:
+            self.normal_modes = ...
+        # want to embed dipoles and other things, too...
         return new
 
     @classmethod
