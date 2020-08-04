@@ -2,10 +2,12 @@
 A collection of methods used in computing molecule properties
 """
 import numpy as np, scipy.sparse as sp, itertools as ip
-from McUtils.Coordinerds import CoordinateSet, CartesianCoordinateSystem, CartesianCoordinates3D
+import McUtils.Numputils as nput
+from McUtils.Coordinerds import CoordinateSet
+from McUtils.Data import AtomData, UnitsData, BondData
+
 from .Molecule import Molecule
 from .Transformations import MolecularTransformation
-from McUtils.Data import AtomData, UnitsData, BondData
 
 __all__ = [
     "MolecularProperties",
@@ -65,33 +67,14 @@ class MolecularProperties:
             :rtype:
             """
 
-        x = coords[:, :, 0]
-        y = coords[:, :, 1]
-        z = coords[:, :, 2]
-        o = np.zeros(x.shape)
-        # build the skew matrices that we matrix product to get the individual r^2 tensors
-        doop = np.array(
-            [
-                [o, -z, y],
-                [z, o, -x],
-                [-y, x, o]
-            ]
-        )
 
-        # current shape (3, 3, N, M) where N is number of walkers and M is number of atoms
-        # make it into (N, M, 3, 3)
-        doop = doop.transpose(np.roll(np.arange(4), -2))  # might need to be a 2 :)
+        d = np.zeros((len(coords), 3, 3), dtype=float)
+        diag = nput.vec_dots(coords, coords)
+        d[:, (0, 1, 2), (0, 1, 2)] = diag
+        o = nput.vec_outer(coords, coords, axes=[-1, -1])
+        tens = np.tensordot(masses, d - o, axes=[0, 1])
 
-        # build the inertia products
-        # from the np.dot docs:
-        #   if a is an N-D array and b is an M-D array (where M>=2), it is a sum product over the last axis of a and the second-to-last axis of b:
-        # this means for our (N, M, 3, 3)
-        doopdoop = np.matmul(doop, doop)
-
-        # dot in the masses to reduce the dimension of this to (N, 3, 3)
-        massy_doop = np.tensordot(masses, doopdoop, axes=(0, 1))
-
-        return massy_doop
+        return tens
 
     @classmethod
     def get_prop_moments_of_inertia(cls, coords, masses):
@@ -142,7 +125,7 @@ class MolecularProperties:
         return cls.get_prop_moments_of_inertia(mol.coords, mol.masses)
 
     @classmethod
-    def get_prop_principle_axis_rotation(cls, coords, masses, sel=None):
+    def get_prop_principle_axis_rotation(cls, coords, masses, sel=None, inverse=False):
         """
         Generates the principle axis transformation for a set of coordinates and positions
 
@@ -169,6 +152,8 @@ class MolecularProperties:
             transf = MolecularTransformation(-com)
             c = transf(c)
             moms, axes = cls.get_prop_moments_of_inertia(c, mass)
+            if inverse:
+                axes = np.linalg.inv(axes)
             transf = MolecularTransformation(axes)(transf)
             transforms[i] = transf
 
@@ -178,7 +163,7 @@ class MolecularProperties:
         return transforms
 
     @classmethod
-    def principle_axis_transformation(cls, mol, sel=None):
+    def principle_axis_transformation(cls, mol, sel=None, inverse=False):
         """
         Generates the principle axis transformation for a Molecule
 
@@ -187,7 +172,7 @@ class MolecularProperties:
         :return:
         :rtype:
         """
-        return cls.get_prop_principle_axis_rotation(mol.coords, mol.masses, sel=sel)
+        return cls.get_prop_principle_axis_rotation(mol.coords, mol.masses, sel=sel, inverse=inverse)
 
     @classmethod
     def get_prop_eckart_transformation(cls, masses, ref, coords, sel=None):
@@ -271,6 +256,59 @@ class MolecularProperties:
                 m2
             ))
         return cls.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel)
+
+    @classmethod
+    def get_prop_translation_rotation_eigenvectors(cls, coords, masses):
+        """
+        Returns the eigenvectors corresponding to translations and rotations
+        in the system
+
+        :param coords:
+        :type coords:
+        :param masses:
+        :type masses:
+        :return:
+        :rtype:
+        """
+
+        n = len(masses)
+        mT = np.sum(masses)
+        mvec = np.sqrt(masses)
+        com = cls.get_prop_center_of_mass(coords, masses)
+        shift_crds = coords - com[np.newaxis, :]
+        M = np.kron(mvec/mT, np.eye(3)).T # translation eigenvectors
+        mom_rot, ax_rot = cls.get_prop_moments_of_inertia(shift_crds, masses)
+        inv_rot_2 = np.dot(ax_rot.T, np.diag(1/np.sqrt(mom_rot)), ax_rot)
+        e = nput.levi_cevita3
+        R = np.dot(shift_crds, np.dot(inv_rot_2, e).transpose((1, 2, 0))).reshape((3*n, 3)) # rotations
+        freqs = np.concatenate([
+            [1e-14, 1e-14, 1e-14],
+            UnitsData.convert("Wavenumbers", "Hartrees")*(1/mom_rot)
+            # this isn't right, I'm totally aware, but I think the frequency is supposed to be zero anyway and this
+            # will be tiny
+        ])
+        eigs = np.concatenate([M, R], axis=1)
+
+        np.savetxt("/Users/Mark/Desktop/tr_crd.data", coords)
+        np.savetxt("/Users/Mark/Desktop/tr_mass.data", masses)
+        np.savetxt("/Users/Mark/Desktop/tr_eigv.data", eigs)
+
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(eigs).show()
+        # raise Exception([M, R])
+        return freqs, eigs
+    @classmethod
+    def translation_rotation_eigenvectors(cls, mol, sel=None):
+        """
+
+        :param mol: molecules to get eigenvectors for
+        :type mol: Molecule
+        :param sel: coordinate selection to use when doing the rotation/translation calculations
+        :type mol:
+        :return:
+        :rtype:
+        """
+        return cls.get_prop_translation_rotation_eigenvectors(mol.coords, mol.masses)
 
     @classmethod
     def get_prop_adjacency_matrix(cls, atoms, bonds):

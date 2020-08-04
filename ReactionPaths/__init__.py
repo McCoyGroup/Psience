@@ -1,1 +1,0 @@
-# A place to port my Mathematica reaction path code

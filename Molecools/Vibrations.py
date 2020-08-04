@@ -6,7 +6,7 @@ import numpy as np, scipy.linalg as slag
 
 __all__ = [
     "MolecularVibrations",
-    "NormalModeCoordinates",
+    "MolecularNormalModes",
 ]
 
 class MolecularVibrations:
@@ -93,18 +93,72 @@ class MolecularVibrations:
             anim_opts = {}
         return Animator(figure, None, plot_method = animate, **anim_opts)
 
-class NormalModeCoordinates(CoordinateSystem):
-    """A prettied up version of a Coordinerds CoordinateSystem object
-    Has function for generating, though, too
+class MolecularNormalModes(CoordinateSystem):
+    """
+    A Coordinerds CoordinateSystem object that manages all of the data needed to
+     work with normal mode coordinates + some convenience functions for generating and whatnot
     """
     name="MolecularNormalModes"
-    def __init__(self, molecule, coeffs, name=None, freqs=None):
+    def __init__(self,
+                 molecule, coeffs,
+                 name=None, freqs=None,
+                 internal=False, origin=None, basis=None, inverse=None
+                 ):
+        if freqs is None:
+            freqs = np.diag(coeffs.T@coeffs)
+        if inverse is None:
+            if freqs is not None:
+                inverse = coeffs.T/freqs[:, np.newaxis]
+            else:
+                inverse = None
+        self.molecule = molecule
+        self.in_internals = internal
+        if origin is None:
+            origin = molecule.coords
+        if basis is None:
+            basis = molecule.sys
         super().__init__(
             matrix=coeffs,
+            inverse=inverse,
             name=self.name if name is None else name,
-            basis=molecule.sys
+            basis=basis,
+            dimension=(len(freqs),),
+            origin=origin
         )
         self.freqs = freqs
+    def to_internals(self, intcrds=None, dYdR=None, dRdY=None):
+        if self.in_internals:
+            return self
+        else:
+            if intcrds is None:
+                intcrds = self.molecule.internal_coordinates
+                if intcrds is None:
+                    raise ValueError("{}.{}: can't convert to internals when molecule {} has no internal coordinate specification".format(
+                        type(self).__name__,
+                        'to_internals',
+                        self.molecule
+                    ))
+            if dRdY is None or dYdR is None:
+                internals = intcrds.system
+                ccoords = self.molecule.coords
+                carts = ccoords.system
+                ncrds = self.matrix.shape[0]
+                dXdR = intcrds.jacobian(carts, 1).reshape(ncrds, ncrds)
+                dRdX = ccoords.jacobian(internals, 1).reshape(ncrds, ncrds)
+                masses = self.molecule.masses
+                mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
+                dYdR = dXdR * mass_conv[np.newaxis]
+                dRdY = dRdX / mass_conv[:, np.newaxis]
+
+            # get the new normal modes
+            dQdR = dYdR@self.matrix
+            dRdQ = self.inverse@dRdY
+
+            return type(self)(self.molecule, dQdR,
+                              basis = intcrds.system, origin=intcrds, inverse=dRdQ,
+                              internal=True, freqs=self.freqs
+                              )
+
 
     @classmethod
     def from_force_constants(cls,

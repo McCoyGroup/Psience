@@ -7,7 +7,7 @@ Uses AtomData to get properties and whatnot
 import os, numpy as np
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
-from .Frames import MolecularCartesianCoordinateSystem, MolecularZMatrixCoordinateSystem
+from .CoordinateSystems import MolecularCartesianCoordinateSystem, MolecularZMatrixCoordinateSystem
 
 __all__ = [
     "Molecule",
@@ -19,8 +19,6 @@ class Molecule:
     General purpose 'Molecule' class where the 'Molecule' need not be a molecule at all
     """
 
-    PYBEL_SUPPORTED = None
-    OC_SUPPORTED = None
     def __init__(self,
                  atoms,
                  coords,
@@ -66,7 +64,6 @@ class Molecule:
         """
         # convert "atoms" into list of atom data
         self._ats = [AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms]
-
 
         coords = CoordinateSet(coords, CartesianCoordinates3D)
 
@@ -191,7 +188,6 @@ class Molecule:
     def internal_coordinates(self):
         if self._ints is None and self._zmat is not None:
             self._ints = self.coords.convert(MolecularZMatrixCoordinateSystem(self, ordering=self._zmat))
-
         return self._ints
     @property
     def normal_modes(self):
@@ -333,7 +329,7 @@ class Molecule:
         :return:
         :rtype:
         """
-        from .Vibrations import NormalModeCoordinates
+        from .Vibrations import MolecularNormalModes
 
         if file is None:
             file = self.source_file
@@ -355,7 +351,13 @@ class Molecule:
             reweight = freqs / raw
             modes = modes * reweight[:, np.newaxis]
 
-            return NormalModeCoordinates(self, modes.T, freqs=freqs)
+            # add in translations and rotations
+            # tr_freqs, tr_vecs = self.prop("translation_rotation_eigenvectors")
+            # freqs = np.concatenate([tr_freqs, freqs])
+            # modes = np.concatenate([tr_vecs, modes.T], axis=1)
+            modes = modes.T
+
+            return MolecularNormalModes(self, modes, freqs=freqs)
         elif ext == ".log":
             raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
                 type(self).__name__,
@@ -372,30 +374,49 @@ class Molecule:
     def load_dipole_surface(self):
         raise NotImplemented
 
-    def principle_axis_frame(self, sel=None):
+    def principle_axis_frame(self, sel=None, inverse=False):
         """
         Gets the principle axis frame(s) for the molecule
         :param mol:
         :type mol:
         :param sel: selection of atoms to use when getting the Eckart frame
         :type sel:
+        :param inverse: whether to return the inverse of the rotations or not
+        :type inverse: bool
         :return:
         :rtype: MolecularTransformation | List[MolecularTransformation]
         """
-        return self.prop('principle_axis_transformation', sel=sel)
-    def eckart_frame(self, mol, sel=None):
+        return self.prop('principle_axis_transformation', sel=sel, inverse=inverse)
+    def eckart_frame(self, mol, sel=None, inverse=False):
         """
         Gets the Eckart frame(s) for the molecule
         :param mol:
         :type mol:
         :param sel: selection of atoms to use when getting the Eckart frame
         :type sel:
+        :param inverse: whether to return the inverse of the rotations or not
+        :type inverse: bool
         :return:
         :rtype:
         """
-        return self.prop('eckart_transformation', mol, sel=sel)
+        return self.prop('eckart_transformation', mol, sel=sel, inverse=inverse)
 
-    #TODO: I should put pybel support into McUtils so that it can be used outside the context of a Molecule object
+    def get_embedded_molecule(self, ref=None):
+        """
+        Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
+        a principle-axis embedded Molecule
+        :return:
+        :rtype: Molecule
+        """
+
+        if ref is None:
+            frame = self.principle_axis_frame(inverse=True)
+        else:
+            frame = self.eckart_frame(ref, inverse=True)
+        new = frame.apply(self)
+        nf = new.inertial_axes
+        # might want to embed dipoles and other things, too...
+        return new
 
     @classmethod
     def from_pybel(cls, mol, **opts):
@@ -406,7 +427,9 @@ class Molecule:
         :return:
         :rtype:
         """
-        import openbabel.openbabel as ob
+        from McUtils.ExternalPrograms import OpenBabelInterface
+
+        ob = OpenBabelInterface().openbabel
         bonds = list(ob.OBMolBondIter(mol.OBMol))
         atoms = list(mol.atoms)
 
@@ -437,7 +460,7 @@ class Molecule:
         # print(nums, wts)
         mol = cls(
             [AtomData[a]["Symbol"] + str(b) for a, b in zip(nums, wts)],
-            UnitsData.convert("BohrRadius", "Angstroms") * parse["Coordinates"],
+            parse["Coordinates"],
             **opts
         )
         return mol
@@ -467,36 +490,17 @@ class Molecule:
         if mode in format_dispatcher:
             loader = format_dispatcher[mode]
             return loader(file, **opts)
-        elif cls._pybel_installed():
-            import openbabel.pybel as pybel
-            mol = next(pybel.readfile(mode, file))
-            return cls.from_pybel(mol)
         else:
-            raise IOError("{} doesn't support file type {} without OpenBabel installed.".format(cls.__name__, mode))
-
-    @classmethod
-    def _pybel_installed(cls):
-        if cls.PYBEL_SUPPORTED is None:
+            from McUtils.ExternalPrograms import OpenBabelInterface
             try:
-                import openbabel.pybel
+                pybel = OpenBabelInterface().pybel
             except ImportError:
-                cls.PYBEL_SUPPORTED = False
+                pybel = None
+            if pybel is None:
+                raise IOError("{} doesn't support file type {} without OpenBabel installed.".format(cls.__name__, mode))
             else:
-                cls.PYBEL_SUPPORTED = True
-
-        return cls.PYBEL_SUPPORTED
-
-    @classmethod
-    def _oc_installed(cls):
-        if cls.OC_SUPPORTED is None:
-            try:
-                import openchemistry.io
-            except ImportError:
-                cls.OC_SUPPORTED = False
-            else:
-                cls.OC_SUPPORTED = True
-
-        return cls.OC_SUPPORTED
+                mol = next(pybel.readfile(mode, file))
+                return cls.from_pybel(mol)
 
     def plot(self,
              *geometries,
@@ -589,7 +593,7 @@ class Molecule:
         return figure, atoms, bonds
 
     def get_normal_modes(self, **kwargs):
-        from .Vibrations import NormalModeCoordinates, MolecularVibrations
+        from .Vibrations import MolecularNormalModes, MolecularVibrations
 
         if self.source_file is not None:
             vibs = MolecularVibrations(self, self.load_normal_modes())
@@ -602,7 +606,7 @@ class Molecule:
                     'force_constants',
                     'normal_modes'
                 ))
-            vibs = MolecularVibrations(self, NormalModeCoordinates.from_force_constants(self, fcs, self.atoms, **kwargs))
+            vibs = MolecularVibrations(self, MolecularNormalModes.from_force_constants(self, fcs, self.atoms, **kwargs))
 
         return vibs
 

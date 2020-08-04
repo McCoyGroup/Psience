@@ -61,15 +61,13 @@ class PerturbationTheoryHamiltonian:
 
         if molecule is None:
             raise PerturbationTheoryException("{} requires a Molecule to do its dirty-work")
+        # molecule = molecule.get_embedded_molecule()
         self.molecule = molecule
 
         modes = molecule.normal_modes
         mode_n = modes.basis.matrix.shape[1]
         self.mode_n = mode_n
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
-        # we assume that our modes are already in mass-weighted coordinates, so now we need to make them dimensionless
-        # to make life easier, we include this undimensionalization differently for the kinetic and potential energy
-        # the kinetic energy needs to be weighted by a sqrt(omega) term while the PE needs a 1/sqrt(omega)
         self.modes = modes
 
         self.V_terms = PotentialTerms(self.molecule)

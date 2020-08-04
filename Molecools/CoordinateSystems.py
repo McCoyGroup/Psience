@@ -38,6 +38,12 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         if converter_options is None:
             converter_options = opts
             opts = {}
+        if 'ordering' in converter_options:
+            ordering = np.array(converter_options['ordering'], dtype=int)
+            ordering[0, 1] = -3; ordering[0, 2] = -2; ordering[0, 3] = -1
+            ordering[1, 2] = -2; ordering[1, 3] = -1
+            ordering[2, 3] = -1
+            converter_options['ordering'] = ordering
         converter_options['origins'] = com
         converter_options['axes'] = axes[:2]
         converter_options['molecule'] = molecule
@@ -73,6 +79,12 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         if converter_options is None:
             converter_options = opts
             opts = {}
+        if 'ordering' in converter_options:
+            ordering = np.array(converter_options['ordering'], dtype=int)
+            ordering[0, 1] = -3; ordering[0, 2] = -2; ordering[0, 3] = -1
+            ordering[1, 2] = -2; ordering[1, 3] = -1
+            ordering[2, 3] = -1
+            converter_options['ordering'] = ordering
         converter_options['origins'] = com
         converter_options['axes'] = axes[:2]
         converter_options['molecule'] = molecule
