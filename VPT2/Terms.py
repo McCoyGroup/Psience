@@ -511,7 +511,6 @@ class KineticTerms(ExpansionTerms):
                 RX = _contract_dim(RX, 2)
             if RXX.ndim > 3:
                 RXX = _contract_dim(RXX, 3)
-
             if RXXX.ndim > 4:
                 RXXX = _contract_dim(RXXX, 4)
 
@@ -519,20 +518,9 @@ class KineticTerms(ExpansionTerms):
             XR = intcds.jacobian(carts, 1).squeeze()
             if XR.ndim > 2:
                 XR = _contract_dim(XR, 2)
-
             XRR = intcds.jacobian(carts, 2)
             if XRR.ndim > 3:
                 XRR = _contract_dim(XRR, 3)
-
-            CoordinateSet = crds.CoordinateSet
-            CartesianCoordinates3D = crds.CartesianCoordinates3D
-            ZMatrixCoordinateSystem = crds.ZMatrixCoordinateSystem
-
-            icsys = ZMatrixCoordinateSystem(ordering=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]])
-            ccs = CoordinateSet(ccoords, CartesianCoordinates3D)
-            rx = _contract_dim(ccs.jacobian(icsys), 2)
-            ics = ccs.convert(icsys)
-            xr = _contract_dim(ics.jacobian(ccs.system).squeeze(), 2)
 
             # take only the well-defined coordinates
 
@@ -548,11 +536,6 @@ class KineticTerms(ExpansionTerms):
             # xr = xr[tuple(s-3 for s in sp), :]
             # rx = rx[:, tuple(s-3 for s in sp)]
 
-            # plt.ArrayPlot(rx, plot_style=dict(vmin=-2, vmax=2))
-            # plt.ArrayPlot(RX, plot_style=dict(vmin=-2, vmax=2))
-            # plt.ArrayPlot(xr@rx, plot_style=dict(vmin=-2, vmax=2))
-            # plt.ArrayPlot(rx@xr, plot_style=dict(vmin=-2, vmax=2))
-
             # next we need to mass-weight
             masses = self.masses
             mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
@@ -566,101 +549,16 @@ class KineticTerms(ExpansionTerms):
             YR = XR * mass_conv[np.newaxis]
             YRR = XRR * mass_conv[np.newaxis, np.newaxis]
 
-            G = dot(RY, RY, axes=[[0, 0]])
-            ic = np.asarray(intcds).flatten()[sp]
-            r1 = ic[0]
-            r2 = ic[1]
-            q = ic[2]
-            mO = masses[0]; mH = masses[1]; mD = masses[2]
-            G2 = np.array([
-                [(mH + mO) / (mH * mO), np.cos(q) / mO, -(np.sin(q) / (mO * r2))],
-                [np.cos(q) / mO, (mD + mO) / (mD * mO), -(np.sin(q) / (mO * r1))],
-                [-(np.sin(q) / (mO * r2)), -(np.sin(q) / (mO * r1)),
-                (mH + mO) / (mH * mO * r1 ** 2) + (mD + mO) / (mD * mO * r2 ** 2) - (2 * np.cos(q)) / (mO * r1 * r2)]
-            ])
-
-            GG2 = np.array([[[0, 0, 0], [0, 0, np.sin(q)/(mO*r1**2)], [0, np.sin(q)/(mO*r1**2), (-2*(mH + mO))/(mH*mO*r1**3) + (2*np.cos(q))/(mO*r1**2*r2)]], [[0, 0, np.sin(q)/(mO*r2**2)], [0, 0, 0], [np.sin(q)/(mO*r2**2), 0, (-2*(mD + mO))/(mD*mO*r2**3) + (2*np.cos(q))/(mO*r1*r2**2)]], [[0, -(np.sin(q)/mO), -(np.cos(q)/(mO*r2))], [-(np.sin(q)/mO), 0, -(np.cos(q)/(mO*r1))], [-(np.cos(q)/(mO*r2)), -(np.cos(q)/(mO*r1)), (2*np.sin(q))/(mO*r1*r2)]]])
-
-            # plt.ArrayPlot(G2)
-            # plt.ArrayPlot(G)
-            # plt.ArrayPlot(np.round(G-G2, 6))
-
-            # plt.TensorPlot(RYY-RYY.transpose(1, 0, 2)).show()
-
-            GG22_1 = np.tensordot(YR,
-                                  np.tensordot(shift(RYY, [2, 1]), RY, axes=[-1, 0]),
-                                  axes=[-1, 0]
-                                  )
-            GG22 = GG22_1 + shift(GG22_1, [2, 1])
-            # GG22 = GG22[sp, :, :][:, sp, :][:, :, sp]
-            # ps = dict(plot_style=dict(vmin=-1e-5, vmax=1e-5))
-
             QY = self.modes.matrix  # derivatives of Q with respect to the mass-weighted Cartesians
             YQ = self.modes.matrix.T / self.modes.freqs[:, np.newaxis]
             G = dot(QY, QY, axes=[[0, 0]])
 
-            # from McUtils.Coordinerds import CoordinateSet
-            #
-            # Q = ccoords.convert(self.modes)
-            # iQ = Q.convert(internals)
-            QX = self.modes.matrix / np.sqrt(self.modes.freqs[np.newaxis, :])
-            XQ = self.modes.matrix.T / np.sqrt(self.modes.freqs[:, np.newaxis])
-            # raise Exception(np.round(QX@XQ, 5))
-            QR = dot(YR, QY)
-            RQ = dot(YQ, RY)
-            """
-            [[-0.02381309  0.35952539  5.51410772]
- [-0.05098221  6.46625906 -0.41015101]
- [-2.59159072  0.20188893  0.15532068]]"""
-            # raise Exception([np.round(QR, 4), np.round(RQ, 4)])
-            # intmodes = self.modes.to_internals()
-            #
-            # def g(q, modes=self.modes):
-            #     q = CoordinateSet(q, modes)
-            #     c = q.convert(carts)
-            #     j = c.jacobian(internals, stencil=5)
-            #     extra = q.ndim-1
-            #     bleh = q.shape[:extra]
-            #     j = np.reshape(j, bleh + (9, 9))
-            #     m = np.reshape(mass_conv, (1,)*extra+(9, 1))
-            #     j = j / m
-            #     t_spec = tuple(range(extra)) + (extra+1, extra)
-            #     g = j.transpose(t_spec)@j
-            #     G = QR.T @ g @ QR
-            #     return G
-
-            # import McUtils.Plots as plt
-
-            # print(self.modes.freqs)
-            # G2 = g(iQ, intmodes)
-            # GG = QR.T@G2@QR
-            # meh = plt.ArrayPlot(G2)
-            # plt.ArrayPlot(GG)
-            # plt.ArrayPlot(RQ@QR)
-            # meh.show()
-            # GQ_test = Q.derivatives(g, stencil=5)
-            # GQQ_test = Q.derivatives(g, 2, stencil=5)
-            """
-State Energies:
- 0 0 0  4053  3992     0     0
- 0 0 1  7927  7612  3874  3620
- 0 1 0  6863  6652  2810  2660
- 1 0 0  5475  5360  1422  1368
- """
-
-            # gg = lambda q, g=g, m=intmodes: g(q, m)
-            # GQ_test = iQ.derivatives(gg, stencil=5)
-            # GQQ_test = iQ.derivatives(gg, 2, stencil=5)
-            """
-State Energies:
- 0 0 0  4053  3996     0     0
- 0 0 1  7927  7627  3874  3631
- 0 1 0  6863  6645  2810  2649
- 1 0 0  5475  5368  1422  1372
- """
-            # plt.TensorPlot(GQ_test)
-            # plt.TensorPlot(GQQ_test).show()
-
+            # dRdYY = DumbTensor(RYY)
+            # dRdY = DumbTensor(RY)
+            # dYdR = DumbTensor(YR)
+            # intdG_1 = dYdR@(dRdYY[2:1]@dRdY)
+            # intdG_2 = dYdR@(dRdY[0:1]@dRdYY[0:1])[0:1]
+            # intdGdR = intdG_1.t + intdG_2.t
 
             J = DumbTensor(QY)
             Jd = DumbTensor(YQ)
@@ -671,24 +569,25 @@ State Energies:
             K22 = K.dot(K, axes=[[1, 1]])
             V = L[3:2]@J + K22[2:0]
 
-            # U = DumbTensor(shift(dot(QY, dot(RYY, YR, QY), axes=[[0, 0]]), [1, 0]))
-
             GQ = Jd@(U+U[2:1])
             GQ = GQ.t
 
-            # raise Exception("...")
+            # QR = dot(YR, QY)
+            # RQ = dot(YQ, RY)
+            # intdGdQ = dot(RQ, intdGdR)
+            # GQ_2 = shift(dot(QR, intdGdQ, QR, axes=[[0, 1], [2, 0]]), [1, 0])
+            # GQ_2w = GQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
+            # plt.TensorPlot(np.round(GQ-GQ_2, 12))
+            # plt.TensorPlot(GQ_2w).show()
 
-            # plt.TensorPlot(GQ)
-            # plt.TensorPlot(GQ_test)
-            # plt.TensorPlot(GQ/GQ_test).show()
+            # raise Exception(GQ-GQ_2)
+
+            # plt.TensorPlot(GQ).show()
+            # raise Exception(...)
 
             GQQ = Jd@(Jd@(V+V[3:2]))[0:1]
             GQQ = GQQ.t
-
-            # GQ = GQ2
-            # GQ = GQ_test
-            # GQQ = 0#GQQ_test
-            # GQQ = self._weight_derivatives(GQQ, 2)
+            GQQ = 0
 
         G_terms = (G, GQ, GQQ)
         return G_terms

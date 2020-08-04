@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[    231515,       6917]
-NotebookOptionsPosition[    210963,       6681]
-NotebookOutlinePosition[    211649,       6705]
-CellTagsIndexPosition[    211606,       6702]
+NotebookDataLength[    237589,       7095]
+NotebookOptionsPosition[    216248,       6850]
+NotebookOutlinePosition[    216934,       6874]
+CellTagsIndexPosition[    216891,       6871]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -6677,6 +6677,175 @@ Cell[BoxData[
   3.8049354792859163`*^9, 
   3.8049355327877693`*^9}},ExpressionUUID->"f7f932af-bd10-4a02-b568-\
 8e03c269fe6b"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Analytic Validation", "Title",
+ CellChangeTimes->{{3.805543175784689*^9, 
+  3.805543180568006*^9}},ExpressionUUID->"0f89f191-46f1-4313-8b66-\
+55d799a261aa"],
+
+Cell[TextData[{
+ "We\[CloseCurlyQuote]ve got three internal coordinates, ",
+ Cell[BoxData[
+  FormBox[
+   SubscriptBox["r", "1"], TraditionalForm]], "ExpositoryTextInline",
+  FormatType->"TraditionalForm",ExpressionUUID->
+  "c3faf59b-0614-430a-8cc6-373487b60e89"],
+ ", ",
+ Cell[BoxData[
+  FormBox[
+   SubscriptBox["r", "2"], TraditionalForm]], "ExpositoryTextInline",
+  FormatType->"TraditionalForm",ExpressionUUID->
+  "0e1a070c-fc3d-4f5e-9c6b-22301a41cbf4"],
+ ", \[Theta]. I\[CloseCurlyQuote]ve confirmed that"
+}], "ExpositoryText",
+ CellChangeTimes->{{3.805543183751812*^9, 3.8055431886398487`*^9}, {
+  3.805543232092128*^9, 3.8055432664032087`*^9}, {3.805554089798066*^9, 
+  3.805554093164809*^9}},ExpressionUUID->"3e4e8f63-a570-48ed-8420-\
+98873b0fabe7"],
+
+Cell[BoxData[
+ FormBox[
+  RowBox[{"G", "=", 
+   RowBox[{
+    RowBox[{
+     SubscriptBox["\[Del]", "Y"], 
+     SuperscriptBox["R", 
+      StyleBox["T",
+       FontSlant->"Plain"]]}], 
+    RowBox[{
+     SubscriptBox["\[Del]", "Y"], "R"}]}]}], 
+  TraditionalForm]], "ExpositoryMathCentered",
+ CellChangeTimes->{{3.805554094239665*^9, 3.805554114740551*^9}, 
+   3.805555367675928*^9},ExpressionUUID->"fcf051c2-cbca-432a-bf2e-\
+5ad7523a18de"],
+
+Cell["is working, so now we want to check", "ExpositoryText",
+ CellChangeTimes->{{3.805554123284979*^9, 
+  3.8055541347328053`*^9}},ExpressionUUID->"3ac0a275-102a-4995-b340-\
+b35b8f4de11c"],
+
+Cell[BoxData[
+ FormBox[GridBox[{
+    {
+     RowBox[{
+      RowBox[{
+       SubscriptBox["\[Del]", "R"], "G"}], "=", 
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[Del]", "R"], "Y"}], 
+       RowBox[{
+        SubscriptBox["\[Del]", "Y"], 
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{
+           SubscriptBox["\[Del]", "Y"], 
+           SuperscriptBox["R", 
+            StyleBox["T",
+             FontSlant->"Plain"]]}], 
+          RowBox[{
+           SubscriptBox["\[Del]", "Y"], "R"}]}], ")"}]}]}]}]},
+    {
+     RowBox[{"=", 
+      RowBox[{
+       SubscriptBox["\[Del]", "R"], 
+       RowBox[{"Y", "(", 
+        RowBox[{
+         RowBox[{
+          RowBox[{"(", 
+           RowBox[{
+            SubscriptBox["\[Del]", 
+             SuperscriptBox["Y", "2"]], 
+            SuperscriptBox["R", 
+             RowBox[{"3", ":", "2"}]]}], ")"}], 
+          RowBox[{
+           SubscriptBox["\[Del]", "Y"], "R"}]}], "+", 
+         SuperscriptBox[
+          RowBox[{"(", 
+           RowBox[{
+            RowBox[{
+             SubscriptBox["\[Del]", "Y"], 
+             SuperscriptBox["R", 
+              StyleBox["T",
+               FontSlant->"Plain"]]}], 
+            RowBox[{
+             SubscriptBox["\[Del]", 
+              SuperscriptBox["Y", "2"]], 
+             SuperscriptBox["R", 
+              RowBox[{"2", ":", "1"}]]}]}], ")"}], 
+          RowBox[{"2", ":", "1"}]]}], ")"}]}]}]},
+    {
+     RowBox[{"=", 
+      RowBox[{
+       RowBox[{
+        RowBox[{
+         SubscriptBox["\[Del]", "R"], "Y"}], 
+        RowBox[{
+         SubscriptBox["\[Del]", 
+          SuperscriptBox["Y", "2"]], 
+         SuperscriptBox["R", 
+          RowBox[{"3", ":", "2"}]]}], 
+        RowBox[{
+         SubscriptBox["\[Del]", "Y"], "R"}]}], "+", 
+       RowBox[{
+        SubscriptBox["\[Del]", "R"], 
+        SuperscriptBox[
+         RowBox[{"Y", "(", 
+          RowBox[{
+           RowBox[{
+            SubscriptBox["\[Del]", "Y"], 
+            SuperscriptBox["R", 
+             StyleBox["T",
+              FontSlant->"Plain"]]}], 
+           RowBox[{
+            SubscriptBox["\[Del]", 
+             SuperscriptBox["Y", "2"]], 
+            SuperscriptBox["R", 
+             RowBox[{"2", ":", "1"}]]}]}], ")"}], 
+         RowBox[{"2", ":", "1"}]]}]}]}]}
+   }], TraditionalForm]], "ExpositoryMathCentered",
+ CellChangeTimes->{{3.8055541360145683`*^9, 3.805554162581602*^9}, {
+  3.80555506284439*^9, 3.805555065570644*^9}, {3.805555103029306*^9, 
+  3.805555207007059*^9}, {3.805555375701655*^9, 3.805555389837731*^9}, {
+  3.805555643446282*^9, 3.805555655317843*^9}, {3.805566230054998*^9, 
+  3.805566231466889*^9}},ExpressionUUID->"922cdf5a-2925-4592-8006-\
+967b7120f346"],
+
+Cell["which can be written more compactly as", "ExpositoryText",
+ CellChangeTimes->{{3.805566295281727*^9, 
+  3.80556630369643*^9}},ExpressionUUID->"99d0a273-19d2-439b-b1d2-\
+fb7b07855b78"],
+
+Cell[BoxData[
+ FormBox[GridBox[{
+    {
+     RowBox[{"U", "=", 
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[Del]", 
+         SuperscriptBox["Y", "2"]], 
+        SuperscriptBox["R", 
+         RowBox[{"3", ":", "2"}]]}], 
+       SubscriptBox["\[CircleDot]", 
+        RowBox[{"3", ",", "0"}]], 
+       RowBox[{
+        SubscriptBox["\[Del]", "Y"], "R"}]}]}]},
+    {
+     RowBox[{
+      RowBox[{
+       SubscriptBox["\[Del]", "R"], "G"}], "=", 
+      RowBox[{
+       SubscriptBox["\[Del]", "R"], 
+       RowBox[{"Y", "(", 
+        RowBox[{"U", "+", 
+         SuperscriptBox["U", 
+          RowBox[{"2", ":", "1"}]]}], ")"}]}]}]}
+   }], TraditionalForm]], "ExpositoryMathCentered",
+ CellChangeTimes->{{3.805566306580893*^9, 
+  3.8055664572191343`*^9}},ExpressionUUID->"048ce5fe-ac94-4eee-88cc-\
+3bac5d3c6719"]
 }, Open  ]]
 },
 WindowSize->{911, 847},
@@ -6918,6 +7087,15 @@ Cell[209261, 6630, 637, 17, 48, "ExpositoryMathCentered",ExpressionUUID->"fccb8e
 Cell[209901, 6649, 245, 6, 37, "ExpositoryText",ExpressionUUID->"b0fdfcca-bf97-41c1-bf8b-6c342000e666"],
 Cell[210149, 6657, 255, 4, 37, "ExpositoryText",ExpressionUUID->"52436289-4e4f-452c-9bd2-5f8a43f5be9d"],
 Cell[210407, 6663, 540, 15, 45, "ExpositoryMathCentered",ExpressionUUID->"f7f932af-bd10-4a02-b568-8e03c269fe6b"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[210984, 6683, 162, 3, 105, "Title",ExpressionUUID->"0f89f191-46f1-4313-8b66-55d799a261aa"],
+Cell[211149, 6688, 757, 18, 39, "ExpositoryText",ExpressionUUID->"3e4e8f63-a570-48ed-8420-98873b0fabe7"],
+Cell[211909, 6708, 437, 14, 32, "ExpositoryMathCentered",ExpressionUUID->"fcf051c2-cbca-432a-bf2e-5ad7523a18de"],
+Cell[212349, 6724, 189, 3, 37, "ExpositoryText",ExpressionUUID->"3ac0a275-102a-4995-b340-b35b8f4de11c"],
+Cell[212541, 6729, 2682, 84, 92, "ExpositoryMathCentered",ExpressionUUID->"922cdf5a-2925-4592-8006-967b7120f346"],
+Cell[215226, 6815, 189, 3, 37, "ExpositoryText",ExpressionUUID->"99d0a273-19d2-439b-b1d2-fb7b07855b78"],
+Cell[215418, 6820, 814, 27, 58, "ExpositoryMathCentered",ExpressionUUID->"048ce5fe-ac94-4eee-88cc-3bac5d3c6719"]
 }, Open  ]]
 }
 ]
