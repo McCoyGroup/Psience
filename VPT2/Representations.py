@@ -216,9 +216,9 @@ class ProductOperator:
         for f, i in zip(funcs, inds):
             n = mm[i]
             if pieces[n] is None:
-                pieces[n] = f(dims[i ] +padding)
+                pieces[n] = f(dims[i] +padding)
             else:
-                pieces[n] = pieces[n].dot(f(dims[i ] +padding))
+                pieces[n] = pieces[n].dot(f(dims[i] +padding))
 
         # for j in np.setdiff1d(totinds, inds):
         #     pieces[j] = sp.identity(dims[j])

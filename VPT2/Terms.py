@@ -195,8 +195,10 @@ class ExpansionTerms:
         xQQ = x_derivs[1]
         Vxx = V_derivs[1]
 
-        xQ_Vxx = dot(xQ, Vxx)
-        V_QQ = dot(xQQ, Vx) + dot(xQ_Vxx, xQ, axes=[[1, 1]])
+        V_QQ_1 = dot(xQQ, Vx)
+        V_QQ_2 = dot(xQ, dot(xQ, Vxx, axes=[[1, 0]]), axes=[[1, 1]])
+        V_QQ_terms = (V_QQ_1, V_QQ_2)
+        V_QQ = sum(x for x in V_QQ_terms if not isinstance(x, int))
         derivs[1] = V_QQ
         if order == 2:
             return tuple(derivs)
@@ -206,17 +208,50 @@ class ExpansionTerms:
         Vxxx = V_derivs[2]
 
         # If Q is just an expansion in X all of these terms will disappear except for V_QQQ_5
-        xQQ_Vxx = dot(xQQ, Vxx)
 
         # Gradient contribution
         V_QQQ_1 = dot(xQQQ, Vx)
         # Second deriv.
-        # V_QQQ_2 = dot(xQ_Vxx, xQQ, axes=[[-1, -1]])
-        # V_QQQ_3 = dot(xQQ_Vxx, xQ, axes=[[-1, -1]])
-        # V_QQQ_4 = shift(V_QQQ_2, (1, 0))
-        V_QQQ_2 = dot(Vxx, xQQ, xQ, axes=[[0, -1], [0, -1]])
-        V_QQQ_3 = dot(Vxx, shift(xQQ, [0, 1]), xQ, axes=[[0, -1], [0, -1]])
-        V_QQQ_4 = dot(Vxx, xQ, xQQ, axes=[[0, -1], [0, -1]])
+        # we generate the base arrangement
+        Q32 = dot(xQQ, dot(xQ, Vxx, axes=[[1, 0]]), axes=[[2, 1]])
+        # then we do the transpositions that put the xQ coordinate inside the xQQ
+        if not isinstance(Q32, int):
+            X = tuple(range(3, Q32.ndim))
+            V_QQQ_2 = sum([
+                Q32.transpose(0, 1, 2, *X),
+                Q32.transpose(1, 2, 0, *X),
+                Q32.transpose(2, 0, 1, *X)
+                ])
+            raise Exception(
+                np.round(
+                    V_QQQ_2*UnitsData.convert("Hartrees", "Wavenumbers"),
+                    0
+                )
+                )
+            # for i in range(3):
+                # for j in range(3):
+                #     for k in range(3):
+                #         i, j, k = 0, 1, 2
+                #         wat = sum(
+                #                 np.tensordot(
+                #                     np.tensordot(xQQ[a, b], Vxx, axes=[[0], [1]]),
+                #                     xQ[c],
+                #                     axes=[[0], [0]]
+                #                 ) for a,b,c in (
+                #                     (i, j, k),
+                #                     (i, k, j),
+                #                     (j, k, i)
+                #                 )
+                #         )
+                #         if abs(wat - V_QQQ_2[i, j, k])>.001:
+                #             raise Exception("wat {} wat {} wat {},{},{}".format(
+                #                 wat,
+                #                 V_QQQ_2[i, j, k],
+                #                 i,j,k
+                #             ))
+                #         assert abs(wat - V_QQQ_2[i, j, k])<.001
+        else:
+            V_QQQ_2 = 0
 
         # Third derivs.
         if not mixed_XQ:
@@ -224,21 +259,14 @@ class ExpansionTerms:
         else:
             VQxx = Vxxx
 
-        V_QQQ_5 = dot(VQxx, xQ, xQ, axes=[[2, 1], [1, 1]])
+        V_QQQ_3 = dot(xQ, dot(xQ, VQxx, axes=[[1, 1]]), axes=[[1, 2]])
 
         V_QQQ_terms = (
             V_QQQ_1,
             V_QQQ_2,
-            V_QQQ_3,
-            V_QQQ_4,
-            V_QQQ_5
+            V_QQQ_3
         )
         V_QQQ = sum(x for x in V_QQQ_terms if not isinstance(x, int))
-        # np.savetxt("/Users/Mark/Desktop/eeeeehhhh.dat",
-        #            np.array([
-        #                x.flatten() for x in V_QQQ_terms if not isinstance(x, int)
-        #            ])
-        #            )
 
         derivs[2] = V_QQQ
         if order == 3:
@@ -249,56 +277,68 @@ class ExpansionTerms:
 
         xQQQQ = x_derivs[3]
         Vxxxx = V_derivs[3]
-        V_QQQQ_1 = dot(xQQQQ, Vx) + dot(xQ, Vxx, xQQQ, axes=[[-1, 0], [-1, -1]])
 
-        xQQQ_Vxx_xQ = dot(xQQQ, Vxx, xQ, axes=[[-1, 0], [-1, -1]])
-        xQ_22_Vxxx = dot(xQ, Vxxx, axes=[[-1, 1]])
-        xQQ_Vxx_xQQ = dot(xQQ_Vxx, xQQ, axes=[[-1, -1]])
+        # Gradient contribution
+        V_QQQQ_1 = dot(xQQQQ, Vx)
+        # Second deriv.
+        #  All QQQ x Q & QQ x QQ permutations
+        Q4231 = dot(xQQQ, dot(xQ, Vxx, axes=[[1, 0]]), axes=[[3, 1]])
+        if not isinstance(Q4231, int):
+            X = tuple(range(4, Q4231.ndim))
+            V_QQQQ_21 = sum([
+                Q4231.transpose(0, 1, 2, 3, *X),
+                Q4231.transpose(3, 0, 1, 2, *X),
+                Q4231.transpose(2, 3, 0, 1, *X),
+                Q4231.transpose(1, 2, 3, 0, *X)
+                ])
+        else:
+            V_QQQQ_21 = 0
 
-        V_QQQQ_2 = (
-                xQQ_Vxx_xQQ +
-                dot(Vxxx, xQ, xQQ, axes=[[1, -1], [1, -1]]) +
-                shift(xQQQ_Vxx_xQ, (0, 1), (2, 3))
-        )
+        # the question is really whether these are all _unique_ permutations,
+        # i.e. is (2, 3, 0, 1) valid or not
+        Q4222 = dot(xQQ, dot(xQQ, Vxx, axes=[[2, 0]]), axes=[[2, 2]])
+        if not isinstance(Q4222, int):
+            X = tuple(range(4, Q4222.ndim))
+            V_QQQQ_22 = sum([
+                Q4222.transpose(0, 1, 2, 3, *X),
+                Q4222.transpose(3, 0, 1, 2, *X),
+                Q4222.transpose(2, 3, 0, 1, *X),
+                Q4222.transpose(1, 2, 3, 0, *X)
+            ])
+        else:
+            V_QQQQ_22 = 0
 
-        V_QQQQ_3 = (
-                xQQQ_Vxx_xQ +
-                dot(Vxxx, xQQ, xQ, axes=[[-1, -1], [1, -1]]) +
-                shift(xQQ_Vxx_xQQ, (0, 3))
-        )
+        V_QQQQ_2 = sum(x for x in [V_QQQQ_21, V_QQQQ_22] if not isinstance(x, int))
 
-        V_QQQQ_4 = (
-                shift(xQQ_Vxx_xQQ, (1, 2)) +
-                shift(dot(xQ, VQxx, xQQ, axes=[[1, 1], [2, 2]]), (2, 3)) +
-                shift(xQQQ_Vxx_xQ, (0, 1), (3, 1))
-        )
+        Q4321 = dot(xQQ, dot(xQ, VQxx, axes=[[1, 1]]), axes=[[2, 2]])
+        if not isinstance(Q4321, int):
+            X = tuple(range(4, Q4321.ndim))
+            V_QQQQ_3 = sum([
+                Q4321.transpose(0, 1, 2, 3, *X),
+                Q4321.transpose(3, 0, 1, 2, *X),
+                Q4321.transpose(2, 3, 0, 1, *X),
+                Q4321.transpose(1, 2, 3, 0, *X)
+            ])
+        else:
+            V_QQQQ_3 = 0
 
+        # fourth derivs
         if not mixed_XQ:
-            VQQxx = shift(
-                dot(
-                    shift(dot(Vxxxx, xQ, axes=[[1, 1]]), [-1, 1]),
-                    xQ, axes=[[1, 1]]
-                ),
-                [-1, 1]
-            )
+            VQQxx = dot(xQ, dot(xQ, Vxxxx), axes=[[1, 1]])
         else:
             VQQxx = Vxxxx
 
-        V_QQQQ_5 = (
-                dot(xQQ, VQxx, xQ, axes=[[2, 1], [3, 1]]) +
-                shift(dot(xQQ, VQxx, xQ, axes=[[2, 2], [3, 1]]), (3, 1)) +
-                shift(dot(xQ, VQxx, xQQ, axes=[[1, 1], [2, 2]]), (2, 0))
-        )
-
-        V_QQQQ_6 = dot(VQQxx, xQ, xQ, axes=[[3, 1], [2, 1]])
+        if not isinstance(VQQxx, int):
+            # raise Exception(dot(xQ, VQQxx.toarray(), axes=[[1, 2]]).shape)
+            V_QQQQ_4 = dot(xQ, dot(xQ, VQQxx.toarray(), axes=[[1, 2]]), axes=[[1, 3]])
+        else:
+            V_QQQQ_4 = 0
 
         V_QQQQ = (
                 V_QQQQ_1 +
                 V_QQQQ_2 +
                 V_QQQQ_3 +
-                V_QQQQ_4 +
-                V_QQQQ_5 +
-                V_QQQQ_6
+                V_QQQQ_4
         )
 
         return V_Q, V_QQ, V_QQQ, V_QQQQ
@@ -408,21 +448,23 @@ class PotentialTerms(ExpansionTerms):
 
         # Use the Molecule's coordinates which know about their embedding by default
         intcds = self.internal_coordinates
-        if intcds is None or not self.non_degenerate:
+        if intcds is None:# or not self.non_degenerate:
             # this is nice because it eliminates most of terms in the expansion
             xQ = self.modes.inverse
             xQQ = 0
             xQQQ = 0
             xQQQQ = 0
         else:
+            dot = DumbTensor._dot
+            QY = self.modes.matrix  # derivatives of Q with respect to the mass-weighted Cartesians
             YQ = self.modes.inverse
-            QY = self.modes.matrix
             # We need to compute all these terms then mass weight them
             ccoords = self.coords
             carts = ccoords.system
             internals = intcds.system
-            # XR, XRR, XRRR, XRRRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2, 3, 4])]
-            # the 3rd and fourth derivative tensors will probably need to be optimized out
+
+            # XR, = [x.squeeze() for x in intcds.jacobian(carts, [1])]
+            # XRR = XRRR = XRRRR = 0
 
             XR, XRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2])]
             XRRR = XRRRR = 0
@@ -430,60 +472,61 @@ class PotentialTerms(ExpansionTerms):
             # XR, XRR, XRRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2, 3])]
             # XRRRR = 0
 
+            # XR, XRR, XRRR, XRRRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2, 3, 4])]
+            # the 3rd and fourth derivative tensors will probably need to be optimized out
+
             # The finite difference preserves too much shape by default
             _contract_dim = DumbTensor._contract_dim
             if XR.ndim > 2:
                 XR = _contract_dim(XR, 2)
-            if XRR.ndim > 3:
+            if not isinstance(XRR, int) and XRR.ndim > 3:
                 XRR = _contract_dim(XRR, 3)
-            # if XRRR.ndim > 4:
-            #     XRRR = _contract_dim(XRRR, 4)
-            # if XRRRR.ndim > 5:
-            #     XRRRR = _contract_dim(XRRRR, 5)
+            if not isinstance(XRRR, int) and XRRR.ndim > 4:
+                XRRR = _contract_dim(XRRR, 4)
+            if not isinstance(XRRRR, int) and XRRRR.ndim > 5:
+                XRRRR = _contract_dim(XRRRR, 5)
 
-            RX = ccoords.jacobian(internals, 1)
+            RX, RXX, RXXX = ccoords.jacobian(internals, [1, 2, 3])
             if RX.ndim > 2:
                 RX = _contract_dim(RX, 2)
+            if RXX.ndim > 3:
+                RXX = _contract_dim(RXX, 3)
+            if RXXX.ndim > 4:
+                RXXX = _contract_dim(RXXX, 4)
 
             # Need to then mass weight
             masses = self.masses
-            mass_conv = np.sqrt(np.broadcast_to(masses[np.newaxis], (len(masses), 3)).flatten())
-            YR = XR * mass_conv[np.newaxis]
-            YRR = XRR * mass_conv[np.newaxis, np.newaxis]
-            YRRR = XRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis]
-            YRRRR = XRRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis]
+            mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
+            YR = XR * mass_conv[np.newaxis, :]
+            if isinstance(XRR, int):
+                YRR = 0
+            else:
+                YRR = XRR * mass_conv[np.newaxis, np.newaxis, :]
+            if isinstance(XRRR, int):
+                YRRR = 0
+            else:
+                YRRR = XRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, :]
+            if isinstance(XRRRR, int):
+                YRRRR = 0
+            else:
+                YRRRR = XRRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis, :]
             RY = RX / mass_conv[:, np.newaxis]
 
+            # sp = [x for x in np.arange(XR.shape[0]) if x not in (0, 1, 2, 4, 5, 8)])]
+
             # transform into proper dXdQ space
-            dot = DumbTensor._dot
-            shift = DumbTensor._shift
-            RQ = dot(YQ, RY)
+            RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
             x_derivs = (YR, YRR, YRRR, YRRRR)
-
             Q_derivs = (RQ, 0, 0, 0)
-            xQ, xQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False, order=2)
-            # xQ, xQQ, xQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False, order=3)
-            # raise Exception(xQ-YQ)
-            # xQ = xQ.transpose(0, 1)
-            xQQ = xQQ.transpose(0, 2, 1)
-            # xQQQ = xQQQ.transpose(0, 2, 3, 1)
-            # xQQQQ = xQQQQ.transpose(0, 1, 3, 4, 2)
+            xQ, xQQ, xQQQ, xQQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
 
-            RQ = DumbTensor(RQ)
-            YRR = DumbTensor(YRR)
-            YRRR = DumbTensor(YRRR)
-            YQQ = (RQ@(RQ@YRR)[0:1])[0:1]
-            # YQQQ = YRRR
-            # for i in range(3):
-            #     YQQQ = RQ.dot(YQQQ, axes=[[1, i]])
-            # plt.TensorPlot(YQQQ.t)
-            # plt.TensorPlot(xQQQ)
-            # plt.TensorPlot(xQQQ-YQQQ.t, plot_style=dict(vmin=-1e-8, vmax=1e-8)).show()
-
-            # raise Exception(xQQ)
+            # raise Exception([
+            #     np.round(xQ, 5),
+            #     np.round(xQQ, 5)
+            # ])
             # xQQ = 0
-            xQQQ = 0
-            xQQQQ = 0
+            # xQQQ = 0
+            # xQQQQ = 0
 
         x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
         V_derivs = (grad, hess, thirds, fourths)
@@ -494,20 +537,36 @@ class PotentialTerms(ExpansionTerms):
             for i in range(v4.shape[0]):
                 v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
 
-        # test = UnitsData.convert("Hartrees", "Wavenumbers") * np.array([
-        #     v4[2, 2, 2, 2],
-        #     v4[1, 1, 2, 2],
-        #     v4[1, 1, 1, 1],
-        #     v4[0, 0, 2, 2],
-        #     v4[0, 0, 1, 1],
-        #     v4[0, 0, 0, 0]
-        # ]).T
+        test = UnitsData.convert("Hartrees", "Wavenumbers") * np.array([
+            v4[2, 2, 2, 2],
+            v4[1, 1, 2, 2],
+            v4[1, 1, 1, 1],
+            v4[0, 0, 2, 2],
+            v4[0, 0, 1, 1],
+            v4[0, 0, 0, 0]
+        ]).T
 
-        # raise Exception([v2*UnitsData.convert("Hartrees", "Wavenumbers"),
-        #                 v3*UnitsData.convert("Hartrees", "Wavenumbers")])
+        test2 = UnitsData.convert("Hartrees", "Wavenumbers") * np.array([
+            v3[2, 2, 2],
+            v3[2, 2, 1],
+            v3[2, 2, 0],
+            v3[2, 1, 1],
+            v3[2, 1, 0],
+            v3[2, 0, 0],
+            v3[1, 1, 1],
+            v3[1, 1, 0],
+            v3[1, 0, 0],
+            v3[0, 0, 0]
+        ]).T
 
-        # v3 = UnitsData.convert("Wavenumbers", "Hartrees")*np.loadtxt("/Users/Mark/Desktop/test.dat")
-        # v3 = v3.reshape(3, 3, 3)
+        raise Exception([v2*UnitsData.convert("Hartrees", "Wavenumbers"),
+                        v3*UnitsData.convert("Hartrees", "Wavenumbers")])
+
+        # v3_true = UnitsData.convert("Wavenumbers", "Hartrees")*np.loadtxt("/Users/Mark/Desktop/test.dat")
+        # v3_true = v3_true.reshape(3, 3, 3)
+        #v3 = v3_true
+
+        # raise Exception((v3 - v3_true)*UnitsData.convert("Hartrees", "Wavenumbers"))
 
         return v2, v3, v4
 
@@ -542,12 +601,6 @@ class KineticTerms(ExpansionTerms):
 
         dot = DumbTensor._dot
         shift = DumbTensor._shift
-        # got_the_terms = self.masses is not None and \
-        #                 len(self.masses) == 3 and \
-        #                 not isinstance(self.masses[0], (int, np.integer, float, np.floating))
-        #
-        # if got_the_terms:
-        #     G, GQ, GQQ = self.masses
         intcds = self.internal_coordinates
         if intcds is None:
             # this is nice because it eliminates a lot of terms in the expansion
@@ -610,6 +663,7 @@ class KineticTerms(ExpansionTerms):
             YQ = self.modes.inverse
             QR = dot(YR, QY)
             RQ = dot(YQ, RY)
+
             G = dot(QY, QY, axes=[[0, 0]])
 
             J = DumbTensor(QY)
@@ -627,125 +681,124 @@ class KineticTerms(ExpansionTerms):
 
             GQQ = (H@(U + U[2:1])).t + (Jd@(Jd@(V+V[3:2]))[0:1]).t
 
-            dRdYY = DumbTensor(RYY)
-            dRdY = DumbTensor(RY)
-            dYdR = DumbTensor(YR)
-            U = dYdR@(dRdYY[2:1]@dRdY)
-            U2 = U[2:1]
-            intdGdR = U.t + U2.t
+            # dRdYY = DumbTensor(RYY)
+            # dRdY = DumbTensor(RY)
+            # dYdR = DumbTensor(YR)
+            # U = dYdR@(dRdYY[2:1]@dRdY)
+            # U2 = U[2:1]
+            # intdGdR = U.t + U2.t
+            #
+            # dRdYYY = DumbTensor(RYYY)
+            # dYdRR = DumbTensor(YRR)
+            # dUdY = (
+            #         dRdY@dYdRR@dRdYY[2:1]@dRdY +
+            #         (dYdR@(dRdYYY[3:2]@dRdY)[0:1])[0:1] +
+            #         (dYdR@(dRdYY[2:1]@dRdYY[0:1])[2:1])[0:1]
+            # )
+            # intdGdRR = dYdR@(dUdY+dUdY[3:2])
+            # intdGdRR = intdGdRR.t
 
-            dRdYYY = DumbTensor(RYYY)
-            dYdRR = DumbTensor(YRR)
-            dUdY = (
-                    dRdY@dYdRR@dRdYY[2:1]@dRdY +
-                    (dYdR@(dRdYYY[3:2]@dRdY)[0:1])[0:1] +
-                    (dYdR@(dRdYY[2:1]@dRdYY[0:1])[2:1])[0:1]
-            )
-            intdGdRR = dYdR@(dUdY+dUdY[3:2])
-            intdGdRR = intdGdRR.t
-
-            intdGdQ = dot(RQ, intdGdR)
-            GQ_2 = dot(intdGdQ, QR, QR, axes=[[1, 0], [1, 0]])
+            # intdGdQ = dot(RQ, intdGdR)
+            # GQ_2 = dot(intdGdQ, QR, QR, axes=[[1, 0], [1, 0]])
             # GQ_2w = GQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
 
-            intdGdQQ = dot(RQ, dot(RQ, intdGdRR, axes=[[1, 1]]), axes=[[1, 1]])
-            GQQ_2 = dot(intdGdQQ, QR, QR, axes=[[2, 0], [2, 0]])
+            # intdGdQQ = dot(RQ, dot(RQ, intdGdRR, axes=[[1, 1]]), axes=[[1, 1]])
+            # GQQ_2 = dot(intdGdQQ, QR, QR, axes=[[2, 0], [2, 0]])
 
-            ic = np.asarray(intcds).flatten()[sp]
-            r1 = ic[0]
-            r2 = ic[1]
-            q = ic[2]
-            mO = masses[0]; mH = masses[1]; mD = masses[2]
-            G_analytic = np.array([
-                [(mH + mO) / (mH * mO), np.cos(q) / mO, -(np.sin(q) / (mO * r2))],
-                [np.cos(q) / mO, (mD + mO) / (mD * mO), -(np.sin(q) / (mO * r1))],
-                [-(np.sin(q) / (mO * r2)), -(np.sin(q) / (mO * r1)),
-                 (mH + mO) / (mH * mO * r1 ** 2) + (mD + mO) / (mD * mO * r2 ** 2) - (2 * np.cos(q)) / (mO * r1 * r2)]
-            ])
-            GR_analytic = np.array([
-                [
-                    [0, 0, 0],
-                    [0, 0, np.sin(q) / (mO * r1 ** 2)],
-                    [0, np.sin(q) / (mO * r1 ** 2), (-2 * (mH + mO)) / (mH * mO * r1 ** 3) + (2 * np.cos(q)) / (mO * r1 ** 2 * r2)]
-                ],
-                [
-                    [0, 0, np.sin(q) / (mO * r2 ** 2)],
-                    [0, 0, 0],
-                    [np.sin(q) / (mO * r2 ** 2), 0, (-2 * (mD + mO)) / (mD * mO * r2 ** 3) + (2 * np.cos(q)) / (mO * r1 * r2 ** 2)]
-                ],
-                [
-                    [0, -(np.sin(q) / mO), -(np.cos(q) / (mO * r2))],
-                    [-(np.sin(q) / mO), 0, -(np.cos(q) / (mO * r1))],
-                    [-(np.cos(q) / (mO * r2)), -(np.cos(q) / (mO * r1)), (2 * np.sin(q)) / (mO * r1 * r2)]
-                ]
-            ])
-            GRR_analytic = np.array([
-                [
-                    [
-                        [0, 0, 0],
-                        [0, 0, (-2*np.sin(q))/(mO*r1**3)],
-                        [0, (-2*np.sin(q))/(mO*r1**3), (6*(mH + mO))/(mH*mO*r1**4) - (4*np.cos(q))/(mO*r1**3*r2)]
-                    ],
-                    [
-                        [0, 0, 0],
-                        [0, 0, 0],
-                        [0, 0, (-2*np.cos(q))/(mO*r1**2*r2**2)]
-                    ],
-                    [
-                        [0, 0, 0],
-                        [0, 0, np.cos(q)/(mO*r1**2)],
-                        [0, np.cos(q)/(mO*r1**2), (-2*np.sin(q))/(mO*r1**2*r2)]
-                    ]
-                ],
-                [
-                    [
-                        [0, 0, 0],
-                        [0, 0, 0],
-                        [0, 0, (-2*np.cos(q))/(mO*r1**2*r2**2)]
-                    ],
-                    [
-                        [0, 0, (-2*np.sin(q))/(mO*r2**3)],
-                        [0, 0, 0],
-                        [(-2*np.sin(q))/(mO*r2**3), 0, (6*(mD + mO))/(mD*mO*r2**4) - (4*np.cos(q))/(mO*r1*r2**3)]
-                    ],
-                    [
-                        [0, 0, np.cos(q)/(mO*r2**2)],
-                        [0, 0, 0],
-                        [np.cos(q)/(mO*r2**2), 0, (-2*np.sin(q))/(mO*r1*r2**2)]
-                    ]
-                ],
-                [
-                    [
-                        [0, 0, 0],
-                        [0, 0, np.cos(q)/(mO*r1**2)],
-                        [0, np.cos(q)/(mO*r1**2), (-2*np.sin(q))/(mO*r1**2*r2)]
-                    ],
-                    [
-                        [0, 0, np.cos(q)/(mO*r2**2)],
-                        [0, 0, 0],
-                        [np.cos(q)/(mO*r2**2), 0, (-2*np.sin(q))/(mO*r1*r2**2)]
-                    ],
-                    [
-                        [0, -(np.cos(q)/mO), np.sin(q)/(mO*r2)],
-                        [-(np.cos(q)/mO), 0, np.sin(q)/(mO*r1)],
-                        [np.sin(q)/(mO*r2), np.sin(q)/(mO*r1), (2*np.cos(q))/(mO*r1*r2)]
-                    ]
-                ]
-            ])
-            intdGdRR = intdGdRR[sp, :, :, :][:, sp, :, :][:, :, sp, :][:, :, :, sp]
+            # ic = np.asarray(intcds).flatten()[sp]
+            # r1 = ic[0]
+            # r2 = ic[1]
+            # q = ic[2]
+            # mO = masses[0]; mH = masses[1]; mD = masses[2]
+            # G_analytic = np.array([
+            #     [(mH + mO) / (mH * mO), np.cos(q) / mO, -(np.sin(q) / (mO * r2))],
+            #     [np.cos(q) / mO, (mD + mO) / (mD * mO), -(np.sin(q) / (mO * r1))],
+            #     [-(np.sin(q) / (mO * r2)), -(np.sin(q) / (mO * r1)),
+            #      (mH + mO) / (mH * mO * r1 ** 2) + (mD + mO) / (mD * mO * r2 ** 2) - (2 * np.cos(q)) / (mO * r1 * r2)]
+            # ])
+            # GR_analytic = np.array([
+            #     [
+            #         [0, 0, 0],
+            #         [0, 0, np.sin(q) / (mO * r1 ** 2)],
+            #         [0, np.sin(q) / (mO * r1 ** 2), (-2 * (mH + mO)) / (mH * mO * r1 ** 3) + (2 * np.cos(q)) / (mO * r1 ** 2 * r2)]
+            #     ],
+            #     [
+            #         [0, 0, np.sin(q) / (mO * r2 ** 2)],
+            #         [0, 0, 0],
+            #         [np.sin(q) / (mO * r2 ** 2), 0, (-2 * (mD + mO)) / (mD * mO * r2 ** 3) + (2 * np.cos(q)) / (mO * r1 * r2 ** 2)]
+            #     ],
+            #     [
+            #         [0, -(np.sin(q) / mO), -(np.cos(q) / (mO * r2))],
+            #         [-(np.sin(q) / mO), 0, -(np.cos(q) / (mO * r1))],
+            #         [-(np.cos(q) / (mO * r2)), -(np.cos(q) / (mO * r1)), (2 * np.sin(q)) / (mO * r1 * r2)]
+            #     ]
+            # ])
+            # GRR_analytic = np.array([
+            #     [
+            #         [
+            #             [0, 0, 0],
+            #             [0, 0, (-2*np.sin(q))/(mO*r1**3)],
+            #             [0, (-2*np.sin(q))/(mO*r1**3), (6*(mH + mO))/(mH*mO*r1**4) - (4*np.cos(q))/(mO*r1**3*r2)]
+            #         ],
+            #         [
+            #             [0, 0, 0],
+            #             [0, 0, 0],
+            #             [0, 0, (-2*np.cos(q))/(mO*r1**2*r2**2)]
+            #         ],
+            #         [
+            #             [0, 0, 0],
+            #             [0, 0, np.cos(q)/(mO*r1**2)],
+            #             [0, np.cos(q)/(mO*r1**2), (-2*np.sin(q))/(mO*r1**2*r2)]
+            #         ]
+            #     ],
+            #     [
+            #         [
+            #             [0, 0, 0],
+            #             [0, 0, 0],
+            #             [0, 0, (-2*np.cos(q))/(mO*r1**2*r2**2)]
+            #         ],
+            #         [
+            #             [0, 0, (-2*np.sin(q))/(mO*r2**3)],
+            #             [0, 0, 0],
+            #             [(-2*np.sin(q))/(mO*r2**3), 0, (6*(mD + mO))/(mD*mO*r2**4) - (4*np.cos(q))/(mO*r1*r2**3)]
+            #         ],
+            #         [
+            #             [0, 0, np.cos(q)/(mO*r2**2)],
+            #             [0, 0, 0],
+            #             [np.cos(q)/(mO*r2**2), 0, (-2*np.sin(q))/(mO*r1*r2**2)]
+            #         ]
+            #     ],
+            #     [
+            #         [
+            #             [0, 0, 0],
+            #             [0, 0, np.cos(q)/(mO*r1**2)],
+            #             [0, np.cos(q)/(mO*r1**2), (-2*np.sin(q))/(mO*r1**2*r2)]
+            #         ],
+            #         [
+            #             [0, 0, np.cos(q)/(mO*r2**2)],
+            #             [0, 0, 0],
+            #             [np.cos(q)/(mO*r2**2), 0, (-2*np.sin(q))/(mO*r1*r2**2)]
+            #         ],
+            #         [
+            #             [0, -(np.cos(q)/mO), np.sin(q)/(mO*r2)],
+            #             [-(np.cos(q)/mO), 0, np.sin(q)/(mO*r1)],
+            #             [np.sin(q)/(mO*r2), np.sin(q)/(mO*r1), (2*np.cos(q))/(mO*r1*r2)]
+            #         ]
+            #     ]
+            # ])
+            # intdGdRR = intdGdRR[sp, :, :, :][:, sp, :, :][:, :, sp, :][:, :, :, sp]
             # plt.TensorPlot(GRR_analytic, plot_style=dict(vmin=-1e-4, vmax=1e-4))
             # plt.TensorPlot(intdGdRR, plot_style=dict(vmin=-1e-4, vmax=1e-4))
             # plt.TensorPlot(GRR_analytic-intdGdRR, plot_style=dict(vmin=-1e-4, vmax=1e-4)).show()
 
-            # plt.TensorPlot(GQQ)
+            # plt.TensorPlot(GQQ).show()
             # plt.TensorPlot(GQQ_2)
             # plt.TensorPlot(GQQ-GQQ_2).show()
 
             # GQQ = 0#self._weight_derivatives(GQQ_2, 2)
             # GQQ = GQQ_2
-            # GQQ = 0
 
             # GQQ_2w = GQQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
-
+        # raise Exception(GQ*UnitsData.convert("Hartrees", "Wavenumbers"))
         G_terms = (G, GQ, GQQ)
         return G_terms

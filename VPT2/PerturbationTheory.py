@@ -174,9 +174,9 @@ class PerturbationTheoryHamiltonian:
             subpQp = pQp[inds]
             if isinstance(subpQp, np.ndarray):
                 subpQp = subpQp.squeeze()
-                ke = np.tensordot(subpQp, gmatrix_derivs, axes=[[0, 1, 2], [0, 1, 2]])
+                ke = -np.tensordot(subpQp, gmatrix_derivs, axes=[[0, 1, 2], [0, 1, 2]])
             else:
-                ke = subpQp.tensordot(gmatrix_derivs, axes=[[0, 1, 2], [0, 1, 2]]).squeeze()
+                ke = -subpQp.tensordot(gmatrix_derivs, axes=[[0, 1, 2], [0, 1, 2]]).squeeze()
         else:
             ke = 0
 
@@ -193,7 +193,7 @@ class PerturbationTheoryHamiltonian:
 
         # test = UnitsData.convert("Hartrees", "Wavenumbers")/6*subQQQ*V_derivs
 
-        return -1/2*ke + 1/6 * pe
+        return 1/2*ke + 1/6*pe
 
     @property
     def H2(self):
@@ -228,9 +228,9 @@ class PerturbationTheoryHamiltonian:
         if not isinstance(gmatrix_derivs, int):
             keTens = KE[inds]
             if isinstance(keTens, np.ndarray):
-                ke = np.tensordot(keTens.squeeze(), gmatrix_derivs, axes=[[0, 1, 2, 3], [0, 1, 2, 3]])
+                ke = -np.tensordot(keTens.squeeze(), gmatrix_derivs, axes=[[0, 1, 2, 3], [0, 1, 2, 3]])
             else:
-                ke = keTens.tensordot(gmatrix_derivs, axes=[[0, 1, 2, 3], [0, 1, 2, 3]]).squeeze()
+                ke = -keTens.tensordot(gmatrix_derivs, axes=[[0, 1, 2, 3], [0, 1, 2, 3]]).squeeze()
         else:
             ke = 0
 
@@ -243,7 +243,7 @@ class PerturbationTheoryHamiltonian:
         else:
             pe = 0
 
-        return -1/4*ke + 1/24*pe
+        return 1/4*ke + 1/24*pe
 
     def get_state_indices(self, states):
         if isinstance(states, (int, np.integer)):
