@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[    250770,       7497]
-NotebookOptionsPosition[    228182,       7239]
-NotebookOutlinePosition[    228873,       7263]
-CellTagsIndexPosition[    228830,       7260]
+NotebookDataLength[    228863,       6855]
+NotebookOptionsPosition[    207277,       6606]
+NotebookOutlinePosition[    207963,       6630]
+CellTagsIndexPosition[    207920,       6627]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -5504,13 +5504,52 @@ Cell[BoxData[
     {
      RowBox[{"=", 
       RowBox[{
+       SubscriptBox["\[Del]", "Q"], 
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{
+          SubscriptBox["\[Del]", "Q"], "R"}], 
+         RowBox[{
+          SubscriptBox["\[Del]", "R"], "Y"}]}], ")"}]}]}]},
+    {
+     RowBox[{"=", 
+      RowBox[{
        RowBox[{
-        SubscriptBox["\[Del]", 
+        RowBox[{
+         SubscriptBox["\[Del]", 
+          SuperscriptBox["Q", "2"]], "R"}], 
+        RowBox[{
+         SubscriptBox["\[Del]", "R"], "Y"}]}], "+", 
+       SuperscriptBox[
+        RowBox[{"(", 
+         RowBox[{
+          SubscriptBox["\[Del]", "Q"], 
+          SuperscriptBox[
+           RowBox[{"R", "(", 
+            RowBox[{
+             RowBox[{
+              SubscriptBox["\[Del]", "Q"], "R"}], 
+             RowBox[{
+              SubscriptBox["\[Del]", 
+               SuperscriptBox["R", "2"]], "Y"}]}], ")"}], 
+           RowBox[{"2", ":", "1"}]]}], ")"}], 
+        RowBox[{"2", ":", "1"}]]}]}]},
+    {
+     RowBox[{"=", 
+      SuperscriptBox[
+       RowBox[{"(", 
+        RowBox[{
+         SubscriptBox["\[Del]", "Q"], 
          SuperscriptBox[
-          StyleBox["Q",
-           FontSlant->"Plain"], "2"]], "R"}], 
-       RowBox[{
-        SubscriptBox["\[Del]", "R"], "Y"}]}]}]}
+          RowBox[{"R", "(", 
+           RowBox[{
+            RowBox[{
+             SubscriptBox["\[Del]", "Q"], "R"}], 
+            RowBox[{
+             SubscriptBox["\[Del]", 
+              SuperscriptBox["R", "2"]], "Y"}]}], ")"}], 
+          RowBox[{"2", ":", "1"}]]}], ")"}], 
+       RowBox[{"2", ":", "1"}]]}]}
    }], TraditionalForm]], "ExpositoryMathCentered",
  CellChangeTimes->{{3.8051088898243933`*^9, 3.8051088914030237`*^9}, {
   3.805126667214498*^9, 3.805126671396703*^9}, {3.805126768669841*^9, 
@@ -5518,8 +5557,9 @@ Cell[BoxData[
   3.805126965753793*^9, 3.805126987212864*^9}, {3.805127020194787*^9, 
   3.8051270254641314`*^9}, {3.805127064287949*^9, 3.8051270646639147`*^9}, {
   3.805127104287239*^9, 3.805127106316931*^9}, {3.805127166504301*^9, 
-  3.805127168783534*^9}, {3.805127224260541*^9, 
-  3.805127263544256*^9}},ExpressionUUID->"4bc424c5-47ec-4892-9ff6-\
+  3.805127168783534*^9}, {3.805127224260541*^9, 3.805127263544256*^9}, {
+  3.805626615610704*^9, 3.805626683070623*^9}, {3.80562702805158*^9, 
+  3.805627071994788*^9}},ExpressionUUID->"4bc424c5-47ec-4892-9ff6-\
 715d30bd695e"],
 
 Cell["Giving us", "ExpositoryText",
@@ -5560,46 +5600,36 @@ Cell[BoxData[
        SubscriptBox["\[Del]", 
         SuperscriptBox["Q", "2"]], "G"}], "=", 
       RowBox[{
-       SuperscriptBox["J", "\[Dagger]"], "(", 
-       RowBox[{
+       SubscriptBox["\[Del]", "Q"], 
+       RowBox[{"(", 
         RowBox[{
-         SubscriptBox["\[Del]", "Y"], 
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", "(", 
-          RowBox[{"U", "+", 
-           SuperscriptBox["U", 
-            RowBox[{"3", ":", "2"}]]}], ")"}]}], "+", 
-        SuperscriptBox[
-         RowBox[{"(", 
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "(", 
-           RowBox[{
-            RowBox[{
-             SubscriptBox["\[Del]", "Y"], "U"}], "+", 
-            SuperscriptBox[
-             RowBox[{"(", 
-              RowBox[{
-               SubscriptBox["\[Del]", "Y"], "U"}], ")"}], 
-             RowBox[{"4", ":", "3"}]]}], ")"}], ")"}], 
-         RowBox[{"2", ":", "1"}]]}], ")"}]}]},
+         SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", "(", 
+         RowBox[{"U", "+", 
+          SuperscriptBox["U", 
+           RowBox[{"3", ":", "2"}]]}], ")"}], ")"}]}]}]},
     {
      RowBox[{"=", 
       RowBox[{
        RowBox[{
-        SuperscriptBox["J", "\[Dagger]"], 
-        SuperscriptBox["*", "\[Dagger]"], 
+        RowBox[{
+         SubscriptBox["\[Del]", "Q"], 
+         RowBox[{"(", 
+          SuperscriptBox["J", "\[Dagger]"], ")"}]}], 
         RowBox[{"(", 
          RowBox[{"U", "+", 
           SuperscriptBox["U", 
            RowBox[{"3", ":", "2"}]]}], ")"}]}], "+", 
        SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["J", "\[Dagger]"], "(", 
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "(", 
-          RowBox[{"V", "+", 
-           SuperscriptBox["V", 
-            RowBox[{"4", ":", "3"}]]}], ")"}], ")"}], 
+        RowBox[{"(", 
+         SuperscriptBox[
+          RowBox[{
+           SuperscriptBox["J", "\[Dagger]"], "(", 
+           RowBox[{
+            SuperscriptBox["J", "\[Dagger]"], "(", 
+            RowBox[{"V", "+", 
+             SuperscriptBox["V", 
+              RowBox[{"4", ":", "3"}]]}], ")"}], ")"}], 
+          RowBox[{"2", ":", "1"}]], ")"}], 
         RowBox[{"2", ":", "1"}]]}]}]},
     {
      RowBox[{"=", 
@@ -5610,19 +5640,22 @@ Cell[BoxData[
          SuperscriptBox["U", 
           RowBox[{"3", ":", "2"}]]}], ")"}], "+", 
        SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["J", "\[Dagger]"], "(", 
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "(", 
-          RowBox[{"V", "+", 
-           SuperscriptBox["V", 
-            RowBox[{"4", ":", "3"}]]}], ")"}], ")"}], 
+        RowBox[{"(", 
+         SuperscriptBox[
+          RowBox[{
+           SuperscriptBox["J", "\[Dagger]"], "(", 
+           RowBox[{
+            SuperscriptBox["J", "\[Dagger]"], "(", 
+            RowBox[{"V", "+", 
+             SuperscriptBox["V", 
+              RowBox[{"4", ":", "3"}]]}], ")"}], ")"}], 
+          RowBox[{"2", ":", "1"}]], ")"}], 
         RowBox[{"2", ":", "1"}]]}]}]}
    }], TraditionalForm]], "ExpositoryMathCentered",
- CellChangeTimes->{{3.805126798463635*^9, 3.805126858849049*^9}, {
-   3.8051268984972067`*^9, 3.805127052123374*^9}, 
-   3.805127170798815*^9},ExpressionUUID->"7aa190d7-493d-4cf2-b6c9-\
-d567eb8c6817"],
+ CellChangeTimes->{{3.805626495378257*^9, 3.805626540586301*^9}, {
+  3.805626872027595*^9, 3.8056269395776987`*^9}, {3.80562698361171*^9, 
+  3.805626997545403*^9}},ExpressionUUID->"6174497a-a3fd-4cda-a958-\
+41b0f29cfe4a"],
 
 Cell["we see that all we need to do is evaluate ", "ExpositoryText",
  CellChangeTimes->{{3.805126860936469*^9, 
@@ -5634,17 +5667,19 @@ Cell[BoxData[
     {
      RowBox[{
       SuperscriptBox["H", "\[Dagger]"], "=", 
-      RowBox[{
-       RowBox[{
-        SubscriptBox["\[Del]", 
+      SuperscriptBox[
+       RowBox[{"(", 
+        RowBox[{
+         SubscriptBox["\[Del]", "Q"], 
          SuperscriptBox[
-          StyleBox["Q",
-           FontSlant->"Plain"], "2"]], "R"}], 
-       RowBox[{
-        SubscriptBox["\[Del]", "R"], "Y"}]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{"0", "?"}]}]},
+          RowBox[{"R", "(", 
+           RowBox[{
+            RowBox[{
+             SubscriptBox["\[Del]", "Q"], "R"}], 
+            RowBox[{
+             SubscriptBox["\[Del]", "R"], "Y"}]}], ")"}], 
+          RowBox[{"2", ":", "1"}]]}], ")"}], 
+       RowBox[{"2", ":", "1"}]]}]},
     {
      RowBox[{"V", " ", "=", 
       RowBox[{
@@ -5680,791 +5715,10 @@ Cell[BoxData[
    }], TraditionalForm]], "ExpositoryMathCentered",
  CellChangeTimes->{{3.805126753440468*^9, 3.805126753791744*^9}, {
   3.805127056699738*^9, 3.8051270878711567`*^9}, {3.805127160450337*^9, 
-  3.805127218291464*^9}, {3.805127267942997*^9, 
-  3.805127268358839*^9}},ExpressionUUID->"476f2d19-3aac-4a54-a4da-\
-f5e188b3cf50"],
-
-Cell["\<\
-Now we move on to the second derivatives, which are way shittier than the \
-first derivatives. So we\[CloseCurlyQuote]re gonna work with our reduced form \
-from before.\
-\>", "ExpositoryText",
- CellChangeTimes->{{3.805038753507964*^9, 3.8050387840840597`*^9}, {
-  3.8050414546776533`*^9, 3.805041454890707*^9}, {3.805042899059483*^9, 
-  3.805042916323461*^9}, {3.805049096184466*^9, 3.805049099839198*^9}, {
-  3.805052658452825*^9, 3.805052700898631*^9}, {3.805053391047179*^9, 
-  3.805053425019395*^9}, {3.8051088796010513`*^9, 3.805108888117832*^9}, {
-  3.805126548284472*^9, 
-  3.805126548499839*^9}},ExpressionUUID->"6cfe4404-db8c-4ba0-961a-\
-5a16d7ca7fc3"],
-
-Cell["Giving us", "ExpositoryText",
- CellChangeTimes->{{3.805108894373945*^9, 
-  3.8051088989976463`*^9}},ExpressionUUID->"35892f83-6d52-4897-bf53-\
-e4bbe26b3b2d"],
-
-Cell[BoxData[
- FormBox[GridBox[{
-    {
-     RowBox[{
-      RowBox[{
-       SubscriptBox["\[Del]", 
-        SuperscriptBox["Q", "2"]], "G"}], "=", 
-      RowBox[{
-       SubscriptBox["\[Del]", "Q"], 
-       RowBox[{"(", 
-        RowBox[{
-         SubscriptBox["\[Del]", "Q"], "G"}], ")"}]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{
-       SuperscriptBox["J", "\[Dagger]"], 
-       RowBox[{
-        SubscriptBox["\[Del]", "Y"], 
-        RowBox[{"(", 
-         RowBox[{
-          SubscriptBox["\[Del]", "Q"], "G"}], ")"}]}]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{
-       SuperscriptBox["J", "\[Dagger]"], 
-       RowBox[{
-        SubscriptBox["\[Del]", "Y"], 
-        RowBox[{"(", 
-         RowBox[{
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-           SuperscriptBox["K", 
-            RowBox[{"3", ":", "2"}]], "J"}], "+", 
-          SuperscriptBox[
-           RowBox[{
-            SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", "(", 
-            RowBox[{
-             SuperscriptBox["J", 
-              RowBox[{"2", ":", "1"}]], 
-             SuperscriptBox["K", 
-              RowBox[{"2", ":", "1"}]]}], ")"}], 
-           RowBox[{"2", ":", "1"}]]}], ")"}]}]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{
-       RowBox[{
-        SuperscriptBox["J", "\[Dagger]"], 
-        RowBox[{
-         SubscriptBox["\[Del]", "Y"], 
-         RowBox[{"(", 
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-           SuperscriptBox["K", 
-            RowBox[{"3", ":", "2"}]], "J"}], ")"}]}]}], "+", 
-       RowBox[{
-        SuperscriptBox["J", "\[Dagger]"], 
-        RowBox[{
-         SubscriptBox["\[Del]", "Y"], 
-         RowBox[{"(", 
-          SuperscriptBox[
-           RowBox[{
-            SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", "(", 
-            RowBox[{
-             SuperscriptBox["J", 
-              RowBox[{"2", ":", "1"}]], 
-             SuperscriptBox["K", 
-              RowBox[{"2", ":", "1"}]]}], ")"}], 
-           RowBox[{"2", ":", "1"}]], ")"}]}]}]}]}]},
-    {
-     RowBox[{
-      RowBox[{
-       SubscriptBox["\[Del]", "Y"], 
-       RowBox[{"(", 
-        RowBox[{
-         SubscriptBox["\[Del]", "Q"], 
-         SuperscriptBox["G", 
-          RowBox[{"(", "1", ")"}]]}], ")"}]}], "=", 
-      RowBox[{
-       SubscriptBox["\[Del]", "Y"], 
-       RowBox[{"(", 
-        RowBox[{
-         SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-         SuperscriptBox["K", 
-          RowBox[{"3", ":", "2"}]], "J"}], ")"}]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{
-       RowBox[{
-        RowBox[{
-         SubscriptBox["\[Del]", "Y"], 
-         RowBox[{"(", 
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-           SuperscriptBox["K", 
-            RowBox[{"3", ":", "2"}]]}], ")"}]}], "J"}], "+", 
-       SuperscriptBox[
-        RowBox[{"(", 
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-          SuperscriptBox[
-           RowBox[{
-            SuperscriptBox["K", 
-             RowBox[{"3", ":", "2"}]], "(", 
-            RowBox[{
-             SubscriptBox["\[Del]", "Y"], "J"}], ")"}], 
-           RowBox[{"2", ":", "1"}]]}], ")"}], 
-        RowBox[{"3", ":", "1"}]]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{
-       RowBox[{
-        SuperscriptBox["F", "\[Dagger]"], 
-        SuperscriptBox["K", 
-         RowBox[{"3", ":", "2"}]], "J"}], "+", 
-       RowBox[{
-        SuperscriptBox[
-         RowBox[{"(", 
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-           RowBox[{
-            SubscriptBox["\[Del]", "Y"], 
-            SuperscriptBox[
-             RowBox[{"(", 
-              SuperscriptBox["K", 
-               RowBox[{"3", ":", "2"}]], ")"}], 
-             RowBox[{"2", ":", "1"}]]}]}], ")"}], 
-         RowBox[{"2", ":", "1"}]], "J"}], "+", 
-       SuperscriptBox[
-        RowBox[{"(", 
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-          SuperscriptBox["K", 
-           RowBox[{"3", ":", "2"}]], 
-          SuperscriptBox["K", 
-           RowBox[{"2", ":", "1"}]]}], ")"}], 
-        RowBox[{"3", ":", "1"}]]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{
-       RowBox[{
-        SuperscriptBox["F", "\[Dagger]"], 
-        SuperscriptBox["K", 
-         RowBox[{"3", ":", "2"}]], "J"}], "+", 
-       RowBox[{
-        SuperscriptBox[
-         RowBox[{"(", 
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-           SuperscriptBox[
-            SuperscriptBox["L", 
-             RowBox[{"4", ":", "3"}]], 
-            RowBox[{"2", ":", "1"}]]}], ")"}], 
-         RowBox[{"2", ":", "1"}]], "J"}], "+", 
-       SuperscriptBox[
-        RowBox[{"(", 
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-          SuperscriptBox["K", 
-           RowBox[{"3", ":", "2"}]], 
-          SuperscriptBox["K", 
-           RowBox[{"2", ":", "1"}]]}], ")"}], 
-        RowBox[{"3", ":", "1"}]]}]}]},
-    {
-     RowBox[{
-      RowBox[{
-       SubscriptBox["\[Del]", "Y"], 
-       RowBox[{"(", 
-        RowBox[{
-         SubscriptBox["\[Del]", "Q"], 
-         SuperscriptBox["G", 
-          RowBox[{"(", "2", ")"}]]}], ")"}]}], "=", 
-      RowBox[{
-       SubscriptBox["\[Del]", "Y"], 
-       RowBox[{"(", 
-        SuperscriptBox[
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", "(", 
-          RowBox[{
-           SuperscriptBox["J", 
-            RowBox[{"2", ":", "1"}]], 
-           SuperscriptBox["K", 
-            RowBox[{"2", ":", "1"}]]}], ")"}], 
-         RowBox[{"2", ":", "1"}]], ")"}]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{
-       SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["F", "\[Dagger]"], "\[VeryThinSpace]", "(", 
-         RowBox[{
-          SuperscriptBox["J", 
-           RowBox[{"2", ":", "1"}]], 
-          SuperscriptBox["K", 
-           RowBox[{"2", ":", "1"}]]}], ")"}], 
-        RowBox[{"2", ":", "1"}]], "+", 
-       SuperscriptBox[
-        RowBox[{"(", 
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-          RowBox[{
-           SubscriptBox["\[Del]", "Y"], 
-           SuperscriptBox[
-            RowBox[{"(", 
-             SuperscriptBox[
-              RowBox[{"(", 
-               RowBox[{
-                SuperscriptBox["J", 
-                 RowBox[{"2", ":", "1"}]], 
-                SuperscriptBox["K", 
-                 RowBox[{"2", ":", "1"}]]}], ")"}], 
-              RowBox[{"2", ":", "1"}]], ")"}], 
-            RowBox[{"2", ":", "1"}]]}]}], ")"}], 
-        RowBox[{"2", ":", "1"}]]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{
-       SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["F", "\[Dagger]"], "\[VeryThinSpace]", "(", 
-         RowBox[{
-          SuperscriptBox["J", 
-           RowBox[{"2", ":", "1"}]], 
-          SuperscriptBox["K", 
-           RowBox[{"2", ":", "1"}]]}], ")"}], 
-        RowBox[{"2", ":", "1"}]], "+", 
-       SuperscriptBox[
-        RowBox[{"(", 
-         SuperscriptBox[
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", "(", 
-           SuperscriptBox[
-            RowBox[{"(", 
-             RowBox[{
-              SubscriptBox["\[Del]", "Y"], 
-              RowBox[{"(", 
-               RowBox[{
-                SuperscriptBox["J", 
-                 RowBox[{"2", ":", "1"}]], 
-                SuperscriptBox["K", 
-                 RowBox[{"2", ":", "1"}]]}], ")"}]}], ")"}], 
-            RowBox[{"3", ":", "2"}]], ")"}], 
-          RowBox[{"2", ":", "1"}]], ")"}], 
-        RowBox[{"2", ":", "1"}]]}]}]},
-    {
-     RowBox[{
-      RowBox[{
-       SubscriptBox["\[Del]", "Y"], 
-       RowBox[{"(", 
-        RowBox[{
-         SuperscriptBox["J", 
-          RowBox[{"2", ":", "1"}]], 
-         SuperscriptBox["K", 
-          RowBox[{"2", ":", "1"}]]}], ")"}]}], "=", 
-      RowBox[{
-       RowBox[{
-        RowBox[{
-         SubscriptBox["\[Del]", "Y"], 
-         RowBox[{"(", 
-          SuperscriptBox["J", 
-           RowBox[{"2", ":", "1"}]], ")"}]}], 
-        SuperscriptBox["K", 
-         RowBox[{"2", ":", "1"}]]}], "+", 
-       SuperscriptBox[
-        RowBox[{"(", 
-         RowBox[{
-          SuperscriptBox["J", 
-           RowBox[{"2", ":", "1"}]], 
-          RowBox[{
-           SubscriptBox["\[Del]", "Y"], 
-           SuperscriptBox[
-            RowBox[{"(", 
-             SuperscriptBox["K", 
-              RowBox[{"2", ":", "1"}]], ")"}], 
-            RowBox[{"2", ":", "1"}]]}]}], ")"}], 
-        RowBox[{"2", ":", "1"}]]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{
-       RowBox[{
-        SuperscriptBox["K", 
-         RowBox[{"3", ":", "2"}]], 
-        SuperscriptBox["K", 
-         RowBox[{"2", ":", "1"}]]}], "+", 
-       SuperscriptBox[
-        RowBox[{"(", 
-         RowBox[{
-          SuperscriptBox["J", 
-           RowBox[{"2", ":", "1"}]], 
-          SuperscriptBox[
-           SuperscriptBox["L", 
-            RowBox[{"3", ":", "2"}]], 
-           RowBox[{"2", ":", "1"}]]}], ")"}], 
-        RowBox[{"2", ":", "1"}]]}]}]},
-    {
-     RowBox[{"\[VeryThinSpace]", 
-      RowBox[{
-       SuperscriptBox[
-        RowBox[{"(", 
-         SuperscriptBox[
-          RowBox[{"(", 
-           RowBox[{
-            SubscriptBox["\[Del]", "Y"], 
-            RowBox[{"(", 
-             RowBox[{
-              SuperscriptBox["J", 
-               RowBox[{"2", ":", "1"}]], 
-              SuperscriptBox["K", 
-               RowBox[{"2", ":", "1"}]]}], ")"}]}], ")"}], 
-          RowBox[{"3", ":", "2"}]], ")"}], 
-        RowBox[{"2", ":", "1"}]], "=", 
-       SuperscriptBox[
-        RowBox[{"(", 
-         SuperscriptBox[
-          RowBox[{"(", 
-           RowBox[{
-            RowBox[{
-             SuperscriptBox["K", 
-              RowBox[{"3", ":", "2"}]], 
-             SuperscriptBox["K", 
-              RowBox[{"2", ":", "1"}]]}], "+", 
-            SuperscriptBox[
-             RowBox[{"(", 
-              RowBox[{
-               SuperscriptBox["J", 
-                RowBox[{"2", ":", "1"}]], 
-               SuperscriptBox["L", 
-                RowBox[{"3", ":", "2"}]]}], ")"}], 
-             RowBox[{"2", ":", "1"}]]}], ")"}], 
-          RowBox[{"3", ":", "2"}]], ")"}], 
-        RowBox[{"2", ":", "1"}]]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{
-       SuperscriptBox[
-        RowBox[{"(", 
-         RowBox[{
-          SuperscriptBox["K", 
-           RowBox[{"3", ":", "2"}]], 
-          SuperscriptBox["K", 
-           RowBox[{"2", ":", "1"}]]}], ")"}], 
-        RowBox[{"3", ":", "1"}]], "+", 
-       SuperscriptBox[
-        SuperscriptBox[
-         RowBox[{"(", 
-          RowBox[{
-           SuperscriptBox["J", 
-            RowBox[{"2", ":", "1"}]], 
-           SuperscriptBox["L", 
-            RowBox[{"3", ":", "2"}]]}], ")"}], 
-         RowBox[{"2", ":", "1"}]], 
-        RowBox[{"3", ":", "1"}]]}]}]},
-    {
-     RowBox[{
-      SuperscriptBox[
-       RowBox[{"(", 
-        SuperscriptBox[
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", "(", 
-          SuperscriptBox[
-           RowBox[{"(", 
-            RowBox[{
-             SubscriptBox["\[Del]", "Y"], 
-             RowBox[{"(", 
-              RowBox[{
-               SuperscriptBox["J", 
-                RowBox[{"2", ":", "1"}]], 
-               SuperscriptBox["K", 
-                RowBox[{"2", ":", "1"}]]}], ")"}]}], ")"}], 
-           RowBox[{"3", ":", "2"}]], ")"}], 
-         RowBox[{"2", ":", "1"}]], ")"}], 
-       RowBox[{"2", ":", "1"}]], "=", 
-      RowBox[{
-       SuperscriptBox[
-        RowBox[{"(", 
-         SuperscriptBox[
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "(", 
-           RowBox[{
-            SuperscriptBox["K", 
-             RowBox[{"3", ":", "2"}]], 
-            SuperscriptBox["K", 
-             RowBox[{"2", ":", "1"}]]}], ")"}], 
-          RowBox[{"3", ":", "1"}]], ")"}], 
-        RowBox[{"2", ":", "1"}]], "+", 
-       SuperscriptBox[
-        RowBox[{"(", 
-         SuperscriptBox[
-          SuperscriptBox[
-           RowBox[{
-            SuperscriptBox["J", "\[Dagger]"], "(", 
-            RowBox[{
-             SuperscriptBox["J", 
-              RowBox[{"2", ":", "1"}]], 
-             SuperscriptBox["L", 
-              RowBox[{"3", ":", "2"}]]}], ")"}], 
-           RowBox[{"2", ":", "1"}]], 
-          RowBox[{"3", ":", "1"}]], ")"}], 
-        RowBox[{"2", ":", "1"}]]}]}]},
-    {
-     RowBox[{
-      RowBox[{
-       SubscriptBox["\[Del]", "Y"], 
-       RowBox[{"(", 
-        RowBox[{
-         SubscriptBox["\[Del]", "Q"], 
-         SuperscriptBox["G", 
-          RowBox[{"(", "2", ")"}]]}], ")"}]}], "=", 
-      RowBox[{
-       SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["F", "\[Dagger]"], "(", 
-         RowBox[{
-          SuperscriptBox["J", 
-           RowBox[{"2", ":", "1"}]], 
-          SuperscriptBox["K", 
-           RowBox[{"2", ":", "1"}]]}], ")"}], 
-        RowBox[{"2", ":", "1"}]], "+", 
-       SuperscriptBox[
-        RowBox[{"(", 
-         SuperscriptBox[
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "(", 
-           RowBox[{
-            SuperscriptBox["K", 
-             RowBox[{"3", ":", "2"}]], 
-            SuperscriptBox["K", 
-             RowBox[{"2", ":", "1"}]]}], ")"}], 
-          RowBox[{"3", ":", "1"}]], ")"}], 
-        RowBox[{"2", ":", "1"}]], "+", 
-       SuperscriptBox[
-        RowBox[{"(", 
-         SuperscriptBox[
-          SuperscriptBox[
-           RowBox[{
-            SuperscriptBox["J", "\[Dagger]"], "(", 
-            RowBox[{
-             SuperscriptBox["J", 
-              RowBox[{"2", ":", "1"}]], 
-             SuperscriptBox["L", 
-              RowBox[{"3", ":", "2"}]]}], ")"}], 
-           RowBox[{"2", ":", "1"}]], 
-          RowBox[{"3", ":", "1"}]], ")"}], 
-        RowBox[{"2", ":", "1"}]]}]}]}
-   }], TraditionalForm]], "ExpositoryMathCentered",
- CellChangeTimes->{{3.805052684446257*^9, 3.805052685149797*^9}, {
-   3.8050527472349463`*^9, 3.8050527537691803`*^9}, {3.805052976452989*^9, 
-   3.805052984033532*^9}, {3.805053023880632*^9, 3.80505305041367*^9}, {
-   3.805053106886153*^9, 3.8050531484034023`*^9}, {3.80505319796868*^9, 
-   3.805053430589657*^9}, {3.805053698010929*^9, 3.805053734816616*^9}, 
-   3.805053809010194*^9, {3.805053840628738*^9, 3.8050538684035482`*^9}, {
-   3.805058238251788*^9, 3.805058287592951*^9}, {3.805062951262301*^9, 
-   3.805062991111526*^9}, {3.805063037903673*^9, 3.805063082687745*^9}, {
-   3.805063242811035*^9, 3.805063299304345*^9}, {3.8050633453935747`*^9, 
-   3.80506337411475*^9}, {3.805063407395644*^9, 3.805063556574719*^9}, {
-   3.805064437966189*^9, 3.805064441139967*^9}, {3.805064553576502*^9, 
-   3.805064589716996*^9}, {3.805065000539144*^9, 3.805065010871594*^9}, {
-   3.805065041352045*^9, 3.8050650763778677`*^9}, {3.8051085414642057`*^9, 
-   3.805108546495955*^9}, {3.805108579445099*^9, 3.805108602031281*^9}, 
-   3.805108674732585*^9, {3.805108720745977*^9, 3.8051087408087463`*^9}, {
-   3.805108777081992*^9, 3.805108857429586*^9}, {3.805108907881341*^9, 
-   3.805108970944458*^9}},ExpressionUUID->"329e1f0b-51ab-4808-a7f8-\
-f3f164803f22"],
-
-Cell[TextData[{
- "then we multiply by the residual ",
- Cell[BoxData[
-  FormBox[
-   SuperscriptBox["J", "\[Dagger]"], TraditionalForm]],
-  CellChangeTimes->{{3.8050636495372143`*^9, 3.805063715979357*^9}, {
-    3.805063775462201*^9, 3.805063815790483*^9}, 3.805108436326293*^9},
-  ExpressionUUID->"077bb7b9-e1df-4084-b5d0-4a40ee691acc"],
- ", giving us"
-}], "ExpositoryText",
- CellChangeTimes->{{3.8050636346957073`*^9, 3.8050636461669817`*^9}, {
-  3.805108999004538*^9, 
-  3.805109013794984*^9}},ExpressionUUID->"6bcf3d10-d9c2-4b13-a264-\
-ff41ea17c615"],
-
-Cell[BoxData[
- FormBox[GridBox[{
-    {
-     RowBox[{
-      RowBox[{
-       SubscriptBox["\[Del]", 
-        SuperscriptBox["Q", "2"]], "G"}], "=", 
-      RowBox[{
-       RowBox[{
-        SuperscriptBox["J", "\[Dagger]"], 
-        RowBox[{
-         SubscriptBox["\[Del]", "Y"], 
-         RowBox[{"(", 
-          RowBox[{
-           SubscriptBox["\[Del]", "Q"], 
-           SuperscriptBox["G", 
-            RowBox[{"(", "1", ")"}]]}], ")"}]}]}], "+", 
-       RowBox[{
-        SuperscriptBox["J", "\[Dagger]"], 
-        RowBox[{
-         SubscriptBox["\[Del]", "Y"], 
-         RowBox[{"(", 
-          RowBox[{
-           SubscriptBox["\[Del]", "Q"], 
-           SuperscriptBox["G", 
-            RowBox[{"(", "2", ")"}]]}], ")"}]}]}]}]}]},
-    {
-     RowBox[{
-      RowBox[{
-       SubscriptBox["\[Del]", 
-        SuperscriptBox["Q", "2"]], 
-       SuperscriptBox["G", 
-        RowBox[{"(", "1", ")"}]]}], "=", 
-      RowBox[{
-       SuperscriptBox["J", "\[Dagger]"], 
-       RowBox[{
-        SubscriptBox["\[Del]", "Y"], 
-        RowBox[{"(", 
-         RowBox[{
-          SubscriptBox["\[Del]", "Q"], 
-          SuperscriptBox["G", 
-           RowBox[{"(", "1", ")"}]]}], ")"}]}]}]}]},
-    {
-     RowBox[{"=", 
-      RowBox[{
-       RowBox[{
-        SuperscriptBox["H", "\[Dagger]"], 
-        SuperscriptBox["K", 
-         RowBox[{"3", ":", "2"}]], "J"}], "+", 
-       RowBox[{
-        SuperscriptBox[
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "(", 
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-           SuperscriptBox[
-            SuperscriptBox["L", 
-             RowBox[{"4", ":", "3"}]], 
-            RowBox[{"2", ":", "1"}]]}], ")"}], 
-         RowBox[{"2", ":", "1"}]], "J"}], "+", 
-       SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["J", "\[Dagger]"], "(", 
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-          SuperscriptBox["K", 
-           RowBox[{"3", ":", "2"}]], 
-          SuperscriptBox["K", 
-           RowBox[{"2", ":", "1"}]]}], ")"}], 
-        RowBox[{"3", ":", "1"}]]}]}]},
-    {
-     RowBox[{
-      RowBox[{
-       SubscriptBox["\[Del]", 
-        SuperscriptBox["Q", "2"]], 
-       SuperscriptBox["G", 
-        RowBox[{"(", "2", ")"}]]}], "=", 
-      RowBox[{
-       SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["H", "\[Dagger]"], "(", 
-         RowBox[{
-          SuperscriptBox["J", 
-           RowBox[{"2", ":", "1"}]], 
-          SuperscriptBox["K", 
-           RowBox[{"2", ":", "1"}]]}], ")"}], 
-        RowBox[{"2", ":", "1"}]], "+", 
-       SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["J", "\[Dagger]"], "(", 
-         SuperscriptBox[
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "(", 
-           RowBox[{
-            SuperscriptBox["K", 
-             RowBox[{"3", ":", "2"}]], 
-            SuperscriptBox["K", 
-             RowBox[{"2", ":", "1"}]]}], ")"}], 
-          RowBox[{"3", ":", "1"}]], ")"}], 
-        RowBox[{"2", ":", "1"}]], "+", 
-       SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["J", "\[Dagger]"], "(", 
-         SuperscriptBox[
-          SuperscriptBox[
-           RowBox[{
-            SuperscriptBox["J", "\[Dagger]"], "(", 
-            RowBox[{
-             SuperscriptBox["J", 
-              RowBox[{"2", ":", "1"}]], 
-             SuperscriptBox["L", 
-              RowBox[{"3", ":", "2"}]]}], ")"}], 
-           RowBox[{"2", ":", "1"}]], 
-          RowBox[{"3", ":", "1"}]], ")"}], 
-        RowBox[{"2", ":", "1"}]]}]}]}
-   }], TraditionalForm]], "ExpositoryMathCentered",
- CellChangeTimes->{{3.8050636495372143`*^9, 3.805063715979357*^9}, {
-   3.805063775462201*^9, 3.805063815790483*^9}, 3.805108436326293*^9, {
-   3.8051090250062227`*^9, 
-   3.805109033524803*^9}},ExpressionUUID->"605c5652-a7d6-4037-a6df-\
-d76e75a46da7"],
-
-Cell["\<\
-which is still pretty shitty, but we\[CloseCurlyQuote]ll add in two more \
-redefinitions\
-\>", "ExpositoryText",
- CellChangeTimes->{{3.805046948472918*^9, 3.8050469647815847`*^9}, {
-  3.8050470828868732`*^9, 3.805047089086233*^9}, {3.805047393066526*^9, 
-  3.805047394106982*^9}, {3.805063834486133*^9, 
-  3.805063855458419*^9}},ExpressionUUID->"50551d40-c63b-4555-b7e5-\
-1004ff600adf"],
-
-Cell[" to give us", "ExpositoryText",
- CellChangeTimes->{
-  3.8050638600926*^9},ExpressionUUID->"096f5c54-c14f-4ca9-8b6b-60c45b74878f"],
-
-Cell[BoxData[
- FormBox[GridBox[{
-    {
-     RowBox[{
-      RowBox[{
-       SubscriptBox["\[Del]", 
-        SuperscriptBox["Q", "2"]], 
-       SuperscriptBox["G", 
-        RowBox[{"(", "1", ")"}]]}], "=", 
-      RowBox[{
-       RowBox[{
-        SuperscriptBox["H", "\[Dagger]"], "\[Kappa]"}], "+", 
-       RowBox[{
-        SuperscriptBox[
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "(", 
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-           SuperscriptBox[
-            SuperscriptBox["L", 
-             RowBox[{"4", ":", "3"}]], 
-            RowBox[{"2", ":", "1"}]]}], ")"}], 
-         RowBox[{"2", ":", "1"}]], "J"}], "+", 
-       SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["J", "\[Dagger]"], "(", 
-         RowBox[{
-          SuperscriptBox["J", "\[Dagger]"], "\[VeryThinSpace]", 
-          SubsuperscriptBox["K", "2", "2"]}], ")"}], 
-        RowBox[{"2", ":", "1"}]]}]}]},
-    {
-     RowBox[{
-      RowBox[{
-       SubscriptBox["\[Del]", 
-        SuperscriptBox["Q", "2"]], 
-       SuperscriptBox["G", 
-        RowBox[{"(", "2", ")"}]]}], "=", 
-      RowBox[{
-       RowBox[{
-        SuperscriptBox["H", "\[Dagger]"], 
-        SuperscriptBox["\[Kappa]", 
-         RowBox[{"3", ":", "2"}]]}], "+", 
-       SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["J", "\[Dagger]"], "(", 
-         SuperscriptBox[
-          RowBox[{
-           SuperscriptBox["J", "\[Dagger]"], "(", 
-           SubsuperscriptBox["K", "2", "2"], ")"}], 
-          RowBox[{"3", ":", "1"}]], ")"}], 
-        RowBox[{"2", ":", "1"}]], "+", 
-       SuperscriptBox[
-        RowBox[{
-         SuperscriptBox["J", "\[Dagger]"], "(", 
-         SuperscriptBox[
-          SuperscriptBox[
-           RowBox[{
-            SuperscriptBox["J", "\[Dagger]"], "(", 
-            RowBox[{
-             SuperscriptBox["J", 
-              RowBox[{"2", ":", "1"}]], 
-             SuperscriptBox["L", 
-              RowBox[{"3", ":", "2"}]]}], ")"}], 
-           RowBox[{"2", ":", "1"}]], 
-          RowBox[{"3", ":", "1"}]], ")"}], 
-        RowBox[{"2", ":", "1"}]]}]}]}
-   }], TraditionalForm]], "ExpositoryMathCentered",
- CellChangeTimes->{{3.805063892994955*^9, 3.805063937967053*^9}, {
-  3.805063982931447*^9, 3.8050640073999166`*^9}, {3.805064953839981*^9, 
-  3.805064958768539*^9}, {3.805109052368643*^9, 3.8051090582475653`*^9}, {
-  3.805109112925655*^9, 
-  3.8051091284513407`*^9}},ExpressionUUID->"32261ac6-f9ac-4ab1-b7f1-\
-9465d4486f53"],
-
-Cell["\<\
-and unfortunately I don\[CloseCurlyQuote]t think we\[CloseCurlyQuote]ll get \
-better than that...\
-\>", "ExpositoryText",
- CellChangeTimes->{{3.805048818635982*^9, 3.8050488539877872`*^9}, {
-  3.805049227831579*^9, 
-  3.805049235943472*^9}},ExpressionUUID->"84de93c1-c12f-4422-a3a2-\
-57137409d4cd"],
-
-Cell[BoxData[
- FormBox[GridBox[{
-    {
-     RowBox[{
-      SubscriptBox["q", "i"], "=", 
-      RowBox[{
-       UnderscriptBox["\[Sum]", "\[Alpha]"], 
-       RowBox[{
-        SubscriptBox["C", 
-         RowBox[{"i", "\[VeryThinSpace]", "\[Alpha]"}]], 
-        SubscriptBox["x", "\[Alpha]"]}]}]}]},
-    {
-     RowBox[{
-      SubscriptBox["q", "i"], "=", 
-      RowBox[{
-       UnderscriptBox["\[Sum]", "\[Beta]"], 
-       RowBox[{
-        SubscriptBox["L", "i\[Beta]"], 
-        SubscriptBox["r", "\[Beta]"]}]}]}]},
-    {
-     RowBox[{
-      FractionBox[
-       RowBox[{"\[PartialD]", 
-        SubscriptBox["q", "i"]}], 
-       RowBox[{"\[PartialD]", 
-        SubscriptBox["R", "\[Beta]"]}]], "=", 
-      RowBox[{
-       SubscriptBox["L", 
-        RowBox[{"i", "\[VeryThinSpace]", "\[Beta]"}]], "=", 
-       RowBox[{
-        UnderscriptBox["\[Sum]", "\[Alpha]"], 
-        RowBox[{
-         SubscriptBox["C", 
-          RowBox[{"i", "\[VeryThinSpace]", "\[Alpha]"}]], 
-         FractionBox[
-          RowBox[{"\[PartialD]", 
-           SubscriptBox["x", "\[Alpha]"]}], 
-          RowBox[{"\[PartialD]", 
-           SubscriptBox["r", "\[Beta]"]}]]}]}]}]}]}
-   }], TraditionalForm]], "ExpositoryMathCentered",
- CellChangeTimes->{{3.805118554141776*^9, 3.805118679072282*^9}, {
-  3.8051187502096643`*^9, 
-  3.805118755356015*^9}},ExpressionUUID->"b29193dd-536e-4feb-8178-\
-3e5c2a4155e3"],
-
-Cell[BoxData[
- FormBox[GridBox[{
-    {
-     RowBox[{"Q", "=", 
-      RowBox[{
-       RowBox[{
-        SubscriptBox["\[Del]", "R"], "Q"}], "\[VeryThinSpace]", "R"}]}]},
-    {
-     RowBox[{
-      RowBox[{
-       SubscriptBox["\[Del]", "R"], "Q"}], "=", 
-      RowBox[{
-       RowBox[{
-        SubscriptBox["\[Del]", "R"], "X"}], 
-       RowBox[{
-        SubscriptBox["\[Del]", "X"], "Q"}]}]}]}
-   }], TraditionalForm]], "ExpositoryMathCentered",
- CellChangeTimes->{{3.805118728284931*^9, 
-  3.8051187842735567`*^9}},ExpressionUUID->"d30c42e6-11b9-4641-8d34-\
-b3c1db250820"]
+  3.805127218291464*^9}, {3.805127267942997*^9, 3.805127268358839*^9}, {
+  3.8056269554923677`*^9, 
+  3.805626966768734*^9}},ExpressionUUID->"476f2d19-3aac-4a54-a4da-\
+f5e188b3cf50"]
 }, Open  ]]
 }, Open  ]]
 }, Open  ]],
@@ -7120,7 +6374,9 @@ Cell[BoxData[
      RowBox[{"(", 
       RowBox[{
        RowBox[{
-        SubscriptBox["\[Del]", "Q"], "G"}], 
+        SubscriptBox["\[Del]", "Q"], "R"}], 
+       RowBox[{
+        SubscriptBox["\[Del]", "R"], "G"}], 
        RowBox[{
         SubscriptBox["\[Del]", "R"], "Q"}]}], ")"}], 
      RowBox[{"3", ":", "2"}]], 
@@ -7130,22 +6386,131 @@ Cell[BoxData[
       RowBox[{"2", ":", "1"}]]}]}]}], 
   TraditionalForm]], "ExpositoryMathCentered",
  CellChangeTimes->{{3.805579546374077*^9, 3.805579628843457*^9}, {
-  3.80557972153094*^9, 
-  3.805579727459066*^9}},ExpressionUUID->"5c2b7834-9d75-443f-936f-\
+   3.80557972153094*^9, 3.805579727459066*^9}, 
+   3.805594527509981*^9},ExpressionUUID->"5c2b7834-9d75-443f-936f-\
 2ca87fb2158f"],
 
 Cell["\<\
-for the second derivatives we do essentially the same process\
+for the second derivatives we do essentially the same process, but instead it \
+looks like\
 \>", "ExpositoryText",
- CellChangeTimes->{{3.805579859682229*^9, 
-  3.8055798858506403`*^9}},ExpressionUUID->"01819427-b6ed-496f-bb8a-\
+ CellChangeTimes->{{3.805579859682229*^9, 3.8055798858506403`*^9}, {
+  3.8055944972741337`*^9, 
+  3.805594501290194*^9}},ExpressionUUID->"01819427-b6ed-496f-bb8a-\
 6ad4961ca44b"],
 
 Cell[BoxData[
- FormBox["", TraditionalForm]], "ExpositoryMathCentered",
- CellChangeTimes->{{3.805579870388315*^9, 
-  3.80557987039247*^9}},ExpressionUUID->"644072d7-f1a1-46b9-b828-\
+ FormBox[GridBox[{
+    {
+     RowBox[{
+      RowBox[{
+       SubscriptBox["\[Del]", "Q"], 
+       RowBox[{
+        SubscriptBox["\[Del]", "Q"], 
+        SuperscriptBox["G", 
+         RowBox[{"(", "Q", ")"}]]}]}], "=", 
+      RowBox[{
+       SubscriptBox["\[Del]", "Q"], 
+       RowBox[{"(", 
+        RowBox[{
+         SuperscriptBox[
+          RowBox[{"(", 
+           RowBox[{
+            RowBox[{
+             SubscriptBox["\[Del]", "Q"], "R"}], 
+            RowBox[{
+             SubscriptBox["\[Del]", "R"], "G"}], 
+            RowBox[{
+             SubscriptBox["\[Del]", "R"], "Q"}]}], ")"}], 
+          RowBox[{"3", ":", "2"}]], 
+         RowBox[{
+          SubscriptBox["\[Del]", "R"], 
+          SuperscriptBox["Q", 
+           RowBox[{"2", ":", "1"}]]}]}], ")"}]}]}]},
+    {
+     RowBox[{"=", 
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[Del]", "Q"], "R"}], 
+       RowBox[{
+        SubscriptBox["\[Del]", "R"], 
+        RowBox[{"(", 
+         RowBox[{
+          SuperscriptBox[
+           RowBox[{"(", 
+            RowBox[{
+             RowBox[{
+              SubscriptBox["\[Del]", "Q"], "R"}], 
+             RowBox[{
+              SubscriptBox["\[Del]", "R"], "G"}], 
+             RowBox[{
+              SubscriptBox["\[Del]", "R"], "Q"}]}], ")"}], 
+           RowBox[{"3", ":", "2"}]], 
+          RowBox[{
+           SubscriptBox["\[Del]", "R"], 
+           SuperscriptBox["Q", 
+            RowBox[{"2", ":", "1"}]]}]}], ")"}]}]}]}]},
+    {
+     RowBox[{"=", 
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[Del]", "Q"], 
+        SuperscriptBox[
+         RowBox[{"R", "(", 
+          RowBox[{
+           SubscriptBox["\[Del]", "R"], 
+           RowBox[{"(", 
+            RowBox[{
+             RowBox[{
+              SubscriptBox["\[Del]", "Q"], "R"}], 
+             RowBox[{
+              SubscriptBox["\[Del]", "R"], "G"}], 
+             RowBox[{
+              SubscriptBox["\[Del]", "R"], "Q"}]}], ")"}]}], ")"}], 
+         RowBox[{"4", ":", "3"}]]}], 
+       RowBox[{
+        SubscriptBox["\[Del]", "R"], 
+        SuperscriptBox["Q", 
+         RowBox[{"2", ":", "1"}]]}]}]}]}
+   }], TraditionalForm]], "ExpositoryMathCentered",
+ CellChangeTimes->{{3.805579870388315*^9, 3.80557987039247*^9}, {
+  3.805594504493471*^9, 3.805594513433896*^9}, {3.805594549637928*^9, 
+  3.805594654991475*^9}},ExpressionUUID->"644072d7-f1a1-46b9-b828-\
 22d1c6283812"],
+
+Cell[TextData[{
+ "and this might look gross, but we can see the writing on the wall: we apply \
+",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SubscriptBox["\[Del]", "Q"], "R"}], TraditionalForm]], 
+  "ExpositoryTextInline",
+  FormatType->"TraditionalForm",ExpressionUUID->
+  "7b8e15bd-2919-4f9a-9150-f208f7cc0f60"],
+ " to ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SubscriptBox["\[Del]", 
+     SuperscriptBox["R", "2"]], "G"}], TraditionalForm]],
+  CellChangeTimes->{{3.805579870388315*^9, 3.80557987039247*^9}, {
+   3.805594504493471*^9, 3.805594513433896*^9}, {3.805594549637928*^9, 
+   3.805594654991475*^9}},ExpressionUUID->
+  "8ef6e9db-fd0e-43be-bdf6-b23edafc6742"],
+ " along the first two (R) axes, then apply ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SubscriptBox["\[Del]", "R"], "Q"}], TraditionalForm]], 
+  "ExpositoryTextInline",
+  FormatType->"TraditionalForm",ExpressionUUID->
+  "b556a609-e50d-4481-8c55-20edd6a32929"],
+ " from the right to the last two axes"
+}], "ExpositoryText",
+ CellChangeTimes->{{3.805594656791448*^9, 
+  3.805594714231298*^9}},ExpressionUUID->"31448bd9-4a3c-4a16-b33b-\
+1987423f017c"],
 
 Cell[CellGroupData[{
 
@@ -7233,12 +6598,14 @@ Cell[BoxData[
  CellChangeTimes->{{3.8055899886793947`*^9, 3.805590048118779*^9}, {
   3.805591478546927*^9, 3.805591564694206*^9}, {3.8055918580493*^9, 
   3.805591917925476*^9}},ExpressionUUID->"d3543499-ca6e-4eb0-a3de-\
-23934d22dd63"]
+23934d22dd63"],
+
+Cell["", "ExpositoryText",ExpressionUUID->"09831f88-d864-4ffe-a5f7-c158e2ba152b"]
 }, Open  ]]
 }, Open  ]]
 },
 WindowSize->{911, 847},
-WindowMargins->{{Automatic, -1119}, {-212, Automatic}},
+WindowMargins->{{208, Automatic}, {Automatic, 0}},
 PrintingCopies->1,
 PrintingPageRange->{1, Automatic},
 FrontEndVersion->"12.0 for Mac OS X x86 (64-bit) (April 8, 2019)",
@@ -7442,61 +6809,52 @@ Cell[167766, 5327, 1440, 51, 98, "ExpositoryMathCentered",ExpressionUUID->"316f8
 Cell[169209, 5380, 173, 3, 37, "ExpositoryText",ExpressionUUID->"d67c9046-cbfc-4e67-b377-1d2c821a0e5d"],
 Cell[169385, 5385, 1498, 46, 88, "ExpositoryMathCentered",ExpressionUUID->"21143668-7bef-49ef-bde8-dbec6be20c1a"],
 Cell[170886, 5433, 384, 7, 37, "ExpositoryText",ExpressionUUID->"5e8edd28-0d58-4290-9082-7cee8840bed9"],
-Cell[171273, 5442, 2461, 80, 176, "ExpositoryMathCentered",ExpressionUUID->"4bc424c5-47ec-4892-9ff6-715d30bd695e"],
-Cell[173737, 5524, 163, 3, 37, "ExpositoryText",ExpressionUUID->"23d1a10f-4639-4cb7-8cff-d5804a958757"],
-Cell[173903, 5529, 535, 14, 34, "ExpositoryMathCentered",ExpressionUUID->"231ed077-f464-4d93-b4ca-20e6d36c961d"],
-Cell[174441, 5545, 404, 7, 62, "ExpositoryText",ExpressionUUID->"f32fa7a8-c2a5-4570-adf2-ffa0bdceeb23"],
-Cell[174848, 5554, 2302, 70, 94, "ExpositoryMathCentered",ExpressionUUID->"7aa190d7-493d-4cf2-b6c9-d567eb8c6817"],
-Cell[177153, 5626, 194, 3, 37, "ExpositoryText",ExpressionUUID->"a2936d00-54a7-4889-9e85-ab7ec94a2c33"],
-Cell[177350, 5631, 1519, 53, 132, "ExpositoryMathCentered",ExpressionUUID->"476f2d19-3aac-4a54-a4da-f5e188b3cf50"],
-Cell[178872, 5686, 671, 12, 62, "ExpositoryText",ExpressionUUID->"6cfe4404-db8c-4ba0-961a-5a16d7ca7fc3"],
-Cell[179546, 5700, 163, 3, 37, "ExpositoryText",ExpressionUUID->"35892f83-6d52-4897-bf53-e4bbe26b3b2d"],
-Cell[179712, 5705, 15130, 461, 582, "ExpositoryMathCentered",ExpressionUUID->"329e1f0b-51ab-4808-a7f8-f3f164803f22"],
-Cell[194845, 6168, 552, 13, 37, "ExpositoryText",ExpressionUUID->"6bcf3d10-d9c2-4b13-a264-ff41ea17c615"],
-Cell[195400, 6183, 3845, 120, 138, "ExpositoryMathCentered",ExpressionUUID->"605c5652-a7d6-4037-a6df-d76e75a46da7"],
-Cell[199248, 6305, 396, 8, 37, "ExpositoryText",ExpressionUUID->"50551d40-c63b-4555-b7e5-1004ff600adf"],
-Cell[199647, 6315, 135, 2, 37, "ExpositoryText",ExpressionUUID->"096f5c54-c14f-4ca9-8b6b-60c45b74878f"],
-Cell[199785, 6319, 2486, 72, 80, "ExpositoryMathCentered",ExpressionUUID->"32261ac6-f9ac-4ab1-b7f1-9465d4486f53"],
-Cell[202274, 6393, 308, 7, 37, "ExpositoryText",ExpressionUUID->"84de93c1-c12f-4422-a3a2-57137409d4cd"],
-Cell[202585, 6402, 1381, 43, 140, "ExpositoryMathCentered",ExpressionUUID->"b29193dd-536e-4feb-8178-3e5c2a4155e3"],
-Cell[203969, 6447, 571, 19, 48, "ExpositoryMathCentered",ExpressionUUID->"d30c42e6-11b9-4641-8d34-b3c1db250820"]
+Cell[171273, 5442, 3710, 120, 236, "ExpositoryMathCentered",ExpressionUUID->"4bc424c5-47ec-4892-9ff6-715d30bd695e"],
+Cell[174986, 5564, 163, 3, 37, "ExpositoryText",ExpressionUUID->"23d1a10f-4639-4cb7-8cff-d5804a958757"],
+Cell[175152, 5569, 535, 14, 34, "ExpositoryMathCentered",ExpressionUUID->"231ed077-f464-4d93-b4ca-20e6d36c961d"],
+Cell[175690, 5585, 404, 7, 62, "ExpositoryText",ExpressionUUID->"f32fa7a8-c2a5-4570-adf2-ffa0bdceeb23"],
+Cell[176097, 5594, 2065, 63, 104, "ExpositoryMathCentered",ExpressionUUID->"6174497a-a3fd-4cda-a958-41b0f29cfe4a"],
+Cell[178165, 5659, 194, 3, 37, "ExpositoryText",ExpressionUUID->"a2936d00-54a7-4889-9e85-ab7ec94a2c33"],
+Cell[178362, 5664, 1698, 56, 110, "ExpositoryMathCentered",ExpressionUUID->"476f2d19-3aac-4a54-a4da-f5e188b3cf50"]
 }, Open  ]]
 }, Open  ]]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[204601, 6473, 155, 3, 105, "Title",ExpressionUUID->"39aa39b4-8d92-4e9f-80a5-596d18337f00"],
-Cell[204759, 6478, 499, 12, 37, "ExpositoryText",ExpressionUUID->"b9496205-3390-409d-b7be-6217234dd74a"],
-Cell[205261, 6492, 835, 30, 34, "ExpositoryMathCentered",ExpressionUUID->"a33649ea-554a-4b42-b57f-777d3b088dee"],
-Cell[206099, 6524, 194, 3, 37, "ExpositoryText",ExpressionUUID->"5662d79c-cf32-4277-a479-74b15a9e3190"],
-Cell[206296, 6529, 1773, 65, 80, "ExpositoryMathCentered",ExpressionUUID->"91ee52c1-e051-4ada-b3e0-e5ded023fede"],
-Cell[208072, 6596, 207, 3, 37, "ExpositoryText",ExpressionUUID->"0e2531ba-6b55-4b31-ad78-b63215dbae04"],
-Cell[208282, 6601, 610, 18, 48, "ExpositoryMathCentered",ExpressionUUID->"ac4eb889-b2f7-47eb-b934-b7b0997e17ad"],
-Cell[208895, 6621, 363, 7, 37, "ExpositoryText",ExpressionUUID->"c8172e6b-a861-4c19-a652-505f26d3d0ba"],
-Cell[209261, 6630, 637, 17, 48, "ExpositoryMathCentered",ExpressionUUID->"fccb8e16-7519-4c0d-95d3-f15ea26fa706"],
-Cell[209901, 6649, 245, 6, 37, "ExpositoryText",ExpressionUUID->"b0fdfcca-bf97-41c1-bf8b-6c342000e666"],
-Cell[210149, 6657, 255, 4, 37, "ExpositoryText",ExpressionUUID->"52436289-4e4f-452c-9bd2-5f8a43f5be9d"],
-Cell[210407, 6663, 540, 15, 45, "ExpositoryMathCentered",ExpressionUUID->"f7f932af-bd10-4a02-b568-8e03c269fe6b"]
+Cell[180121, 5727, 155, 3, 105, "Title",ExpressionUUID->"39aa39b4-8d92-4e9f-80a5-596d18337f00"],
+Cell[180279, 5732, 499, 12, 37, "ExpositoryText",ExpressionUUID->"b9496205-3390-409d-b7be-6217234dd74a"],
+Cell[180781, 5746, 835, 30, 34, "ExpositoryMathCentered",ExpressionUUID->"a33649ea-554a-4b42-b57f-777d3b088dee"],
+Cell[181619, 5778, 194, 3, 37, "ExpositoryText",ExpressionUUID->"5662d79c-cf32-4277-a479-74b15a9e3190"],
+Cell[181816, 5783, 1773, 65, 80, "ExpositoryMathCentered",ExpressionUUID->"91ee52c1-e051-4ada-b3e0-e5ded023fede"],
+Cell[183592, 5850, 207, 3, 37, "ExpositoryText",ExpressionUUID->"0e2531ba-6b55-4b31-ad78-b63215dbae04"],
+Cell[183802, 5855, 610, 18, 48, "ExpositoryMathCentered",ExpressionUUID->"ac4eb889-b2f7-47eb-b934-b7b0997e17ad"],
+Cell[184415, 5875, 363, 7, 37, "ExpositoryText",ExpressionUUID->"c8172e6b-a861-4c19-a652-505f26d3d0ba"],
+Cell[184781, 5884, 637, 17, 48, "ExpositoryMathCentered",ExpressionUUID->"fccb8e16-7519-4c0d-95d3-f15ea26fa706"],
+Cell[185421, 5903, 245, 6, 37, "ExpositoryText",ExpressionUUID->"b0fdfcca-bf97-41c1-bf8b-6c342000e666"],
+Cell[185669, 5911, 255, 4, 37, "ExpositoryText",ExpressionUUID->"52436289-4e4f-452c-9bd2-5f8a43f5be9d"],
+Cell[185927, 5917, 540, 15, 45, "ExpositoryMathCentered",ExpressionUUID->"f7f932af-bd10-4a02-b568-8e03c269fe6b"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[210984, 6683, 162, 3, 105, "Title",ExpressionUUID->"0f89f191-46f1-4313-8b66-55d799a261aa"],
-Cell[211149, 6688, 757, 18, 39, "ExpositoryText",ExpressionUUID->"3e4e8f63-a570-48ed-8420-98873b0fabe7"],
-Cell[211909, 6708, 437, 14, 32, "ExpositoryMathCentered",ExpressionUUID->"fcf051c2-cbca-432a-bf2e-5ad7523a18de"],
-Cell[212349, 6724, 189, 3, 37, "ExpositoryText",ExpressionUUID->"3ac0a275-102a-4995-b340-b35b8f4de11c"],
-Cell[212541, 6729, 3224, 103, 144, "ExpositoryMathCentered",ExpressionUUID->"922cdf5a-2925-4592-8006-967b7120f346"],
-Cell[215768, 6834, 289, 6, 37, "ExpositoryText",ExpressionUUID->"81ace0bb-480e-4840-b595-f68da86956d2"],
-Cell[216060, 6842, 6285, 198, 388, "ExpositoryMathCentered",ExpressionUUID->"52e2d6d0-c6f9-4836-8ed0-6f37f47c88f6"],
-Cell[222348, 7042, 160, 3, 37, "ExpositoryText",ExpressionUUID->"cc901bbe-d119-46c7-9e3e-888ae69752f1"],
-Cell[222511, 7047, 1023, 31, 56, "ExpositoryMathCentered",ExpressionUUID->"6c7d8a56-411e-4e0f-857c-eb2b9b646440"],
-Cell[223537, 7080, 227, 5, 37, "ExpositoryText",ExpressionUUID->"f19ebfb0-911e-4d22-a6cf-0fbfef216626"],
-Cell[223767, 7087, 391, 13, 34, "ExpositoryMathCentered",ExpressionUUID->"8e089866-de58-443b-8af9-dd59dd314fed"],
-Cell[224161, 7102, 279, 6, 37, "ExpositoryText",ExpressionUUID->"2b559fd0-d6ed-4519-84b6-5c256b802c39"],
-Cell[224443, 7110, 707, 24, 34, "ExpositoryMathCentered",ExpressionUUID->"5c2b7834-9d75-443f-936f-2ca87fb2158f"],
-Cell[225153, 7136, 223, 5, 37, "ExpositoryText",ExpressionUUID->"01819427-b6ed-496f-bb8a-6ad4961ca44b"],
-Cell[225379, 7143, 196, 4, 32, "ExpositoryMathCentered",ExpressionUUID->"644072d7-f1a1-46b9-b828-22d1c6283812"],
+Cell[186504, 5937, 162, 3, 105, "Title",ExpressionUUID->"0f89f191-46f1-4313-8b66-55d799a261aa"],
+Cell[186669, 5942, 757, 18, 39, "ExpositoryText",ExpressionUUID->"3e4e8f63-a570-48ed-8420-98873b0fabe7"],
+Cell[187429, 5962, 437, 14, 32, "ExpositoryMathCentered",ExpressionUUID->"fcf051c2-cbca-432a-bf2e-5ad7523a18de"],
+Cell[187869, 5978, 189, 3, 37, "ExpositoryText",ExpressionUUID->"3ac0a275-102a-4995-b340-b35b8f4de11c"],
+Cell[188061, 5983, 3224, 103, 144, "ExpositoryMathCentered",ExpressionUUID->"922cdf5a-2925-4592-8006-967b7120f346"],
+Cell[191288, 6088, 289, 6, 37, "ExpositoryText",ExpressionUUID->"81ace0bb-480e-4840-b595-f68da86956d2"],
+Cell[191580, 6096, 6285, 198, 388, "ExpositoryMathCentered",ExpressionUUID->"52e2d6d0-c6f9-4836-8ed0-6f37f47c88f6"],
+Cell[197868, 6296, 160, 3, 37, "ExpositoryText",ExpressionUUID->"cc901bbe-d119-46c7-9e3e-888ae69752f1"],
+Cell[198031, 6301, 1023, 31, 56, "ExpositoryMathCentered",ExpressionUUID->"6c7d8a56-411e-4e0f-857c-eb2b9b646440"],
+Cell[199057, 6334, 227, 5, 37, "ExpositoryText",ExpressionUUID->"f19ebfb0-911e-4d22-a6cf-0fbfef216626"],
+Cell[199287, 6341, 391, 13, 34, "ExpositoryMathCentered",ExpressionUUID->"8e089866-de58-443b-8af9-dd59dd314fed"],
+Cell[199681, 6356, 279, 6, 37, "ExpositoryText",ExpressionUUID->"2b559fd0-d6ed-4519-84b6-5c256b802c39"],
+Cell[199963, 6364, 792, 26, 34, "ExpositoryMathCentered",ExpressionUUID->"5c2b7834-9d75-443f-936f-2ca87fb2158f"],
+Cell[200758, 6392, 303, 7, 37, "ExpositoryText",ExpressionUUID->"01819427-b6ed-496f-bb8a-6ad4961ca44b"],
+Cell[201064, 6401, 2396, 77, 88, "ExpositoryMathCentered",ExpressionUUID->"644072d7-f1a1-46b9-b828-22d1c6283812"],
+Cell[203463, 6480, 1123, 32, 68, "ExpositoryText",ExpressionUUID->"31448bd9-4a3c-4a16-b33b-1987423f017c"],
 Cell[CellGroupData[{
-Cell[225600, 7151, 152, 3, 72, "Section",ExpressionUUID->"67e7ace7-e68f-453d-9790-627f9fc2c7f2"],
-Cell[225755, 7156, 1074, 35, 62, "ExpositoryMathCentered",ExpressionUUID->"d8792fa5-8d83-4b31-8beb-271b9b0bf0f8"],
-Cell[226832, 7193, 1322, 42, 88, "ExpositoryMathCentered",ExpressionUUID->"d3543499-ca6e-4eb0-a3de-23934d22dd63"]
+Cell[204611, 6516, 152, 3, 72, "Section",ExpressionUUID->"67e7ace7-e68f-453d-9790-627f9fc2c7f2"],
+Cell[204766, 6521, 1074, 35, 62, "ExpositoryMathCentered",ExpressionUUID->"d8792fa5-8d83-4b31-8beb-271b9b0bf0f8"],
+Cell[205843, 6558, 1322, 42, 88, "ExpositoryMathCentered",ExpressionUUID->"d3543499-ca6e-4eb0-a3de-23934d22dd63"],
+Cell[207168, 6602, 81, 0, 37, "ExpositoryText",ExpressionUUID->"09831f88-d864-4ffe-a5f7-c158e2ba152b"]
 }, Open  ]]
 }, Open  ]]
 }

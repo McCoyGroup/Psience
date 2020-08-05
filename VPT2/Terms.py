@@ -208,11 +208,17 @@ class ExpansionTerms:
         # If Q is just an expansion in X all of these terms will disappear except for V_QQQ_5
         xQQ_Vxx = dot(xQQ, Vxx)
 
+        # Gradient contribution
         V_QQQ_1 = dot(xQQQ, Vx)
-        V_QQQ_2 = dot(xQ_Vxx, xQQ, axes=[[-1, -1]])
-        V_QQQ_3 = dot(xQQ_Vxx, xQ, axes=[[-1, -1]])
-        V_QQQ_4 = shift(V_QQQ_2, (1, 0))
+        # Second deriv.
+        # V_QQQ_2 = dot(xQ_Vxx, xQQ, axes=[[-1, -1]])
+        # V_QQQ_3 = dot(xQQ_Vxx, xQ, axes=[[-1, -1]])
+        # V_QQQ_4 = shift(V_QQQ_2, (1, 0))
+        V_QQQ_2 = dot(Vxx, xQQ, xQ, axes=[[0, -1], [0, -1]])
+        V_QQQ_3 = dot(Vxx, shift(xQQ, [0, 1]), xQ, axes=[[0, -1], [0, -1]])
+        V_QQQ_4 = dot(Vxx, xQ, xQQ, axes=[[0, -1], [0, -1]])
 
+        # Third derivs.
         if not mixed_XQ:
             VQxx = dot(xQ, Vxxx)
         else:
@@ -227,16 +233,13 @@ class ExpansionTerms:
             V_QQQ_4,
             V_QQQ_5
         )
-        # if mixed_XQ:
-        #     ehhh = [
-        #         UnitsData.convert("Hartrees", "Wavenumbers") * x for x in V_QQQ_terms
-        #     ]
-        #     np.savetxt("/Users/Mark/Desktop/eh.dat",
-        #                np.array([e.flatten() for e in ehhh])
-        #                )
-        #     raise Exception(...)
-        # print(np.reshape(VQxx, (3, 81)))
         V_QQQ = sum(x for x in V_QQQ_terms if not isinstance(x, int))
+        # np.savetxt("/Users/Mark/Desktop/eeeeehhhh.dat",
+        #            np.array([
+        #                x.flatten() for x in V_QQQ_terms if not isinstance(x, int)
+        #            ])
+        #            )
+
         derivs[2] = V_QQQ
         if order == 3:
             return tuple(derivs)
@@ -271,23 +274,31 @@ class ExpansionTerms:
         )
 
         if not mixed_XQ:
-            VQQxx = dot(xQ, dot(xQ, Vxxxx), axes=[[1, 1]])
+            VQQxx = shift(
+                dot(
+                    shift(dot(Vxxxx, xQ, axes=[[1, 1]]), [-1, 1]),
+                    xQ, axes=[[1, 1]]
+                ),
+                [-1, 1]
+            )
         else:
             VQQxx = Vxxxx
 
         V_QQQQ_5 = (
                 dot(xQQ, VQxx, xQ, axes=[[2, 1], [3, 1]]) +
                 shift(dot(xQQ, VQxx, xQ, axes=[[2, 2], [3, 1]]), (3, 1)) +
-                shift(dot(xQ, VQxx, xQQ, axes=[[1, 1], [2, 2]]), (2, 0)) +
-                dot(VQQxx, xQ, xQ, axes=[[3, 1], [2, 1]])
+                shift(dot(xQ, VQxx, xQQ, axes=[[1, 1], [2, 2]]), (2, 0))
         )
+
+        V_QQQQ_6 = dot(VQQxx, xQ, xQ, axes=[[3, 1], [2, 1]])
 
         V_QQQQ = (
                 V_QQQQ_1 +
                 V_QQQQ_2 +
                 V_QQQQ_3 +
                 V_QQQQ_4 +
-                V_QQQQ_5
+                V_QQQQ_5 +
+                V_QQQQ_6
         )
 
         return V_Q, V_QQ, V_QQQ, V_QQQQ
@@ -413,11 +424,11 @@ class PotentialTerms(ExpansionTerms):
             # XR, XRR, XRRR, XRRRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2, 3, 4])]
             # the 3rd and fourth derivative tensors will probably need to be optimized out
 
-            # XR, XRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2])]
-            # XRRR = XRRRR = 0
+            XR, XRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2])]
+            XRRR = XRRRR = 0
 
-            XR, XRR, XRRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2, 3])]
-            XRRRR = 0
+            # XR, XRR, XRRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2, 3])]
+            # XRRRR = 0
 
             # The finite difference preserves too much shape by default
             _contract_dim = DumbTensor._contract_dim
@@ -425,8 +436,8 @@ class PotentialTerms(ExpansionTerms):
                 XR = _contract_dim(XR, 2)
             if XRR.ndim > 3:
                 XRR = _contract_dim(XRR, 3)
-            if XRRR.ndim > 4:
-                XRRR = _contract_dim(XRRR, 4)
+            # if XRRR.ndim > 4:
+            #     XRRR = _contract_dim(XRRR, 4)
             # if XRRRR.ndim > 5:
             #     XRRRR = _contract_dim(XRRRR, 5)
 
@@ -448,30 +459,30 @@ class PotentialTerms(ExpansionTerms):
             shift = DumbTensor._shift
             RQ = dot(YQ, RY)
             x_derivs = (YR, YRR, YRRR, YRRRR)
+
             Q_derivs = (RQ, 0, 0, 0)
-            # xQ, xQQ, xQQQ, xQQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
-            # xQ, xQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False, order=2)
-            xQ, xQQ, xQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False, order=3)
+            xQ, xQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False, order=2)
+            # xQ, xQQ, xQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False, order=3)
             # raise Exception(xQ-YQ)
             # xQ = xQ.transpose(0, 1)
             xQQ = xQQ.transpose(0, 2, 1)
-            xQQQ = xQQQ.transpose(0, 2, 3, 1)
+            # xQQQ = xQQQ.transpose(0, 2, 3, 1)
             # xQQQQ = xQQQQ.transpose(0, 1, 3, 4, 2)
 
             RQ = DumbTensor(RQ)
             YRR = DumbTensor(YRR)
             YRRR = DumbTensor(YRRR)
             YQQ = (RQ@(RQ@YRR)[0:1])[0:1]
-            YQQQ = YRRR
-            for i in range(3):
-                YQQQ = RQ.dot(YQQQ, axes=[[1, i]])
+            # YQQQ = YRRR
+            # for i in range(3):
+            #     YQQQ = RQ.dot(YQQQ, axes=[[1, i]])
             # plt.TensorPlot(YQQQ.t)
             # plt.TensorPlot(xQQQ)
             # plt.TensorPlot(xQQQ-YQQQ.t, plot_style=dict(vmin=-1e-8, vmax=1e-8)).show()
 
             # raise Exception(xQQ)
             # xQQ = 0
-            # xQQQ = 0
+            xQQQ = 0
             xQQQQ = 0
 
         x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
@@ -495,8 +506,8 @@ class PotentialTerms(ExpansionTerms):
         # raise Exception([v2*UnitsData.convert("Hartrees", "Wavenumbers"),
         #                 v3*UnitsData.convert("Hartrees", "Wavenumbers")])
 
-        v3 = UnitsData.convert("Wavenumbers", "Hartrees")*np.loadtxt("/Users/Mark/Desktop/test.dat")
-        v3 = v3.reshape(3, 3, 3)
+        # v3 = UnitsData.convert("Wavenumbers", "Hartrees")*np.loadtxt("/Users/Mark/Desktop/test.dat")
+        # v3 = v3.reshape(3, 3, 3)
 
         return v2, v3, v4
 
@@ -597,19 +608,24 @@ class KineticTerms(ExpansionTerms):
 
             QY = self.modes.matrix  # derivatives of Q with respect to the mass-weighted Cartesians
             YQ = self.modes.inverse
+            QR = dot(YR, QY)
+            RQ = dot(YQ, RY)
             G = dot(QY, QY, axes=[[0, 0]])
 
             J = DumbTensor(QY)
             Jd = DumbTensor(YQ)
-            H = YQQ = 0
             K = DumbTensor(dot(RYY, YR, QY))
             U = K.dot(J, axes=[[0, 0]])
+
+            GQ = Jd@(U + U[2:1])
+            GQ = GQ.t
+
             L = DumbTensor(dot(RYYY, YR, QY))
+            H = DumbTensor(dot(RQ, dot(RQ, YRR, axes=[[1, 0]]), axes=[[1, 1]]))
             K22 = K.dot(K, axes=[[1, 1]])
             V = L[3:2]@J + K22[2:0]
 
-            GQ = Jd@(U+U[2:1])
-            GQ = GQ.t
+            GQQ = (H@(U + U[2:1])).t + (Jd@(Jd@(V+V[3:2]))[0:1]).t
 
             dRdYY = DumbTensor(RYY)
             dRdY = DumbTensor(RY)
@@ -628,22 +644,12 @@ class KineticTerms(ExpansionTerms):
             intdGdRR = dYdR@(dUdY+dUdY[3:2])
             intdGdRR = intdGdRR.t
 
-            QR = dot(YR, QY)
-            RQ = dot(YQ, RY)
             intdGdQ = dot(RQ, intdGdR)
             GQ_2 = dot(intdGdQ, QR, QR, axes=[[1, 0], [1, 0]])
-            GQ_2w = GQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
+            # GQ_2w = GQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
 
-            intdGdQQ = dot(RQ, dot(RQ, intdGdRR), axes=[[1, 1]])
+            intdGdQQ = dot(RQ, dot(RQ, intdGdRR, axes=[[1, 1]]), axes=[[1, 1]])
             GQQ_2 = dot(intdGdQQ, QR, QR, axes=[[2, 0], [2, 0]])
-
-            CoordinateSet = crds.CoordinateSet
-            CartesianCoordinates3D = crds.CartesianCoordinates3D
-            ZMatrixCoordinateSystem = crds.ZMatrixCoordinateSystem
-            icsys = ZMatrixCoordinateSystem(ordering=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]])
-            ccs = CoordinateSet(ccoords, CartesianCoordinates3D)
-            rx = _contract_dim(ccs.jacobian(icsys), 2)
-            ics = ccs.convert(icsys)
 
             ic = np.asarray(intcds).flatten()[sp]
             r1 = ic[0]
@@ -727,13 +733,9 @@ class KineticTerms(ExpansionTerms):
                 ]
             ])
             intdGdRR = intdGdRR[sp, :, :, :][:, sp, :, :][:, :, sp, :][:, :, :, sp]
-            plt.TensorPlot(GRR_analytic, plot_style=dict(vmin=-1e-4, vmax=1e-4))
-            plt.TensorPlot(intdGdRR, plot_style=dict(vmin=-1e-4, vmax=1e-4))
-            plt.TensorPlot(GRR_analytic-intdGdRR, plot_style=dict(vmin=-1e-4, vmax=1e-4)).show()
-
-            GQQ = (Jd@(Jd@(V+V[3:2]))[0:1]).t
-
-            GQQ_w = GQQ * UnitsData.convert("Hartrees", "Wavenumbers")
+            # plt.TensorPlot(GRR_analytic, plot_style=dict(vmin=-1e-4, vmax=1e-4))
+            # plt.TensorPlot(intdGdRR, plot_style=dict(vmin=-1e-4, vmax=1e-4))
+            # plt.TensorPlot(GRR_analytic-intdGdRR, plot_style=dict(vmin=-1e-4, vmax=1e-4)).show()
 
             # plt.TensorPlot(GQQ)
             # plt.TensorPlot(GQQ_2)
@@ -743,7 +745,7 @@ class KineticTerms(ExpansionTerms):
             # GQQ = GQQ_2
             # GQQ = 0
 
-            GQQ_2w = GQQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
+            # GQQ_2w = GQQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
 
         G_terms = (G, GQ, GQQ)
         return G_terms
