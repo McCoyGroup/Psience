@@ -47,7 +47,11 @@ class DumbTensor:
                 try:
                     td = np.tensordot(a, b, **kw)
                 except ValueError:
-                    raise Exception([a.shape, b.shape, kw])
+                    if 'axes' not in kw:
+                        axes = [-1, 0]
+                    else:
+                        axes = kw['axes']
+                    raise ValueError("Shape-mismatch for sum: {} x {} along axes {}".format(a.shape, b.shape, axes))
             return td
 
         def td(a, b):
@@ -223,6 +227,14 @@ class ExpansionTerms:
             V_QQQ_4,
             V_QQQ_5
         )
+        # if mixed_XQ:
+        #     ehhh = [
+        #         UnitsData.convert("Hartrees", "Wavenumbers") * x for x in V_QQQ_terms
+        #     ]
+        #     np.savetxt("/Users/Mark/Desktop/eh.dat",
+        #                np.array([e.flatten() for e in ehhh])
+        #                )
+        #     raise Exception(...)
         # print(np.reshape(VQxx, (3, 81)))
         V_QQQ = sum(x for x in V_QQQ_terms if not isinstance(x, int))
         derivs[2] = V_QQQ
@@ -299,9 +311,10 @@ class PotentialTerms(ExpansionTerms):
         freqs = modes.freqs
         freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
         mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
-        Linv = L / freq_conv / mass_conv
-        modes_V = type(modes)(self.molecule, Linv.T, freqs=freqs)
-        return modes_V
+        L = L * freq_conv * mass_conv
+        Linv = (L / freq_conv**2)
+        modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
+        return modes
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
 
@@ -314,7 +327,7 @@ class PotentialTerms(ExpansionTerms):
             grad, fcs, thirds, fourths = derivs
 
         n = len(masses)
-        modes_matrix = self.modes.matrix.T
+        modes_matrix = self.modes.inverse
         modes_n = len(modes_matrix)
         if modes_n == 3*n:
             modes_n = modes_n - 6
@@ -364,38 +377,47 @@ class PotentialTerms(ExpansionTerms):
         f_conv = np.sqrt(freqs)
 
         undimension_2 = np.outer(m_conv, m_conv)
-        fcs = fcs * undimension_2
+        fcs = fcs / undimension_2
 
-        undimension_3 = np.outer(m_conv, m_conv)[np.newaxis, :, :] / f_conv[:, np.newaxis, np.newaxis]
-        thirds = thirds * (undimension_3 / np.sqrt(amu_conv))
+        undimension_3 = np.outer(m_conv, m_conv)[np.newaxis, :, :] * f_conv[:, np.newaxis, np.newaxis]
+        thirds = thirds * (1 / undimension_3 / np.sqrt(amu_conv))
 
-        wat = np.outer(m_conv, m_conv)[np.newaxis, :, :] / (f_conv ** 2)[:, np.newaxis, np.newaxis]
-        undimension_4 = SparseArray.from_diag(wat / amu_conv)
+        wat = np.outer(m_conv, m_conv)[np.newaxis, :, :] * (f_conv ** 2)[:, np.newaxis, np.newaxis]
+        undimension_4 = SparseArray.from_diag(1 / wat / amu_conv)
         fourths = fourths
         fourths = fourths * undimension_4
 
         return grad, fcs, thirds, fourths
 
     def get_terms(self):
+        grad = self.v_derivs[0]
+        hess = self.v_derivs[1]
+        thirds = self.v_derivs[2]
+        fourths = self.v_derivs[3]
+
         # Use the Molecule's coordinates which know about their embedding by default
         intcds = self.internal_coordinates
         if intcds is None or not self.non_degenerate:
             # this is nice because it eliminates most of terms in the expansion
-            xQ = self.modes.matrix.T
+            xQ = self.modes.inverse
             xQQ = 0
             xQQQ = 0
             xQQQQ = 0
         else:
+            YQ = self.modes.inverse
+            QY = self.modes.matrix
             # We need to compute all these terms then mass weight them
             ccoords = self.coords
             carts = ccoords.system
             internals = intcds.system
-            XR = intcds.jacobian(carts, 1).squeeze()
-            XRR = intcds.jacobian(carts, 2).squeeze()
-            XRRR = intcds.jacobian(carts, 3).squeeze()
+            # XR, XRR, XRRR, XRRRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2, 3, 4])]
+            # the 3rd and fourth derivative tensors will probably need to be optimized out
+
+            # XR, XRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2])]
+            # XRRR = XRRRR = 0
+
+            XR, XRR, XRRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2, 3])]
             XRRRR = 0
-            XRRRR = intcds.jacobian(carts, 4).squeeze()
-            # this will need to be optimized out at some point, as will the thirds, maybe
 
             # The finite difference preserves too much shape by default
             _contract_dim = DumbTensor._contract_dim
@@ -405,8 +427,8 @@ class PotentialTerms(ExpansionTerms):
                 XRR = _contract_dim(XRR, 3)
             if XRRR.ndim > 4:
                 XRRR = _contract_dim(XRRR, 4)
-            if XRRRR.ndim > 5:
-                XRRRR = _contract_dim(XRRRR, 5)
+            # if XRRRR.ndim > 5:
+            #     XRRRR = _contract_dim(XRRRR, 5)
 
             RX = ccoords.jacobian(internals, 1)
             if RX.ndim > 2:
@@ -415,30 +437,44 @@ class PotentialTerms(ExpansionTerms):
             # Need to then mass weight
             masses = self.masses
             mass_conv = np.sqrt(np.broadcast_to(masses[np.newaxis], (len(masses), 3)).flatten())
-            xQ = XR * mass_conv[np.newaxis]
-            xQQ = XRR * mass_conv[np.newaxis, np.newaxis]
-            xQQQ = XRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis]
-            xQQQQ = XRRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis]
+            YR = XR * mass_conv[np.newaxis]
+            YRR = XRR * mass_conv[np.newaxis, np.newaxis]
+            YRRR = XRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis]
+            YRRRR = XRRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis]
             RY = RX / mass_conv[:, np.newaxis]
 
-            # Put everything into proper normal modes
+            # transform into proper dXdQ space
             dot = DumbTensor._dot
-            YQ = self.modes.matrix.T
-            L = dot(YQ, RY)
-            xQ = dot(L, xQ, axes=[[1, 0]])
-            for i in range(2):
-                xQQ = dot(L, xQQ, axes=[[1, i]])
+            shift = DumbTensor._shift
+            RQ = dot(YQ, RY)
+            x_derivs = (YR, YRR, YRRR, YRRRR)
+            Q_derivs = (RQ, 0, 0, 0)
+            # xQ, xQQ, xQQQ, xQQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
+            # xQ, xQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False, order=2)
+            xQ, xQQ, xQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False, order=3)
+            # raise Exception(xQ-YQ)
+            # xQ = xQ.transpose(0, 1)
+            xQQ = xQQ.transpose(0, 2, 1)
+            xQQQ = xQQQ.transpose(0, 2, 3, 1)
+            # xQQQQ = xQQQQ.transpose(0, 1, 3, 4, 2)
+
+            RQ = DumbTensor(RQ)
+            YRR = DumbTensor(YRR)
+            YRRR = DumbTensor(YRRR)
+            YQQ = (RQ@(RQ@YRR)[0:1])[0:1]
+            YQQQ = YRRR
             for i in range(3):
-                xQQQ = dot(L, xQQQ, axes=[[1, i]])
-            for i in range(4):
-                xQQQQ = dot(L, xQQQQ, axes=[[1, i]])
+                YQQQ = RQ.dot(YQQQ, axes=[[1, i]])
+            # plt.TensorPlot(YQQQ.t)
+            # plt.TensorPlot(xQQQ)
+            # plt.TensorPlot(xQQQ-YQQQ.t, plot_style=dict(vmin=-1e-8, vmax=1e-8)).show()
+
+            # raise Exception(xQQ)
+            # xQQ = 0
+            # xQQQ = 0
+            xQQQQ = 0
 
         x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
-
-        grad = self.v_derivs[0]
-        hess = self.v_derivs[1]
-        thirds = self.v_derivs[2]
-        fourths = self.v_derivs[3]
         V_derivs = (grad, hess, thirds, fourths)
 
         v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_XQ=self.mixed_derivs)
@@ -455,6 +491,12 @@ class PotentialTerms(ExpansionTerms):
         #     v4[0, 0, 1, 1],
         #     v4[0, 0, 0, 0]
         # ]).T
+
+        # raise Exception([v2*UnitsData.convert("Hartrees", "Wavenumbers"),
+        #                 v3*UnitsData.convert("Hartrees", "Wavenumbers")])
+
+        v3 = UnitsData.convert("Wavenumbers", "Hartrees")*np.loadtxt("/Users/Mark/Desktop/test.dat")
+        v3 = v3.reshape(3, 3, 3)
 
         return v2, v3, v4
 
@@ -481,7 +523,8 @@ class KineticTerms(ExpansionTerms):
         freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
         mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
         L = L * freq_conv * mass_conv
-        modes = type(modes)(self.molecule, L.T, freqs=freqs)
+        Linv = (L / freq_conv**2)
+        modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
         return modes
 
     def get_terms(self):
@@ -507,9 +550,7 @@ class KineticTerms(ExpansionTerms):
             internals = intcds.system
 
             # First we take derivatives of internals with respect to Cartesians
-            RX = ccoords.jacobian(internals, 1)
-            RXX = ccoords.jacobian(internals, 2, mesh_spacing=.001, stencil=9)
-            RXXX = ccoords.jacobian(internals, 3, mesh_spacing=.001, stencil=9)
+            RX, RXX, RXXX= ccoords.jacobian(internals, [1, 2, 3])
             # FD tracks too much shape
 
             _contract_dim = DumbTensor._contract_dim
@@ -521,10 +562,9 @@ class KineticTerms(ExpansionTerms):
                 RXXX = _contract_dim(RXXX, 4)
 
             # Now we take derivatives of Cartesians with respect to internals
-            XR = intcds.jacobian(carts, 1).squeeze()
+            XR, XRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2])]
             if XR.ndim > 2:
                 XR = _contract_dim(XR, 2)
-            XRR = intcds.jacobian(carts, 2)
             if XRR.ndim > 3:
                 XRR = _contract_dim(XRR, 3)
 
@@ -556,15 +596,8 @@ class KineticTerms(ExpansionTerms):
             YRR = XRR * mass_conv[np.newaxis, np.newaxis]
 
             QY = self.modes.matrix  # derivatives of Q with respect to the mass-weighted Cartesians
-            YQ = self.modes.matrix.T / self.modes.freqs[:, np.newaxis]
+            YQ = self.modes.inverse
             G = dot(QY, QY, axes=[[0, 0]])
-
-            # dRdYY = DumbTensor(RYY)
-            # dRdY = DumbTensor(RY)
-            # dYdR = DumbTensor(YR)
-            # intdG_1 = dYdR@(dRdYY[2:1]@dRdY)
-            # intdG_2 = dYdR@(dRdY[0:1]@dRdYY[0:1])[0:1]
-            # intdGdR = intdG_1.t + intdG_2.t
 
             J = DumbTensor(QY)
             Jd = DumbTensor(YQ)
@@ -578,20 +611,139 @@ class KineticTerms(ExpansionTerms):
             GQ = Jd@(U+U[2:1])
             GQ = GQ.t
 
-            # QR = dot(YR, QY)
-            # RQ = dot(YQ, RY)
-            # intdGdQ = dot(RQ, intdGdR)
-            # GQ_2 = shift(dot(QR, intdGdQ, QR, axes=[[0, 1], [2, 0]]), [1, 0])
-            # GQ_2w = GQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
-            # plt.TensorPlot(np.round(GQ-GQ_2, 12))
-            # plt.TensorPlot(GQ_2w).show()
+            dRdYY = DumbTensor(RYY)
+            dRdY = DumbTensor(RY)
+            dYdR = DumbTensor(YR)
+            U = dYdR@(dRdYY[2:1]@dRdY)
+            U2 = U[2:1]
+            intdGdR = U.t + U2.t
 
-            # raise Exception(GQ-GQ_2)
+            dRdYYY = DumbTensor(RYYY)
+            dYdRR = DumbTensor(YRR)
+            dUdY = (
+                    dRdY@dYdRR@dRdYY[2:1]@dRdY +
+                    (dYdR@(dRdYYY[3:2]@dRdY)[0:1])[0:1] +
+                    (dYdR@(dRdYY[2:1]@dRdYY[0:1])[2:1])[0:1]
+            )
+            intdGdRR = dYdR@(dUdY+dUdY[3:2])
+            intdGdRR = intdGdRR.t
 
-            # plt.TensorPlot(GQ).show()
-            # raise Exception(...)
+            QR = dot(YR, QY)
+            RQ = dot(YQ, RY)
+            intdGdQ = dot(RQ, intdGdR)
+            GQ_2 = dot(intdGdQ, QR, QR, axes=[[1, 0], [1, 0]])
+            GQ_2w = GQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
+
+            intdGdQQ = dot(RQ, dot(RQ, intdGdRR), axes=[[1, 1]])
+            GQQ_2 = dot(intdGdQQ, QR, QR, axes=[[2, 0], [2, 0]])
+
+            CoordinateSet = crds.CoordinateSet
+            CartesianCoordinates3D = crds.CartesianCoordinates3D
+            ZMatrixCoordinateSystem = crds.ZMatrixCoordinateSystem
+            icsys = ZMatrixCoordinateSystem(ordering=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]])
+            ccs = CoordinateSet(ccoords, CartesianCoordinates3D)
+            rx = _contract_dim(ccs.jacobian(icsys), 2)
+            ics = ccs.convert(icsys)
+
+            ic = np.asarray(intcds).flatten()[sp]
+            r1 = ic[0]
+            r2 = ic[1]
+            q = ic[2]
+            mO = masses[0]; mH = masses[1]; mD = masses[2]
+            G_analytic = np.array([
+                [(mH + mO) / (mH * mO), np.cos(q) / mO, -(np.sin(q) / (mO * r2))],
+                [np.cos(q) / mO, (mD + mO) / (mD * mO), -(np.sin(q) / (mO * r1))],
+                [-(np.sin(q) / (mO * r2)), -(np.sin(q) / (mO * r1)),
+                 (mH + mO) / (mH * mO * r1 ** 2) + (mD + mO) / (mD * mO * r2 ** 2) - (2 * np.cos(q)) / (mO * r1 * r2)]
+            ])
+            GR_analytic = np.array([
+                [
+                    [0, 0, 0],
+                    [0, 0, np.sin(q) / (mO * r1 ** 2)],
+                    [0, np.sin(q) / (mO * r1 ** 2), (-2 * (mH + mO)) / (mH * mO * r1 ** 3) + (2 * np.cos(q)) / (mO * r1 ** 2 * r2)]
+                ],
+                [
+                    [0, 0, np.sin(q) / (mO * r2 ** 2)],
+                    [0, 0, 0],
+                    [np.sin(q) / (mO * r2 ** 2), 0, (-2 * (mD + mO)) / (mD * mO * r2 ** 3) + (2 * np.cos(q)) / (mO * r1 * r2 ** 2)]
+                ],
+                [
+                    [0, -(np.sin(q) / mO), -(np.cos(q) / (mO * r2))],
+                    [-(np.sin(q) / mO), 0, -(np.cos(q) / (mO * r1))],
+                    [-(np.cos(q) / (mO * r2)), -(np.cos(q) / (mO * r1)), (2 * np.sin(q)) / (mO * r1 * r2)]
+                ]
+            ])
+            GRR_analytic = np.array([
+                [
+                    [
+                        [0, 0, 0],
+                        [0, 0, (-2*np.sin(q))/(mO*r1**3)],
+                        [0, (-2*np.sin(q))/(mO*r1**3), (6*(mH + mO))/(mH*mO*r1**4) - (4*np.cos(q))/(mO*r1**3*r2)]
+                    ],
+                    [
+                        [0, 0, 0],
+                        [0, 0, 0],
+                        [0, 0, (-2*np.cos(q))/(mO*r1**2*r2**2)]
+                    ],
+                    [
+                        [0, 0, 0],
+                        [0, 0, np.cos(q)/(mO*r1**2)],
+                        [0, np.cos(q)/(mO*r1**2), (-2*np.sin(q))/(mO*r1**2*r2)]
+                    ]
+                ],
+                [
+                    [
+                        [0, 0, 0],
+                        [0, 0, 0],
+                        [0, 0, (-2*np.cos(q))/(mO*r1**2*r2**2)]
+                    ],
+                    [
+                        [0, 0, (-2*np.sin(q))/(mO*r2**3)],
+                        [0, 0, 0],
+                        [(-2*np.sin(q))/(mO*r2**3), 0, (6*(mD + mO))/(mD*mO*r2**4) - (4*np.cos(q))/(mO*r1*r2**3)]
+                    ],
+                    [
+                        [0, 0, np.cos(q)/(mO*r2**2)],
+                        [0, 0, 0],
+                        [np.cos(q)/(mO*r2**2), 0, (-2*np.sin(q))/(mO*r1*r2**2)]
+                    ]
+                ],
+                [
+                    [
+                        [0, 0, 0],
+                        [0, 0, np.cos(q)/(mO*r1**2)],
+                        [0, np.cos(q)/(mO*r1**2), (-2*np.sin(q))/(mO*r1**2*r2)]
+                    ],
+                    [
+                        [0, 0, np.cos(q)/(mO*r2**2)],
+                        [0, 0, 0],
+                        [np.cos(q)/(mO*r2**2), 0, (-2*np.sin(q))/(mO*r1*r2**2)]
+                    ],
+                    [
+                        [0, -(np.cos(q)/mO), np.sin(q)/(mO*r2)],
+                        [-(np.cos(q)/mO), 0, np.sin(q)/(mO*r1)],
+                        [np.sin(q)/(mO*r2), np.sin(q)/(mO*r1), (2*np.cos(q))/(mO*r1*r2)]
+                    ]
+                ]
+            ])
+            intdGdRR = intdGdRR[sp, :, :, :][:, sp, :, :][:, :, sp, :][:, :, :, sp]
+            plt.TensorPlot(GRR_analytic, plot_style=dict(vmin=-1e-4, vmax=1e-4))
+            plt.TensorPlot(intdGdRR, plot_style=dict(vmin=-1e-4, vmax=1e-4))
+            plt.TensorPlot(GRR_analytic-intdGdRR, plot_style=dict(vmin=-1e-4, vmax=1e-4)).show()
 
             GQQ = (Jd@(Jd@(V+V[3:2]))[0:1]).t
+
+            GQQ_w = GQQ * UnitsData.convert("Hartrees", "Wavenumbers")
+
+            # plt.TensorPlot(GQQ)
+            # plt.TensorPlot(GQQ_2)
+            # plt.TensorPlot(GQQ-GQQ_2).show()
+
+            # GQQ = 0#self._weight_derivatives(GQQ_2, 2)
+            # GQQ = GQQ_2
+            # GQQ = 0
+
+            GQQ_2w = GQQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
 
         G_terms = (G, GQ, GQQ)
         return G_terms

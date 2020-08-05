@@ -234,8 +234,6 @@ class PerturbationTheoryHamiltonian:
         else:
             ke = 0
 
-        # print(inds)
-
         if not isinstance(V_derivs, int):
             peTens = PE[inds]
             if isinstance(peTens, np.ndarray):

@@ -199,6 +199,21 @@ class Molecule:
         if self._normal_modes is None:
             self._normal_modes = self.get_normal_modes()
         return self._normal_modes
+    @normal_modes.setter
+    def normal_modes(self, modes):
+        """
+
+        :return:
+        :rtype: VibrationalModes
+        """
+        from .Vibrations import MolecularVibrations
+        if not isinstance(modes, MolecularVibrations):
+            raise TypeError("{}.{}: '{}' is expected to be a MolecularVibrations object".format(
+                type(self).__name__,
+                'normal_modes',
+                modes
+            ))
+        self._normal_modes = modes
 
     def take_submolecule(self, spec):
         """
@@ -414,8 +429,10 @@ class Molecule:
         else:
             frame = self.eckart_frame(ref, inverse=True)
         new = frame.apply(self)
-        if self.normal_modes is not None:
-            self.normal_modes = ...
+        modes = new.normal_modes
+        if modes is not None:
+            modes = modes.embed(frame)
+            new.normal_modes = modes
         # want to embed dipoles and other things, too...
         return new
 

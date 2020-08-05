@@ -1,8 +1,12 @@
+"""
+Provides classes that manage molecular vibrations
+"""
+
+import numpy as np, scipy.linalg as slag
 from McUtils.Coordinerds.CoordinateSystems import CoordinateSystem, CartesianCoordinates3D, CoordinateSet
 from McUtils.Data import AtomData, UnitsData
 from .Molecule import Molecule
-
-import numpy as np, scipy.linalg as slag
+from .Transformations import MolecularTransformation
 
 __all__ = [
     "MolecularVibrations",
@@ -158,6 +162,35 @@ class MolecularNormalModes(CoordinateSystem):
                               basis = intcrds.system, origin=intcrds, inverse=dRdQ,
                               internal=True, freqs=self.freqs
                               )
+
+    def embed(self, frame):
+        """
+
+        :param frame:
+        :type frame: MolecularTransformation
+        :return:
+        :rtype:
+        """
+
+        raise NotImplementedError("Haven't finished doing this... :)")
+
+        import copy
+
+        if self.in_internals:
+            raise ValueError("Internal coordinate normals modes can't be re-embedded")
+
+        tmat = frame.matrix
+        mat = self.matrix
+        mat = tmat@mat
+
+        orig = self.origin
+        orig = tmat@orig
+
+        return type(self)(
+            self.molecule,
+            mat,
+            origin = orig
+        )
 
 
     @classmethod
