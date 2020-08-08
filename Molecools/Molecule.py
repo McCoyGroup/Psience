@@ -258,8 +258,13 @@ class Molecule:
 
     def copy(self):
         import copy
-        # just use the default and don't be fancy
-        return copy.copy(self)
+        # mostly just use the default and don't be fancy
+        new = copy.copy(self)
+        # but we also need to do some stuff where we store objects that
+        # reference the molecule
+        if self._normal_modes is not None:
+            self._normal_modes.molecule = self
+        return new
 
     def prop(self, name, *args, **kwargs):
         from .Properties import MolecularProperties, MolecularPropertyError
@@ -355,16 +360,21 @@ class Molecule:
             from McUtils.GaussianInterface import GaussianFChkReader
             with GaussianFChkReader(file) as gr:
                 parse = gr.parse(
-                    ['VibrationalModes', 'ForceConstants', 'VibrationalData']
+                    ['Real atomic weights', 'VibrationalModes', 'ForceConstants', 'VibrationalData']
                 )
 
             modes = parse["VibrationalModes"]
             freqs = parse["VibrationalData"]["Frequencies"] * UnitsData.convert("Wavenumbers", "Hartrees")
+            masses = parse['Real atomic weights'] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
             fcs = self.force_constants
 
-            raw = np.sqrt(np.diag(np.dot(np.dot(modes, fcs), modes.T)))
+            internal_F = np.dot(np.dot(modes, fcs), modes.T)
+            raw = np.sqrt(np.diag(internal_F))
             reweight = freqs / raw
             modes = modes * reweight[:, np.newaxis]
+
+            # mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten())
+            # modes = modes * mass_conv[np.newaxis, :]
 
             # add in translations and rotations
             # tr_freqs, tr_vecs = self.prop("translation_rotation_eigenvectors")
@@ -372,7 +382,7 @@ class Molecule:
             # modes = np.concatenate([tr_vecs, modes.T], axis=1)
             modes = modes.T
 
-            return MolecularNormalModes(self, modes, freqs=freqs)
+            return MolecularNormalModes(self, modes, inverse=modes.T, freqs=freqs)
         elif ext == ".log":
             raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
                 type(self).__name__,
@@ -433,7 +443,13 @@ class Molecule:
         if modes is not None:
             modes = modes.embed(frame)
             new.normal_modes = modes
-        # want to embed dipoles and other things, too...
+        pot_d = new.potential_derivatives
+        if pot_d is not None:
+            derivs = [None]*len(pot_d)
+            for i, d in enumerate(pot_d):
+                dim = d.ndim
+                derivs[i] = frame.apply(d)
+            new.potential_derivatives = derivs
         return new
 
     @classmethod

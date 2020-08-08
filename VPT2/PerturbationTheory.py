@@ -174,9 +174,9 @@ class PerturbationTheoryHamiltonian:
             subpQp = pQp[inds]
             if isinstance(subpQp, np.ndarray):
                 subpQp = subpQp.squeeze()
-                ke = -np.tensordot(subpQp, gmatrix_derivs, axes=[[0, 1, 2], [0, 1, 2]])
+                ke = -np.tensordot(subpQp, gmatrix_derivs, axes=[[0, 1, 2], [1, 0, 2]])
             else:
-                ke = -subpQp.tensordot(gmatrix_derivs, axes=[[0, 1, 2], [0, 1, 2]]).squeeze()
+                ke = -subpQp.tensordot(gmatrix_derivs, axes=[[0, 1, 2], [1, 0, 2]]).squeeze()
         else:
             ke = 0
 
@@ -228,9 +228,9 @@ class PerturbationTheoryHamiltonian:
         if not isinstance(gmatrix_derivs, int):
             keTens = KE[inds]
             if isinstance(keTens, np.ndarray):
-                ke = -np.tensordot(keTens.squeeze(), gmatrix_derivs, axes=[[0, 1, 2, 3], [0, 1, 2, 3]])
+                ke = -np.tensordot(keTens.squeeze(), gmatrix_derivs, axes=[[0, 1, 2, 3], [2, 0, 1, 3]])
             else:
-                ke = -keTens.tensordot(gmatrix_derivs, axes=[[0, 1, 2, 3], [0, 1, 2, 3]]).squeeze()
+                ke = -keTens.tensordot(gmatrix_derivs, axes=[[0, 1, 2, 3], [2, 0, 1, 3]]).squeeze()
         else:
             ke = 0
 

@@ -15,7 +15,11 @@ __all__ = [
 
 class MolecularVibrations:
 
-    def __init__(self, molecule, basis, freqs = None, init = None):
+    def __init__(self,
+                 molecule, basis,
+                 freqs = None,
+                 init = None
+                 ):
         """Sets up a vibration for a Molecule object over the CoordinateSystem basis
 
         :param molecule:
@@ -23,21 +27,33 @@ class MolecularVibrations:
         :param init:
         :type init: None | CoordinateSet
         :param basis:
-        :type basis: CoordinateSystem
+        :type basis: MolecularNormalModes
         """
         self._mol = molecule
-        self._coords = init if init is not None else self._mol._coords
+        self._coords = init
         self._basis = basis
         if freqs is None and hasattr(basis, "freqs"):
             freqs = basis.freqs
         self.freqs = freqs
 
     @property
-    def coords(self):
-        return self._coords
-    @property
     def basis(self):
         return self._basis
+    @property
+    def molecule(self):
+        return self._mol
+    @molecule.setter
+    def molecule(self, mol):
+        self._mol = mol
+    @property
+    def coords(self):
+        if self._coords is None:
+            if self._basis.in_internals:
+                return self._mol.internal_coordinates
+            else:
+                return self._mol.coords
+        else:
+            return self._coords
 
     def __len__(self):
         return self._basis.matrix.shape[0]
@@ -117,8 +133,8 @@ class MolecularNormalModes(CoordinateSystem):
                 inverse = None
         self.molecule = molecule
         self.in_internals = internal
-        if origin is None:
-            origin = molecule.coords
+        # if origin is None:
+        #     origin = molecule.coords
         if basis is None:
             basis = molecule.sys
         super().__init__(
@@ -130,6 +146,7 @@ class MolecularNormalModes(CoordinateSystem):
             origin=origin
         )
         self.freqs = freqs
+    # also need a Cartesian equivalent of this
     def to_internals(self, intcrds=None, dYdR=None, dRdY=None):
         if self.in_internals:
             return self
@@ -162,6 +179,13 @@ class MolecularNormalModes(CoordinateSystem):
                               basis = intcrds.system, origin=intcrds, inverse=dRdQ,
                               internal=True, freqs=self.freqs
                               )
+    @property
+    def origin(self):
+        if self._origin is None:
+            if self.in_internals:
+                return self.molecule.internal_coordinates
+            else:
+                return self.molecule.coords
 
     def embed(self, frame):
         """
@@ -221,6 +245,9 @@ class MolecularNormalModes(CoordinateSystem):
         :return:
         :rtype:
         """
+
+        # this needs some major clean up to be less of a
+        # garbage fire
 
         if atoms is not None and masses is None:
             masses = np.array([AtomData[a, "Mass"] if isinstance(a, str) else a for a in atoms])

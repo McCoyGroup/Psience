@@ -124,8 +124,26 @@ class DumbTensor:
         return self.shift([a, b])
 
 class ExpansionTerms:
-    def __init__(self):
+    """
+    Base class for my kinetic and potential derivative terms
+    """
+    def __init__(self, molecule):
         self._terms = None
+        self.molecule = molecule
+        self.internal_coordinates = molecule.internal_coordinates
+        self.coords = molecule.coords
+        self.masses = molecule.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        self.modes = self.undimensionalize(self.masses, molecule.normal_modes.basis)
+        self.freqs = self.modes.freqs
+
+    def undimensionalize(self, masses, modes):
+        L = modes.matrix.T
+        freqs = modes.freqs
+        freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
+        L = L * freq_conv
+        Linv = (L / freq_conv**2)
+        modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
+        return modes
 
     @staticmethod
     def _tripmass(masses):
@@ -217,45 +235,18 @@ class ExpansionTerms:
         # then we do the transpositions that put the xQ coordinate inside the xQQ
         if not isinstance(Q32, int):
             X = tuple(range(3, Q32.ndim))
-            V_QQQ_2 = sum([
+            V_QQQ_2_terms = [
                 Q32.transpose(0, 1, 2, *X),
                 Q32.transpose(1, 2, 0, *X),
                 Q32.transpose(2, 0, 1, *X)
-                ])
-            raise Exception(
-                np.round(
-                    V_QQQ_2*UnitsData.convert("Hartrees", "Wavenumbers"),
-                    0
-                )
-                )
-            # for i in range(3):
-                # for j in range(3):
-                #     for k in range(3):
-                #         i, j, k = 0, 1, 2
-                #         wat = sum(
-                #                 np.tensordot(
-                #                     np.tensordot(xQQ[a, b], Vxx, axes=[[0], [1]]),
-                #                     xQ[c],
-                #                     axes=[[0], [0]]
-                #                 ) for a,b,c in (
-                #                     (i, j, k),
-                #                     (i, k, j),
-                #                     (j, k, i)
-                #                 )
-                #         )
-                #         if abs(wat - V_QQQ_2[i, j, k])>.001:
-                #             raise Exception("wat {} wat {} wat {},{},{}".format(
-                #                 wat,
-                #                 V_QQQ_2[i, j, k],
-                #                 i,j,k
-                #             ))
-                #         assert abs(wat - V_QQQ_2[i, j, k])<.001
+                ]
+            V_QQQ_2 = sum(V_QQQ_2_terms)
         else:
             V_QQQ_2 = 0
 
         # Third derivs.
         if not mixed_XQ:
-            VQxx = dot(xQ, Vxxx)
+            VQxx = dot(xQ, Vxxx, axes=[[1, 0]])
         else:
             VQxx = Vxxx
 
@@ -285,26 +276,26 @@ class ExpansionTerms:
         Q4231 = dot(xQQQ, dot(xQ, Vxx, axes=[[1, 0]]), axes=[[3, 1]])
         if not isinstance(Q4231, int):
             X = tuple(range(4, Q4231.ndim))
-            V_QQQQ_21 = sum([
+            V_QQQQ_21_terms = [
                 Q4231.transpose(0, 1, 2, 3, *X),
-                Q4231.transpose(3, 0, 1, 2, *X),
-                Q4231.transpose(2, 3, 0, 1, *X),
-                Q4231.transpose(1, 2, 3, 0, *X)
-                ])
+                Q4231.transpose(3, 1, 2, 0, *X),
+                Q4231.transpose(0, 3, 2, 1, *X),
+                Q4231.transpose(0, 1, 3, 2, *X)
+                ]
+            V_QQQQ_21 = sum(V_QQQQ_21_terms)
         else:
+            V_QQQQ_21_terms = 0
             V_QQQQ_21 = 0
 
-        # the question is really whether these are all _unique_ permutations,
-        # i.e. is (2, 3, 0, 1) valid or not
         Q4222 = dot(xQQ, dot(xQQ, Vxx, axes=[[2, 0]]), axes=[[2, 2]])
         if not isinstance(Q4222, int):
             X = tuple(range(4, Q4222.ndim))
-            V_QQQQ_22 = sum([
+            V_QQQQ_22_terms = [
                 Q4222.transpose(0, 1, 2, 3, *X),
-                Q4222.transpose(3, 0, 1, 2, *X),
-                Q4222.transpose(2, 3, 0, 1, *X),
-                Q4222.transpose(1, 2, 3, 0, *X)
-            ])
+                Q4222.transpose(3, 1, 2, 0, *X),
+                Q4222.transpose(2, 1, 0, 3, *X)
+            ]
+            V_QQQQ_22 = sum(V_QQQQ_22_terms)
         else:
             V_QQQQ_22 = 0
 
@@ -312,13 +303,23 @@ class ExpansionTerms:
 
         Q4321 = dot(xQQ, dot(xQ, VQxx, axes=[[1, 1]]), axes=[[2, 2]])
         if not isinstance(Q4321, int):
+            # I'm doing too many symmetrizations, but I don't know which ones to drop...
             X = tuple(range(4, Q4321.ndim))
-            V_QQQQ_3 = sum([
+            V_QQQQ_3_terms = [
                 Q4321.transpose(0, 1, 2, 3, *X),
-                Q4321.transpose(3, 0, 1, 2, *X),
+                Q4321.transpose(0, 1, 3, 2, *X),
+                Q4321.transpose(0, 2, 1, 3, *X),
+                Q4321.transpose(0, 2, 3, 1, *X),
+                Q4321.transpose(2, 0, 1, 3, *X),
+                Q4321.transpose(2, 0, 3, 1, *X),
+                Q4321.transpose(2, 1, 0, 3, *X),
+                Q4321.transpose(2, 1, 3, 0, *X),
+                Q4321.transpose(1, 2, 0, 3, *X),
+                Q4321.transpose(1, 2, 3, 0, *X),
                 Q4321.transpose(2, 3, 0, 1, *X),
-                Q4321.transpose(1, 2, 3, 0, *X)
-            ])
+                Q4321.transpose(2, 3, 1, 0, *X)
+            ]
+            V_QQQQ_3 = sum(V_QQQQ_3_terms)/3
         else:
             V_QQQQ_3 = 0
 
@@ -329,10 +330,94 @@ class ExpansionTerms:
             VQQxx = Vxxxx
 
         if not isinstance(VQQxx, int):
-            # raise Exception(dot(xQ, VQQxx.toarray(), axes=[[1, 2]]).shape)
-            V_QQQQ_4 = dot(xQ, dot(xQ, VQQxx.toarray(), axes=[[1, 2]]), axes=[[1, 3]])
+            V_QQQQ_4 = dot(VQQxx, xQ, xQ, axes=[[3, 1], [2, 1]])
+            N = V_QQQQ_4.ndim
+            X = N - 4
+            if X > 0:
+                unroll = (0, 1) + tuple(range(2+X, N)) + tuple(range(2, 2+X))
+                V_QQQQ_4 = V_QQQQ_4.transpose(unroll)
         else:
             V_QQQQ_4 = 0
+
+        if mixed_XQ:
+            # we assume we only got second derivs in Q_i Q_i
+            # at this point, then, we should be able to apply the symmetrizations
+            # that we know should be there
+            v4 = V_QQQQ_4
+            for i in range(v4.shape[0]):
+                v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+
+        # if not isinstance(V_QQQQ_1, int):
+        #     gps = ip.permutations(range(4))
+        #     raise Exception([
+        #         max(
+        #             tuple([
+        #                 p,
+        #                 UnitsData.convert("Hartrees", "Wavenumbers") *
+        #                 np.max(
+        #                     np.abs(V_QQQQ_1 - V_QQQQ_1.transpose(p))
+        #                 )
+        #             ] for p in gps)
+        #         ,
+        #             key=lambda a: a[1]
+        #         )
+        #     ])
+        # if not isinstance(V_QQQQ_2, int):
+        #     gps = ip.permutations(range(4))
+        #     raise Exception([
+        #         max(
+        #             tuple([
+        #                 p,
+        #                 UnitsData.convert("Hartrees", "Wavenumbers") *
+        #                 np.max(
+        #                     np.abs(V_QQQQ_2 - V_QQQQ_2.transpose(p))
+        #                 )
+        #             ] for p in gps)
+        #         ,
+        #             key=lambda a: a[1]
+        #         )
+        #     ])
+        # if not isinstance(V_QQQQ_3, int):
+        #     gps = ip.permutations(range(4))
+        #     raise Exception([
+        #         max(
+        #             tuple([
+        #                 p,
+        #                 UnitsData.convert("Hartrees", "Wavenumbers") *
+        #                 np.max(
+        #                     np.abs(V_QQQQ_3 - V_QQQQ_3.transpose(p))
+        #                 )
+        #             ] for p in gps)
+        #         ,
+        #             key=lambda a: a[1]
+        #         )
+        #     ])
+        # if not isinstance(V_QQQQ_4, int):
+        #     gps = ip.permutations(range(4))
+        #     raise Exception([
+        #         max(
+        #             tuple([
+        #                 p,
+        #                 UnitsData.convert("Hartrees", "Wavenumbers") *
+        #                 np.max(
+        #                     np.abs(V_QQQQ_4 - V_QQQQ_4.transpose(p))
+        #                 )
+        #             ] for p in gps)
+        #         ,
+        #             key=lambda a: a[1]
+        #         )
+        #     ])
+            # raise Exception(
+            #     UnitsData.convert("Hartrees", "Wavenumbers")*np.array([
+            #         # V_QQQQ_1[0, 0, 0, 0],
+            #         V_QQQQ_2[0, 0, 0, 1],
+            #         V_QQQQ_3[0, 0, 0, 1],
+            #         V_QQQQ_4[0, 0, 0, 1],
+            #         V_QQQQ_2[0, 0, 0, 2],
+            #         V_QQQQ_3[0, 0, 0, 2],
+            #         V_QQQQ_4[0, 0, 0, 2]
+            #     ])
+            # )
 
         V_QQQQ = (
                 V_QQQQ_1 +
@@ -341,21 +426,40 @@ class ExpansionTerms:
                 V_QQQQ_4
         )
 
+
+        # if not isinstance(V_QQQQ, int):
+        #     gps = ip.permutations(range(4))
+        #     raise Exception([
+        #         max(
+        #             tuple([
+        #                 p,
+        #                 UnitsData.convert("Hartrees", "Wavenumbers") *
+        #                 np.max(
+        #                     np.abs(V_QQQQ - V_QQQQ.transpose(p))
+        #                 )
+        #             ] for p in gps)
+        #         ,
+        #             key=lambda a: a[1]
+        #         )
+        #     ])
+
+        if not isinstance(V_QQQQ_2, int):
+            idx = (0, 0, 0, 0)
+            raise Exception("Terms:" + "\n".join([
+                str(UnitsData.convert("Hartrees", "Wavenumbers")*x)
+                for x in
+                [
+                    V_QQQQ[idx],
+                    V_QQQQ_2[idx],
+                    np.array([v[idx] for v in V_QQQQ_22_terms]),
+                    np.array([v[idx] for v in V_QQQQ_21_terms]) if not isinstance(V_QQQQ_21_terms, int) else 0,
+                    V_QQQQ_3[idx],
+                    np.array([v[idx] for v in V_QQQQ_3_terms]),
+                    V_QQQQ_4[idx]
+                    ]
+            ]))
+
         return V_Q, V_QQ, V_QQQ, V_QQQQ
-
-
-class PotentialTerms(ExpansionTerms):
-    def __init__(self, molecule, mixed_derivs=True, non_degenerate=False):
-        self.molecule = molecule
-        self.internal_coordinates = molecule.internal_coordinates
-        self.coords = molecule.coords
-        self.masses = molecule.masses*UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-        self.modes = self.undimensionalize(self.masses, molecule.normal_modes.basis)
-        self.freqs = self.modes.freqs
-        self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.potential_derivatives)
-        self.non_degenerate=non_degenerate
-        self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
-        super().__init__()
 
     def undimensionalize(self, masses, modes):
         L = modes.matrix.T
@@ -366,6 +470,13 @@ class PotentialTerms(ExpansionTerms):
         Linv = (L / freq_conv**2)
         modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
         return modes
+
+class PotentialTerms(ExpansionTerms):
+    def __init__(self, molecule, mixed_derivs=True, non_degenerate=False):
+        super().__init__(molecule)
+        self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.potential_derivatives)
+        self.non_degenerate=non_degenerate
+        self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
 
@@ -426,6 +537,7 @@ class PotentialTerms(ExpansionTerms):
         amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         m_conv = np.sqrt(self._tripmass(masses))
         f_conv = np.sqrt(freqs)
+        # f_conv = np.ones(f_conv.shape) # debugging
 
         undimension_2 = np.outer(m_conv, m_conv)
         fcs = fcs / undimension_2
@@ -456,7 +568,7 @@ class PotentialTerms(ExpansionTerms):
             xQQQQ = 0
         else:
             dot = DumbTensor._dot
-            QY = self.modes.matrix  # derivatives of Q with respect to the mass-weighted Cartesians
+            QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
             YQ = self.modes.inverse
             # We need to compute all these terms then mass weight them
             ccoords = self.coords
@@ -512,39 +624,69 @@ class PotentialTerms(ExpansionTerms):
                 YRRRR = XRRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis, :]
             RY = RX / mass_conv[:, np.newaxis]
 
-            # sp = [x for x in np.arange(XR.shape[0]) if x not in (0, 1, 2, 4, 5, 8)])]
-
-            # transform into proper dXdQ space
             RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
             x_derivs = (YR, YRR, YRRR, YRRRR)
             Q_derivs = (RQ, 0, 0, 0)
             xQ, xQQ, xQQQ, xQQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
-
-            # raise Exception([
-            #     np.round(xQ, 5),
-            #     np.round(xQQ, 5)
-            # ])
             # xQQ = 0
             # xQQQ = 0
             # xQQQQ = 0
+
+            if self.mixed_derivs:
+                qQQ = dot(xQQ, QY)
+                f43 = dot(qQQ, thirds)
+                f43 = f43 + f43.transpose(1, 0, 2, 3)
+                # raise Exception([fourths.shape, f43.shape])
+                fourths = fourths.toarray() + f43
 
         x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
         V_derivs = (grad, hess, thirds, fourths)
 
         v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_XQ=self.mixed_derivs)
 
-        if self.mixed_derivs:
-            for i in range(v4.shape[0]):
-                v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
-
         test = UnitsData.convert("Hartrees", "Wavenumbers") * np.array([
-            v4[2, 2, 2, 2],
+            v4[0, 0, 0, 0],
             v4[1, 1, 2, 2],
             v4[1, 1, 1, 1],
             v4[0, 0, 2, 2],
             v4[0, 0, 1, 1],
-            v4[0, 0, 0, 0]
+            v4[2, 2, 2, 2]
         ]).T
+
+        testB = UnitsData.convert("Hartrees", "Wavenumbers") * np.array([
+            v4[0, 0, 0, 0],
+            v4[0, 0, 0, 1],
+            v4[0, 0, 0, 2],
+            v4[0, 0, 1, 0],
+            v4[0, 0, 1, 1],
+            v4[0, 0, 1, 2],
+            v4[0, 0, 2, 0],
+            v4[0, 0, 2, 1],
+            v4[0, 0, 2, 2],
+            v4[1, 1, 0, 0],
+            v4[1, 1, 0, 1],
+            v4[1, 1, 0, 2],
+            v4[1, 1, 1, 0],
+            v4[1, 1, 1, 1],
+            v4[1, 1, 1, 2],
+            v4[1, 1, 2, 0],
+            v4[1, 1, 2, 1],
+            v4[1, 1, 2, 2],
+            v4[2, 2, 0, 0],
+            v4[2, 2, 0, 1],
+            v4[2, 2, 0, 2],
+            v4[2, 2, 1, 0],
+            v4[2, 2, 1, 1],
+            v4[2, 2, 1, 2],
+            v4[2, 2, 2, 0],
+            v4[2, 2, 2, 1],
+            v4[2, 2, 2, 2]
+        ]).T
+
+        np.savetxt('/Users/Mark/Desktop/bleh.dat', testB.flat)
+        raise Exception(
+            "Fourth Derivs\n"+"\n".join(str(x) for x in list(testB.flat))
+        )
 
         test2 = UnitsData.convert("Hartrees", "Wavenumbers") * np.array([
             v3[2, 2, 2],
@@ -559,43 +701,36 @@ class PotentialTerms(ExpansionTerms):
             v3[0, 0, 0]
         ]).T
 
-        raise Exception([v2*UnitsData.convert("Hartrees", "Wavenumbers"),
-                        v3*UnitsData.convert("Hartrees", "Wavenumbers")])
+        test3 = UnitsData.convert("Hartrees", "Wavenumbers") * np.array([
+            v3[0, 1, 2],
+            v3[1, 2, 0],
+            v3[1, 0, 2],
+            v3[2, 0, 1],
+            v3[2, 1, 0]
+        ]).T
 
-        # v3_true = UnitsData.convert("Wavenumbers", "Hartrees")*np.loadtxt("/Users/Mark/Desktop/test.dat")
-        # v3_true = v3_true.reshape(3, 3, 3)
-        #v3 = v3_true
-
-        # raise Exception((v3 - v3_true)*UnitsData.convert("Hartrees", "Wavenumbers"))
+        # raise Exception(v4-v4.transpose(0, 1, 3, 2))
+        # raise Exception([test])
 
         return v2, v3, v4
 
 
 class KineticTerms(ExpansionTerms):
-    def __init__(self, molecule):
-        """Represents the KE coefficients
-
-        :param molecule: the molecule these modes are valid for
-        :type molecule: Molecule
-        :param internals: Optional internal coordinate set to rexpress in
-        :type internals: CoordinateSystem | None
-        """
-        self.molecule = molecule
-        self.masses = molecule.masses*UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-        self.modes = self.undimensionalize(self.masses, molecule.normal_modes.basis)
-        self.internal_coordinates = molecule.internal_coordinates
-        self.coords = molecule.coords
-        super().__init__()
-
-    def undimensionalize(self, masses, modes):
-        L = modes.matrix.T
-        freqs = modes.freqs
-        freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
-        mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
-        L = L * freq_conv * mass_conv
-        Linv = (L / freq_conv**2)
-        modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
-        return modes
+    """Represents the KE coefficients"""
+    # def __init__(self, molecule):
+    #     """Represents the KE coefficients
+    #
+    #     :param molecule: the molecule these modes are valid for
+    #     :type molecule: Molecule
+    #     :param internals: Optional internal coordinate set to rexpress in
+    #     :type internals: CoordinateSystem | None
+    #     """
+    #
+    #     self.molecule = molecule
+    #     self.masses = molecule.masses*UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+    #     self.modes = self.undimensionalize(self.masses, molecule.normal_modes.basis)
+    #     self.internal_coordinates = molecule.internal_coordinates
+    #     self.coords = molecule.coords
 
     def get_terms(self):
 
@@ -697,14 +832,14 @@ class KineticTerms(ExpansionTerms):
             # )
             # intdGdRR = dYdR@(dUdY+dUdY[3:2])
             # intdGdRR = intdGdRR.t
-
+            #
             # intdGdQ = dot(RQ, intdGdR)
             # GQ_2 = dot(intdGdQ, QR, QR, axes=[[1, 0], [1, 0]])
             # GQ_2w = GQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
-
+            #
             # intdGdQQ = dot(RQ, dot(RQ, intdGdRR, axes=[[1, 1]]), axes=[[1, 1]])
             # GQQ_2 = dot(intdGdQQ, QR, QR, axes=[[2, 0], [2, 0]])
-
+            #
             # ic = np.asarray(intcds).flatten()[sp]
             # r1 = ic[0]
             # r2 = ic[1]
@@ -787,18 +922,26 @@ class KineticTerms(ExpansionTerms):
             #     ]
             # ])
             # intdGdRR = intdGdRR[sp, :, :, :][:, sp, :, :][:, :, sp, :][:, :, :, sp]
+            # intdGdQQ2 = dot(RQ[:, sp], dot(RQ[:, sp], GRR_analytic, axes=[[1, 0]]), axes=[[1, 1]])
+            # np.savetxt("/Users/Mark/Desktop/G.txt", UnitsData.convert("Hartrees", "Wavenumbers")*G.reshape(3, 3))
+            # raise Exception(RQ[:, sp])
             # plt.TensorPlot(GRR_analytic, plot_style=dict(vmin=-1e-4, vmax=1e-4))
             # plt.TensorPlot(intdGdRR, plot_style=dict(vmin=-1e-4, vmax=1e-4))
-            # plt.TensorPlot(GRR_analytic-intdGdRR, plot_style=dict(vmin=-1e-4, vmax=1e-4)).show()
+            # plt.TensorPlot(GRR_analytic-intdGdRR, plot_style=dict(vmin=-1e-10, vmax=1e-10)).show()
 
+            # raise Exception(GQQ_2)
+
+            # plt.TensorPlot(GQ - GQ_2, plot_style=dict(vmin=-1e-10, vmax=1e-10)).show()
             # plt.TensorPlot(GQQ).show()
             # plt.TensorPlot(GQQ_2)
-            # plt.TensorPlot(GQQ-GQQ_2).show()
+            # plt.TensorPlot(GQQ-GQQ_2, plot_style=dict(vmin=-1e-10, vmax=1e-10)).show()
 
             # GQQ = 0#self._weight_derivatives(GQQ_2, 2)
             # GQQ = GQQ_2
 
             # GQQ_2w = GQQ_2 * UnitsData.convert("Hartrees", "Wavenumbers")
-        # raise Exception(GQ*UnitsData.convert("Hartrees", "Wavenumbers"))
+        # raise Exception(
+        #     UnitsData.convert("Hartrees", "Wavenumbers")*GQ
+        # )
         G_terms = (G, GQ, GQQ)
         return G_terms
