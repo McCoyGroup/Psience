@@ -269,31 +269,27 @@ class ExpansionTerms:
         xQQQQ = x_derivs[3]
         Vxxxx = V_derivs[3]
 
-        # Gradient contribution
+        ## Gradient contribution
         V_QQQQ_1 = dot(xQQQQ, Vx)
-        # Second deriv.
-        #  All QQQ x Q & QQ x QQ permutations
+
+        ## Hessian contribution
+        #  All QQQ x Q permutations
         Q4231 = dot(xQQQ, dot(xQ, Vxx, axes=[[1, 0]]), axes=[[3, 1]])
         if not isinstance(Q4231, int):
             X = tuple(range(4, Q4231.ndim))
-            V_QQQQ_21_terms = [
-                Q4231.transpose(0, 1, 2, 3, *X),
-                Q4231.transpose(3, 1, 2, 0, *X),
-                Q4231.transpose(0, 3, 2, 1, *X),
-                Q4231.transpose(0, 1, 3, 2, *X)
-                ]
+            Q4231 = Q4231 / 6
+            V_QQQQ_21_terms =[Q4231.transpose(p, *X) for p in ip.permutations(range(4))]
             V_QQQQ_21 = sum(V_QQQQ_21_terms)
         else:
             V_QQQQ_21_terms = 0
             V_QQQQ_21 = 0
-
+        # QQ x QQ permutations
         Q4222 = dot(xQQ, dot(xQQ, Vxx, axes=[[2, 0]]), axes=[[2, 2]])
         if not isinstance(Q4222, int):
             X = tuple(range(4, Q4222.ndim))
+            Q4222 = Q4222 / 8
             V_QQQQ_22_terms = [
-                Q4222.transpose(0, 1, 2, 3, *X),
-                Q4222.transpose(3, 1, 2, 0, *X),
-                Q4222.transpose(2, 1, 0, 3, *X)
+                Q4222.transpose(p, *X) for p in ip.permutations(range(4))
             ]
             V_QQQQ_22 = sum(V_QQQQ_22_terms)
         else:
@@ -305,21 +301,9 @@ class ExpansionTerms:
         if not isinstance(Q4321, int):
             # I'm doing too many symmetrizations, but I don't know which ones to drop...
             X = tuple(range(4, Q4321.ndim))
-            V_QQQQ_3_terms = [
-                Q4321.transpose(0, 1, 2, 3, *X),
-                Q4321.transpose(0, 1, 3, 2, *X),
-                Q4321.transpose(0, 2, 1, 3, *X),
-                Q4321.transpose(0, 2, 3, 1, *X),
-                Q4321.transpose(2, 0, 1, 3, *X),
-                Q4321.transpose(2, 0, 3, 1, *X),
-                Q4321.transpose(2, 1, 0, 3, *X),
-                Q4321.transpose(2, 1, 3, 0, *X),
-                Q4321.transpose(1, 2, 0, 3, *X),
-                Q4321.transpose(1, 2, 3, 0, *X),
-                Q4321.transpose(2, 3, 0, 1, *X),
-                Q4321.transpose(2, 3, 1, 0, *X)
-            ]
-            V_QQQQ_3 = sum(V_QQQQ_3_terms)/3
+            Q4321 = Q4321 / 6
+            V_QQQQ_3_terms = [Q4321.transpose(p, *X) for p in ip.permutations(range(4))]
+            V_QQQQ_3 = sum(V_QQQQ_3_terms)
         else:
             V_QQQQ_3 = 0
 
@@ -336,77 +320,78 @@ class ExpansionTerms:
             if X > 0:
                 unroll = (0, 1) + tuple(range(2+X, N)) + tuple(range(2, 2+X))
                 V_QQQQ_4 = V_QQQQ_4.transpose(unroll)
+            if mixed_XQ:
+                # we assume we only got second derivs in Q_i Q_i
+                # at this point, then, we should be able to apply the symmetrizations
+                # that we know should be there
+                v4 = V_QQQQ_4
+                for i in range(v4.shape[0]):
+                    v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
         else:
             V_QQQQ_4 = 0
 
-        if mixed_XQ:
-            # we assume we only got second derivs in Q_i Q_i
-            # at this point, then, we should be able to apply the symmetrizations
-            # that we know should be there
-            v4 = V_QQQQ_4
-            for i in range(v4.shape[0]):
-                v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
 
-        # if not isinstance(V_QQQQ_1, int):
-        #     gps = ip.permutations(range(4))
-        #     raise Exception([
-        #         max(
-        #             tuple([
-        #                 p,
-        #                 UnitsData.convert("Hartrees", "Wavenumbers") *
-        #                 np.max(
-        #                     np.abs(V_QQQQ_1 - V_QQQQ_1.transpose(p))
-        #                 )
-        #             ] for p in gps)
-        #         ,
-        #             key=lambda a: a[1]
-        #         )
-        #     ])
-        # if not isinstance(V_QQQQ_2, int):
-        #     gps = ip.permutations(range(4))
-        #     raise Exception([
-        #         max(
-        #             tuple([
-        #                 p,
-        #                 UnitsData.convert("Hartrees", "Wavenumbers") *
-        #                 np.max(
-        #                     np.abs(V_QQQQ_2 - V_QQQQ_2.transpose(p))
-        #                 )
-        #             ] for p in gps)
-        #         ,
-        #             key=lambda a: a[1]
-        #         )
-        #     ])
-        # if not isinstance(V_QQQQ_3, int):
-        #     gps = ip.permutations(range(4))
-        #     raise Exception([
-        #         max(
-        #             tuple([
-        #                 p,
-        #                 UnitsData.convert("Hartrees", "Wavenumbers") *
-        #                 np.max(
-        #                     np.abs(V_QQQQ_3 - V_QQQQ_3.transpose(p))
-        #                 )
-        #             ] for p in gps)
-        #         ,
-        #             key=lambda a: a[1]
-        #         )
-        #     ])
-        # if not isinstance(V_QQQQ_4, int):
-        #     gps = ip.permutations(range(4))
-        #     raise Exception([
-        #         max(
-        #             tuple([
-        #                 p,
-        #                 UnitsData.convert("Hartrees", "Wavenumbers") *
-        #                 np.max(
-        #                     np.abs(V_QQQQ_4 - V_QQQQ_4.transpose(p))
-        #                 )
-        #             ] for p in gps)
-        #         ,
-        #             key=lambda a: a[1]
-        #         )
-        #     ])
+        if not isinstance(V_QQQQ_1, int):
+            gps = ip.permutations(range(4))
+            m = max(
+                    tuple([
+                        p,
+                        UnitsData.convert("Hartrees", "Wavenumbers") *
+                        np.max(
+                            np.abs(V_QQQQ_1 - V_QQQQ_1.transpose(p))
+                        )
+                    ] for p in gps)
+                ,
+                    key=lambda a: a[1]
+                )
+            if m[1] > 1e-10:
+                raise Exception(m)
+        if not isinstance(V_QQQQ_2, int):
+            gps = ip.permutations(range(4))
+            m = max(
+                    tuple([
+                        p,
+                        UnitsData.convert("Hartrees", "Wavenumbers") *
+                        np.max(
+                            np.abs(V_QQQQ_2 - V_QQQQ_2.transpose(p))
+                        )]
+                          for p in gps
+                          )
+                ,
+                    key=lambda a: a[1]
+                )
+            if m[1] > 1e-10:
+                raise Exception(m)
+        if not isinstance(V_QQQQ_3, int):
+            gps = ip.permutations(range(4))
+            m = max(
+                    tuple([
+                        p,
+                        UnitsData.convert("Hartrees", "Wavenumbers") *
+                        np.max(
+                            np.abs(V_QQQQ_3 - V_QQQQ_3.transpose(p))
+                        )
+                    ] for p in gps)
+                ,
+                    key=lambda a: a[1]
+                )
+            if m[1] > 1e-10:
+                raise Exception(m)
+        if not isinstance(V_QQQQ_4, int):
+            gps = ip.permutations(range(4))
+            m = max(
+                    tuple([
+                        p,
+                        UnitsData.convert("Hartrees", "Wavenumbers") *
+                        np.max(
+                            np.abs(V_QQQQ_4 - V_QQQQ_4.transpose(p))
+                        )
+                    ] for p in gps)
+                ,
+                    key=lambda a: a[1]
+                )
+            if m[1] > 1e-5:
+                raise Exception(m)
             # raise Exception(
             #     UnitsData.convert("Hartrees", "Wavenumbers")*np.array([
             #         # V_QQQQ_1[0, 0, 0, 0],
@@ -426,7 +411,6 @@ class ExpansionTerms:
                 V_QQQQ_4
         )
 
-
         # if not isinstance(V_QQQQ, int):
         #     gps = ip.permutations(range(4))
         #     raise Exception([
@@ -443,21 +427,24 @@ class ExpansionTerms:
         #         )
         #     ])
 
-        if not isinstance(V_QQQQ_2, int):
-            idx = (0, 0, 0, 0)
-            raise Exception("Terms:" + "\n".join([
-                str(UnitsData.convert("Hartrees", "Wavenumbers")*x)
-                for x in
-                [
-                    V_QQQQ[idx],
-                    V_QQQQ_2[idx],
-                    np.array([v[idx] for v in V_QQQQ_22_terms]),
-                    np.array([v[idx] for v in V_QQQQ_21_terms]) if not isinstance(V_QQQQ_21_terms, int) else 0,
-                    V_QQQQ_3[idx],
-                    np.array([v[idx] for v in V_QQQQ_3_terms]),
-                    V_QQQQ_4[idx]
-                    ]
-            ]))
+        if not isinstance(VQQxx, int):
+            np.savetxt("/Users/Mark/Desktop/base_v4.dat", V_QQQQ_4.reshape(27, 3))
+
+        # if not isinstance(V_QQQQ_2, int):
+        #     idx = (0, 0, 1, 0)
+        #     raise Exception("Terms:" + "\n".join([
+        #         str(UnitsData.convert("Hartrees", "Wavenumbers")*x)
+        #         for x in
+        #         [
+        #             V_QQQQ[idx],
+        #             V_QQQQ_2[idx],
+        #             np.array([v[idx] for v in V_QQQQ_22_terms]),
+        #             np.array([v[idx] for v in V_QQQQ_21_terms]) if not isinstance(V_QQQQ_21_terms, int) else 0,
+        #             V_QQQQ_3[idx],
+        #             np.array([v[idx] for v in V_QQQQ_3_terms]),
+        #             V_QQQQ_4[idx]
+        #             ]
+        #     ]))
 
         return V_Q, V_QQ, V_QQQ, V_QQQQ
 
@@ -578,11 +565,11 @@ class PotentialTerms(ExpansionTerms):
             # XR, = [x.squeeze() for x in intcds.jacobian(carts, [1])]
             # XRR = XRRR = XRRRR = 0
 
-            XR, XRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2])]
-            XRRR = XRRRR = 0
+            # XR, XRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2])]
+            # XRRR = XRRRR = 0
 
-            # XR, XRR, XRRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2, 3])]
-            # XRRRR = 0
+            XR, XRR, XRRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2, 3])]
+            XRRRR = 0
 
             # XR, XRR, XRRR, XRRRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2, 3, 4])]
             # the 3rd and fourth derivative tensors will probably need to be optimized out
@@ -634,6 +621,17 @@ class PotentialTerms(ExpansionTerms):
 
             if self.mixed_derivs:
                 qQQ = dot(xQQ, QY)
+                # ps = dict(plot_style=dict(vmin=-.1, vmax=.1))
+                # plt.ArrayPlot(QY, **ps)
+                # plt.TensorPlot(
+                #     xQQ.transpose(2, 0, 1).reshape(3, 3, 3, 3),
+                #     **ps
+                # )
+                # plt.TensorPlot(
+                #     qQQ.transpose(2, 0, 1),
+                #     **ps
+                # ).show()
+                # raise Exception(qQQ)
                 f43 = dot(qQQ, thirds)
                 f43 = f43 + f43.transpose(1, 0, 2, 3)
                 # raise Exception([fourths.shape, f43.shape])
@@ -653,7 +651,22 @@ class PotentialTerms(ExpansionTerms):
             v4[2, 2, 2, 2]
         ]).T
 
-        testB = UnitsData.convert("Hartrees", "Wavenumbers") * np.array([
+        base_v4 = np.loadtxt("/Users/Mark/Desktop/base_v4.dat").reshape((3, 3, 3, 3))#.transpose(2, 0, 3, 1)
+        real_v4 = np.loadtxt("/Users/Mark/Desktop/agh.dat").reshape((3, 3, 3, 3)).transpose(2, 0, 3, 1)
+        for i in range(real_v4.shape[0]):
+            real_v4[i, :, i, :] = real_v4[i, :, :, i] = real_v4[:, i, :, i] = real_v4[:, i, i, :] = real_v4[:, :, i, i] = real_v4[i, i, :, :]
+        # real_v4 = UnitsData.convert("Wavenumbers", "Hartrees") * real_v4
+        # v4 = real_v4
+
+        v4 = UnitsData.convert("Hartrees", "Wavenumbers") * v4
+        base_v4 = UnitsData.convert("Hartrees", "Wavenumbers") * base_v4
+        plt.TensorPlot(base_v4)
+        plt.TensorPlot(v4)
+        plt.TensorPlot(real_v4)
+        plt.TensorPlot(v4 - real_v4).show()
+
+        # testB = UnitsData.convert("Hartrees", "Wavenumbers") * np.array([
+        testB = np.array([
             v4[0, 0, 0, 0],
             v4[0, 0, 0, 1],
             v4[0, 0, 0, 2],
@@ -683,7 +696,7 @@ class PotentialTerms(ExpansionTerms):
             v4[2, 2, 2, 2]
         ]).T
 
-        np.savetxt('/Users/Mark/Desktop/bleh.dat', testB.flat)
+        # np.savetxt('/Users/Mark/Desktop/bleh.dat', testB.flat)
         raise Exception(
             "Fourth Derivs\n"+"\n".join(str(x) for x in list(testB.flat))
         )
