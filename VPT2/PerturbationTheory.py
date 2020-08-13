@@ -4,9 +4,9 @@ from McUtils.Data import UnitsData
 
 from ..Wavefun import Wavefunctions, Wavefunction
 from ..Molecools import Molecule
+from ..BasisReps import HarmonicOscillatorBasis, ProductBasis, TermComputer
 
 from .Common import PerturbationTheoryException
-from .Representations import SubHamiltonian, ProductOperator
 from .Terms import PotentialTerms, KineticTerms
 
 __all__ = [
@@ -20,9 +20,11 @@ class PerturbationTheoryWavefunction(Wavefunction):
         return self.data
 
 class PerturbationTheoryWavefunctions(Wavefunctions):
-    def __init__(self, basis, energies, coeffs, hamiltonian):
-        """Energies for the wavefunctions generated
+    """
 
+    """
+    def __init__(self, states, energies, coeffs, hamiltonian):
+        """
         :param energies:
         :type energies:
         :param coeffs:
@@ -31,7 +33,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         :type hamiltonian:
         """
         self.hamiltonian = hamiltonian
-        self.basis = basis
+        self.states = states
         super().__init__(
             energies=energies,
             wavefunctions=coeffs,
@@ -39,25 +41,17 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         )
 
 class PerturbationTheoryHamiltonian:
-    """Represents the main handler used in the perturbation theory calculation
-    I probably want it to rely on a Molecule object...
+    """
+    Represents the main Ha,o; used in the perturbation theory calculation
 
     :param molecule: The molecule we're doing the perturbation theory on
     :type molecule: Molecule
-    :param internals: The internal coordinate specification (z-matrix layout)
-    :type internals: None | Iterable[Iterable[int]]
-    :param numbers_of_quanta: The numbers of quanta of excitation to use for every mode
-    :type numbers_of_quanta: np.ndarray | Iterable[int]
+    :param n_quanta: The numbers of quanta of excitation to use for every mode
+    :type n_quanta: int | np.ndarray | Iterable[int]
+    :param basis: The basis used for representing, e.g., pQp and QQQ
+    :type basis: RepresentationBasis | None
     """
-    def __init__(self,
-                 *ignore,
-                 molecule=None,
-                 n_quanta=3
-                 ):
-        if len(ignore) > 0:
-            raise PerturbationTheoryException("{} is keyword-only (i.e. takes no positional arguments)".format(
-                type(self).__name__
-            ))
+    def __init__(self, molecule=None, n_quanta=3, basis=None):
 
         if molecule is None:
             raise PerturbationTheoryException("{} requires a Molecule to do its dirty-work")
@@ -72,6 +66,10 @@ class PerturbationTheoryHamiltonian:
 
         self.V_terms = PotentialTerms(self.molecule)
         self.G_terms = KineticTerms(self.molecule)
+
+        if basis is None:
+            basis=ProductBasis(HarmonicOscillatorBasis(n) for n in self.n_quanta)
+        self.basis = basis
 
     @classmethod
     def from_fchk(cls, file, internals=None, n_quanta=3):
@@ -95,13 +93,13 @@ class PerturbationTheoryHamiltonian:
         def compute_H0(inds,
                        G=self.G_terms[0],
                        V=self.V_terms[0],
-                       pp=ProductOperator.pp(self.n_quanta),
-                       QQ=ProductOperator.QQ(self.n_quanta),
+                       pp=self.basis.representation('p', 'p').compute,
+                       QQ=self.basis.representation('x', 'x').compute,
                        H=self._compute_h0
                        ):
             return H(inds, G, V, pp, QQ)
 
-        return SubHamiltonian(compute_H0, self.n_quanta)
+        return TermComputer(compute_H0, self.n_quanta)
 
     def _compute_h0(self, inds, G, F, pp, QQ):
         """
@@ -121,7 +119,7 @@ class PerturbationTheoryHamiltonian:
 
         # print(type(gmatrix_derivs))
         if not isinstance(G, int):
-            # takes a 5-dimensional SparseTensor and turns it into a contracted 2D one
+            # takes an (e.g.) 5-dimensional SparseTensor and turns it into a contracted 2D one
             subKE = pp[inds]
             if isinstance(subKE, np.ndarray):
                 ke = np.tensordot(subKE.squeeze(), G, axes=[[0, 1], [0, 1]])
@@ -147,12 +145,12 @@ class PerturbationTheoryHamiltonian:
         def compute_H1(inds,
                        G=self.G_terms[1],
                        V=self.V_terms[1],
-                       pQp=ProductOperator.pQp(self.n_quanta),
-                       QQQ=ProductOperator.QQQ(self.n_quanta),
+                       pQp=self.basis.representation('p', 'x', 'p').compute,
+                       QQQ=self.basis.representation('x', 'x', 'x').compute,
                        H=self._compute_h1
                        ):
             return H(inds, G, V, pQp, QQQ)
-        return SubHamiltonian(compute_H1, self.n_quanta)
+        return TermComputer(compute_H1, self.n_quanta)
 
     def _compute_h1(self, inds, gmatrix_derivs, V_derivs, pQp, QQQ):
         """
@@ -200,13 +198,13 @@ class PerturbationTheoryHamiltonian:
         def compute_H2(inds,
                        G=self.G_terms[2],
                        V=self.V_terms[2],
-                       KE=ProductOperator.pQQp(self.n_quanta),
-                       PE=ProductOperator.QQQQ(self.n_quanta),
+                       KE=self.basis.representation('p', 'x', 'x', 'p').compute,
+                       PE=self.basis.representation('x', 'x', 'x', 'x').compute,
                        H=self._compute_h2
                        ):
             return H(inds, G, V, KE, PE)
 
-        return SubHamiltonian(compute_H2, self.n_quanta)
+        return TermComputer(compute_H2, self.n_quanta)
 
     def _compute_h2(self, inds, gmatrix_derivs, V_derivs, KE, PE):
         """

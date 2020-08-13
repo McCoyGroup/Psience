@@ -1,4 +1,13 @@
 """
 BasisReps manages useful functions for generating & working with basis-set representations of data
-All representations have a Hamiltonian object that returns a Wavefunctions-style object
 """
+
+__all__ = []
+from .Bases import *
+__all__ += Bases.__all__
+from .Operators import *
+__all__ += Operators.__all__
+from .Terms import *
+__all__ += Terms.__all__
+from .HarmonicOscillator import *
+__all__ += HarmonicOscillator.__all__

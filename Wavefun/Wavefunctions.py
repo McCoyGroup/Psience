@@ -1,4 +1,9 @@
+"""
+Provides very general support for an abstract wavefunction object
+Allows different methods to provide their own concrete implementation details
+"""
 from abc import *
+import numpy as np
 
 __all__ = [
     "Wavefunction",
@@ -11,13 +16,14 @@ class WavefunctionException(Exception):
 
 class Wavefunction:
     """Represents a single wavefunction object"""
-    def __init__(self, energy, data, parent = None, **opts):
+    def __init__(self, energy, data, parent=None, index=None, **opts):
         self.energy = energy
         self.data   = data
         self.parent = parent
+        self.index = index
         self.opts   = opts
     @abstractmethod
-    def plot(self, figure = None, index = 0, **opts):
+    def plot(self, figure = None, index = None, **opts):
         """Uses McUtils to plot the wavefunction on the passed figure (makes a new one if none)
 
         :param figure:
@@ -54,22 +60,29 @@ class Wavefunctions:
 
     """
 
-    def __init__(self, energies = None, wavefunctions = None, wavefunction_class = None, **opts):
+    def __init__(self,
+                 energies=None, wavefunctions=None,
+                 indices=None, wavefunction_class=None, **opts):
         self.wavefunctions = wavefunctions
         self.energies = energies
         self.wavefunction_class = wavefunction_class
+        self.indices = indices
         self.opts = opts
 
     def get_wavefunctions(self, which):
+        inds = self.indices
+        if inds is None:
+            inds = np.arange(len(self.wavefunctions))
         if isinstance(which, slice):
             return type(self)(
-                energies = self.energies[which],
-                wavefunctions = self.wavefunctions[which],
-                wavefunction_class = self.wavefunction_class,
+                energies=self.energies[which],
+                wavefunctions=self.wavefunctions[which],
+                wavefunction_class=self.wavefunction_class,
+                indices=inds[which],
                 **self.opts
             )
         else:
-            return self.wavefunction_class(self.energies[which], self.wavefunctions[which], parent = self, **self.opts)
+            return self.wavefunction_class(self.energies[which], self.wavefunctions[which], parent=self, index=inds[which], **self.opts)
     def __getitem__(self, item):
         """Returns a single Wavefunction object"""
         # iter comes for free with this
@@ -114,6 +127,9 @@ class Wavefunctions:
         if plot_style is None:
             plot_style = {}
         for i, wfn in enumerate(self):
-            wfn.plot(figure, index=i, **opts, **plot_style)
+            ind = wfn.index
+            if ind is None:
+                ind = i
+            wfn.plot(figure, index=ind, **opts, **plot_style)
 
         return figure
