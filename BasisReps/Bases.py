@@ -9,7 +9,7 @@ from .Operators import Operator
 
 __all__ = [
     "RepresentationBasis",
-    "ProductBasis"
+    "SimpleProductBasis"
 ]
 
 class RepresentationBasis(metaclass=abc.ABCMeta):
@@ -67,7 +67,14 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         """
         raise NotImplemented
 
-    operator_mapping = {'x':x, 'p':p}
+    @property
+    def operator_mapping(self):
+        return {'x':self.x, 'p':self.p}
+    def operator(self, *terms):
+        funcs = [self.operator_mapping[f] if isinstance(f, str) else f for f in terms]
+        q = (self.quanta,)
+        op = Operator(funcs, q)
+        return op
     def representation(self, *terms):
         """
         Provides a representation of a product operator specified by 'terms'
@@ -77,19 +84,24 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         :rtype:
         """
 
-        funcs = [ self.operator_mapping[f] if isinstance(f, str) else f for f in terms]
-        q = self.quanta
-        if isinstance(q, int):
-            q = (q,)
-        op = Operator(funcs, q)
-        return TermComputer(op, q)
+        q=self.quanta
+        return TermComputer(self.operator(*terms), q)
 
-class ProductBasis(RepresentationBasis):
+class SimpleProductBasis(RepresentationBasis):
     """
-    Defines a direct product basis from a collection of simpler bases
+    Defines a direct product basis from a simpler basis.
+    Mixed product bases aren't currently supported
     """
-    def __init__(self, bases):
-        self.bases = tuple(bases)
+    def __init__(self, basis_type, n_quanta):
+        """
+
+        :param basis_type: the type of basis to do a product over
+        :type basis_type: type
+        :param n_quanta: the number of quanta for the representations
+        :type n_quanta: Iterable[int]
+        """
+        self.basis_type = basis_type
+        self.bases = tuple(basis_type(n) for n in n_quanta)
         super().__init__(self.get_function, None)
     @property
     def quanta(self):
@@ -104,8 +116,23 @@ class ProductBasis(RepresentationBasis):
 
     def get_function(self, idx):
         fs = tuple(b[n] for b, n in zip(self.bases, idx))
-        return lambda *r,_fs=fs,**kw: np.prod(f(*r, **kw) for f in _fs)
+        return lambda *r, _fs=fs, **kw: np.prod(f(*r, **kw) for f in _fs)
 
+    def operator(self, *terms):
+        funcs = [self.bases[0].operator_mapping[f] if isinstance(f, str) else f for f in terms]
+        q = self.quanta
+        op = Operator(funcs, q)
+        return op
+    def representation(self, *terms):
+        """
+        Provides a representation of a product operator specified by 'terms'
+        :param terms:
+        :type terms:
+        :return:
+        :rtype:
+        """
+        q = self.quanta
+        return TermComputer(self.operator(*terms), q)
     def x(self, n):
         """
         Returns the representation of x in the multi-dimensional basis with every term evaluated up to n quanta
@@ -115,7 +142,7 @@ class ProductBasis(RepresentationBasis):
         :return:
         :rtype:
         """
-        return self.representation(b.x for b in self.bases)[:n, :n]
+        return self.representation(self.bases[0].x)[:n, :n]
     def p(self, n):
         """
         Returns the representation of p in the multi-dimensional basis with every term evaluated up to n quanta
@@ -125,7 +152,4 @@ class ProductBasis(RepresentationBasis):
         :return:
         :rtype:
         """
-        return self.representation(b.p for b in self.bases)[:n, :n]
-
-
-
+        return self.representation(self.bases[0].p)[:n, :n]

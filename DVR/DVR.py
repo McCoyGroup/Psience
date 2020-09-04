@@ -1,12 +1,10 @@
-import os
+import os, numpy as np
 
 class DVR:
-
-    '''This is a manager class for working with DVRs
-
-It uses files from which it loads the spec data and methods
-Currently all defaults are for 1D but the ND extension shouldn't be bad
-'''
+    '''
+    This is a manager class for working with DVRs.
+    It uses files from which it loads the spec data and methods, which are placed in the `Classes` subfolder.
+    '''
 
     loaded_DVRs = {}  # for storing DVRs loaded from file
     dvr_dir = os.path.join(os.path.dirname(__file__), "Classes")
@@ -21,7 +19,14 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
 
     @classmethod
     def dvr_file(self, dvr):
-        '''Locates the DVR file for dvr'''
+        """
+        Locates the file used to initialize a DVR
+
+        :param dvr: name of the DVR type
+        :type dvr: str
+        :return: config file to load
+        :rtype: str
+        """
 
         if os.path.exists(dvr):
             dvr_file = dvr
@@ -35,13 +40,13 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
 
     @classmethod
     def _load_env(cls, file, env):
-        '''Fills in necessary parameters in an env from a module
-
+        """
+        Fills in necessary parameters in an env from a module
         :param env:
         :type env:
         :return:
         :rtype:
-        '''
+        """
 
         cls.loaded_DVRs[file] = env
         for k in ('grid', 'kinetic_energy', 'potential_energy', 'hamiltonian', 'wavefunctions'):
@@ -58,7 +63,14 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
 
     @classmethod
     def load_dvr(self, dvr):
-        '''Loads a DVR from file into the DVR class'''
+        """
+        Loads a DVR object from a class file or name
+
+        :param dvr: file or DVR name
+        :type dvr: str
+        :return: new DVR instance
+        :rtype: DVR
+        """
 
         dvr_file = self.dvr_file(dvr)
         if dvr_file not in self.loaded_DVRs:
@@ -94,7 +106,14 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
         return load
 
     def _dvr_prop(self, prop_name):
-        '''Gets a DVR property'''
+        """
+        Gets a DVR property by delegating to the loaded class info.
+
+        :param prop_name: the name of the property we want to load
+        :type prop_name: str
+        :return:
+        :rtype:
+        """
 
         if prop_name in self.params:
             prop = self.params[prop_name]
@@ -108,39 +127,63 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
         return prop
 
     def domain(self):
-        '''Computes the domain for the DVR'''
+        """
+        :return: the domain for the DVR
+        :rtype:
+        """
         return self._dvr_prop('domain')
 
     def divs(self):
-        '''Computes the divisions for the DVR'''
+        """
+        :return: the number of DVR points
+        :rtype: tuple(int)
+        """
         return self._dvr_prop('divs')
 
     def grid(self):
-        '''Computes the grid for the DVR'''
+        """
+        :return: the grid for the DVR
+        :rtype: np.ndarray
+        """
         return self._dvr_prop('grid')
 
     def kinetic_energy(self):
-        '''Computes the kinetic_energy for the DVR'''
+        """
+        :return: the kinetic energy matrix
+        :rtype: np.ndarray
+        """
         return self._dvr_prop('kinetic_energy')
 
     def potential_energy(self):
-        '''Computes the potential_energy for the DVR'''
+        """
+        :return: the potential energy matrix
+        :rtype: np.ndarray
+        """
         return self._dvr_prop('potential_energy')
 
     def hamiltonian(self):
-        '''Computes the hamiltonian for the DVR'''
+        """
+        :return: the total Hamiltonian matrix
+        :rtype: np.ndarray
+        """
         return self._dvr_prop('hamiltonian')
 
     def wavefunctions(self):
-        '''Computes the wavefunctions for the DVR'''
+        """
+        :return: the DVR wavefunctions
+        :rtype: (np.ndarray, np.ndarray)
+        """
         return self._dvr_prop('wavefunctions')
 
     def _run(self):
-        from ..Wavefun import Wavefunctions
+        """
+        :return:
+        :rtype: DVR.Results
+        """
         from .Wavefunctions import DVRWavefunctions
 
         def get_res():
-            return self.Results(parent = self, **self.params)
+            return self.Results(parent=self, **self.params)
         grid = self.grid()
         self.params['grid'] = grid
         if self.params['result'] == 'grid':
@@ -169,7 +212,13 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
         return get_res()
 
     def run(self, **runpars):
-        ''' Runs the DVR. Resets state after the run'''
+        """
+        Runs the DVR with the passed parameters, delegating most calls to the loaded class
+        :param runpars:
+        :type runpars:
+        :return:
+        :rtype: DVR.Results
+        """
 
         par = self.params.copy()
         try:
@@ -184,7 +233,14 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
 
     @staticmethod
     def _potential_energy(**pars):
-        ''' A default 1D potential implementation for reuse'''
+        """
+        A default potential energy implementation for reuse
+        :param pars: parameters; important keys are potential_values, potential_grid, potential_function
+        :type pars:
+        :return: potential energy matrix
+        :rtype: np.ndarray
+        """
+
         import numpy as np
 
         if 'potential_function' in pars:
@@ -233,8 +289,8 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
                         points = tuple(np.unique(x) for x in mesh[:-1])
                         vals = mesh[-1]
                         return interp.interpn(points, vals, g2)
-
-            pot = sp.diags(interpolator(pars['potential_grid'], pars['grid']), [0])
+            interp_vals = interpolator(pars['potential_grid'], pars['grid']).flatten()
+            pot = sp.diags([interp_vals], [0])
         else:
             raise DVRException("couldn't construct potential matrix")
 
@@ -242,13 +298,27 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
 
     @staticmethod
     def _hamiltonian(**pars):
-        '''A default hamiltonian implementation for reuse'''
-        return pars['kinetic_energy']+pars['potential_energy']
+        """
+        A default Hamiltonian matrix implementation for reuse
+
+        :param pars: parameters; important keys are kinetic_energy and potential_energy
+        :type pars:
+        :return: Hamiltonian matrix
+        :rtype: np.ndarray
+        """
+        ke = pars['kinetic_energy'] #type:np.ndarray
+        pe = pars['potential_energy']  #type:np.ndarray
+        return ke + pe
 
     @staticmethod
     def _wavefunctions(**pars):
-        '''A default wavefunction implementation for reuse'''
-        import numpy as np
+        """
+        A default wavefunction implementation for reuse
+        :param pars: parameters; important keys are hamiltonian, and nodeless_ground_state
+        :type pars:
+        :return: potential energy matrix
+        :rtype: np.ndarray
+        """
 
         engs, wfns = np.linalg.eigh(pars['hamiltonian'])
         if 'nodeless_ground_state' in pars and pars['nodeless_ground_state']:
@@ -285,7 +355,18 @@ Currently all defaults are for 1D but the ND extension shouldn't be bad
                 dim -= 1
             return dim
 
-        def plot_potential(self, plot_class = None, **opts):
+        def plot_potential(self, plot_class=None, **opts):
+            """
+            Simple plotting function for the potential.
+            Should be updated to deal with higher dimensional cases
+
+            :param plot_class: the graphics class to use for the plot
+            :type plot_class: McUtils.Plots.Graphics
+            :param opts: plot styling options
+            :type opts:
+            :return:
+            :rtype: McUtils.Plots.Graphics
+            """
             from McUtils.Plots import Plot, Plot3D
             import numpy as np
 

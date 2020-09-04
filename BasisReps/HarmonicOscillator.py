@@ -52,7 +52,7 @@ class HarmonicOscillatorBasis(RepresentationBasis):
         return sp.csr_matrix(sp.diags([b[0] for b in bands], [b[1] for b in bands]))
 
     def x(self, n):
-        return self.pmatrix_ho(n)
+        return self.qmatrix_ho(n)
     @staticmethod
     def qmatrix_ho(n):
         """
@@ -65,7 +65,7 @@ class HarmonicOscillatorBasis(RepresentationBasis):
 
         ar = 1 / np.sqrt(2) * np.sqrt(np.arange(1, n))
         bands = [
-            [ar, 1],
+            [ar,  1],
             [ar, -1]
         ]
         return sp.csr_matrix(sp.diags([b[0] for b in bands], [b[1] for b in bands]))

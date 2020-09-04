@@ -4,7 +4,7 @@ from McUtils.Data import UnitsData
 
 from ..Wavefun import Wavefunctions, Wavefunction
 from ..Molecools import Molecule
-from ..BasisReps import HarmonicOscillatorBasis, ProductBasis, TermComputer
+from ..BasisReps import HarmonicOscillatorBasis, SimpleProductBasis, TermComputer, ExpansionWavefunction
 
 from .Common import PerturbationTheoryException
 from .Terms import PotentialTerms, KineticTerms
@@ -14,31 +14,24 @@ __all__ = [
     'PerturbationTheoryHamiltonian'
 ]
 
-class PerturbationTheoryWavefunction(Wavefunction):
+class PerturbationTheoryWavefunction(ExpansionWavefunction):
+    """
+    These things are fed the first and second order corrections
+    """
+    @property
+    def zero_order_corrections(self):
+        wat = np.zeros(self.first_order_corrections)
+        wat[self.index] = 1
+        return wat
+    @property
+    def first_order_corrections(self):
+        return self.data['corrs'][0]
+    @property
+    def second_order_corrections(self):
+        return self.data['corrs'][1]
     @property
     def coeffs(self):
-        return self.data
-
-class PerturbationTheoryWavefunctions(Wavefunctions):
-    """
-
-    """
-    def __init__(self, states, energies, coeffs, hamiltonian):
-        """
-        :param energies:
-        :type energies:
-        :param coeffs:
-        :type coeffs:
-        :param hamiltonian:
-        :type hamiltonian:
-        """
-        self.hamiltonian = hamiltonian
-        self.states = states
-        super().__init__(
-            energies=energies,
-            wavefunctions=coeffs,
-            wavefunction_class=PerturbationTheoryWavefunction
-        )
+        return self.zero_order_corrections + self.first_order_corrections + self.second_order_corrections
 
 class PerturbationTheoryHamiltonian:
     """
@@ -68,7 +61,7 @@ class PerturbationTheoryHamiltonian:
         self.G_terms = KineticTerms(self.molecule)
 
         if basis is None:
-            basis=ProductBasis(HarmonicOscillatorBasis(n) for n in self.n_quanta)
+            basis=SimpleProductBasis(HarmonicOscillatorBasis, self.n_quanta)
         self.basis = basis
 
     @classmethod
@@ -93,8 +86,8 @@ class PerturbationTheoryHamiltonian:
         def compute_H0(inds,
                        G=self.G_terms[0],
                        V=self.V_terms[0],
-                       pp=self.basis.representation('p', 'p').compute,
-                       QQ=self.basis.representation('x', 'x').compute,
+                       pp=self.basis.operator('p', 'p'),
+                       QQ=self.basis.operator('x', 'x'),
                        H=self._compute_h0
                        ):
             return H(inds, G, V, pp, QQ)
@@ -125,6 +118,7 @@ class PerturbationTheoryHamiltonian:
                 ke = np.tensordot(subKE.squeeze(), G, axes=[[0, 1], [0, 1]])
             else:
                 ke = subKE.tensordot(G, axes=[[0, 1], [0, 1]]).squeeze()
+
         else:
             ke = 0
 
@@ -145,8 +139,8 @@ class PerturbationTheoryHamiltonian:
         def compute_H1(inds,
                        G=self.G_terms[1],
                        V=self.V_terms[1],
-                       pQp=self.basis.representation('p', 'x', 'p').compute,
-                       QQQ=self.basis.representation('x', 'x', 'x').compute,
+                       pQp=self.basis.operator('p', 'x', 'p'),
+                       QQQ=self.basis.operator('x', 'x', 'x'),
                        H=self._compute_h1
                        ):
             return H(inds, G, V, pQp, QQQ)
@@ -198,8 +192,8 @@ class PerturbationTheoryHamiltonian:
         def compute_H2(inds,
                        G=self.G_terms[2],
                        V=self.V_terms[2],
-                       KE=self.basis.representation('p', 'x', 'x', 'p').compute,
-                       PE=self.basis.representation('x', 'x', 'x', 'x').compute,
+                       KE=self.basis.operator('p', 'x', 'x', 'p'),
+                       PE=self.basis.operator('x', 'x', 'x', 'x'),
                        H=self._compute_h2
                        ):
             return H(inds, G, V, KE, PE)
@@ -262,6 +256,20 @@ class PerturbationTheoryHamiltonian:
         return qns
 
     def _get_corrections(self, states=15, coupled_states=None, coeff_threshold=None, energy_threshold=None):
+        """
+        Builds the first and second order corrections to the wavefunctions for the specified states
+
+        :param states:
+        :type states:
+        :param coupled_states:
+        :type coupled_states:
+        :param coeff_threshold:
+        :type coeff_threshold:
+        :param energy_threshold:
+        :type energy_threshold:
+        :return:
+        :rtype:
+        """
         if states is None:
             states = np.prod(self.n_quanta)
         states = self.get_state_indices(states)
@@ -291,57 +299,67 @@ class PerturbationTheoryHamiltonian:
             if len(w) > 0:
                 e_blocks[n, w[0]] = 1 # gotta prevent blowups
 
+        # this is slightly wasteful, but way simpler to write like this...
+        if isinstance(coupled_states, slice):
+            H1_full = H1[coupled_states, coupled_states]
+        else:
+            ixes = np.ix_(coupled_states, coupled_states)
+            H1_full = H1[ixes]
+
+        e_diff_full = np.subtract.outer(energies, energies)
+        for n,s in enumerate(coupled_states):
+            w = np.where(coupled_states==s)[0]
+            if len(w) > 0:
+                e_diff_full[n, w[0]] = 1 # gotta prevent blowups
+
+        # Hack to prevent degeneracies from screwing us up (here for debug purposes)
         if energy_threshold is not None:
             if isinstance(energy_threshold, (int, float, np.integer, np.floating)):
                 energy_threshold = (energy_threshold, 1)
             dropped = np.abs(e_blocks) < energy_threshold[0]
             e_blocks[dropped] = np.sign(e_blocks[dropped]) * energy_threshold[1]
 
-        coeffs = H1_blocks / e_blocks
+        corr_1 = H1_blocks / e_blocks
 
         if coeff_threshold is not None:
             if isinstance(coeff_threshold, (int, float, np.integer, np.floating)):
                 coeff_threshold = (coeff_threshold, 0)
-            dropped = np.abs(coeffs) > coeff_threshold[0]
-            coeffs[dropped] = np.sign(coeffs[dropped]) * coeff_threshold[1]
+            dropped = np.abs(corr_1) > coeff_threshold[0]
+            corr_1[dropped] = np.sign(corr_1[dropped]) * coeff_threshold[1]
 
         for n,s in enumerate(states):
             w = np.where(coupled_states==s)[0]
             if len(w) > 0:
-                coeffs[n, w[0]] = 0 # we don't want to double count this
+                corr_1[n, w[0]] = 0 # needs to zero out for the sums to work
 
-        e_co = np.expand_dims(coeffs, axis=1)
+        # second order corrections to the wavefunctions
+        # I'm missing the H2 contribution?
+        c1_diag = H1[states, states]
+        corr_2 = (
+                     np.tensordot(corr_1, H1_full, axes=[1, 0])
+                     - c1_diag * corr_1
+             )/e_blocks
+        # now we need to add back in the <n|n> contribution...
+        for n, s in enumerate(states):
+            w = np.where(coupled_states == s)[0]
+            if len(w) > 0:
+                corr_2[n, w[0]] = -1/2 * np.dot(corr_1[n], corr_1[n])
+
+        # energy corrections, because they're easy to calculate once we've done all this
+        e_co = np.expand_dims(corr_1, axis=1)
         e_H1 = np.expand_dims(H1_blocks, axis=2)
         e1 = np.matmul(e_co, e_H1).squeeze()
         e2s = H2[states, states]
 
-        # print(self._fmt_corr2_matrix(states, coupled_states, H1_blocks, coeffs))
+        vpt_data = {
+            'coors': [corr_1, corr_2],
+            'energies': sum((state_E, e1, e2s)),
+            'energy_corrs': (state_E, e1, e2s),
+            'bits': [e_blocks, H1_blocks],
+            'states': (states, coupled_states)
+        }
 
-        return coeffs, (state_E , e1,  e2s), e_blocks, H1_blocks, states, coupled_states
-
-    def _fmt_corr_matrix(self, states, coupled_states, H1_blocks, coeffs):
-        """A useful debug function"""
-        h1_corr = UnitsData.convert("Hartrees", "Wavenumbers") * H1_blocks * coeffs
-        return "\n".join(
-            [
-                "Corr:",
-                "    " + (" ".join(" {2}{1}{0}".format(*x) for x in self.get_state_quantum_numbers(coupled_states))),
-                *("{2}{1}{0} ".format(*s) + (" ".join("{:<+4.0f}".format(x) for x in h)) for s, h in
-                  zip(self.get_state_quantum_numbers(states), h1_corr))
-                ]
-        )
-
-    def _fmt_corr2_matrix(self, states, coupled_states, H1_blocks, coeffs):
-        """A useful debug function"""
-        h1_corr = UnitsData.convert("Hartrees", "Wavenumbers") * H1_blocks
-        return "\n".join(
-            [
-                "Corr:",
-                "    " + (" ".join(" {2}{1}{0}".format(*x) for x in self.get_state_quantum_numbers(coupled_states))),
-                *("{2}{1}{0} ".format(*s) + (" ".join("{:<+4.0f}".format(x) for x in h)) for s, h in
-                  zip(self.get_state_quantum_numbers(states), h1_corr))
-                ]
-        )
+        return vpt_data
 
     def get_corrections(self, states=15, coupled_states=None, coeff_threshold=None, energy_threshold=None):
         """
@@ -358,7 +376,10 @@ class PerturbationTheoryHamiltonian:
                                      coeff_threshold=coeff_threshold, energy_threshold=energy_threshold)[:2]
 
     def get_wavefunctions(self, states=15, coupled_states=None, coeff_threshold=None, energy_threshold=None):
-            """Computes perturbation expansion of the wavefunctions and energies
+            """
+            Computes perturbation expansion of the wavefunctions and energies.
+            We're pushing all higher-level stuff into the wavefunctions, so this is
+              usually the function we want
 
             :param states: the states to target
             :type states: int | iterable[int] | None
@@ -366,18 +387,20 @@ class PerturbationTheoryHamiltonian:
             :rtype: np.ndarray
             """
 
-            coeffs, corrs, e_blocks, H1_blocks, states, coupled_states = self._get_corrections(
+
+            vpt_data = self._get_corrections(
                 states, coeff_threshold=coeff_threshold, coupled_states=coupled_states
             )
-            energies = sum(corrs)
 
-            # basis = np.array(np.unravel_index(np.arange(num_ens), self.n_quanta)).T
+            states = vpt_data['states'][0]
+            basis_states = vpt_data['states'][1]
+            basis = self.basis
 
             return PerturbationTheoryWavefunctions(
-                None, # need to get the basis back int, but using the coupled_states args
-                # (UnitsData.convert("AtomicUnitOfEnergy", "Wavenumbers")*energies, basis),
+                self.basis,
+                states,
                 energies,
-                coeffs,
+                corrs,
                 self
             )
 
@@ -410,5 +433,58 @@ class PerturbationTheoryHamiltonian:
 
         return (H1_blocks**4)/(diffs**3)
 
+class PerturbationTheoryCorrections:
+    def __init__(self, corrections, energies, hamiltonian):
+        ...
 
+    def _fmt_corr_matrix(self, states, coupled_states, H1_blocks, coeffs):
+        """A useful debug function"""
+        h1_corr = UnitsData.convert("Hartrees", "Wavenumbers") * H1_blocks * coeffs
+        return "\n".join(
+            [
+                "Corr:",
+                "    " + (" ".join(" {2}{1}{0}".format(*x) for x in self.get_state_quantum_numbers(coupled_states))),
+                *("{2}{1}{0} ".format(*s) + (" ".join("{:<+4.0f}".format(x) for x in h)) for s, h in
+                  zip(self.get_state_quantum_numbers(states), h1_corr))
+                ]
+        )
 
+    def _fmt_corr2_matrix(self, states, coupled_states, H1_blocks, coeffs):
+        """A useful debug function"""
+        h1_corr = UnitsData.convert("Hartrees", "Wavenumbers") * H1_blocks
+        return "\n".join(
+            [
+                "Corr:",
+                "    " + (" ".join(" {2}{1}{0}".format(*x) for x in self.get_state_quantum_numbers(coupled_states))),
+                *("{2}{1}{0} ".format(*s) + (" ".join("{:<+4.0f}".format(x) for x in h)) for s, h in
+                  zip(self.get_state_quantum_numbers(states), h1_corr))
+                ]
+        )
+
+class PerturbationTheoryWavefunctions(Wavefunctions):
+    """
+    Represents a set of wavefunctions coming out of a VPT2 calculation.
+    Mostly just a wrapper on a PerturbationTheoryHamiltonian
+    """
+    def __init__(self, states, hamiltonian):
+        """
+        :param energies:
+        :type energies:
+        :param coeffs:
+        :type coeffs:
+        :param hamiltonian:
+        :type hamiltonian:
+        """
+        self.hamiltonian = hamiltonian
+        self.states = states
+        self._energies = None
+        super().__init__(
+            energies=None,
+            wavefunctions=None,
+            wavefunction_class=PerturbationTheoryWavefunction
+        )
+    @property
+    def energies(self):
+        return self.get_energies()
+    def get_energies(self):
+        ...

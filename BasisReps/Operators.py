@@ -26,7 +26,7 @@ class Operator:
         """
         if isinstance(quanta, int):
             quanta = [quanta]
-            funcs = [funcs]
+            # funcs = [funcs]
         self.funcs = funcs
         self.quanta = tuple(quanta)
         self.mode_n = len(quanta)

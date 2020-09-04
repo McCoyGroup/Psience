@@ -9,4 +9,5 @@ Not sure at this point, though.
 
 from .Surfaces import *
 
-__all__ = Surfaces.__all__
+__all__ = []
+__all__ += Surfaces.__all__

@@ -18,7 +18,11 @@ class TermComputer:
     """
     def __init__(self, compute, n_quanta):
         if isinstance(compute, Operator):
+            operator = compute
             compute = lambda inds, c=compute: c[inds]
+        else:
+            operator = None
+        self.operator = operator
         self.compute = compute
         self.dims = n_quanta
     @property
@@ -96,6 +100,7 @@ class TermComputer:
         els = self.compute(i)
         if not pull_elements:
             shp = (len(np.unique(blocks[:, 0])), len(np.unique(blocks[:, 1])))
+            # for sparse arrays this something happens in-place :|
             els = els.reshape(shp).squeeze()
         return els
 

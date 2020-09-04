@@ -11,3 +11,5 @@ from .Terms import *
 __all__ += Terms.__all__
 from .HarmonicOscillator import *
 __all__ += HarmonicOscillator.__all__
+from .Wavefunctions import *
+__all__ += Wavefunctions.__all__

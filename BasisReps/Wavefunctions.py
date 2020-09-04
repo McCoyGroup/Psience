@@ -10,6 +10,13 @@ from ..Wavefun import *
 from .Terms import TermComputer
 from .Operators import Operator
 
+__all__ = [
+    "AnalyticWavefunctions",
+    "AnalyticWavefunction",
+    "ExpansionWavefunctions",
+    "ExpansionWavefunction"
+]
+
 class AnalyticWavefunction(Wavefunction):
     """
     Little extension to RepresentationBasis so that we can use p and x and stuff
@@ -101,6 +108,13 @@ class ExpansionWavefunction(AnalyticWavefunction):
             'basis':analytic_wavefunctions
         })
 
+    @property
+    def coeffs(self):
+        return self.data['coeffs']
+    @property
+    def basis(self):
+        return self.data['basis']
+
     def evaluate(self, *args, **kwargs):
         return np.dot(self.data['coeffs'], np.array([f(args, **kwargs) for f in self.data['basis']]))
 
@@ -135,17 +149,8 @@ class ExpansionWavefunction(AnalyticWavefunction):
                 tuple(x.index for x in self.data['basis']),
                 tuple(other.index for x in self.data['basis'])
             ]
-        if not isinstance(G, int):
-            # takes an (e.g.) 5-dimensional SparseTensor and turns it into a contracted 2D one
-            subKE = pp[inds]
-            if isinstance(subKE, np.ndarray):
-                ke = np.tensordot(subKE.squeeze(), G, axes=[[0, 1], [0, 1]])
-            else:
-                ke = subKE.tensordot(G, axes=[[0, 1], [0, 1]]).squeeze()
-        else:
-            ke = 0
         # See the note about needing to handle multidimensional cases better in `expect`
-        return
+        return np.dot(self.data('coeffs'), np.dot(op_matrix), other.coeffs)
 
     def probability_density(self):
         """Computes the probability density of the current wavefunction
@@ -153,7 +158,7 @@ class ExpansionWavefunction(AnalyticWavefunction):
         :return:
         :rtype:
         """
-        return self.data
+        raise NotImplementedError
 
 
 class ExpansionWavefunctions(AnalyticWavefunctions):
