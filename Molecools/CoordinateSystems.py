@@ -185,6 +185,22 @@ class MolecularCartesianToMatrixConverter(CoordinateSystemConverter):
 MolecularCartesianToMatrixConverter = MolecularCartesianToMatrixConverter()
 MolecularCartesianToMatrixConverter.register()
 
+class MolecularCartesianToRegularCartesianConverter(CoordinateSystemConverter):
+    """
+    ...
+    """
+    types = (MolecularCartesianCoordinateSystem, CartesianCoordinateSystem)
+    def convert(self, coords, **kw):
+        return coords, kw
+
+    def convert_many(self, coords, **kwargs):
+        """
+        Converts from Cartesian to ZMatrix coords, preserving the embedding
+        """
+        return coords, kwargs
+MolecularCartesianToRegularCartesianConverter = MolecularCartesianToRegularCartesianConverter()
+MolecularCartesianToRegularCartesianConverter.register()
+
 class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
     """
     ...
@@ -248,5 +264,19 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
 
 MolecularZMatrixToCartesianConverter = MolecularZMatrixToCartesianConverter()
 MolecularZMatrixToCartesianConverter.register()
+
+class MolecularZMatrixToRegularZMatrixConverter(CoordinateSystemConverter):
+    """
+    ...
+    """
+    types = (MolecularZMatrixCoordinateSystem, ZMatrixCoordinateSystem)
+    def convert(self, coords, **kw):
+        return coords, kw
+
+    def convert_many(self, coords, **kwargs):
+        return coords, kwargs
+MolecularZMatrixToRegularZMatrixConverter = MolecularZMatrixToRegularZMatrixConverter()
+MolecularZMatrixToRegularZMatrixConverter.register()
+
 
 

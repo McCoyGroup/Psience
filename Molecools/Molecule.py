@@ -476,10 +476,10 @@ class Molecule:
         with GaussianLogReader(file) as gr:
             parse = gr.parse('StandardCartesianCoordinates', num=num)
         spec, coords = parse['StandardCartesianCoordinates']
-
+        ang2bohr = UnitsData.convert("Angstroms", "AtomicUnitOfLength")
         return cls(
             [int(a[1]) for a in spec],
-            CoordinateSet(np.array(coords), CartesianCoordinates3D),
+            CoordinateSet(ang2bohr*np.array(coords), CartesianCoordinates3D),
             **opts
         )
     @classmethod
@@ -614,7 +614,12 @@ class Molecule:
                 atoms[i] = [None] * len(geom)
                 for j, stuff in enumerate(zip(colors, radii, geom)):
                     color, radius, coord = stuff
-                    sphere = s_class(coord, radius, color = color, **atom_style)
+                    if 'color' not in atom_style:
+                        a_sty = atom_style.copy()
+                        a_sty['color'] = color
+                    else:
+                        a_sty = atom_style
+                    sphere = s_class(coord, radius, **a_sty)
                     if objects:
                         atoms[i][j] = sphere
                     else:

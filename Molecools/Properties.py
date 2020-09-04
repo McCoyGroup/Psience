@@ -67,12 +67,11 @@ class MolecularProperties:
             :rtype:
             """
 
-
-        d = np.zeros((len(coords), 3, 3), dtype=float)
+        d = np.zeros(coords.shape[:-1] + (3, 3), dtype=float)
         diag = nput.vec_dots(coords, coords)
-        d[:, (0, 1, 2), (0, 1, 2)] = diag
+        d[..., (0, 1, 2), (0, 1, 2)] = diag[..., np.newaxis]
         o = nput.vec_outer(coords, coords, axes=[-1, -1])
-        tens = np.tensordot(masses, d - o, axes=[0, 1])
+        tens = np.tensordot(masses, d - o, axes=[0, -3])
 
         return tens
 
@@ -98,7 +97,7 @@ class MolecularProperties:
         else:
             multiconfig = True
             extra_shape = coords.shape[:-2]
-            coords = coords.reshape((np.product(extra_shape),) + coords.shape[:-2])
+            coords = coords.reshape((np.product(extra_shape),) + coords.shape[-2:])
 
         massy_doop = cls.get_prop_inertia_tensors(coords, masses)
         moms, axes = np.linalg.eigh(massy_doop)
@@ -175,7 +174,7 @@ class MolecularProperties:
         return cls.get_prop_principle_axis_rotation(mol.coords, mol.masses, sel=sel, inverse=inverse)
 
     @classmethod
-    def get_prop_eckart_transformation(cls, masses, ref, coords, sel=None):
+    def get_prop_eckart_transformation(cls, masses, ref, coords, sel=None, inverse=False):
         """
         Computes Eckart transformations for a set of coordinates
 
@@ -227,6 +226,8 @@ class MolecularProperties:
                 rot = np.identity(3, np.float)
                 rot[:2, :2] = U @ V.T
 
+            if inverse:
+                rot = rot.T
             transf = MolecularTransformation(t, rot)
             transforms[i] = transf
 
@@ -236,7 +237,7 @@ class MolecularProperties:
         return transforms
 
     @classmethod
-    def eckart_transformation(cls, mol, ref_mol, sel=None):
+    def eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False):
         """
 
         :param ref_mol: reference geometry
@@ -255,7 +256,7 @@ class MolecularProperties:
                 m1,
                 m2
             ))
-        return cls.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel)
+        return cls.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse)
 
     @classmethod
     def get_prop_translation_rotation_eigenvectors(cls, coords, masses):
