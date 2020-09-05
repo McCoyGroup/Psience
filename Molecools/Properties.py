@@ -152,7 +152,7 @@ class MolecularProperties:
             c = transf(c)
             moms, axes = cls.get_prop_moments_of_inertia(c, mass)
             if inverse:
-                axes = np.linalg.inv(axes)
+                axes = axes.T
             transf = MolecularTransformation(axes)(transf)
             transforms[i] = transf
 
