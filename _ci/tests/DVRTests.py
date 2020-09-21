@@ -17,27 +17,27 @@ class DVRTests(TestCase):
     def test_1D(self):
         dvr_1D = DVR("ColbertMiller1D")
         pot = dvr_1D.run(potential_function=self.ho, result='potential_energy')
-        self.assertIsInstance(pot, np.ndarray)
+        self.assertIsInstance(pot.potential_energy, np.ndarray)
 
     @validationTest
     def test_energies_1D(self):
         dvr_1D = DVR("ColbertMiller1D")
-        e, wf = dvr_1D.run(potential_function=self.ho, divs=150)
+        res = dvr_1D.run(potential_function=self.ho, divs=150)
         # print(e[:5], file=sys.stderr)
-        self.assertIsInstance(e, np.ndarray)
+        self.assertIsInstance(res.wavefunctions.energies, np.ndarray)
 
     @validationTest
     def test_energies_2D(self):
         dvr_2D = DVR("ColbertMillerND")
         res = dvr_2D.run(potential_function=self.ho_2D, divs=(25, 25))
         # print(res[0][:5], file=sys.stderr)
-        self.assertIsInstance(res[0], np.ndarray)
+        self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
     @validationTest
     def test_energies_3D(self):
         dvr_3D = DVR("ColbertMillerND")
         res = dvr_3D.run(potential_function=self.ho_3D, domain=((-5, 5),)*3, divs=(15,)*3)
-        # print(res[0][:5], file=sys.stderr)gg
-        self.assertIsInstance(res[0], np.ndarray)
+        # print(res[0][:5], file=sys.stderr)
+        self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
 
