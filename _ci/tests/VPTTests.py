@@ -6,7 +6,7 @@ import sys, os, numpy as np
 
 class VPTTests(TestCase):
 
-    @debugTest
+    @inactiveTest
     def test_WaterVPTInternals(self):
 
         internals = [

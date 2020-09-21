@@ -1,0 +1,6 @@
+# action.yml
+name: 'Run CI'
+description: 'Runs McUtils CI'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
