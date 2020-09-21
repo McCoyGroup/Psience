@@ -171,25 +171,28 @@ class PotentialSurface(Surface):
     """
 
     @staticmethod
-    def get_log_values(log_file, keys="ScanEnergies"):
+    def get_log_values(log_file, keys=("StandardCartesianCoordinates", "ScanEnergies")):
 
         with GaussianLogReader(log_file) as parser:
             parse_data = parser.parse(keys)
 
-        if isinstance(keys, str):
-            return parse_data[keys]
+        # Need to be smarter about this. At some point we might be able to infer what type of log file we have...
+        coord_key = keys[0]
+        coords = parse_data[coord_key][1]
+        eng_key = keys[1]
+        if eng_key == "ScanEnergies":
+            energies = np.array(parse_data[eng_key].energies[:, -1])
         else:
-            carts = parse_data[keys[0]][1]
-            pots = np.array(parse_data[keys[1]])
+            raise Exception("Haven't dealt with scan types beyond rigid ones...")
 
-            return namedtuple('potential_log_values', ['coords', 'values'])(carts, pots)
+        return namedtuple('potential_log_values', ['coords', 'energies'])(coords, energies)
     @classmethod
-    def from_log_file(cls, log_file, coord_transf, keys="ScanEnergies", tol = .001, **opts):
+    def from_log_file(cls, log_file, coord_transf, keys=("StandardCartesianCoordinates", "ScanEnergies"), tol = .001, **opts):
         """
-        Loads dipoles from a Gaussian log file and builds a dipole surface by interpolating.
+        Loads dipoles from a Gaussian log file and builds a potential surface by interpolating.
         Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
         to furnish a function that'll take a set of Cartesian coordinates and convert them to "scan" coordinates.
-        Coordinerds can be helpful with this, as it provides a convenient syntax for Cartesian <-> ZMatrix conversions
+        Coordinerds can be helpful with this, as it provides a convenient syntax for Cartesian <-> ZMatrix conversions.
 
         :param log_file: a Gaussian log file to pull from
         :type log_file: str
@@ -197,8 +200,11 @@ class PotentialSurface(Surface):
         :rtype:
         """
 
-        carts, pots = cls.get_log_values(log_file, keys=keys)
+        dat = cls.get_log_values(log_file, keys=keys)
+        carts = dat.coords
+        pots = dat.energies
 
+        # raise Exception(carts, pots)
         scan_coords = coord_transf(carts)
         if len(pots) != len(scan_coords):
             raise ValueError(
@@ -228,7 +234,10 @@ class PotentialSurface(Surface):
         scan_coords = scan_coords[inds]
         pots = pots[inds]
 
-        return cls(((scan_coords, pots), {}), base=TaylorSeriesSurface, **opts)
+        return cls(
+                ((scan_coords, pots), opts),
+                base=InterpolatedSurface
+        )
 
     @staticmethod
     def get_fchk_values(fchk_file):

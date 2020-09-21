@@ -25,7 +25,7 @@ class MolecoolsTests(TestCase):
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(m.atoms, ("O", "H", "H"))
 
-    @debugTest
+    @validationTest
     def test_Eckart(self):
         scan_file = TestManager.test_data("tbhp_030.log")
         ref_file = TestManager.test_data("tbhp_180.fchk")
@@ -78,17 +78,17 @@ class MolecoolsTests(TestCase):
         rot_dips = np.array([ np.dot(t.transformation_function.transform, d) for t,d in zip(transf, dips) ])
         self.assertTrue(np.allclose(np.linalg.norm(dips, axis=1)-np.linalg.norm(rot_dips, axis=1), 0.))
 
-        ### Visualize dipole surface
-        dists = np.linalg.norm(carts[1:, 5] - carts[1:, 6], axis=1)
-        Graphics.default_style['image_size'] = 575
-        g = GraphicsGrid(nrows=1, ncols=2, padding=((.075, 0), (0, .45)))
-        p = Plot(dists, rot_dips[:, 0], figure=g[0, 0])
-        Plot(dists, rot_dips[:, 1], figure=p)
-        Plot(dists, rot_dips[:, 2], figure=p)
-        p2= Plot(dists, dips[:, 0], figure=g[0, 1])
-        Plot(dists, dips[:, 1], figure=p2)
-        Plot(dists, dips[:, 2], figure=p2)
-        g.show()
+        # ### Visualize dipole surface
+        # dists = np.linalg.norm(carts[1:, 5] - carts[1:, 6], axis=1)
+        # Graphics.default_style['image_size'] = 575
+        # g = GraphicsGrid(nrows=1, ncols=2, padding=((.075, 0), (0, .45)))
+        # p = Plot(dists, rot_dips[:, 0], figure=g[0, 0])
+        # Plot(dists, rot_dips[:, 1], figure=p)
+        # Plot(dists, rot_dips[:, 2], figure=p)
+        # p2= Plot(dists, dips[:, 0], figure=g[0, 1])
+        # Plot(dists, dips[:, 1], figure=p2)
+        # Plot(dists, dips[:, 2], figure=p2)
+        # g.show()
 
 
     @validationTest

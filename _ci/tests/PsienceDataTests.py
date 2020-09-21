@@ -49,4 +49,5 @@ class PsienceDataTests(TestCase):
         log = TestManager.test_data("water_OH_scan.log")
         conv = lambda x: np.linalg.norm(x[:, 0] - x[:, 1], axis=1)
         surf = PotentialSurface.from_log_file(log, conv)
-        print(surf(np.arange(.5, 2, .1)))
+        pots = surf(np.arange(.5, 2, .1))
+        self.assertEquals(pots.shape, ((2-.5)/.1,))
