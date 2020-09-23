@@ -225,29 +225,41 @@ class MolecularNormalModes(CoordinateSystem):
                              masses = None,
                              mass_units = "AtomicMassUnits",
                              inverse_mass_matrix = False,
-                             energy_units = "Wavenumbers",
                              remove_transrot = True,
                              normalize = True,
                              **opts
                              ):
-        """Generates normal modes from the specified force constants
+        """
+        Generates normal modes from the specified force constants
 
-        :param fcs:
-        :type fcs:
-        :param atoms:
-        :type atoms:
-        :param masses:
-        :type masses:
-        :param target_units:
-        :type target_units:
+        :param molecule:
+        :type molecule: Molecule
+        :param fcs: force constants array
+        :type fcs: np.ndarray
+        :param atoms: atom list
+        :type atoms: Iterable[str]
+        :param masses: mass list
+        :type masses: Iterable[float]
+        :param mass_units: units for the masses...not clear if this is useful or a distraction
+        :type mass_units: str
+        :param inverse_mass_matrix: whether or not we have G or G^-1 (default: `False`)
+        :type inverse_mass_matrix: bool
+        :param remove_transrot: whether or not to remove the translations and rotations (default: `True`)
+        :type remove_transrot: bool
+        :param normalize: whether or not to normalize the modes (default: `True`)
+        :type normalize: bool
         :param opts:
         :type opts:
         :return:
-        :rtype:
+        :rtype: MolecularNormalModes
         """
 
         # this needs some major clean up to be less of a
         # garbage fire
+
+        if atoms is None and masses is None:
+            masses = molecule.masses
+            mass_units = "AtomicMassUnits" # Danger, Will Robinson! This will likely need to be un-hard-coded in the future...
 
         if atoms is not None and masses is None:
             masses = np.array([AtomData[a, "Mass"] if isinstance(a, str) else a for a in atoms])
@@ -278,8 +290,6 @@ class MolecularNormalModes(CoordinateSystem):
             sorting = sorting[6:]
 
         freqs = freqs[sorting]
-        if energy_units is not None and energy_units != "Hartrees":
-            freqs = freqs * UnitsData.convert("Hartrees", energy_units)
         modes = modes[:, sorting]
 
         return cls(molecule, modes, freqs = freqs, **opts)

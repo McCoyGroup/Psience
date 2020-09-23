@@ -61,7 +61,7 @@ class MolecoolsTests(TestCase):
             fuckup = np.linalg.norm(new_mol.coords[sel] - rot_ref.coords[sel])
             self.assertLess(fuckup/len(sel), .1)
 
-    @debugTest
+    @validationTest
     def test_EckartEmbedDipoles(self):
         scan_file = TestManager.test_data("tbhp_030.log")
         ref_file = TestManager.test_data("tbhp_180.fchk")
@@ -90,41 +90,28 @@ class MolecoolsTests(TestCase):
         # Plot(dists, dips[:, 2], figure=p2)
         # g.show()
 
-
-    @validationTest
-    def test_NormalModes(self):
-        n = 3 # water
-        with GaussianFChkReader(self.test_fchk) as reader:
-            parse = reader.parse(("ForceConstants", "AtomicMasses"))
-        fcs = parse["ForceConstants"].array
-        masses = parse["AtomicMasses"]
-
-        nms = MolecularNormalModes.from_force_constants(fcs, masses)
-        # ArrayPlot(nms.matrix).show()
-        self.assertEquals(nms.matrix.shape, (3*n, 3*n))
-
     @validationTest
     def test_Plotting(self):
 
-        g = Graphics3D(
-            image_size=[1500, 1500],
-            plot_range=[[-10, 10]]*3,
-            backend="VTK"
-            )
-        h5 = Molecule.from_file(
-            self.test_log_h2,
-            # self.test_fchk,
-            # bonds = [
-            #     [0, 1, 1],
-            #     [0, 2, 1]
-            # ]
-        )
-        h5.plot(
-            figure=g
-            # mode='3D',
-            # bond_style= { "circle_points": 24 },
-            # atom_style= { "sphere_points": 24 }
-        )
+        # g = Graphics3D(
+        #     image_size=[1500, 1500],
+        #     plot_range=[[-10, 10]]*3,
+        #     backend="VTK"
+        #     )
+        # h5 = Molecule.from_file(
+        #     self.test_log_h2,
+        #     # self.test_fchk,
+        #     # bonds = [
+        #     #     [0, 1, 1],
+        #     #     [0, 2, 1]
+        #     # ]
+        # )
+        # h5.plot(
+        #     figure=g
+        #     # mode='3D',
+        #     # bond_style= { "circle_points": 24 },
+        #     # atom_style= { "sphere_points": 24 }
+        # )
         m = Molecule.from_file(
             self.test_fchk,
             bonds = [
@@ -133,14 +120,14 @@ class MolecoolsTests(TestCase):
             ]
         )
         m.plot(
-            figure=g
+            # figure=g
             # mode='3D',
             # bond_style= { "circle_points": 24 },
             # atom_style= { "sphere_points": 24 }
             )
         # g.show()
 
-    @validationTest
+    @inactiveTest
     def test_BondGuessing(self):
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(m.bonds, [[0, 1, 1], [0, 2, 1]])
@@ -160,7 +147,10 @@ class MolecoolsTests(TestCase):
         m = Molecule.from_file(self.test_HOD, bonds=[[0, 1, 1], [0, 2, 1]])
         modes = m.normal_modes
         self.assertEquals(m.atoms, ("O", "H", "D"))
-        self.assertEquals(tuple(np.round(modes.freqs)), (1422.0, 2810.0, 3874.0))
+        self.assertEquals(
+            tuple(np.round(modes.freqs*UnitsData.convert("Hartrees", "Wavenumbers"))),
+            (1422.0, 2810.0, 3874.0)
+        )
 
 
     @validationTest
@@ -168,7 +158,10 @@ class MolecoolsTests(TestCase):
         m = Molecule.from_file(self.test_fchk, bonds=[[0, 1, 1], [0, 2, 1]])
         modes = m.normal_modes
         self.assertEquals(m.atoms, ("O", "H", "H"))
-        self.assertEquals(tuple(np.round(modes.freqs)), (1622.0, 3803.0, 3938.0))
+        self.assertEquals(
+            tuple(np.round(modes.freqs*UnitsData.convert("Hartrees", "Wavenumbers"))),
+            (1622.0, 3803.0, 3938.0)
+        )
 
     @inactiveTest
     def test_RenormalizeGaussianModes(self):
@@ -213,7 +206,7 @@ class MolecoolsTests(TestCase):
         test_freqs = parse["VibrationalData"]["Frequencies"]
 
         nms = m.normal_modes
-        realvibs = MolecularVibrations(m, basis=MolecularNormalModes(modes, freqs=test_freqs))
+        realvibs = MolecularVibrations(m, basis=MolecularNormalModes(m, modes, freqs=test_freqs))
 
         plot_vibrations = False
         if plot_vibrations:
@@ -238,4 +231,7 @@ class MolecoolsTests(TestCase):
 
             g.show()
 
-        self.assertEquals(tuple(round(a, 4) for a in nms.freqs), tuple(round(a, 4) for a in test_freqs))
+        self.assertEquals(
+            tuple(np.round(UnitsData.convert("Hartrees", "Wavenumbers")*nms.freqs, 4)),
+            tuple(np.round(test_freqs, 4))
+        )

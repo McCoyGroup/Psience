@@ -1,4 +1,4 @@
-name: McUtilsCI
+name: PsienceCI
 on:
   push:
 jobs:
