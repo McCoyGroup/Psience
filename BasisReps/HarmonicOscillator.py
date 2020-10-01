@@ -6,7 +6,7 @@ __all__ = [
     "HarmonicOscillatorBasis"
 ]
 
-import scipy.sparse as sp, numpy as np
+import scipy.sparse as sp, numpy as np, functools
 from .Bases import *
 from McUtils.Data import WavefunctionData
 
@@ -24,6 +24,7 @@ class HarmonicOscillatorBasis(RepresentationBasis):
         self.data = WavefunctionData['HarmonicOscillator']
         super().__init__(self.data['Wavefunction'], n_quanta)
 
+    @functools.lru_cache(maxsize=128)
     def p(self, n):
         mat = self.pmatrix_ho(n)
         if not self.dimensionless:
@@ -51,6 +52,7 @@ class HarmonicOscillatorBasis(RepresentationBasis):
         ]
         return sp.csr_matrix(sp.diags([b[0] for b in bands], [b[1] for b in bands]))
 
+    @functools.lru_cache(maxsize=128)
     def x(self, n):
         return self.qmatrix_ho(n)
     @staticmethod

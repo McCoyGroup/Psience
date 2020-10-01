@@ -9,13 +9,15 @@ from McUtils.Numputils import SparseArray
 #TODO: abstract the VPT2 stuff out so we can use it for a general operator too
 
 __all__ = [
-    "Operator"
+    "Operator",
+    "ContractedOperator"
 ]
 
 class Operator:
     """
     Provides a (usually) _lazy_ representation of an operator, which allows things like
-    QQQ and pQp to be calculated block-by-block
+    QQQ and pQp to be calculated block-by-block.
+    Crucially, the underlying basis for the operator is assumed to be orthonormal.
     """
     def __init__(self, funcs, quanta):
         """
@@ -173,3 +175,53 @@ class Operator:
         else:
             mat = pieces
         return mat
+
+
+class ContractedOperator(Operator):
+    """
+    Provides support for terms that look like `pGp` or `p(dG/dQ)Qp` by
+    expanding them out as the pure operator component that depends on the basis states (i.e. `pp` or `pQp`)
+    and doing the appropriate tensor contractions with the expansion coefficients (i.e. `G` or `dG/dQ`)
+    """
+
+    def __init__(self, coeffs, funcs, quanta, axes=None):
+        """
+        :param coeffs: The tensor of coefficients contract with the operator representation (`0` means no term)
+        :type coeffs: np.ndarray | int
+        :param funcs: The functions use to calculate representation
+        :type funcs: callable | Iterable[callable]
+        :param quanta: The number of quanta to do the deepest-level calculations up to
+        :type quanta: int | Iterable[int]
+        :param axes: The axes to use when doing the contractions
+        :type axes: Iterable[int] | None
+        """
+        self.coeffs = coeffs
+        self.axes = axes
+        super().__init__(funcs, quanta)
+
+    def get_elements(self, idx):
+        """
+        Computes the operator values over the specified indices
+
+        :param idx: which elements of H0 to compute
+        :type idx: Iterable[int]
+        :return:
+        :rtype:
+        """
+
+        c = self.coeffs
+        if not isinstance(c, int):
+            # takes an (e.g.) 5-dimensional SparseTensor and turns it into a contracted 2D one
+            axes = self.axes
+            if axes is None:
+                axes = (tuple(range(c.ndim)), )*2
+            subTensor = super().get_elements(idx)
+            if isinstance(subTensor, np.ndarray):
+                contracted = np.tensordot(subTensor.squeeze(), c, axes=axes)
+            else:
+                contracted = subTensor.tensordot(c, axes=axes).squeeze()
+        else:
+            contracted = 0 # a short-circuit
+
+        return contracted
+

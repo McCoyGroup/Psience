@@ -28,6 +28,7 @@ class Molecule:
                  name=None,
                  zmatrix=None,
                  dipole_surface=None,
+                 dipole_derivatives=None,
                  potential_surface=None,
                  potential_derivatives=None,
                  source_file=None,
@@ -51,6 +52,8 @@ class Molecule:
         :type name: np.ndarray[int] | None
         :param dipole_surface: The dipole surface for the system
         :type dipole_surface: DipoleSurface | None
+        :param dipole_derivatives: Derivatives of the dipole surface
+        :type dipole_derivatives: Iterable[np.ndarray] | None
         :param potential_surface: The potential surface for the system
         :type potential_surface: PotentialSurface | None
         :param potential_derivatives: Derivatives of the potential surface
@@ -84,6 +87,7 @@ class Molecule:
         self._fcs = force_constants
         self._pds = potential_derivatives
         self._dipoles = dipole_surface
+        self._dipds= dipole_derivatives
         self._pes = potential_surface
         self._normal_modes = None
         self._zmat = zmatrix
@@ -169,6 +173,11 @@ class Molecule:
         if self._dipoles is None:
             self._dipoles = self.load_dipole_surface()
         return self._dipoles
+    @property
+    def dipole_derivatives(self):
+        if self._dipds is None:
+            self._dipds = self.load_dipole_derivatives()
+        return self._dipds
 
     @property
     def center_of_mass(self):
@@ -340,6 +349,8 @@ class Molecule:
                 type(self).__name__,
                 ext
             ))
+
+    #TODO: need to be careful about transition states...
     def load_normal_modes(self, file=None):
         """
         Loads potential derivatives from a file (or from `source_file` if set)
@@ -368,8 +379,10 @@ class Molecule:
             masses = parse['Real atomic weights'] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
             fcs = self.force_constants
 
+            # raise Exception([modes.shape, parse["VibrationalData"]["Frequencies"], fcs.shape])
+
             internal_F = np.dot(np.dot(modes, fcs), modes.T)
-            raw = np.sqrt(np.diag(internal_F))
+            raw = np.sqrt(np.abs(np.diag(internal_F)))
             reweight = freqs / raw
             modes = modes * reweight[:, np.newaxis]
 
@@ -398,6 +411,39 @@ class Molecule:
         raise NotImplemented
     def load_dipole_surface(self):
         raise NotImplemented
+
+    def load_dipole_derivatives(self, file=None):
+        """
+        Loads dipole derivatives from a file (or from `source_file` if set)
+
+        :param file:
+        :type file:
+        :return:
+        :rtype:
+        """
+
+        if file is None:
+            file = self.source_file
+        path, ext = os.path.splitext(file)
+        ext = ext.lower()
+
+        if ext == ".fchk":
+            from McUtils.GaussianInterface import GaussianFChkReader
+            keys= ['DipoleMoment', 'DipoleDerivatives', 'DipoleHigherDerivatives']
+            with GaussianFChkReader(file) as gr:
+                parse = gr.parse(keys)
+
+            return tuple(parse[k] for k in keys)
+        elif ext == ".log":
+            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
+                type(self).__name__,
+                ext
+            ))
+        else:
+            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
+                type(self).__name__,
+                ext
+            ))
 
     def principle_axis_frame(self, sel=None, inverse=False):
         """

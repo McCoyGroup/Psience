@@ -5,7 +5,7 @@ used to define matrix representations
 import abc, numpy as np
 
 from .Terms import TermComputer
-from .Operators import Operator
+from .Operators import Operator, ContractedOperator
 
 __all__ = [
     "RepresentationBasis",
@@ -114,25 +114,71 @@ class SimpleProductBasis(RepresentationBasis):
                 'quanta'
             ))
 
+    def ravel_state_inds(self, idx):
+        """
+        Converts state indices from an array of quanta to an array of indices
+
+        :param idx: indices
+        :type idx: Iterable[Iterable[int]]
+        :return: array of state indices in the basis
+        :rtype: tuple[int]
+        """
+        idx = np.asarray(idx, dtype=int)
+        if idx.ndim == 1:
+            idx = idx[np.newaxis]
+        # raise Exception(self.quanta)
+        return tuple(np.ravel_multi_index(idx.T, self.quanta))
+
+    def unravel_state_inds(self, idx):
+        """
+        Converts state indices from an array of ints to an array of quanta
+
+        :param idx: indices
+        :type idx: Iterable[int]
+        :return: array of state tuples in the basis
+        :rtype: tuple[tuple[int]]
+        """
+
+        return tuple(np.array(np.unravel_index(idx, self.quanta)).T)
+
     def get_function(self, idx):
         fs = tuple(b[n] for b, n in zip(self.bases, idx))
         return lambda *r, _fs=fs, **kw: np.prod(f(*r, **kw) for f in _fs)
 
-    def operator(self, *terms):
+    def operator(self, *terms, coeffs=None, axes=None):
+        """
+        Builds an operator based on supplied terms, remapping names where possible.
+        If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
+
+        :param terms:
+        :type terms:
+        :param coeffs:
+        :type coeffs:
+        :param axes:
+        :type axes:
+        :return:
+        :rtype:
+        """
+
         funcs = [self.bases[0].operator_mapping[f] if isinstance(f, str) else f for f in terms]
         q = self.quanta
-        op = Operator(funcs, q)
+        if coeffs is not None:
+            op = ContractedOperator(coeffs, funcs, q, axes=axes)
+        else:
+            op = Operator(funcs, q)
         return op
-    def representation(self, *terms):
+    def representation(self, *terms, coeffs=None, axes=None):
         """
-        Provides a representation of a product operator specified by 'terms'
+        Provides a representation of a product operator specified by _terms_.
+        If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
+
         :param terms:
         :type terms:
         :return:
         :rtype:
         """
         q = self.quanta
-        return TermComputer(self.operator(*terms), q)
+        return TermComputer(self.operator(*terms, coeffs=coeffs, axes=axes), q)
     def x(self, n):
         """
         Returns the representation of x in the multi-dimensional basis with every term evaluated up to n quanta

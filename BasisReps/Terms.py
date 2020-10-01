@@ -3,7 +3,8 @@ Provides an abstract Hamiltonian object that can be used when building represent
 """
 
 __all__ = [
-    "TermComputer"
+    "TermComputer",
+    "ExpansionTerm"
 ]
 
 import numpy as np, itertools as ip
@@ -16,7 +17,14 @@ class TermComputer:
     It takes a tensor shape and a function to compute tensor elements.
     The `compute` function should be able to take a block of indices and return all the matrix elements.
     """
+
     def __init__(self, compute, n_quanta):
+        """
+        :param compute: the function that turns indices into values
+        :type compute: callable | Operator
+        :param n_quanta: the total quanta used in the representations (necessary for shape reasons)
+        :type n_quanta: tuple[int]
+        """
         if isinstance(compute, Operator):
             operator = compute
             compute = lambda inds, c=compute: c[inds]
@@ -25,10 +33,12 @@ class TermComputer:
         self.operator = operator
         self.compute = compute
         self.dims = n_quanta
+
     @property
     def diag(self):
         ndims = int(np.prod(self.dims))
         return self[np.arange(ndims), np.arange(ndims)]
+
     def get_element(self, n, m):
         """
         Computes term elements.
@@ -98,9 +108,13 @@ class TermComputer:
             return a, b
         i = tuple(pad_lens(a, b) for a, b in zip(n, m))
         els = self.compute(i)
-        if not pull_elements:
+        if isinstance(els, int) and els == 0:
+            # short-circuited :|
+            return els
+        elif not pull_elements:
+
             shp = (len(np.unique(blocks[:, 0])), len(np.unique(blocks[:, 1])))
-            # for sparse arrays this something happens in-place :|
+            # for sparse arrays this happens in-place :|
             els = els.reshape(shp).squeeze()
         return els
 
@@ -112,3 +126,103 @@ class TermComputer:
         if len(item) > 2:
             raise Exception("index spec '{}' must be of dimension 2".format(item))
         return self.get_element(*item)
+
+    def __rmul__(self, other):
+        if isinstance(other, (int, float, np.integer, np.floating)):
+            return ExpansionTerm([other], [self], self.dims)
+        else:
+            raise TypeError("operator * not defined for objects of type {0} and {1} (only numbers are supported with {0})".format(
+                type(self).__name__,
+                type(other).__name__
+            ))
+    def __mul__(self, other):
+        if isinstance(other, (int, float, np.integer, np.floating)):
+            return ExpansionTerm([other], [self], self.dims)
+        else:
+            raise TypeError("operator * not defined for objects of type {0} and {1} (only numbers are supported with {0})".format(
+                type(self).__name__,
+                type(other).__name__
+            ))
+    def __add__(self, other):
+        if isinstance(other, TermComputer):
+            if other.dims != self.dims:
+                if isinstance(other, ExpansionTerm):
+                    return other + self
+                raise ValueError("Can't combine TermComputer objects with dim {} and {}".format(
+                    self.dims,
+                    other.dims
+                ))
+            return ExpansionTerm([1, 1], [self, other], self.dims)
+        else:
+            raise TypeError("operator * not defined for objects of type {0} and {1} (only subclasses of TermComputer are supported with {0})".format(
+                type(self).__name__,
+                type(other).__name__
+            ))
+
+class ExpansionTerm(TermComputer):
+    """
+    Provides support for terms that look like `1/2 pGp + 1/2 dV/dQdQ QQ` by computing each term on its own
+    """
+    def __init__(self, coeffs, computers, n_quanta):
+        """
+        :param coeffs: The expansion coefficients
+        :type coeffs: Iterable[float]
+        :param compute: the functions that turns indices into values
+        :type compute: Iterable[callable | Operator]
+        :param n_quanta: the total quanta used in the representations (necessary for shape reasons)
+        :type n_quanta: tuple[int]
+        """
+        self.coeffs = np.array(coeffs)
+        self.computers = [TermComputer(c, n_quanta) if not isinstance(c, TermComputer) else c for c in computers]
+        super().__init__(None, n_quanta)
+
+    def __rmul__(self, other):
+        if isinstance(other, (int, float, np.integer, np.floating)):
+            return type(self)(self.coeffs * other, self.computers, self.dims)
+        else:
+            raise TypeError(
+                "operator * not defined for objects of type {0} and {1} (only numbers are supported with {0})".format(
+                    type(self).__name__,
+                    type(other).__name__
+                ))
+    def __mul__(self, other):
+        if isinstance(other, (int, float, np.integer, np.floating)):
+            return type(self)(self.coeffs*other, self.computers, self.dims)
+        else:
+            raise TypeError(
+                "operator * not defined for objects of type {0} and {1} (only numbers are supported with {0})".format(
+                    type(self).__name__,
+                    type(other).__name__
+                ))
+    def __add__(self, other):
+        if isinstance(other, TermComputer):
+            if other.dims != self.dims:
+                raise ValueError("Can't combine TermComputer objects with dim {} and {}".format(
+                    self.dims,
+                    other.dims
+                ))
+            if isinstance(other, ExpansionTerm):
+                return type(self)(
+                    np.concatenate([self.coeffs, other.coeffs]),
+                    self.computers + other.computers,
+                    self.dims
+                )
+            else:
+                return type(self)(
+                    np.concatenate([self.coeffs, [1]]),
+                    self.computers + [other],
+                    self.dims
+                )
+        else:
+            raise TypeError(
+                "operator * not defined for objects of type {0} and {1} (only subclasses of TermComputer are supported with {0})".format(
+                    type(self).__name__,
+                    type(other).__name__
+                ))
+    def get_element(self, n, m):
+
+        # try:
+        els = sum( c * t.get_element(n, m) for c, t in zip(self.coeffs, self.computers) if not (isinstance(c, int) and c==0) )
+        # except:
+        #     raise Exception([t.compute for t in self.computers])
+        return els
