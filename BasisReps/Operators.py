@@ -109,18 +109,32 @@ class Operator:
         Takes the subtensor of `t` defined by `inds` given a total set of indices `x`
         Then applies orthonormality conditions, i.e. _this assumes an orthonormal basis_
         """
-        # finds the appropriate indices of t to sample
-        sly = t[tuple(inds)]
-        uinds = np.unique(inds)
-        sub = tuple(tuple(j) for i in uinds for j in x[i])
-        res = sly[sub]
 
         # compute orthonormality indices
         missing = [i for i in range(len(x)) if i not in inds]
         equivs = [x[i][0] == x[i][1] for i in missing]
-        orthog = np.prod(equivs, axis=0).astype(int)
+        orthog = np.prod(equivs, axis=0).astype(float)
 
-        return res * orthog
+        if isinstance(orthog, np.ndarray):
+            sly = t[tuple(inds)]
+            # finds the appropriate indices of t to sample
+            uinds = np.unique(inds)
+            non_zero_orthog = np.where(orthog != 0)[0]
+            nz_sub = tuple(tuple(j[non_zero_orthog]) for i in uinds for j in x[i])
+            res = np.zeros(len(orthog))
+            non_zero_vals = sly[nz_sub]
+            res[non_zero_orthog] = non_zero_vals
+        elif orthog != 0.:
+            sly = t[tuple(inds)]
+            # finds the appropriate indices of t to sample
+            uinds = np.unique(inds)
+            # non_zero_orthog = np.where(orthog != 0)[0]
+            sub = tuple(tuple(j) for i in uinds for j in x[i])
+            res = sly[sub] * orthog
+        else:
+            res = np.zeros(len(x[0][0]))
+
+        return res
 
     def product_operator_tensor(self):
         """
