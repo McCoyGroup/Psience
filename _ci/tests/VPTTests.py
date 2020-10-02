@@ -62,7 +62,6 @@ class VPTTests(TestCase):
         pr.enable()
         exc = None
         res = None
-
         try:
             res = block()
         except Exception as e:
@@ -332,7 +331,7 @@ class VPTTests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
-    @validationTest
+    @debugTest
     def test_HOTVPTInternals(self):
 
         internals = [
@@ -347,17 +346,28 @@ class VPTTests(TestCase):
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
         n_quanta = 6
+        n_modes = 3
+        coupled_states = self.get_states(3, n_modes)
+        def block(self=self, internals=internals, states=states, coupled_states=coupled_states, n_quanta=n_quanta):
+            return self.get_VPT2_wfns(
+                "HOT_freq.fchk",
+                internals,
+                states,
+                n_quanta,
+                regenerate=True,
+                coupled_states=coupled_states
+            )
+        wfns = block()
+        exc, stat_block, wfns = self.profile_block(block)
 
-        wfns = self.get_VPT2_wfns(
-            "HOT_freq.fchk",
-            internals,
-            states,
-            n_quanta,
-            regenerate=False
-        )
+        if exc is not None:
+            try:
+                raise exc
+            except:
+                raise Exception(stat_block)
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
+        engs = h2w * wfns.energies
         # wfns = hammer.get_wavefunctions(states, coupled_states=None)
         energies = h2w * wfns.energies
         zero_ord = h2w * wfns.zero_order_energies
@@ -385,7 +395,7 @@ class VPTTests(TestCase):
             energies[1:] - energies[0]
         ])
 
-        print_diffs = False
+        print_diffs = True
         if print_diffs:
             print("Gaussian:\n",
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
@@ -411,66 +421,6 @@ class VPTTests(TestCase):
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
 
     @inactiveTest
-    def test_WaterVPT(self):
-
-        hammer = PerturbationTheoryHamiltonian.from_fchk(TestManager.test_data("HOD_freq.fchk"), n_quanta=5)
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        get_ind = hammer.get_state_indices
-        get_qn = hammer.get_state_quantum_numbers
-        np.set_printoptions(suppress=True)
-
-        # np.savetxt("/Users/Mark/Desktop/H0.txt", hammer.H0[:, :])
-        # np.savetxt("/Users/Mark/Desktop/H1.txt", hammer.H1[:, :])
-        # np.savetxt("/Users/Mark/Desktop/H2.txt", hammer.H2[:, :])
-        # coeffs, corrs = hammer.get_corrections([0, 1])
-
-        states = ((0, 0, 0), (0, 0, 1), (0, 1, 0), (1, 0, 0))
-        "100 300 010 210 120 030 201 001 111 021 102 012 003"
-        c_states = (
-            (0, 0, 0),
-            (0, 0, 1),
-            (0, 0, 3),
-            (0, 1, 0),
-            (0, 1, 2),
-            (0, 2, 1),
-            (0, 3, 0),
-            (1, 0, 2),
-            (1, 0, 0),
-            (1, 1, 1),
-            (1, 2, 0),
-            (2, 0, 1),
-            (2, 1, 0),
-            (3, 0, 0)
-            )
-        # print(hammer.H1[get_ind([c_states[0]]), get_ind([c_states[4]])])
-        # cf, cr = hammer.get_corrections(c_states[:2], coupled_states=c_states)
-        # print(h2w*cr[1])
-
-        # hammer.H1[get_ind([0, 1, 0]), get_ind([0, 4, 0])]
-
-        thresh = 300 / h2w
-        coeffs, corrs = hammer.get_corrections(states, coupled_states=None)
-        energies = h2w*sum(corrs)
-        corrs = [h2w*x for x in corrs]
-
-        print("State Energies:\n",
-              *(
-                  "{:<1.0f} {:<1.0f} {:<1.0f} {:>5.0f} {:>5.0f} {:>5.0f} {:>5.0f}\n".format(*x) for x in np.round(
-                  np.column_stack((states, corrs[0], energies, corrs[0] - corrs[0][0], (energies - energies[0])))
-              ))
-              )
-        print("Target:\n",
-              """
- 0 0 0  4053  3995     0     0
- 0 0 1     -     -  3874  3685
- 0 1 0     -     -  2810  2706
- 1 0 0     -     -  1422  1383
- """
-              )
-
-        # print(h2w*hammer.martin_test())
-
-    @debugTest
     def test_FormaldehydeVPT(self):
 
         internals = [
@@ -492,8 +442,7 @@ class VPTTests(TestCase):
                 regenerate=False,
                 coupled_states=coupled_states
             )
-
-        block()
+        # block()
         exc, stat_block, wfns = self.profile_block(block)
 
         if exc is None:

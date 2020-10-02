@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[      9463,        280]
+NotebookDataLength[      9465,        280]
 NotebookOptionsPosition[      8013,        254]
-NotebookOutlinePosition[      8422,        270]
-CellTagsIndexPosition[      8379,        267]
+NotebookOutlinePosition[      8424,        270]
+CellTagsIndexPosition[      8381,        267]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -253,7 +253,7 @@ Cell[BoxData[
 }, Open  ]]
 },
 WindowSize->{808, 755},
-WindowMargins->{{0, Automatic}, {0, Automatic}},
+WindowMargins->{{Automatic, 60}, {38, Automatic}},
 FrontEndVersion->"12.0 for Mac OS X x86 (64-bit) (April 8, 2019)",
 StyleDefinitions->FrontEnd`FileName[{"UWTools"}, "ExplorationStyle.nb", 
   CharacterEncoding -> "UTF-8"]

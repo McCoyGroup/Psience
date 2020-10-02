@@ -38,6 +38,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
             self.name,
             self.generator
         )
+
     @abc.abstractmethod
     def p(self, n):
         """
@@ -55,6 +56,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         :rtype:
         """
         raise NotImplemented
+
     @abc.abstractmethod
     def x(self, n):
         """
@@ -94,7 +96,6 @@ class SimpleProductBasis(RepresentationBasis):
     """
     def __init__(self, basis_type, n_quanta):
         """
-
         :param basis_type: the type of basis to do a product over
         :type basis_type: type
         :param n_quanta: the number of quanta for the representations
@@ -126,7 +127,6 @@ class SimpleProductBasis(RepresentationBasis):
         idx = np.asarray(idx, dtype=int)
         if idx.ndim == 1:
             idx = idx[np.newaxis]
-        # raise Exception(self.quanta)
         return tuple(np.ravel_multi_index(idx.T, self.quanta))
 
     def unravel_state_inds(self, idx):
@@ -162,10 +162,15 @@ class SimpleProductBasis(RepresentationBasis):
 
         funcs = [self.bases[0].operator_mapping[f] if isinstance(f, str) else f for f in terms]
         q = self.quanta
+        # determine the symmetries up front to make stuff faster
+        ids = [hash(f) for f in terms]
+        u = np.unique(ids)
+        mapping = {k:i for i,k in enumerate(ids)}
+        labels = [mapping[k] for k in ids]
         if coeffs is not None:
-            op = ContractedOperator(coeffs, funcs, q, axes=axes)
+            op = ContractedOperator(coeffs, funcs, q, axes=axes, symmetries=labels)
         else:
-            op = Operator(funcs, q)
+            op = Operator(funcs, q, symmetries=labels)
         return op
     def representation(self, *terms, coeffs=None, axes=None):
         """

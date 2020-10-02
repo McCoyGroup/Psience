@@ -157,7 +157,7 @@ class PerturbationTheoryHamiltonian:
         N = len(m)
         wat = h_reps[0][np.ix_(m, m)]
         H = [h[np.ix_(m, m)].reshape(N, N) for h in h_reps] #type: Iterable[np.ndarray]
-        raise Exception("profiling")
+        # raise Exception("profiling")
 
         all_energies = np.zeros((len(states), order + 1))
         all_overlaps = np.zeros((len(states), order + 1))
@@ -201,7 +201,11 @@ class PerturbationTheoryHamiltonian:
 
             # now we broadcast the corrections back up so that they're good for the _entire_ population of states...
             for wfn, cor in zip(wfns, corrs):
-                wfn[coupled_states] = cor
+                if isinstance(coupled_states[0], (int, np.integer)):
+                    cs = (coupled_states,)
+                else:
+                    cs = coupled_states
+                wfn[cs] = cor
 
         return PerturbationTheoryCorrections(
             states,

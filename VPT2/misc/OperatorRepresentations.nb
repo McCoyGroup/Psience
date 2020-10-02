@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[    117484,       3471]
-NotebookOptionsPosition[    107877,       3355]
-NotebookOutlinePosition[    108340,       3373]
-CellTagsIndexPosition[    108297,       3370]
+NotebookDataLength[    120910,       3564]
+NotebookOptionsPosition[    110613,       3440]
+NotebookOutlinePosition[    111080,       3458]
+CellTagsIndexPosition[    111037,       3455]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -3350,11 +3350,96 @@ actually need to consider.\
   3.7939171901890087`*^9}},ExpressionUUID->"65bf22e8-15a3-4a00-a56d-\
 03f93d31e1d1"]
 }, Open  ]]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Operator Tensor Symmetries", "Subsection",
+ CellChangeTimes->{{3.810594254909824*^9, 
+  3.8105942622499657`*^9}},ExpressionUUID->"c1dad856-2212-48c8-8cf2-\
+ba167be3c084"],
+
+Cell[TextData[{
+ "When we build our representations, one key thing we can take advantage of \
+is the symmetry of the problem. In particular, for ",
+ StyleBox["unshared",
+  FontSlant->"Italic"],
+ " indices, we should be able to symmetrize at will, so"
+}], "ExpositoryText",
+ CellChangeTimes->{{3.8105942636997643`*^9, 3.810594333635433*^9}, {
+  3.810594538872313*^9, 3.810594572687889*^9}, {3.810594623852317*^9, 
+  3.8105946242114058`*^9}},ExpressionUUID->"fabe9f15-d054-4f6d-9a10-\
+4483c6bd0cab"],
+
+Cell[BoxData[
+ FormBox[GridBox[{
+    {
+     RowBox[{
+      RowBox[{
+       SubscriptBox["p", "i"], 
+       SubscriptBox["Q", "j"], 
+       SubscriptBox["p", "k"]}], "=", 
+      RowBox[{
+       RowBox[{
+        SubscriptBox["p", "i"], 
+        SubscriptBox["p", "k"], 
+        SubscriptBox["Q", "j"]}], "=", 
+       RowBox[{
+        SubscriptBox["p", "k"], 
+        SubscriptBox["p", "i"], 
+        SubscriptBox["Q", "j"]}]}]}]},
+    {
+     RowBox[{
+      RowBox[{
+       SubscriptBox["p", "i"], 
+       SubscriptBox["Q", "j"], 
+       SubscriptBox["p", "i"]}], "=", 
+      RowBox[{
+       SubscriptBox["p", "i"], 
+       SubscriptBox["p", "i"], 
+       SubscriptBox["Q", "j"]}]}]}
+   }], TraditionalForm]], "ExpositoryMathCentered",
+ CellChangeTimes->{{3.810594334839978*^9, 3.8105943456272573`*^9}, {
+  3.810594512600377*^9, 3.810594526280569*^9}, {3.810594594359313*^9, 
+  3.8105946423050547`*^9}, {3.810594686524005*^9, 
+  3.810594731183895*^9}},ExpressionUUID->"2f7d8173-d821-4d43-9546-\
+6c888db465cb"],
+
+Cell["\<\
+but when indices are shared we lose that flexibility, as we note that \
+\>", "ExpositoryText",
+ CellChangeTimes->{{3.810594613734785*^9, 3.81059468142476*^9}, {
+   3.8105947666246567`*^9, 3.810594797666497*^9}, 
+   3.810594836168117*^9},ExpressionUUID->"41417bf4-24d9-477f-a8a1-\
+74bf954beb26"],
+
+Cell[BoxData[
+ FormBox[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["p", "i"], 
+    SubscriptBox["Q", "i"], 
+    SubscriptBox["p", "j"]}], "\[NotEqual]", 
+   RowBox[{
+    SubscriptBox["Q", "i"], 
+    SubscriptBox["p", "i"], 
+    SubscriptBox["p", "j"]}]}], TraditionalForm]], "ExpositoryMathCentered",
+ CellChangeTimes->{{3.810594807879183*^9, 3.810594829672619*^9}, {
+  3.8105948675822*^9, 
+  3.8105948685372133`*^9}},ExpressionUUID->"00e4022c-ed06-4d33-8e1d-\
+d05fde734e9c"],
+
+Cell["\<\
+this is effectively due to the lack of commutativity of these terms\
+\>", "ExpositoryText",
+ CellChangeTimes->{{3.810594877437604*^9, 
+  3.8105949053651323`*^9}},ExpressionUUID->"9a2060c6-25d0-45c0-9750-\
+d25731049b27"]
 }, Open  ]]
 }, Open  ]]
 },
 WindowSize->{808, 755},
-WindowMargins->{{Automatic, 0}, {0, Automatic}},
+WindowMargins->{{Automatic, 227}, {-13, Automatic}},
 PrintingCopies->1,
 PrintingPageRange->{1, Automatic},
 FrontEndVersion->"12.0 for Mac OS X x86 (64-bit) (April 8, 2019)",
@@ -3437,7 +3522,7 @@ Cell[34981, 1103, 525, 13, 62, "Text",ExpressionUUID->"cfb622d4-686c-4d81-b062-2
 Cell[CellGroupData[{
 Cell[35531, 1120, 219, 4, 48, "Subsubsection",ExpressionUUID->"604470a0-9619-4826-95bd-0664e51e281a"],
 Cell[35753, 1126, 1027, 25, 93, "Text",ExpressionUUID->"5179474e-5e28-4f00-8b83-6db4772f41d2"],
-Cell[36783, 1153, 851, 27, 56, InheritFromParent,ExpressionUUID->"a41aa32c-12e5-46d2-bddf-20181628c2b2"],
+Cell[36783, 1153, 851, 27, 56, "ExpositoryMathCentered",ExpressionUUID->"a41aa32c-12e5-46d2-bddf-20181628c2b2"],
 Cell[37637, 1182, 722, 19, 64, "Text",ExpressionUUID->"a3456a3b-57d7-493e-bc02-63f3427b867e"],
 Cell[38362, 1203, 423, 8, 62, "Text",ExpressionUUID->"3bd9e644-6ec4-4601-bd06-cb01e07127a5"],
 Cell[38788, 1213, 595, 14, 37, "Text",ExpressionUUID->"7370a402-023b-4e39-be67-01c6ed3f3182"],
@@ -3471,6 +3556,14 @@ Cell[101834, 3168, 148, 3, 37, "Text",ExpressionUUID->"5b599489-c955-4c87-8bf5-c
 Cell[101985, 3173, 5440, 167, 422, "ExpositoryMathCentered",ExpressionUUID->"254a2ed5-b3de-484a-ada8-943b05b0502e"],
 Cell[107428, 3342, 409, 8, 87, "Text",ExpressionUUID->"65bf22e8-15a3-4a00-a56d-03f93d31e1d1"]
 }, Open  ]]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[107886, 3356, 176, 3, 57, "Subsection",ExpressionUUID->"c1dad856-2212-48c8-8cf2-ba167be3c084"],
+Cell[108065, 3361, 497, 10, 62, "ExpositoryText",ExpressionUUID->"fabe9f15-d054-4f6d-9a10-4483c6bd0cab"],
+Cell[108565, 3373, 1006, 32, 52, "ExpositoryMathCentered",ExpressionUUID->"2f7d8173-d821-4d43-9546-6c888db465cb"],
+Cell[109574, 3407, 304, 6, 37, "ExpositoryText",ExpressionUUID->"41417bf4-24d9-477f-a8a1-74bf954beb26"],
+Cell[109881, 3415, 472, 14, 34, "ExpositoryMathCentered",ExpressionUUID->"00e4022c-ed06-4d33-8e1d-d05fde734e9c"],
+Cell[110356, 3431, 229, 5, 37, "ExpositoryText",ExpressionUUID->"9a2060c6-25d0-45c0-9750-d25731049b27"]
 }, Open  ]]
 }, Open  ]]
 }
