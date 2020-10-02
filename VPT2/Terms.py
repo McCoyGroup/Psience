@@ -147,7 +147,7 @@ class ExpansionTerms:
 
     @staticmethod
     def _tripmass(masses):
-        return np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).T.flatten()
+        return np.broadcast_to(masses[np.newaxis, :], (3, len(masses))).T.flatten()
 
     def get_terms(self):
         raise NotImplemented

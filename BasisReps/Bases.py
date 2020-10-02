@@ -164,7 +164,6 @@ class SimpleProductBasis(RepresentationBasis):
         q = self.quanta
         # determine the symmetries up front to make stuff faster
         ids = [hash(f) for f in terms]
-        u = np.unique(ids)
         mapping = {k:i for i,k in enumerate(ids)}
         labels = [mapping[k] for k in ids]
         if coeffs is not None:

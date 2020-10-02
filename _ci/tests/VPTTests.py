@@ -155,7 +155,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 35)
 
-    @validationTest
+    @debugTest
     def test_HODVPTInternals(self):
 
         internals = [
@@ -175,7 +175,7 @@ class VPTTests(TestCase):
             internals,
             states,
             n_quanta,
-            regenerate=False
+            regenerate=True
         )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -207,7 +207,7 @@ class VPTTests(TestCase):
             energies[1:] - energies[0]
         ])
 
-        print_diffs=False
+        print_diffs=True
         if print_diffs:
             print("Gaussian:\n",
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
@@ -331,7 +331,7 @@ class VPTTests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
-    @debugTest
+    @validationTest
     def test_HOTVPTInternals(self):
 
         internals = [
@@ -347,7 +347,7 @@ class VPTTests(TestCase):
         )
         n_quanta = 6
         n_modes = 3
-        coupled_states = self.get_states(2, n_modes)
+        coupled_states = self.get_states(5, n_modes)
         def block(self=self, internals=internals, states=states, coupled_states=coupled_states, n_quanta=n_quanta):
             return self.get_VPT2_wfns(
                 "HOT_freq.fchk",
@@ -357,7 +357,7 @@ class VPTTests(TestCase):
                 regenerate=True,
                 coupled_states=coupled_states
             )
-        wfns = block()
+        # wfns = block()
         exc, stat_block, wfns = self.profile_block(block)
 
         if exc is not None:

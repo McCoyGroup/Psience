@@ -80,7 +80,7 @@ class PerturbationTheoryHamiltonian:
         if self._h0 is None:
             self._h0 = (
                 -1/2 * self.basis.representation('p', 'p', coeffs=self.G_terms[0])
-                + 1/2 * self.basis.representation('x', 'x', coeffs=self.V_terms[0])
+                 + 1/2 * self.basis.representation('x', 'x', coeffs=self.V_terms[0])
             )
 
         return self._h0
@@ -156,8 +156,10 @@ class PerturbationTheoryHamiltonian:
         # get explicit matrix reps inside the coupled subspace
         N = len(m)
         # import McUtils.Plots as plt
-        wat = h_reps[0][np.ix_(m, m)]
+        # wat = h_reps[1][np.ix_(m, m)]
+        # plt.ArrayPlot(self.G_terms[0])
         # plt.ArrayPlot(wat).show()
+        # raise Exception("...wat")
         H = [h[np.ix_(m, m)].reshape(N, N) for h in h_reps] #type: Iterable[np.ndarray]
         # raise Exception("profiling")
 
