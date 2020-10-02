@@ -190,61 +190,6 @@ class Operator:
             if symm_key in symm_cache:
                 return symm_cache[symm_key]
 
-            # we group the indices by their symmetry partners
-            # then sort each group
-            # and check if the sorted version of this has already been computed
-            # if dims not in f_cache:
-
-            # inds = np.asarray(inds, dtype=int)
-            # ind_groups = [inds[g] for g in symm_groups]
-            # orders = [np.argsort(i) for i in ind_groups]
-            # symm_sort_key = tuple(tuple(i[o]) for i,o in zip(ind_groups, orders)) # this is our sorting key
-            # if symm_sort_key in symm_cache:
-                # we pull out the cached version & then transpose it as needed
-                # here's an example of the kind of transposition we'd need to do:
-                #   we'll start by assuming everything's totally symmetric
-                #   now let's say we've already calculated (1, 3, 2, 6) want (3, 6, 2, 1)
-                #   since this is symmetric we need to find the permutation that takes (1, 3, 2, 6) to (3, 6, 2, 1)
-                #   to do that we use the strategy
-                #       og = (1, 3, 2, 6)
-                #       targ = (3, 6, 2, 1)
-                #       sorting = np.argsort(og)
-                #       transp = sorting[np.searchsorted(og, targ, sorter=sorting)]
-                #   and then og[transp] will give you targ
-                #   unfortunately, we often have operators like pQQp where the symmetry groups are ([0, 3], [1, 2])
-                #   in that case if we'd already calculated (1, 3, 2, 6), (3, 6, 2, 1) wouldn't actually be an
-                #   equivalent tensor
-                #   instead, though, we could have something like (6, 2, 3, 1) and to get at that we'd compute
-                #   each tensor separately like
-                #       og1 = (1, 6)
-                #       targ1 = (6, 1)
-                #       sort1 = np.argsort(og1)
-                #       transp1 = sorting[np.searchsorted(og1, targ1, sorter=sort1)]
-                #       og2 = (3, 2)
-                #       targ2 = (2, 3)
-                #       sort2 = np.argsort(og2)
-                #       transp2 = sorting[np.searchsorted(og2, targ2, sorter=sort2)]
-                #   and then we'll stitch those together by noting that we've already calculated the sorting pairs
-                #   giving us stuff like (0, 3) (1, 2) and then by doing
-                #       rev_sort = np.argsort(0, 3, 1, 2)
-                #       transp = np.concatenate([transp1, transp2])[rev_sort]
-                #   we're able to get the total transposition we want
-                # cached_inds, mat, trans, subshape = symm_cache[symm_sort_key]
-                # inv_transp = [None]*len(ind_groups)
-                # for i in range(len(ind_groups)):
-                #     og = ind_groups[i]
-                #     targ = cached_inds[i]
-                #     sorting = np.argsort(og)
-                #     transp = sorting[np.searchsorted(og, targ, sorter=sorting)]
-                #     inv_transp[i] = transp
-                # inv_sort = np.argsort(np.array(symm_groups).flatten())
-                # inv_transp = np.array(inv_transp, dtype=int).flatten()[inv_sort]
-
-                # try:
-                #     mat.transpose(inv_transp)
-                # except:
-                #     raise Exception(inds, funcs, mat.shape, inv_transp, trans, subshape)
-
         # we figure out how many unique indices we have so that we can figure out our object dimension
         uinds = np.unique(inds)
         mm = {k:i for i, k in enumerate(uinds)}
@@ -264,20 +209,12 @@ class Operator:
             sub_shape = tuple(dims[i] + padding for i in np.unique(inds) for j in range(2))
             trans = tuple(j for i in zip(range(ndim), range(ndim, 2* ndim)) for j in i)
             mat = SparseArray(mat, shape=sub_shape).transpose(trans)
-            # if symm_key in symm_cache:
-            #     a, m2, b, c, d = symm_cache[symm_key]
-            #     # if len(a[0]) == 1:
-            #     #     raise Exception(m2.shape)
-            #     #     m2 = m2.transpose((2, 1, 0))
-            #     print(inds, d, np.max(np.abs(mat.block_vals - m2.block_vals)))
             if self.symmetry_inds is not None:
-                # inds = np.array(inds, dtype=int)
-                symm_cache[symm_key] = mat#(ind_groups, mat, trans, sub_shape, inds)
+                symm_cache[symm_key] = mat
         else:
             mat = pieces
 
         return mat
-
 
 class ContractedOperator(Operator):
     """

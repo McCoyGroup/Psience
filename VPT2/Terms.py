@@ -136,11 +136,21 @@ class ExpansionTerms:
         self.modes = self.undimensionalize(self.masses, molecule.normal_modes.basis)
         self.freqs = self.modes.freqs
 
+    # def undimensionalize(self, masses, modes):
+    #     L = modes.matrix.T
+    #     freqs = modes.freqs
+    #     freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
+    #     L = L * freq_conv
+    #     Linv = (L / freq_conv**2)
+    #     modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
+    #     return modes
+
     def undimensionalize(self, masses, modes):
         L = modes.matrix.T
         freqs = modes.freqs
         freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
-        L = L * freq_conv
+        mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
+        L = L * freq_conv * mass_conv
         Linv = (L / freq_conv**2)
         modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
         return modes
@@ -389,16 +399,6 @@ class ExpansionTerms:
 
         return V_Q, V_QQ, V_QQQ, V_QQQQ
 
-    def undimensionalize(self, masses, modes):
-        L = modes.matrix.T
-        freqs = modes.freqs
-        freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
-        mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
-        L = L * freq_conv * mass_conv
-        Linv = (L / freq_conv**2)
-        modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
-        return modes
-
 class PotentialTerms(ExpansionTerms):
     def __init__(self, molecule, mixed_derivs=True, non_degenerate=False):
         super().__init__(molecule)
@@ -501,7 +501,8 @@ class PotentialTerms(ExpansionTerms):
             # We need to compute all these terms then mass weight them
 
             #TODO: I'd like to have support for using more/fewer derivs, just in case
-            # for speed reasons we've introduced class-level caching of these terms
+            
+            #For speed reasons we've introduced class-level caching of these terms
             XR, XRR, XRRR = self.get_int_jacobs([1, 2, 3])
             XRRRR = 0
 
@@ -612,6 +613,83 @@ class KineticTerms(ExpansionTerms):
             # next we need to mass-weight
             masses = self.masses
             mass_conv = np.sqrt(self._tripmass(masses)) #np.sqrt(np.broadcast_to(masses[np.newaxis, :], (3, len(masses))).flatten())
+            RY = RX / mass_conv[:, np.newaxis]
+            RYY = RXX / (mass_conv[:, np.newaxis, np.newaxis] * mass_conv[np.newaxis, :, np.newaxis])
+            RYYY = RXXX / (
+                    mass_conv[:, np.newaxis, np.newaxis,   np.newaxis]
+                    * mass_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                    * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
+            )
+            YR = XR * mass_conv[np.newaxis]
+            YRR = XRR * mass_conv[np.newaxis, np.newaxis]
+
+            QY = self.modes.matrix  # derivatives of Q with respect to the mass-weighted Cartesians
+            YQ = self.modes.inverse
+            QR = dot(YR, QY)
+            RQ = dot(YQ, RY)
+
+            G = dot(QY, QY, axes=[[0, 0]])
+
+            J = DumbTensor(QY)
+            Jd = DumbTensor(YQ)
+            K = DumbTensor(dot(RYY, YR, QY))
+            U = K.dot(J, axes=[[0, 0]])
+
+            GQ = Jd@(U + U[2:1])
+            GQ = GQ.t
+
+            L = DumbTensor(dot(RYYY, YR, QY))
+            H = DumbTensor(dot(RQ, dot(RQ, YRR, axes=[[1, 0]]), axes=[[1, 1]]))
+            K22 = K.dot(K, axes=[[1, 1]])
+            V = L[3:2]@J + K22[2:0]
+
+            GQQ = (H@(U + U[2:1])).t + (Jd@(Jd@(V+V[3:2]))[0:1]).t
+
+        G_terms = (G, GQ, GQQ)
+        return G_terms
+
+
+class KineticTerms(ExpansionTerms):
+    """Represents the KE coefficients"""
+
+    def get_terms(self):
+
+        dot = DumbTensor._dot
+        shift = DumbTensor._shift
+        intcds = self.internal_coordinates
+        if intcds is None:
+            # this is nice because it eliminates a lot of terms in the expansion
+            J = self.modes.matrix
+            G = dot(J, J, axes=[[1, 1]])
+            GQ = 0
+            GQQ = 0
+        else:
+            ccoords = self.coords
+            carts = ccoords.system
+            internals = intcds.system
+
+            # First we take derivatives of internals with respect to Cartesians
+            RX, RXX, RXXX= ccoords.jacobian(internals, [1, 2, 3])
+            # FD tracks too much shape
+
+            _contract_dim = DumbTensor._contract_dim
+            if RX.ndim > 2:
+                RX = _contract_dim(RX, 2)
+            if RXX.ndim > 3:
+                RXX = _contract_dim(RXX, 3)
+            if RXXX.ndim > 4:
+                RXXX = _contract_dim(RXXX, 4)
+
+            # Now we take derivatives of Cartesians with respect to internals
+            XR, XRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2])]
+            if XR.ndim > 2:
+                XR = _contract_dim(XR, 2)
+            if XRR.ndim > 3:
+                XRR = _contract_dim(XRR, 3)
+
+            # next we need to mass-weight
+            masses = self.masses
+            mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
             RY = RX / mass_conv[:, np.newaxis]
             RYY = RXX / (mass_conv[:, np.newaxis, np.newaxis] * mass_conv[np.newaxis, :, np.newaxis])
             RYYY = RXXX / (
