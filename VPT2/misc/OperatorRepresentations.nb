@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[    120910,       3564]
-NotebookOptionsPosition[    110613,       3440]
-NotebookOutlinePosition[    111080,       3458]
-CellTagsIndexPosition[    111037,       3455]
+NotebookDataLength[    122097,       3597]
+NotebookOptionsPosition[    111589,       3471]
+NotebookOutlinePosition[    112056,       3489]
+CellTagsIndexPosition[    112013,       3486]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -3434,7 +3434,38 @@ this is effectively due to the lack of commutativity of these terms\
 \>", "ExpositoryText",
  CellChangeTimes->{{3.810594877437604*^9, 
   3.8105949053651323`*^9}},ExpressionUUID->"9a2060c6-25d0-45c0-9750-\
-d25731049b27"]
+d25731049b27"],
+
+Cell[TextData[{
+ "This means that when we are determining if two terms are equivalent we need \
+to ask ourselves one main thing: ",
+ StyleBox["have we transposed our terms?",
+  FontSlant->"Italic"]
+}], "ExpositoryText",
+ CellChangeTimes->{{3.810595233602614*^9, 
+  3.81059532345457*^9}},ExpressionUUID->"a511eb2a-4a0c-4471-8100-\
+56aac649cb05"],
+
+Cell[TextData[{
+ "The issue is that this can be tough to figure out. Algorithmically we need \
+to first know which of our terms can be treated as equivalent (e.g. ",
+ StyleBox["Q",
+  FontSlant->"Italic"],
+ " and ",
+ StyleBox["Q",
+  FontSlant->"Italic"],
+ ", but not ",
+ StyleBox["Q",
+  FontSlant->"Italic"],
+ " and ",
+ StyleBox["p",
+  FontSlant->"Italic"],
+ "). Then we check to see if any of our terms have been swapped around."
+}], "ExpositoryText",
+ CellChangeTimes->{{3.810595331830245*^9, 3.810595428700905*^9}, {
+  3.810640140571856*^9, 
+  3.810640170378456*^9}},ExpressionUUID->"db8095c1-37f9-4b30-86ff-\
+751d1c1e2d10"]
 }, Open  ]]
 }, Open  ]]
 },
@@ -3563,7 +3594,9 @@ Cell[108065, 3361, 497, 10, 62, "ExpositoryText",ExpressionUUID->"fabe9f15-d054-
 Cell[108565, 3373, 1006, 32, 52, "ExpositoryMathCentered",ExpressionUUID->"2f7d8173-d821-4d43-9546-6c888db465cb"],
 Cell[109574, 3407, 304, 6, 37, "ExpositoryText",ExpressionUUID->"41417bf4-24d9-477f-a8a1-74bf954beb26"],
 Cell[109881, 3415, 472, 14, 34, "ExpositoryMathCentered",ExpressionUUID->"00e4022c-ed06-4d33-8e1d-d05fde734e9c"],
-Cell[110356, 3431, 229, 5, 37, "ExpositoryText",ExpressionUUID->"9a2060c6-25d0-45c0-9750-d25731049b27"]
+Cell[110356, 3431, 229, 5, 37, "ExpositoryText",ExpressionUUID->"9a2060c6-25d0-45c0-9750-d25731049b27"],
+Cell[110588, 3438, 344, 8, 62, "ExpositoryText",ExpressionUUID->"a511eb2a-4a0c-4471-8100-56aac649cb05"],
+Cell[110935, 3448, 626, 19, 87, "ExpositoryText",ExpressionUUID->"db8095c1-37f9-4b30-86ff-751d1c1e2d10"]
 }, Open  ]]
 }, Open  ]]
 }

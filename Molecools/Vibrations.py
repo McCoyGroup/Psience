@@ -113,6 +113,34 @@ class MolecularVibrations:
             anim_opts = {}
         return Animator(figure, None, plot_method = animate, **anim_opts)
 
+    def __getitem__(self, item):
+        """
+        Takes a slice of the modes
+
+        :param item:
+        :type item:
+        :return:
+        :rtype:
+        """
+        m = self._basis[item]
+        if self.freqs is not None:
+            f = self.freqs[m]
+        else:
+            f = None
+        if isinstance(m, MolecularNormalModes):
+            return type(self)(
+                self._mol,
+                m,
+                freqs=f,
+                init=self._coords
+            )
+        else:
+            raise ValueError("{}: can't take element {} from {}".format(
+                type(self).__name__,
+                item,
+                self
+            ))
+
 class MolecularNormalModes(CoordinateSystem):
     """
     A Coordinerds CoordinateSystem object that manages all of the data needed to
@@ -293,3 +321,23 @@ class MolecularNormalModes(CoordinateSystem):
         modes = modes[:, sorting]
 
         return cls(molecule, modes, freqs = freqs, **opts)
+
+    def __getitem__(self, item):
+
+        sub_modes = self.matrix[:, item].squeeze()
+        inv = self._inv
+        if inv is not None:
+            i0 = inv
+            inv = inv[item, :].squeeze()
+            # raise Exception([sub_modes.shape, inv.shape, i0.shape])
+        freq = self.freqs[item]
+        return type(self)(
+            self.molecule,
+            sub_modes,
+            name=self.name,
+            freqs=freq,
+            internal=self.in_internals,
+            origin=self.origin,
+            basis=self.basis,
+            inverse=inv
+        )

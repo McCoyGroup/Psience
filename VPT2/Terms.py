@@ -127,23 +127,19 @@ class ExpansionTerms:
     Base class for kinetic, potential, and dipole derivative terms
     """
     _cached_jacobians = {}
-    def __init__(self, molecule):
+    def __init__(self, molecule, modes=None, mode_selection=None):
         self._terms = None
         self.molecule = molecule
         self.internal_coordinates = molecule.internal_coordinates
         self.coords = molecule.coords
         self.masses = molecule.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-        self.modes = self.undimensionalize(self.masses, molecule.normal_modes.basis)
+        if modes is not None:
+            modes = self.undimensionalize(self.masses, molecule.normal_modes.basis)
+        if mode_selection is not None:
+            modes = modes[(mode_selection,)]
+        self.modes = modes
+        self.mode_sel = mode_selection
         self.freqs = self.modes.freqs
-
-    # def undimensionalize(self, masses, modes):
-    #     L = modes.matrix.T
-    #     freqs = modes.freqs
-    #     freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
-    #     L = L * freq_conv
-    #     Linv = (L / freq_conv**2)
-    #     modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
-    #     return modes
 
     def undimensionalize(self, masses, modes):
         L = modes.matrix.T
@@ -380,13 +376,13 @@ class ExpansionTerms:
                 V_QQQQ_4 = V_QQQQ_4.transpose(unroll)
             X = tuple(range(4, V_QQQQ_4.ndim))
             # if mixed_XQ:
-                # we need to zero out the elements we don't really have because Gaussian is mean
-                # import itertools
-                # nQ = V_QQQQ_4.shape[0]
-                # if nQ > 3:
-                #     perms = np.array(list(itertools.permutations(range(nQ), 4))).T
-                #     # print(V_QQQQ_4.shape[0], perms)
-                #     V_QQQQ_4[perms] = 0.
+            #     # we need to zero out the elements we don't really have because Gaussian is mean
+            #     import itertools
+            #     nQ = V_QQQQ_4.shape[0]
+            #     if nQ > 3:
+            #         perms = np.array(list(itertools.permutations(range(nQ), 4))).T
+            #         # print(V_QQQQ_4.shape[0], perms)
+            #         V_QQQQ_4[perms] = 0.
         else:
             V_QQQQ_4 = 0
 
@@ -400,10 +396,27 @@ class ExpansionTerms:
         return V_Q, V_QQ, V_QQQ, V_QQQQ
 
 class PotentialTerms(ExpansionTerms):
-    def __init__(self, molecule, mixed_derivs=True, non_degenerate=False):
-        super().__init__(molecule)
+    """
+    A helper class that can transform the derivatives of the potential from Cartesian to normal coordinates
+    """
+    def __init__(self,
+                 molecule,
+                 mixed_derivs=True,
+                 modes=None,
+                 mode_selection=None
+                 ):
+        """
+        :param molecule: the molecule that will supply the potential derivatives
+        :type molecule: Molecule
+        :param mixed_derivs: whether or not the pulled derivatives are partially derivatives along the normal coords
+        :type mixed_derivs: bool
+        :param modes: the normal modes to use when doing calculations
+        :type modes: None | MolecularNormalModes
+        :param mode_selection: the subset of normal modes to use
+        :type mode_selection: None | Iterable[int]
+        """
+        super().__init__(molecule, modes, mode_selection)
         self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.potential_derivatives)
-        self.non_degenerate=non_degenerate
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
@@ -417,13 +430,14 @@ class PotentialTerms(ExpansionTerms):
             grad, fcs, thirds, fourths = derivs
 
         n = len(masses)
-        modes_matrix = self.modes.inverse
-        modes_n = len(modes_matrix)
-        if modes_n == 3*n:
-            modes_n = modes_n - 6
-            modes_matrix = modes_matrix[6:]
-            freqs = freqs[6:]
-        coord_n = modes_n + 6
+        # modes_matrix = self.modes.inverse
+        # modes_n = len(modes_matrix)
+        modes_n = 3*n - 6
+        # if modes_n == 3*n:
+        #     modes_n = modes_n - 6
+        #     modes_matrix = modes_matrix[6:]
+        #     freqs = freqs[6:]
+        coord_n = 3*n
         if grad.shape != (coord_n,):
             raise PerturbationTheoryException(
                 "{0}.{1}: length of gradient array ({2[0]}) is not {3[0]}".format(
@@ -470,12 +484,18 @@ class PotentialTerms(ExpansionTerms):
         undimension_2 = np.outer(m_conv, m_conv)
         fcs = fcs / undimension_2
 
+        if self.mode_sel is not None:
+            thirds = thirds[(self.mode_sel,)]
         undimension_3 = np.outer(m_conv, m_conv)[np.newaxis, :, :] * f_conv[:, np.newaxis, np.newaxis]
         thirds = thirds * (1 / undimension_3 / np.sqrt(amu_conv))
 
         wat = np.outer(m_conv, m_conv)[np.newaxis, :, :] * (f_conv ** 2)[:, np.newaxis, np.newaxis]
         undimension_4 = SparseArray.from_diag(1 / wat / amu_conv)
-        fourths = fourths
+        if self.mode_sel is not None:
+            if not isinstance(self.mode_sel, slice):
+                fourths = fourths[np.ix_(self.mode_sel, self.mode_sel)]
+            else:
+                fourths = fourths[self.mode_sel, self.mode_sel]
         fourths = fourths * undimension_4
 
         return grad, fcs, thirds, fourths
@@ -488,7 +508,7 @@ class PotentialTerms(ExpansionTerms):
 
         # Use the Molecule's coordinates which know about their embedding by default
         intcds = self.internal_coordinates
-        if intcds is None:# or not self.non_degenerate:
+        if intcds is None:
             # this is nice because it eliminates most of terms in the expansion
             xQ = self.modes.inverse
             xQQ = 0
@@ -640,10 +660,24 @@ class KineticTerms(ExpansionTerms):
         return G_terms
 
 class DipoleTerms(ExpansionTerms):
-    def __init__(self, molecule, mixed_derivs=True, non_degenerate=False):
-        super().__init__(molecule)
+    def __init__(self,
+                 molecule,
+                 mixed_derivs=True,
+                 modes=None,
+                 mode_selection=None
+                 ):
+        """
+        :param molecule: the molecule that will supply the dipole derivatives
+        :type molecule: Molecule
+        :param mixed_derivs: whether or not the pulled derivatives are partially derivatives along the normal coords
+        :type mixed_derivs: bool
+        :param modes: the normal modes to use when doing calculations
+        :type modes: None | MolecularNormalModes
+        :param mode_selection: the subset of normal modes to use
+        :type mode_selection: None | Iterable[int]
+        """
+        super().__init__(molecule, modes=modes, mode_selection=mode_selection)
         self.derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.dipole_derivatives)
-        self.non_degenerate=non_degenerate
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
 
     def _canonicalize_derivs(self, freqs, masses, derivs):

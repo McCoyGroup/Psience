@@ -32,12 +32,17 @@ class VPTTests(TestCase):
         )
 
     wfn_file_dir = os.path.expanduser("~/Desktop/")
-    def get_VPT2_wfns(self, fchk, internals, states, n_quanta, regenerate=False, coupled_states=None):
+    def get_VPT2_wfns(self, fchk, internals, states, n_quanta,
+                      regenerate=False,
+                      coupled_states=None,
+                      mode_selection=None
+                      ):
 
         hammer = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data(fchk),
             n_quanta=n_quanta,
-            internals=internals
+            internals=internals,
+            mode_selection=mode_selection
         )
 
         wfn_file = os.path.join(self.wfn_file_dir, fchk.replace("fchk", "npz"))
@@ -48,11 +53,13 @@ class VPTTests(TestCase):
             wfns = self.load_wfns(hammer.molecule, hammer.basis, wfn_file)
 
         return wfns
-    def get_states(self, n_quanta, n_modes):
+    def get_states(self, n_quanta, n_modes, max_quanta = None):
         import itertools as ip
 
+        if max_quanta is None:
+            max_quanta = n_quanta
         return tuple(sorted(
-            [p for p in ip.product(*(range(n_quanta+1) for i in range(n_modes))) if sum(p) <= n_quanta],
+            [p for p in ip.product(*(range(n_quanta+1) for i in range(n_modes))) if all(x<=max_quanta for x in p) and sum(p) <= n_quanta],
             key=lambda p: sum(p) + sum(1 for v in p if v != 0) * n_quanta ** (-1) + sum(
                 v * n_quanta ** (-i - 2) for i, v in enumerate(p))
         ))
@@ -331,7 +338,7 @@ class VPTTests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
-    @debugTest
+    @validationTest
     def test_HOTVPTInternals(self):
 
         internals = [
@@ -424,7 +431,7 @@ class VPTTests(TestCase):
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
 
     @debugTest
-    def test_FormaldehydeVPT(self):
+    def test_OCHDVPT(self):
 
         internals = [
             [0, -1, -1, -1],
@@ -432,23 +439,33 @@ class VPTTests(TestCase):
             [2,  1,  0, -1],
             [3,  1,  0,  2]
         ]
+
         n_modes = 3*4 - 6
-        n_quanta = 6
-        states = self.get_states(2, n_modes)
-        coupled_states = self.get_states(3, n_modes)
-        def block(self=self, internals=internals, states=states, coupled_states=coupled_states, n_quanta=n_quanta):
+        mode_selection = None#[5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        n_quanta = 10
+        max_quanta = 2
+        states = self.get_states(1, n_modes, max_quanta = max_quanta)
+        coupled_states = self.get_states(4, n_modes, max_quanta = max_quanta)
+        # raise Exception(len(coupled_states))
+        def block(self=self,
+                  internals=internals, states=states, coupled_states=coupled_states,
+                  n_quanta=n_quanta, mode_selection=mode_selection
+                  ):
             return self.get_VPT2_wfns(
                 "OCHD_freq.fchk",
                 internals,
                 states,
                 n_quanta,
                 regenerate=True,
-                coupled_states=coupled_states
+                coupled_states=coupled_states,
+                mode_selection=mode_selection
             )
         # block()
         exc, stat_block, wfns = self.profile_block(block)
 
-        do_profile = True
+        do_profile = False
         if exc is not None:
             try:
                 raise exc
@@ -459,4 +476,57 @@ class VPTTests(TestCase):
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         engs = h2w * wfns.energies
-        print(engs[1:] - engs[0])
+        freqs = engs[1:] - engs[0]
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freq = harm_engs[1:] - harm_engs[0]
+
+        gaussian_engs = [5235.163,  5171.570]
+        gaussian_freqs = [
+            [3022.814,  2882.176],
+            [2221.269,  2152.403],
+            [1701.548,  1673.390],
+            [1417.539,  1388.148],
+            [1076.474,  1058.333],
+            [1030.681,  1015.438]#,
+            # # 2 quanta
+            # [6045.629,  5575.288],
+            # [4442.539,  4202.869],
+            # [3403.095,  3327.422],
+            # [2835.077,  2744.644],
+            # [2152.948,  2099.618],
+            # [2061.362,  2021.740],
+            # # Mixed states
+            # [5244.084,  4990.315],
+            # [4724.362,  4529.678],
+            # [3922.817,  3809.252],
+            # [4440.353,  4193.115],
+            # [3638.808,  3518.364],
+            # [3119.086,  3060.929],
+            # [4099.288,  3897.526],
+            # [3297.743,  3182.643],
+            # [2778.022,  2725.877],
+            # [2494.013,  2448.298],
+            # [4053.495,  3866.732],
+            # [3251.950,  3146.020],
+            # [2732.229,  2682.011],
+            # [2448.220,  2403.213],
+            # [2107.155,  2075.382]
+        ]
+
+        print_report = True
+        if print_report:
+            if n_modes == 6:
+                print("Gaussian Energies:\n",
+                      ('0 ' * n_modes + "{:>13.3f} {:>13.3f} {:>13} {:>13}\n").format(*gaussian_engs, "-", "-"),
+                      *(
+                          ('{:<1.0f} ' * n_modes + "{:>13} {:>13} {:>13.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e in
+                            zip(states[1:], gaussian_freqs)
+                          )
+                      )
+            print("State Energies:\n",
+                  ('0 '*n_modes + "{:>13.3f} {:>13.3f} {:>13} {:>13}\n").format(harm_engs[0], engs[0], "-", "-"),
+                  *(
+                      ('{:<1.0f} '*n_modes + "{:>13} {:>13} {:>13.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for s, e1, e2 in
+                        zip(states[1:], harm_freq, freqs)
+                  )
+            )

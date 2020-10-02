@@ -31,33 +31,46 @@ class PerturbationTheoryHamiltonian:
     """
     Represents the main Hamiltonian used in the perturbation theory calculation.
     Uses a harmonic oscillator basis for representing H0, H1, and H2 (and only goes up to H2 for now)
-
-    :param molecule: The molecule we're doing the perturbation theory on
-    :type molecule: Molecule
-    :param n_quanta: The numbers of quanta of excitation to use for every mode
-    :type n_quanta: int | np.ndarray | Iterable[int]
     """
-    def __init__(self, molecule=None, n_quanta=3):
-
+    def __init__(self,
+                 molecule=None,
+                 n_quanta=3,
+                 modes=None,
+                 mode_selection=None
+                 ):
+        """
+        :param molecule: the molecule on which we're doing perturbation theory
+        :type molecule:  Molecule
+        :param n_quanta: the numbers of quanta to use when building representations
+        :type n_quanta: Iterable[int]
+        :param modes: the set of modes to use as the basis
+        :type modes: None | MolecularNormalModes
+        :param mode_selection: the subset of modes to use when doing expansions
+        :type mode_selection: None | Iterable[int]
+        """
         if molecule is None:
             raise PerturbationTheoryException("{} requires a Molecule to do its dirty-work")
         # molecule = molecule.get_embedded_molecule()
         self.molecule = molecule
-
-        modes = molecule.normal_modes
-        mode_n = modes.basis.matrix.shape[1]
+        if modes is None:
+            modes = molecule.normal_modes
+        mode_n = modes.basis.matrix.shape[1] if mode_selection is None else len(mode_selection)
         self.mode_n = mode_n
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
         self.modes = modes
 
-        self.V_terms = PotentialTerms(self.molecule)
-        self.G_terms = KineticTerms(self.molecule)
+        self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection)
+        self.G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection)
         self._h0 = self._h1 = self._h2 = None
 
         self.basis = SimpleProductBasis(HarmonicOscillatorBasis, self.n_quanta)
 
     @classmethod
-    def from_fchk(cls, file, internals=None, n_quanta=3):
+    def from_fchk(cls, file,
+                  internals=None,
+                  n_quanta=3,
+                  mode_selection=None
+                  ):
         """
         :param file: fchk file to load from
         :type file: str
@@ -70,7 +83,7 @@ class PerturbationTheoryHamiltonian:
         """
 
         molecule = Molecule.from_file(file, zmatrix=internals, mode='fchk')
-        return cls(molecule=molecule, n_quanta=n_quanta)
+        return cls(molecule=molecule, n_quanta=n_quanta, mode_selection=mode_selection)
 
     @property
     def H0(self):
@@ -160,6 +173,7 @@ class PerturbationTheoryHamiltonian:
         # plt.ArrayPlot(self.G_terms[0])
         # plt.ArrayPlot(wat).show()
         # raise Exception("...wat")
+
         H = [h[np.ix_(m, m)].reshape(N, N) for h in h_reps] #type: Iterable[np.ndarray]
         # raise Exception("profiling")
 

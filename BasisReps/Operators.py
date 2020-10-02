@@ -92,6 +92,38 @@ class Operator:
             return res
         res = np.apply_along_axis(pull, -1, inds)
         return res
+
+    def _pull_parallel(self,
+                          inds, tens, idx, quants,
+                          parallel_method = "multiprocessing"
+                          ):
+        """
+        Allows us to take the puller function and evaluate it in parallel.
+        The hope is that once we've got a more general `Parallelizer` architecture
+        up and running, we'll be able to distribute over more and more cores.
+        """
+        # adapted from https://stackoverflow.com/a/45555516/5720002
+
+        if parallel_method != "multiprocessing":
+            raise NotImplementedError("More parallelization methods are coming--just not yet")
+
+        # in the future this will be like Parallizer.num_cores
+        # and we can just have Parallelizer.apply_along_axis(func, ...)
+
+        import multiprocessing as mp
+        cores = mp.cpu_count()
+
+        chunks = [(self._take_subtensor, sub_arr, tens, idx, quants)
+                  for sub_arr in np.array_split(inds, cores)]
+
+        pool = mp.Pool()
+        individual_results = pool.starmap(self._pull_sequential, chunks)
+        pool.close()
+        pool.join()
+
+        return np.concatenate(individual_results)
+    def _pull_sequential(self, inds, tens, idx, quants):
+        return np.apply_along_axis(self._take_subtensor, -1, inds, tens, idx, quants)
     def get_elements(self, idx):
         if len(idx) != len(self.quanta):
             raise ValueError("number of indices requested must be the same as the number of quanta")
@@ -100,9 +132,10 @@ class Operator:
         tens = self.tensor
         quants = self.quanta
 
-        pull = lambda inds, t=tens,x=idx,qn=quants,f=self._take_subtensor: f(inds, t, x, qn)
-        res = np.apply_along_axis(pull, -1, inds)
+        res = self._pull_sequential(inds, tens, idx, quants)
+
         return SparseArray(res.squeeze())
+
     @staticmethod
     def _take_subtensor(inds, t, x, qn):
         """
@@ -132,6 +165,7 @@ class Operator:
             sub = tuple(tuple(j) for i in uinds for j in x[i])
             res = sly[sub] * orthog
         else:
+            # raise Exception(orthog)
             res = np.zeros(len(x[0][0]))
 
         return res
