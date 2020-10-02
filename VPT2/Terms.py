@@ -526,7 +526,7 @@ class PotentialTerms(ExpansionTerms):
 
             # Need to then mass weight
             masses = self.masses
-            mass_conv = np.sqrt(np.broadcast_to(masses[np.newaxis, :], (3, len(masses))).flatten())
+            mass_conv = self._tripmass(masses)#np.sqrt(np.broadcast_to(masses[np.newaxis, :], (3, len(masses))).flatten())
             YR = XR * mass_conv[np.newaxis, :]
             if isinstance(XRR, int):
                 YRR = 0
@@ -611,7 +611,7 @@ class KineticTerms(ExpansionTerms):
 
             # next we need to mass-weight
             masses = self.masses
-            mass_conv = np.sqrt(np.broadcast_to(masses[np.newaxis, :], (3, len(masses))).flatten())
+            mass_conv = np.sqrt(self._tripmass(masses)) #np.sqrt(np.broadcast_to(masses[np.newaxis, :], (3, len(masses))).flatten())
             RY = RX / mass_conv[:, np.newaxis]
             RYY = RXX / (mass_conv[:, np.newaxis, np.newaxis] * mass_conv[np.newaxis, :, np.newaxis])
             RYYY = RXXX / (
@@ -774,7 +774,7 @@ class DipoleTerms(ExpansionTerms):
 
             # Need to then mass weight
             masses = self.masses
-            mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
+            mass_conv = self._tripmass(masses)#np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
             YR = XR * mass_conv[np.newaxis, :]
             if isinstance(XRR, int):
                 YRR = 0
