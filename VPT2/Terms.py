@@ -379,10 +379,10 @@ class ExpansionTerms:
                 unroll = (0, 1) + tuple(range(2+X, N)) + tuple(range(2, 2+X))
                 V_QQQQ_4 = V_QQQQ_4.transpose(unroll)
             X = tuple(range(4, V_QQQQ_4.ndim))
-            if mixed_XQ:
+            # if mixed_XQ:
                 # we need to zero out the elements we don't really have because Gaussian is mean
-                import itertools
-                nQ = V_QQQQ_4.shape[0]
+                # import itertools
+                # nQ = V_QQQQ_4.shape[0]
                 # if nQ > 3:
                 #     perms = np.array(list(itertools.permutations(range(nQ), 4))).T
                 #     # print(V_QQQQ_4.shape[0], perms)
@@ -501,7 +501,7 @@ class PotentialTerms(ExpansionTerms):
             # We need to compute all these terms then mass weight them
 
             #TODO: I'd like to have support for using more/fewer derivs, just in case
-            
+
             #For speed reasons we've introduced class-level caching of these terms
             XR, XRR, XRRR = self.get_int_jacobs([1, 2, 3])
             XRRRR = 0
@@ -527,7 +527,7 @@ class PotentialTerms(ExpansionTerms):
 
             # Need to then mass weight
             masses = self.masses
-            mass_conv = self._tripmass(masses)#np.sqrt(np.broadcast_to(masses[np.newaxis, :], (3, len(masses))).flatten())
+            mass_conv = np.sqrt(self._tripmass(masses))
             YR = XR * mass_conv[np.newaxis, :]
             if isinstance(XRR, int):
                 YRR = 0
@@ -564,15 +564,6 @@ class PotentialTerms(ExpansionTerms):
             # that we know should be there
             for i in range(v4.shape[0]):
                 v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
-
-        # test = UnitsData.convert("Hartrees", "Wavenumbers") * np.array([
-        #     v4[0, 0, 0, 0],
-        #     v4[1, 1, 2, 2],
-        #     v4[1, 1, 1, 1],
-        #     v4[0, 0, 2, 2],
-        #     v4[0, 0, 1, 1],
-        #     v4[2, 2, 2, 2]
-        # ]).T
 
         return v2, v3, v4
 
@@ -613,83 +604,6 @@ class KineticTerms(ExpansionTerms):
             # next we need to mass-weight
             masses = self.masses
             mass_conv = np.sqrt(self._tripmass(masses)) #np.sqrt(np.broadcast_to(masses[np.newaxis, :], (3, len(masses))).flatten())
-            RY = RX / mass_conv[:, np.newaxis]
-            RYY = RXX / (mass_conv[:, np.newaxis, np.newaxis] * mass_conv[np.newaxis, :, np.newaxis])
-            RYYY = RXXX / (
-                    mass_conv[:, np.newaxis, np.newaxis,   np.newaxis]
-                    * mass_conv[np.newaxis, :, np.newaxis, np.newaxis]
-                    * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
-            )
-            YR = XR * mass_conv[np.newaxis]
-            YRR = XRR * mass_conv[np.newaxis, np.newaxis]
-
-            QY = self.modes.matrix  # derivatives of Q with respect to the mass-weighted Cartesians
-            YQ = self.modes.inverse
-            QR = dot(YR, QY)
-            RQ = dot(YQ, RY)
-
-            G = dot(QY, QY, axes=[[0, 0]])
-
-            J = DumbTensor(QY)
-            Jd = DumbTensor(YQ)
-            K = DumbTensor(dot(RYY, YR, QY))
-            U = K.dot(J, axes=[[0, 0]])
-
-            GQ = Jd@(U + U[2:1])
-            GQ = GQ.t
-
-            L = DumbTensor(dot(RYYY, YR, QY))
-            H = DumbTensor(dot(RQ, dot(RQ, YRR, axes=[[1, 0]]), axes=[[1, 1]]))
-            K22 = K.dot(K, axes=[[1, 1]])
-            V = L[3:2]@J + K22[2:0]
-
-            GQQ = (H@(U + U[2:1])).t + (Jd@(Jd@(V+V[3:2]))[0:1]).t
-
-        G_terms = (G, GQ, GQQ)
-        return G_terms
-
-
-class KineticTerms(ExpansionTerms):
-    """Represents the KE coefficients"""
-
-    def get_terms(self):
-
-        dot = DumbTensor._dot
-        shift = DumbTensor._shift
-        intcds = self.internal_coordinates
-        if intcds is None:
-            # this is nice because it eliminates a lot of terms in the expansion
-            J = self.modes.matrix
-            G = dot(J, J, axes=[[1, 1]])
-            GQ = 0
-            GQQ = 0
-        else:
-            ccoords = self.coords
-            carts = ccoords.system
-            internals = intcds.system
-
-            # First we take derivatives of internals with respect to Cartesians
-            RX, RXX, RXXX= ccoords.jacobian(internals, [1, 2, 3])
-            # FD tracks too much shape
-
-            _contract_dim = DumbTensor._contract_dim
-            if RX.ndim > 2:
-                RX = _contract_dim(RX, 2)
-            if RXX.ndim > 3:
-                RXX = _contract_dim(RXX, 3)
-            if RXXX.ndim > 4:
-                RXXX = _contract_dim(RXXX, 4)
-
-            # Now we take derivatives of Cartesians with respect to internals
-            XR, XRR = [x.squeeze() for x in intcds.jacobian(carts, [1, 2])]
-            if XR.ndim > 2:
-                XR = _contract_dim(XR, 2)
-            if XRR.ndim > 3:
-                XRR = _contract_dim(XRR, 3)
-
-            # next we need to mass-weight
-            masses = self.masses
-            mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
             RY = RX / mass_conv[:, np.newaxis]
             RYY = RXX / (mass_conv[:, np.newaxis, np.newaxis] * mass_conv[np.newaxis, :, np.newaxis])
             RYYY = RXXX / (
@@ -852,7 +766,7 @@ class DipoleTerms(ExpansionTerms):
 
             # Need to then mass weight
             masses = self.masses
-            mass_conv = self._tripmass(masses)#np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
+            mass_conv = np.sqrt(self._tripmass(masses))#np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
             YR = XR * mass_conv[np.newaxis, :]
             if isinstance(XRR, int):
                 YRR = 0
