@@ -347,7 +347,7 @@ class VPTTests(TestCase):
         )
         n_quanta = 6
         n_modes = 3
-        coupled_states = self.get_states(3, n_modes)
+        coupled_states = self.get_states(2, n_modes)
         def block(self=self, internals=internals, states=states, coupled_states=coupled_states, n_quanta=n_quanta):
             return self.get_VPT2_wfns(
                 "HOT_freq.fchk",

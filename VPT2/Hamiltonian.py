@@ -155,7 +155,9 @@ class PerturbationTheoryHamiltonian:
 
         # get explicit matrix reps inside the coupled subspace
         N = len(m)
+        # import McUtils.Plots as plt
         wat = h_reps[0][np.ix_(m, m)]
+        # plt.ArrayPlot(wat).show()
         H = [h[np.ix_(m, m)].reshape(N, N) for h in h_reps] #type: Iterable[np.ndarray]
         # raise Exception("profiling")
 
