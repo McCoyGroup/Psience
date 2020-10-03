@@ -123,16 +123,20 @@ class Operator:
         # determine how many states are properly non-orthogonal
         dims = quants
         ndim = len(quants)
-        nstates = len(states[0])
+        nstates = len(states[0][0])
         uinds = np.unique(inds)
         missing = [i for i in range(ndim) if i not in uinds]
         equivs = [states[i][0] == states[i][1] for i in missing]
         orthog = np.prod(equivs, axis=0).astype(int) # taking advantage of the fact that bools act like ints
+        single_state = isinstance(orthog, (int, np.integer)) # means we got a single state to calculate over
+        if single_state:
+            orthog = np.array([orthog])
+
         non_orthog = np.where(orthog != 0)[0]
 
         # if none of the states are non-orthogonal...just don't calculate anything
         if len(non_orthog) == 0:
-            return sp.csr_matrix([1, nstates], dtype='float')
+            return sp.csr_matrix((1, nstates), dtype='float')
         else:
             non_orthog_states = [(states[i][0][non_orthog], states[i][1][non_orthog]) for i in uinds]
             # otherwise we calculate only the necessary terms (after building the 1D reps)
@@ -154,6 +158,7 @@ class Operator:
                     og = pieces[n] #type: sp.spmatrix
                     pieces[n] = og.dot(f(dims[i] + padding))
 
+            # now we take the requisite products of the chunks
             chunk = None
             for s, o in zip(non_orthog_states, pieces):
                 op = o #type: sp.spmatrix
@@ -163,14 +168,42 @@ class Operator:
                 else:
                     chunk *= blob
 
-            return sp.csr_matrix(
+            if isinstance(chunk, (int, np.integer, float, np.floating)):
+                chunk = np.array([chunk])
+
+            non_zero = np.where(chunk != 0.)[0] # by filtering again we save on computation in the dot products
+
+            if len(non_zero) == 0:
+                return sp.csr_matrix((1, nstates), dtype='float')
+
+            non_orthog = non_orthog[non_zero]
+            chunk = chunk[non_zero]
+
+            # try:
+            wat = sp.csr_matrix(
                 (
-                    np.asarray(chunk),
+                    chunk,
                     (
                         np.zeros(len(non_orthog)),
                         non_orthog
                     )
-                ), shape=(1, len(orthog)))
+                ), shape=(1, nstates))
+
+            # if wat.shape[1] == 2 or wat.nnz == 2:
+            #     raise Exception(wat, nstates, non_orthog, inds)
+
+            return wat
+            # except:
+            #     raise Exception([
+            #         (
+            #             non_zero,
+            #             chunk,
+            #             (
+            #                 np.zeros(len(non_orthog)),
+            #                 non_orthog
+            #             )
+            #         )
+            #     ])
 
     def _get_pop_sequential(self, inds, idx, save_to_disk=False):
         """
@@ -180,12 +213,21 @@ class Operator:
         :type inds:
         :param idx:
         :type idx:
-        :param save_io: whether to save to disk or not
-        :type save_io:
+        :param save_to_disk: whether to save to disk or not; used by the parallelizer
+        :type save_to_disk: bool
         :return:
         :rtype:
         """
-        tensor = np.apply_along_axis(self._calculate_single_pop_elements, -1, inds, self.funcs, idx, self.quanta)
+        res = np.apply_along_axis(self._calculate_single_pop_elements, -1, inds, self.funcs, idx, self.quanta)
+        if save_to_disk:
+            new = sp.vstack([x for y in res.flatten() for x in y])
+            with tf.NamedTemporaryFile() as tmp:
+                res = tmp.name + ".npz"
+            # print(res)
+            # os.remove(tmp.name)
+            sp.save_npz(res, new, compressed=False)
+
+        return res
 
     def _get_pop_parallel(self, inds, idx, parallelizer=None):
         if parallelizer != "multiprocessing":
@@ -202,9 +244,24 @@ class Operator:
 
         ind_chunks = np.array_split(inds, min(cores, inds.shape[0]))
 
+        chunks = [(sub_arr, idx, True) for sub_arr in ind_chunks]
+        res = self._parallelizer.starmap(self._get_pop_sequential, chunks)
+        if isinstance(res[0], str):
+            try:
+                sparrays = np.array([sp.load_npz(f) for f in res])
+            finally: # gotta clean up after myself
+                try:
+                    for f in res:
+                        os.remove(f)
+                except Exception as e:
+                    # print(e)
+                    pass
+            res = sparrays
 
-        return np.apply_along_axis(self._calculate_single_pop_elements, -1, inds, self.funcs, idx, self.quanta)
-    def get_elements(self, idx, parallelizer=None):
+        # raise Exception(res)
+
+        return res
+    def get_elements(self, idx, parallelizer=None):#'multiprocessing'):
         """
         Calculates a subset of elements
 
@@ -217,22 +274,22 @@ class Operator:
         idx = tuple(tuple(np.array([i]) if isinstance(i, (int, np.integer)) else i for i in j) for j in idx)
         shp = inds.shape
 
-        if parallelizer is None:
+        if parallelizer is not None:
             # parallelizer = self._parallelizer
-            parallelizer = 'multiprocessing'
+            inds = inds.reshape((-1, inds.shape[-1]))
+            res = self._get_pop_parallel(inds, idx, parallelizer=parallelizer)
+        else:
+            res = self._get_pop_sequential(inds, idx)
 
-        chunks = [(sub_arr, idx, True)
-                  for sub_arr in ind_chunks]
-        # if len(inds[0]) == 4:
-        #     raise Exception(chunks)
-        res = self._parallelizer.starmap(self._pull_sequential, chunks)
-        res =
-
-        new = sp.vstack([x for y in res.flatten() for x in y])
+        wat = [x for y in res.flatten() for x in y]
+        # try:
+        new = sp.vstack(wat)
+        # except:
+        #     raise Exception(wat, res[0, 1, -1].toarray(), parallelizer)
 
         res = SparseArray(new)
         res = res.reshape(shp[:-1] + res.shape[-1:])
-        print("=======>", res)
+        # print("=======>", res)
 
         return res
 

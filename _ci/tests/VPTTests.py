@@ -338,7 +338,7 @@ class VPTTests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
-    @validationTest
+    @debugTest
     def test_HOTVPTInternals(self):
 
         internals = [
@@ -354,7 +354,7 @@ class VPTTests(TestCase):
         )
         n_quanta = 6
         n_modes = 3
-        coupled_states = self.get_states(5, n_modes)
+        coupled_states = None#self.get_states(5, n_modes)
         def block(self=self, internals=internals, states=states, coupled_states=coupled_states, n_quanta=n_quanta):
             return self.get_VPT2_wfns(
                 "HOT_freq.fchk",
@@ -430,7 +430,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
 
-    @debugTest
+    @inactiveTest
     def test_OCHDVPT(self):
 
         internals = [
