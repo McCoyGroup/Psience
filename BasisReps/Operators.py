@@ -3,7 +3,7 @@ Provides the operator representations needed when building a Hamiltonian represe
 I chose to only implement direct product operators. Not sure if we'll need a 1D base class...
 """
 
-import numpy as np, scipy.sparse as sp, functools as fp
+import numpy as np, scipy.sparse as sp, functools as fp, os, tempfile as tf
 from McUtils.Numputils import SparseArray
 
 #TODO: abstract the VPT2 stuff out so we can use it for a general operator too
@@ -99,6 +99,7 @@ class Operator:
     def __getstate__(self):
         state = self.__dict__.copy()
         state['_parallelizer'] = None
+        state['_tensor'] = None
         return state
     def _pull_parallel(self,
                           inds, tens, idx, quants,
@@ -124,20 +125,70 @@ class Operator:
             self._parallelizer = mp.Pool()
 
         ind_chunks = np.array_split(inds, min(cores, inds.shape[0]))
-        chunks = [(sub_arr, tens, idx, quants)
-                  for sub_arr in ind_chunks]
 
-        individual_results = self._parallelizer.starmap(self._pull_sequential, chunks)
+        # save tensors to disk and let pull_sequential reload them on the other side...
+        tens_files = np.full(tens.shape, None, dtype=object)
+        # if len(inds[0]) == 4:
+        #     raise Exception(len(idx), len(idx[0]), [len(x) for x in idx[0]], idx[0][0].shape)
+        try:
+            flit = tens.flat
+            i = flit.coords
+            for y in flit:
+                if not isinstance(y, SparseArray):
+                        y = SparseArray(y)
+                with tf.NamedTemporaryFile() as tmp:
+                    res = tmp.name + ".npz"
+                tens_files[i] = y.savez(res, compressed=False)
+                i = flit.coords
 
-        return sum(individual_results)  # convenient list-join
-    def _pull_sequential(self, inds, tens, idx, quants):
+            chunks = [(sub_arr, tens_files, idx, quants, True)
+                      for sub_arr in ind_chunks]
+            # if len(inds[0]) == 4:
+            #     raise Exception(chunks)
+            res = self._parallelizer.starmap(self._pull_sequential, chunks)
+        finally:
+            # clean up all these tensors after ourselves
+            for x in tens_files.flat:
+                try:
+                    os.remove(x)
+                except:# Exception as e: # sometimes shit happens but we stil need to clean up...
+                    # print(e)
+                    pass
+
+        if not isinstance(res[0], str):
+            res = np.concatenate(res, axis=0)
+
+        return res # convenient list-join
+    def _pull_sequential(self, inds, tens, idx, quants, save_io=False):
+        # save_io is so we don't have to pass huge arrays through pickle
+        if tens.dtype == np.dtype(object):
+            # to avoid passing shit through the pipe we saved stuff on the other end
+            tens_files = tens
+            tens = np.full(tens_files.shape, None, dtype=object)
+            flit = tens_files.flat
+            i = flit.coords
+            for y in flit:
+                tens[i] = SparseArray.loadz(y)
+                i = flit.coords
+        # raise Exception(tens, tens.dtype, np.dtype(object), tens.dtype == np.dtype(object))
         res = np.apply_along_axis(self._take_subtensor, -1, inds, tens, idx, quants)
+        if save_io:
+            if isinstance(res[0], sp.spmatrix):
+                new = sp.vstack([x for y in res for x in y])
+                with tf.NamedTemporaryFile() as tmp:
+                    res = tmp.name + ".npz"
+                # os.remove(tmp.name)
+                sp.save_npz(res, new, compressed=False)
+
         return res
-    def get_elements(self, idx, method='sequential'):
+    def get_elements(self, idx, method='parallel'):
         if len(idx) != len(self.quanta):
             raise ValueError("number of indices requested must be the same as the number of quanta")
         inds = self.get_inner_indices()
-        idx = tuple(tuple(np.array([i]) if isinstance(i, (int, np.integer)) else i for i in j) for j in idx)
+        idx = tuple(
+            tuple(np.array([i]) if isinstance(i, (int, np.integer)) else i for i in j)
+            for j in idx
+        )
         tens = self.tensor
         quants = self.quanta
 
@@ -149,18 +200,25 @@ class Operator:
             res = self._pull_parallel(flat_inds, tens, idx, quants)
 
         test = res[0]
-        try:
-            t0 = test[0]
-        except TypeError:
-            t0 = None
-
         shp = inds.shape
-        if isinstance(t0, sp.spmatrix):
+        if isinstance(test, sp.spmatrix):
             new = sp.vstack([x for y in res.flatten() for x in y])
             res = SparseArray(new)
+        elif isinstance(test, str):
+            # print(res)
+            # this means we wrote out some temporary npz files to use IO as a data-transfer mechanism
+            try:
+                sp_arrs = [ sp.load_npz(f) for f in res ]
+            finally:
+                for f in res:
+                    os.remove(f)
+            new = sp.vstack(sp_arrs)
+            res = SparseArray(new)
         else:
+            # raise Exception(test)
             res = SparseArray(np.concatenate(res, axis=0).squeeze())
-        res = res.reshape(shp + res.shape[-1:])
+        res = res.reshape(shp[:-1] + res.shape[-1:])
+        print("=======>", res)
 
         return res
 
