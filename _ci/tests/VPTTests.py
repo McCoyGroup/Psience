@@ -484,8 +484,8 @@ class VPTTests(TestCase):
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
             )
-        block()
-        # exc, stat_block, wfns = self.profile_block(block)
+        # block()
+        exc, stat_block, wfns = self.profile_block(block)
 
         do_profile = False
         if exc is not None:

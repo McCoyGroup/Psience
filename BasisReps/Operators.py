@@ -35,7 +35,7 @@ class Operator:
         self.symmetry_inds = symmetries
         self.quanta = tuple(quanta)
         self.mode_n = len(quanta)
-        self._tensor = None
+        # self._tensor = None
         self._parallelizer = None
             # in the future people will be able to supply this so that they can fully control how
             # the code gets parallelized
@@ -46,11 +46,11 @@ class Operator:
     @property
     def shape(self):
         return (self.mode_n, ) *len(self.funcs) + self.quanta
-    @property
-    def tensor(self):
-        if self._tensor is None:
-            self._tensor = self.product_operator_tensor()
-        return self._tensor
+    # @property
+    # def tensor(self):
+    #     if self._tensor is None:
+    #         self._tensor = self.product_operator_tensor()
+    #     return self._tensor
 
     def get_inner_indices(self):
         """
@@ -101,6 +101,141 @@ class Operator:
         state['_parallelizer'] = None
         state['_tensor'] = None
         return state
+
+    def _calculate_single_pop_elements(self, inds, funcs, states, quants):
+        """
+        Calculates terms for a single product operator.
+        Assumes orthogonal product bases.
+
+        :param inds: the index in the total operator tensor (i.e. which of the funcs to use)
+        :type inds:
+        :param funcs: the functions to use when generating representations
+        :type funcs:
+        :param states: the states to compute terms between stored like ((s_1l, s_1r), (s_2l, s_2r), ...)
+                        where `s_il` is the set of quanta for mode i for the bras and
+                        `s_ir` is the set of quanta for mode i for the kets
+        :type states: Iterable[Iterable[Iterable[int]]]
+        :param quants: the total quanta to use when building representations
+        :type quants:
+        :return:
+        :rtype:
+        """
+        # determine how many states are properly non-orthogonal
+        dims = quants
+        ndim = len(quants)
+        nstates = len(states[0])
+        uinds = np.unique(inds)
+        missing = [i for i in range(ndim) if i not in uinds]
+        equivs = [states[i][0] == states[i][1] for i in missing]
+        orthog = np.prod(equivs, axis=0).astype(int) # taking advantage of the fact that bools act like ints
+        non_orthog = np.where(orthog != 0)[0]
+
+        # if none of the states are non-orthogonal...just don't calculate anything
+        if len(non_orthog) == 0:
+            return sp.csr_matrix([1, nstates], dtype='float')
+        else:
+            non_orthog_states = [(states[i][0][non_orthog], states[i][1][non_orthog]) for i in uinds]
+            # otherwise we calculate only the necessary terms (after building the 1D reps)
+            padding = 3 # for approximation reasons we need to pad our representations, actually...
+            # we figure out which indices are actually unique
+            uinds = np.unique(inds)
+            mm = {k: i for i, k in enumerate(uinds)}
+            # then set up a place to hold onto the pieces we'll calculate
+            subdim = len(uinds)
+            pieces = [None] * subdim
+            # TODO: if it turns out that we only need a small number of non-orthogonal terms
+            #       we should directly compute terms for cheapness
+            for f, i in zip(funcs, inds):
+                n = mm[i] # makes sure that we fill in in the same order as uinds
+                if pieces[n] is None:
+                    pieces[n] = f(dims[i] + padding) #type: sp.spmatrix
+                else:
+                    # QQ -> Q.Q & QQQ -> Q.Q.Q
+                    og = pieces[n] #type: sp.spmatrix
+                    pieces[n] = og.dot(f(dims[i] + padding))
+
+            chunk = None
+            for s, o in zip(non_orthog_states, pieces):
+                op = o #type: sp.spmatrix
+                blob = np.asarray(op[s]).squeeze()
+                if chunk is None:
+                    chunk = np.asarray(blob)
+                else:
+                    chunk *= blob
+
+            return sp.csr_matrix(
+                (
+                    np.asarray(chunk),
+                    (
+                        np.zeros(len(non_orthog)),
+                        non_orthog
+                    )
+                ), shape=(1, len(orthog)))
+
+    def _get_pop_sequential(self, inds, idx, save_to_disk=False):
+        """
+        Sequential method for getting elements of our product operator tensors
+
+        :param inds:
+        :type inds:
+        :param idx:
+        :type idx:
+        :param save_io: whether to save to disk or not
+        :type save_io:
+        :return:
+        :rtype:
+        """
+        tensor = np.apply_along_axis(self._calculate_single_pop_elements, -1, inds, self.funcs, idx, self.quanta)
+
+    def _get_pop_parallel(self, inds, idx, parallelizer=None):
+        if parallelizer != "multiprocessing":
+            raise NotImplementedError("More parallelization methods are coming--just not yet")
+
+        # in the future this will be like Parallizer.num_cores
+        # and we can just have Parallelizer.apply_along_axis(func, ...)
+
+        import multiprocessing as mp
+        cores = mp.cpu_count()
+
+        if self._parallelizer is None:
+            self._parallelizer = mp.Pool()
+
+        ind_chunks = np.array_split(inds, min(cores, inds.shape[0]))
+
+
+        return np.apply_along_axis(self._calculate_single_pop_elements, -1, inds, self.funcs, idx, self.quanta)
+    def get_elements(self, idx, parallelizer=None):
+        """
+        Calculates a subset of elements
+
+        :param idx: bra and ket states as tuples of elements
+        :type idx: Iterable[Iterable[int]]
+        :return:
+        :rtype:
+        """
+        inds = self.get_inner_indices()
+        idx = tuple(tuple(np.array([i]) if isinstance(i, (int, np.integer)) else i for i in j) for j in idx)
+        shp = inds.shape
+
+        if parallelizer is None:
+            # parallelizer = self._parallelizer
+            parallelizer = 'multiprocessing'
+
+        chunks = [(sub_arr, idx, True)
+                  for sub_arr in ind_chunks]
+        # if len(inds[0]) == 4:
+        #     raise Exception(chunks)
+        res = self._parallelizer.starmap(self._pull_sequential, chunks)
+        res =
+
+        new = sp.vstack([x for y in res.flatten() for x in y])
+
+        res = SparseArray(new)
+        res = res.reshape(shp[:-1] + res.shape[-1:])
+        print("=======>", res)
+
+        return res
+
     def _pull_parallel(self,
                           inds, tens, idx, quants,
                           parallel_method = "multiprocessing"
@@ -181,7 +316,7 @@ class Operator:
                 sp.save_npz(res, new, compressed=False)
 
         return res
-    def get_elements(self, idx, method='parallel'):
+    def get_elements_old(self, idx, method='parallel'):
         if len(idx) != len(self.quanta):
             raise ValueError("number of indices requested must be the same as the number of quanta")
         inds = self.get_inner_indices()
@@ -217,8 +352,6 @@ class Operator:
         else:
             # raise Exception(test)
             res = SparseArray(np.concatenate(res, axis=0).squeeze())
-        res = res.reshape(shp[:-1] + res.shape[-1:])
-        print("=======>", res)
 
         return res
 
@@ -288,7 +421,8 @@ class Operator:
     _op_mat_cache = {} # we try to cache equivalent things
     def _operator_submatrix(self, funcs, dims, inds, padding=3, return_kron=True):
         """
-        Returns the operator submatrix for a product operator like piQjpk or whatever
+        Returns the operator submatrix for a product operator like piQjpk or whatever...
+        Used in the initial implementation that directly constructed the entire product operator tensor
 
         :param funcs: the functions that take a dimension size and return a matrix for the suboperator
         :type funcs:
