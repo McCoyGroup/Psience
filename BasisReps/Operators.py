@@ -36,6 +36,9 @@ class Operator:
         self.quanta = tuple(quanta)
         self.mode_n = len(quanta)
         self._tensor = None
+        self._parallelizer = None
+            # in the future people will be able to supply this so that they can fully control how
+            # the code gets parallelized
 
     @property
     def ndim(self):
@@ -93,6 +96,10 @@ class Operator:
         res = np.apply_along_axis(pull, -1, inds)
         return res
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['_parallelizer'] = None
+        return state
     def _pull_parallel(self,
                           inds, tens, idx, quants,
                           parallel_method = "multiprocessing"
@@ -113,18 +120,20 @@ class Operator:
         import multiprocessing as mp
         cores = mp.cpu_count()
 
-        chunks = [(self._take_subtensor, sub_arr, tens, idx, quants)
-                  for sub_arr in np.array_split(inds, cores)]
+        if self._parallelizer is None:
+            self._parallelizer = mp.Pool()
 
-        pool = mp.Pool()
-        individual_results = pool.starmap(self._pull_sequential, chunks)
-        pool.close()
-        pool.join()
+        ind_chunks = np.array_split(inds, min(cores, inds.shape[0]))
+        chunks = [(sub_arr, tens, idx, quants)
+                  for sub_arr in ind_chunks]
 
-        return np.concatenate(individual_results)
+        individual_results = self._parallelizer.starmap(self._pull_sequential, chunks)
+
+        return sum(individual_results)  # convenient list-join
     def _pull_sequential(self, inds, tens, idx, quants):
-        return np.apply_along_axis(self._take_subtensor, -1, inds, tens, idx, quants)
-    def get_elements(self, idx):
+        res = np.apply_along_axis(self._take_subtensor, -1, inds, tens, idx, quants)
+        return res
+    def get_elements(self, idx, method='sequential'):
         if len(idx) != len(self.quanta):
             raise ValueError("number of indices requested must be the same as the number of quanta")
         inds = self.get_inner_indices()
@@ -132,9 +141,28 @@ class Operator:
         tens = self.tensor
         quants = self.quanta
 
-        res = self._pull_sequential(inds, tens, idx, quants)
+        flat_inds = inds.reshape((-1, inds.shape[-1]))
 
-        return SparseArray(res.squeeze())
+        if method == 'sequential':
+            res = self._pull_sequential(flat_inds, tens, idx, quants)
+        else:
+            res = self._pull_parallel(flat_inds, tens, idx, quants)
+
+        test = res[0]
+        try:
+            t0 = test[0]
+        except TypeError:
+            t0 = None
+
+        shp = inds.shape
+        if isinstance(t0, sp.spmatrix):
+            new = sp.vstack([x for y in res.flatten() for x in y])
+            res = SparseArray(new)
+        else:
+            res = SparseArray(np.concatenate(res, axis=0).squeeze())
+        res = res.reshape(shp + res.shape[-1:])
+
+        return res
 
     @staticmethod
     def _take_subtensor(inds, t, x, qn):
@@ -154,9 +182,17 @@ class Operator:
             uinds = np.unique(inds)
             non_zero_orthog = np.where(orthog != 0)[0]
             nz_sub = tuple(tuple(j[non_zero_orthog]) for i in uinds for j in x[i])
-            res = np.zeros(len(orthog))
-            non_zero_vals = sly[nz_sub]
-            res[non_zero_orthog] = non_zero_vals
+            non_zero_vals = sly[nz_sub][0] # we get a spurious `1` in the shape from NumPy or SparseArray...
+            res = sp.csr_matrix(
+                (
+                    non_zero_vals,
+                    (
+                        np.zeros(len(non_zero_vals)),
+                        non_zero_orthog
+                    )
+                ),
+                shape=(1, len(orthog))
+            )
         elif orthog != 0.:
             sly = t[tuple(inds)]
             # finds the appropriate indices of t to sample

@@ -22,7 +22,8 @@ class HarmonicOscillatorBasis(RepresentationBasis):
         if not dimensionless and any(x is None for x in (m, re)):
             raise ValueError("if not dimensionless, parameters cannot be 'None'")
         self.data = WavefunctionData['HarmonicOscillator']
-        super().__init__(self.data['Wavefunction'], n_quanta)
+        # raise Exception(self.data)
+        super().__init__(self.data, n_quanta)
 
     @functools.lru_cache(maxsize=128)
     def p(self, n):

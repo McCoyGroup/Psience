@@ -80,9 +80,9 @@ Water freq
 ! Example:
 !
   Variables:
-    R  .565928900044468   25  0.05   ! R to scan
-    R2 .565928900044468   25  0.05   ! fixed R from opt
-    A  103.87320933444364 0   0.     ! taken from optimized water
+    R  .965928900044468
+    R2 .965928900044468
+    A  103.87320933444364
 !
 !
 !

@@ -445,10 +445,32 @@ class VPTTests(TestCase):
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
         n_quanta = 10
-        max_quanta = 2
-        states = self.get_states(1, n_modes, max_quanta = max_quanta)
-        coupled_states = self.get_states(4, n_modes, max_quanta = max_quanta)
+        max_quanta = 5
+
+        states = self.get_states(1, n_modes, max_quanta=max_quanta)
+        coupled_states=self.get_states(4, n_modes, max_quanta = max_quanta)
+
+        states = ((0, 0, 0, 0, 0, 0), (0, 0, 0, 0, 0, 1))
+        coupled_states = self.get_states(5, n_modes, max_quanta=max_quanta)
         # raise Exception(len(coupled_states))
+
+        # hammer = PerturbationTheoryHamiltonian.from_fchk(
+        #     TestManager.test_data("OCHD_freq.fchk"),
+        #     n_quanta=n_quanta,
+        #     internals=None,
+        #     mode_selection=mode_selection
+        # )
+        #
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        # v4 = hammer.V_terms[2]*h2w
+        # inds = np.indices(v4.shape).transpose((1, 2, 3, 4, 0))
+        # bleh = v4.flatten()
+        # blinds = inds.reshape((len(bleh), 4))
+        # agh = "\n".join(
+        #     "{0[0]} {0[1]} {0[2]} {0[3]} {1:>7.2f}".format(i, v) for i,v in zip(blinds, bleh)
+        # )
+        # raise Exception(agh)
+
         def block(self=self,
                   internals=internals, states=states, coupled_states=coupled_states,
                   n_quanta=n_quanta, mode_selection=mode_selection
@@ -462,8 +484,8 @@ class VPTTests(TestCase):
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
             )
-        # block()
-        exc, stat_block, wfns = self.profile_block(block)
+        block()
+        # exc, stat_block, wfns = self.profile_block(block)
 
         do_profile = False
         if exc is not None:
@@ -480,53 +502,53 @@ class VPTTests(TestCase):
         harm_engs = h2w * wfns.zero_order_energies
         harm_freq = harm_engs[1:] - harm_engs[0]
 
-        gaussian_engs = [5235.163,  5171.570]
+        gaussian_engs = [5235.162,    5171.477]
         gaussian_freqs = [
-            [3022.814,  2882.176],
-            [2221.269,  2152.403],
-            [1701.548,  1673.390],
-            [1417.539,  1388.148],
-            [1076.474,  1058.333],
-            [1030.681,  1015.438]#,
-            # # 2 quanta
-            # [6045.629,  5575.288],
-            # [4442.539,  4202.869],
-            # [3403.095,  3327.422],
-            # [2835.077,  2744.644],
-            # [2152.948,  2099.618],
-            # [2061.362,  2021.740],
-            # # Mixed states
-            # [5244.084,  4990.315],
-            # [4724.362,  4529.678],
-            # [3922.817,  3809.252],
-            # [4440.353,  4193.115],
-            # [3638.808,  3518.364],
-            # [3119.086,  3060.929],
-            # [4099.288,  3897.526],
-            # [3297.743,  3182.643],
-            # [2778.022,  2725.877],
-            # [2494.013,  2448.298],
-            # [4053.495,  3866.732],
-            # [3251.950,  3146.020],
-            # [2732.229,  2682.011],
-            # [2448.220,  2403.213],
-            # [2107.155,  2075.382]
+            [3022.813, 2881.940],
+            [2221.268, 2152.210],
+            [1701.548, 1673.311],
+            [1417.539, 1388.280],
+            [1076.474, 1058.211],
+            [1030.681, 1015.305],
+            # 2 quanta
+            [6045.626, 5574.482],
+            [4442.536, 4203.337],
+            [3403.097, 3327.254],
+            [2835.078, 2744.748],
+            [2152.949, 2098.305],
+            [2061.363, 2022.956],
+            # mixed states
+            [5244.081, 4990.144],
+            [4724.361, 4529.189],
+            [3922.817, 3809.397],
+            [4440.352, 4192.841],
+            [3638.807, 3518.724],
+            [3119.087, 3060.953],
+            [4099.287, 3896.226],
+            [3297.743, 3183.261],
+            [2778.023, 2725.597],
+            [2494.013, 2448.626],
+            [4053.494, 3866.190],
+            [3251.950, 3146.116],
+            [2732.230, 2681.778],
+            [2448.220, 2403.196],
+            [2107.156, 2074.925]
         ]
 
         print_report = True
         if print_report:
             if n_modes == 6:
                 print("Gaussian Energies:\n",
-                      ('0 ' * n_modes + "{:>13.3f} {:>13.3f} {:>13} {:>13}\n").format(*gaussian_engs, "-", "-"),
+                      ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
                       *(
-                          ('{:<1.0f} ' * n_modes + "{:>13} {:>13} {:>13.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e in
+                          ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e in
                             zip(states[1:], gaussian_freqs)
                           )
                       )
             print("State Energies:\n",
-                  ('0 '*n_modes + "{:>13.3f} {:>13.3f} {:>13} {:>13}\n").format(harm_engs[0], engs[0], "-", "-"),
+                  ('0 '*n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
                   *(
-                      ('{:<1.0f} '*n_modes + "{:>13} {:>13} {:>13.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for s, e1, e2 in
+                      ('{:<1.0f} '*n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for s, e1, e2 in
                         zip(states[1:], harm_freq, freqs)
                   )
             )
