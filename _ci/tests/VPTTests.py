@@ -93,6 +93,107 @@ class VPTTests(TestCase):
         return exc, stat_block, res
 
     @validationTest
+    def test_RepresentQQQ(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOD_freq.fchk"),
+            n_quanta=6,
+            internals=None # doesn't matter for this
+        )
+
+        QQQ = ham.H1.computers[1].operator
+        QQQ.coeffs = 1
+
+        bras = (
+            (0, 0, 0),
+        )
+        kets = (
+            (0, 0, 1),
+        )
+
+        legit = np.array([
+            [[0.        , 0.        , 0.35355339],
+             [0.        , 0.        , 0.        ],
+             [0.35355339, 0.        , 0.        ]],
+
+            [[0.        , 0.        , 0.        ],
+             [0.        , 0.        , 0.35355339],
+             [0.        , 0.35355339, 0.        ]],
+
+            [[0.35355339, 0.        , 0.        ],
+             [0.        , 0.35355339, 0.        ],
+             [0.        , 0.        , 1.06066017]]
+        ])
+
+        appx = QQQ[bras, kets].toarray().squeeze()
+
+        self.assertTrue(np.allclose(legit, appx))
+
+    @validationTest
+    def test_RepresentQQQQ(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOD_freq.fchk"),
+            n_quanta=6,
+            internals=None  # doesn't matter for this
+        )
+
+        QQQQ = ham.H2.computers[1].operator
+        QQQQ.coeffs = 1
+
+        bras = (
+            (0, 0, 0),
+        )
+        kets = (
+            (0, 0, 0),
+        )
+
+        legit = np.array([
+            [
+                [[0.75, 0., 0.],
+                 [0., 0.25, 0.],
+                 [0., 0., 0.25]],
+
+                [[0., 0.25, 0.],
+                 [0.25, 0., 0.],
+                 [0., 0., 0.]],
+
+                [[0., 0., 0.25],
+                 [0., 0., 0.],
+                 [0.25, 0., 0.]]
+            ],
+            [
+                [[0., 0.25, 0.],
+                 [0.25, 0., 0.],
+                 [0., 0., 0.]],
+
+                [[0.25, 0., 0.],
+                 [0., 0.75, 0.],
+                 [0., 0., 0.25]],
+
+                [[0., 0., 0.],
+                 [0., 0., 0.25],
+                 [0., 0.25, 0.]]
+            ],
+            [
+                [[0.,   0., 0.25],
+                 [0.,   0., 0.  ],
+                 [0.25, 0., 0.  ]],
+
+                [[0., 0., 0.],
+                 [0., 0., 0.25],
+                 [0., 0.25, 0.]],
+
+                [[0.25, 0., 0.],
+                 [0., 0.25, 0.],
+                 [0., 0., 0.75]]
+            ]
+        ])
+
+        appx = QQQQ[bras, kets].toarray().squeeze()
+        # raise Exception(appx)
+
+        self.assertTrue(np.allclose(legit, appx))
+
+    @validationTest
     def test_HODVPTCartesians(self):
         # this isn't expected to give fully accurate results
         internals = None
@@ -162,7 +263,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 35)
 
-    @validationTest
+    @debugTest
     def test_HODVPTInternals(self):
 
         internals = [
@@ -182,7 +283,7 @@ class VPTTests(TestCase):
             internals,
             states,
             n_quanta,
-            regenerate=False
+            regenerate=True
         )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -338,7 +439,7 @@ class VPTTests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
-    @debugTest
+    @inactiveTest
     def test_HOTVPTInternals(self):
 
         internals = [
@@ -364,7 +465,7 @@ class VPTTests(TestCase):
                 regenerate=True,
                 coupled_states=coupled_states
             )
-        # wfns = block()
+        wfns = block()
         exc, stat_block, wfns = self.profile_block(block)
 
         do_profile = False
