@@ -2,10 +2,13 @@ from Peeves.TestUtils import *
 from unittest import TestCase
 from Psience.VPT2 import *
 from McUtils.Data import UnitsData
-import sys, os, numpy as np
+import sys, os, numpy as np, itertools as ip
 import cProfile, pstats, io
 
 class VPTTests(TestCase):
+
+    def setUp(self):
+        self.h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
     def save_wfns(self, file, wfns):
         """
@@ -35,7 +38,8 @@ class VPTTests(TestCase):
     def get_VPT2_wfns(self, fchk, internals, states, n_quanta,
                       regenerate=False,
                       coupled_states=None,
-                      mode_selection=None
+                      mode_selection=None,
+                      v4 = None
                       ):
 
         hammer = PerturbationTheoryHamiltonian.from_fchk(
@@ -44,6 +48,9 @@ class VPTTests(TestCase):
             internals=internals,
             mode_selection=mode_selection
         )
+
+        if v4 is not None:
+            hammer.H2.computers[1].operator.coeffs = v4
 
         wfn_file = os.path.join(self.wfn_file_dir, fchk.replace("fchk", "npz"))
         if regenerate or not os.path.exists(wfn_file):
@@ -60,8 +67,11 @@ class VPTTests(TestCase):
             max_quanta = n_quanta
         return tuple(sorted(
             [p for p in ip.product(*(range(n_quanta+1) for i in range(n_modes))) if all(x<=max_quanta for x in p) and sum(p) <= n_quanta],
-            key=lambda p: sum(p) + sum(1 for v in p if v != 0) * n_quanta ** (-1) + sum(
-                v * n_quanta ** (-i - 2) for i, v in enumerate(p))
+            key=lambda p: (
+                    sum(p)
+                    + sum(1 for v in p if v != 0) * n_quanta ** (-1)
+                    + sum(v * n_quanta ** (-i - 2) for i, v in enumerate(p))
+            )
         ))
     def profile_block(self, block):
 
@@ -92,7 +102,7 @@ class VPTTests(TestCase):
         )
         return exc, stat_block, res
 
-    @validationTest
+    @debugTest
     def test_RepresentQQQ(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
@@ -193,6 +203,142 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, appx))
 
+    @debugTest
+    def test_TestQuarticsCartesians(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOD_freq.fchk"),
+            n_quanta=6,
+            internals=None
+        )
+
+        v4_Gaussian = [
+          [1,  1,  1,  1,    1517.96213],
+          [2,  1,  1,  1,      98.59961],
+          [2,  2,  1,  1,       8.99887],
+          [2,  2,  2,  1,     -50.96655],
+          [2,  2,  2,  2,     804.29611],
+          [3,  1,  1,  1,     142.08091],
+          [3,  2,  1,  1,     -18.73606],
+          [3,  2,  2,  1,     -22.35470],
+          [3,  2,  2,  2,      71.81011],
+          [3,  3,  1,  1,    -523.38920],
+          [3,  3,  2,  1,      -4.05652],
+          [3,  3,  2,  2,     -95.43623],
+          [3,  3,  3,  1,    -145.84374],
+          [3,  3,  3,  2,     -41.06991],
+          [3,  3,  3,  3,      83.41603]
+          ]
+        # for reasons I'm still working out, Gaussian 16 flips the phases on its normal modes
+        # but _doesn't_ flip the phases on its derivatives
+        v4_Gaussian16 = [
+            [1, 1, 1, 1, 1517.96195],
+                       [2, 1, 1, 1,   98.60039],
+                       [2, 2, 1, 1,    8.99879],
+                       [2, 2, 2, 1,  -50.96534],
+                       [2, 2, 2, 2,  804.29612],
+                       [3, 1, 1, 1,  142.07906],
+                       [3, 2, 1, 1,  -18.73793],
+                       [3, 2, 2, 1,  -22.35735],
+                       [3, 2, 2, 2,   71.80757],
+                       [3, 3, 1, 1, -523.38806],
+                       [3, 3, 2, 1,   -4.05417],
+                       [3, 3, 2, 2,  -95.43403],
+                       [3, 3, 3, 1, -145.84906],
+                       [3, 3, 3, 2,  -41.07498],
+                       [3, 3, 3, 3,   83.42476]
+        ]
+
+        legit = np.zeros((3, 3, 3, 3))
+        mode_mapping = [
+            2, 1, 0
+        ]
+        for i, j, k, l, v in v4_Gaussian:
+            i = mode_mapping[i-1]; j = mode_mapping[j-1]
+            k = mode_mapping[k-1]; l = mode_mapping[l-1]
+            for perm in ip.permutations((i, j, k, l)):
+                legit[perm] = v
+
+        v4 = self.h2w * ham.V_terms[2]
+
+        print_errors = False
+        if print_errors:
+            if not np.allclose(legit, v4, rtol=.001):
+                diff = legit - v4
+                bad_pos = np.array(np.where(np.abs(diff) > .001)).T
+                print("Gaussian/This Disagreements:\n"+"\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>5.3f} (Actual: {:>8.3f} This: {:>8.3f})".format(
+                        i,j,k,l, diff[i,j,k,l], legit[i,j,k,l], v4[i,j,k,l]
+                    ) for i,j,k,l in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v4, rtol=.001)) # testing to within .001 wavenumbers
+
+    @debugTest
+    def test_TestQuarticsInternals(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOD_freq.fchk"),
+            n_quanta=6,
+            internals=[
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+        )
+
+        v4_Anne =[
+             [1,  1,  1,  -37.03937000],
+             [2,  1,  1,  -32.30391126],
+             [3,  1,  1,  -33.08215609],
+             [1,  2,  1,  -32.30391126],
+             [2,  2,  1,    3.57147725],
+             [3,  2,  1,    9.77124742],
+             [1,  3,  1,  -33.08215609],
+             [2,  3,  1,    9.77124742],
+             [3,  3,  1,    3.08396862],
+             [1,  1,  2,    3.53204514],
+             [2,  1,  2,   66.35374213],
+             [3,  1,  2,   -8.46713126],
+             [1,  2,  2,   66.35374213],
+             [2,  2,  2,  804.47871323],
+             [3,  2,  2,  -51.44004640],
+             [1,  3,  2,   -8.46713126],
+             [2,  3,  2,  -51.44004640],
+             [3,  3,  2,   10.60086681],
+             [1,  1,  3,    2.67361974],
+             [2,  1,  3,    3.14497676],
+             [3,  1,  3,  111.80682105],
+             [1,  2,  3,    3.14497676],
+             [2,  2,  3,   10.60153758],
+             [3,  2,  3,   97.05643377],
+             [1,  3,  3,  111.80682105],
+             [2,  3,  3,   97.05643377],
+             [3,  3,  3, 1519.00602277]
+        ]
+
+        legit = np.zeros((3, 3, 3, 3))
+        for k, j, i, v in v4_Anne:
+            i = i-1; j = j-1; k = k-1
+            for perm in ip.permutations((i, i, j, k)):
+                legit[perm] = v
+
+        v4 = self.h2w * ham.V_terms[2]
+
+        # for unknown reasons, Anne and I disagree on the order of like 5 cm^-1,
+        # but it's unclear which set of derivs. is right since my & hers both
+        # yield a max deviation from the Gaussian result of ~.1 cm^-1
+        print_errors=False
+        if print_errors:
+            if not np.allclose(legit, v4, rtol=.1):
+                diff = legit - v4
+                bad_pos = np.array(np.where(np.abs(diff) > .1)).T
+                print("Gaussian/This Disagreements:\n"+"\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>5.3f} (Actual: {:>8.3f} This: {:>8.3f})".format(
+                        i,j,k,l, diff[i,j,k,l], legit[i,j,k,l], v4[i,j,k,l]
+                    ) for i,j,k,l in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v4, rtol=10))
+
     @validationTest
     def test_HODVPTCartesians(self):
         # this isn't expected to give fully accurate results
@@ -203,7 +349,6 @@ class VPTTests(TestCase):
             n_quanta=6,
             internals=internals
         )
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
         states = (
             (0, 0, 0),
@@ -211,6 +356,7 @@ class VPTTests(TestCase):
             (0, 0, 2), (0, 2, 0), (2, 0, 0),
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
+        h2w = self.h2w
         wfns = hammer.get_wavefunctions(states, coupled_states=None)
         energies = h2w * wfns.energies
         zero_ord = h2w * wfns.zero_order_energies
@@ -278,12 +424,52 @@ class VPTTests(TestCase):
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
         n_quanta = 6
+
+        v4_Anne = [
+            [1, 1, 1, -37.03937000],
+            [2, 1, 1, -32.30391126],
+            [3, 1, 1, -33.08215609],
+            [1, 2, 1, -32.30391126],
+            [2, 2, 1, 3.57147725],
+            [3, 2, 1, 9.77124742],
+            [1, 3, 1, -33.08215609],
+            [2, 3, 1, 9.77124742],
+            [3, 3, 1, 3.08396862],
+            [1, 1, 2, 3.53204514],
+            [2, 1, 2, 66.35374213],
+            [3, 1, 2, -8.46713126],
+            [1, 2, 2, 66.35374213],
+            [2, 2, 2, 804.47871323],
+            [3, 2, 2, -51.44004640],
+            [1, 3, 2, -8.46713126],
+            [2, 3, 2, -51.44004640],
+            [3, 3, 2, 10.60086681],
+            [1, 1, 3, 2.67361974],
+            [2, 1, 3, 3.14497676],
+            [3, 1, 3, 111.80682105],
+            [1, 2, 3, 3.14497676],
+            [2, 2, 3, 10.60153758],
+            [3, 2, 3, 97.05643377],
+            [1, 3, 3, 111.80682105],
+            [2, 3, 3, 97.05643377],
+            [3, 3, 3, 1519.00602277]
+        ]
+
+        legit = np.zeros((3, 3, 3, 3))
+        for k, j, i, v in v4_Anne:
+            i = i - 1
+            j = j - 1
+            k = k - 1
+            for perm in ip.permutations((i, i, j, k)):
+                legit[perm] = v
+
         wfns = self.get_VPT2_wfns(
             "HOD_freq.fchk",
             internals,
             states,
             n_quanta,
             regenerate=True
+            # , v4 = legit/self.h2w
         )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -439,13 +625,13 @@ class VPTTests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
-    @inactiveTest
+    @validationTest
     def test_HOTVPTInternals(self):
 
         internals = [
             [0, -1, -1, -1],
-            [1, 0, -1, -1],
-            [2, 0, 1, -1]
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
         ]
         states = (
             (0, 0, 0),

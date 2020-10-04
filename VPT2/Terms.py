@@ -375,14 +375,14 @@ class ExpansionTerms:
                 unroll = (0, 1) + tuple(range(2+X, N)) + tuple(range(2, 2+X))
                 V_QQQQ_4 = V_QQQQ_4.transpose(unroll)
             X = tuple(range(4, V_QQQQ_4.ndim))
-            # if mixed_XQ:
-            #     # we need to zero out the elements we don't really have because Gaussian is mean
-            #     import itertools
-            #     nQ = V_QQQQ_4.shape[0]
-            #     if nQ > 3:
-            #         perms = np.array(list(itertools.permutations(range(nQ), 4))).T
-            #         # print(V_QQQQ_4.shape[0], perms)
-            #         V_QQQQ_4[perms] = 0.
+            if mixed_XQ:
+                # we need to zero out the elements we don't really have because Gaussian is mean
+                import itertools
+                nQ = V_QQQQ_4.shape[0]
+                if nQ > 3:
+                    perms = np.array(list(itertools.permutations(range(nQ), 4))).T
+                    print(V_QQQQ_4.shape[0], perms)
+                    V_QQQQ_4[perms] = 0.
         else:
             V_QQQQ_4 = 0
 
@@ -571,17 +571,17 @@ class PotentialTerms(ExpansionTerms):
             if self.mixed_derivs:
                 qQQ = dot(xQQ, QY)
                 f43 = dot(qQQ, thirds)
-                fourths = fourths.toarray() + f43
+                fourths = fourths.toarray()
+                fourths = fourths + f43
 
         x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
         V_derivs = (grad, hess, thirds, fourths)
 
         v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_XQ=self.mixed_derivs)
 
-        if self.mixed_derivs:
+        if self.mixed_derivs:# and intcds is None:
             # we assume we only got second derivs in Q_i Q_i
-            # at this point, then, we should be able to apply the symmetrizations
-            # that we know should be there
+            # at this point, then, we should be able to fill in the terms we know are missing
             for i in range(v4.shape[0]):
                 v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
 
