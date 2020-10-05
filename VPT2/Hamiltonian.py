@@ -174,8 +174,13 @@ class PerturbationTheoryHamiltonian:
         # plt.ArrayPlot(wat).show()
         # raise Exception("...wat")
 
-        H = [h[np.ix_(m, m)].reshape(N, N) for h in h_reps] #type: Iterable[np.ndarray]
-        # raise Exception("profiling")
+        H = [None] * len(h_reps)
+        for i,h in enumerate(h_reps):
+            sub = h[np.ix_(m, m)]
+            if isinstance(sub, (int, np.integer, np.floating, float)):
+                sub = np.full((N, N), sub)
+            H[i] = sub #type: np.ndarray
+        H = H #type: Iterable[np.ndarray] # just for the type hinting...
 
         all_energies = np.zeros((len(states), order + 1))
         all_overlaps = np.zeros((len(states), order + 1))
@@ -197,7 +202,6 @@ class PerturbationTheoryHamiltonian:
             pi = 1/e_vec
             pi[n_ind] = 0
             pi = np.diag(pi)
-            # raise Exception(pi.shape)
 
             energies[0] = E0
             overlaps[0] = 1
@@ -206,15 +210,22 @@ class PerturbationTheoryHamiltonian:
             for k in range(1, order+1): # to actually go up to k
                 #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
                 Ek = (
-                             H[k][n_ind, n_ind]
-                             + sum(np.dot(H[k-i][n_ind], corrs[i]) - energies[k-i]*overlaps[i] for i in range(1, k))
+                        H[k][n_ind, n_ind]
+                        + sum(
+                             np.dot(H[k-i][n_ind], corrs[i])
+                            - energies[k-i]*overlaps[i]
+                            for i in range(1, k)
+                        )
                 )
                 energies[k] = Ek
                 #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
                 ok = -1/2 * sum(np.dot(corrs[i], corrs[k-i]) for i in range(1, k))
                 overlaps[k] = ok
                 #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
-                corrs[k] = sum(np.dot(pi, energies[k-i]*corrs[i] - np.dot(H[k-i], corrs[i])) for i in range(0, k))
+                corrs[k] = sum(
+                    np.dot(pi, energies[k-i]*corrs[i] - np.dot(H[k-i], corrs[i]))
+                    for i in range(0, k)
+                )
                 corrs[k][n_ind] = ok # pi (the perturbation operator) ensures it's zero before this
 
             # now we broadcast the corrections back up so that they're good for the _entire_ population of states...
@@ -234,6 +245,31 @@ class PerturbationTheoryHamiltonian:
             H
         )
 
+    def get_representations(self, coupled_states):
+        """
+        Returns the representations of the perturbations in the basis of coupled states
+
+        :param coupled_states:
+        :type coupled_states:
+        :return:
+        :rtype:
+        """
+        total_states = int(np.prod(self.basis.quanta))
+        if coupled_states is None:
+            coupled_states = np.arange(total_states)  # expensive but...I guess what are you gonna do?
+        elif not isinstance(coupled_states[0], int):
+            coupled_states = self.basis.ravel_state_inds(coupled_states)
+
+        m = coupled_states
+        N = len(m)
+        h_reps = self.perturbations
+        H = [None] * len(h_reps)
+        for i, h in enumerate(h_reps):
+            sub = h[np.ix_(m, m)]
+            if isinstance(sub, (int, np.integer, np.floating, float)):
+                sub = np.full((N, N), sub)
+            H[i] = sub  # type: np.ndarray
+        return H
     def get_wavefunctions(self, states, coupled_states=None, order=2):
         """
         Gets a set of `PerturbationTheoryWavefunctions` from the perturbations defined by the Hamiltonian

@@ -114,8 +114,9 @@ class TermComputer:
         elif not pull_elements:
 
             shp = (len(np.unique(blocks[:, 0])), len(np.unique(blocks[:, 1])))
+            extra_shp = els.shape[:-1] # some terms will return higher-dimensional results?
             # for sparse arrays this happens in-place :|
-            els = els.reshape(shp).squeeze()
+            els = els.reshape(extra_shp + shp).squeeze()
         return els
 
     def __getitem__(self, item):
@@ -222,7 +223,7 @@ class ExpansionTerm(TermComputer):
     def get_element(self, n, m):
 
         # try:
-        els = sum( c * t.get_element(n, m) for c, t in zip(self.coeffs, self.computers) if not (isinstance(c, int) and c==0) )
+        els = sum( c * t.get_element(n, m) for c, t in zip(self.coeffs, self.computers) if not (isinstance(c, (int, float, np.integer, np.floating)) and c==0) )
         # except:
         #     raise Exception([t.compute for t in self.computers])
         return els

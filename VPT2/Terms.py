@@ -127,14 +127,16 @@ class ExpansionTerms:
     Base class for kinetic, potential, and dipole derivative terms
     """
     _cached_jacobians = {}
-    def __init__(self, molecule, modes=None, mode_selection=None):
+    def __init__(self, molecule, modes=None, mode_selection=None, undimensionalize=True):
         self._terms = None
         self.molecule = molecule
         self.internal_coordinates = molecule.internal_coordinates
         self.coords = molecule.coords
         self.masses = molecule.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-        if modes is not None:
-            modes = self.undimensionalize(self.masses, molecule.normal_modes.basis)
+        if modes is None:
+            modes = molecule.normal_modes
+        if undimensionalize:
+            modes = self.undimensionalize(self.masses, modes.basis)
         if mode_selection is not None:
             modes = modes[(mode_selection,)]
         self.modes = modes
@@ -375,14 +377,14 @@ class ExpansionTerms:
                 unroll = (0, 1) + tuple(range(2+X, N)) + tuple(range(2, 2+X))
                 V_QQQQ_4 = V_QQQQ_4.transpose(unroll)
             X = tuple(range(4, V_QQQQ_4.ndim))
-            if mixed_XQ:
-                # we need to zero out the elements we don't really have because Gaussian is mean
-                import itertools
-                nQ = V_QQQQ_4.shape[0]
-                if nQ > 3:
-                    perms = np.array(list(itertools.permutations(range(nQ), 4))).T
-                    print(V_QQQQ_4.shape[0], perms)
-                    V_QQQQ_4[perms] = 0.
+            # if mixed_XQ:
+            #     # we need to zero out the elements we don't really have because Gaussian is mean
+            #     import itertools
+            #     nQ = V_QQQQ_4.shape[0]
+            #     if nQ > 3:
+            #         perms = np.array(list(itertools.permutations(range(nQ), 4))).T
+            #         # print(V_QQQQ_4.shape[0], perms)
+            #         V_QQQQ_4[perms] = 0.
         else:
             V_QQQQ_4 = 0
 
