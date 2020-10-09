@@ -280,13 +280,11 @@ class PerturbationTheoryHamiltonian:
             if self.coriolis_terms is not None:
                 total_cor = self.coriolis_terms[0]+self.coriolis_terms[1]+self.coriolis_terms[2]
                 # import McUtils.Plots as plt
-                # n_modes = total_cor.shape[0]
-                # plt.ArrayPlot(self.V_terms[2].reshape(n_modes*n_modes, n_modes*n_modes)).show()
-                # plt.TensorPlot(total_cor)
-                # plt.ArrayPlot(total_cor.reshape(n_modes*n_modes, n_modes*n_modes)).show()
-                self._h2 += self.basis.representation('x', 'p', 'x', 'p',
-                                                      coeffs=total_cor
-                                                      )
+                # plt.ArrayPlot(
+                #     total_cor.reshape(total_cor.shape[0] ** 2, total_cor.shape[0] ** 2)
+                # ).show()
+                self._h2 += -1 * self.basis.representation('x', 'p', 'x', 'p', coeffs=total_cor)
+                self._h2 += -1/4 * self.basis.representation(coeffs=self.coriolis_terms[3])
 
         return self._h2
 

@@ -2,7 +2,7 @@
 Provides a very general specification for a RepresentationBasis object that can be
 used to define matrix representations
 """
-import abc, numpy as np
+import abc, numpy as np, scipy.sparse as sp
 
 from .Terms import TermComputer
 from .Operators import Operator, ContractedOperator
@@ -69,9 +69,20 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         """
         raise NotImplemented
 
+    def I(self, n):
+        """
+        Generates the identity matrix up to n-quanta
+
+        :param n:
+        :type n:
+        :return:
+        :rtype:
+        """
+        return sp.csc_matrix(sp.eye(n))
+
     @property
     def operator_mapping(self):
-        return {'x':self.x, 'p':self.p}
+        return {'x':self.x, 'p':self.p, 'I':self.I}
     def operator(self, *terms):
         funcs = [self.operator_mapping[f] if isinstance(f, str) else f for f in terms]
         q = (self.quanta,)

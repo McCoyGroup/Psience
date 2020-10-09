@@ -893,6 +893,9 @@ class CoriolisTerm(ExpansionTerms):
         # mass-weighted mode matrix
         # (note that we want the transpose not the inverse for unit reasons)
         xQ = self.modes.matrix.T
+        # remove the frequency dimensioning? -> this step makes me super uncomfortable but agrees with Gaussian
+        freqs = self.freqs
+        xQ = xQ / np.sqrt(freqs[:, np.newaxis])
         # reshape xQ so that it looks like atom x mode x Cartesian
         J = xQ.reshape((len(xQ), self.molecule.num_atoms, 3)).transpose(1, 0, 2)
 
@@ -912,13 +915,9 @@ class CoriolisTerm(ExpansionTerms):
 
         return zeta, mom_i
 
-    def get_zetas(self, remove_freqs=True):
+    def get_zetas(self):
 
-        # to compare to Gaussian we remove the frequency dimensioning
-        freqs = self.freqs
-        freq_prods = np.sqrt(1 / (freqs[np.newaxis, np.newaxis, :] * freqs[np.newaxis, :, np.newaxis]))
         z, m = self.get_zetas_and_momi()
-        z = z * freq_prods
 
         return z
 
@@ -926,31 +925,31 @@ class CoriolisTerm(ExpansionTerms):
 
         zeta_inert, mom_i = self.get_zetas_and_momi()
 
-        coriolois = zeta_inert[:, np.newaxis, np.newaxis, :, :] * zeta_inert[:, :, :, np.newaxis, np.newaxis]
+        # new we include the frequency dimensioning that comes from the q and p terms in Pi = Zeta*qipj
+        freqs = self.freqs
+        freq_term = np.sqrt(freqs[np.newaxis, :] / freqs[:, np.newaxis])
+        zeta_inert = zeta_inert * freq_term[np.newaxis]
+
+        coriolis = (
+                           zeta_inert[:, :, :, np.newaxis, np.newaxis] # ij
+                           * zeta_inert[:, np.newaxis, np.newaxis, :, :] # kl
+        )
 
         # Need to put B in Hartree?
         #  I've got moments of inertia in amu * bohr^2 at the moment
         #  So we convert (amu * bohr^2) to (m_e * bohr^2) since hb^2/(m_e bohr^2) == E_h
         B_e = 1 / (2 * mom_i * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
-        print(B_e * UnitsData.convert("Hartrees", "Wavenumbers") )
+        # print(B_e * UnitsData.convert("Hartrees", "Wavenumbers") )
 
-        # finally we include the frequency dimensioning that comes from the q and p terms in qpqp
-        freqs = self.freqs
-        freq_prods = np.sqrt(
-            (
-                    freqs[np.newaxis, :, np.newaxis, np.newaxis, np.newaxis]
-                    * freqs[np.newaxis, np.newaxis, np.newaxis, :, np.newaxis]
-            ) / (
-                    freqs[np.newaxis, np.newaxis, :, np.newaxis, np.newaxis]
-                    * freqs[np.newaxis, np.newaxis, np.newaxis, np.newaxis, :]
-            )
-        ) * np.sqrt(1 / (
-            freqs[np.newaxis, :, np.newaxis, np.newaxis, np.newaxis]
-            * freqs[np.newaxis, np.newaxis, :, np.newaxis, np.newaxis]
-            * freqs[np.newaxis, np.newaxis, np.newaxis, :, np.newaxis]
-            * freqs[np.newaxis, np.newaxis, np.newaxis, np.newaxis, :]
-        ))
-        # freq_prods = freq_prods ** 2
-        corr = B_e[:, np.newaxis, np.newaxis, np.newaxis, np.newaxis] * freq_prods * coriolois
+        # B_e = B_e[(0, 1, 2),]
+        # B_e = B_e[(0, 2, 1),]
+        # B_e = B_e[(1, 0, 2),]
+        # B_e = B_e[(1, 2, 0),]
+        # B_e = B_e[(2, 0, 1),]
+        # B_e = B_e[(2, 1, 0),]
 
-        return corr
+        corr = B_e[:, np.newaxis, np.newaxis, np.newaxis, np.newaxis] * coriolis
+
+        watson = sum(B_e)
+
+        return corr[0], corr[1], corr[2], watson

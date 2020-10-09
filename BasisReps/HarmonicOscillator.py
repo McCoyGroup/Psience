@@ -48,8 +48,8 @@ class HarmonicOscillatorBasis(RepresentationBasis):
         # the imaginary terms pull out and just become a negative sign
         ar = 1 / np.sqrt(2) * np.sqrt(np.arange(1, n))
         bands = [
-            [ ar,  1],
-            [-ar, -1]
+            [  ar,  1],
+            [ -ar, -1]
         ]
         return sp.csr_matrix(sp.diags([b[0] for b in bands], [b[1] for b in bands]))
 

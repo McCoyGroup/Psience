@@ -7,7 +7,10 @@ __all__ = [
     "ExpansionTerm"
 ]
 
-import numpy as np, itertools as ip
+import numpy as np, itertools as ip, scipy.sparse as sp
+
+from McUtils.Numputils import SparseArray
+
 from .Operators import Operator
 
 #TODO: add in some level of support for caching
@@ -27,12 +30,14 @@ class TermComputer:
         """
         if isinstance(compute, Operator):
             operator = compute
-            compute = lambda inds, c=compute: c[inds]
+            compute = self._compute_op_els
         else:
             operator = None
         self.operator = operator
         self.compute = compute
         self.dims = n_quanta
+    def _compute_op_els(self, inds):
+        return self.operator[inds] #compute: c[inds]
 
     @property
     def diag(self):
@@ -117,6 +122,7 @@ class TermComputer:
             extra_shp = els.shape[:-1] # some terms will return higher-dimensional results?
             # for sparse arrays this happens in-place :|
             els = els.reshape(extra_shp + shp).squeeze()
+
         return els
 
     def __getitem__(self, item):
@@ -159,6 +165,13 @@ class TermComputer:
                 type(self).__name__,
                 type(other).__name__
             ))
+
+    def __repr__(self):
+        return "{}(<{}>, {})".format(
+            type(self).__name__,
+            ", ".join(str(s) for s in self.dims) if hasattr(self, 'dims') else '???',
+            self.operator if self.operator is not None else self.compute
+        )
 
 class ExpansionTerm(TermComputer):
     """
@@ -223,7 +236,41 @@ class ExpansionTerm(TermComputer):
     def get_element(self, n, m):
 
         # try:
-        els = sum( c * t.get_element(n, m) for c, t in zip(self.coeffs, self.computers) if not (isinstance(c, (int, float, np.integer, np.floating)) and c==0) )
-        # except:
-        #     raise Exception([t.compute for t in self.computers])
+        els = None
+        for c, t in zip(self.coeffs, self.computers):
+            if not (isinstance(c, (int, float, np.integer, np.floating)) and c == 0):
+                bits = t.get_element(n, m)
+                scaled = bits * c
+                if isinstance(scaled, (int, float, np.integer, np.floating)) and scaled != 0:
+                    # raise Exception(bits, c, scaled, n,m, t)
+                    raise ValueError(" ".join([
+                        "Adding a constant ({}) to a sparse operator ({}) would cast to dense.",
+                        "Error likely occurred in getting elements for {}.",
+                        "Explicitly subclass {} if you truly need the constant shift.",
+                    ]).format(
+                        scaled,
+                        els,
+                        t,
+                        type(self).__name__
+                    ))
+                else:
+                    if els is None:
+                        els = scaled
+                    else:
+                        if isinstance(scaled, (SparseArray, sp.spmatrix)):
+                            scaled = scaled.toarray()
+                            # import McUtils.Plots as plt
+                            # 
+                            # plt.ArrayPlot(scaled).show()
+                        # print(scaled.shape, els.shape)
+                        els += scaled
+
         return els
+
+    def __repr__(self):
+        return "{}(<{}>, ({}), ({}))".format(
+            type(self).__name__,
+            ", ".join(str(s) for s in self.dims) if hasattr(self, 'dims') else '???',
+            self.coeffs,
+            self.computers
+        )

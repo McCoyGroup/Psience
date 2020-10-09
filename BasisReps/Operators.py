@@ -45,12 +45,7 @@ class Operator:
         return len(self.funcs) + len(self.quanta)
     @property
     def shape(self):
-        return (self.mode_n, ) *len(self.funcs) + self.quanta
-    # @property
-    # def tensor(self):
-    #     if self._tensor is None:
-    #         self._tensor = self.product_operator_tensor()
-    #     return self._tensor
+        return (self.mode_n, ) * len(self.funcs) + self.quanta
 
     def get_inner_indices(self):
         """
@@ -61,7 +56,9 @@ class Operator:
         :rtype:
         """
         funcs = self.funcs
-        dims = len(self.funcs)
+        dims = len(funcs)
+        if len(funcs) == 0:
+            return None
         shp = (self.mode_n,) * dims
         inds = np.indices(shp, dtype=int)
         tp = np.roll(np.arange(len(funcs) + 1), -1)
@@ -92,6 +89,34 @@ class Operator:
         state['_tensor'] = None
         return state
 
+    def _get_eye_tensor(self, states, quants):
+        orthog = self._get_orthogonality([], states, quants)
+        non_orthog = np.where(orthog!=0.)[0]
+        return sp.csr_matrix(
+            (
+                orthog[non_orthog],
+                (
+                    np.zeros(len(non_orthog)),
+                    non_orthog
+                )
+            ),
+            shape=(1, len(orthog))
+        )
+
+    def _get_orthogonality(self, inds, states, quants):
+        nstates = len(states[0][0])
+        ndim = len(quants)
+        uinds = np.unique(inds)
+        if len(uinds) == ndim:  # means we've got no states that are unused (can only rarely happen, but important edge case)
+            orthog = np.ones(nstates, dtype=int)
+        else:
+            # determine which of the unused states (`missing`) have different numbers of
+            # quanta in the bra (`states[i][0]`) than the ket (`states[i][1]`)
+            missing = [i for i in range(ndim) if i not in uinds]
+            equivs = [states[i][0] == states[i][1] for i in missing]
+            orthog = np.prod(equivs, axis=0).astype(int)  # taking advantage of the fact that bools act like ints
+        return orthog
+
     def _calculate_single_pop_elements(self, inds, funcs, states, quants):
         """
         Calculates terms for a single product operator.
@@ -112,19 +137,11 @@ class Operator:
         """
         # determine how many states aren't coupled by the operator
         # & then determine which of those are non-orthogonal
+
         dims = quants
-        ndim = len(quants)
         nstates = len(states[0][0])
         uinds = np.unique(inds)
-        if len(uinds) == ndim: # means we've got no states that are unused (can only rarely happen, but important edge case)
-            orthog = np.ones(nstates, dtype=int)
-        else:
-            # determine which of the unused states (`missing`) have different numbers of
-            # quanta in the bra (`states[i][0]`) than the ket (`states[i][1]`)
-            missing = [i for i in range(ndim) if i not in uinds]
-            equivs = [states[i][0] == states[i][1] for i in missing]
-            orthog = np.prod(equivs, axis=0).astype(int) # taking advantage of the fact that bools act like ints
-
+        orthog = self._get_orthogonality(inds, states, quants)
         single_state = isinstance(orthog, (int, np.integer)) # means we got a single state to calculate over
         if single_state:
             orthog = np.array([orthog])
@@ -149,7 +166,7 @@ class Operator:
             for f, i in zip(funcs, inds):
                 n = mm[i] # makes sure that we fill in in the same order as uinds
                 if pieces[n] is None:
-                    pieces[n] = f(dims[i] + padding) #type: sp.spmatrix
+                     pieces[n] = f(dims[i] + padding) #type: sp.spmatrix
                 else:
                     # QQ -> Q.Q & QQQ -> Q.Q.Q
                     og = pieces[n] #type: sp.spmatrix
@@ -166,12 +183,11 @@ class Operator:
                     else:
                         chunk = np.asarray(blob)
                 else:
-                    chunk *= blob
+                    chunk = chunk * blob
 
-            # all sorts of weird shit can happen with sp.spmatrix
+            # weird stuff can happen with sp.spmatrix
             if (
                     isinstance(chunk, (int, np.integer, float, np.floating))
-                    or isinstance(chunk, np.ndarray) and chunk.shape==()
             ):
                 chunk = np.array([chunk])
 
@@ -260,7 +276,6 @@ class Operator:
         :return:
         :rtype:
         """
-        inds = self.get_inner_indices()
 
         # we expect this to be an iterable object that looks like
         # num_modes X [bra, ket] X quanta
@@ -274,24 +289,36 @@ class Operator:
                 idx,
                 (self.ndim, self.mode_n)
             ))
-        shp = inds.shape
 
-        # raise Exception(idx)
+        inds = self.get_inner_indices()
 
-        if parallelizer is not None:
-            # parallelizer = self._parallelizer
-            inds = inds.reshape((-1, inds.shape[-1]))
-            res = self._get_pop_parallel(inds, idx, parallelizer=parallelizer)
+        if inds is None: # just a number
+            new = self._get_eye_tensor(idx, self.quanta)
+            # raise Exception(new[0], type(new), new.shape)
         else:
-            res = self._get_pop_sequential(inds, idx)
+            if parallelizer is not None:
+                # parallelizer = self._parallelizer
+                inds = inds.reshape((-1, inds.shape[-1]))
+                res = self._get_pop_parallel(inds, idx, parallelizer=parallelizer)
+            else:
+                res = self._get_pop_sequential(inds, idx)
 
-        wat = [x for y in res.flatten() for x in y]
-        new = sp.vstack(wat)
+            wat = [x for y in res.flatten() for x in y]
+            new = sp.vstack(wat)
 
+        shp = inds.shape if inds is not None else ()
+        # print(type(new), new.shape)
         res = SparseArray(new)
         res = res.reshape(shp[:-1] + res.shape[-1:])
 
         return res
+
+    def __repr__(self):
+        return "{}(<{}>, {})".format(
+            type(self).__name__,
+            ", ".join(str(s) for s in self.shape),
+            self.funcs
+        )
 
 class ContractedOperator(Operator):
     """
@@ -347,4 +374,12 @@ class ContractedOperator(Operator):
             contracted = c * subTensor
 
         return contracted
+
+    def __repr__(self):
+        return "{}(opdim=<{}>, cdim=<{}>, {})".format(
+            type(self).__name__,
+            ", ".join(str(s) for s in self.shape),
+            None if not hasattr(self.coeffs, 'shape') else ", ".join(str(s) for s in self.shape),
+            self.funcs
+        )
 

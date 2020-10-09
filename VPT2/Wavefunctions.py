@@ -87,8 +87,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :rtype:
         """
 
-        M = self.corrs.states['coupled_states'] # the coupled subspace space we're working in
-        corr_vecs = self.corrs.corrections['wavefunctions'][..., M]
+        M = self.corrs.coupled_states # the coupled subspace space we're working in
+        corr_vecs = self.corrs.wfn_corrections[..., M]
         transition_moment_components = np.zeros((3, 3)).tolist() # x, y, and z components of the 0th, 1st, and 2nd order stuff
         # raise Exception([mu_1[0].shape)
         mu = [mu_x, mu_y, mu_z]
