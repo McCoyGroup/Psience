@@ -260,7 +260,7 @@ class ExpansionTerm(TermComputer):
                         if isinstance(scaled, (SparseArray, sp.spmatrix)):
                             scaled = scaled.toarray()
                             # import McUtils.Plots as plt
-                            # 
+                            #
                             # plt.ArrayPlot(scaled).show()
                         # print(scaled.shape, els.shape)
                         els += scaled
