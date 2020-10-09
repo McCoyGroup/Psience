@@ -73,6 +73,8 @@ class MolecularProperties:
         o = nput.vec_outer(coords, coords, axes=[-1, -1])
         tens = np.tensordot(masses, d - o, axes=[0, -3])
 
+        # print(masses)
+
         return tens
 
     @classmethod
@@ -101,7 +103,12 @@ class MolecularProperties:
 
         massy_doop = cls.get_prop_inertia_tensors(coords, masses)
         moms, axes = np.linalg.eigh(massy_doop)
-        axes[:, :, 1] = vec_crosses(axes[:, :, 0], axes[:, :, 2]) # force right-handedness because we can
+        a = axes[:, :, 0]
+        c = axes[:, :, 2]
+        b = vec_crosses(a, c) # force right-handedness because we can
+        axes[:, :, 1] = b # ensure we have true rotation matrices
+        dets = np.linalg.det(axes)
+        axes[:, :, 1] *= dets # ensure we have true rotation matrices
         if multiconfig:
             moms = moms.reshape(extra_shape + (3,))
             axes = axes.reshape(extra_shape + (3, 3))

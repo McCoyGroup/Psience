@@ -17,9 +17,9 @@ class VPTTests(TestCase):
         :return:
         :rtype:
         """
-        np.savez(file,
-                 **{k:v for k,v in zip(wfns.corrs._fields, wfns.corrs)}
-                 )
+        corrs = wfns.corrs
+        corrs.savez(file)
+
     def load_wfns(self, mol, basis, file):
         """
         We save the corrections so that we can reload them later
@@ -31,7 +31,7 @@ class VPTTests(TestCase):
         return PerturbationTheoryWavefunctions(
             mol,
             basis,
-            PerturbationTheoryCorrections(**np.load(file))
+            PerturbationTheoryCorrections.loadz(file)
         )
 
     wfn_file_dir = os.path.expanduser("~/Desktop/")
@@ -40,7 +40,9 @@ class VPTTests(TestCase):
                       coupled_states=None,
                       mode_selection=None,
                       v3 = None,
-                      v4 = None
+                      v4 = None,
+                      coriolis = None,
+                      degeneracies=None
                       ):
 
         hammer = PerturbationTheoryHamiltonian.from_fchk(
@@ -54,10 +56,12 @@ class VPTTests(TestCase):
             hammer.H1.computers[1].operator.coeffs = v3
         if v4 is not None:
             hammer.H2.computers[1].operator.coeffs = v4
+        if coriolis is not None:
+            hammer.H2.computers[2].operator.coeffs = coriolis
 
         wfn_file = os.path.join(self.wfn_file_dir, fchk.replace("fchk", "npz"))
         if regenerate or not os.path.exists(wfn_file):
-            wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states)
+            wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies)
             self.save_wfns(wfn_file, wfns)
         else:
             wfns = self.load_wfns(hammer.molecule, hammer.basis, wfn_file)
@@ -170,17 +174,19 @@ class VPTTests(TestCase):
         appx = pQp[bras, kets].toarray().transpose(3, 0, 1, 2)
 
         legit = np.array(
-            [[[[0., 0., 0.35355339],
-               [0., 0., 0.],
-               [-0.35355339, 0., 0.]],
+            [[
+                [[0.,          0.,        -0.35355339],
+                 [0.,          0.,         0.        ],
+                 [-0.35355339, 0.,         0.        ]],
 
-              [[0., 0., 0.],
-               [0., 0., 0.35355339],
-               [0., -0.35355339, 0.]],
+                [[0.,          0.,         0.        ],
+                 [0.,          0.,        -0.35355339],
+                 [0.,         -0.35355339, 0.        ]],
 
-              [[-0.35355339, 0., 0.],
-               [0., -0.35355339, 0.],
-               [0., 0., -0.35355339]]]]
+                [[ 0.35355339, 0.,         0.        ],
+                 [ 0.,         0.35355339, 0.        ],
+                 [ 0.,         0.,        -1.06066   ]]
+            ]]
         )
 
         self.assertTrue(np.allclose(legit, appx))
@@ -245,46 +251,80 @@ class VPTTests(TestCase):
             ]
         ])
 
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(
+        #     legit.reshape(3*3, 3*3)
+        # ).show()
+
         appx = QQQQ[bras, kets].toarray().squeeze()
         # raise Exception(appx)
 
         self.assertTrue(np.allclose(legit, appx))
 
     @validationTest
-    def test_RepresentQQQ(self):
+    def test_RepresentPQQP2(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
-            TestManager.test_data("HOD_freq.fchk"),
+            TestManager.test_data("OCHD_freq.fchk"),
             n_quanta=6,
             internals=None  # doesn't matter for this
         )
 
-        QQQ = ham.H1.computers[1].operator
-        QQQ.coeffs = 1
+        pQQp = ham.H2.computers[0].operator
+        pQQp.coeffs = 1
 
         bras = (
-            (0, 0, 0),
+            (0, 0, 0, 0, 0, 0),
         )
         kets = (
-            (0, 0, 1),
+            (0, 0, 0, 0, 0, 0),
         )
 
-        legit = np.array([
-            [[0., 0., 0.35355339],
-             [0., 0., 0.],
-             [0.35355339, 0., 0.]],
+        appx = pQQp[bras, kets].toarray().squeeze()
 
-            [[0., 0., 0.],
-             [0., 0., 0.35355339],
-             [0., 0.35355339, 0.]],
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(
+        #     appx.reshape(6 * 6, 6 * 6)
+        # ).show()
 
-            [[0.35355339, 0., 0.],
-             [0., 0.35355339, 0.],
-             [0., 0., 1.06066017]]
-        ])
+        self.assertAlmostEquals(np.min(appx), -0.75)
+        self.assertAlmostEquals(np.max(appx), 0.0)
+        self.assertAlmostEquals(appx[0, 0, 0, 0], -0.75)
+        self.assertAlmostEquals(appx[0, 0, 1, 1], -0.25)
+        self.assertAlmostEquals(appx[0, 1, 0, 1], -0.25)
+        self.assertEquals(appx[0, 1, 0, 0], 0.0)
 
-        appx = QQQ[bras, kets].toarray().squeeze()
 
-        self.assertTrue(np.allclose(legit, appx))
+    @validationTest
+    def test_RepresentQQQQ2(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("OCHD_freq.fchk"),
+            n_quanta=6,
+            internals=None  # doesn't matter for this
+        )
+
+        QQQQ = ham.H2.computers[1].operator
+        QQQQ.coeffs = 1
+
+        bras = (
+            (0, 0, 0, 0, 0, 0),
+        )
+        kets = (
+            (0, 0, 0, 0, 0, 0),
+        )
+
+        appx = QQQQ[bras, kets].toarray().squeeze()
+
+        self.assertAlmostEquals(np.min(appx), 0.0)
+        self.assertAlmostEquals(np.max(appx),  .75)
+        self.assertAlmostEquals(appx[0, 0, 0, 0],  .75)
+        self.assertAlmostEquals(appx[0, 0, 1, 1],  .25)
+        self.assertAlmostEquals(appx[0, 1, 0, 1],  .25)
+        self.assertEquals(appx[0, 1, 0, 0], 0)
+
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(
+        #     appx.reshape(6 * 6, 6 * 6)
+        # ).show()
 
     @validationTest
     def test_RepresentPQP(self):
@@ -361,14 +401,57 @@ class VPTTests(TestCase):
         coupled_states = self.get_states(4, n_modes, max_quanta=4)
         h0, h1, h2 = ham.get_representations(coupled_states)
 
-        sub = h2[0, 0, :, :, 0, 0].toarray()
+        sub = 24*h2[0, 0, :, :, 0, 0].toarray()
         expected = np.array([
-            [0.031249999999999993, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.010416666666666661, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.010416666666666661, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.010416666666666661, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.010416666666666661, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0, 0.010416666666666661]
+            [0.75, 0.0,  0.0,  0.0,  0.0,  0.0 ],
+            [0.0,  0.25, 0.0,  0.0,  0.0,  0.0 ],
+            [0.0,  0.0,  0.25, 0.0,  0.0,  0.0 ],
+            [0.0,  0.0,  0.0,  0.25, 0.0,  0.0 ],
+            [0.0,  0.0,  0.0,  0.0,  0.25, 0.0 ],
+            [0.0,  0.0,  0.0,  0.0,  0.0,  0.25]
+        ])
+
+        self.assertTrue(np.allclose(sub, expected))
+
+    @validationTest
+    def test_RepresentFullPQQP(self):
+
+        n_modes = 6
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("OCHD_freq.fchk"),
+            n_quanta=6,
+            internals=None  # doesn't matter for this
+        )
+
+        pp = ham.H0.computers[0].operator
+        pp.coeffs = 0
+
+        QQ = ham.H0.computers[1].operator
+        QQ.coeffs = 0
+
+        pQp = ham.H1.computers[0].operator
+        pQp.coeffs = 0
+
+        QQQ = ham.H2.computers[1].operator
+        QQQ.coeffs = 0
+
+        pQQp = ham.H2.computers[0].operator
+        pQQp.coeffs = 1
+
+        QQQQ = ham.H2.computers[1].operator
+        QQQQ.coeffs = 0
+
+        coupled_states = self.get_states(4, n_modes, max_quanta=4)
+        h0, h1, h2 = ham.get_representations(coupled_states)
+
+        sub = 4 * h2[0, 0, :, :, 0, 0].toarray()
+        expected = np.array([
+            [0.75, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.25, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.25, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.25, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.25, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.25]
         ])
 
         self.assertTrue(np.allclose(sub, expected))
@@ -477,20 +560,20 @@ class VPTTests(TestCase):
         # but _doesn't_ flip the phases on its derivatives
         v4_Gaussian16 = [
             [1, 1, 1, 1, 1517.96195],
-                       [2, 1, 1, 1,   98.60039],
-                       [2, 2, 1, 1,    8.99879],
-                       [2, 2, 2, 1,  -50.96534],
-                       [2, 2, 2, 2,  804.29612],
-                       [3, 1, 1, 1,  142.07906],
-                       [3, 2, 1, 1,  -18.73793],
-                       [3, 2, 2, 1,  -22.35735],
-                       [3, 2, 2, 2,   71.80757],
-                       [3, 3, 1, 1, -523.38806],
-                       [3, 3, 2, 1,   -4.05417],
-                       [3, 3, 2, 2,  -95.43403],
-                       [3, 3, 3, 1, -145.84906],
-                       [3, 3, 3, 2,  -41.07498],
-                       [3, 3, 3, 3,   83.42476]
+            [2, 1, 1, 1,   98.60039],
+            [2, 2, 1, 1,    8.99879],
+            [2, 2, 2, 1,  -50.96534],
+            [2, 2, 2, 2,  804.29612],
+            [3, 1, 1, 1,  142.07906],
+            [3, 2, 1, 1,  -18.73793],
+            [3, 2, 2, 1,  -22.35735],
+            [3, 2, 2, 2,   71.80757],
+            [3, 3, 1, 1, -523.38806],
+            [3, 3, 2, 1,   -4.05417],
+            [3, 3, 2, 2,  -95.43403],
+            [3, 3, 3, 1, -145.84906],
+            [3, 3, 3, 2,  -41.07498],
+            [3, 3, 3, 3,   83.42476]
         ]
 
         legit = np.zeros((3, 3, 3, 3))
@@ -701,7 +784,148 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v4, rtol=10))
 
+    @inactiveTest
+    def test_CoriolisCouplings(self):
+
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("OCHT_freq.fchk"),
+            n_quanta=6,
+            internals=None
+        )
+
+        x, y, z = ham.coriolis_terms.get_zetas()
+
+        x_els, y_els, z_els = [[[2, 1,     -0.40065],
+                                [3, 1,      0.53649],
+                                [4, 1,     -0.37833],
+                                [5, 1,     -0.58017],
+                                [6, 1,      0.26819]],
+                               [[3, 2,      0.23121],
+                                [4, 2,     -0.21924],
+                                [4, 3,     -0.34391],
+                                [5, 2,     -0.91672],
+                                [5, 3,     -0.00152],
+                                [5, 4,     -0.14017],
+                                [6, 2,      0.06115],
+                                [6, 3,     -0.90544],
+                                [6, 4,      0.03576],
+                                [6, 5,     -0.30877]],
+                               [[2, 1,      0.72244],
+                                [3, 1,      0.46646],
+                                [4, 1,      0.16840],
+                                [5, 1,     -0.33669],
+                                [6, 1,     -0.34465]]]
+        mapping = [2, 6, 5, 4, 3, 1]
+
+        gaussian_x = np.zeros((6, 6))
+        for j, i, v in x_els:
+            i = mapping[i-1]-1
+            j = mapping[j-1]-1
+            gaussian_x[i, j] =  v
+            gaussian_x[j, i] = -v
+        gaussian_y = np.zeros((6, 6))
+        for i, j, v in y_els:
+            i = mapping[i-1]-1
+            j = mapping[j-1]-1
+            gaussian_y[i, j] =  v
+            gaussian_y[j, i] = -v
+        gaussian_z = np.zeros((6, 6))
+        for i, j, v in z_els:
+            i = mapping[i-1]-1
+            j = mapping[j-1]-1
+            gaussian_z[i, j] = v
+            gaussian_z[j, i] = -v
+
+        print("-"*50, "x", "-"*50)
+        for a, b in zip(x, gaussian_z):
+            print(
+                ("[" + "{:>8.3f}"*6 + "]").format(*a)
+                + ("[" + "{:>8.3f}"*6+ "]").format(*b)
+            )
+        print("-" * 50, "y", "-" * 50)
+        for a, b in zip(y, gaussian_x):
+            print(
+                ("[" + "{:>8.3f}" * 6 + "]").format(*a)
+                + ("[" + "{:>8.3f}" * 6 + "]").format(*b)
+            )
+        print("-" * 50, "z", "-" * 50)
+        for a, b in zip(z, gaussian_y):
+            print(
+                ("[" + "{:>8.3f}" * 6 + "]").format(*a)
+                + ("[" + "{:>8.3f}" * 6 + "]").format(*b)
+            )
+
+        sum_diff = np.abs(sum([x, y, z]) - sum([gaussian_x, gaussian_y, gaussian_z]))
+        print(np.round(sum_diff, 3))
+        self.assertLess(np.max(sum_diff), .001)
+
     @debugTest
+    def test_HODCoriolisCouplings(self):
+
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOD_freq.fchk"),
+            n_quanta=6,
+            internals=None
+        )
+
+        x, y, z = ham.coriolis_terms.get_zetas()
+
+        x_els, y_els, z_els = [[
+
+                                ],
+                               [[2, 1,  0.01299],
+                                [3, 1,  0.84340],
+                                [3, 2, -0.53712]],
+                               [
+
+                               ]]
+        mapping = [3, 2, 1]
+
+        gaussian_x = np.zeros((3, 3))
+        for i, j, v in x_els:
+            i = mapping[i - 1] - 1
+            j = mapping[j - 1] - 1
+            gaussian_x[i, j] = v
+            gaussian_x[j, i] = -v
+        gaussian_y = np.zeros((3, 3))
+        for i, j, v in y_els:
+            i = mapping[i - 1] - 1
+            j = mapping[j - 1] - 1
+            gaussian_y[i, j] = v
+            gaussian_y[j, i] = -v
+        gaussian_z = np.zeros((3, 3))
+        for i, j, v in z_els:
+            i = mapping[i - 1] - 1
+            j = mapping[j - 1] - 1
+            gaussian_z[i, j] = v
+            gaussian_z[j, i] = -v
+
+        print_report = False
+        if print_report:
+            print("-" * 50, "x", "-" * 50)
+            for a, b in zip(x, gaussian_z):
+                print(
+                    ("[" + "{:>8.3f}" * 3 + "]").format(*a)
+                    + ("[" + "{:>8.3f}" * 3 + "]").format(*b)
+                )
+            print("-" * 50, "y", "-" * 50)
+            for a, b in zip(y, gaussian_x):
+                print(
+                    ("[" + "{:>8.3f}" * 3 + "]").format(*a)
+                    + ("[" + "{:>8.3f}" * 3 + "]").format(*b)
+                )
+            print("-" * 50, "z", "-" * 50)
+            for a, b in zip(z, gaussian_y):
+                print(
+                    ("[" + "{:>8.3f}" * 3 + "]").format(*a)
+                    + ("[" + "{:>8.3f}" * 3 + "]").format(*b)
+                )
+
+        sum_diff = np.abs(sum([x, y, z])) - np.abs(sum([gaussian_x, gaussian_y, gaussian_z]))
+        # print(np.round(sum_diff, 3))
+        self.assertLess(np.max(sum_diff), .001)
+
+    @validationTest
     def test_SecondOrderEnergyCorrection(self):
 
         n_modes = 6
@@ -714,6 +938,8 @@ class VPTTests(TestCase):
         # states = self.get_states(3, 3)
         # h0, h1, h2 = ham.get_representations(states)
 
+        # we supply hard-coded versions of H0, H1, and H2 to separate errors in those from errors in
+        # the perturbation theory code
         h0 = np.array([
             [0.01846642088155693, 0.0, 0.0, 0.0, 4.13557989936697e-11, 2.0055884904224275e-11, -6.95971058561895e-13, -7.825322884799421e-13, -4.501742831265434e-12, -3.01100483487076e-12, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             [0.0, 0.03611695804433793, -3.938830212179731e-12, -5.630969623303555e-12, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 7.163034401735935e-11, 0.0, 0.0, -1.106667775363189e-12, 2.0055884904224275e-11, -6.366425766291432e-12, 0.0, -6.95971058561895e-13, 0.0, -3.01100483487076e-12],
@@ -781,14 +1007,6 @@ class VPTTests(TestCase):
             [0.0, -1.4505080007608414e-05, -4.033889464119042e-05, 2.0197946700226607e-05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -2.6138434750307097e-05, -3.118674795105016e-05, -5.659197463343198e-06, 5.739181161707375e-05, 3.732645039659695e-05, 0.00010798164591380537, -1.2486997910581915e-05, -5.359319598894117e-05, -0.0001745182153211429, 0.0001503032646913323]
         ])
 
-        # np.savetxt("/Users/Mark/Desktop/h0.dat", h0)
-        # np.savetxt("/Users/Mark/Desktop/h1.dat", h1)
-        # np.savetxt("/Users/Mark/Desktop/h2.dat", h2)
-        # print(len(states))
-        # print(h0.tolist())
-        # print(h1.tolist())
-        # print(h2.tolist())
-
         class FakePert:
             def __init__(self, h):
                 self.h=h
@@ -802,7 +1020,8 @@ class VPTTests(TestCase):
             2
         )
 
-        e_corr = (sum(corrs.energies) * self.h2w)
+        e_corr = (corrs.energy_corrs[0] * self.h2w)
+
         self.assertTrue(np.allclose(
             e_corr,
             [4052.91093, 0., -50.05456], # from Gaussian
@@ -863,7 +1082,7 @@ class VPTTests(TestCase):
             for perm in ip.permutations((i, i, j, k)):
                 legit[perm] = v
 
-        coupled_states = None#self.get_states(2, 3, max_quanta=2)
+        coupled_states = self.get_states(5, 3)
         wfns = self.get_VPT2_wfns(
             "HOD_freq.fchk",
             internals,
@@ -929,76 +1148,6 @@ class VPTTests(TestCase):
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
 
     @validationTest
-    def test_HODVPTCartesians(self):
-        # this isn't expected to give fully accurate results
-        internals = None
-
-        hammer = PerturbationTheoryHamiltonian.from_fchk(
-            TestManager.test_data("HOD_freq.fchk"),
-            n_quanta=6,
-            internals=internals
-        )
-
-        states = (
-            (0, 0, 0),
-            (0, 0, 1), (0, 1, 0), (1, 0, 0),
-            (0, 0, 2), (0, 2, 0), (2, 0, 0),
-            (0, 1, 1), (1, 0, 1), (1, 1, 0)
-        )
-        h2w = self.h2w
-        wfns = hammer.get_wavefunctions(states, coupled_states=None)
-        energies = h2w * wfns.energies
-        zero_ord = h2w * wfns.zero_order_energies
-        # raise Exception([energies, zero_ord])
-
-        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
-                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
-                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
-        gaussian_energies = np.array([4052.912, 3994.844])
-        gaussian_freqs = np.array([
-            [3873.846, 3685.815],
-            [2810.031, 2706.132],
-            [1421.946, 1383.391],
-            [7747.692, 7202.835],
-            [5620.062, 5323.917],
-            [2843.893, 2749.027],
-            [6683.877, 6377.958],
-            [5295.792, 5044.721],
-            [4231.977, 4072.407]
-        ])
-
-        my_energies = np.array([zero_ord[0], energies[0]])
-        my_freqs = np.column_stack([
-            zero_ord[1:] - zero_ord[0],
-            energies[1:] - energies[0]
-        ])
-
-        print_diffs = False
-        if print_diffs:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs)
-                  )
-                  )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 35)
-
-    @debugTest
     def test_HODIntensities(self):
 
         internals = [
@@ -1113,7 +1262,7 @@ class VPTTests(TestCase):
         )
         n_quanta = 6
         n_modes = 3
-        coupled_states = None#self.get_states(5, n_modes)
+        coupled_states = self.get_states(5, n_modes, max_quanta=4)
         def block(self=self, internals=internals, states=states, coupled_states=coupled_states, n_quanta=n_quanta):
             return self.get_VPT2_wfns(
                 "HOT_freq.fchk",
@@ -1189,7 +1338,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
 
-    @debugTest
+    @validationTest
     def test_OCHDVPT(self):
 
         internals = [
@@ -1210,13 +1359,22 @@ class VPTTests(TestCase):
             (0, 0, 0, 0, 0, 0),
             (0, 0, 0, 0, 0, 1)
         )
-        coupled_states = [
-            x for x in self.get_states(4, n_modes, max_quanta=max_quanta)
-            if all(x[i] < 3 for i in range(5))
-        ]
+        # coupled_states = [
+        #     x for x in self.get_states(4, n_modes, max_quanta=max_quanta)
+        #     if all(x[i] < 3 for i in range(5))
+        # ]
+        # states = self.get_states(2, n_modes)
+        # coupled_states = [
+        #     x for x in self.get_states(4, n_modes, max_quanta=max_quanta)
+        #     if all(x[i] < 3 for i in range(5))
+        # ]
+        coupled_states = self.get_states(5, n_modes, max_quanta=max_quanta)
         def block(self=self,
-                  internals=None, states=states, coupled_states=coupled_states,
-                  n_quanta=n_quanta, mode_selection=mode_selection
+                  internals=internals,
+                  states=states,
+                  coupled_states=coupled_states,
+                  n_quanta=n_quanta,
+                  mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHD_freq.fchk",
@@ -1226,6 +1384,10 @@ class VPTTests(TestCase):
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
+                # , degeneracies=(
+                #     coupled_states.index((0, 0, 0, 0, 0, 1)),
+                #     coupled_states.index((0, 0, 2, 0, 0, 0))
+                # )
             )
 
         # block()
@@ -1240,6 +1402,8 @@ class VPTTests(TestCase):
                     raise Exception(stat_block)
             else:
                 raise Exception(stat_block)
+        elif exc is not None:
+            raise exc
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         engs = h2w * wfns.energies
@@ -1248,7 +1412,7 @@ class VPTTests(TestCase):
         harm_freq = harm_engs[1:] - harm_engs[0]
 
         gaussian_engs = [5235.162,    5171.477]
-        gaussian_freqs = [
+        gaussian_freqs = np.array([
             [3022.813, 2881.940],
             [2221.268, 2152.210],
             [1701.548, 1673.311],
@@ -1278,7 +1442,7 @@ class VPTTests(TestCase):
             [2732.230, 2681.778],
             [2448.220, 2403.196],
             [2107.156, 2074.925]
-        ]
+        ])
 
         print_report = True
         if print_report:
@@ -1297,3 +1461,444 @@ class VPTTests(TestCase):
                         zip(states[1:], harm_freq, freqs)
                   )
             )
+
+        self.assertLess(np.max(np.abs(freqs[:len(states)] - gaussian_freqs[:len(states), 1])), 1)
+
+    @validationTest
+    def test_OCHTVPT(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 1, 0, -1],
+            [3, 1, 0, 2]
+        ]
+
+        n_modes = 3 * 4 - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        n_quanta = 6
+
+        max_quanta = 4
+        states = (
+            (0, 0, 0, 0, 0, 0),
+            (0, 0, 0, 0, 0, 1)
+        )
+        # states = self.get_states(2, n_modes)
+        coupled_states = self.get_states(5, n_modes)
+        # [
+        #     x for x in self.get_states(5, n_modes)
+        #     if all(x[i] < 4 for i in range(5))
+        # ]
+
+        def block(self=self,
+                  internals=internals,
+                  states=states,
+                  coupled_states=coupled_states,
+                  n_quanta=n_quanta,
+                  mode_selection=mode_selection
+                  ):
+            return self.get_VPT2_wfns(
+                "OCHT_freq.fchk",
+                internals,
+                states,
+                n_quanta,
+                regenerate=True,
+                coupled_states=coupled_states,
+                mode_selection=mode_selection
+                # , degeneracies=(
+                #     coupled_states.index((0, 0, 0, 0, 0, 1)),
+                #     coupled_states.index((0, 0, 2, 0, 0, 0))
+                # )
+            )
+
+        # block()
+        exc, stat_block, wfns = self.profile_block(block)
+
+        do_profile = False
+        if do_profile:
+            if exc is not None:
+                try:
+                    raise exc
+                except:
+                    raise Exception(stat_block)
+            else:
+                raise Exception(stat_block)
+        elif exc is not None:
+            raise exc
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        engs = h2w * wfns.energies
+        freqs = engs[1:] - engs[0]
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freq = harm_engs[1:] - harm_engs[0]
+
+        gaussian_engs = [4970.730, 4912.805]
+        gaussian_freqs = np.array([
+            [3022.143,  2864.375],
+            [1918.480,  1859.357],
+            [1660.249,  1630.227],
+            [1399.294,  1370.966],
+            [1036.668,  1019.245],
+            [ 904.625,   892.062],
+
+            [6044.287,  5601.333],
+            [3836.959,  3677.621],
+            [3320.498,  3246.038],
+            [2798.588,  2724.050],
+            [2073.336,  2035.811],
+            [1809.250,  1778.733],
+
+            [4940.623,  4725.335],
+            [4682.392,  4497.932],
+            [3578.729,  3474.240],
+            [4421.438,  4220.692],
+            [3317.774,  3227.798],
+            [3059.543,  3000.454],
+            [4058.812,  3870.413],
+            [2955.148,  2867.701],
+            [2696.917,  2644.455],
+            [2435.962,  2393.534],
+            [3926.768,  3756.997],
+            [2823.105,  2746.008],
+            [2564.874,  2515.823],
+            [2303.919,  2263.695],
+            [1941.293,  1911.106]
+        ])
+
+        print_report = True
+        if print_report:
+            if n_modes == 6:
+                print("Gaussian Energies:\n",
+                      ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
+                      *(
+                          ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
+                      in
+                          zip(states[1:], gaussian_freqs)
+                      )
+                      )
+            print("State Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                  s, e1, e2 in
+                      zip(states[1:], harm_freq, freqs)
+                  )
+                  )
+
+            print("Difference Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0]-gaussian_engs[0], engs[0]-gaussian_engs[1], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                      s, e1, e2 in
+                      zip(states[1:], harm_freq-gaussian_freqs[:, 0], freqs-gaussian_freqs[:, 1])
+                  )
+                  )
+
+        self.assertLess(
+            np.max(np.abs(freqs-gaussian_freqs[:, 1])[:len(states)-1]),
+            1)
+
+    @validationTest
+    def test_HODVPTCartesianPotential(self):
+
+        internals = None
+
+        n_modes = 3 * 3 - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        n_quanta = 6
+
+        max_quanta = 4
+        states = (
+            (0, 0, 0),
+        )  # we're only interested in the correction of the ground state w/o perturbation or accounting for the energy or any shit
+        coupled_states = self.get_states(4, n_modes, max_quanta=max_quanta)
+
+        def block(self=self,
+                  internals=internals,
+                  states=states,
+                  coupled_states=coupled_states,
+                  n_quanta=n_quanta,
+                  mode_selection=mode_selection
+                  ):
+            return self.get_VPT2_wfns(
+                "HOD_freq.fchk",
+                internals,
+                states,
+                n_quanta,
+                regenerate=True,
+                coupled_states=coupled_states,
+                mode_selection=mode_selection
+                # , v3=0
+                # , v4=0
+                , coriolis=0
+                # , degeneracies=(
+                #     coupled_states.index((0, 0, 0, 0, 0, 1)),
+                #     coupled_states.index((0, 0, 2, 0, 0, 0))
+                # )
+            )
+
+        # block()
+        exc, stat_block, wfns = self.profile_block(block)
+
+        do_profile = False
+        if do_profile:
+            if exc is not None:
+                try:
+                    raise exc
+                except:
+                    raise Exception(stat_block)
+            else:
+                raise Exception(stat_block)
+        elif exc is not None:
+            raise exc
+
+        h2w = self.h2w
+        eng_corrs = list(np.round(h2w * wfns.corrs.energy_corrs[0], 2))
+        gaussian_corrs = [round(x, 2) for x in [4052.91093, 0., -50.05456]]
+
+        self.assertEquals(eng_corrs, gaussian_corrs)
+
+    @debugTest
+    def test_HODVPTCartesianCoriolis(self):
+
+        internals = None
+
+        n_modes = 3 * 3 - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        n_quanta = 6
+
+        max_quanta = 4
+        states = (
+            (0, 0, 0),
+        )  # we're only interested in the correction of the ground state w/o perturbation or accounting for the energy or any shit
+        coupled_states = self.get_states(4, n_modes, max_quanta=max_quanta)
+
+        def block(self=self,
+                  internals=internals,
+                  states=states,
+                  coupled_states=coupled_states,
+                  n_quanta=n_quanta,
+                  mode_selection=mode_selection
+                  ):
+            return self.get_VPT2_wfns(
+                "HOD_freq.fchk",
+                internals,
+                states,
+                n_quanta,
+                regenerate=True,
+                coupled_states=coupled_states,
+                mode_selection=mode_selection
+                , v3=0
+                , v4=0
+                # , coriolis=np.ones((3, 3, 3, 3))
+            )
+
+        # block()
+        exc, stat_block, wfns = self.profile_block(block)
+
+        do_profile = False
+        if do_profile:
+            if exc is not None:
+                try:
+                    raise exc
+                except:
+                    raise Exception(stat_block)
+            else:
+                raise Exception(stat_block)
+        elif exc is not None:
+            raise exc
+
+        h2w = self.h2w
+        eng_corrs = list(np.round(h2w * wfns.corrs.energy_corrs[0], 2))
+        # raise Exception(h2w * wfns.corrs.energy_corrs[0])
+        gaussian_corrs = [round(x, 2) for x in [4052.91093, 0., -8.01373]]
+
+        print(h2w * wfns.corrs.energy_corrs[0] / gaussian_corrs)
+        self.assertEquals(eng_corrs, gaussian_corrs)
+
+    @validationTest
+    def test_OCHDVPTCartesians(self):
+
+        internals = None
+
+        n_modes = 3 * 4 - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        n_quanta = 6
+
+        max_quanta = 4
+        states = (
+            (0, 0, 0, 0, 0, 0),
+            (0, 0, 0, 0, 0, 1)
+        ) # we're only interested in the correction of the ground state w/o perturbation or accounting for the energy or any shit
+        coupled_states = [
+            x for x in self.get_states(4, n_modes, max_quanta=max_quanta)
+            if all(x[i] < 3 for i in range(5))
+        ]
+
+        def block(self=self,
+                  internals=internals,
+                  states=states,
+                  coupled_states=coupled_states,
+                  n_quanta=n_quanta,
+                  mode_selection=mode_selection
+                  ):
+            return self.get_VPT2_wfns(
+                "OCHD_freq.fchk",
+                internals,
+                states,
+                n_quanta,
+                regenerate=True,
+                coupled_states=coupled_states,
+                mode_selection=mode_selection
+                # , v3=0
+                # , degeneracies=(
+                #     coupled_states.index((0, 0, 0, 0, 0, 1)),
+                #     coupled_states.index((0, 0, 2, 0, 0, 0))
+                # )
+            )
+
+        # block()
+        exc, stat_block, wfns = self.profile_block(block)
+
+        do_profile = False
+        if do_profile:
+            if exc is not None:
+                try:
+                    raise exc
+                except:
+                    raise Exception(stat_block)
+            else:
+                raise Exception(stat_block)
+        elif exc is not None:
+            raise exc
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        eng_corrs = list(np.round(h2w * wfns.corrs.energy_corrs[0], 4))
+        gaussian_corrs = [round(x, 4) for x in [5235.16208, 0., -63.06083]]
+
+        self.assertEquals(eng_corrs, gaussian_corrs)
+
+    @validationTest
+    def test_OCHTVPTCartesianPotential(self):
+
+        internals = None
+
+        n_modes = 3 * 4 - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        n_quanta = 6
+
+        max_quanta = 4
+        states = (
+            (0, 0, 0, 0, 0, 0),
+            # (0, 0, 0, 0, 0, 1)
+        )  # we're only interested in the correction of the ground state w/o perturbation or accounting for the energy or any shit
+        coupled_states = self.get_states(4, n_modes, max_quanta=max_quanta)
+
+        def block(self=self,
+                  internals=internals,
+                  states=states,
+                  coupled_states=coupled_states,
+                  n_quanta=n_quanta,
+                  mode_selection=mode_selection
+                  ):
+            return self.get_VPT2_wfns(
+                "OCHT_freq.fchk",
+                internals,
+                states,
+                n_quanta,
+                regenerate=True,
+                coupled_states=coupled_states,
+                mode_selection=mode_selection
+                , coriolis=0
+            )
+
+        # block()
+        exc, stat_block, wfns = self.profile_block(block)
+
+        do_profile = False
+        if do_profile:
+            if exc is not None:
+                try:
+                    raise exc
+                except:
+                    raise Exception(stat_block)
+            else:
+                raise Exception(stat_block)
+        elif exc is not None:
+            raise exc
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        eng_corrs = list(np.round(h2w * wfns.corrs.energy_corrs[0], 3))
+
+        gaussian_corrs = [round(x, 3) for x in [4970.72973, 0., -57.45822]]
+
+        self.assertEquals(eng_corrs, gaussian_corrs)
+
+    @inactiveTest
+    def test_OCHTVPTCartesianCoriolis(self):
+
+        internals = None
+
+        n_modes = 3 * 4 - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        n_quanta = 6
+
+        max_quanta = 4
+        states = (
+            (0, 0, 0, 0, 0, 0),
+            # (0, 0, 0, 0, 0, 1)
+        )  # we're only interested in the correction of the ground state w/o perturbation or accounting for the energy or any shit
+        coupled_states = self.get_states(4, n_modes, max_quanta=max_quanta)
+
+        def block(self=self,
+                  internals=internals,
+                  states=states,
+                  coupled_states=coupled_states,
+                  n_quanta=n_quanta,
+                  mode_selection=mode_selection
+                  ):
+            return self.get_VPT2_wfns(
+                "OCHT_freq.fchk",
+                internals,
+                states,
+                n_quanta,
+                regenerate=True,
+                coupled_states=coupled_states,
+                mode_selection=mode_selection
+                , v3=0
+                , v4=0
+            )
+
+        # block()
+        exc, stat_block, wfns = self.profile_block(block)
+
+        do_profile = False
+        if do_profile:
+            if exc is not None:
+                try:
+                    raise exc
+                except:
+                    raise Exception(stat_block)
+            else:
+                raise Exception(stat_block)
+        elif exc is not None:
+            raise exc
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        eng_corrs = list(np.round(h2w * wfns.corrs.energy_corrs[0], 3))
+
+        gaussian_corrs = [round(x, 3) for x in [4970.72973, 0., -0.46674]]
+
+        self.assertEquals(eng_corrs, gaussian_corrs)

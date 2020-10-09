@@ -122,7 +122,7 @@ class Operator:
             # determine which of the unused states (`missing`) have different numbers of
             # quanta in the bra (`states[i][0]`) than the ket (`states[i][1]`)
             missing = [i for i in range(ndim) if i not in uinds]
-            equivs =  [states[i][0] == states[i][1] for i in missing]
+            equivs = [states[i][0] == states[i][1] for i in missing]
             orthog = np.prod(equivs, axis=0).astype(int) # taking advantage of the fact that bools act like ints
 
         single_state = isinstance(orthog, (int, np.integer)) # means we got a single state to calculate over
@@ -251,7 +251,7 @@ class Operator:
 
         return res
 
-    def get_elements(self, idx, parallelizer='multiprocessing'):#None):#'multiprocessing'):
+    def get_elements(self, idx, parallelizer=None):#'multiprocessing'):
         """
         Calculates a subset of elements
 

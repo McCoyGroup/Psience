@@ -3,7 +3,7 @@ Stores all of the terms used inside the VPT2 representations
 """
 
 import numpy as np, functools as fp, itertools as ip
-from McUtils.Numputils import SparseArray
+from McUtils.Numputils import SparseArray, levi_cevita3, vec_tensordot
 from McUtils.Data import UnitsData
 
 from .Common import PerturbationTheoryException
@@ -12,7 +12,8 @@ __all__ = [
     "ExpansionTerms",
     "KineticTerms",
     "PotentialTerms",
-    "DipoleTerms"
+    "DipoleTerms",
+    "CoriolisTerm"
 ]
 
 class DumbTensor:
@@ -136,7 +137,10 @@ class ExpansionTerms:
         if modes is None:
             modes = molecule.normal_modes
         if undimensionalize:
+            self.raw_modes = modes
             modes = self.undimensionalize(self.masses, modes.basis)
+        else:
+            self.raw_modes = None
         if mode_selection is not None:
             modes = modes[(mode_selection,)]
         self.modes = modes
@@ -879,3 +883,74 @@ class DipoleTerms(ExpansionTerms):
             mu[coord] = (v1, v2, v3)#(v1, v2, 0)#(v1, 0, 0)
 
         return mu
+
+class CoriolisTerm(ExpansionTerms):
+    """
+    Calculates the Coriolis coupling term
+    """
+
+    def get_zetas_and_momi(self):
+        # mass-weighted mode matrix
+        # (note that we want the transpose not the inverse for unit reasons)
+        xQ = self.modes.matrix.T
+        # reshape xQ so that it looks like atom x mode x Cartesian
+        J = xQ.reshape((len(xQ), self.molecule.num_atoms, 3)).transpose(1, 0, 2)
+
+        # then rotate into the inertial frame
+        mom_i, eigs = self.molecule.inertial_eigensystem
+        J = np.tensordot(J, eigs, axes=1)
+
+        # coriolis terms are given by zeta = sum(JeJ^T, n)
+        ce = -levi_cevita3
+        zeta = sum(
+            np.tensordot(
+                np.tensordot(J[n], ce, axes=[1, 0]),
+                J[n],
+                axes=[2, 1]).transpose(1, 0, 2)
+            for n in range(J.shape[0])
+        )
+
+        return zeta, mom_i
+
+    def get_zetas(self, remove_freqs=True):
+
+        # to compare to Gaussian we remove the frequency dimensioning
+        freqs = self.freqs
+        freq_prods = np.sqrt(1 / (freqs[np.newaxis, np.newaxis, :] * freqs[np.newaxis, :, np.newaxis]))
+        z, m = self.get_zetas_and_momi()
+        z = z * freq_prods
+
+        return z
+
+    def get_terms(self):
+
+        zeta_inert, mom_i = self.get_zetas_and_momi()
+
+        coriolois = zeta_inert[:, np.newaxis, np.newaxis, :, :] * zeta_inert[:, :, :, np.newaxis, np.newaxis]
+
+        # Need to put B in Hartree?
+        #  I've got moments of inertia in amu * bohr^2 at the moment
+        #  So we convert (amu * bohr^2) to (m_e * bohr^2) since hb^2/(m_e bohr^2) == E_h
+        B_e = 1 / (2 * mom_i * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
+        print(B_e * UnitsData.convert("Hartrees", "Wavenumbers") )
+
+        # finally we include the frequency dimensioning that comes from the q and p terms in qpqp
+        freqs = self.freqs
+        freq_prods = np.sqrt(
+            (
+                    freqs[np.newaxis, :, np.newaxis, np.newaxis, np.newaxis]
+                    * freqs[np.newaxis, np.newaxis, np.newaxis, :, np.newaxis]
+            ) / (
+                    freqs[np.newaxis, np.newaxis, :, np.newaxis, np.newaxis]
+                    * freqs[np.newaxis, np.newaxis, np.newaxis, np.newaxis, :]
+            )
+        ) * np.sqrt(1 / (
+            freqs[np.newaxis, :, np.newaxis, np.newaxis, np.newaxis]
+            * freqs[np.newaxis, np.newaxis, :, np.newaxis, np.newaxis]
+            * freqs[np.newaxis, np.newaxis, np.newaxis, :, np.newaxis]
+            * freqs[np.newaxis, np.newaxis, np.newaxis, np.newaxis, :]
+        ))
+        # freq_prods = freq_prods ** 2
+        corr = B_e[:, np.newaxis, np.newaxis, np.newaxis, np.newaxis] * freq_prods * coriolois
+
+        return corr

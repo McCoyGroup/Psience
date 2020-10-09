@@ -186,11 +186,26 @@ class Molecule:
         :rtype: CoordinateSet
         """
         return self.prop('center_of_mass')
+
+    @property
+    def inertial_eigensystem(self):
+        """
+        :return:
+        :rtype: (np.ndarray, np.ndarray)
+        """
+        return self.prop('moments_of_inertia')
+    @property
+    def moments_of_inertia(self):
+        """
+        :return:
+        :rtype: np.ndarray
+        """
+        return self.prop('moments_of_inertia')[0]
     @property
     def inertial_axes(self):
         """
         :return:
-        :rtype: CoordinateSet
+        :rtype: np.ndarray
         """
         return self.prop('moments_of_inertia')[1]
     @property

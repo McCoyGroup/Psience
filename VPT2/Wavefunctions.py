@@ -7,6 +7,7 @@ import numpy as np, itertools as ip
 from ..BasisReps import SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction
 
 from .Terms import DipoleTerms
+from .Hamiltonian import PerturbationTheoryCorrections
 
 __all__ = [
     'PerturbationTheoryWavefunction',
@@ -29,10 +30,10 @@ class PerturbationTheoryWavefunction(ExpansionWavefunction):
         self.mol = mol
         self.corrs = corrections
         self.rep_basis = basis
-        super().__init__(sum(self.corrs.energies), sum(self.corrs.wavefunctions), None)
+        super().__init__(self.corrs.energies, self.corrs.wavefunctions, None)
     @property
     def order(self):
-        return len(self.corrs.wavefunctions)
+        return self.corrs.order
     def expectation(self, operator, other):
         return NotImplemented
     @property
@@ -58,19 +59,19 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                                # AnalyticWavefunctions with a RepresentationBasis
         self._tm_dat = None
         super().__init__(
-            np.sum(self.corrs.energies, axis=1),
-            np.sum(self.corrs.wavefunctions, axis=1),
+            self.corrs.energies,
+            self.corrs.wfn_corrections,
             None
         )
 
     @property
     def order(self):
-        return len(self.corrs.wavefunctions[0])
+        return self.corrs.order
     def expectation(self, operator, other):
         return NotImplemented
     @property
     def zero_order_energies(self):
-        return self.corrs.energies[:, 0]
+        return self.corrs.energy_corrs[:, 0]
     def _transition_moments(self, mu_x, mu_y, mu_z):
         """
         Calculates the x, y, and z components of the
@@ -86,8 +87,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :rtype:
         """
 
-        M = self.corrs.coupled_states # the coupled subspace space we're working in
-        corr_vecs = self.corrs.wavefunctions[..., M]
+        M = self.corrs.states['coupled_states'] # the coupled subspace space we're working in
+        corr_vecs = self.corrs.corrections['wavefunctions'][..., M]
         transition_moment_components = np.zeros((3, 3)).tolist() # x, y, and z components of the 0th, 1st, and 2nd order stuff
         # raise Exception([mu_1[0].shape)
         mu = [mu_x, mu_y, mu_z]
