@@ -8,7 +8,7 @@ from ..Molecools import Molecule
 from ..BasisReps import HarmonicOscillatorBasis, SimpleProductBasis
 
 from .Common import PerturbationTheoryException
-from .Terms import PotentialTerms, KineticTerms, CoriolisTerm
+from .Terms import PotentialTerms, KineticTerms, CoriolisTerm, PotentialLikeTerm
 
 __all__ = [
     'PerturbationTheoryHamiltonian',
@@ -216,6 +216,7 @@ class PerturbationTheoryHamiltonian:
             self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection)
         else:
             self.coriolis_terms = None
+        self.watson_term = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection)
 
         self._h0 = self._h1 = self._h2 = None
 
@@ -284,7 +285,10 @@ class PerturbationTheoryHamiltonian:
                 #     total_cor.reshape(total_cor.shape[0] ** 2, total_cor.shape[0] ** 2)
                 # ).show()
                 self._h2 += -1 * self.basis.representation('x', 'p', 'x', 'p', coeffs=total_cor)
-                self._h2 += -1/4 * self.basis.representation(coeffs=self.coriolis_terms[3])
+            else:
+                self._h2 += 0 * self.basis.representation(coeffs=0)
+
+            self._h2 += -1/4 * self.basis.representation(coeffs=self.watson_term[0])
 
         return self._h2
 

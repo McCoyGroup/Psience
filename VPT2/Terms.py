@@ -3,7 +3,7 @@ Stores all of the terms used inside the VPT2 representations
 """
 
 import numpy as np, functools as fp, itertools as ip
-from McUtils.Numputils import SparseArray, levi_cevita3, vec_tensordot
+from McUtils.Numputils import SparseArray, levi_cevita3, vec_tensordot, vec_outer
 from McUtils.Data import UnitsData
 
 from .Common import PerturbationTheoryException
@@ -13,7 +13,8 @@ __all__ = [
     "KineticTerms",
     "PotentialTerms",
     "DipoleTerms",
-    "CoriolisTerm"
+    "CoriolisTerm",
+    "PotentialLikeTerm"
 ]
 
 class DumbTensor:
@@ -146,6 +147,7 @@ class ExpansionTerms:
         self.modes = modes
         self.mode_sel = mode_selection
         self.freqs = self.modes.freqs
+        self._inert_frame = None
 
     def undimensionalize(self, masses, modes):
         L = modes.matrix.T
@@ -231,6 +233,21 @@ class ExpansionTerms:
             self._cached_jacobians[self.molecule]['cart'] = new_jacs
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
+
+    @property
+    def inertial_frame(self):
+
+        if self._inert_frame is None:
+            # Need to put B in Hartree?
+            #  I've got moments of inertia in amu * bohr^2 at the moment
+            #  So we convert (amu * bohr^2) to (m_e * bohr^2) since hb^2/(m_e bohr^2) == E_h
+            mom_i, eigs = self.molecule.inertial_eigensystem
+            B_e = 1 / (2 * mom_i * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
+            # print(B_e * UnitsData.convert("Hartrees", "Wavenumbers") )
+            self._inert_frame = B_e, eigs
+
+        return self._inert_frame
+
 
     @classmethod
     def _get_tensor_derivs(cls, x_derivs, V_derivs, order=4, mixed_XQ=False):
@@ -401,6 +418,103 @@ class ExpansionTerms:
 
         return V_Q, V_QQ, V_QQQ, V_QQQQ
 
+    _cached_transforms = {}
+    def get_coordinate_transforms(self):
+
+        if self.molecule in self._cached_transforms:
+            return self._cached_transforms[self.molecule]
+
+        # For speed reasons we've introduced class-level caching of these terms
+        XR, XRR, XRRR = self.get_int_jacobs([1, 2, 3])
+        XRRRR = 0
+
+        # The finite difference preserves too much shape by default
+        _contract_dim = DumbTensor._contract_dim
+        if XR.ndim > 2:
+            XR = _contract_dim(XR, 2)
+        if not isinstance(XRR, int) and XRR.ndim > 3:
+            XRR = _contract_dim(XRR, 3)
+        if not isinstance(XRRR, int) and XRRR.ndim > 4:
+            XRRR = _contract_dim(XRRR, 4)
+        if not isinstance(XRRRR, int) and XRRRR.ndim > 5:
+            XRRRR = _contract_dim(XRRRR, 5)
+
+        import McUtils.Plots as plt
+        # print(np.round(xQ))
+        # print(np.round(xQQ))
+        # print(np.round(hess, 3))
+        # print(np.max(np.abs(XRR)))
+        # plt.TensorPlot(XRR).show()
+        # plt.ArrayPlot(hess).show()
+
+        RX, RXX, RXXX = self.get_cart_jacobs([1, 2, 3])
+        if RX.ndim > 2:
+            RX = _contract_dim(RX, 2)
+        if RXX.ndim > 3:
+            RXX = _contract_dim(RXX, 3)
+        if RXXX.ndim > 4:
+            RXXX = _contract_dim(RXXX, 4)
+
+        # Need to then mass weight
+        masses = self.masses
+        mass_conv = np.sqrt(self._tripmass(masses))
+        YR = XR * mass_conv[np.newaxis, :]
+        if isinstance(XRR, int):
+            YRR = 0
+        else:
+            YRR = XRR * mass_conv[np.newaxis, np.newaxis, :]
+        if isinstance(XRRR, int):
+            YRRR = 0
+        else:
+            YRRR = XRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, :]
+        if isinstance(XRRRR, int):
+            YRRRR = 0
+        else:
+            YRRRR = XRRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis, :]
+        RY = RX / mass_conv[:, np.newaxis]
+
+        # We need to compute all these terms then mass weight them
+        RY = RX / mass_conv[:, np.newaxis]
+        RYY = RXX / (mass_conv[:, np.newaxis, np.newaxis] * mass_conv[np.newaxis, :, np.newaxis])
+        RYYY = RXXX / (
+                mass_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                * mass_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
+        )
+
+        QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
+        YQ = self.modes.inverse
+
+        RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
+        x_derivs = (YR, YRR, YRRR, YRRRR)
+        Q_derivs = (RQ, 0, 0, 0)
+        xQ, xQQ, xQQQ, xQQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
+
+        self._cached_transforms[self.molecule] = {
+            "CartesiansByModes": [xQ, xQQ, xQQQ, xQQQQ],
+            "ModesByCartesians": [QY],
+            "CartesiansByInternals": [YR, YRR, YRRR, YRRRR],
+            "InternalsByCartesians": [RY, RYY, RYYY]
+        }
+
+        return self._cached_transforms[self.molecule]
+
+    @property
+    def cartesians_by_modes(self):
+        return self.get_coordinate_transforms()['CartesiansByModes']
+
+    @property
+    def modes_by_cartesians(self):
+        return self.get_coordinate_transforms()['ModesByCartesians']
+
+    @property
+    def cartesians_by_internals(self):
+        return self.get_coordinate_transforms()['CartesiansByInternals']
+
+    @property
+    def internals_by_cartesians(self):
+        return self.get_coordinate_transforms()['InternalsByCartesians']
+
 class PotentialTerms(ExpansionTerms):
     """
     A helper class that can transform the derivatives of the potential from Cartesian to normal coordinates
@@ -521,59 +635,14 @@ class PotentialTerms(ExpansionTerms):
             xQQQ = 0
             xQQQQ = 0
         else:
-            dot = DumbTensor._dot
-            QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
-            YQ = self.modes.inverse
-            # We need to compute all these terms then mass weight them
+
 
             #TODO: I'd like to have support for using more/fewer derivs, just in case
 
-            #For speed reasons we've introduced class-level caching of these terms
-            XR, XRR, XRRR = self.get_int_jacobs([1, 2, 3])
-            XRRRR = 0
+            xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
+            QY, = self.modes_by_cartesians
 
-            # The finite difference preserves too much shape by default
-            _contract_dim = DumbTensor._contract_dim
-            if XR.ndim > 2:
-                XR = _contract_dim(XR, 2)
-            if not isinstance(XRR, int) and XRR.ndim > 3:
-                XRR = _contract_dim(XRR, 3)
-            if not isinstance(XRRR, int) and XRRR.ndim > 4:
-                XRRR = _contract_dim(XRRR, 4)
-            if not isinstance(XRRRR, int) and XRRRR.ndim > 5:
-                XRRRR = _contract_dim(XRRRR, 5)
-
-            RX, RXX, RXXX = self.get_cart_jacobs([1, 2, 3])
-            if RX.ndim > 2:
-                RX = _contract_dim(RX, 2)
-            if RXX.ndim > 3:
-                RXX = _contract_dim(RXX, 3)
-            if RXXX.ndim > 4:
-                RXXX = _contract_dim(RXXX, 4)
-
-            # Need to then mass weight
-            masses = self.masses
-            mass_conv = np.sqrt(self._tripmass(masses))
-            YR = XR * mass_conv[np.newaxis, :]
-            if isinstance(XRR, int):
-                YRR = 0
-            else:
-                YRR = XRR * mass_conv[np.newaxis, np.newaxis, :]
-            if isinstance(XRRR, int):
-                YRRR = 0
-            else:
-                YRRR = XRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, :]
-            if isinstance(XRRRR, int):
-                YRRRR = 0
-            else:
-                YRRRR = XRRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis, :]
-            RY = RX / mass_conv[:, np.newaxis]
-
-            RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
-            x_derivs = (YR, YRR, YRRR, YRRRR)
-            Q_derivs = (RQ, 0, 0, 0)
-            xQ, xQQ, xQQQ, xQQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
-
+            dot = DumbTensor._dot
             if self.mixed_derivs:
                 qQQ = dot(xQQ, QY)
                 f43 = dot(qQQ, thirds)
@@ -609,40 +678,12 @@ class KineticTerms(ExpansionTerms):
             GQQ = 0
         else:
             # First we take derivatives of internals with respect to Cartesians
-            RX, RXX, RXXX= self.get_cart_jacobs([1, 2, 3])
-            # FD tracks too much shape
-            _contract_dim = DumbTensor._contract_dim
-            if RX.ndim > 2:
-                RX = _contract_dim(RX, 2)
-            if RXX.ndim > 3:
-                RXX = _contract_dim(RXX, 3)
-            if RXXX.ndim > 4:
-                RXXX = _contract_dim(RXXX, 4)
 
-            # Now we take derivatives of Cartesians with respect to internals
-            XR, XRR, _ = self.get_int_jacobs([1, 2, 3])
-                # it's actually faster to compute the 3rd term because of how I had to do my caching
-            if XR.ndim > 2:
-                XR = _contract_dim(XR, 2)
-            if XRR.ndim > 3:
-                XRR = _contract_dim(XRR, 3)
+            QY, = self.modes_by_cartesians
+            YQ, YQQ, YQQQ, YQQQQ = self.cartesians_by_modes
+            YR, YRR, YRRR, YRRRRR = self.cartesians_by_internals
+            RY, RYY, RYYY = self.internals_by_cartesians
 
-            # next we need to mass-weight
-            masses = self.masses
-            mass_conv = np.sqrt(self._tripmass(masses)) #np.sqrt(np.broadcast_to(masses[np.newaxis, :], (3, len(masses))).flatten())
-            RY = RX / mass_conv[:, np.newaxis]
-            RYY = RXX / (mass_conv[:, np.newaxis, np.newaxis] * mass_conv[np.newaxis, :, np.newaxis])
-            RYYY = RXXX / (
-                    mass_conv[:, np.newaxis, np.newaxis,   np.newaxis]
-                    * mass_conv[np.newaxis, :, np.newaxis, np.newaxis]
-                    * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
-            )
-            YR = XR * mass_conv[np.newaxis]
-            YRR = XRR * mass_conv[np.newaxis, np.newaxis]
-
-            QY = self.modes.matrix  # derivatives of Q with respect to the mass-weighted Cartesians
-            YQ = self.modes.inverse
-            QR = dot(YR, QY)
             RQ = dot(YQ, RY)
 
             G = dot(QY, QY, axes=[[0, 0]])
@@ -777,61 +818,15 @@ class DipoleTerms(ExpansionTerms):
             xQQQ = 0
             xQQQQ = 0
         else:
-            dot = DumbTensor._dot
-            QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
-            YQ = self.modes.inverse
-            # We need to compute all these terms then mass weight them
 
-            XR, XRR, XRRR = self.get_int_jacobs([1, 2, 3])
-            XRRRR = 0
-
-            # The finite difference preserves too much shape by default
-            _contract_dim = DumbTensor._contract_dim
-            if XR.ndim > 2:
-                XR = _contract_dim(XR, 2)
-            if not isinstance(XRR, int) and XRR.ndim > 3:
-                XRR = _contract_dim(XRR, 3)
-            if not isinstance(XRRR, int) and XRRR.ndim > 4:
-                XRRR = _contract_dim(XRRR, 4)
-            if not isinstance(XRRRR, int) and XRRRR.ndim > 5:
-                XRRRR = _contract_dim(XRRRR, 5)
-
-            RX, RXX, RXXX = self.get_cart_jacobs([1, 2, 3])
-            if RX.ndim > 2:
-                RX = _contract_dim(RX, 2)
-            if RXX.ndim > 3:
-                RXX = _contract_dim(RXX, 3)
-            if RXXX.ndim > 4:
-                RXXX = _contract_dim(RXXX, 4)
-
-            # Need to then mass weight
-            masses = self.masses
-            mass_conv = np.sqrt(self._tripmass(masses))#np.sqrt(np.broadcast_to(masses[:, np.newaxis], (3, len(masses))).flatten())
-            YR = XR * mass_conv[np.newaxis, :]
-            if isinstance(XRR, int):
-                YRR = 0
-            else:
-                YRR = XRR * mass_conv[np.newaxis, np.newaxis, :]
-            if isinstance(XRRR, int):
-                YRRR = 0
-            else:
-                YRRR = XRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, :]
-            if isinstance(XRRRR, int):
-                YRRRR = 0
-            else:
-                YRRRR = XRRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis, :]
-            RY = RX / mass_conv[:, np.newaxis]
-
-            RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
-            x_derivs = (YR, YRR, YRRR, YRRRR)
-            Q_derivs = (RQ, 0, 0, 0)
-            xQ, xQQ, xQQQ, xQQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
+            QY, = self.modes_to_cartesians
+            xQ, xQQ, xQQQ, xQQQQ = self.cartesians_to_modes
 
         x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
         mu = [None]*3
         for coord in range(3):
             u_derivs = (grad[..., coord], seconds[..., coord], thirds[..., coord])
-            if self.mixed_derivs:
+            if intcds is not None and self.mixed_derivs:
                 xQ, xQQ, xQQQ, xQQQQ = [DumbTensor(x) for x in x_derivs]
                 u1, u2, u3 = [DumbTensor(u) for u in u_derivs]
 
@@ -900,7 +895,7 @@ class CoriolisTerm(ExpansionTerms):
         J = xQ.reshape((len(xQ), self.molecule.num_atoms, 3)).transpose(1, 0, 2)
 
         # then rotate into the inertial frame
-        mom_i, eigs = self.molecule.inertial_eigensystem
+        B_e, eigs = self.inertial_frame
         J = np.tensordot(J, eigs, axes=1)
 
         # coriolis terms are given by zeta = sum(JeJ^T, n)
@@ -913,7 +908,7 @@ class CoriolisTerm(ExpansionTerms):
             for n in range(J.shape[0])
         )
 
-        return zeta, mom_i
+        return zeta, B_e
 
     def get_zetas(self):
 
@@ -923,7 +918,7 @@ class CoriolisTerm(ExpansionTerms):
 
     def get_terms(self):
 
-        zeta_inert, mom_i = self.get_zetas_and_momi()
+        zeta_inert, B_e = self.get_zetas_and_momi()
 
         # new we include the frequency dimensioning that comes from the q and p terms in Pi = Zeta*qipj
         freqs = self.freqs
@@ -935,21 +930,133 @@ class CoriolisTerm(ExpansionTerms):
                            * zeta_inert[:, np.newaxis, np.newaxis, :, :] # kl
         )
 
-        # Need to put B in Hartree?
-        #  I've got moments of inertia in amu * bohr^2 at the moment
-        #  So we convert (amu * bohr^2) to (m_e * bohr^2) since hb^2/(m_e bohr^2) == E_h
-        B_e = 1 / (2 * mom_i * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
-        # print(B_e * UnitsData.convert("Hartrees", "Wavenumbers") )
-
-        # B_e = B_e[(0, 1, 2),]
-        # B_e = B_e[(0, 2, 1),]
-        # B_e = B_e[(1, 0, 2),]
-        # B_e = B_e[(1, 2, 0),]
-        # B_e = B_e[(2, 0, 1),]
-        # B_e = B_e[(2, 1, 0),]
-
         corr = B_e[:, np.newaxis, np.newaxis, np.newaxis, np.newaxis] * coriolis
 
-        watson = sum(B_e)
+        return corr[0], corr[1], corr[2]
 
-        return corr[0], corr[1], corr[2], watson
+class PotentialLikeTerm(KineticTerms):
+    """
+    This accounts for the potential-like term.
+    In Cartesian diplacement modes this is the Watson U.
+    In proper internals, this is the V' term.
+    """
+
+    def get_terms(self):
+
+
+        ics = self.internal_coordinates
+        if ics is None:
+
+            B_e, eigs = self.inertial_frame
+            wat = sum(B_e)
+
+        else:
+            # much more complicated, but we have
+            # wat = sum(dGdQ_ii . dgdq) + G . dgdQQ + 1/4 (G.dgdq)^T . dgdq
+            # where g = det(I_0) / get(G)
+
+            mass = np.sqrt(self.masses)
+            carts = mass[:, np.newaxis] * self.molecule.coords # mass-weighted Cartesian coordinates
+
+            I0 = self.molecule.inertia_tensor
+
+            ### compute basic inertia tensor derivatives
+            # first derivs are computed on an atom-by-atom basis then flattenend
+            eyeXeye = np.eye(9).reshape(3, 3, 3 ,3).transpose((2, 0, 1, 3))
+            I0Y_1 = np.tensordot(carts, eyeXeye, axes=[1, 0])
+            I0Y_2 = np.reshape(np.eye(3), (9,))[np.newaxis, :, np.newaxis] * carts[:, np.newaxis, :] # outer product
+            I0Y = 2 * I0Y_1 - (I0Y_2 + I0Y_2.transpose((0, 2, 1)))
+            I0Y = I0Y.reshape((I0Y.shape[0] * 3, 3, 3))
+
+            # second derivatives are 100% independent of coorinates
+            # only the diagonal blocks are non-zero, so we compute that block
+            # and then tile appropriately
+            keyXey = np.eye(9).reshape(3, 3, 3 ,3)
+            I0YY_nn = 2 * eyeXeye - (keyXey + keyXey.transpose((0, 1, 3, 2)))
+            I0YY = np.zeros((I0Y.shape[0], I0Y.shape[0], 3, 3))
+            for n in range(I0Y.shape[0]):
+                I0YY[n:n+3, n:n+3, :, :] = I0YY_nn
+
+            ### transform inertia derivs into mode derivs
+            YQ, YQQ, YQQQ, YQQQQ = self.cartesians_by_modes
+
+            I0Q = np.tensordot(YQ, I0Y, axes=[-1, 0])
+            I0QQ = np.tensordot(YQQ, I0Y, axes=[-1, 0]) + np.tensordot(
+                YQ,
+                np.tensordot(
+                    YQ,
+                    I0YY,
+                    axes=[-1, 0]
+                ),
+                axes=[-1, 1]
+            )
+
+            ### pull already computed G-matrix derivs
+            G, GQ, GQQ = super().get_terms()
+
+
+            # now build the actual dg/dQ terms
+
+            detI = np.linalg.det(I0)
+            detG = np.linalg.det(G)
+
+            invI = np.linalg.inv(I0)
+            invG = np.linalg.inv(G)
+
+            adjI = invI*detI
+            adjG = invG*detG
+
+            invIdQ = - np.tensordot(np.tensordot(invI, I0Q, axes=[-1, 1]), invI, axes=[-1, 0]).transpose(1, 0, 2)
+            invGdQ = - np.tensordot(np.tensordot(invG, GQ, axes=[-1, 1]), invG, axes=[-1, 0]).transpose(1, 0, 2)
+
+            # not quite enough terms to want to be clever here...
+            nQ = GQ.shape[0]
+            ## First derivatives of the determinant
+            detIdQ = np.array([
+                np.trace(np.dot(adjI, I0Q[i]))
+                for i in range(nQ)
+            ])
+            detGdQ = np.array([
+                np.trace(np.dot(adjG, GQ[i]))
+                for i in range(nQ)
+            ])
+
+            adjIdQ = detI * invIdQ + detIdQ
+            adjGdQ = detG * invGdQ + detGdQ
+
+            ## Second derivatives of the determinant
+            detIdQQ = np.array([
+                np.tensordot(I0Q[i], adjIdQ[j], axes=2)
+                +  np.tensordot(adjIdQ, I0QQ[i, j], axes=2)
+                for i in range(nQ)
+                for j in range(nQ)
+            ])
+            detGdQQ = np.array([
+                np.tensordot(GQ[i], adjGdQ[j], axes=2)
+                + np.tensordot(adjGdQ, GQQ[i, j], axes=2)
+                for i in range(nQ)
+                for j in range(nQ)
+            ])
+
+            ## Derivatives of Gamma
+            gamdQ = 1/detI * detIdQ - 1/detG * detGdQ
+            gamdQQ = (
+                    1 / detI**2 * np.outer(detIdQ, detIdQ) + 1 / detI * detIdQQ
+                    - (1 / detG**2 * np.outer(detGdQ, detGdQ) + 1 / detG * detGdQQ)
+            )
+
+
+            # Build out the proper Watson term
+            wat = (
+                sum(
+                    np.dot(GQ[i, i], gamdQ)
+                    for i in range(nQ)
+                )
+                + np.tensordot(G, gamdQQ)
+                + 1/4 * np.tensordot(
+                    np.tensordot(G, gamdQ, axes=[1, 0]),
+                    gamdQ, axes=[0, 0]
+                )
+            )
+
+        return [wat]

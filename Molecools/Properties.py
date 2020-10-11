@@ -78,6 +78,19 @@ class MolecularProperties:
         return tens
 
     @classmethod
+    def inertia_tensor(cls, mol):
+        """
+        Computes the inertia tensors for the stored geometries
+
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+
+        return cls.get_prop_inertia_tensors(mol.coords, mol.masses)
+
+    @classmethod
     def get_prop_moments_of_inertia(cls, coords, masses):
         """Computes the moment of inertia tensor for the walkers with coordinates coords (assumes all have the same masses)
 
