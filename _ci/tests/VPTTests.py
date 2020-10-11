@@ -803,7 +803,7 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v4, rtol=10))
 
-    @inactiveTest
+    @validationTest
     def test_OCHTCoriolisCouplings(self):
         # for unclear reasons this isn't working...?
         ham = PerturbationTheoryHamiltonian.from_fchk(
@@ -1049,7 +1049,7 @@ class VPTTests(TestCase):
             .01 # within .01 wavenumbers
         ))
 
-    @debugTest
+    @validationTest
     def test_HOHVPTInternals(self):
 
         internals = [
@@ -1136,7 +1136,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
 
         internals = None
@@ -1664,7 +1664,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
 
-    @inactiveTest
+    @validationTest
     def test_OCHHVPT(self):
 
         internals = [
@@ -1920,7 +1920,7 @@ class VPTTests(TestCase):
 
         self.assertLess(np.max(np.abs(freqs[:len(states)] - gaussian_freqs[:len(states), 1])), 1)
 
-    @validationTest
+    @debugTest
     def test_OCHTVPT(self):
 
         internals = [

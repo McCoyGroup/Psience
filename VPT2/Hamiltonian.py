@@ -288,7 +288,7 @@ class PerturbationTheoryHamiltonian:
             else:
                 self._h2 += 0 * self.basis.representation(coeffs=0)
 
-            self._h2 += -1/4 * self.basis.representation(coeffs=self.watson_term[0])
+            self._h2 += 1/8 * self.basis.representation(coeffs=self.watson_term[0])
 
         return self._h2
 

@@ -948,7 +948,7 @@ class PotentialLikeTerm(KineticTerms):
         if ics is None:
 
             B_e, eigs = self.inertial_frame
-            wat = sum(B_e)
+            wat = -2*sum(B_e)
 
         else:
             # much more complicated, but we have
@@ -958,24 +958,38 @@ class PotentialLikeTerm(KineticTerms):
             mass = np.sqrt(self.masses)
             carts = mass[:, np.newaxis] * self.molecule.coords # mass-weighted Cartesian coordinates
 
-            I0 = self.molecule.inertia_tensor
+
+            amu2me = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            I0 = amu2me * self.molecule.inertia_tensor
 
             ### compute basic inertia tensor derivatives
-            # first derivs are computed on an atom-by-atom basis then flattenend
+            # first derivs are computed as a full (nAt, 3, I_rows (3), I_cols (3)) tensor
+            # and then reshaped to (nAt * 3, I_rows, I_cols)
             eyeXeye = np.eye(9).reshape(3, 3, 3 ,3).transpose((2, 0, 1, 3))
             I0Y_1 = np.tensordot(carts, eyeXeye, axes=[1, 0])
-            I0Y_2 = np.reshape(np.eye(3), (9,))[np.newaxis, :, np.newaxis] * carts[:, np.newaxis, :] # outer product
-            I0Y = 2 * I0Y_1 - (I0Y_2 + I0Y_2.transpose((0, 2, 1)))
-            I0Y = I0Y.reshape((I0Y.shape[0] * 3, 3, 3))
+
+            nAt = carts.shape[0]
+            nY = nAt * 3
+            I0Y_21 = np.reshape(np.eye(3), (9,))[np.newaxis, :, np.newaxis] * carts[:, np.newaxis, :] # a flavor of outer product
+            I0Y_21 = I0Y_21.reshape((nAt, 3, 3, 3))
+            I0Y_2 = (I0Y_21 + I0Y_21.transpose((0, 1, 3, 2)))
+            I0Y = 2 * I0Y_1 - I0Y_2
+            I0Y = I0Y.reshape((nY, 3, 3))
 
             # second derivatives are 100% independent of coorinates
             # only the diagonal blocks are non-zero, so we compute that block
             # and then tile appropriately
             keyXey = np.eye(9).reshape(3, 3, 3 ,3)
             I0YY_nn = 2 * eyeXeye - (keyXey + keyXey.transpose((0, 1, 3, 2)))
-            I0YY = np.zeros((I0Y.shape[0], I0Y.shape[0], 3, 3))
-            for n in range(I0Y.shape[0]):
-                I0YY[n:n+3, n:n+3, :, :] = I0YY_nn
+            I0YY = np.zeros((nAt, 3, nAt, 3, 3, 3))
+            for n in range(nAt):
+                I0YY[n, :, n, :, :, :] = I0YY_nn
+            I0YY = I0YY.reshape((nY, nY, 3, 3))
+
+            # import McUtils.Plots as plt
+            # plt.TensorPlot(
+            #     I0YY[:5, :5]
+            # ).show()
 
             ### transform inertia derivs into mode derivs
             YQ, YQQ, YQQQ, YQQQQ = self.cartesians_by_modes
@@ -999,6 +1013,7 @@ class PotentialLikeTerm(KineticTerms):
 
             detI = np.linalg.det(I0)
             detG = np.linalg.det(G)
+            gam = detI / detG
 
             invI = np.linalg.inv(I0)
             invG = np.linalg.inv(G)
@@ -1021,42 +1036,84 @@ class PotentialLikeTerm(KineticTerms):
                 for i in range(nQ)
             ])
 
-            adjIdQ = detI * invIdQ + detIdQ
-            adjGdQ = detG * invGdQ + detGdQ
+            adjIdQ = detI * invIdQ + detIdQ[:, np.newaxis, np.newaxis] * invI[np.newaxis, :, :]
+            adjGdQ = detG * invGdQ + detGdQ[:, np.newaxis, np.newaxis] * invG[np.newaxis, :, :]
 
             ## Second derivatives of the determinant
             detIdQQ = np.array([
-                np.tensordot(I0Q[i], adjIdQ[j], axes=2)
-                +  np.tensordot(adjIdQ, I0QQ[i, j], axes=2)
-                for i in range(nQ)
+                [
+                    np.tensordot(I0Q[i], adjIdQ[j], axes=2)
+                    + np.tensordot(adjI, I0QQ[i, j], axes=2)
+                    for i in range(nQ)
+                ]
                 for j in range(nQ)
             ])
             detGdQQ = np.array([
-                np.tensordot(GQ[i], adjGdQ[j], axes=2)
-                + np.tensordot(adjGdQ, GQQ[i, j], axes=2)
-                for i in range(nQ)
+                [
+                    np.tensordot(GQ[i], adjGdQ[j], axes=2)
+                    + np.tensordot(adjG, GQQ[i, j], axes=2)
+                    for i in range(nQ)
+                ]
                 for j in range(nQ)
             ])
 
             ## Derivatives of Gamma
-            gamdQ = 1/detI * detIdQ - 1/detG * detGdQ
-            gamdQQ = (
-                    1 / detI**2 * np.outer(detIdQ, detIdQ) + 1 / detI * detIdQQ
-                    - (1 / detG**2 * np.outer(detGdQ, detGdQ) + 1 / detG * detGdQQ)
-            )
+            gamdQ_I = 1/detI * detIdQ
+            gamdQ_G = 1/detG * detGdQ
+            gamdQ = gamdQ_I - gamdQ_G
 
+            gamdQQ_I = -1 / detI**2 * np.outer(detIdQ, detIdQ) + 1 / detI * detIdQQ
+            gamdQQ_G = -1 / detG**2 * np.outer(detGdQ, detGdQ) + 1 / detG * detGdQQ
+            gamdQQ = gamdQQ_I - gamdQQ_G
 
             # Build out the proper Watson term
-            wat = (
-                sum(
+            wat_diag = sum(
                     np.dot(GQ[i, i], gamdQ)
                     for i in range(nQ)
                 )
-                + np.tensordot(G, gamdQQ)
-                + 1/4 * np.tensordot(
+            wat_QQ = np.tensordot(G, gamdQQ, axes=2)
+            wat_Q = np.tensordot(
                     np.tensordot(G, gamdQ, axes=[1, 0]),
                     gamdQ, axes=[0, 0]
                 )
-            )
+            wat = (wat_diag + wat_QQ + 1/4 * wat_Q)
+
+            # import McUtils.Plots as plt
+            #
+            # plt.ArrayPlot(gamdQQ).show()
+
+            # raise Exception([
+            #     wat,
+            #     [
+            #         np.max(np.abs(x)) for x in [
+            #         # wat_diag,
+            #         # wat_Q,
+            #         # wat_QQ,
+            #         # # gamdQ_G,
+            #         # gamdQQ_G,
+            #         gam,
+            #         detI,
+            #         detIdQ,
+            #         detIdQQ,
+            #         I0,
+            #         I0Q,
+            #         I0QQ,
+            #         gamdQ_I,
+            #         gamdQQ_I,
+            #         # detGdQQ
+            #     ]
+            #     ]
+            #     # np.max(np.abs(I0)),
+            #     # np.max(np.abs(I0Q)),
+            #     # np.max(np.abs(gamdQ_I)),
+            #     # np.max(np.abs(gamdQQ_G)),
+            #     # np.max(np.abs(gamdQQ_I)),
+            #
+            # ])
+
+            # wat = 0. # turn off for the moment
+
+        # print(wat)
+
 
         return [wat]
