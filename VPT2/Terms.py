@@ -819,8 +819,8 @@ class DipoleTerms(ExpansionTerms):
             xQQQQ = 0
         else:
 
-            QY, = self.modes_to_cartesians
-            xQ, xQQ, xQQQ, xQQQQ = self.cartesians_to_modes
+            QY, = self.modes_by_cartesians
+            xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
 
         x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
         mu = [None]*3
