@@ -214,6 +214,14 @@ class Molecule:
         :rtype: np.ndarray
         """
         return self.prop('moments_of_inertia')[1]
+
+    @property
+    def translation_rotation_modes(self):
+        """
+        :return:
+        :rtype: np.ndarray
+        """
+        return self.prop('translation_rotation_eigenvectors')
     @property
     def internal_coordinates(self):
         if self._ints is None and self._zmat is not None:

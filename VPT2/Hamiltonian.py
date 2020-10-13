@@ -360,7 +360,11 @@ class PerturbationTheoryHamiltonian:
             H[i] = sub #type: np.ndarray
 
         # import McUtils.Plots as plt
-        # plt.ArrayPlot(H[2]).show()
+        # g = plt.TensorPlot(np.array(H), plot_style=dict(vmin=-.005, vmax=.005))
+        # g.show()
+        # for i,h in enumerate(H):
+        #     print(i, "{"+", ".join(str(x) for x in h[0])+"}")
+            # print(i, np.max(h), np.min(h), np.max(np.abs(h[h!=0])), np.min(np.abs(h[h!=0])))
 
         if degenerate_states is not None:
             # we check this twice because the Martin test can return None
@@ -615,7 +619,7 @@ class PerturbationTheoryHamiltonian:
 
     def _martin_test(self, h_reps, states, threshold):
         """
-        Applies the Martin Test to all of the specified states and returns the resulting correlation matrix
+        Applies the Martin Test to all of the coupled states and returns the resulting correlation matrix
 
         :param states:
         :type states:

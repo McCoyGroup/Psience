@@ -325,6 +325,7 @@ class ExpansionTerms:
             V_QQQ_2,
             V_QQQ_3
         )
+
         V_QQQ = sum(x for x in V_QQQ_terms if not isinstance(x, int))
 
         derivs[2] = V_QQQ
@@ -381,12 +382,23 @@ class ExpansionTerms:
                 Q4321.transpose(1, 0, 3, 2, *X)
                 ]
             V_QQQQ_3 = sum(V_QQQQ_3_terms)
+            # V_QQQQ_3 = 1/2 * (V_QQQQ_3 + V_QQQQ_3.transpose(0, 1, 3, 2))
+
+            # import McUtils.Plots as plt
+            #
+            # plt.TensorPlot(V_QQQQ_3,
+            #            plot_style={'vmin': -5.0e-3, 'vmax': 5.0e-3}).show()
+            # for p in ip.permutations(range(4)):
+            #     print(p, np.max(np.abs(
+            #         V_QQQQ_3 - V_QQQQ_3.transpose(*p, *X)
+            #     )))
+
         else:
             V_QQQQ_3 = 0
 
         # fourth derivs
         if not mixed_XQ:
-            VQQxx = dot(xQ, dot(xQ, Vxxxx), axes=[[1, 1]])
+            VQQxx = dot(xQ, dot(xQ, Vxxxx), axes=[[1, 1]]) #+ dot(xQQ, Vxxx)
         else:
             VQQxx = Vxxxx
 
@@ -398,14 +410,7 @@ class ExpansionTerms:
                 unroll = (0, 1) + tuple(range(2+X, N)) + tuple(range(2, 2+X))
                 V_QQQQ_4 = V_QQQQ_4.transpose(unroll)
             X = tuple(range(4, V_QQQQ_4.ndim))
-            # if mixed_XQ:
-            #     # we need to zero out the elements we don't really have because Gaussian is mean
-            #     import itertools
-            #     nQ = V_QQQQ_4.shape[0]
-            #     if nQ > 3:
-            #         perms = np.array(list(itertools.permutations(range(nQ), 4))).T
-            #         # print(V_QQQQ_4.shape[0], perms)
-            #         V_QQQQ_4[perms] = 0.
+
         else:
             V_QQQQ_4 = 0
 
@@ -439,14 +444,6 @@ class ExpansionTerms:
         if not isinstance(XRRRR, int) and XRRRR.ndim > 5:
             XRRRR = _contract_dim(XRRRR, 5)
 
-        import McUtils.Plots as plt
-        # print(np.round(xQ))
-        # print(np.round(xQQ))
-        # print(np.round(hess, 3))
-        # print(np.max(np.abs(XRR)))
-        # plt.TensorPlot(XRR).show()
-        # plt.ArrayPlot(hess).show()
-
         RX, RXX, RXXX = self.get_cart_jacobs([1, 2, 3])
         if RX.ndim > 2:
             RX = _contract_dim(RX, 2)
@@ -471,7 +468,6 @@ class ExpansionTerms:
             YRRRR = 0
         else:
             YRRRR = XRRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis, :]
-        RY = RX / mass_conv[:, np.newaxis]
 
         # We need to compute all these terms then mass weight them
         RY = RX / mass_conv[:, np.newaxis]
@@ -482,19 +478,72 @@ class ExpansionTerms:
                 * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
         )
 
+        # for the convenience of conversion we remove the dimensioning
+        # that makes things non-unitary
         QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
-        YQ = self.modes.inverse
+        QY = QY / np.sqrt(self.freqs)
+        YQ = QY.T
+        # then we add on the embedding
+        # zeros, transrot = self.molecule.translation_rotation_modes
+        # embed_QY = np.column_stack([transrot, QY])
+        # embed_YQ = np.row_stack([transrot.T, YQ])
+
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(np.dot(YQ, QY))
+        # plt.ArrayPlot(np.dot(embed_YQ, embed_QY))
+        # plt.ArrayPlot(np.dot(embed_QY, embed_YQ)).show()
+
+        # RQ, = self._get_tensor_derivs((embed_YQ,), (RY,), order=1, mixed_XQ=False)
+        # x_derivs = (YR, YRR, YRRR, YRRRR)
+        # Q_derivs = (RQ, 0, 0, 0)
+        # YQ_derivs = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
+        #
+        # qQ, qQQ, qQQQ, qQQQQ = self._get_tensor_derivs(
+        #     YQ_derivs, (embed_QY, 0, 0, 0),
+        #     mixed_XQ=False
+        # )
+        #
+        # qderivs_embed = (
+        #     qQ[6:, 6:],
+        #     qQQ[6:, 6:, 6:],
+        #     qQQQ[6:, 6:, 6:, 6:], qQQQQ)
 
         RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
         x_derivs = (YR, YRR, YRRR, YRRRR)
         Q_derivs = (RQ, 0, 0, 0)
-        xQ, xQQ, xQQQ, xQQQQ = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
+        YQ_derivs = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
 
+        qQ, qQQ, qQQQ, qQQQQ = self._get_tensor_derivs(
+            YQ_derivs, (QY, 0, 0, 0),
+            mixed_XQ=False
+        )
+
+        plt.ArrayPlot(qQ-qderivs_embed[0], plot_style=dict(vmin=-5.0e-5, vmax=5.0e-5))
+        plt.TensorPlot(qQQ - qderivs_embed[1], plot_style=dict(vmin=-5.0e-5, vmax=5.0e-5))
+        plt.TensorPlot(qQQQ - qderivs_embed[2],
+                       plot_style=dict(vmin=-5.0e-5, vmax=5.0e-5)).show()
+        # plt.TensorPlot(qQQ).show()
+        raise Exception([qQ, qQQ])
+
+        # plt.TensorPlot(qQQQ)
+        # plt.TensorPlot(qQQQ.transpose(3, 0, 1, 2)).show()
+
+        # for k,v in (
+        #         ('dY/dQ', xQ),
+        #         ('dY/dQdQ', xQQ),
+        #         ('dY/dQdQdQ', xQQQ),
+        #         ('dY/dQdQdQdQ', xQQQQ),
+        #         ('dQ/dY', QY)
+        # ):
+        #     print(k, np.max(np.abs(v)))
+
+        YQ, YQQ, YQQQ, YQQQQ = YQ_derivs
         self._cached_transforms[self.molecule] = {
-            "CartesiansByModes": [xQ, xQQ, xQQQ, xQQQQ],
+            "CartesiansByModes": [YQ, YQQ, YQQQ, YQQQQ],
             "ModesByCartesians": [QY],
             "CartesiansByInternals": [YR, YRR, YRRR, YRRRR],
-            "InternalsByCartesians": [RY, RYY, RYYY]
+            "InternalsByCartesians": [RY, RYY, RYYY],
+            "CartesianModesByInternalModes": [qQ, qQQ, qQQQ, qQQQQ]
         }
 
         return self._cached_transforms[self.molecule]
@@ -514,6 +563,10 @@ class ExpansionTerms:
     @property
     def internals_by_cartesians(self):
         return self.get_coordinate_transforms()['InternalsByCartesians']
+
+    @property
+    def cartesian_modes_by_internal_modes(self):
+        return self.get_coordinate_transforms()['CartesianModesByInternalModes']
 
 class PotentialTerms(ExpansionTerms):
     """
@@ -626,39 +679,33 @@ class PotentialTerms(ExpansionTerms):
         thirds = self.v_derivs[2]
         fourths = self.v_derivs[3]
 
-        # Use the Molecule's coordinates which know about their embedding by default
-        intcds = self.internal_coordinates
-        if intcds is None:
-            # this is nice because it eliminates most of terms in the expansion
-            xQ = self.modes.inverse
-            xQQ = 0
-            xQQQ = 0
-            xQQQQ = 0
-        else:
-
-
-            #TODO: I'd like to have support for using more/fewer derivs, just in case
-
-            xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
-            QY, = self.modes_by_cartesians
-
-            dot = DumbTensor._dot
-            if self.mixed_derivs:
-                qQQ = dot(xQQ, QY)
-                f43 = dot(qQQ, thirds)
-                fourths = fourths.toarray()
-                fourths = fourths + f43
-
-        x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
+        # transform into proper Cartesian mode derivatives first
+        x_derivs = (self.modes.inverse, 0, 0, 0)
         V_derivs = (grad, hess, thirds, fourths)
 
         v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_XQ=self.mixed_derivs)
-
-        if self.mixed_derivs:# and intcds is None:
+        if self.mixed_derivs:
             # we assume we only got second derivs in Q_i Q_i
             # at this point, then, we should be able to fill in the terms we know are missing
             for i in range(v4.shape[0]):
                 v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+
+        # Now if we've got an internal spec, transform into internal modes
+        intcds = self.internal_coordinates
+        if intcds is not None:
+
+            qQ_terms = self.cartesian_modes_by_internal_modes
+            v1, v2, v3, v4 = self._get_tensor_derivs(qQ_terms, (v1, v2, v3, v4), mixed_XQ=False)
+
+            # if self.mixed_derivs:
+            #     # we assume we only got second derivs in Q_i Q_i
+            #     # at this point, then, we should be able to fill in the terms we know are missing
+            #     for i in range(v4.shape[0]):
+            #         v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+
+            # import McUtils.Plots as plt
+            # plt.TensorPlot(v4, plot_style=dict(vmin=-5.0e-5, vmax=5.0e-5)).show()
+
 
         return v2, v3, v4
 
@@ -677,7 +724,6 @@ class KineticTerms(ExpansionTerms):
             GQ = 0
             GQQ = 0
         else:
-            # First we take derivatives of internals with respect to Cartesians
 
             QY, = self.modes_by_cartesians
             YQ, YQQ, YQQQ, YQQQQ = self.cartesians_by_modes
@@ -703,7 +749,21 @@ class KineticTerms(ExpansionTerms):
 
             GQQ = (H@(U + U[2:1])).t + (Jd@(Jd@(V+V[3:2]))[0:1]).t
 
+            # import McUtils.Plots as plt
+            #
+            # plt.ArrayPlot(G)
+            # plt.TensorPlot(GQ)
+            # plt.TensorPlot(GQQ).show()
+
         G_terms = (G, GQ, GQQ)
+
+        # for k,v in (
+        #         ('G', G),
+        #         ('GQ', GQ),
+        #         ('GQQ', GQQ)
+        # ):
+        #     print(k, np.max(np.abs(v)), np.min(np.abs(v)))
+
         return G_terms
 
 class DipoleTerms(ExpansionTerms):

@@ -365,23 +365,25 @@ class VPTTests(TestCase):
         )
 
     wfn_file_dir = os.path.expanduser("~/Desktop/")
-    def get_VPT2_wfns(self, fchk,
-                      internals,
-                      states,
-                      n_quanta,
-                      regenerate=False,
-                      coupled_states=None,
-                      mode_selection=None,
-                      v2 = None,
-                      t2 = None,
-                      v3 = None,
-                      t3 = None,
-                      t4 = None,
-                      v4 = None,
-                      coriolis = None,
-                      watson = None,
-                      degeneracies=None
-                      ):
+
+    def get_VPT2_wfns_and_ham(self, fchk,
+                              internals,
+                              states,
+                              n_quanta,
+                              save_coeffs=False,
+                              regenerate=False,
+                              coupled_states=None,
+                              mode_selection=None,
+                              v2=None,
+                              t2=None,
+                              v3=None,
+                              t3=None,
+                              t4=None,
+                              v4=None,
+                              coriolis=None,
+                              watson=None,
+                              degeneracies=None
+                              ):
 
         hammer = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data(fchk),
@@ -390,33 +392,83 @@ class VPTTests(TestCase):
             mode_selection=mode_selection
         )
 
-        if t2 is not None:
-            hammer.H0.computers[0].operator.coeffs = t2
-        if v2 is not None:
-            hammer.H0.computers[1].operator.coeffs = v2
-        if t3 is not None:
-            hammer.H1.computers[0].operator.coeffs = t3
-        if v3 is not None:
-            hammer.H1.computers[1].operator.coeffs = v3
-        if t4 is not None:
-            hammer.H2.computers[0].operator.coeffs = t4
-        if v4 is not None:
-            hammer.H2.computers[1].operator.coeffs = v4
-        if coriolis is not None:
-            hammer.H2.computers[2].operator.coeffs = coriolis
-            if watson is None and isinstance(coriolis, (int, float)) and coriolis == 0:
-                watson = 0
-        if watson is not None:
-            hammer.H2.computers[3].operator.coeffs = watson
-
         wfn_file = os.path.join(self.wfn_file_dir, fchk.replace("fchk", "npz"))
         if regenerate or not os.path.exists(wfn_file):
+
+            if save_coeffs:
+                coeffs_file = os.path.join(self.wfn_file_dir, fchk.replace(".fchk", "_coeffs.npz"))
+                np.savez(coeffs_file,
+                         G=hammer.H0.computers[0].operator.coeffs,
+                         F=hammer.H0.computers[1].operator.coeffs,
+                         dGdQ=hammer.H1.computers[0].operator.coeffs,
+                         dFdQ=hammer.H1.computers[1].operator.coeffs,
+                         dGdQQ=hammer.H2.computers[0].operator.coeffs,
+                         dFdQQ=hammer.H2.computers[1].operator.coeffs
+                         )
+
+            if t2 is not None:
+                hammer.H0.computers[0].operator.coeffs = t2
+            if v2 is not None:
+                hammer.H0.computers[1].operator.coeffs = v2
+            if t3 is not None:
+                hammer.H1.computers[0].operator.coeffs = t3
+            if v3 is not None:
+                hammer.H1.computers[1].operator.coeffs = v3
+            if t4 is not None:
+                hammer.H2.computers[0].operator.coeffs = t4
+            if v4 is not None:
+                hammer.H2.computers[1].operator.coeffs = v4
+            if coriolis is not None:
+                hammer.H2.computers[2].operator.coeffs = coriolis
+                if watson is None and isinstance(coriolis, (int, float)) and coriolis == 0:
+                    watson = 0
+            if watson is not None:
+                hammer.H2.computers[3].operator.coeffs = watson
+
             wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies)
             self.save_wfns(wfn_file, wfns)
         else:
             wfns = self.load_wfns(hammer.molecule, hammer.basis, wfn_file)
 
-        return wfns
+        return wfns, hammer
+
+    def get_VPT2_wfns(self, fchk,
+                      internals,
+                      states,
+                      n_quanta,
+                      save_coeffs=False,
+                      regenerate=False,
+                      coupled_states=None,
+                      mode_selection=None,
+                      v2=None,
+                      t2=None,
+                      v3=None,
+                      t3=None,
+                      t4=None,
+                      v4=None,
+                      coriolis=None,
+                      watson=None,
+                      degeneracies=None
+                      ):
+        return self.get_VPT2_wfns_and_ham(
+            fchk,
+            internals,
+            states,
+            n_quanta,
+            regenerate=regenerate,
+            save_coeffs=save_coeffs,
+            coupled_states=coupled_states,
+            mode_selection=mode_selection,
+            v2=v2,
+            t2=t2,
+            v3=v3,
+            t3=t3,
+            t4=t4,
+            v4=v4,
+            coriolis=coriolis,
+            watson=watson,
+            degeneracies=degeneracies
+        )[0]
     def get_states(self, n_quanta, n_modes, max_quanta = None):
         import itertools as ip
 
@@ -1067,8 +1119,8 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v4, rtol=1))  # testing to within a wavenumber
 
-    @validationTest
-    def test_TestQuarticsInternals(self):
+    @debugTest
+    def test_TestCubicsInternals(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
             n_quanta=6,
@@ -1077,6 +1129,71 @@ class VPTTests(TestCase):
             [1, 0, -1, -1],
             [2, 0, 1, -1]
         ]
+        )
+
+        v4_Anne =[
+             [1,  1,  1,   198.63477267],
+             [2,  1,  1,    41.05987944],
+             [3,  1,  1,   429.45742955],
+             [1,  2,  1,    41.05987944],
+             [2,  2,  1,   -90.66588863],
+             [3,  2,  1,    82.31540784],
+             [1,  3,  1,   429.45742955],
+             [2,  3,  1,    82.31540784],
+             [3,  3,  1,  -153.50694953],
+             [1,  1,  2,    41.16039749],
+             [2,  1,  2,   -90.73683527],
+             [3,  1,  2,    82.32690754],
+             [1,  2,  2,   -90.73683527],
+             [2,  2,  2, -1588.89967595],
+             [3,  2,  2,    91.00951548],
+             [1,  3,  2,    82.32690754],
+             [2,  3,  2,    91.00951548],
+             [3,  3,  2,  -172.34377091],
+             [1,  1,  3,   430.44067645],
+             [2,  1,  3,    82.33125106],
+             [3,  1,  3,  -153.78923868],
+             [1,  2,  3,    82.33125106],
+             [2,  2,  3,    90.96564514],
+             [3,  2,  3,  -172.45333790],
+             [1,  3,  3,  -153.78923868],
+             [2,  3,  3,  -172.45333790],
+             [3,  3,  3, -2558.24567375]
+        ]
+
+        legit = np.zeros((3, 3, 3))
+        for k, j, i, v in v4_Anne:
+            i = i-1; j = j-1; k = k-1
+            legit[i, j, k] = v
+
+        v3 = self.h2w * ham.V_terms[1]
+
+        # for unknown reasons, Anne and I disagree on the order of like 5 cm^-1,
+        # but it's unclear which set of derivs. is right since my & hers both
+        # yield a max deviation from the Gaussian result of ~.1 cm^-1
+        print_errors=True
+        if print_errors:
+            if not np.allclose(legit, v3, rtol=.1):
+                diff = legit - v3
+                bad_pos = np.array(np.where(np.abs(diff) > .1)).T
+                print("Anne/This Disagreements:\n"+"\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>5.3f} (Anne: {:>8.3f} This: {:>8.3f})".format(
+                        i,j,k, diff[i,j,k], legit[i,j,k], v3[i,j,k]
+                    ) for i,j,k in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v3, atol=10))
+
+    @debugTest
+    def test_TestQuarticsInternals(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOD_freq.fchk"),
+            n_quanta=6,
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1]
+            ]
         )
 
         v4_Anne =[
@@ -1120,18 +1237,18 @@ class VPTTests(TestCase):
         # for unknown reasons, Anne and I disagree on the order of like 5 cm^-1,
         # but it's unclear which set of derivs. is right since my & hers both
         # yield a max deviation from the Gaussian result of ~.1 cm^-1
-        print_errors=False
+        print_errors=True
         if print_errors:
             if not np.allclose(legit, v4, rtol=.1):
                 diff = legit - v4
                 bad_pos = np.array(np.where(np.abs(diff) > .1)).T
-                print("Gaussian/This Disagreements:\n"+"\n".join(
-                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>5.3f} (Actual: {:>8.3f} This: {:>8.3f})".format(
+                print("Anne/This Disagreements:\n"+"\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>5.3f} (Anne: {:>8.3f} This: {:>8.3f})".format(
                         i,j,k,l, diff[i,j,k,l], legit[i,j,k,l], v4[i,j,k,l]
                     ) for i,j,k,l in bad_pos
                 ))
 
-        self.assertTrue(np.allclose(legit, v4, rtol=10))
+        self.assertTrue(np.allclose(legit, v4, atol=10))
 
     @validationTest
     def test_OCHTCoriolisCouplings(self):
@@ -1401,101 +1518,11 @@ class VPTTests(TestCase):
             internals,
             states,
             n_quanta,
+            save_coeffs=True,
             regenerate=True,
             coupled_states=coupled_states
-            # , v2 = 0
-            , v3 = 0
-            , v4 = 0
-        )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
-        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
-        energies = h2w * wfns.energies
-        zero_ord = h2w * wfns.zero_order_energies
-
-        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
-                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
-                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
-        gaussian_energies = np.array([4681.564, 4605.953])
-        gaussian_freqs = np.array([
-            [3937.525,    3744.734],
-            [3803.300,    3621.994],
-            [1622.303,    1572.707],
-
-            [7875.049,    7391.391],
-            [7606.599,    7155.881],
-            [3244.606,    3117.366],
-
-            [7740.824,    7200.364],
-            [5559.828,    5294.379],
-            [5425.603,    5174.665]
-        ])
-
-
-        # raise Exception(h2w * wfns.corrs.energy_corrs)
-
-        my_energies = np.array([zero_ord[0], energies[0]])
-        my_freqs = np.column_stack([
-            zero_ord[1:] - zero_ord[0],
-            energies[1:] - energies[0]
-        ])
-
-        print_report = False
-        if print_report:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
-
-        print_diffs = True
-        if print_diffs:
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs)
-                  )
-                  )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
-
-    @debugTest
-    def test_HOHVPTCartesians(self):
-
-        internals = None
-        # [
-        #     [0, -1, -1, -1],
-        #     [1, 0, -1, -1],
-        #     [2, 0, 1, -1]
-        # ]
-        states = (
-            (0, 0, 0),
-            (0, 0, 1), (0, 1, 0), (1, 0, 0),
-            (0, 0, 2), (0, 2, 0), (2, 0, 0),
-            (0, 1, 1), (1, 0, 1), (1, 1, 0)
-        )
-        n_quanta = 6
-
-        coupled_states = self.get_states(5, 3)
-        wfns = self.get_VPT2_wfns(
-            "HOH_freq.fchk",
-            internals,
-            states,
-            n_quanta,
-            regenerate=True,
-            coupled_states=coupled_states,
-            v3=0,
-            v4=0
+            # , v3=0
+            # , v4=0
         )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -1556,7 +1583,94 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1.5)
 
-    @validationTest
+    @debugTest
+    def test_HOHVPTCartesians(self):
+
+        internals = None
+        # [
+        #     [0, -1, -1, -1],
+        #     [1, 0, -1, -1],
+        #     [2, 0, 1, -1]
+        # ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        n_quanta = 6
+
+        coupled_states = self.get_states(5, 3)
+        wfns = self.get_VPT2_wfns(
+            "HOH_freq.fchk",
+            internals,
+            states,
+            n_quanta,
+            regenerate=True,
+            coupled_states=coupled_states
+            # , v3=0
+            # , v4=0
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
+        energies = h2w * wfns.energies
+        zero_ord = h2w * wfns.zero_order_energies
+
+        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
+                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
+                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
+        gaussian_energies = np.array([4681.564, 4605.953])
+        gaussian_freqs = np.array([
+            [3937.525, 3744.734],
+            [3803.300, 3621.994],
+            [1622.303, 1572.707],
+
+            [7875.049, 7391.391],
+            [7606.599, 7155.881],
+            [3244.606, 3117.366],
+
+            [7740.824, 7200.364],
+            [5559.828, 5294.379],
+            [5425.603, 5174.665]
+        ])
+
+        my_energies = np.array([zero_ord[0], energies[0]])
+        my_freqs = np.column_stack([
+            zero_ord[1:] - zero_ord[0],
+            energies[1:] - energies[0]
+        ])
+
+        print_report = False
+        if print_report:
+            print("Gaussian:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(gaussian_states, gaussian_freqs)
+                  )
+                  )
+            print("State Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs)
+                  )
+                  )
+
+        print_diffs = True
+        if print_diffs:
+            print("Difference Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs - gaussian_freqs)
+                  )
+                  )
+        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1.5)
+
+    @debugTest
     def test_HODVPTInternals(self):
 
         internals = [
@@ -1578,8 +1692,11 @@ class VPTTests(TestCase):
             internals,
             states,
             n_quanta,
+            save_coeffs=True,
             regenerate=True,
             coupled_states=coupled_states
+            # , v3=0
+            # , v4=0
         )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -1639,7 +1756,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
 
-    @validationTest
+    @debugTest
     def test_HODVPTCartesians(self):
 
         internals = None
@@ -1660,6 +1777,8 @@ class VPTTests(TestCase):
             n_quanta,
             regenerate=True,
             coupled_states=coupled_states
+            # , v3=0
+            # , v4=0
         )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -2399,9 +2518,9 @@ class VPTTests(TestCase):
 
         internals = [
             [0, -1, -1, -1],
-            [1, 0, -1, -1],
-            [2, 1, 0, -1],
-            [3, 1, 0, 2]
+            [1,  0, -1, -1],
+            [2,  1,  0, -1],
+            [3,  1,  0,  2]
         ]
 
         n_modes = 3 * 4 - 6
@@ -2428,6 +2547,7 @@ class VPTTests(TestCase):
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
+                # , degeneracies=1/self.h2w
                 # , degeneracies=(
                 #     coupled_states.index((0, 0, 0, 0, 0, 1)),
                 #     coupled_states.index((0, 0, 2, 0, 0, 0))
@@ -2553,6 +2673,7 @@ class VPTTests(TestCase):
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
+                # , degeneracies=5/self.h2w
             )
 
         # block()

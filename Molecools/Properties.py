@@ -67,6 +67,9 @@ class MolecularProperties:
             :rtype:
             """
 
+        com = cls.get_prop_center_of_mass(coords, masses)
+        coords = coords - com[np.newaxis]
+
         d = np.zeros(coords.shape[:-1] + (3, 3), dtype=float)
         diag = nput.vec_dots(coords, coords)
         d[..., (0, 1, 2), (0, 1, 2)] = diag[..., np.newaxis]
@@ -293,28 +296,33 @@ class MolecularProperties:
         """
 
         n = len(masses)
-        mT = np.sum(masses)
+        # explicitly put masses in m_e from AMU
+        masses = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass") * masses
+        mT = np.sqrt(np.sum(masses))
         mvec = np.sqrt(masses)
-        com = cls.get_prop_center_of_mass(coords, masses)
-        shift_crds = coords - com[np.newaxis, :]
+
         M = np.kron(mvec/mT, np.eye(3)).T # translation eigenvectors
-        mom_rot, ax_rot = cls.get_prop_moments_of_inertia(shift_crds, masses)
-        inv_rot_2 = np.dot(ax_rot.T, np.diag(1/np.sqrt(mom_rot)), ax_rot)
+        mom_rot, ax_rot = cls.get_prop_moments_of_inertia(coords, masses)
+        inv_rot_2 = np.dot(np.dot(ax_rot, np.diag(1/np.sqrt(mom_rot))), ax_rot.T)
+        com = cls.get_prop_center_of_mass(coords, masses)
+        shift_crds = mvec[:, np.newaxis]*(coords - com[np.newaxis, :])
         e = nput.levi_cevita3
-        R = np.dot(shift_crds, np.dot(inv_rot_2, e).transpose((1, 2, 0))).reshape((3*n, 3)) # rotations
+        R = np.tensordot(
+            shift_crds,
+            np.tensordot(e, inv_rot_2, axes=[0, 1]),
+            axes=[1, 0]
+        ).reshape((3*n, 3)) # rotations
         freqs = np.concatenate([
             [1e-14, 1e-14, 1e-14],
-            UnitsData.convert("Wavenumbers", "Hartrees")*(1/mom_rot)
+            (1/(2*mom_rot))
             # this isn't right, I'm totally aware, but I think the frequency is supposed to be zero anyway and this
             # will be tiny
         ])
         eigs = np.concatenate([M, R], axis=1)
 
-        np.savetxt("/Users/Mark/Desktop/tr_crd.data", coords)
-        np.savetxt("/Users/Mark/Desktop/tr_mass.data", masses)
-        np.savetxt("/Users/Mark/Desktop/tr_eigv.data", eigs)
-
         # import McUtils.Plots as plt
+        # print("????")
+        # print(np.round(eigs, 10))
         # plt.ArrayPlot(eigs).show()
         # raise Exception([M, R])
         return freqs, eigs
@@ -329,6 +337,8 @@ class MolecularProperties:
         :return:
         :rtype:
         """
+        if sel is not None:
+            raise NotImplementedError("Still need to add coordinate subselection")
         return cls.get_prop_translation_rotation_eigenvectors(mol.coords, mol.masses)
 
     @classmethod
