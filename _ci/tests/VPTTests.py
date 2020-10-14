@@ -933,76 +933,6 @@ class VPTTests(TestCase):
         self.assertTrue(np.allclose(legit, v3, rtol=1))  # testing to within a wavenumber
 
     @validationTest
-    def test_TestQuarticsCartesians(self):
-        ham = PerturbationTheoryHamiltonian.from_fchk(
-            TestManager.test_data("HOD_freq.fchk"),
-            n_quanta=6,
-            internals=None
-        )
-
-        v4_Gaussian = [
-          [1,  1,  1,  1,    1517.96213],
-          [2,  1,  1,  1,      98.59961],
-          [2,  2,  1,  1,       8.99887],
-          [2,  2,  2,  1,     -50.96655],
-          [2,  2,  2,  2,     804.29611],
-          [3,  1,  1,  1,     142.08091],
-          [3,  2,  1,  1,     -18.73606],
-          [3,  2,  2,  1,     -22.35470],
-          [3,  2,  2,  2,      71.81011],
-          [3,  3,  1,  1,    -523.38920],
-          [3,  3,  2,  1,      -4.05652],
-          [3,  3,  2,  2,     -95.43623],
-          [3,  3,  3,  1,    -145.84374],
-          [3,  3,  3,  2,     -41.06991],
-          [3,  3,  3,  3,      83.41603]
-          ]
-        # for reasons I'm still working out, Gaussian 16 flips the phases on its normal modes
-        # but _doesn't_ flip the phases on its derivatives
-        v4_Gaussian16 = [
-            [1, 1, 1, 1, 1517.96195],
-            [2, 1, 1, 1,   98.60039],
-            [2, 2, 1, 1,    8.99879],
-            [2, 2, 2, 1,  -50.96534],
-            [2, 2, 2, 2,  804.29612],
-            [3, 1, 1, 1,  142.07906],
-            [3, 2, 1, 1,  -18.73793],
-            [3, 2, 2, 1,  -22.35735],
-            [3, 2, 2, 2,   71.80757],
-            [3, 3, 1, 1, -523.38806],
-            [3, 3, 2, 1,   -4.05417],
-            [3, 3, 2, 2,  -95.43403],
-            [3, 3, 3, 1, -145.84906],
-            [3, 3, 3, 2,  -41.07498],
-            [3, 3, 3, 3,   83.42476]
-        ]
-
-        legit = np.zeros((3, 3, 3, 3))
-        mode_mapping = [
-            2, 1, 0
-        ]
-        for i, j, k, l, v in v4_Gaussian:
-            i = mode_mapping[i-1]; j = mode_mapping[j-1]
-            k = mode_mapping[k-1]; l = mode_mapping[l-1]
-            for perm in ip.permutations((i, j, k, l)):
-                legit[perm] = v
-
-        v4 = self.h2w * ham.V_terms[2]
-
-        print_errors = False
-        if print_errors:
-            if not np.allclose(legit, v4, rtol=.001):
-                diff = legit - v4
-                bad_pos = np.array(np.where(np.abs(diff) > .001)).T
-                print("Gaussian/This Disagreements:\n"+"\n".join(
-                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>5.3f} (Actual: {:>8.3f} This: {:>8.3f})".format(
-                        i,j,k,l, diff[i,j,k,l], legit[i,j,k,l], v4[i,j,k,l]
-                    ) for i,j,k,l in bad_pos
-                ))
-
-        self.assertTrue(np.allclose(legit, v4, rtol=.001)) # testing to within .001 wavenumbers
-
-    @validationTest
     def test_TestQuarticsCartesians2(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("OCHD_freq.fchk"),
@@ -1119,6 +1049,59 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v4, rtol=1))  # testing to within a wavenumber
 
+    @validationTest
+    def test_TestQuarticsCartesians(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOD_freq.fchk"),
+            n_quanta=6,
+            internals=None
+        )
+
+        v4_Gaussian = [
+            [1, 1, 1, 1, 1517.96213],
+            [2, 1, 1, 1,   98.59961],
+            [2, 2, 1, 1,    8.99887],
+            [2, 2, 2, 1,  -50.96655],
+            [2, 2, 2, 2,  804.29611],
+            [3, 1, 1, 1,  142.08091],
+            [3, 2, 1, 1,  -18.73606],
+            [3, 2, 2, 1,  -22.35470],
+            [3, 2, 2, 2,   71.81011],
+            [3, 3, 1, 1, -523.38920],
+            [3, 3, 2, 1,   -4.05652],
+            [3, 3, 2, 2,  -95.43623],
+            [3, 3, 3, 1, -145.84374],
+            [3, 3, 3, 2,  -41.06991],
+            [3, 3, 3, 3,   83.41603]
+        ]
+
+        legit = np.zeros((3, 3, 3, 3))
+        mode_mapping = [
+            2, 1, 0
+        ]
+        for i, j, k, l, v in v4_Gaussian:
+            i = mode_mapping[i - 1];
+            j = mode_mapping[j - 1]
+            k = mode_mapping[k - 1];
+            l = mode_mapping[l - 1]
+            for perm in ip.permutations((i, j, k, l)):
+                legit[perm] = v
+
+        v4 = self.h2w * ham.V_terms[2]
+
+        print_errors = False
+        if print_errors:
+            if not np.allclose(legit, v4, rtol=.001):
+                diff = legit - v4
+                bad_pos = np.array(np.where(np.abs(diff) > .001)).T
+                print("Gaussian/This Disagreements:\n" + "\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>5.3f} (Actual: {:>8.3f} This: {:>8.3f})".format(
+                        i, j, k, l, diff[i, j, k, l], legit[i, j, k, l], v4[i, j, k, l]
+                    ) for i, j, k, l in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v4, rtol=.001))  # testing to within .001 wavenumbers
+
     @debugTest
     def test_TestCubicsInternals(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
@@ -1177,7 +1160,7 @@ class VPTTests(TestCase):
                 diff = legit - v3
                 bad_pos = np.array(np.where(np.abs(diff) > .1)).T
                 print("Anne/This Disagreements:\n"+"\n".join(
-                    "{:>.0f} {:>.0f} {:>.0f} {:>5.3f} (Anne: {:>8.3f} This: {:>8.3f})".format(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
                         i,j,k, diff[i,j,k], legit[i,j,k], v3[i,j,k]
                     ) for i,j,k in bad_pos
                 ))
@@ -1243,7 +1226,7 @@ class VPTTests(TestCase):
                 diff = legit - v4
                 bad_pos = np.array(np.where(np.abs(diff) > .1)).T
                 print("Anne/This Disagreements:\n"+"\n".join(
-                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>5.3f} (Anne: {:>8.3f} This: {:>8.3f})".format(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
                         i,j,k,l, diff[i,j,k,l], legit[i,j,k,l], v4[i,j,k,l]
                     ) for i,j,k,l in bad_pos
                 ))
@@ -1496,7 +1479,7 @@ class VPTTests(TestCase):
             .01 # within .01 wavenumbers
         ))
 
-    @debugTest
+    @validationTest
     def test_HOHVPTInternals(self):
 
         internals = [
@@ -1583,7 +1566,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
 
         internals = None
@@ -1670,7 +1653,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HODVPTInternals(self):
 
         internals = [
@@ -1756,7 +1739,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
 
-    @debugTest
+    @validationTest
     def test_HODVPTCartesians(self):
 
         internals = None

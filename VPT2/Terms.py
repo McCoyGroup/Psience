@@ -2,9 +2,12 @@
 Stores all of the terms used inside the VPT2 representations
 """
 
-import numpy as np, functools as fp, itertools as ip
+import numpy as np, functools as fp, itertools as ip, scipy
+
 from McUtils.Numputils import SparseArray, levi_cevita3, vec_tensordot, vec_outer
 from McUtils.Data import UnitsData
+
+from ..Molecools import MolecularVibrations, MolecularNormalModes
 
 from .Common import PerturbationTheoryException
 
@@ -129,7 +132,28 @@ class ExpansionTerms:
     Base class for kinetic, potential, and dipole derivative terms
     """
     _cached_jacobians = {}
-    def __init__(self, molecule, modes=None, mode_selection=None, undimensionalize=True):
+    def __init__(self,
+                 molecule,
+                 modes=None,
+                 internal_modes = None,
+                 cartesian_hessian=None,
+                 mode_selection=None,
+                 undimensionalize=True
+                 ):
+        """
+        :param molecule: the molecule we're doing the expansion for
+        :type molecule: Molecule
+        :param modes: normal modes in Cartesian coordinates
+        :type modes: MolecularVibrations
+        :param internal_modes: internal modes if we have them
+        :type internal_modes: None | MolecularVibrations
+        :param cartesian_hessian: the Cartesian Hessian if we need to redo the NMA in internals
+        :type cartesian_hessian: np.ndarray
+        :param mode_selection: the selection of modes to use
+        :type mode_selection: None | Iterable[int]
+        :param undimensionalize: whether or not we need to do some units fuckery on the modes
+        :type undimensionalize: bool
+        """
         self._terms = None
         self.molecule = molecule
         self.internal_coordinates = molecule.internal_coordinates
@@ -142,6 +166,8 @@ class ExpansionTerms:
             modes = self.undimensionalize(self.masses, modes.basis)
         else:
             self.raw_modes = None
+        self.internal_modes = internal_modes
+        self.cartesian_hessian = cartesian_hessian
         if mode_selection is not None:
             modes = modes[(mode_selection,)]
         self.modes = modes
@@ -210,7 +236,8 @@ class ExpansionTerms:
         if max_jac > len(exist_jacs):
             need_jacs = [x+1 for x in range(0, max_jac)]
             # for whatever reason I have to recompute a bunch of shit inside sys.jacobian...?
-            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs)]
+            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs,
+                                                             all_numerical=True)]
             self._cached_jacobians[self.molecule]['int'] = new_jacs
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
@@ -229,7 +256,9 @@ class ExpansionTerms:
         # print("C", jacs, max_jac, len(exist_jacs))
         if max_jac > len(exist_jacs):
             need_jacs = [x + 1 for x in range(0, max_jac)]
-            new_jacs = [x.squeeze() for x in ccoords.jacobian(internals, need_jacs)]
+            new_jacs = [
+                x.squeeze() for x in ccoords.jacobian(internals, need_jacs, all_numerical=True)
+                ]
             self._cached_jacobians[self.molecule]['cart'] = new_jacs
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
@@ -297,16 +326,17 @@ class ExpansionTerms:
 
         # Gradient contribution
         V_QQQ_1 = dot(xQQQ, Vx)
-        # Second deriv.
+
+        # Second deriv. contribution
         # we generate the base arrangement
-        Q32 = dot(xQQ, dot(xQ, Vxx, axes=[[1, 0]]), axes=[[2, 1]])
+        Q32 = dot(xQQ, dot(xQ, Vxx, axes=[[1, 1]]), axes=[[2, 1]])
         # then we do the transpositions that put the xQ coordinate inside the xQQ
         if not isinstance(Q32, int):
             X = tuple(range(3, Q32.ndim))
             V_QQQ_2_terms = [
                 Q32.transpose(0, 1, 2, *X),
-                Q32.transpose(1, 2, 0, *X),
-                Q32.transpose(2, 0, 1, *X)
+                Q32.transpose(2, 0, 1, *X),
+                Q32.transpose(0, 2, 1, *X)
                 ]
             V_QQQ_2 = sum(V_QQQ_2_terms)
         else:
@@ -317,7 +347,6 @@ class ExpansionTerms:
             VQxx = dot(xQ, Vxxx, axes=[[1, 0]])
         else:
             VQxx = Vxxx
-
         V_QQQ_3 = dot(xQ, dot(xQ, VQxx, axes=[[1, 1]]), axes=[[1, 2]])
 
         V_QQQ_terms = (
@@ -327,6 +356,9 @@ class ExpansionTerms:
         )
 
         V_QQQ = sum(x for x in V_QQQ_terms if not isinstance(x, int))
+        # print("---- V3 ----")
+        # for i, v in enumerate(V_QQQ_terms):
+        #     print(i, v[0, 0, 0] if not isinstance(v, int) else v)
 
         derivs[2] = V_QQQ
         if order == 3:
@@ -403,23 +435,27 @@ class ExpansionTerms:
             VQQxx = Vxxxx
 
         if not isinstance(VQQxx, int):
-            V_QQQQ_4 = dot(VQQxx, xQ, xQ, axes=[[3, 1], [2, 1]])
-            N = V_QQQQ_4.ndim
-            X = N - 4
-            if X > 0:
-                unroll = (0, 1) + tuple(range(2+X, N)) + tuple(range(2, 2+X))
-                V_QQQQ_4 = V_QQQQ_4.transpose(unroll)
-            X = tuple(range(4, V_QQQQ_4.ndim))
+            if isinstance(VQQxx, SparseArray):
+                VQQxx = VQQxx.toarray()
+            V_QQQQ_4 = np.tensordot(xQ,
+                           np.tensordot(xQ, VQQxx, axes=[1, 2]),
+                           axes=[1, 3]
+                           )
 
         else:
             V_QQQQ_4 = 0
 
-        V_QQQQ = (
-                V_QQQQ_1 +
-                V_QQQQ_2 +
-                V_QQQQ_3 +
+        V_QQQQ_terms = (
+                V_QQQQ_1,
+                V_QQQQ_2,
+                V_QQQQ_3,
                 V_QQQQ_4
         )
+
+        V_QQQQ = sum(V_QQQQ_terms)
+        # print("---- V4 ----")
+        # for i,v in enumerate(V_QQQQ_terms):
+        #     print(i, v[2, 2, 2, 2] if not isinstance(v, int) else v)
 
         return V_Q, V_QQ, V_QQQ, V_QQQQ
 
@@ -477,67 +513,72 @@ class ExpansionTerms:
                 * mass_conv[np.newaxis, :, np.newaxis, np.newaxis]
                 * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
         )
-
-        # for the convenience of conversion we remove the dimensioning
-        # that makes things non-unitary
         QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
-        QY = QY / np.sqrt(self.freqs)
-        YQ = QY.T
-        # then we add on the embedding
-        # zeros, transrot = self.molecule.translation_rotation_modes
-        # embed_QY = np.column_stack([transrot, QY])
-        # embed_YQ = np.row_stack([transrot.T, YQ])
+        YQ = self.modes.inverse
+
+        if self.internal_modes is None:
+            hess = self.cartesian_hessian # assumed to be mass-weighted
+            mass_hess = hess #/ (mass_conv[:, np.newaxis] * mass_conv[np.newaxis, :])
+            embedding_coords = (0, 1, 2, 4, 5, 8)
+            good_coords = tuple(i for i in np.arange(YR.shape[0]) if i not in embedding_coords)
+            internal_F = np.tensordot(YR, np.tensordot(YR, mass_hess, axes=[1, 1]), axes=[1, 1])
+            internal_G = np.tensordot(RY, RY, axes=[0, 0])
+            # import McUtils.Plots as plt
+            # plt.ArrayPlot(internal_F)
+            # plt.ArrayPlot(internal_G).show()
+            # raise Exception(internal_G, internal_F)
+            # freqs, modes = scipy.linalg.eigh(internal_F[np.ix_(good_coords, good_coords)], internal_G[np.ix_(good_coords, good_coords)], type=3)
+            freqs2, modes = scipy.linalg.eigh(internal_F, internal_G, type=3)
+            freqs = np.sqrt(freqs2[6:])
+            modes = modes[:, 6:]
+            self.internal_modes = MolecularVibrations(self.molecule,
+                                                      MolecularNormalModes(self.molecule, modes, freqs=freqs)
+                                                      )
+            # raise Exception(np.sqrt(freqs[6:]), self.freqs)
+
+        int_modes = self.internal_modes.basis.matrix.T
+        int_freqs = self.internal_modes.freqs
+        RQ = int_modes / np.sqrt(int_freqs[:, np.newaxis])
+        QR = int_modes.T * int_freqs[np.newaxis, :]
+
+        # QR_old, = self._get_tensor_derivs((YR,), (QY,), order=1, mixed_XQ=False)
+        RQ_old, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
 
         # import McUtils.Plots as plt
-        # plt.ArrayPlot(np.dot(YQ, QY))
-        # plt.ArrayPlot(np.dot(embed_YQ, embed_QY))
-        # plt.ArrayPlot(np.dot(embed_QY, embed_YQ)).show()
-
-        # RQ, = self._get_tensor_derivs((embed_YQ,), (RY,), order=1, mixed_XQ=False)
-        # x_derivs = (YR, YRR, YRRR, YRRRR)
-        # Q_derivs = (RQ, 0, 0, 0)
-        # YQ_derivs = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
-        #
-        # qQ, qQQ, qQQQ, qQQQQ = self._get_tensor_derivs(
-        #     YQ_derivs, (embed_QY, 0, 0, 0),
-        #     mixed_XQ=False
-        # )
-        #
-        # qderivs_embed = (
-        #     qQ[6:, 6:],
-        #     qQQ[6:, 6:, 6:],
-        #     qQQQ[6:, 6:, 6:, 6:], qQQQQ)
-
-        RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
+        # plt.ArrayPlot(RQ)
+        # plt.ArrayPlot(RQ_old)
+        # plt.ArrayPlot(RQ - RQ_old).show()
+        # raise Exception(np.max(np.abs(QR - QR_old)), QR_old, QR)
         x_derivs = (YR, YRR, YRRR, YRRRR)
         Q_derivs = (RQ, 0, 0, 0)
         YQ_derivs = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
+        YQ, YQQ, YQQQ, YQQQQ = YQ_derivs
 
+        # print(self.modes.inverse - YQ)
         qQ, qQQ, qQQQ, qQQQQ = self._get_tensor_derivs(
             YQ_derivs, (QY, 0, 0, 0),
             mixed_XQ=False
         )
 
-        plt.ArrayPlot(qQ-qderivs_embed[0], plot_style=dict(vmin=-5.0e-5, vmax=5.0e-5))
-        plt.TensorPlot(qQQ - qderivs_embed[1], plot_style=dict(vmin=-5.0e-5, vmax=5.0e-5))
-        plt.TensorPlot(qQQQ - qderivs_embed[2],
-                       plot_style=dict(vmin=-5.0e-5, vmax=5.0e-5)).show()
-        # plt.TensorPlot(qQQ).show()
-        raise Exception([qQ, qQQ])
+        # import McUtils.Plots as plt
 
-        # plt.TensorPlot(qQQQ)
-        # plt.TensorPlot(qQQQ.transpose(3, 0, 1, 2)).show()
+        # plt.ArrayPlot(np.dot(RY, YR))
+        # plt.ArrayPlot(np.dot(YR, RY))
 
-        # for k,v in (
-        #         ('dY/dQ', xQ),
-        #         ('dY/dQdQ', xQQ),
-        #         ('dY/dQdQdQ', xQQQ),
-        #         ('dY/dQdQdQdQ', xQQQQ),
-        #         ('dQ/dY', QY)
-        # ):
-        #     print(k, np.max(np.abs(v)))
+        # internalTR = np.dot(
+        #     self.molecule.translation_rotation_modes[1].T,
+        #     RY
+        # )
 
-        YQ, YQQ, YQQQ, YQQQQ = YQ_derivs
+        # plt.ArrayPlot(np.dot(YR, RY))
+
+        # YQ = YQ * np.sqrt(self.freqs[:, np.newaxis])
+        #
+        # plt.ArrayPlot(np.dot(YQ, YQ.T))
+        # plt.ArrayPlot(np.dot(QR, RQ))
+        # plt.ArrayPlot(np.dot(RQ, QR)).show()
+        # plt.ArrayPlot(np.dot(RQ, RQ.T)).show()
+
         self._cached_transforms[self.molecule] = {
             "CartesiansByModes": [YQ, YQQ, YQQQ, YQQQQ],
             "ModesByCartesians": [QY],
@@ -590,6 +631,7 @@ class PotentialTerms(ExpansionTerms):
         """
         super().__init__(molecule, modes, mode_selection)
         self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.potential_derivatives)
+        self.cartesian_hessian = self.v_derivs[1]
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
@@ -695,17 +737,8 @@ class PotentialTerms(ExpansionTerms):
         if intcds is not None:
 
             qQ_terms = self.cartesian_modes_by_internal_modes
+            # print("-"*50)
             v1, v2, v3, v4 = self._get_tensor_derivs(qQ_terms, (v1, v2, v3, v4), mixed_XQ=False)
-
-            # if self.mixed_derivs:
-            #     # we assume we only got second derivs in Q_i Q_i
-            #     # at this point, then, we should be able to fill in the terms we know are missing
-            #     for i in range(v4.shape[0]):
-            #         v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
-
-            # import McUtils.Plots as plt
-            # plt.TensorPlot(v4, plot_style=dict(vmin=-5.0e-5, vmax=5.0e-5)).show()
-
 
         return v2, v3, v4
 
