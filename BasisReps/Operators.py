@@ -267,7 +267,7 @@ class Operator:
 
         return res
 
-    def get_elements(self, idx, parallelizer=None):#'multiprocessing'):
+    def get_elements(self, idx, parallelizer='multiprocessing'):
         """
         Calculates a subset of elements
 

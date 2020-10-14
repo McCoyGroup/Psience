@@ -5,336 +5,6 @@ from McUtils.Data import UnitsData
 import sys, os, numpy as np, itertools as ip
 import cProfile, pstats, io
 
-# old run results
-"""
-/Users/Mark/Documents/Python/config/python3.7/bin/python Psience/_ci/tests/run_tests.py -f VPTTests
-
-----------------------------------------------------------------------
-----------------------------------------------------------------------
-Running Debug Tests:
-
-test_HODIntensities (tests.VPTTests.VPTTests) ... ERROR
-test_HODVPTCartesians (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0   -0.001    0.220        -        -
- 0 0 1        -        -   -0.001   -0.112
- 0 1 0        -        -   -0.001   -0.035
- 1 0 0        -        -    0.000   -0.124
- 0 0 2        -        -   -0.002   -0.228
- 0 2 0        -        -   -0.002   -0.071
- 2 0 0        -        -   -0.000   -0.232
- 0 1 1        -        -   -0.002   -0.150
- 1 0 1        -        -   -0.000   -0.449
- 1 1 0        -        -   -0.000   -0.223
-
-ok
-test_HODVPTInternals (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0   -0.010    1.108        -        -
- 0 0 1        -        -   -0.001    0.009
- 0 1 0        -        -   -0.001   -0.000
- 1 0 0        -        -   -0.016    0.043
- 0 0 2        -        -   -0.002    0.015
- 0 2 0        -        -   -0.003   -0.001
- 2 0 0        -        -   -0.033    0.127
- 0 1 1        -        -   -0.003    0.006
- 1 0 1        -        -   -0.017    0.082
- 1 1 0        -        -   -0.017    0.049
-
-ok
-test_HOHVPTCartesians (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0   -0.000    0.496        -        -
- 0 0 1        -        -   -0.000   -0.355
- 0 1 0        -        -   -0.000   -0.002
- 1 0 0        -        -    0.000   -0.342
- 0 0 2        -        -    0.000   -0.714
- 0 2 0        -        -    0.000   -0.004
- 2 0 0        -        -    0.000   -0.676
- 0 1 1        -        -    0.000   -0.361
- 1 0 1        -        -   -0.000   -1.397
- 1 1 0        -        -   -0.000   -0.343
-
-ok
-test_HOHVPTInternals (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0   -0.008    7.020        -        -
- 0 0 1        -        -   -0.000    4.679
- 0 1 0        -        -   -0.000   -1.567
- 1 0 0        -        -   -0.016   -0.738
- 0 0 2        -        -    0.001   16.346
- 0 2 0        -        -    0.000   -3.133
- 2 0 0        -        -   -0.033   -1.458
- 0 1 1        -        -    0.000   -0.024
- 1 0 1        -        -   -0.016    2.459
- 1 1 0        -        -   -0.017   -2.299
-
-FAIL
-test_HOTVPTCartesians (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0    0.000    0.219        -        -
- 0 0 1        -        -    0.000   -0.207
- 0 1 0        -        -    0.000   -0.047
- 1 0 0        -        -   -0.000   -0.220
- 0 0 2        -        -   -0.001   -0.416
- 0 2 0        -        -    0.000   -0.094
- 2 0 0        -        -    0.000   -0.412
- 0 1 1        -        -    0.000   -0.256
- 1 0 1        -        -   -0.000   -0.831
- 1 1 0        -        -   -0.000   -0.356
-
-ok
-test_HOTVPTInternals (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0    0.000    1.361        -        -
- 0 0 1        -        -    0.000    0.013
- 0 1 0        -        -    0.000    0.001
- 1 0 0        -        -   -0.000    0.079
- 0 0 2        -        -   -0.000    0.024
- 0 2 0        -        -    0.000    0.001
- 2 0 0        -        -    0.000    0.218
- 0 1 1        -        -    0.001    0.011
- 1 0 1        -        -   -0.000    0.126
- 1 1 0        -        -   -0.000    0.084
-
-ok
-test_OCHDVPTCartesians (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0 0 0 0    0.000    0.050        -        -
- 0 0 0 0 0 1        -        -   -0.000  -18.929
- 0 0 0 0 1 0        -        -    0.000   -6.847
- 0 0 0 1 0 0        -        -    0.000    0.014
- 0 0 1 0 0 0        -        -    0.000   -0.163
- 0 1 0 0 0 0        -        -    0.000   -0.033
- 1 0 0 0 0 0        -        -    0.000    0.061
- 0 0 0 0 0 2        -        -   -0.000   17.470
- 0 0 0 0 2 0        -        -    0.000   16.641
- 0 0 0 2 0 0        -        -   -0.000    0.027
- 0 0 2 0 0 0        -        -    0.000   13.832
- 0 2 0 0 0 0        -        -   -0.000    6.517
- 2 0 0 0 0 0        -        -   -0.000    0.126
- 0 0 0 0 1 1        -        -   -0.000   17.055
- 0 0 0 1 0 1        -        -    0.000   -1.304
- 0 0 0 1 1 0        -        -   -0.000    8.338
- 0 0 1 0 0 1        -        -   -0.000   35.501
- 0 0 1 0 1 0        -        -    0.000    8.157
- 0 0 1 1 0 0        -        -    0.000    4.921
- 0 1 0 0 0 1        -        -    0.000    9.303
- 0 1 0 0 1 0        -        -   -0.000   24.939
- 0 1 0 1 0 0        -        -   -0.000    0.020
- 0 1 1 0 0 0        -        -    0.000   -0.525
- 1 0 0 0 0 1        -        -    0.000    8.794
- 1 0 0 0 1 0        -        -   -0.000    8.370
- 1 0 0 1 0 0        -        -   -0.000    0.061
- 1 0 1 0 0 0        -        -    0.000   -0.106
- 1 1 0 0 0 0        -        -   -0.000    0.172
-
-FAIL
-test_OCHDVPTInternals (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0 0 0 0   -0.027    1.120        -        -
- 0 0 0 0 0 1        -        -    0.000  -18.828
- 0 0 0 0 1 0        -        -    0.001   -6.831
- 0 0 0 1 0 0        -        -    0.006    0.022
- 0 0 1 0 0 0        -        -   -0.011   -0.156
- 0 1 0 0 0 0        -        -   -0.034    0.075
- 1 0 0 0 0 0        -        -   -0.016    0.072
- 0 0 0 0 0 2        -        -    0.001   17.672
- 0 0 0 0 2 0        -        -    0.001   16.672
- 0 0 0 2 0 0        -        -    0.011    0.042
- 0 0 2 0 0 0        -        -   -0.022   13.858
- 0 2 0 0 0 0        -        -   -0.069    6.753
- 2 0 0 0 0 0        -        -   -0.032    0.151
- 0 0 0 0 1 1        -        -    0.001   17.172
- 0 0 0 1 0 1        -        -    0.006   -1.193
- 0 0 0 1 1 0        -        -    0.006    8.363
- 0 0 1 0 0 1        -        -   -0.011   35.622
- 0 0 1 0 1 0        -        -   -0.011    8.181
- 0 0 1 1 0 0        -        -   -0.005    4.938
- 0 1 0 0 0 1        -        -   -0.034    9.698
- 0 1 0 0 1 0        -        -   -0.034   25.083
- 0 1 0 1 0 0        -        -   -0.029    0.140
- 0 1 1 0 0 0        -        -   -0.045   -0.415
- 1 0 0 0 0 1        -        -   -0.015    8.906
- 1 0 0 0 1 0        -        -   -0.016    8.404
- 1 0 0 1 0 0        -        -   -0.010    0.081
- 1 0 1 0 0 0        -        -   -0.027   -0.085
- 1 1 0 0 0 0        -        -   -0.051    0.329
-
-FAIL
-test_OCHHVPTCartesians (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0 0 0 0   -0.000    0.008        -        -
- 0 0 0 0 0 1        -        -    0.000   87.993
- 0 0 0 0 1 0        -        -    0.000   -0.019
- 0 0 0 1 0 0        -        -   -0.000   -0.020
- 0 0 1 0 0 0        -        -   -0.000   -0.015
- 0 1 0 0 0 0        -        -   -0.000   -0.012
- 1 0 0 0 0 0        -        -   -0.000   -0.009
- 0 0 0 0 0 2        -        -   -0.000   81.413
- 0 0 0 0 2 0        -        -   -0.000   -0.039
- 0 0 0 2 0 0        -        -    0.000   -0.038
- 0 0 2 0 0 0        -        -   -0.000   -0.033
- 0 2 0 0 0 0        -        -   -0.000   -0.019
- 2 0 0 0 0 0        -        -    0.000   -0.010
- 0 0 0 0 1 1        -        -   -0.000   40.689
- 0 0 0 1 0 1        -        -    0.000   81.395
- 0 0 0 1 1 0        -        -    0.000   -0.036
- 0 0 1 0 0 1        -        -    0.000   40.678
- 0 0 1 0 1 0        -        -    0.000   -0.029
- 0 0 1 1 0 0        -        -    0.000   -0.042
- 0 1 0 0 0 1        -        -    0.000   81.413
- 0 1 0 0 1 0        -        -    0.000   -0.065
- 0 1 0 1 0 0        -        -   -0.000  -88.035
- 0 1 1 0 0 0        -        -   -0.000   -0.028
- 1 0 0 0 0 1        -        -    0.000   40.708
- 1 0 0 0 1 0        -        -    0.000   -0.043
- 1 0 0 1 0 0        -        -    0.000   -0.050
- 1 0 1 0 0 0        -        -   -0.000   -0.032
- 1 1 0 0 0 0        -        -   -0.000   -0.017
-
-FAIL
-test_OCHHVPTInternals (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0 0 0 0   -0.040   16.482        -        -
- 0 0 0 0 0 1        -        -    0.001   97.970
- 0 0 0 0 1 0        -        -    0.000   12.844
- 0 0 0 1 0 0        -        -   -0.005   -3.147
- 0 0 1 0 0 0        -        -   -0.013   -1.072
- 0 1 0 0 0 0        -        -   -0.027   17.217
- 1 0 0 0 0 0        -        -   -0.036    8.403
- 0 0 0 0 0 2        -        -    0.002  103.780
- 0 0 0 0 2 0        -        -   -0.000   25.688
- 0 0 0 2 0 0        -        -   -0.009   -6.292
- 0 0 2 0 0 0        -        -   -0.026   -2.145
- 0 2 0 0 0 0        -        -   -0.054   36.065
- 2 0 0 0 0 0        -        -   -0.071   15.996
- 0 0 0 0 1 1        -        -    0.001   62.879
- 0 0 0 1 0 1        -        -   -0.004   80.291
- 0 0 0 1 1 0        -        -   -0.005    9.701
- 0 0 1 0 0 1        -        -   -0.012   47.454
- 0 0 1 0 1 0        -        -   -0.013   11.774
- 0 0 1 1 0 0        -        -   -0.017   -4.225
- 0 1 0 0 0 1        -        -   -0.026  121.177
- 0 1 0 0 1 0        -        -   -0.027   47.150
- 0 1 0 1 0 0        -        -   -0.032  -69.973
- 0 1 1 0 0 0        -        -   -0.040   15.876
- 1 0 0 0 0 1        -        -   -0.035   72.417
- 1 0 0 0 1 0        -        -   -0.036   30.492
- 1 0 0 1 0 0        -        -   -0.040    2.984
- 1 0 1 0 0 0        -        -   -0.049    7.639
- 1 1 0 0 0 0        -        -   -0.063   23.516
-
-FAIL
-test_OCHTVPTCartesians (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0 0 0 0   -0.000    0.089        -        -
- 0 0 0 0 0 1        -        -    0.000   -8.466
- 0 0 0 0 1 0        -        -   -0.000   -0.455
- 0 0 0 1 0 0        -        -   -0.000    0.096
- 0 0 1 0 0 0        -        -    0.000   -0.269
- 0 1 0 0 0 0        -        -    0.000   -0.080
- 1 0 0 0 0 0        -        -   -0.000    0.078
- 0 0 0 0 0 2        -        -   -0.000  -23.903
- 0 0 0 0 2 0        -        -    0.000   -0.910
- 0 0 0 2 0 0        -        -   -0.000    0.190
- 0 0 2 0 0 0        -        -    0.000   -0.518
- 0 2 0 0 0 0        -        -    0.000   -0.145
- 2 0 0 0 0 0        -        -   -0.000    0.157
- 0 0 0 0 1 1        -        -    0.000  -12.406
- 0 0 0 1 0 1        -        -    0.000  -24.209
- 0 0 0 1 1 0        -        -   -0.000   -0.360
- 0 0 1 0 0 1        -        -   -0.000  -24.600
- 0 0 1 0 1 0        -        -   -0.000   -0.729
- 0 0 1 1 0 0        -        -    0.000    8.694
- 0 1 0 0 0 1        -        -   -0.000  -11.195
- 0 1 0 0 1 0        -        -   -0.000   -1.418
- 0 1 0 1 0 0        -        -    0.000    0.217
- 0 1 1 0 0 0        -        -    0.000   -0.884
- 1 0 0 0 0 1        -        -    0.000  -11.877
- 1 0 0 0 1 0        -        -   -0.000   -0.395
- 1 0 0 1 0 0        -        -   -0.000    0.161
- 1 0 1 0 0 0        -        -    0.000   -0.199
- 1 1 0 0 0 0        -        -    0.000    0.188
-
-FAIL
-test_OCHTVPTInternals (tests.VPTTests.VPTTests) ... Difference Energies:
- 0 0 0 0 0 0   -0.026    1.496        -        -
- 0 0 0 0 0 1        -        -    0.001   -8.275
- 0 0 0 0 1 0        -        -    0.001   -0.415
- 0 0 0 1 0 0        -        -    0.010    0.114
- 0 0 1 0 0 0        -        -   -0.012   -0.249
- 0 1 0 0 0 0        -        -   -0.034    0.158
- 1 0 0 0 0 0        -        -   -0.015    0.095
- 0 0 0 0 0 2        -        -    0.001  -23.521
- 0 0 0 0 2 0        -        -    0.002   -0.830
- 0 0 0 2 0 0        -        -    0.019    0.227
- 0 0 2 0 0 0        -        -   -0.024   -0.465
- 0 2 0 0 0 0        -        -   -0.069    0.349
- 2 0 0 0 0 0        -        -   -0.031    0.193
- 0 0 0 0 1 1        -        -    0.001  -12.174
- 0 0 0 1 0 1        -        -    0.010  -23.999
- 0 0 0 1 1 0        -        -    0.010   -0.301
- 0 0 1 0 0 1        -        -   -0.012  -24.373
- 0 0 1 0 1 0        -        -   -0.012   -0.668
- 0 0 1 1 0 0        -        -   -0.003    8.733
- 0 1 0 0 0 1        -        -   -0.035  -10.402
- 0 1 0 0 1 0        -        -   -0.034   -1.075
- 0 1 0 1 0 0        -        -   -0.025    0.493
- 0 1 1 0 0 0        -        -   -0.047   -0.612
- 1 0 0 0 0 1        -        -   -0.014  -11.669
- 1 0 0 0 1 0        -        -   -0.015   -0.329
- 1 0 0 1 0 0        -        -   -0.006    0.197
- 1 0 1 0 0 0        -        -   -0.028   -0.160
- 1 1 0 0 0 0        -        -   -0.050    0.495
-
-FAIL
-
-======================================================================
-ERROR: test_HODIntensities (tests.VPTTests.VPTTests)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-AttributeError: 'DipoleTerms' object has no attribute 'modes_to_cartesians'
-
-======================================================================
-FAIL: test_HOHVPTInternals (tests.VPTTests.VPTTests)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-AssertionError: 16.345917167359403 not less than 1
-
-======================================================================
-FAIL: test_OCHDVPTCartesians (tests.VPTTests.VPTTests)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-AssertionError: 35.50103098180989 not less than 1
-
-======================================================================
-FAIL: test_OCHDVPTInternals (tests.VPTTests.VPTTests)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-AssertionError: 35.62229274325 not less than 1
-
-======================================================================
-FAIL: test_OCHHVPTCartesians (tests.VPTTests.VPTTests)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-AssertionError: 88.03472939815083 not less than 1
-
-======================================================================
-FAIL: test_OCHHVPTInternals (tests.VPTTests.VPTTests)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-AssertionError: 121.17730237897376 not less than 1
-
-======================================================================
-FAIL: test_OCHTVPTCartesians (tests.VPTTests.VPTTests)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-AssertionError: 24.600392431182627 not less than 1
-
-======================================================================
-FAIL: test_OCHTVPTInternals (tests.VPTTests.VPTTests)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-AssertionError: 24.373280934557442 not less than 1
-
-----------------------------------------------------------------------
-Ran 13 tests in 138.281s
-
-FAILED (failures=7, errors=1)
-
-Process finished with exit code 1
-"""
-
 class VPTTests(TestCase):
 
     def setUp(self):
@@ -1102,7 +772,7 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v4, rtol=.001))  # testing to within .001 wavenumbers
 
-    @debugTest
+    @validationTest
     def test_TestCubicsInternals(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
@@ -1114,6 +784,8 @@ class VPTTests(TestCase):
         ]
         )
 
+        # it turns out Anne and I disagree pretty fucking dramatically on these...
+        # but is it an issue? If I use her cubic force constants the energies are way, way off...
         v4_Anne =[
              [1,  1,  1,   198.63477267],
              [2,  1,  1,    41.05987944],
@@ -1167,7 +839,7 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v3, atol=10))
 
-    @debugTest
+    @validationTest
     def test_TestQuarticsInternals(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
@@ -1222,9 +894,9 @@ class VPTTests(TestCase):
         # yield a max deviation from the Gaussian result of ~.1 cm^-1
         print_errors=True
         if print_errors:
-            if not np.allclose(legit, v4, rtol=.1):
+            if not np.allclose(legit, v4, atol=0):
                 diff = legit - v4
-                bad_pos = np.array(np.where(np.abs(diff) > .1)).T
+                bad_pos = np.array(np.where(np.abs(diff) > 0)).T
                 print("Anne/This Disagreements:\n"+"\n".join(
                     "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
                         i,j,k,l, diff[i,j,k,l], legit[i,j,k,l], v4[i,j,k,l]
@@ -2496,7 +2168,7 @@ class VPTTests(TestCase):
 
         self.assertLess(np.max(np.abs(freqs[:len(states)] - gaussian_freqs[:len(states), 1])), 1)
 
-    @validationTest
+    @debugTest
     def test_OCHTVPTInternals(self):
 
         internals = [
@@ -2627,7 +2299,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs-gaussian_freqs[:, 1])[:len(states)-1]),
             1)
 
-    @validationTest
+    @debugTest
     def test_OCHTVPTCartesians(self):
 
         internals = None
@@ -2748,7 +2420,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs - gaussian_freqs[:, 1])[:len(states) - 1]),
             1)
 
-    @inactiveTest
+    @validationTest
     def test_CH2DTVPTCartesians(self):
 
         internals = None
