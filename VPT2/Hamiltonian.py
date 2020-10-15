@@ -2,7 +2,7 @@
 Provides support for build perturbation theory Hamiltonians
 """
 
-import numpy as np, itertools
+import numpy as np, itertools, scipy.sparse as sp
 
 from ..Molecools import Molecule
 from ..BasisReps import HarmonicOscillatorBasis, SimpleProductBasis
@@ -296,6 +296,27 @@ class PerturbationTheoryHamiltonian:
     def perturbations(self):
         return (self.H0, self.H1, self.H2)
 
+    def get_coupled_space(self, state, order, freq_threshold=None):
+        """
+        Returns the set of states that couple the state up to the given order at each level of perturbation (beyond zero order)
+
+        :param state: the state of interest
+        :type state: Iterable[int]
+        :param order: the order of perturbation theory we're doing
+        :type order: int
+        :param freq_threshold: the threshold for the maximum frequency difference between states to be considered
+        :type freq_threshold: None | float
+        :return: the sets of coupled states
+        :rtype: tuple[tuple[int]]
+        """
+
+        #TODO: I should allow for a frequency comb in this
+        nmodes = len(state)
+        h1_diffs = ...
+        possible_h1_states = ...
+        h1_states_contribs = [] # odd quanta up to 2*order+1
+
+
     def _get_state_VPT_corrections(
                 self,
                 h_reps,
@@ -303,7 +324,7 @@ class PerturbationTheoryHamiltonian:
                 coupled_states,
                 total_states,
                 order,
-                degenerate_states = None
+                degenerate_states=None
         ):
         """
         Applies perturbation theory to the constructed representations of H0, H1, etc.
@@ -312,8 +333,8 @@ class PerturbationTheoryHamiltonian:
         :type h_reps: Iterable[np.ndarray]
         :param states: index of the states to get corrections for
         :type states: Iterable[int]
-        :param coupled_states: indices of states to couple when getting corrections
-        :type coupled_states: Iterable[int]
+        :param coupled_states: indices of states to couple for each level of perturbation
+        :type coupled_states: Iterable[Iterable[int]]
         :param total_states: the full number of state indices
         :type total_states: int
         :param order: the order of perturbation theory to apply
@@ -330,34 +351,74 @@ class PerturbationTheoryHamiltonian:
         #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=1...k-1) + <n^(0)|n^(k)> |n^(0)>
         # where Pi_n is the perturbation operator [1/(E_m-E_n) for m!=n]
 
-        m = np.array(coupled_states).astype(int) # for safety
-        state_inds = [-1]*len(states)
-        for i,n in enumerate(states):
-            si = np.where(m == n)[0]
-            if len(si) == 0:
-                raise ValueError("requested state {} must be coupled to itself, but is not in the coupled subspace {}".format(
-                    n, m
-                ))
-            elif len(si) > 1:
-                raise ValueError("requested state {} appears multiple times in the coupled subspace {}".format(
-                    n, m
-                ))
-            state_inds[i] = si[0]
+        if len(coupled_states) != len(h_reps) - 1:
+            raise ValueError("coupled states must be specified for all perturbations (got {}, expected {})".format(
+                len(coupled_states),
+                len(h_reps) - 1
+            ))
 
-        # get explicit matrix reps inside the coupled subspace
-        N = len(m)
-        # import McUtils.Plots as plt
-        # wat = h_reps[1][np.ix_(m, m)]
-        # plt.ArrayPlot(self.G_terms[0])
-        # plt.ArrayPlot(wat).show()
-        # raise Exception("...wat")
+        # state_inds = [-1]*len(states)
+        # for i,n in enumerate(states):
+        #     si = np.where(m == n)[0]
+        #     if len(si) == 0:
+        #         raise ValueError("requested state {} must be coupled to itself, but is not in the coupled subspace {}".format(
+        #             n, m
+        #         ))
+        #     elif len(si) > 1:
+        #         raise ValueError("requested state {} appears multiple times in the coupled subspace {}".format(
+        #             n, m
+        #         ))
+        #     state_inds[i] = si[0]
 
+        # determine the total coupled space
+        coupled_spaces = []
+        states = np.array(states).astype(int)
+        coupled_spaces.append(states)
+        for m in coupled_states:
+            m = np.array(m).astype(int)  # for safety
+            coupled_spaces.append(m)
+        total_coupled_space = np.unique(np.concatenate(coupled_spaces))
+
+        # determine indices of subspaces within this total space
+        coupled_space_inds = []
+        sorter = np.argsort(total_coupled_space)
+        for m in coupled_spaces:
+            coupled_space_inds.append(np.searchsorted(total_coupled_space, m, sorter=sorter))
+
+        # get explicit matrix reps inside the separate coupled subspaces
+        N = len(total_coupled_space)
+        # I should try to walk away from using scipy.sparse here and instead
+        # shift to SparseArray, since it'll support swapping out the back end better...
         H = [np.zeros(1)] * len(h_reps)
-        for i,h in enumerate(h_reps):
-            sub = h[np.ix_(m, m)]
+        diag = h_reps[0][total_coupled_space, total_coupled_space] # this is just diagonal
+        H[0] = sp.spdiags([diag], [0], m=N, n=N)
+        for i,h in enumerate(h_reps[1:]):
+            # calculate matrix elements in the coupled subspace
+            m = coupled_spaces[i+1]
+            m_pairs = np.array([itertools.combinations_with_replacement(m, 2)]).T
+            sub = h[m_pairs]
             if isinstance(sub, (int, np.integer, np.floating, float)):
-                sub = np.full((N, N), sub)
-            H[i] = sub #type: np.ndarray
+                if sub == 0:
+                    sub = sp.csr_matrix((N, N), dtype=float)
+                else:
+                    raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
+                    sub = np.full((N, N), sub)
+            else:
+                # figure out the appropriate inds for this data in a sparse representation
+                inds = coupled_space_inds[i+1]
+                # upper triangle of indices
+                up_tri = np.array(tuple(itertools.combinations_with_replacement(inds, 2)))
+                # lower triangle is made by transposition
+                low_tri = np.array([up_tri[:, 1], up_tri[:, 0]]).T
+                # but npw we need to remove the duplicates, because many sparse matrix implementations
+                # will sum up any repeated elements
+                full_inds = np.concatenate([up_tri, low_tri])
+                full_dat = np.concatenate([sub, sub])
+                full_inds, idx = np.unique(full_inds, axis=0, return_index=True)
+                full_dat = full_dat[idx]
+                sub = sp.csc_matrix((full_dat, full_inds.T), shape=(N, N))
+
+            H[i+1] = sub #type: np.ndarray
 
         # import McUtils.Plots as plt
         # g = plt.TensorPlot(np.array(H), plot_style=dict(vmin=-.005, vmax=.005))

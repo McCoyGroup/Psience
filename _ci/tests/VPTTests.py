@@ -839,7 +839,7 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v3, atol=10))
 
-    @validationTest
+    @debugTest
     def test_TestQuarticsInternals(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
@@ -889,10 +889,7 @@ class VPTTests(TestCase):
 
         v4 = self.h2w * ham.V_terms[2]
 
-        # for unknown reasons, Anne and I disagree on the order of like 5 cm^-1,
-        # but it's unclear which set of derivs. is right since my & hers both
-        # yield a max deviation from the Gaussian result of ~.1 cm^-1
-        print_errors=True
+        print_errors=False
         if print_errors:
             if not np.allclose(legit, v4, atol=0):
                 diff = legit - v4
@@ -903,7 +900,7 @@ class VPTTests(TestCase):
                     ) for i,j,k,l in bad_pos
                 ))
 
-        self.assertTrue(np.allclose(legit, v4, atol=10))
+        self.assertTrue(np.allclose(legit, v4, atol=1))
 
     @validationTest
     def test_OCHTCoriolisCouplings(self):
@@ -1186,6 +1183,15 @@ class VPTTests(TestCase):
         energies = h2w * wfns.energies
         zero_ord = h2w * wfns.zero_order_energies
 
+        print([
+            np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+            for i in range(len(wfns.corrs.wfn_corrections))
+        ])
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
+
         gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
                            (0, 0, 2), (0, 2, 0), (2, 0, 0),
                            (0, 1, 1), (1, 0, 1), (1, 1, 0)]
@@ -1272,6 +1278,14 @@ class VPTTests(TestCase):
         # wfns = hammer.get_wavefunctions(states, coupled_states=None)
         energies = h2w * wfns.energies
         zero_ord = h2w * wfns.zero_order_energies
+        print([
+            np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+            for i in range(len(wfns.corrs.wfn_corrections))
+        ])
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
 
         gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
                            (0, 0, 2), (0, 2, 0), (2, 0, 0),
@@ -1361,6 +1375,15 @@ class VPTTests(TestCase):
         zero_ord = h2w * wfns.zero_order_energies
         # raise Exception([energies, zero_ord])
 
+        print([
+            np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+            for i in range(len(wfns.corrs.wfn_corrections))
+        ])
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
+
         gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
                            (0, 0, 2), (0, 2, 0), (2, 0, 0),
                            (0, 1, 1), (1, 0, 1), (1, 1, 0)]
@@ -1442,6 +1465,15 @@ class VPTTests(TestCase):
         energies = h2w * wfns.energies
         zero_ord = h2w * wfns.zero_order_energies
         # raise Exception([energies, zero_ord])
+
+        print([
+            np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+            for i in range(len(wfns.corrs.wfn_corrections))
+        ])
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
 
         gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
                            (0, 0, 2), (0, 2, 0), (2, 0, 0),
@@ -2168,7 +2200,7 @@ class VPTTests(TestCase):
 
         self.assertLess(np.max(np.abs(freqs[:len(states)] - gaussian_freqs[:len(states), 1])), 1)
 
-    @debugTest
+    @validationTest
     def test_OCHTVPTInternals(self):
 
         internals = [
@@ -2202,6 +2234,8 @@ class VPTTests(TestCase):
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
+                # , t2=0
+                # , watson=0
                 # , degeneracies=1/self.h2w
                 # , degeneracies=(
                 #     coupled_states.index((0, 0, 0, 0, 0, 1)),
@@ -2299,7 +2333,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs-gaussian_freqs[:, 1])[:len(states)-1]),
             1)
 
-    @debugTest
+    @validationTest
     def test_OCHTVPTCartesians(self):
 
         internals = None
@@ -2348,6 +2382,14 @@ class VPTTests(TestCase):
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         engs = h2w * wfns.energies
+        print([
+            np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+            for i in range(len(wfns.corrs.wfn_corrections))
+            ])
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
         freqs = engs[1:] - engs[0]
         harm_engs = h2w * wfns.zero_order_energies
         harm_freq = harm_engs[1:] - harm_engs[0]
@@ -2359,7 +2401,7 @@ class VPTTests(TestCase):
             [1660.249, 1630.227],
             [1399.294, 1370.966],
             [1036.668, 1019.245],
-            [904.625, 892.062],
+            [ 904.625,  892.062],
 
             [6044.287, 5601.333],
             [3836.959, 3677.621],

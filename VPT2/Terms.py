@@ -228,8 +228,7 @@ class ExpansionTerms:
         if max_jac > len(exist_jacs):
             need_jacs = [x+1 for x in range(0, max_jac)]
             # for whatever reason I have to recompute a bunch of shit inside sys.jacobian...?
-            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs,
-                                                             all_numerical=True)]
+            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs)]
             self._cached_jacobians[self.molecule]['int'] = new_jacs
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
@@ -249,7 +248,7 @@ class ExpansionTerms:
         if max_jac > len(exist_jacs):
             need_jacs = [x + 1 for x in range(0, max_jac)]
             new_jacs = [
-                x.squeeze() for x in ccoords.jacobian(internals, need_jacs, all_numerical=True)
+                x.squeeze() for x in ccoords.jacobian(internals, need_jacs)
                 ]
             self._cached_jacobians[self.molecule]['cart'] = new_jacs
             exist_jacs = new_jacs
@@ -501,7 +500,7 @@ class ExpansionTerms:
         return V_Q, V_QQ, V_QQQ, V_QQQQ
 
     @classmethod
-    def _get_tensor_derivs(cls, x_derivs, V_derivs, order=4, mixed_XQ=False):
+    def _get_tensor_derivs(cls, x_derivs, V_derivs, order=4, mixed_XQ=False, mixed_terms=False):
         """
         Returns the derivative tensors of the potential with respect to the normal modes
         (note that this is fully general and the "cartesians" and "normal modes" can be any coordinate sets)
@@ -630,6 +629,11 @@ class ExpansionTerms:
                 Q4321.transpose(0, 3, 1, 2, *X),
                 Q4321.transpose(1, 0, 3, 2, *X)
                 ]
+            if mixed_terms:
+                # bad name, but means that the Q in VQxx is different from the Q we're interested in,
+                # but is equivalent to first order, so for numerical stability reasons rather than
+                # use qQQ we just add on the appropriate transposition
+                V_QQQQ_3_terms.append(Q4321.transpose(2, 1, 3, 0, *X))
             V_QQQQ_3 = sum(V_QQQQ_3_terms)
         else:
             V_QQQQ_3 = 0
@@ -726,6 +730,10 @@ class ExpansionTerms:
         YQ = self.modes.inverse
 
         RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
+
+        # print(
+        #     np.max(np.abs(RXX))
+        # )
 
         x_derivs = (YR, YRR, YRRR, YRRRR)
         Q_derivs = (RQ, 0, 0, 0)
@@ -901,55 +909,6 @@ class PotentialTerms(ExpansionTerms):
             YQ, YQQ, _, _ = self.cartesians_by_modes
             qQ_terms = self.cartesian_modes_by_internal_modes
 
-            # qQQ_2 = np.tensordot(YQQ, QY, axes=[-1, 0])
-            # f43 = np.tensordot(qQQ_2, thirds, axes=[-1, 0])
-            # v333 = np.tensordot(np.tensordot(f43, YQ, axes=[-1, 1]), YQ, axes=[-2, 1])
-
-            # dot = DumbTensor._dot
-            # guh = dot(YQ, dot(YQQ, dot(YQ, dot(QY, thirds)), axes=[[2, 2]]), axes=[[1, 3]])
-            # guh = dot(YQQ, dot(QY, v3), axes=[[2, 0]])
-            # raise Exception("...wat?", guh)
-            #
-            # raise Exception("...wat?", v333)
-
-            # raise Exception("wat5",
-            #                 np.tensordot(
-            #                     qQ_terms[0],
-            #                     np.tensordot(
-            #                         qQ_terms[1],
-            #                         np.tensordot(
-            #                             qQ_terms[0],
-            #                             v3,
-            #                             axes=[-1, 0]
-            #                         ), axes=[-1, 2]
-            #                     ),
-            #                     axes=[-1, 3]
-            #                 )
-            #                 )
-            #
-            # raise Exception("wat4",
-            #                 np.tensordot(
-            #                     qQQ_2,
-            #                     v3, axes=[-1, 0]
-            #                 )
-            #                 )
-            # raise Exception("wat3",
-            #                 np.tensordot(
-            #                     YQ,
-            #                     np.tensordot(
-            #                         YQ,
-            #                         np.tensordot(
-            #                             qQQ_2,
-            #                             fakeThirds, axes=[-1, 0]
-            #                         ),
-            #                         axes=[-1, 3]
-            #                         ),
-            #                     axes=[-1, 3]
-            #                 )
-            #             )
-
-            # qQ, qQQ, qQQQ, qQQQQ = qQ_terms
-            # print("?"*100)
             v1, v2, v3, v4 = self._get_tensor_derivs(qQ_terms, (v1, v2, v3, v4), mixed_XQ=False)
 
         return v2, v3, v4
@@ -968,23 +927,34 @@ class PotentialTerms(ExpansionTerms):
             xQQ = 0
             xQQQ = 0
             xQQQQ = 0
+
+            x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
+            V_derivs = (grad, hess, thirds, fourths)
+
+            v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_XQ=self.mixed_derivs)
         else:
             #TODO: I'd like to have support for using more/fewer derivs, just in case
 
             xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
             QY, = self.modes_by_cartesians
 
+            # print(
+            #     np.max(np.abs(xQ)),
+            #     np.max(np.abs(xQQ)),
+            #     np.max(np.abs(QY)),
+            #     np.max(np.abs(hess))
+            # )
+
             dot = DumbTensor._dot
             if self.mixed_derivs:
                 qQQ = dot(xQQ, QY)
                 f43 = dot(qQQ, thirds)
                 fourths = fourths.toarray()
-                fourths = fourths + f43
 
-        x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
-        V_derivs = (grad, hess, thirds, fourths)
+            x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
+            V_derivs = (grad, hess, thirds, fourths)
 
-        v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_XQ=self.mixed_derivs)
+            v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=True, mixed_XQ=self.mixed_derivs)
 
         if self.mixed_derivs:# and intcds is None:
             # we assume we only got second derivs in Q_i Q_i
