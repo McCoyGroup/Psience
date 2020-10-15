@@ -2,7 +2,9 @@
 Provides support for build perturbation theory Hamiltonians
 """
 
-import numpy as np, itertools, scipy.sparse as sp
+import numpy as np, itertools
+
+from McUtils.Numputils import SparseArray
 
 from ..Molecools import Molecule
 from ..BasisReps import HarmonicOscillatorBasis, SimpleProductBasis
@@ -182,7 +184,7 @@ class PerturbationTheoryHamiltonian:
     """
     def __init__(self,
                  molecule=None,
-                 n_quanta=3,
+                 n_quanta=None,
                  modes=None,
                  mode_selection=None,
                  coriolis_coupling = True
@@ -190,8 +192,8 @@ class PerturbationTheoryHamiltonian:
         """
         :param molecule: the molecule on which we're doing perturbation theory
         :type molecule:  Molecule
-        :param n_quanta: the numbers of quanta to use when building representations
-        :type n_quanta: Iterable[int]
+        :param n_quanta: the numbers of quanta to use when representing the entire state space
+        :type n_quanta: int | None
         :param modes: the set of modes to use as the basis
         :type modes: None | MolecularNormalModes
         :param mode_selection: the subset of modes to use when doing expansions
@@ -207,9 +209,10 @@ class PerturbationTheoryHamiltonian:
             modes = molecule.normal_modes
         mode_n = modes.basis.matrix.shape[1] if mode_selection is None else len(mode_selection)
         self.mode_n = mode_n
+        if n_quanta is None:
+            n_quanta = 10 # dunno yet how I want to handle this since it should really be defined by the order of state requested...
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
         self.modes = modes
-
         self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection)
         self.G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection)
         if coriolis_coupling and (self.molecule.internal_coordinates is None):
@@ -225,7 +228,7 @@ class PerturbationTheoryHamiltonian:
     @classmethod
     def from_fchk(cls, file,
                   internals=None,
-                  n_quanta=3,
+                  n_quanta=None,
                   mode_selection=None
                   ):
         """
@@ -296,29 +299,231 @@ class PerturbationTheoryHamiltonian:
     def perturbations(self):
         return (self.H0, self.H1, self.H2)
 
-    def get_coupled_space(self, state, order, freq_threshold=None):
+    @staticmethod
+    def get_coupled_space(states, order, freqs=None, freq_threshold=None):
         """
-        Returns the set of states that couple the state up to the given order at each level of perturbation (beyond zero order)
+        Returns the set of states that couple the given states up to the given order at each level of perturbation (beyond zero order)
 
-        :param state: the state of interest
+        :param state: the states of interest
         :type state: Iterable[int]
         :param order: the order of perturbation theory we're doing
         :type order: int
+        :param freqs: the harmonic frequencies in each vibrational mode being coupled
+        :type freqs: Iterable[float]
         :param freq_threshold: the threshold for the maximum frequency difference between states to be considered
         :type freq_threshold: None | float
         :return: the sets of coupled states
         :rtype: tuple[tuple[int]]
         """
 
-        #TODO: I should allow for a frequency comb in this
-        nmodes = len(state)
-        h1_diffs = ...
-        possible_h1_states = ...
-        h1_states_contribs = [] # odd quanta up to 2*order+1
+        states = np.array(states, dtype=int)
+        nmodes = states.shape[-1]
+        possible_h1_states = np.array([]) # the states that can be coupled through H1
+        # first we generate the possible transformations +-1, +-3, +1+2, +1-2 -1+2, -1-2
+        permutations = np.array([
+            p for p in itertools.permutations([-3, 0], nmodes)
+            if abs(sum(p)) == 3
+        ] + [
+            p for p in itertools.permutations([ 3, 0], nmodes)
+            if abs(sum(p)) == 3
+        ] + [
+            p for p in itertools.permutations([-2, -1, 0], nmodes)
+            if abs(sum(p)) == 3
+        ] + [
+            p for p in itertools.permutations([ 2,  1, 0], nmodes)
+            if abs(sum(p)) == 3
+        ] + [
+            p for p in itertools.permutations([-2,  1, 0], nmodes)
+            if abs(sum(p)) == 1
+        ] + [
+            p for p in itertools.permutations([ 2, -1, 0], nmodes)
+            if abs(sum(p)) == 1
+        ] + [
+            p for p in itertools.permutations([-2,  1, 0], nmodes)
+            if abs(sum(p)) == 1
+        ])
+        initial_states = states
+        for i in range(1, order, 2): # H1 only applies extra corrections odd orders
+            new_states = np.concatenate([s[np.newaxis, :] + permutations for s in initial_states], axis=0)
+            well_behaved = np.where(np.min(new_states, axis=1) >= 0)
+            new_states = np.unique(new_states[well_behaved], axis=0)
+            if len(possible_h1_states) > 0:
+                possible_h1_states = np.unique(np.concatenate([possible_h1_states, new_states], axis=0), axis=0)
+            else:
+                possible_h1_states = new_states
+            initial_states = possible_h1_states
 
 
-    def _get_state_VPT_corrections(
-                self,
+        # from second order corrections
+        possible_h2_states = states # the states that can be coupled to state through H2
+        # first we generate the possible transformations +-2, +-4, +2-2, +2+2 -2+2, -2-2, -1+3, -1-3, +1+3, +1-3
+        permutations = np.array([
+                p for p in itertools.permutations([-4, 0], nmodes)
+                if abs(sum(p)) == 4
+            ] + [
+                p for p in itertools.permutations([ 4, 0], nmodes)
+                if abs(sum(p)) == 4
+            ] + [
+                p for p in itertools.permutations([-2,  2, 0], nmodes)
+                if abs(sum(p)) % 2 == 0
+            ] + [
+                p for p in itertools.permutations([-1, -3, 0], nmodes)
+                if abs(sum(p)) == 4
+            ] + [
+                p for p in itertools.permutations([ 1, -3, 0], nmodes)
+                if abs(sum(p)) == 2
+            ] + [
+                p for p in itertools.permutations([-1,  3, 0], nmodes)
+                if abs(sum(p)) == 2
+            ] + [
+                p for p in itertools.permutations([ 1,  3, 0], nmodes)
+                if abs(sum(p)) == 4
+            ])
+        initial_states = states
+        for i in range(2, order+1, 2): # H2 only applies extra corrections at even orders
+            new_states = np.concatenate([s[np.newaxis, :] + permutations for s in initial_states], axis=0)
+            well_behaved = np.where(np.min(new_states, axis=1) >= 0)
+            new_states = np.unique(new_states[well_behaved], axis=0)
+            if len(possible_h2_states) > 0:
+                possible_h2_states = np.unique(np.concatenate([possible_h2_states, new_states], axis=0), axis=0)
+            else:
+                possible_h2_states = new_states
+            initial_states = possible_h2_states
+
+        #now if we have a frequency comb, we apply it
+        if freq_threshold is not None:
+            if freqs is None:
+                raise ValueError("to apply frequency difference threshold, need harmonic frequencies")
+            state_freq = np.sum(freqs[np.newaxis, :]*(initial_states + 1/2))
+
+            h1_freq = np.sum(freqs[np.newaxis, :] * (possible_h1_states + 1/2))
+            h1_freq_diffs = state_freq - h1_freq
+            h1_sel = np.where(h1_freq_diffs < freq_threshold)
+            h1_states = possible_h1_states[h1_sel]
+
+            h2_freq = np.sum(freqs[np.newaxis, :] * (possible_h2_states + 1/2))
+            h2_freq_diffs = state_freq - h2_freq
+            h2_sel = np.where(h2_freq_diffs < freq_threshold)
+            h2_states = possible_h2_states[h2_sel]
+
+        else:
+            h1_states = possible_h1_states
+            h2_states = possible_h2_states
+
+        return h1_states, h2_states
+
+    @staticmethod
+    def _get_VPT_representations(
+            h_reps,
+            states,
+            coupled_states
+    ):
+        """
+        Gets the sparse representations of h_reps inside the basis of coupled states
+
+        :param h_reps:
+        :type h_reps:
+        :param states:
+        :type states:
+        :param coupled_states:
+        :type coupled_states:
+        :param total_states:
+        :type total_states:
+        :return:
+        :rtype:
+        """
+
+        if len(coupled_states) != len(h_reps) - 1:
+            raise ValueError("coupled states must be specified for all perturbations (got {}, expected {})".format(
+                len(coupled_states),
+                len(h_reps) - 1
+            ))
+
+        # determine the total coupled space
+        coupled_spaces = []
+        states = np.array(states).astype(int)
+        coupled_spaces.append(states)
+        for m in coupled_states:
+            m = np.array(m).astype(int)  # for safety
+            coupled_spaces.append(m)
+        total_coupled_space = np.unique(np.concatenate(coupled_spaces))
+
+        # determine indices of subspaces within this total space
+        coupled_space_inds = []
+        sorter = np.argsort(total_coupled_space)
+        for m in coupled_spaces:
+            coupled_space_inds.append(np.searchsorted(total_coupled_space, m, sorter=sorter))
+
+        # get explicit matrix reps inside the separate coupled subspaces
+        N = len(total_coupled_space)
+        # I should try to walk away from using scipy.sparse here and instead
+        # shift to SparseArray, since it'll support swapping out the back end better...
+        H = [np.zeros(1)] * len(h_reps)
+        diag = h_reps[0][total_coupled_space, total_coupled_space] # this is just diagonal
+        H[0] = SparseArray.from_diag(diag)
+        for i,h in enumerate(h_reps[1:]):
+            # calculate matrix elements in the coupled subspace
+            m = coupled_spaces[i+1]
+            m_pairs = np.array(list(itertools.combinations_with_replacement(m, 2))).T
+            sub = h[m_pairs[0], m_pairs[1]]
+            if isinstance(sub, (int, np.integer, np.floating, float)):
+                if sub == 0:
+                    sub = SparseArray.empty((N, N), dtype=float)
+                else:
+                    raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
+                    sub = np.full((N, N), sub)
+            else:
+                # figure out the appropriate inds for this data in a sparse representation
+                inds = coupled_space_inds[i+1]
+                # upper triangle of indices
+                up_tri = np.array(tuple(itertools.combinations_with_replacement(inds, 2)))
+                # lower triangle is made by transposition
+                low_tri = np.array([up_tri[:, 1], up_tri[:, 0]]).T
+                # but npw we need to remove the duplicates, because many sparse matrix implementations
+                # will sum up any repeated elements
+                full_inds = np.concatenate([up_tri, low_tri])
+                full_dat = np.concatenate([sub, sub])
+                full_inds, idx = np.unique(full_inds, axis=0, return_index=True)
+                full_dat = full_dat[idx]
+                sub = SparseArray((full_dat, full_inds.T), shape=(N, N))
+
+            H[i+1] = sub #type: np.ndarray
+
+        return H, coupled_space_inds, total_coupled_space
+
+    @staticmethod
+    def _martin_test(h_reps, states, threshold):
+        """
+        Applies the Martin Test to all of the coupled states and returns the resulting correlation matrix
+
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+
+        energies = np.diag(h_reps[0])
+        state_energies = energies[states]
+        diffs = np.array([e - energies for e in state_energies])
+        for n, s in enumerate(states):
+            diffs[n, s] = 1
+        H1_blocks = h_reps[1][states,]
+        corr_mat = (H1_blocks ** 4) / (diffs ** 3)
+
+        deg_states = []
+        for s, block in zip(states, corr_mat):
+            big = np.where(np.abs(block) > threshold)[0]
+            if len(big) > 0:
+                deg_states.extend((s, d) for d in big)
+
+        if len(deg_states) == 0:
+            return None
+        else:
+            return np.array(deg_states).T
+
+    @classmethod
+    def _get_VPT_corrections(
+                cls,
                 h_reps,
                 states,
                 coupled_states,
@@ -346,92 +551,20 @@ class PerturbationTheoryHamiltonian:
         """
 
         # We use the iterative equations
-        #          En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
-        #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
-        #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=1...k-1) + <n^(0)|n^(k)> |n^(0)>
-        # where Pi_n is the perturbation operator [1/(E_m-E_n) for m!=n]
+        #            En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
+        #     <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
+        #           |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=1...k-1) + <n^(0)|n^(k)> |n^(0)>
+        #  where Pi_n is the perturbation operator [1/(E_m-E_n) for m!=n]
 
-        if len(coupled_states) != len(h_reps) - 1:
-            raise ValueError("coupled states must be specified for all perturbations (got {}, expected {})".format(
-                len(coupled_states),
-                len(h_reps) - 1
-            ))
-
-        # state_inds = [-1]*len(states)
-        # for i,n in enumerate(states):
-        #     si = np.where(m == n)[0]
-        #     if len(si) == 0:
-        #         raise ValueError("requested state {} must be coupled to itself, but is not in the coupled subspace {}".format(
-        #             n, m
-        #         ))
-        #     elif len(si) > 1:
-        #         raise ValueError("requested state {} appears multiple times in the coupled subspace {}".format(
-        #             n, m
-        #         ))
-        #     state_inds[i] = si[0]
-
-        # determine the total coupled space
-        coupled_spaces = []
-        states = np.array(states).astype(int)
-        coupled_spaces.append(states)
-        for m in coupled_states:
-            m = np.array(m).astype(int)  # for safety
-            coupled_spaces.append(m)
-        total_coupled_space = np.unique(np.concatenate(coupled_spaces))
-
-        # determine indices of subspaces within this total space
-        coupled_space_inds = []
-        sorter = np.argsort(total_coupled_space)
-        for m in coupled_spaces:
-            coupled_space_inds.append(np.searchsorted(total_coupled_space, m, sorter=sorter))
-
-        # get explicit matrix reps inside the separate coupled subspaces
+        H, coupled_inds, total_coupled_space = cls._get_VPT_representations(h_reps, states, coupled_states)
+        del coupled_states # for safety as I debug
         N = len(total_coupled_space)
-        # I should try to walk away from using scipy.sparse here and instead
-        # shift to SparseArray, since it'll support swapping out the back end better...
-        H = [np.zeros(1)] * len(h_reps)
-        diag = h_reps[0][total_coupled_space, total_coupled_space] # this is just diagonal
-        H[0] = sp.spdiags([diag], [0], m=N, n=N)
-        for i,h in enumerate(h_reps[1:]):
-            # calculate matrix elements in the coupled subspace
-            m = coupled_spaces[i+1]
-            m_pairs = np.array([itertools.combinations_with_replacement(m, 2)]).T
-            sub = h[m_pairs]
-            if isinstance(sub, (int, np.integer, np.floating, float)):
-                if sub == 0:
-                    sub = sp.csr_matrix((N, N), dtype=float)
-                else:
-                    raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
-                    sub = np.full((N, N), sub)
-            else:
-                # figure out the appropriate inds for this data in a sparse representation
-                inds = coupled_space_inds[i+1]
-                # upper triangle of indices
-                up_tri = np.array(tuple(itertools.combinations_with_replacement(inds, 2)))
-                # lower triangle is made by transposition
-                low_tri = np.array([up_tri[:, 1], up_tri[:, 0]]).T
-                # but npw we need to remove the duplicates, because many sparse matrix implementations
-                # will sum up any repeated elements
-                full_inds = np.concatenate([up_tri, low_tri])
-                full_dat = np.concatenate([sub, sub])
-                full_inds, idx = np.unique(full_inds, axis=0, return_index=True)
-                full_dat = full_dat[idx]
-                sub = sp.csc_matrix((full_dat, full_inds.T), shape=(N, N))
-
-            H[i+1] = sub #type: np.ndarray
-
-        # import McUtils.Plots as plt
-        # g = plt.TensorPlot(np.array(H), plot_style=dict(vmin=-.005, vmax=.005))
-        # g.show()
-        # for i,h in enumerate(H):
-        #     print(i, "{"+", ".join(str(x) for x in h[0])+"}")
-            # print(i, np.max(h), np.min(h), np.max(np.abs(h[h!=0])), np.min(np.abs(h[h!=0])))
-
+        state_inds = coupled_inds[0]
         if degenerate_states is not None:
             # we check this twice because the Martin test can return None
             if isinstance(degenerate_states, (int, np.integer, np.floating, float)):
                 thresh = degenerate_states
-                degenerate_states = self._martin_test(
+                degenerate_states = cls._martin_test(
                     H,
                     state_inds, # state indices in the coupled_states
                     thresh
@@ -473,59 +606,71 @@ class PerturbationTheoryHamiltonian:
         all_corrs = np.zeros((len(states), order + 1, N))
         all_wfns = np.zeros((len(states), order + 1, total_states))
 
+        H0 = H[0]
+        e_vec_full = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
+        if isinstance(e_vec_full, SparseArray):
+            e_vec_full = e_vec_full.toarray()
+            raise Exception(e_vec_full)
         for n, energies, overlaps, corrs, wfns in zip(
                 states, all_energies, all_overlaps, all_corrs, all_wfns
         ):
             # taking advantage of mutability of the arrays here...
 
             # find the state index in the coupled subspace
-            n_ind = np.where(m==n)[0][0]
+            n_ind = np.where(total_coupled_space==n)[0][0]
             # generate the perturbation operator
-            e_vec = np.diag(H[0])
-            E0 = e_vec[n_ind]
-            e_vec = e_vec - E0
+            E0 = e_vec_full[n_ind]
+            e_vec = e_vec_full - E0
             e_vec[n_ind] = 1
             pi = 1/e_vec
             pi[n_ind] = 0
-            pi = np.diag(pi)
+            pi = SparseArray.from_diag(pi)
 
             energies[0] = E0
             overlaps[0] = 1
             corrs[0, n_ind] = 1
+
+            def dot(a, b):
+                if isinstance(a, np.ndarray):
+                    return np.dot(a, b)
+                else:
+                    return a.dot(b)
 
             for k in range(1, order+1): # to actually go up to k
                 #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
                 Ek = (
                         H[k][n_ind, n_ind]
                         + sum(
-                             np.dot(H[k-i][n_ind], corrs[i])
-                            - energies[k-i]*overlaps[i]
+                             dot(H[k-i][n_ind], corrs[i]) - energies[k-i]*overlaps[i]
                             for i in range(1, k)
                         )
                 )
                 energies[k] = Ek
                 #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
-                ok = -1/2 * sum(np.dot(corrs[i], corrs[k-i]) for i in range(1, k))
+                ok = -1/2 * sum(dot(corrs[i], corrs[k-i]) for i in range(1, k))
                 overlaps[k] = ok
                 #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
                 corrs[k] = sum(
-                    np.dot(pi, energies[k-i]*corrs[i] - np.dot(H[k-i], corrs[i]))
+                    dot(pi, energies[k-i]*corrs[i] - dot(H[k-i], corrs[i]))
                     for i in range(0, k)
                 )
                 corrs[k][n_ind] = ok # pi (the perturbation operator) ensures it's zero before this
 
             # now we broadcast the corrections back up so that they're good for the _entire_ population of states...
+            # this should be modified to work with sparse arrays in the future
             for wfn, cor in zip(wfns, corrs):
-                if isinstance(coupled_states[0], (int, np.integer)):
-                    cs = (coupled_states,)
+                if isinstance(total_coupled_space[0], (int, np.integer)):
+                    cs = (total_coupled_space,)
                 else:
-                    cs = coupled_states
+                    cs = total_coupled_space
                 wfn[cs] = cor
+
+
 
         corrs = PerturbationTheoryCorrections(
             {
                 "states":states,
-                 "coupled_states":coupled_states,
+                 "coupled_states":total_coupled_space,
                  "total_states":total_states,
                  "degenerate_states":degenerate_states
              },
@@ -652,10 +797,19 @@ class PerturbationTheoryHamiltonian:
         if not isinstance(states[0], (int, np.integer)):
             states = self.basis.ravel_state_inds(states)
         total_states = int(np.prod(self.basis.quanta))
-        if coupled_states is None:
-            coupled_states = np.arange(total_states) # expensive but...I guess what are you gonna do?
-        elif not isinstance(coupled_states[0], int):
+        if coupled_states is None or isinstance(coupled_states, (int, np.integer, float, np.floating)):
+            state_modes = self.basis.unravel_state_inds(states)
+            # pull the states that we really want to couple
+            coupled_states = self.get_coupled_space(state_modes, order, freqs=self.modes.freqs, freq_threshold=coupled_states)
+            coupled_states = [self.basis.ravel_state_inds(c) for c in coupled_states ]
+        elif isinstance(coupled_states[0], int): # we use the same states in H1 and H2
+            coupled_states = [coupled_states, coupled_states]
+        elif len(coupled_states) > 2 and isinstance(coupled_states[0][0], int): # we use the same states in H1 and H2, but got them as proper modes
             coupled_states = self.basis.ravel_state_inds(coupled_states)
+            coupled_states = [coupled_states, coupled_states]
+        elif len(coupled_states) == 2 and not isinstance(coupled_states[0][0], int): # we got different states for H1 and H2, but they're as modes
+            coupled_states = [ self.basis.ravel_state_inds(c) for c in coupled_states ]
+
         if (
                 degeneracies is not None
                 and not isinstance(degeneracies, (int, float, np.integer, np.floating))
@@ -667,7 +821,7 @@ class PerturbationTheoryHamiltonian:
                 self.basis.ravel_state_inds(degeneracies[1])
             )
 
-        corrs = self._get_state_VPT_corrections(
+        corrs = self._get_VPT_corrections(
             self.perturbations,
             states,
             coupled_states,
@@ -677,32 +831,3 @@ class PerturbationTheoryHamiltonian:
             )
 
         return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs)
-
-    def _martin_test(self, h_reps, states, threshold):
-        """
-        Applies the Martin Test to all of the coupled states and returns the resulting correlation matrix
-
-        :param states:
-        :type states:
-        :return:
-        :rtype:
-        """
-
-        energies = np.diag(h_reps[0])
-        state_energies = energies[states]
-        diffs = np.array([e - energies for e in state_energies])
-        for n, s in enumerate(states):
-            diffs[n, s] = 1
-        H1_blocks = h_reps[1][states,]
-        corr_mat = (H1_blocks**4)/(diffs**3)
-
-        deg_states = []
-        for s, block in zip(states, corr_mat):
-            big = np.where(np.abs(block) > threshold)[0]
-            if len(big) > 0:
-                deg_states.extend((s, d) for d in big)
-
-        if len(deg_states) == 0:
-            return None
-        else:
-            return np.array(deg_states).T

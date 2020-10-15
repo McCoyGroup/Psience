@@ -62,24 +62,30 @@ class TermComputer:
         idx = (n, m)
 
         # There are two possible modes for this pulling individual elements or pulling blocks
-        # the block pulling is quite a bit faster, so we try to detect first off if we want to do that
+        # the block pulling can be quite a bit faster, so we try to detect first off if we want to do that
         pull_elements = True
+        # first we check if we've got something like from `np.ix_(n, m)`
         if isinstance(n, np.ndarray) and isinstance(m, np.ndarray):
             if len(n.shape) > 1 and len(m.shape) > 1:
                 pull_elements = False
         if pull_elements:
+            # next we check to see if idx is really just a single element
             pull_elements = all(isinstance(x, (int, np.integer)) for x in idx)
             if not pull_elements:
+                # if not a single element, we make sure there are no slices
                 pull_elements = all(not isinstance(x, (int, np.integer, slice)) for x in idx)
+                # print(">?>", pull_elements, idx)
                 if pull_elements:
                     e1 = len(idx[0])
                     pull_elements = all(len(x) == e1 for x in idx)
+                    # print(">??", pull_elements)
+
         # We figure out the row spec
         if not isinstance(n, int):
             if isinstance(n, np.ndarray):
                 n = n.flatten()
             if not isinstance(n, slice):
-                n = np.array(n)
+                n = np.array(n, dtype=int)
             n = np.arange(ndims)[n]
         else:
             n = [n]

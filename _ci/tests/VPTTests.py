@@ -39,7 +39,6 @@ class VPTTests(TestCase):
     def get_VPT2_wfns_and_ham(self, fchk,
                               internals,
                               states,
-                              n_quanta,
                               save_coeffs=False,
                               regenerate=False,
                               coupled_states=None,
@@ -57,7 +56,6 @@ class VPTTests(TestCase):
 
         hammer = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data(fchk),
-            n_quanta=n_quanta,
             internals=internals,
             mode_selection=mode_selection
         )
@@ -105,7 +103,6 @@ class VPTTests(TestCase):
     def get_VPT2_wfns(self, fchk,
                       internals,
                       states,
-                      n_quanta,
                       save_coeffs=False,
                       regenerate=False,
                       coupled_states=None,
@@ -124,7 +121,6 @@ class VPTTests(TestCase):
             fchk,
             internals,
             states,
-            n_quanta,
             regenerate=regenerate,
             save_coeffs=save_coeffs,
             coupled_states=coupled_states,
@@ -185,7 +181,6 @@ class VPTTests(TestCase):
     def test_RepresentQQQ(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
-            n_quanta=6,
             internals=None # doesn't matter for this
         )
 
@@ -221,7 +216,6 @@ class VPTTests(TestCase):
     def test_RepresentPQP(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
-            n_quanta=6,
             internals=None  # doesn't matter for this
         )
 
@@ -267,7 +261,6 @@ class VPTTests(TestCase):
     def test_RepresentQQQQ(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
-            n_quanta=6,
             internals=None  # doesn't matter for this
         )
 
@@ -337,7 +330,6 @@ class VPTTests(TestCase):
     def test_RepresentPQQP2(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("OCHD_freq.fchk"),
-            n_quanta=6,
             internals=None  # doesn't matter for this
         )
 
@@ -369,7 +361,6 @@ class VPTTests(TestCase):
     def test_RepresentQQQQ2(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("OCHD_freq.fchk"),
-            n_quanta=6,
             internals=None  # doesn't matter for this
         )
 
@@ -401,7 +392,6 @@ class VPTTests(TestCase):
     def test_RepresentPQP(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
-            n_quanta=6,
             internals=None  # doesn't matter for this
         )
 
@@ -447,7 +437,6 @@ class VPTTests(TestCase):
         n_modes = 6
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("OCHD_freq.fchk"),
-            n_quanta=6,
             internals=None  # doesn't matter for this
         )
 
@@ -490,7 +479,6 @@ class VPTTests(TestCase):
         n_modes = 6
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("OCHD_freq.fchk"),
-            n_quanta=6,
             internals=None  # doesn't matter for this
         )
 
@@ -531,7 +519,6 @@ class VPTTests(TestCase):
     def test_TestCubicsCartesians2(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("OCHD_freq.fchk"),
-            n_quanta=6,
             internals=None
         )
 
@@ -606,7 +593,6 @@ class VPTTests(TestCase):
     def test_TestQuarticsCartesians2(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("OCHD_freq.fchk"),
-            n_quanta=6,
             internals=None
         )
 
@@ -723,7 +709,6 @@ class VPTTests(TestCase):
     def test_TestQuarticsCartesians(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
-            n_quanta=6,
             internals=None
         )
 
@@ -776,7 +761,6 @@ class VPTTests(TestCase):
     def test_TestCubicsInternals(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
-            n_quanta=6,
             internals=[
             [0, -1, -1, -1],
             [1, 0, -1, -1],
@@ -843,7 +827,6 @@ class VPTTests(TestCase):
     def test_TestQuarticsInternals(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
-            n_quanta=6,
             internals=[
                 [0, -1, -1, -1],
                 [1,  0, -1, -1],
@@ -907,7 +890,6 @@ class VPTTests(TestCase):
         # for unclear reasons this isn't working...?
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("OCHT_freq.fchk"),
-            n_quanta=6,
             internals=None
         )
 
@@ -984,7 +966,6 @@ class VPTTests(TestCase):
 
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
-            n_quanta=6,
             internals=None
         )
 
@@ -1051,7 +1032,6 @@ class VPTTests(TestCase):
         n_modes = 6
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
-            n_quanta=6,
             internals=None  # doesn't matter for this
         )
 
@@ -1132,7 +1112,7 @@ class VPTTests(TestCase):
                 self.h=h
             def __getitem__(self, item):
                 return self.h
-        corrs = ham._get_state_VPT_corrections(
+        corrs = ham._get_VPT_corrections(
             [FakePert(h) for h in [h0, h1, h2]],
             [0],
             np.arange(len(h0)),
@@ -1148,7 +1128,7 @@ class VPTTests(TestCase):
             .01 # within .01 wavenumbers
         ))
 
-    @validationTest
+    @debugTest
     def test_HOHVPTInternals(self):
 
         internals = [
@@ -1162,17 +1142,14 @@ class VPTTests(TestCase):
             (0, 0, 2), (0, 2, 0), (2, 0, 0),
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
-        n_quanta = 6
 
-        coupled_states = self.get_states(5, 3)
         wfns = self.get_VPT2_wfns(
             "HOH_freq.fchk",
             internals,
             states,
-            n_quanta,
             save_coeffs=True,
-            regenerate=True,
-            coupled_states=coupled_states
+            regenerate=True
+            , coupled_states = self.get_states(5, 3)
             # , v3=0
             # , v4=0
         )
@@ -1183,10 +1160,11 @@ class VPTTests(TestCase):
         energies = h2w * wfns.energies
         zero_ord = h2w * wfns.zero_order_energies
 
-        print([
-            np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-            for i in range(len(wfns.corrs.wfn_corrections))
-        ])
+        # print(wfns.corrs.coupled_states)
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
         # print([
         #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
         #     for i in range(len(wfns.corrs.wfn_corrections))
@@ -1244,7 +1222,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1.5)
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         internals = None
@@ -1259,16 +1237,13 @@ class VPTTests(TestCase):
             (0, 0, 2), (0, 2, 0), (2, 0, 0),
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
-        n_quanta = 6
 
-        coupled_states = self.get_states(5, 3)
         wfns = self.get_VPT2_wfns(
             "HOH_freq.fchk",
             internals,
             states,
-            n_quanta,
-            regenerate=True,
-            coupled_states=coupled_states
+            regenerate=True
+            , coupled_states = self.get_states(5, 3)
             # , v3=0
             # , v4=0
         )
@@ -1353,14 +1328,12 @@ class VPTTests(TestCase):
             (0, 0, 2), (0, 2, 0), (2, 0, 0),
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
-        n_quanta = 6
 
         coupled_states = self.get_states(5, 3)
         wfns = self.get_VPT2_wfns(
             "HOD_freq.fchk",
             internals,
             states,
-            n_quanta,
             save_coeffs=True,
             regenerate=True,
             coupled_states=coupled_states
@@ -1445,14 +1418,12 @@ class VPTTests(TestCase):
             (0, 0, 2), (0, 2, 0), (2, 0, 0),
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
-        n_quanta = 6
 
         coupled_states = self.get_states(5, 3)
         wfns = self.get_VPT2_wfns(
             "HOD_freq.fchk",
             internals,
             states,
-            n_quanta,
             regenerate=True,
             coupled_states=coupled_states
             # , v3=0
@@ -1539,15 +1510,13 @@ class VPTTests(TestCase):
             (0, 0, 2), (0, 2, 0), (2, 0, 0),
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
-        n_quanta = 6
         n_modes = 3
         coupled_states = self.get_states(5, n_modes, max_quanta=5)
-        def block(self=self, internals=internals, states=states, coupled_states=coupled_states, n_quanta=n_quanta):
+        def block(self=self, internals=internals, states=states, coupled_states=coupled_states):
             return self.get_VPT2_wfns(
                 "HOT_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states
             )
@@ -1630,16 +1599,14 @@ class VPTTests(TestCase):
             (0, 0, 2), (0, 2, 0), (2, 0, 0),
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
-        n_quanta = 6
         n_modes = 3
         coupled_states = self.get_states(5, n_modes, max_quanta=5)
 
-        def block(self=self, internals=internals, states=states, coupled_states=coupled_states, n_quanta=n_quanta):
+        def block(self=self, internals=internals, states=states, coupled_states=coupled_states):
             return self.get_VPT2_wfns(
                 "HOT_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states
                 # , coriolis=0
@@ -1727,7 +1694,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         states = self.get_states(2, n_modes)
         coupled_states = self.get_states(5, n_modes, max_quanta=5)
@@ -1736,14 +1702,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHH_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -1845,7 +1809,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         states = self.get_states(2, n_modes)
         coupled_states = self.get_states(5, n_modes, max_quanta=5)
@@ -1854,14 +1817,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHH_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -1972,7 +1933,6 @@ class VPTTests(TestCase):
         mode_selection = None#[5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         states = self.get_states(2, n_modes)
         coupled_states = self.get_states(5, n_modes)
@@ -1980,14 +1940,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHD_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -2091,7 +2049,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         states = self.get_states(2, n_modes)
         coupled_states = self.get_states(5, n_modes)
@@ -2100,14 +2057,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHD_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -2214,7 +2169,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         states = self.get_states(2, n_modes)
         coupled_states = self.get_states(5, n_modes, max_quanta=5)
@@ -2223,14 +2177,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHT_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -2342,7 +2294,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         states = self.get_states(2, n_modes)
         coupled_states = self.get_states(5, n_modes, max_quanta=5)
@@ -2351,14 +2302,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHT_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -2471,7 +2420,6 @@ class VPTTests(TestCase):
         mode_selection = None
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         states = self.get_states(2, n_modes)
         coupled_states = self.get_states(5, n_modes, max_quanta=5)
@@ -2481,14 +2429,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "CH2DT_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -2618,7 +2564,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         max_quanta = 4
         states = (
@@ -2630,14 +2575,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "HOD_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -2680,7 +2623,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         max_quanta = 4
         states = (
@@ -2692,14 +2634,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "HOD_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -2738,7 +2678,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         max_quanta = 4
         states = (
@@ -2750,14 +2689,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "HOH_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -2800,7 +2737,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         max_quanta = 4
         states = (
@@ -2812,14 +2748,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "HOH_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -2858,7 +2792,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         max_quanta = 4
         states = (
@@ -2874,14 +2807,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHD_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -2918,7 +2849,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         max_quanta = 4
         states = (
@@ -2934,14 +2864,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHD_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -2981,7 +2909,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         max_quanta = 4
         states = (
@@ -2994,14 +2921,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHT_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -3038,7 +2963,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         max_quanta = 4
         states = (
@@ -3051,14 +2975,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHT_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -3098,7 +3020,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         max_quanta = 4
         states = (
@@ -3111,14 +3032,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHH_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -3155,7 +3074,6 @@ class VPTTests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        n_quanta = 6
 
         max_quanta = 4
         states = (
@@ -3168,14 +3086,12 @@ class VPTTests(TestCase):
                   internals=internals,
                   states=states,
                   coupled_states=coupled_states,
-                  n_quanta=n_quanta,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
                 "OCHH_freq.fchk",
                 internals,
                 states,
-                n_quanta,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
@@ -3219,12 +3135,10 @@ class VPTTests(TestCase):
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
         coupled_states = self.get_states(5, 3, max_quanta=5)
-        n_quanta = 6
         wfns = self.get_VPT2_wfns(
             "HOD_freq.fchk",
             internals,
             states,
-            n_quanta,
             regenerate=True,
             coupled_states=coupled_states
         )
