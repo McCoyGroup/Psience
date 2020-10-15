@@ -320,28 +320,23 @@ class PerturbationTheoryHamiltonian:
         nmodes = states.shape[-1]
         possible_h1_states = np.array([]) # the states that can be coupled through H1
         # first we generate the possible transformations +-1, +-3, +1+2, +1-2 -1+2, -1-2
-        permutations = np.array([
-            p for p in itertools.permutations([-3, 0], nmodes)
-            if abs(sum(p)) == 3
-        ] + [
-            p for p in itertools.permutations([ 3, 0], nmodes)
-            if abs(sum(p)) == 3
-        ] + [
-            p for p in itertools.permutations([-2, -1, 0], nmodes)
-            if abs(sum(p)) == 3
-        ] + [
-            p for p in itertools.permutations([ 2,  1, 0], nmodes)
-            if abs(sum(p)) == 3
-        ] + [
-            p for p in itertools.permutations([-2,  1, 0], nmodes)
-            if abs(sum(p)) == 1
-        ] + [
-            p for p in itertools.permutations([ 2, -1, 0], nmodes)
-            if abs(sum(p)) == 1
-        ] + [
-            p for p in itertools.permutations([-2,  1, 0], nmodes)
-            if abs(sum(p)) == 1
-        ])
+        permutations = np.array(
+            sum(
+                ([
+                    p for p in itertools.product(*([s] * nmodes))
+                    if abs(sum(p)) == k
+                ] for s, k in (
+                    ([-1, 0], 1),
+                    ([ 1, 0], 1),
+                    ([-3, 0], 3),
+                    ([ 3, 0], 3),
+                    ([-2, -1, 0], 3),
+                    ([ 2,  1, 0], 3),
+                    ([ 2, -1, 0], 2),
+                    ([-2,  1, 0], 1)
+                )),
+                []
+            ))
         initial_states = states
         for i in range(1, order, 2): # H1 only applies extra corrections odd orders
             new_states = np.concatenate([s[np.newaxis, :] + permutations for s in initial_states], axis=0)
@@ -353,31 +348,27 @@ class PerturbationTheoryHamiltonian:
                 possible_h1_states = new_states
             initial_states = possible_h1_states
 
-
         # from second order corrections
         possible_h2_states = states # the states that can be coupled to state through H2
         # first we generate the possible transformations +-2, +-4, +2-2, +2+2 -2+2, -2-2, -1+3, -1-3, +1+3, +1-3
-        permutations = np.array([
-                p for p in itertools.permutations([-4, 0], nmodes)
-                if abs(sum(p)) == 4
-            ] + [
-                p for p in itertools.permutations([ 4, 0], nmodes)
-                if abs(sum(p)) == 4
-            ] + [
-                p for p in itertools.permutations([-2,  2, 0], nmodes)
+        permutations = np.array(
+            sum(
+                ([
+                    p for p in itertools.product(*([s] * nmodes))
+                    if abs(sum(p)) == k
+                ] for s, k in (
+                    ([-4,  0],    4),
+                    ([ 4,  0],    4),
+                    ([-1, -3, 0], 4),
+                    ([-1, -3, 0], 4),
+                    ([ 1, -3, 0], 2),
+                    ([-1,  3, 0], 2),
+                    ([ 1,  3, 0], 4)
+                )),
+                []
+            ) + [
+                p for p in itertools.product(*([[-2, 2, 0]] * nmodes))
                 if abs(sum(p)) % 2 == 0
-            ] + [
-                p for p in itertools.permutations([-1, -3, 0], nmodes)
-                if abs(sum(p)) == 4
-            ] + [
-                p for p in itertools.permutations([ 1, -3, 0], nmodes)
-                if abs(sum(p)) == 2
-            ] + [
-                p for p in itertools.permutations([-1,  3, 0], nmodes)
-                if abs(sum(p)) == 2
-            ] + [
-                p for p in itertools.permutations([ 1,  3, 0], nmodes)
-                if abs(sum(p)) == 4
             ])
         initial_states = states
         for i in range(2, order+1, 2): # H2 only applies extra corrections at even orders
@@ -394,16 +385,28 @@ class PerturbationTheoryHamiltonian:
         if freq_threshold is not None:
             if freqs is None:
                 raise ValueError("to apply frequency difference threshold, need harmonic frequencies")
-            state_freq = np.sum(freqs[np.newaxis, :]*(initial_states + 1/2))
+            state_freq = np.sum(freqs[np.newaxis, :]*(states + 1/2), axis=1)
 
-            h1_freq = np.sum(freqs[np.newaxis, :] * (possible_h1_states + 1/2))
-            h1_freq_diffs = state_freq - h1_freq
-            h1_sel = np.where(h1_freq_diffs < freq_threshold)
+            h1_freq = np.sum(freqs[np.newaxis, :] * (possible_h1_states + 1/2), axis=1)
+            h1_freq_diffs = np.abs(np.subtract.outer(state_freq, h1_freq))
+            h1_thresh = h1_freq_diffs[0] < freq_threshold
+            for d in h1_freq_diffs[1:]:
+                # if any of the coupled states is below the threshold for any of the target states we include it
+                # in our basis
+                h1_thresh = np.logical_or(h1_thresh, d < freq_threshold)
+            h1_sel = np.where(h1_thresh)
+            # print(h1_sel)
             h1_states = possible_h1_states[h1_sel]
 
-            h2_freq = np.sum(freqs[np.newaxis, :] * (possible_h2_states + 1/2))
-            h2_freq_diffs = state_freq - h2_freq
-            h2_sel = np.where(h2_freq_diffs < freq_threshold)
+            h2_freq = np.sum(freqs[np.newaxis, :] * (possible_h2_states + 1/2), axis=1)
+            h2_freq_diffs = np.abs(np.subtract.outer(state_freq, h2_freq))
+            h2_thresh = h2_freq_diffs[0] < freq_threshold
+            for d in h2_freq_diffs[1:]:
+                # if any of the coupled states is below the threshold for any of the target states we include it
+                # in our basis
+                h2_thresh = np.logical_or(h2_thresh, d < freq_threshold)
+            h2_sel = np.where(h2_thresh)
+            # print(h2_sel)
             h2_states = possible_h2_states[h2_sel]
 
         else:
@@ -464,8 +467,12 @@ class PerturbationTheoryHamiltonian:
         for i,h in enumerate(h_reps[1:]):
             # calculate matrix elements in the coupled subspace
             m = coupled_spaces[i+1]
-            m_pairs = np.array(list(itertools.combinations_with_replacement(m, 2))).T
-            sub = h[m_pairs[0], m_pairs[1]]
+            if len(m) > 0:
+                m_pairs = np.array(list(itertools.combinations_with_replacement(m, 2))).T
+                # print(m_pairs)
+                sub = h[m_pairs[0], m_pairs[1]]
+            else:
+                sub = 0
             if isinstance(sub, (int, np.integer, np.floating, float)):
                 if sub == 0:
                     sub = SparseArray.empty((N, N), dtype=float)

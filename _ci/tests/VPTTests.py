@@ -823,7 +823,7 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v3, atol=10))
 
-    @debugTest
+    @validationTest
     def test_TestQuarticsInternals(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
@@ -1217,10 +1217,10 @@ class VPTTests(TestCase):
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
                   *(
                       "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs)
+                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
                   )
                   )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1.5)
+        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
     @debugTest
     def test_HOHVPTCartesians(self):
@@ -1243,7 +1243,7 @@ class VPTTests(TestCase):
             internals,
             states,
             regenerate=True
-            , coupled_states = self.get_states(5, 3)
+            # , coupled_states = self.get_states(5, 3)
             # , v3=0
             # , v4=0
         )
@@ -1253,10 +1253,12 @@ class VPTTests(TestCase):
         # wfns = hammer.get_wavefunctions(states, coupled_states=None)
         energies = h2w * wfns.energies
         zero_ord = h2w * wfns.zero_order_energies
-        print([
-            np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-            for i in range(len(wfns.corrs.wfn_corrections))
-        ])
+
+        # print(len(self.get_states(5, 3)), len(wfns.corrs.coupled_states))
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
         # print([
         #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
         #     for i in range(len(wfns.corrs.wfn_corrections))
@@ -1309,10 +1311,10 @@ class VPTTests(TestCase):
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
                   *(
                       "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs)
+                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
                   )
                   )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1.5)
+        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
     @validationTest
     def test_HODVPTInternals(self):
@@ -1337,7 +1339,7 @@ class VPTTests(TestCase):
             save_coeffs=True,
             regenerate=True,
             coupled_states=coupled_states
-            # , v3=0
+            # , v3=legit/self.h2w
             # , v4=0
         )
 
@@ -1348,10 +1350,10 @@ class VPTTests(TestCase):
         zero_ord = h2w * wfns.zero_order_energies
         # raise Exception([energies, zero_ord])
 
-        print([
-            np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-            for i in range(len(wfns.corrs.wfn_corrections))
-        ])
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
         # print([
         #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
         #     for i in range(len(wfns.corrs.wfn_corrections))
@@ -1402,10 +1404,10 @@ class VPTTests(TestCase):
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies-gaussian_energies), "-", "-"),
                   *(
                       "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs-gaussian_freqs)
+                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
                   )
                   )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
+        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
     @validationTest
     def test_HODVPTCartesians(self):
@@ -1491,10 +1493,10 @@ class VPTTests(TestCase):
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
                   *(
                       "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs)
+                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
                   )
                   )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
+        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
     @validationTest
     def test_HOTVPTInternals(self):
@@ -1583,11 +1585,11 @@ class VPTTests(TestCase):
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
                   *(
                       "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs)
+                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
                   )
                   )
 
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
+        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
     @validationTest
     def test_HOTVPTCartesians(self):
@@ -1675,10 +1677,10 @@ class VPTTests(TestCase):
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
                   *(
                       "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs)
+                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
                   )
                   )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs)), 1)
+        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
     @validationTest
     def test_OCHHVPTInternals(self):
@@ -1786,6 +1788,7 @@ class VPTTests(TestCase):
                       zip(states[1:], harm_freq, freqs)
                   )
                   )
+        ns = len(states) - 1
         print_difference = True
         if print_difference:
             print("Difference Energies:\n",
@@ -1794,11 +1797,13 @@ class VPTTests(TestCase):
                   *(
                       ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
                       s, e1, e2 in
-                      zip(states[1:], harm_freq - gaussian_freqs[:, 0], freqs - gaussian_freqs[:, 1])
+                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
                   )
                   )
 
-        self.assertLess(np.max(np.abs(freqs[:len(states)] - gaussian_freqs[:len(states), 1])), 1)
+        self.assertLess(
+            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
+            1)
 
     @validationTest
     def test_OCHHVPTCartesians(self):
@@ -1905,6 +1910,7 @@ class VPTTests(TestCase):
                       zip(states[1:], harm_freq, freqs)
                   )
                   )
+        ns = len(states) - 1
         print_difference = True
         if print_difference:
             print("Difference Energies:\n",
@@ -1913,11 +1919,13 @@ class VPTTests(TestCase):
                   *(
                       ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
                       s, e1, e2 in
-                      zip(states[1:], harm_freq - gaussian_freqs[:, 0], freqs - gaussian_freqs[:, 1])
+                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
                   )
                   )
 
-        self.assertLess(np.max(np.abs(freqs[:len(states)] - gaussian_freqs[:len(states), 1])), 1)
+        self.assertLess(
+            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
+            1)
 
     @validationTest
     def test_OCHDVPTInternals(self):
@@ -2026,6 +2034,7 @@ class VPTTests(TestCase):
                         zip(states[1:], harm_freq, freqs)
                   )
             )
+        ns = len(states) - 1
         print_difference = True
         if print_difference:
             print("Difference Energies:\n",
@@ -2034,11 +2043,13 @@ class VPTTests(TestCase):
                   *(
                       ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
                       s, e1, e2 in
-                      zip(states[1:], harm_freq - gaussian_freqs[:, 0], freqs - gaussian_freqs[:, 1])
+                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
                   )
                   )
 
-        self.assertLess(np.max(np.abs(freqs[:len(states)] - gaussian_freqs[:len(states), 1])), 1)
+        self.assertLess(
+            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
+            1)
 
     @validationTest
     def test_OCHDVPTCartesians(self):
@@ -2141,6 +2152,7 @@ class VPTTests(TestCase):
                       zip(states[1:], harm_freq, freqs)
                   )
                   )
+        ns = len(states) - 1
         print_difference = True
         if print_difference:
             print("Difference Energies:\n",
@@ -2149,11 +2161,13 @@ class VPTTests(TestCase):
                   *(
                       ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
                       s, e1, e2 in
-                      zip(states[1:], harm_freq - gaussian_freqs[:, 0], freqs - gaussian_freqs[:, 1])
+                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
                   )
                   )
 
-        self.assertLess(np.max(np.abs(freqs[:len(states)] - gaussian_freqs[:len(states), 1])), 1)
+        self.assertLess(
+            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
+            1)
 
     @validationTest
     def test_OCHTVPTInternals(self):
@@ -2295,13 +2309,11 @@ class VPTTests(TestCase):
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
 
-        states = self.get_states(2, n_modes)
-        coupled_states = self.get_states(5, n_modes, max_quanta=5)
+        states = self.get_states(2, n_modes)[:5]
 
         def block(self=self,
                   internals=internals,
                   states=states,
-                  coupled_states=coupled_states,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
@@ -2309,13 +2321,16 @@ class VPTTests(TestCase):
                 internals,
                 states,
                 regenerate=True,
-                coupled_states=coupled_states,
+                # coupled_states=5000/self.h2w, #only couple stuff within 5000 wavenumbers
+                # coupled_states=coupled_states,
                 mode_selection=mode_selection
                 # , degeneracies=5/self.h2w
             )
 
         # block()
         exc, stat_block, wfns = self.profile_block(block)
+
+        # print(len(coupled_states), len(wfns.corrs.coupled_states))
 
         do_profile = False
         if do_profile:
@@ -2331,10 +2346,10 @@ class VPTTests(TestCase):
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         engs = h2w * wfns.energies
-        print([
-            np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-            for i in range(len(wfns.corrs.wfn_corrections))
-            ])
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        #     ])
         # print([
         #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
         #     for i in range(len(wfns.corrs.wfn_corrections))
@@ -2376,7 +2391,9 @@ class VPTTests(TestCase):
             [1941.293, 1911.106]
         ])
 
-        print_report = False
+
+        ns = len(states)-1
+        print_report = True
         if print_report:
             if n_modes == 6:
                 print("Gaussian Energies:\n",
@@ -2384,7 +2401,7 @@ class VPTTests(TestCase):
                       *(
                           ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
                           in
-                          zip(states[1:], gaussian_freqs)
+                          zip(states[1:], gaussian_freqs[:ns])
                       )
                       )
             print("State Energies:\n",
@@ -2392,7 +2409,7 @@ class VPTTests(TestCase):
                   *(
                       ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
                       s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
+                      zip(states[1:], harm_freq[:ns], freqs[:ns])
                   )
                   )
         print_difference = True
@@ -2403,12 +2420,12 @@ class VPTTests(TestCase):
                   *(
                       ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
                       s, e1, e2 in
-                      zip(states[1:], harm_freq - gaussian_freqs[:, 0], freqs - gaussian_freqs[:, 1])
+                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
                   )
                   )
 
         self.assertLess(
-            np.max(np.abs(freqs - gaussian_freqs[:, 1])[:len(states) - 1]),
+            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
     @validationTest
@@ -2539,6 +2556,7 @@ class VPTTests(TestCase):
                       zip(states[1:], harm_freq, freqs)
                   )
                   )
+        ns = len(states) - 1
         print_difference = True
         if print_difference:
             print("Difference Energies:\n",
@@ -2547,12 +2565,12 @@ class VPTTests(TestCase):
                   *(
                       ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
                       s, e1, e2 in
-                      zip(states[1:], harm_freq - gaussian_freqs[:, 0], freqs - gaussian_freqs[:, 1])
+                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
                   )
                   )
 
         self.assertLess(
-            np.max(np.abs(freqs - gaussian_freqs[:, 1])[:len(states) - 1]),
+            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
     @validationTest
@@ -3120,7 +3138,7 @@ class VPTTests(TestCase):
 
         self.assertLess(np.max(np.abs(eng_corrs - gaussian_corrs)), .5)
 
-    @validationTest
+    @debugTest
     def test_HODIntensities(self):
 
         internals = [
@@ -3168,6 +3186,115 @@ class VPTTests(TestCase):
             plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
                           aspect_ratio = .5,
                           axes_labels = ["Frequency (cm$^{-1}$)", "Intensity (km mol$^{-1}$)"],
+                          plot_legend=("Anharmonic", "Harmonic")
+                          )
+            s.show()
+
+        # plt.TensorPlot(np.array(tms)).show()
+        # print(tms[0])
+        gaussian_harm_freqs = [
+            0.,
+            3873.846,
+            2810.031,
+            1421.946
+        ]
+        gaussian_harm_ints = [
+            0.,
+            40.02416012,
+            17.23521259,
+            57.65661496
+        ]
+        gaussian_freqs = [
+            0.,
+            3685.815,
+            2706.132,
+            1383.391,
+            7202.835,
+            5323.917,
+            2749.027,
+            6377.958,
+            5044.721,
+            4072.407
+        ]
+        gaussian_ints = [
+            0.,
+            36.93616327,
+            14.01377595,
+            58.17413771,
+            1.16678234,
+            0.55376888,
+            3.30245090,
+            0.19253704,
+            1.57560144,
+            1.82673531
+        ]
+
+        print_specs = True
+        if print_specs:
+            report = "Harmonic:   State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, harm_freqs, harm_ints, gaussian_harm_freqs, gaussian_harm_ints)
+            )
+            print(report)
+            report = "Anharmonic: State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, freqs, ints, gaussian_freqs, gaussian_ints)
+            )
+            print(report)
+
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_harm_ints[1:]],
+            list(np.round(harm_ints[1:4], 2))
+        )
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_ints[1:]],
+            list(np.round(ints[1:10], 2))
+        )
+
+    @debugTest
+    def test_HODIntensitiesCartesian(self):
+
+        internals = None
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        coupled_states = self.get_states(5, 3, max_quanta=5)
+        wfns = self.get_VPT2_wfns(
+            "HOD_freq.fchk",
+            internals,
+            states,
+            regenerate=True,
+            coupled_states=coupled_states
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+        engs = h2w * wfns.energies
+        freqs = engs - engs[0]
+        ints = wfns.intensities
+
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freqs = harm_engs - harm_engs[0]
+        harm_ints = wfns.zero_order_intensities
+
+        plot_specs = False
+        if plot_specs:
+            import McUtils.Plots as plt
+            s = plt.StickPlot(freqs, ints,
+                              aspect_ratio=.5,
+                              plot_legend=("Anharmonic", "Harmonic"),
+                              image_size=500
+                              )
+            plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                          aspect_ratio=.5,
+                          axes_labels=["Frequency (cm$^{-1}$)", "Intensity (km mol$^{-1}$)"],
                           plot_legend=("Anharmonic", "Harmonic")
                           )
             s.show()

@@ -1150,17 +1150,19 @@ class DipoleTerms(ExpansionTerms):
                 v1 = (xQ@u1).t
                 v2 = xQ.dot(u2, axes=[[1, 1]]).t
 
-                if intcds is not None:
-                    qQQ = xQQ @ QY
-                    v3_2 = xQ.dot(qQQ@u2, axes=[[1, 2]])
-                else:
-                    v3_2 = 0
+                # rather than do this, for numerical stability reasons we'll want to
+                # directly apply xQQ since we have YQ QY _should_ be the identity but is not
+                # since we're working in a subspace
+                v3_2 = xQQ.dot(u2, axes=[[2, 1]]).t
+                v3_2 = 1/6 * sum(v3_2.transpose(p) for p in ip.permutations([0, 1, 2]))
+
+                # raise Exception(v3_2 - v3_2.transpose([1, 2, 0]))
 
                 v3_3 = xQ.dot(u3, axes=[[1, 2]]).t
-                for p in ip.permutations([0, 1, 2]):
-                    # we don't have enough data to actually determine anything where i!=j!=k
-                    v3_3[p] = 0.
-                v3 = v3_2.t + v3_3
+                # for p in ip.permutations([0, 1, 2]):
+                #     # we don't have enough data to actually determine anything where i!=j!=k
+                #     v3_3[p] = 0.
+                v3 = v3_2 + v3_3
 
                 # raise Exception([
                 #     np.max(np.abs(v3_2.t)),
@@ -1190,7 +1192,10 @@ class DipoleTerms(ExpansionTerms):
                 #     v3[i, :, i] = v3[:, i, i] = v3[i, i, :]
 
             else:
-                v1, v2, v3 = self._get_tensor_derivs(x_derivs, u_derivs, mixed_XQ=self.mixed_derivs)
+                u1, u2, u3 = u_derivs
+                v1 = np.tensordot(xQ, u1, axes=[1, 0])
+                v2 = np.tensordot(xQ, u2, axes=[1, 1])
+                v3 = np.tensordot(xQ, u3, axes=[1, 2])
 
             mu[coord] = (v1, v2, v3)#(v1, v2, 0)#(v1, 0, 0)
 

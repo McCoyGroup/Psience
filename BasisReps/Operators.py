@@ -188,6 +188,7 @@ class Operator:
             # weird stuff can happen with sp.spmatrix
             if (
                     isinstance(chunk, (int, np.integer, float, np.floating))
+                    or (isinstance(chunk, np.ndarray) and chunk.ndim == 0)
             ):
                 chunk = np.array([chunk])
 
