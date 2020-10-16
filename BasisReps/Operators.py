@@ -153,8 +153,9 @@ class Operator:
             return sp.csr_matrix((1, nstates), dtype='float')
         else:
             non_orthog_states = [(states[i][0][non_orthog], states[i][1][non_orthog]) for i in uinds]
+            max_dim = np.max(np.array(non_orthog_states))
             # otherwise we calculate only the necessary terms (after building the 1D reps)
-            padding = 3 # for approximation reasons we need to pad our representations, actually...
+            padding = 3 # for approximation reasons we need to pad our representations...
             # we figure out which indices are actually unique
             uinds = np.unique(inds)
             mm = {k: i for i, k in enumerate(uinds)}
@@ -166,11 +167,11 @@ class Operator:
             for f, i in zip(funcs, inds):
                 n = mm[i] # makes sure that we fill in in the same order as uinds
                 if pieces[n] is None:
-                     pieces[n] = f(dims[i] + padding) #type: sp.spmatrix
+                     pieces[n] = f(max_dim + padding) #type: sp.spmatrix
                 else:
                     # QQ -> Q.Q & QQQ -> Q.Q.Q
                     og = pieces[n] #type: sp.spmatrix
-                    pieces[n] = og.dot(f(dims[i] + padding))
+                    pieces[n] = og.dot(f(max_dim + padding))
 
             # now we take the requisite products of the chunks
             chunk = None

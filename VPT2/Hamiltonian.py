@@ -4,7 +4,7 @@ Provides support for build perturbation theory Hamiltonians
 
 import numpy as np, itertools
 
-from McUtils.Numputils import SparseArray
+from McUtils.Numputils import SparseArray, vec_outer
 
 from ..Molecools import Molecule
 from ..BasisReps import HarmonicOscillatorBasis, SimpleProductBasis
@@ -300,6 +300,154 @@ class PerturbationTheoryHamiltonian:
         return (self.H0, self.H1, self.H2)
 
     @staticmethod
+    def _Nielsen_xss(s, w, v3, v4, zeta, Be, ndim):
+        # w = 1/w
+        # from McUtils.Data import UnitsData
+        # l = w ** 2 / UnitsData.convert("Wavenumbers", "Hartrees")
+        # return 1 / (16 * l[s]) * (
+        #         v4[s, s, s, s]
+        #         - (5 / 3) * (v3[s, s, s] ** 2) / l[s]
+        #         - sum((
+        #                   (v3[s, s, t] ** 2) / l[t] * (8*l[s] - 3*l[t]) / (4*l[s] - l[t])
+        #               ) for t in range(ndim) if t != s
+        #               )
+        # )
+        return 1 / 4 * (
+                6 * v4[s, s, s, s]
+                - 15 * (v3[s, s, s] ** 2 / w[s])
+                - sum((
+                              (v3[s, s, t] ** 2) / w[t]
+                              * (8 * (w[s] ** 2) - 3 * (w[t] ** 2)) / (4 * (w[s] ** 2) - (w[t] ** 2))
+                      ) for t in range(ndim) if t != s
+                      )
+        )
+
+    @staticmethod
+    def _Nielsen_xst(s, t, w, v3, v4, zeta, Be, ndim):
+        # from McUtils.Data import UnitsData
+        # l = w**2 / UnitsData.convert("Wavenumbers", "Hartrees")
+        # return 1 / np.sqrt(16 * l[s] * l[t]) * (
+        #         v4[s, s, t, t]
+        #         - 2 * (v3[s, s, t] ** 2) / (4 * l[s] - l[t])
+        #         - 2 * (v3[s, t, t] ** 2) / (4 * l[t] - l[s])
+        #         - v3[s, s, s] * v3[s, t, t] / l[s]
+        #         - v3[t, t, t] * v3[s, s, t] / l[t]
+        #         + sum((
+        #                       2 * (l[s] + l[t] - l[u]) * v3[s, t, u]
+        #                       / (8 * w[s] * w[s] * w[u]) * (
+        #                               1 / (w[s] + w[t] + w[u])
+        #                               - 1 / (w[s] + w[t] - w[u])
+        #                               - 1 / (w[s] + w[u] - w[t])
+        #                               - 1 / (w[t] + w[u] - w[s])
+        #                       )
+        #                       - v3[s, s, u] * v3[t, t, u] / l[u]
+        #               ) for u in range(ndim) if u != t and u != s)
+        #         + 4*(l[s] + l[t]) * sum((
+        #                           Be[a] * (zeta[a, s, t] ** 2)
+        #                   ) for a in range(3))
+        # )
+
+        return 1 / 2 * (
+                v4[s, s, t, t]
+                - 6 * (v3[s, s, s] * v3[s, t, t] / w[s])
+                - 4 * v3[s, s, t] ** 2 * (w[s] / (4 * w[s] ** 2 - w[t] ** 2))
+                - sum((v3[s, s, r] * v3[r, t, t]) / w[r] for r in range(ndim) if r != s and r != t)
+                - sum((
+                              (v3[s, t, r] ** 2 / 2) * w[r] * (w[r] ** 2 - w[s] ** 2 - w[t] ** 2)
+                              / (
+                                      (w[s] + w[t] + w[r])
+                                      * (w[s] + w[t] - w[r])
+                                      * (w[s] - w[t] + w[r])
+                                      * (w[s] - w[t] - w[r])
+                              )
+                      ) for r in range(ndim) if r != s and r != t
+                      )
+                + 2 * sum((
+                                  Be[a] * (zeta[a, s, t] ** 2) * (w[t]/w[s])
+                          ) for a in range(3))
+        )
+
+    @classmethod
+    def _get_Nielsen_energies(cls, states, freqs, v3, v4, zeta, Be):
+        """
+        Returns energies using Harald Nielsen's formulae up to second order. Assumes no degeneracies.
+        If implemented smarter, would be much, much faster than doing full-out perturbation theory, but less flexible.
+        Good for validation, too.
+
+
+        :param states: states to get energies for as lists of quanta in degrees of freedom
+        :type states: Iterable[Iterable[int]]
+        :param freqs: Harmonic frequencies
+        :type freqs: np.ndarray
+        :param v3: Cubic force constants
+        :type v3: np.ndarray
+        :param v4: Quartic force constants
+        :type v4: np.ndarray
+        :param zeta: Coriolis couplings
+        :type zeta: np.ndarray
+        :param Be: Moments of inertia
+        :type Be: np.ndarray
+        :return:
+        :rtype:
+        """
+
+        ndim = len(freqs)
+        x_mat_linear = np.array([
+                cls._Nielsen_xss(s, freqs, v3, v4, zeta, Be, ndim) if s==t else
+                cls._Nielsen_xst(s, t, freqs, v3, v4, zeta, Be, ndim)
+                for s in range(ndim) for t in range(s, ndim)
+          ])
+        x_mat = np.zeros((ndim, ndim))
+        ri, ci = np.triu_indices_from(x_mat)
+        x_mat[ri, ci] = x_mat_linear
+        x_mat[ci, ri] = x_mat_linear
+
+        states = np.array(states) + 1/2 # n+1/2 for vibrations
+
+        e_harm = np.tensordot(freqs, states, axes=[0, 1])
+        outer_states = vec_outer(states, states)
+        # raise Exception(states, outer_states)
+        e_anharm = np.tensordot(x_mat, outer_states, axes=[[0, 1], [1, 2]])
+
+        return e_harm, e_anharm
+
+    def get_Nielsen_energies(self, states):
+        """
+
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+
+        v3 = self.V_terms[1]
+        v4 = self.V_terms[2]
+
+        freqs = self.modes.freqs
+
+        # v3 = 1/6 * v3
+        # v4 = 1/24 * v4
+
+        # fdim = np.sqrt(freqs)
+        # v3 = v3 * (
+        #     fdim[:, np.newaxis, np.newaxis]
+        #     * fdim[np.newaxis, :, np.newaxis]
+        #     * fdim[np.newaxis, np.newaxis, :]
+        # )
+        # v4 = v4 * (
+        #         fdim[:, np.newaxis, np.newaxis, np.newaxis]
+        #         * fdim[np.newaxis, :, np.newaxis, np.newaxis]
+        #         * fdim[np.newaxis, np.newaxis, :, np.newaxis]
+        #         * fdim[np.newaxis, np.newaxis, np.newaxis, :]
+        # )
+
+        zeta, Be = self.coriolis_terms.get_zetas_and_momi()
+
+        harm, anharm = self._get_Nielsen_energies(states, freqs, v3, v4, zeta, Be)
+
+        return harm , anharm
+
+    @staticmethod
     def get_coupled_space(states, order, freqs=None, freq_threshold=None):
         """
         Returns the set of states that couple the given states up to the given order at each level of perturbation (beyond zero order)
@@ -308,7 +456,7 @@ class PerturbationTheoryHamiltonian:
         :type state: Iterable[int]
         :param order: the order of perturbation theory we're doing
         :type order: int
-        :param freqs: the harmonic frequencies in each vibrational mode being coupled
+        :param freqs: the zero-order frequencies in each vibrational mode being coupled
         :type freqs: Iterable[float]
         :param freq_threshold: the threshold for the maximum frequency difference between states to be considered
         :type freq_threshold: None | float
@@ -320,21 +468,17 @@ class PerturbationTheoryHamiltonian:
         nmodes = states.shape[-1]
         possible_h1_states = np.array([]) # the states that can be coupled through H1
         # first we generate the possible transformations +-1, +-3, +1+2, +1-2 -1+2, -1-2
+        transitions_h1 = [
+            [-1], [1], [-3], [3],
+            [1, 2], [-1, 2], [1, -2], [-1, -2]
+        ]
+        state_rules_h1 = [(list(x) + [0], abs(sum(x))) for x in transitions_h1]
         permutations = np.array(
-            sum(
-                ([
+            sum((
+                [
                     p for p in itertools.product(*([s] * nmodes))
                     if abs(sum(p)) == k
-                ] for s, k in (
-                    ([-1, 0], 1),
-                    ([ 1, 0], 1),
-                    ([-3, 0], 3),
-                    ([ 3, 0], 3),
-                    ([-2, -1, 0], 3),
-                    ([ 2,  1, 0], 3),
-                    ([ 2, -1, 0], 2),
-                    ([-2,  1, 0], 1)
-                )),
+                ] for s, k in state_rules_h1),
                 []
             ))
         initial_states = states
@@ -351,25 +495,20 @@ class PerturbationTheoryHamiltonian:
         # from second order corrections
         possible_h2_states = states # the states that can be coupled to state through H2
         # first we generate the possible transformations +-2, +-4, +2-2, +2+2 -2+2, -2-2, -1+3, -1-3, +1+3, +1-3
+        transitions_h2 = [
+            [], [-2], [2], [-4], [4],
+            [-2, -2], [-2, 2], [2, 2],
+            [-1, -3], [-1, 3], [1, -3], [-3, 1]
+        ]
+        state_rules_h2 = [(list(x) + [0], abs(sum(x))) for x in transitions_h2]
         permutations = np.array(
-            sum(
-                ([
+            sum((
+                [
                     p for p in itertools.product(*([s] * nmodes))
                     if abs(sum(p)) == k
-                ] for s, k in (
-                    ([-4,  0],    4),
-                    ([ 4,  0],    4),
-                    ([-1, -3, 0], 4),
-                    ([-1, -3, 0], 4),
-                    ([ 1, -3, 0], 2),
-                    ([-1,  3, 0], 2),
-                    ([ 1,  3, 0], 4)
-                )),
+                ] for s, k in state_rules_h2),
                 []
-            ) + [
-                p for p in itertools.product(*([[-2, 2, 0]] * nmodes))
-                if abs(sum(p)) % 2 == 0
-            ])
+            ))
         initial_states = states
         for i in range(2, order+1, 2): # H2 only applies extra corrections at even orders
             new_states = np.concatenate([s[np.newaxis, :] + permutations for s in initial_states], axis=0)
@@ -395,7 +534,6 @@ class PerturbationTheoryHamiltonian:
                 # in our basis
                 h1_thresh = np.logical_or(h1_thresh, d < freq_threshold)
             h1_sel = np.where(h1_thresh)
-            # print(h1_sel)
             h1_states = possible_h1_states[h1_sel]
 
             h2_freq = np.sum(freqs[np.newaxis, :] * (possible_h2_states + 1/2), axis=1)

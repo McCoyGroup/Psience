@@ -516,6 +516,190 @@ class VPTTests(TestCase):
         self.assertTrue(np.allclose(sub, expected))
 
     @validationTest
+    def test_TestQuarticsCartesians(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOD_freq.fchk"),
+            internals=None
+        )
+
+        v4_Gaussian = [
+            [1, 1, 1, 1, 1517.96213],
+            [2, 1, 1, 1, 98.59961],
+            [2, 2, 1, 1, 8.99887],
+            [2, 2, 2, 1, -50.96655],
+            [2, 2, 2, 2, 804.29611],
+            [3, 1, 1, 1, 142.08091],
+            [3, 2, 1, 1, -18.73606],
+            [3, 2, 2, 1, -22.35470],
+            [3, 2, 2, 2, 71.81011],
+            [3, 3, 1, 1, -523.38920],
+            [3, 3, 2, 1, -4.05652],
+            [3, 3, 2, 2, -95.43623],
+            [3, 3, 3, 1, -145.84374],
+            [3, 3, 3, 2, -41.06991],
+            [3, 3, 3, 3, 83.41603]
+        ]
+
+        legit = np.zeros((3, 3, 3, 3))
+        mode_mapping = [
+            2, 1, 0
+        ]
+        for i, j, k, l, v in v4_Gaussian:
+            i = mode_mapping[i - 1];
+            j = mode_mapping[j - 1]
+            k = mode_mapping[k - 1];
+            l = mode_mapping[l - 1]
+            for perm in ip.permutations((i, j, k, l)):
+                legit[perm] = v
+
+        v4 = self.h2w * ham.V_terms[2]
+
+        print_errors = True
+        if print_errors:
+            if not np.allclose(legit, v4, atol=.001):
+                diff = legit - v4
+                bad_pos = np.array(np.where(np.abs(diff) > .001)).T
+                print("Gaussian/This Disagreements:\n" + "\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>5.3f} (Actual: {:>8.3f} This: {:>8.3f})".format(
+                        i, j, k, l, diff[i, j, k, l], legit[i, j, k, l], v4[i, j, k, l]
+                    ) for i, j, k, l in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v4, atol=.1))  # testing to within .001 wavenumbers
+
+    @validationTest
+    def test_TestCubicsInternals(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOD_freq.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 0, 1, -1]
+            ]
+        )
+
+        # it turns out Anne and I disagree pretty fucking dramatically on these...
+        # but is it an issue? If I use her cubic force constants the energies are way, way off...
+        v4_Anne = [
+            [1, 1, 1, 198.63477267],
+            [2, 1, 1, 41.05987944],
+            [3, 1, 1, 429.45742955],
+            [1, 2, 1, 41.05987944],
+            [2, 2, 1, -90.66588863],
+            [3, 2, 1, 82.31540784],
+            [1, 3, 1, 429.45742955],
+            [2, 3, 1, 82.31540784],
+            [3, 3, 1, -153.50694953],
+            [1, 1, 2, 41.16039749],
+            [2, 1, 2, -90.73683527],
+            [3, 1, 2, 82.32690754],
+            [1, 2, 2, -90.73683527],
+            [2, 2, 2, -1588.89967595],
+            [3, 2, 2, 91.00951548],
+            [1, 3, 2, 82.32690754],
+            [2, 3, 2, 91.00951548],
+            [3, 3, 2, -172.34377091],
+            [1, 1, 3, 430.44067645],
+            [2, 1, 3, 82.33125106],
+            [3, 1, 3, -153.78923868],
+            [1, 2, 3, 82.33125106],
+            [2, 2, 3, 90.96564514],
+            [3, 2, 3, -172.45333790],
+            [1, 3, 3, -153.78923868],
+            [2, 3, 3, -172.45333790],
+            [3, 3, 3, -2558.24567375]
+        ]
+
+        legit = np.zeros((3, 3, 3))
+        for k, j, i, v in v4_Anne:
+            i = i - 1;
+            j = j - 1;
+            k = k - 1
+            legit[i, j, k] = v
+
+        v3 = self.h2w * ham.V_terms[1]
+
+        # for unknown reasons, Anne and I disagree on the order of like 5 cm^-1,
+        # but it's unclear which set of derivs. is right since my & hers both
+        # yield a max deviation from the Gaussian result of ~.1 cm^-1
+        print_errors = True
+        if print_errors:
+            if not np.allclose(legit, v3, atol=.1):
+                diff = legit - v3
+                bad_pos = np.array(np.where(np.abs(diff) > .1)).T
+                print("Anne/This Disagreements:\n" + "\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
+                        i, j, k, diff[i, j, k], legit[i, j, k], v3[i, j, k]
+                    ) for i, j, k in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v3, atol=10))
+
+    @validationTest
+    def test_TestQuarticsInternals(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOD_freq.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 0, 1, -1]
+            ]
+        )
+
+        v4_Anne = [
+            [1, 1, 1,  -37.03937000],
+            [2, 1, 1,  -32.30391126],
+            [3, 1, 1,  -33.08215609],
+            [1, 2, 1,  -32.30391126],
+            [2, 2, 1,    3.57147725],
+            [3, 2, 1,    9.77124742],
+            [1, 3, 1,  -33.08215609],
+            [2, 3, 1,    9.77124742],
+            [3, 3, 1,    3.08396862],
+            [1, 1, 2,    3.53204514],
+            [2, 1, 2,   66.35374213],
+            [3, 1, 2,   -8.46713126],
+            [1, 2, 2,   66.35374213],
+            [2, 2, 2,  804.47871323],
+            [3, 2, 2,  -51.44004640],
+            [1, 3, 2,   -8.46713126],
+            [2, 3, 2,  -51.44004640],
+            [3, 3, 2,   10.60086681],
+            [1, 1, 3,    2.67361974],
+            [2, 1, 3,    3.14497676],
+            [3, 1, 3,  111.80682105],
+            [1, 2, 3,    3.14497676],
+            [2, 2, 3,   10.60153758],
+            [3, 2, 3,   97.05643377],
+            [1, 3, 3,  111.80682105],
+            [2, 3, 3,   97.05643377],
+            [3, 3, 3, 1519.00602277]
+        ]
+
+        legit = np.zeros((3, 3, 3, 3))
+        for k, j, i, v in v4_Anne:
+            i = i - 1;
+            j = j - 1;
+            k = k - 1
+            for perm in ip.permutations((i, i, j, k)):
+                legit[perm] = v
+
+        v4 = self.h2w * ham.V_terms[2]
+
+        print_errors = False
+        if print_errors:
+            if not np.allclose(legit, v4, atol=0):
+                diff = legit - v4
+                bad_pos = np.array(np.where(np.abs(diff) > 0)).T
+                print("Anne/This Disagreements:\n" + "\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
+                        i, j, k, l, diff[i, j, k, l], legit[i, j, k, l], v4[i, j, k, l]
+                    ) for i, j, k, l in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v4, atol=1))
+
+    @validationTest
     def test_TestCubicsCartesians2(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("OCHD_freq.fchk"),
@@ -578,7 +762,7 @@ class VPTTests(TestCase):
 
         print_errors = True
         if print_errors:
-            if not np.allclose(legit, v3, rtol=1):
+            if not np.allclose(legit, v3, atol=1):
                 diff = legit - v3
                 bad_pos = np.array(np.where(np.abs(diff) > 1)).T
                 print("Gaussian/This Disagreements:\n" + "\n".join(
@@ -587,7 +771,7 @@ class VPTTests(TestCase):
                     ) for i, j, k in bad_pos
                 ))
 
-        self.assertTrue(np.allclose(legit, v3, rtol=1))  # testing to within a wavenumber
+        self.assertTrue(np.allclose(legit, v3, atol=1))  # testing to within a wavenumber
 
     @validationTest
     def test_TestQuarticsCartesians2(self):
@@ -694,7 +878,7 @@ class VPTTests(TestCase):
 
         print_errors = True
         if print_errors:
-            if not np.allclose(legit, v4, rtol=1):
+            if not np.allclose(legit, v4, atol=1):
                 diff = legit - v4
                 bad_pos = np.array(np.where(np.abs(diff) > 1)).T
                 print("Gaussian/This Disagreements:\n" + "\n".join(
@@ -703,187 +887,377 @@ class VPTTests(TestCase):
                     ) for i, j, k, l in bad_pos
                 ))
 
-        self.assertTrue(np.allclose(legit, v4, rtol=1))  # testing to within a wavenumber
+        self.assertTrue(np.allclose(legit, v4, atol=1))  # testing to within a wavenumber
 
     @validationTest
-    def test_TestQuarticsCartesians(self):
+    def test_TestCubicsCartesians3(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
-            TestManager.test_data("HOD_freq.fchk"),
+            TestManager.test_data("CH2DT_freq.fchk"),
+            internals=None
+        )
+
+        v3_Gaussian = [
+            [1,  1,  1,       0.06815],
+            [2,  1,  1,   -1395.70040],
+            [2,  2,  2,   -1333.19164],
+            [3,  1,  1,     -61.21371],
+            [3,  2,  2,     -72.75916],
+            [3,  3,  2,     111.94447],
+            [3,  3,  3,   -1181.91933],
+            [4,  1,  1,      47.93552],
+            [4,  2,  2,      64.19649],
+            [4,  3,  2,      10.38925],
+            [4,  3,  3,     199.69522],
+            [4,  4,  2,      74.18204],
+            [4,  4,  3,     152.48473],
+            [4,  4,  4,     909.14866],
+            [5,  1,  1,    -103.49761],
+            [5,  2,  2,      30.68413],
+            [5,  3,  2,     -24.92683],
+            [5,  3,  3,       8.92570],
+            [5,  4,  2,      33.14072],
+            [5,  4,  3,      -1.79770],
+            [5,  4,  4,      -9.43933],
+            [5,  5,  2,     195.91273],
+            [5,  5,  3,      -2.37845],
+            [5,  5,  4,       4.81627],
+            [5,  5,  5,      67.87295],
+            [6,  2,  1,     -15.11274],
+            [6,  3,  1,      67.34301],
+            [6,  4,  1,      43.83666],
+            [6,  5,  1,     -34.74422],
+            [6,  6,  2,     179.13158],
+            [6,  6,  3,       3.08917],
+            [6,  6,  4,      17.43233],
+            [6,  6,  5,     -33.45784],
+            [7,  1,  1,     -11.74252],
+            [7,  2,  2,      -5.74352],
+            [7,  3,  2,      65.00439],
+            [7,  3,  3,     -22.17977],
+            [7,  4,  2,      56.39770],
+            [7,  4,  3,      11.40643],
+            [7,  4,  4,     -11.28175],
+            [7,  5,  2,       2.60202],
+            [7,  5,  3,      25.24120],
+            [7,  5,  4,      18.82210],
+            [7,  5,  5,      -1.05280],
+            [7,  6,  1,     244.67887],
+            [7,  6,  6,      13.00576],
+            [7,  7,  2,     338.17722],
+            [7,  7,  3,      17.93616],
+            [7,  7,  4,      15.22551],
+            [7,  7,  5,      55.22135],
+            [7,  7,  7,      32.37393],
+            [8,  2,  1,      76.86835],
+            [8,  3,  1,     -23.32698],
+            [8,  4,  1,      65.32973],
+            [8,  5,  1,     247.14911],
+            [8,  6,  2,      34.76624],
+            [8,  6,  3,     -33.94786],
+            [8,  6,  4,      13.86767],
+            [8,  6,  5,       8.61294],
+            [8,  7,  1,      81.98867],
+            [8,  7,  6,     -28.48111],
+            [8,  8,  2,     182.23674],
+            [8,  8,  3,      88.65287],
+            [8,  8,  4,     -77.54773],
+            [8,  8,  5,     -76.75741],
+            [8,  8,  7,     -12.69855],
+            [9,  1,  1,     -54.45594],
+            [9,  2,  2,     -30.24115],
+            [9,  3,  2,       1.30117],
+            [9,  3,  3,      33.58217],
+            [9,  4,  2,     -19.51444],
+            [9,  4,  3,      53.68501],
+            [9,  4,  4,     -18.44456],
+            [9,  5,  2,      78.51601],
+            [9,  5,  3,      -1.11472],
+            [9,  5,  4,     -18.35336],
+            [9,  5,  5,      13.22045],
+            [9,  6,  1,     -57.39319],
+            [9,  6,  6,      28.70793],
+            [9,  7,  2,     -56.58162],
+            [9,  7,  3,      66.81247],
+            [9,  7,  4,      21.64467],
+            [9,  7,  5,     -11.02663],
+            [9,  7,  7,      73.63799],
+            [9,  8,  1,      82.30035],
+            [9,  8,  6,      21.26192],
+            [9,  8,  8,     -49.88854],
+            [9,  9,  2,      10.73372],
+            [9,  9,  3,     122.77338],
+            [9,  9,  4,     -77.62983],
+            [9,  9,  5,      15.46243],
+            [9,  9,  7,     -14.66681],
+            [9,  9,  9,     -23.60486]
+        ]
+
+        legit = np.zeros((9, 9, 9))
+        mode_mapping = list(reversed(range(9)))
+        for i, j, k, v in v3_Gaussian:
+            i = mode_mapping[i - 1]
+            j = mode_mapping[j - 1]
+            k = mode_mapping[k - 1]
+            for perm in ip.permutations((i, j, k)):
+                legit[perm] = v
+
+        v3 = self.h2w * ham.V_terms[1]
+
+        print_errors = True
+        if print_errors:
+            if not np.allclose(legit, v3, atol=1):
+                diff = legit - v3
+                bad_pos = np.array(np.where(np.abs(diff) > 1)).T
+                print("Gaussian/This Disagreements:\n" + "\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Gaussian: {:>8.3f} This: {:>8.3f})".format(
+                        i, j, k, diff[i, j, k], legit[i, j, k], v3[i, j, k]
+                    ) for i, j, k in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v3, atol=1))  # testing to within a wavenumber
+
+    @validationTest
+    def test_TestQuarticsCartesians3(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("CH2DT_freq.fchk"),
             internals=None
         )
 
         v4_Gaussian = [
-            [1, 1, 1, 1, 1517.96213],
-            [2, 1, 1, 1,   98.59961],
-            [2, 2, 1, 1,    8.99887],
-            [2, 2, 2, 1,  -50.96655],
-            [2, 2, 2, 2,  804.29611],
-            [3, 1, 1, 1,  142.08091],
-            [3, 2, 1, 1,  -18.73606],
-            [3, 2, 2, 1,  -22.35470],
-            [3, 2, 2, 2,   71.81011],
-            [3, 3, 1, 1, -523.38920],
-            [3, 3, 2, 1,   -4.05652],
-            [3, 3, 2, 2,  -95.43623],
-            [3, 3, 3, 1, -145.84374],
-            [3, 3, 3, 2,  -41.06991],
-            [3, 3, 3, 3,   83.41603]
+             [1,  1,  1,  1,     559.91879],
+             [2,  1,  1,  1,      -0.01425],
+             [2,  2,  1,  1,     534.37271],
+             [2,  2,  2,  1,       0.01872],
+             [2,  2,  2,  2,     505.94646],
+             [3,  2,  1,  1,      23.63452],
+             [3,  2,  2,  2,      23.39780],
+             [3,  3,  1,  1,      -3.02667],
+             [3,  3,  2,  2,       2.70186],
+             [3,  3,  3,  2,     -50.84416],
+             [3,  3,  3,  3,     549.73449],
+             [4,  2,  1,  1,     -19.19644],
+             [4,  2,  2,  2,     -21.57758],
+             [4,  3,  1,  1,      -3.55084],
+             [4,  3,  2,  2,      -2.52690],
+             [4,  3,  3,  2,       7.10251],
+             [4,  3,  3,  3,     -77.07600],
+             [4,  4,  1,  1,      -5.84458],
+             [4,  4,  2,  2,      -2.86652],
+             [4,  4,  3,  2,       5.88020],
+             [4,  4,  3,  3,      19.57459],
+             [4,  4,  4,  2,      29.29115],
+             [4,  4,  4,  3,      73.27334],
+             [4,  4,  4,  4,     383.60251],
+             [5,  2,  1,  1,      24.88197],
+             [5,  2,  2,  2,     -21.19389],
+             [5,  3,  1,  1,      12.79430],
+             [5,  3,  2,  2,       9.96353],
+             [5,  3,  3,  2,       1.86175],
+             [5,  3,  3,  3,      -3.77074],
+             [5,  4,  1,  1,     -23.42343],
+             [5,  4,  2,  2,     -19.40889],
+             [5,  4,  3,  3,       2.51083],
+             [5,  4,  4,  2,       0.59586],
+             [5,  4,  4,  3,      -1.33782],
+             [5,  4,  4,  4,      -4.17980],
+             [5,  5,  1,  1,    -250.51096],
+             [5,  5,  2,  2,    -202.73815],
+             [5,  5,  3,  2,      -6.26073],
+             [5,  5,  3,  3,      -0.71817],
+             [5,  5,  4,  2,       4.41076],
+             [5,  5,  4,  3,       0.74368],
+             [5,  5,  4,  4,       0.70606],
+             [5,  5,  5,  2,     -21.51808],
+             [5,  5,  5,  3,      -5.28183],
+             [5,  5,  5,  4,       6.20833],
+             [5,  5,  5,  5,      26.72854],
+             [6,  1,  1,  1,       2.33145],
+             [6,  2,  2,  1,       6.58357],
+             [6,  3,  3,  1,      -8.68835],
+             [6,  4,  4,  1,       2.71077],
+             [6,  5,  5,  1,      -0.37850],
+             [6,  6,  1,  1,    -170.82753],
+             [6,  6,  2,  2,    -167.87589],
+             [6,  6,  3,  2,       4.53916],
+             [6,  6,  3,  3,     -39.54289],
+             [6,  6,  4,  2,      -1.53365],
+             [6,  6,  4,  3,       4.63850],
+             [6,  6,  4,  4,      -4.88103],
+             [6,  6,  5,  2,       6.10598],
+             [6,  6,  5,  3,      -0.78072],
+             [6,  6,  5,  4,       1.41560],
+             [6,  6,  5,  5,       7.68429],
+             [6,  6,  6,  1,      -6.26849],
+             [6,  6,  6,  6,      31.63034],
+             [7,  2,  1,  1,       3.96811],
+             [7,  2,  2,  2,       1.07101],
+             [7,  3,  1,  1,     -29.28447],
+             [7,  3,  2,  2,     -24.89279],
+             [7,  3,  3,  2,      -6.33488],
+             [7,  3,  3,  3,       7.24231],
+             [7,  4,  1,  1,     -34.33637],
+             [7,  4,  2,  2,     -31.16510],
+             [7,  4,  3,  3,     -12.56004],
+             [7,  4,  4,  2,       2.26610],
+             [7,  4,  4,  3,      -0.96095],
+             [7,  4,  4,  4,      -3.85367],
+             [7,  5,  1,  1,      -6.15658],
+             [7,  5,  2,  2,      -3.77331],
+             [7,  5,  3,  3,       4.83778],
+             [7,  5,  4,  4,       0.56545],
+             [7,  5,  5,  2,      -0.49611],
+             [7,  5,  5,  3,       3.81880],
+             [7,  5,  5,  4,       3.66655],
+             [7,  5,  5,  5,       0.68441],
+             [7,  6,  6,  2,      -6.16266],
+             [7,  6,  6,  3,       9.92742],
+             [7,  6,  6,  4,       9.97438],
+             [7,  6,  6,  5,      -6.53707],
+             [7,  7,  1,  1,    -266.13407],
+             [7,  7,  2,  2,    -252.95567],
+             [7,  7,  3,  2,      -5.95357],
+             [7,  7,  3,  3,     -23.82614],
+             [7,  7,  4,  2,       3.22457],
+             [7,  7,  4,  3,       2.88829],
+             [7,  7,  4,  4,      -2.95230],
+             [7,  7,  5,  2,     -20.08846],
+             [7,  7,  5,  3,      -0.50168],
+             [7,  7,  5,  4,       2.45986],
+             [7,  7,  5,  5,      16.39147],
+             [7,  7,  6,  1,      -7.80515],
+             [7,  7,  6,  6,      58.98337],
+             [7,  7,  7,  2,      -8.29049],
+             [7,  7,  7,  3,      10.64617],
+             [7,  7,  7,  4,      17.31625],
+             [7,  7,  7,  5,       0.22639],
+             [7,  7,  7,  7,     120.94216],
+             [8,  1,  1,  1,      -0.19388],
+             [8,  2,  2,  1,     -37.14979],
+             [8,  3,  3,  1,      10.82796],
+             [8,  4,  4,  1,       9.21324],
+             [8,  6,  1,  1,     -21.26666],
+             [8,  6,  2,  2,     -20.63124],
+             [8,  6,  3,  3,      55.19087],
+             [8,  6,  4,  4,     -15.05070],
+             [8,  6,  5,  5,      -4.05642],
+             [8,  6,  6,  1,      12.88020],
+             [8,  6,  6,  6,       8.97881],
+             [8,  7,  7,  1,      12.60408],
+             [8,  7,  7,  6,      18.63533],
+             [8,  8,  1,  1,    -158.16189],
+             [8,  8,  2,  2,    -153.45228],
+             [8,  8,  3,  2,       0.59511],
+             [8,  8,  3,  3,     -82.61984],
+             [8,  8,  4,  2,      -1.29526],
+             [8,  8,  4,  3,       1.38179],
+             [8,  8,  4,  4,     -59.10940],
+             [8,  8,  5,  2,      33.63349],
+             [8,  8,  5,  3,       0.54180],
+             [8,  8,  5,  4,       8.20902],
+             [8,  8,  5,  5,      51.76688],
+             [8,  8,  6,  1,       0.65592],
+             [8,  8,  6,  6,      10.13160],
+             [8,  8,  7,  2,       8.74278],
+             [8,  8,  7,  3,      -0.95384],
+             [8,  8,  7,  4,       5.30499],
+             [8,  8,  7,  5,      16.84072],
+             [8,  8,  7,  7,      26.63937],
+             [8,  8,  8,  1,      37.98053],
+             [8,  8,  8,  6,       4.21083],
+             [8,  8,  8,  8,      31.80347],
+             [9,  2,  1,  1,      17.71928],
+             [9,  2,  2,  2,       5.45841],
+             [9,  3,  1,  1,       7.75018],
+             [9,  3,  2,  2,       8.95414],
+             [9,  3,  3,  2,      -6.71352],
+             [9,  3,  3,  3,     -15.27981],
+             [9,  4,  1,  1,      -0.70145],
+             [9,  4,  2,  2,      -2.85353],
+             [9,  4,  3,  3,     -18.34517],
+             [9,  4,  4,  2,      -7.16397],
+             [9,  4,  4,  3,      16.28174],
+             [9,  4,  4,  4,      -8.86546],
+             [9,  5,  1,  1,     -61.29902],
+             [9,  5,  2,  2,     -54.31218],
+             [9,  5,  3,  3,      13.88669],
+             [9,  5,  4,  4,       0.81207],
+             [9,  5,  5,  2,     -10.61006],
+             [9,  5,  5,  3,      -0.91776],
+             [9,  5,  5,  4,       0.53076],
+             [9,  5,  5,  5,      13.38706],
+             [9,  6,  6,  2,      -8.28108],
+             [9,  6,  6,  3,      -2.67799],
+             [9,  6,  6,  4,      -1.08179],
+             [9,  6,  6,  5,       4.63593],
+             [9,  7,  1,  1,      38.55319],
+             [9,  7,  2,  2,      35.70565],
+             [9,  7,  3,  3,     -61.72840],
+             [9,  7,  4,  4,      21.12623],
+             [9,  7,  5,  5,      -3.30041],
+             [9,  7,  6,  6,     -13.65712],
+             [9,  7,  7,  2,     -14.84869],
+             [9,  7,  7,  3,     -11.46409],
+             [9,  7,  7,  4,       1.19955],
+             [9,  7,  7,  5,       7.60685],
+             [9,  7,  7,  7,     -23.96468],
+             [9,  8,  8,  2,       5.16779],
+             [9,  8,  8,  3,       5.41853],
+             [9,  8,  8,  4,      -1.26488],
+             [9,  8,  8,  5,      21.91611],
+             [9,  8,  8,  7,       5.10241],
+             [9,  9,  1,  1,     -20.40716],
+             [9,  9,  2,  2,     -22.29169],
+             [9,  9,  3,  2,      11.19169],
+             [9,  9,  3,  3,    -151.24397],
+             [9,  9,  4,  2,      -6.63351],
+             [9,  9,  4,  3,      -1.72724],
+             [9,  9,  4,  4,     -77.25698],
+             [9,  9,  5,  2,      -6.89194],
+             [9,  9,  5,  3,       0.16269],
+             [9,  9,  5,  4,       0.17722],
+             [9,  9,  5,  5,       3.20777],
+             [9,  9,  6,  1,       5.91328],
+             [9,  9,  6,  6,      -0.99577],
+             [9,  9,  7,  2,       5.96663],
+             [9,  9,  7,  3,      -4.33510],
+             [9,  9,  7,  4,       0.08697],
+             [9,  9,  7,  5,      -0.71670],
+             [9,  9,  7,  7,       2.64062],
+             [9,  9,  8,  1,      -4.73727],
+             [9,  9,  8,  6,      -5.01838],
+             [9,  9,  8,  8,      11.21814],
+             [9,  9,  9,  2,      -0.98925],
+             [9,  9,  9,  3,      10.83010],
+             [9,  9,  9,  4,       4.44835],
+             [9,  9,  9,  5,       2.63948],
+             [9,  9,  9,  7,      11.12104],
+             [9,  9,  9,  9,      25.22733]
         ]
 
-        legit = np.zeros((3, 3, 3, 3))
-        mode_mapping = [
-            2, 1, 0
-        ]
+        legit = np.zeros((9, 9, 9, 9))
+        mode_mapping = list(reversed(range(9)))
         for i, j, k, l, v in v4_Gaussian:
-            i = mode_mapping[i - 1];
+            i = mode_mapping[i - 1]
             j = mode_mapping[j - 1]
-            k = mode_mapping[k - 1];
+            k = mode_mapping[k - 1]
             l = mode_mapping[l - 1]
             for perm in ip.permutations((i, j, k, l)):
                 legit[perm] = v
 
         v4 = self.h2w * ham.V_terms[2]
 
-        print_errors = False
+        print_errors = True
         if print_errors:
-            if not np.allclose(legit, v4, rtol=.001):
+            if not np.allclose(legit, v4, atol=1):
                 diff = legit - v4
-                bad_pos = np.array(np.where(np.abs(diff) > .001)).T
+                bad_pos = np.array(np.where(np.abs(diff) > 1)).T
                 print("Gaussian/This Disagreements:\n" + "\n".join(
-                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>5.3f} (Actual: {:>8.3f} This: {:>8.3f})".format(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Actual: {:>8.3f} This: {:>8.3f})".format(
                         i, j, k, l, diff[i, j, k, l], legit[i, j, k, l], v4[i, j, k, l]
                     ) for i, j, k, l in bad_pos
                 ))
 
-        self.assertTrue(np.allclose(legit, v4, rtol=.001))  # testing to within .001 wavenumbers
-
-    @validationTest
-    def test_TestCubicsInternals(self):
-        ham = PerturbationTheoryHamiltonian.from_fchk(
-            TestManager.test_data("HOD_freq.fchk"),
-            internals=[
-            [0, -1, -1, -1],
-            [1, 0, -1, -1],
-            [2, 0, 1, -1]
-        ]
-        )
-
-        # it turns out Anne and I disagree pretty fucking dramatically on these...
-        # but is it an issue? If I use her cubic force constants the energies are way, way off...
-        v4_Anne =[
-             [1,  1,  1,   198.63477267],
-             [2,  1,  1,    41.05987944],
-             [3,  1,  1,   429.45742955],
-             [1,  2,  1,    41.05987944],
-             [2,  2,  1,   -90.66588863],
-             [3,  2,  1,    82.31540784],
-             [1,  3,  1,   429.45742955],
-             [2,  3,  1,    82.31540784],
-             [3,  3,  1,  -153.50694953],
-             [1,  1,  2,    41.16039749],
-             [2,  1,  2,   -90.73683527],
-             [3,  1,  2,    82.32690754],
-             [1,  2,  2,   -90.73683527],
-             [2,  2,  2, -1588.89967595],
-             [3,  2,  2,    91.00951548],
-             [1,  3,  2,    82.32690754],
-             [2,  3,  2,    91.00951548],
-             [3,  3,  2,  -172.34377091],
-             [1,  1,  3,   430.44067645],
-             [2,  1,  3,    82.33125106],
-             [3,  1,  3,  -153.78923868],
-             [1,  2,  3,    82.33125106],
-             [2,  2,  3,    90.96564514],
-             [3,  2,  3,  -172.45333790],
-             [1,  3,  3,  -153.78923868],
-             [2,  3,  3,  -172.45333790],
-             [3,  3,  3, -2558.24567375]
-        ]
-
-        legit = np.zeros((3, 3, 3))
-        for k, j, i, v in v4_Anne:
-            i = i-1; j = j-1; k = k-1
-            legit[i, j, k] = v
-
-        v3 = self.h2w * ham.V_terms[1]
-
-        # for unknown reasons, Anne and I disagree on the order of like 5 cm^-1,
-        # but it's unclear which set of derivs. is right since my & hers both
-        # yield a max deviation from the Gaussian result of ~.1 cm^-1
-        print_errors=True
-        if print_errors:
-            if not np.allclose(legit, v3, rtol=.1):
-                diff = legit - v3
-                bad_pos = np.array(np.where(np.abs(diff) > .1)).T
-                print("Anne/This Disagreements:\n"+"\n".join(
-                    "{:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
-                        i,j,k, diff[i,j,k], legit[i,j,k], v3[i,j,k]
-                    ) for i,j,k in bad_pos
-                ))
-
-        self.assertTrue(np.allclose(legit, v3, atol=10))
-
-    @validationTest
-    def test_TestQuarticsInternals(self):
-        ham = PerturbationTheoryHamiltonian.from_fchk(
-            TestManager.test_data("HOD_freq.fchk"),
-            internals=[
-                [0, -1, -1, -1],
-                [1,  0, -1, -1],
-                [2,  0,  1, -1]
-            ]
-        )
-
-        v4_Anne =[
-             [1,  1,  1,  -37.03937000],
-             [2,  1,  1,  -32.30391126],
-             [3,  1,  1,  -33.08215609],
-             [1,  2,  1,  -32.30391126],
-             [2,  2,  1,    3.57147725],
-             [3,  2,  1,    9.77124742],
-             [1,  3,  1,  -33.08215609],
-             [2,  3,  1,    9.77124742],
-             [3,  3,  1,    3.08396862],
-             [1,  1,  2,    3.53204514],
-             [2,  1,  2,   66.35374213],
-             [3,  1,  2,   -8.46713126],
-             [1,  2,  2,   66.35374213],
-             [2,  2,  2,  804.47871323],
-             [3,  2,  2,  -51.44004640],
-             [1,  3,  2,   -8.46713126],
-             [2,  3,  2,  -51.44004640],
-             [3,  3,  2,   10.60086681],
-             [1,  1,  3,    2.67361974],
-             [2,  1,  3,    3.14497676],
-             [3,  1,  3,  111.80682105],
-             [1,  2,  3,    3.14497676],
-             [2,  2,  3,   10.60153758],
-             [3,  2,  3,   97.05643377],
-             [1,  3,  3,  111.80682105],
-             [2,  3,  3,   97.05643377],
-             [3,  3,  3, 1519.00602277]
-        ]
-
-        legit = np.zeros((3, 3, 3, 3))
-        for k, j, i, v in v4_Anne:
-            i = i-1; j = j-1; k = k-1
-            for perm in ip.permutations((i, i, j, k)):
-                legit[perm] = v
-
-        v4 = self.h2w * ham.V_terms[2]
-
-        print_errors=False
-        if print_errors:
-            if not np.allclose(legit, v4, atol=0):
-                diff = legit - v4
-                bad_pos = np.array(np.where(np.abs(diff) > 0)).T
-                print("Anne/This Disagreements:\n"+"\n".join(
-                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
-                        i,j,k,l, diff[i,j,k,l], legit[i,j,k,l], v4[i,j,k,l]
-                    ) for i,j,k,l in bad_pos
-                ))
-
-        self.assertTrue(np.allclose(legit, v4, atol=1))
+        self.assertTrue(np.allclose(legit, v4, atol=1))  # testing to within a wavenumber
 
     @validationTest
     def test_OCHTCoriolisCouplings(self):
@@ -1129,6 +1503,91 @@ class VPTTests(TestCase):
         ))
 
     @debugTest
+    def test_HOHNielsenEnergies(self):
+
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+
+        hammer = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOH_freq.fchk"),
+            internals=None
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        e_harm, e_corr = hammer.get_Nielsen_energies(states)
+
+        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
+        energies = h2w * (e_harm + e_corr)
+        zero_ord = h2w * e_harm
+
+        # print(wfns.corrs.coupled_states)
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
+
+        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
+                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
+                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
+        gaussian_energies = np.array([4681.564, 4605.953])
+        gaussian_freqs = np.array([
+            [3937.525, 3744.734],
+            [3803.300, 3621.994],
+            [1622.303, 1572.707],
+
+            [7875.049, 7391.391],
+            [7606.599, 7155.881],
+            [3244.606, 3117.366],
+
+            [7740.824, 7200.364],
+            [5559.828, 5294.379],
+            [5425.603, 5174.665]
+        ])
+
+        my_energies = np.array([zero_ord[0], energies[0]])
+        my_freqs = np.column_stack([
+            zero_ord[1:] - zero_ord[0],
+            energies[1:] - energies[0]
+        ])
+
+        print_report = False
+        if print_report:
+            print("Gaussian:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(gaussian_states, gaussian_freqs)
+                  )
+                  )
+            print("State Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs)
+                  )
+                  )
+
+        print_diffs = True
+        if print_diffs:
+            print("Difference Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
+                  )
+                  )
+        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
+
+    @validationTest
     def test_HOHVPTInternals(self):
 
         internals = [
@@ -1222,7 +1681,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
 
         internals = None
@@ -2321,7 +2780,8 @@ class VPTTests(TestCase):
                 internals,
                 states,
                 regenerate=True,
-                # coupled_states=5000/self.h2w, #only couple stuff within 5000 wavenumbers
+                # coupled_states=self.get_states(9, n_modes),
+                coupled_states=4000/self.h2w, #only couple stuff within 5000 wavenumbers
                 # coupled_states=coupled_states,
                 mode_selection=mode_selection
                 # , degeneracies=5/self.h2w
@@ -3138,7 +3598,7 @@ class VPTTests(TestCase):
 
         self.assertLess(np.max(np.abs(eng_corrs - gaussian_corrs)), .5)
 
-    @debugTest
+    @validationTest
     def test_HODIntensities(self):
 
         internals = [
@@ -3251,7 +3711,7 @@ class VPTTests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
-    @debugTest
+    @validationTest
     def test_HODIntensitiesCartesian(self):
 
         internals = None
