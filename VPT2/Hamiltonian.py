@@ -2,9 +2,10 @@
 Provides support for build perturbation theory Hamiltonians
 """
 
-import numpy as np, itertools
+import numpy as np, itertools, enum
 
 from McUtils.Numputils import SparseArray, vec_outer
+from McUtils.Misc import Logger
 
 from ..Molecools import Molecule
 from ..BasisReps import HarmonicOscillatorBasis, SimpleProductBasis
@@ -182,12 +183,14 @@ class PerturbationTheoryHamiltonian:
     Represents the main Hamiltonian used in the perturbation theory calculation.
     Uses a harmonic oscillator basis for representing H0, H1, and H2 (and only goes up to H2 for now)
     """
+
     def __init__(self,
                  molecule=None,
                  n_quanta=None,
                  modes=None,
                  mode_selection=None,
-                 coriolis_coupling = True
+                 coriolis_coupling = True,
+                 log = None
                  ):
         """
         :param molecule: the molecule on which we're doing perturbation theory
@@ -201,6 +204,7 @@ class PerturbationTheoryHamiltonian:
         :param coriolis_coupling: whether to add coriolis coupling if not in internals
         :type coriolis_coupling: bool
         """
+
         if molecule is None:
             raise PerturbationTheoryException("{} requires a Molecule to do its dirty-work")
         # molecule = molecule.get_embedded_molecule()
@@ -225,11 +229,20 @@ class PerturbationTheoryHamiltonian:
 
         self.basis = SimpleProductBasis(HarmonicOscillatorBasis, self.n_quanta)
 
+        if log is None or isinstance(log, Logger):
+            self.logger = log
+        elif log is True:
+            self.logger = Logger()
+        elif log is False:
+            self.logger = None
+        else:
+            self.logger = Logger(log)
+
     @classmethod
     def from_fchk(cls, file,
                   internals=None,
-                  n_quanta=None,
-                  mode_selection=None
+                  mode_selection=None,
+                  **kw
                   ):
         """
         :param file: fchk file to load from
@@ -243,7 +256,7 @@ class PerturbationTheoryHamiltonian:
         """
 
         molecule = Molecule.from_file(file, zmatrix=internals, mode='fchk')
-        return cls(molecule=molecule, n_quanta=n_quanta, mode_selection=mode_selection)
+        return cls(molecule=molecule, mode_selection=mode_selection, **kw)
 
     @property
     def H0(self):
@@ -301,58 +314,28 @@ class PerturbationTheoryHamiltonian:
 
     @staticmethod
     def _Nielsen_xss(s, w, v3, v4, zeta, Be, ndim):
-        # w = 1/w
-        # from McUtils.Data import UnitsData
-        # l = w ** 2 / UnitsData.convert("Wavenumbers", "Hartrees")
-        # return 1 / (16 * l[s]) * (
-        #         v4[s, s, s, s]
-        #         - (5 / 3) * (v3[s, s, s] ** 2) / l[s]
-        #         - sum((
-        #                   (v3[s, s, t] ** 2) / l[t] * (8*l[s] - 3*l[t]) / (4*l[s] - l[t])
-        #               ) for t in range(ndim) if t != s
-        #               )
-        # )
-        return 1 / 4 * (
-                6 * v4[s, s, s, s]
-                - 15 * (v3[s, s, s] ** 2 / w[s])
-                - sum((
+        # we split this up into 3rd derivative, 4th derivative, and coriolis terms
+
+        xss_4 = 1 / 4 * 6 * v4[s, s, s, s]
+        xss_3 = -1 / 4 * (
+                15 * (v3[s, s, s] ** 2 / w[s])
+                + sum((
                               (v3[s, s, t] ** 2) / w[t]
                               * (8 * (w[s] ** 2) - 3 * (w[t] ** 2)) / (4 * (w[s] ** 2) - (w[t] ** 2))
                       ) for t in range(ndim) if t != s
                       )
         )
+        xss_cor = 0.
+        return [xss_3, xss_4, xss_cor]
 
     @staticmethod
     def _Nielsen_xst(s, t, w, v3, v4, zeta, Be, ndim):
-        # from McUtils.Data import UnitsData
-        # l = w**2 / UnitsData.convert("Wavenumbers", "Hartrees")
-        # return 1 / np.sqrt(16 * l[s] * l[t]) * (
-        #         v4[s, s, t, t]
-        #         - 2 * (v3[s, s, t] ** 2) / (4 * l[s] - l[t])
-        #         - 2 * (v3[s, t, t] ** 2) / (4 * l[t] - l[s])
-        #         - v3[s, s, s] * v3[s, t, t] / l[s]
-        #         - v3[t, t, t] * v3[s, s, t] / l[t]
-        #         + sum((
-        #                       2 * (l[s] + l[t] - l[u]) * v3[s, t, u]
-        #                       / (8 * w[s] * w[s] * w[u]) * (
-        #                               1 / (w[s] + w[t] + w[u])
-        #                               - 1 / (w[s] + w[t] - w[u])
-        #                               - 1 / (w[s] + w[u] - w[t])
-        #                               - 1 / (w[t] + w[u] - w[s])
-        #                       )
-        #                       - v3[s, s, u] * v3[t, t, u] / l[u]
-        #               ) for u in range(ndim) if u != t and u != s)
-        #         + 4*(l[s] + l[t]) * sum((
-        #                           Be[a] * (zeta[a, s, t] ** 2)
-        #                   ) for a in range(3))
-        # )
-
-        return 1 / 2 * (
-                v4[s, s, t, t]
-                - 6 * (v3[s, s, s] * v3[s, t, t] / w[s])
-                - 4 * v3[s, s, t] ** 2 * (w[s] / (4 * w[s] ** 2 - w[t] ** 2))
-                - sum((v3[s, s, r] * v3[r, t, t]) / w[r] for r in range(ndim) if r != s and r != t)
-                - sum((
+        xst_4 = 1 / 2 * v4[s, s, t, t]
+        xst_3 = -1 / 2 * (
+                6 * (v3[s, s, s] * v3[s, t, t] / w[s])
+                + 4 * v3[s, s, t] ** 2 * (w[s] / (4 * w[s] ** 2 - w[t] ** 2))
+                + sum((v3[s, s, r] * v3[r, t, t]) / w[r] for r in range(ndim) if r != s and r != t)
+                + sum((
                               (v3[s, t, r] ** 2 / 2) * w[r] * (w[r] ** 2 - w[s] ** 2 - w[t] ** 2)
                               / (
                                       (w[s] + w[t] + w[r])
@@ -362,10 +345,58 @@ class PerturbationTheoryHamiltonian:
                               )
                       ) for r in range(ndim) if r != s and r != t
                       )
-                + 2 * sum((
-                                  Be[a] * (zeta[a, s, t] ** 2) * (w[t]/w[s])
-                          ) for a in range(3))
         )
+        xst_cor = 2 * sum((
+                                  Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s])
+                          ) for a in range(3))
+
+        return [xst_3, xst_4, xst_cor]
+
+    @staticmethod
+    def _Barone_xss(s, w, v3, v4, zeta, Be, ndim):
+        # unclear what the units should be from Barone's paper...
+        l = w ** 2
+
+        x_ss_coeff = 1 / (16 * l[s])
+        x_ss_4 = x_ss_coeff * v4[s, s, s, s]
+        x_ss_3 = -x_ss_coeff * (
+                (5 / 3) * (v3[s, s, s] ** 2) / l[s]
+                + sum((
+                              (v3[s, s, t] ** 2) / l[t] * (8 * l[s] - 3 * l[t]) / (4 * l[s] - l[t])
+                      ) for t in range(ndim) if t != s
+                      )
+        )
+        x_ss_cor = 0.
+        return  [x_ss_3, x_ss_4, x_ss_cor]
+
+    @staticmethod
+    def _Barone_xst(s, t, w, v3, v4, zeta, Be, ndim):
+        from McUtils.Data import UnitsData
+        # w2h = UnitsData.convert("Wavenumbers", "Hartrees")
+        l = w**2
+        x_coeff = 1 / np.sqrt(16 * w[s] * w[t])
+        x4 = x_coeff * v4[s, s, t, t]
+        x3 = - x_coeff * (
+                + 2 * (v3[s, s, t] ** 2) / (4 * l[s] - l[t])
+                + 2 * (v3[s, t, t] ** 2) / (4 * l[t] - l[s])
+                + v3[s, s, s] * v3[s, t, t] / l[s]
+                + v3[t, t, t] * v3[s, s, t] / l[t]
+                - sum((
+                              2 * (l[s] + l[t] - l[u]) * v3[s, t, u]
+                              / (8 * w[s] * w[s] * w[u]) * (
+                                      1 / (w[s] + w[t] + w[u])
+                                      - 1 / (w[s] + w[t] - w[u])
+                                      - 1 / (w[s] + w[u] - w[t])
+                                      - 1 / (w[t] + w[u] - w[s])
+                              )
+                              - v3[s, s, u] * v3[t, t, u] / l[u]
+                      ) for u in range(ndim) if u != t and u != s)
+        )
+        xcor = x_coeff * (
+                4 * (l[s] + l[t]) * sum(( Be[a] * (zeta[a, s, t] ** 2) ) for a in range(3))
+        )
+
+        return  [x3, x4, xcor]
 
     @classmethod
     def _get_Nielsen_energies(cls, states, freqs, v3, v4, zeta, Be):
@@ -396,14 +427,20 @@ class PerturbationTheoryHamiltonian:
                 cls._Nielsen_xss(s, freqs, v3, v4, zeta, Be, ndim) if s==t else
                 cls._Nielsen_xst(s, t, freqs, v3, v4, zeta, Be, ndim)
                 for s in range(ndim) for t in range(s, ndim)
-          ])
-        x_mat = np.zeros((ndim, ndim))
-        ri, ci = np.triu_indices_from(x_mat)
-        x_mat[ri, ci] = x_mat_linear
-        x_mat[ci, ri] = x_mat_linear
+          ]).T
+        x_mat = np.zeros((3, ndim, ndim))
+        ri, ci = np.triu_indices(ndim)
+        x_mat[:, ri, ci] = x_mat_linear
+        x_mat[:, ci, ri] = x_mat_linear
 
-        states = np.array(states) + 1/2 # n+1/2 for vibrations
+        from McUtils.Data import UnitsData
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
+        raise Exception(x_mat * h2w)
+
+        states = np.array(states) + 1/2 # n+1/2 for harmonic vibrations
+
+        x_mat = np.sum(x_mat, axis=0)
         e_harm = np.tensordot(freqs, states, axes=[0, 1])
         outer_states = vec_outer(states, states)
         # raise Exception(states, outer_states)
@@ -420,32 +457,38 @@ class PerturbationTheoryHamiltonian:
         :rtype:
         """
 
-        v3 = self.V_terms[1]
-        v4 = self.V_terms[2]
+
+        from McUtils.Data import UnitsData
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # TODO: figure out WTF the units on this have to be...
 
         freqs = self.modes.freqs
-
-        # v3 = 1/6 * v3
-        # v4 = 1/24 * v4
-
         # fdim = np.sqrt(freqs)
-        # v3 = v3 * (
+        v3 = self.V_terms[1]
+        #      / (
         #     fdim[:, np.newaxis, np.newaxis]
         #     * fdim[np.newaxis, :, np.newaxis]
         #     * fdim[np.newaxis, np.newaxis, :]
         # )
-        # v4 = v4 * (
-        #         fdim[:, np.newaxis, np.newaxis, np.newaxis]
-        #         * fdim[np.newaxis, :, np.newaxis, np.newaxis]
-        #         * fdim[np.newaxis, np.newaxis, :, np.newaxis]
-        #         * fdim[np.newaxis, np.newaxis, np.newaxis, :]
+        v4 = self.V_terms[2]
+        # / (
+        #     fdim[:, np.newaxis, np.newaxis, np.newaxis]
+        #     * fdim[np.newaxis, :, np.newaxis, np.newaxis]
+        #     * fdim[np.newaxis, np.newaxis, :, np.newaxis]
+        #     * fdim[np.newaxis, np.newaxis, np.newaxis, :]
         # )
+
+        # raise Exception(np.round(v4 * h2w))
 
         zeta, Be = self.coriolis_terms.get_zetas_and_momi()
 
         harm, anharm = self._get_Nielsen_energies(states, freqs, v3, v4, zeta, Be)
 
-        return harm , anharm
+        # harm = harm / h2w
+        anharm = anharm
+
+        return harm, anharm
 
     @staticmethod
     def get_coupled_space(states, order, freqs=None, freq_threshold=None):
@@ -639,21 +682,34 @@ class PerturbationTheoryHamiltonian:
     @staticmethod
     def _martin_test(h_reps, states, threshold):
         """
-        Applies the Martin Test to all of the coupled states and returns the resulting correlation matrix
+        Applies the Martin Test to a set of states and perturbations to determine which resonances need to be
+        treated variationally. Everything is done within the set of indices for the representations.
 
-        :param states:
-        :type states:
-        :return:
-        :rtype:
+        :param h_reps: The representation matrices of the perturbations we're applying.
+        :type h_reps: Iterable[np.ndarray | SparseArray]
+        :param states: The indices of the states to which we're going apply to the Martin test.
+        :type states: Iterable[int]
+        :param threshold: The threshold for what should be treated variationally (in the same energy units as the Hamiltonians)
+        :type threshold: float
+        :return: Pairs of coupled states
+        :rtype: tuple[Iterable[int], Iterable[int]]
         """
 
-        energies = np.diag(h_reps[0])
+        H0 = h_reps[0]
+        H1 = h_reps[1]
+        energies = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
         state_energies = energies[states]
-        diffs = np.array([e - energies for e in state_energies])
+        diffs = np.abs(np.array([e - energies for e in state_energies]))
+        # raise Exception(diffs)
         for n, s in enumerate(states):
             diffs[n, s] = 1
-        H1_blocks = h_reps[1][states,]
+
+        H1_blocks = H1[states, :]
+        if isinstance(H1_blocks, SparseArray):
+            H1_blocks = H1_blocks.toarray()
         corr_mat = (H1_blocks ** 4) / (diffs ** 3)
+
+        # raise Exception(H1_blocks.shape, diffs.shape)
 
         deg_states = []
         for s, block in zip(states, corr_mat):
@@ -668,14 +724,15 @@ class PerturbationTheoryHamiltonian:
 
     @classmethod
     def _get_VPT_corrections(
-                cls,
-                h_reps,
-                states,
-                coupled_states,
-                total_states,
-                order,
-                degenerate_states=None
-        ):
+            cls,
+            h_reps,
+            states,
+            coupled_states,
+            total_states,
+            order,
+            degenerate_states=None,
+            logger=None
+    ):
         """
         Applies perturbation theory to the constructed representations of H0, H1, etc.
 
@@ -701,6 +758,20 @@ class PerturbationTheoryHamiltonian:
         #           |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=1...k-1) + <n^(0)|n^(k)> |n^(0)>
         #  where Pi_n is the perturbation operator [1/(E_m-E_n) for m!=n]
 
+        if logger is not None:
+            logger.log_print(
+                "\n    ".join([
+                    "Computing PT corrections:",
+                    "perturbations: {pert_num}",
+                    "order: {ord}",
+                    "states: {state_num}",
+                    "basis sizes {basis_size}"
+                ]),
+                pert_num=len(h_reps) - 1,
+                ord=order,
+                state_num=len(states),
+                basis_size=[len(b) for b in coupled_states]
+            )
         H, coupled_inds, total_coupled_space = cls._get_VPT_representations(h_reps, states, coupled_states)
         del coupled_states # for safety as I debug
         N = len(total_coupled_space)
@@ -709,22 +780,22 @@ class PerturbationTheoryHamiltonian:
             # we check this twice because the Martin test can return None
             if isinstance(degenerate_states, (int, np.integer, np.floating, float)):
                 thresh = degenerate_states
+                if logger is not None:
+                    logger.log_print(
+                        "    applying Martin test with threshold {}",
+                        thresh
+                    )
                 degenerate_states = cls._martin_test(
                     H,
                     state_inds, # state indices in the coupled_states
                     thresh
                 )
-                # print("Got {} from the Martin test wth threshold {}".format(
-                #     degenerate_states,
-                #     thresh
-                # ))
             elif all(isinstance(x, (int, np.integer)) for x in degenerate_states):
                 # means we just got the degenerate subspace to work with
                 pairs = [
                     l for l in itertools.product(degenerate_states, degenerate_states) if l[0] < l[1]
                     ]
                 degenerate_states = np.array(pairs).T
-                print('Got degenerate states {}'.format(pairs))
             elif degenerate_states is not None:
                 try:
                     degenerate_states = degenerate_states(H, coupled_states)
@@ -734,6 +805,11 @@ class PerturbationTheoryHamiltonian:
         if degenerate_states is None:
             deg_vals = None
         else:
+            if logger is not None:
+                logger.log_print(
+                    "    got {} degenerate states",
+                    len(degenerate_states[0])
+                )
             deg_i, deg_j = degenerate_states
             deg_vals = np.array([h[deg_i, deg_j] for h in H])
 
@@ -745,6 +821,7 @@ class PerturbationTheoryHamiltonian:
                 h[deg_j, deg_i] = 0.
                 H_non_deg[i] = h
             H = H_non_deg
+
 
         all_energies = np.zeros((len(states), order + 1))
         all_overlaps = np.zeros((len(states), order + 1))
@@ -810,8 +887,6 @@ class PerturbationTheoryHamiltonian:
                     cs = total_coupled_space
                 wfn[cs] = cor
 
-
-
         corrs = PerturbationTheoryCorrections(
             {
                 "states":states,
@@ -850,10 +925,14 @@ class PerturbationTheoryHamiltonian:
             H_deg = [np.zeros(1)] * len(deg_vals[1:])
             for i, v in enumerate(deg_vals[1:]):
                 H_deg[i] = np.zeros((deg_dim, deg_dim))
-                H_deg[i] [mapped_inds[0], mapped_inds[1]] = v
-                H_deg[i] [mapped_inds[1], mapped_inds[0]] = v
+                H_deg[i][mapped_inds[0], mapped_inds[1]] = v
+                H_deg[i][mapped_inds[1], mapped_inds[0]] = v
             # now we need to transform from the basis of zero-order states to the basis of non-degenerate states
             # which we do by using our previously built PerturbationTheoryCorrections
+            if logger is not None:
+                logger.log_print(
+                    "    generating representation of resonance terms in Hamiltonian"
+                )
             H_deg = corrs.operator_representation(H_deg, subspace=degenerate_space)
             # now that we've corrected those elements, we add on the diagonal terms,
             # add things up, and diagonalize
@@ -865,10 +944,16 @@ class PerturbationTheoryHamiltonian:
             deg_transf = deg_transf.T # easier for the moment...
             state_set = set(np.arange(len(deg_transf)))
             sort_transf = deg_transf.copy()
+
             for i in range(len(deg_transf)):
                 max_ov = np.max(deg_transf[:, i]**2)
                 ov_thresh = .5
-                # if max_ov < ov_thresh: # there must be a single mode that has more than 50% of the initial state character?
+                if max_ov < ov_thresh: # there must be a single mode that has more than 50% of the initial state character?
+                    if logger is not None:
+                        logger.log_print(
+                             "    state {} is more than 50% mixed",
+                            i
+                        )
                 #     raise PerturbationTheoryException("mode {} is has no contribution of greater than {}".format(
                 #         i, ov_thresh
                 #     ))
@@ -882,11 +967,7 @@ class PerturbationTheoryHamiltonian:
             #     raise PerturbationTheoryException("After diagonalizing can't distinguish modes...")
             deg_engs = deg_engs[sorting,]
             deg_transf = deg_transf[sorting, :]
-            # import McUtils.Plots as plt
-            # plt.ArrayPlot(deg_transf).show()
-            # raise Exception(deg_transf)
-            # # raise Exception(engs, H)
-            # wfns = np.dot(deg_transf, wfns)
+
             corrs.degenerate_energies = deg_engs
             corrs.degenerate_transf = deg_transf
 
@@ -901,6 +982,8 @@ class PerturbationTheoryHamiltonian:
         :return:
         :rtype:
         """
+
+        raise NotImplementedError("Implementation has changed and this method needs to catch up")
         total_states = int(np.prod(self.basis.quanta))
         if coupled_states is None:
             coupled_states = np.arange(total_states)  # expensive but...I guess what are you gonna do?
@@ -972,7 +1055,8 @@ class PerturbationTheoryHamiltonian:
             coupled_states,
             total_states,
             order,
-            degenerate_states=degeneracies
+            degenerate_states=degeneracies,
+            logger=self.logger
             )
 
         return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs)

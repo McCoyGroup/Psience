@@ -51,13 +51,15 @@ class VPTTests(TestCase):
                               v4=None,
                               coriolis=None,
                               watson=None,
-                              degeneracies=None
+                              degeneracies=None,
+                              log=False
                               ):
 
         hammer = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data(fchk),
             internals=internals,
-            mode_selection=mode_selection
+            mode_selection=mode_selection,
+            log = log
         )
 
         wfn_file = os.path.join(self.wfn_file_dir, fchk.replace("fchk", "npz"))
@@ -115,7 +117,8 @@ class VPTTests(TestCase):
                       v4=None,
                       coriolis=None,
                       watson=None,
-                      degeneracies=None
+                      degeneracies=None,
+                      log=False
                       ):
         return self.get_VPT2_wfns_and_ham(
             fchk,
@@ -133,7 +136,8 @@ class VPTTests(TestCase):
             v4=v4,
             coriolis=coriolis,
             watson=watson,
-            degeneracies=degeneracies
+            degeneracies=degeneracies,
+            log=log
         )[0]
     def get_states(self, n_quanta, n_modes, max_quanta = None):
         import itertools as ip
@@ -1504,7 +1508,7 @@ class VPTTests(TestCase):
 
     @debugTest
     def test_HOHNielsenEnergies(self):
-
+        # need to figure out the units on this shit if I want it to work...
         states = (
             (0, 0, 0),
             (0, 0, 1), (0, 1, 0), (1, 0, 0),
@@ -2758,7 +2762,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs-gaussian_freqs[:, 1])[:len(states)-1]),
             1)
 
-    @validationTest
+    @inactiveTest
     def test_OCHTVPTCartesians(self):
 
         internals = None
@@ -2784,14 +2788,12 @@ class VPTTests(TestCase):
                 coupled_states=4000/self.h2w, #only couple stuff within 5000 wavenumbers
                 # coupled_states=coupled_states,
                 mode_selection=mode_selection
-                # , degeneracies=5/self.h2w
+                , degeneracies=10/self.h2w
+                , log=True
             )
 
         # block()
         exc, stat_block, wfns = self.profile_block(block)
-
-        # print(len(coupled_states), len(wfns.corrs.coupled_states))
-
         do_profile = False
         if do_profile:
             if exc is not None:
@@ -2803,6 +2805,10 @@ class VPTTests(TestCase):
                 raise Exception(stat_block)
         elif exc is not None:
             raise exc
+
+
+        # print(len(coupled_states), len(wfns.corrs.coupled_states))
+        print(wfns.corrs.degenerate_states)
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         engs = h2w * wfns.energies
