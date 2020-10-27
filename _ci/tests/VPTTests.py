@@ -571,7 +571,7 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v4, atol=.1))  # testing to within .001 wavenumbers
 
-    @validationTest
+    @inactiveTest
     def test_TestCubicsInternals(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOD_freq.fchk"),
@@ -584,20 +584,21 @@ class VPTTests(TestCase):
 
         # it turns out Anne and I disagree pretty fucking dramatically on these...
         # but is it an issue? If I use her cubic force constants the energies are way, way off...
+        # RESOLVED: this is from an old bad version of Anne's code
         v4_Anne = [
-            [1, 1, 1, 198.63477267],
-            [2, 1, 1, 41.05987944],
-            [3, 1, 1, 429.45742955],
-            [1, 2, 1, 41.05987944],
-            [2, 2, 1, -90.66588863],
-            [3, 2, 1, 82.31540784],
-            [1, 3, 1, 429.45742955],
-            [2, 3, 1, 82.31540784],
-            [3, 3, 1, -153.50694953],
-            [1, 1, 2, 41.16039749],
-            [2, 1, 2, -90.73683527],
-            [3, 1, 2, 82.32690754],
-            [1, 2, 2, -90.73683527],
+            [1, 1, 1,   198.63477267],
+            [2, 1, 1,    41.05987944],
+            [3, 1, 1,   429.45742955],
+            [1, 2, 1,    41.05987944],
+            [2, 2, 1,   -90.66588863],
+            [3, 2, 1,    82.31540784],
+            [1, 3, 1,   429.45742955],
+            [2, 3, 1,    82.31540784],
+            [3, 3, 1,  -153.50694953],
+            [1, 1, 2,    41.16039749],
+            [2, 1, 2,   -90.73683527],
+            [3, 1, 2,    82.32690754],
+            [1, 2, 2,   -90.73683527],
             [2, 2, 2, -1588.89967595],
             [3, 2, 2, 91.00951548],
             [1, 3, 2, 82.32690754],
@@ -690,7 +691,249 @@ class VPTTests(TestCase):
 
         v4 = self.h2w * ham.V_terms[2]
 
-        print_errors = False
+        print_errors = True
+        if print_errors:
+            if not np.allclose(legit, v4, atol=0):
+                diff = legit - v4
+                bad_pos = np.array(np.where(np.abs(diff) > 0)).T
+                print("Anne/This Disagreements:\n" + "\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
+                        i, j, k, l, diff[i, j, k, l], legit[i, j, k, l], v4[i, j, k, l]
+                    ) for i, j, k, l in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v4, atol=1))
+
+    @validationTest
+    def test_TestCubicsInternalsHOH(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOH_freq.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 0, 1, -1]
+            ]
+        )
+
+        # it turns out Anne and I disagree pretty fucking dramatically on these...
+        # but is it an issue? If I use her cubic force constants the energies are way, way off...
+        v4_Anne = [
+            [1, 1, 1, 198.63477267],
+            [2, 1, 1, 41.05987944],
+            [3, 1, 1, 429.45742955],
+            [1, 2, 1, 41.05987944],
+            [2, 2, 1, -90.66588863],
+            [3, 2, 1, 82.31540784],
+            [1, 3, 1, 429.45742955],
+            [2, 3, 1, 82.31540784],
+            [3, 3, 1, -153.50694953],
+            [1, 1, 2, 41.16039749],
+            [2, 1, 2, -90.73683527],
+            [3, 1, 2, 82.32690754],
+            [1, 2, 2, -90.73683527],
+            [2, 2, 2, -1588.89967595],
+            [3, 2, 2, 91.00951548],
+            [1, 3, 2, 82.32690754],
+            [2, 3, 2, 91.00951548],
+            [3, 3, 2, -172.34377091],
+            [1, 1, 3, 430.44067645],
+            [2, 1, 3,  82.33125106],
+            [3, 1, 3, -153.78923868],
+            [1, 2, 3,  82.33125106],
+            [2, 2, 3,  90.96564514],
+            [3, 2, 3, -172.45333790],
+            [1, 3, 3, -153.78923868],
+            [2, 3, 3, -172.45333790],
+            [3, 3, 3, -2558.24567375]
+        ]
+
+        legit = np.zeros((3, 3, 3))
+        for k, j, i, v in v4_Anne:
+            i = i - 1;
+            j = j - 1;
+            k = k - 1
+            legit[i, j, k] = v
+
+        v3 = self.h2w * ham.V_terms[1]
+
+        print_errors = True
+        if print_errors:
+            if not np.allclose(legit, v3, atol=.1):
+                diff = legit - v3
+                bad_pos = np.array(np.where(np.abs(diff) > .1)).T
+                print("Anne/This Disagreements:\n" + "\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
+                        i, j, k, diff[i, j, k], legit[i, j, k], v3[i, j, k]
+                    ) for i, j, k in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v3, atol=10))
+
+    @validationTest
+    def test_TestQuarticsInternalsHOH(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOH_freq.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 0, 1, -1]
+            ]
+        )
+
+        v4_Anne = [
+            [1, 1, 1, -37.03937000],
+            [2, 1, 1, -32.30391126],
+            [3, 1, 1, -33.08215609],
+            [1, 2, 1, -32.30391126],
+            [2, 2, 1, 3.57147725],
+            [3, 2, 1, 9.77124742],
+            [1, 3, 1, -33.08215609],
+            [2, 3, 1, 9.77124742],
+            [3, 3, 1, 3.08396862],
+            [1, 1, 2, 3.53204514],
+            [2, 1, 2, 66.35374213],
+            [3, 1, 2, -8.46713126],
+            [1, 2, 2, 66.35374213],
+            [2, 2, 2, 804.47871323],
+            [3, 2, 2, -51.44004640],
+            [1, 3, 2, -8.46713126],
+            [2, 3, 2, -51.44004640],
+            [3, 3, 2, 10.60086681],
+            [1, 1, 3, 2.67361974],
+            [2, 1, 3, 3.14497676],
+            [3, 1, 3, 111.80682105],
+            [1, 2, 3, 3.14497676],
+            [2, 2, 3, 10.60153758],
+            [3, 2, 3, 97.05643377],
+            [1, 3, 3, 111.80682105],
+            [2, 3, 3, 97.05643377],
+            [3, 3, 3, 1519.00602277]
+        ]
+
+        legit = np.zeros((3, 3, 3, 3))
+        for k, j, i, v in v4_Anne:
+            i = i - 1;
+            j = j - 1;
+            k = k - 1
+            for perm in ip.permutations((i, i, j, k)):
+                legit[perm] = v
+
+        v4 = self.h2w * ham.V_terms[2]
+
+        print_errors = True
+        if print_errors:
+            if not np.allclose(legit, v4, atol=0):
+                diff = legit - v4
+                bad_pos = np.array(np.where(np.abs(diff) > 0)).T
+                print("Anne/This Disagreements:\n" + "\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
+                        i, j, k, l, diff[i, j, k, l], legit[i, j, k, l], v4[i, j, k, l]
+                    ) for i, j, k, l in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v4, atol=1))
+
+    @debugTest
+    def test_TestGQInternalsHOH(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOH_freq.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1]
+            ]
+        )
+
+        v3_Anne = [
+            [1, 1, 1,  -42.7571572306],
+
+            [2, 1, 1,   11.2415784419],
+            [1, 2, 1,   11.2415784419],
+            [1, 1, 2, -236.4538948819],
+
+            [2, 2, 1,   45.2894929663],
+            [2, 1, 2,   14.0668758162],
+            [1, 2, 2,   14.0668758162],
+
+            [3, 3, 1,  -47.2340749349],
+            [3, 1, 3,   10.2421465679],
+            [1, 3, 3,   10.2421465679],
+
+            [2, 2, 2,   -0.6940443704],
+
+            [3, 3, 2,    0.3058655908],
+            [3, 2, 3,   -1.0551886296],
+            [2, 3, 3,   -1.0551886296]
+        ]
+
+        legit = np.zeros((3, 3, 3))
+        for k, j, i, v in v3_Anne:
+            i = i - 1
+            j = j - 1
+            k = k - 1
+            legit[i, j, k] = v
+
+        v3 = self.h2w * ham.G_terms[1]
+
+        print_errors = True
+        if print_errors:
+            if not np.allclose(legit, v3, atol=.1):
+                diff = legit - v3
+                bad_pos = np.array(np.where(np.abs(diff) > .1)).T
+                print("Anne/This Disagreements:\n" + "\n".join(
+                    "{:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
+                        i, j, k, diff[i, j, k], legit[i, j, k], v3[i, j, k]
+                    ) for i, j, k in bad_pos
+                ))
+
+        self.assertTrue(np.allclose(legit, v3, atol=10))
+
+    @debugTest
+    def test_TestGQQInternalsHOH(self):
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOH_freq.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1]
+            ]
+        )
+
+        v4_Anne = [
+            [1, 1, 1, 1, -0.0813253351],
+            [2, 2, 1, 1,  3.9823166834],
+            [2, 1, 2, 1, 27.7264838055],
+            [1, 2, 1, 2, 27.7264838055],
+            [1, 1, 2, 2, 49.3985875508],
+            [3, 3, 1, 1, -2.5877826647],
+            [3, 1, 3, 1, 20.1052292927],
+            [1, 3, 1, 3, 20.1052292927],
+            [1, 1, 3, 3, 48.8826338651],
+            [2, 2, 2, 2,  0.2270703177],
+            [3, 3, 2, 2, -0.0001049353],
+            [3, 2, 3, 2, -1.6145992219],
+            [2, 3, 2, 3, -1.6145992219],
+            [2, 2, 3, 3,  0.2233861641],
+            [3, 3, 3, 3, -0.0000015626]
+        ]
+
+        legit = np.zeros((3, 3, 3, 3))
+        for l, k, j, i, v in v4_Anne:
+            i = i - 1
+            j = j - 1
+            k = k - 1
+            l = l - 1
+            legit[i, j, k, l] = v
+
+        v4 = self.h2w * ham.G_terms[2]
+        import itertools as ip
+        for i, j, k, l in ip.product(range(3), range(3), range(3), range(3)):
+            s = list(sorted([i, j, k, l]))
+            if s[0] != s[1] or s[2] != s[3]: # Anne doesn't have numbers for these values
+                # print(s)
+                v4[i, j, k, l] = 0.
+
+        print_errors = True
         if print_errors:
             if not np.allclose(legit, v4, atol=0):
                 diff = legit - v4
@@ -1506,7 +1749,7 @@ class VPTTests(TestCase):
             .01 # within .01 wavenumbers
         ))
 
-    @debugTest
+    @inactiveTest
     def test_HOHNielsenEnergies(self):
         # need to figure out the units on this shit if I want it to work...
         states = (
@@ -1517,7 +1760,7 @@ class VPTTests(TestCase):
         )
 
         hammer = PerturbationTheoryHamiltonian.from_fchk(
-            TestManager.test_data("HOH_freq.fchk"),
+            TestManager.test_data("HOD_freq.fchk"),
             internals=None
         )
 
@@ -1592,6 +1835,184 @@ class VPTTests(TestCase):
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
     @validationTest
+    def test_DODVPTCartesians(self):
+
+        internals = None
+        # [
+        #     [0, -1, -1, -1],
+        #     [1, 0, -1, -1],
+        #     [2, 0, 1, -1]
+        # ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+
+        wfns = self.get_VPT2_wfns(
+            "DOD_freq.fchk",
+            internals,
+            states,
+            save_coeffs=True,
+            regenerate=True
+            , coupled_states=self.get_states(5, 3)
+            # , watson=0.
+            # , v3=0
+            # , v4=0
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
+        energies = h2w * wfns.energies
+        zero_ord = h2w * wfns.zero_order_energies
+
+        # print(wfns.corrs.coupled_states)
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
+
+        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
+                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
+                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
+        gaussian_energies = np.array([3406.854, 3366.588])
+        gaussian_freqs = np.array([
+            [2884.314, 2779.931],
+            [2742.310, 2648.051],
+            [1187.085, 1160.758],
+
+            [5768.628, 5504.706],
+            [5484.619, 5250.472],
+            [2374.171, 2306.554],
+
+            [5626.624, 5341.492],
+            [4071.399, 3928.727],
+            [3929.395, 3798.041]
+        ])
+
+        my_energies = np.array([zero_ord[0], energies[0]])
+        my_freqs = np.column_stack([
+            zero_ord[1:] - zero_ord[0],
+            energies[1:] - energies[0]
+        ])
+
+        print_report = False
+        if print_report:
+            print("Gaussian:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(gaussian_states, gaussian_freqs)
+                  )
+                  )
+            print("State Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs)
+                  )
+                  )
+
+        print_diffs = True
+        if print_diffs:
+            print("Difference Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
+                  )
+                  )
+        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
+
+    @validationTest
+    def test_DODVPTInternals(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+
+        wfns = self.get_VPT2_wfns(
+            "DOD_freq.fchk",
+            internals,
+            states,
+            save_coeffs=True,
+            regenerate=True
+            , coupled_states=self.get_states(5, 3)
+            # , watson=0.
+            # , v3=0
+            # , v4=0
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
+        energies = h2w * wfns.energies
+        zero_ord = h2w * wfns.zero_order_energies
+
+        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
+                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
+                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
+        gaussian_energies = np.array([3406.854, 3366.588])
+        gaussian_freqs = np.array([
+            [2884.314, 2779.931],
+            [2742.310, 2648.051],
+            [1187.085, 1160.758],
+
+            [5768.628, 5504.706],
+            [5484.619, 5250.472],
+            [2374.171, 2306.554],
+
+            [5626.624, 5341.492],
+            [4071.399, 3928.727],
+            [3929.395, 3798.041]
+        ])
+
+        my_energies = np.array([zero_ord[0], energies[0]])
+        my_freqs = np.column_stack([zero_ord[1:] - zero_ord[0], energies[1:] - energies[0]])
+
+        print_report = False
+        if print_report:
+            print("Gaussian:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(gaussian_states, gaussian_freqs)
+                  )
+                  )
+            print("State Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs)
+                  )
+                  )
+
+        print_diffs = True
+        if print_diffs:
+            print("Difference Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
+                  )
+                  )
+        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
+
+    @debugTest
     def test_HOHVPTInternals(self):
 
         internals = [
@@ -1613,6 +2034,7 @@ class VPTTests(TestCase):
             save_coeffs=True,
             regenerate=True
             , coupled_states = self.get_states(5, 3)
+            # , watson=0.
             # , v3=0
             # , v4=0
         )
@@ -1779,7 +2201,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @validationTest
+    @debugTest
     def test_HODVPTInternals(self):
 
         internals = [
@@ -2762,7 +3184,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs-gaussian_freqs[:, 1])[:len(states)-1]),
             1)
 
-    @inactiveTest
+    @validationTest
     def test_OCHTVPTCartesians(self):
 
         internals = None
@@ -2785,10 +3207,10 @@ class VPTTests(TestCase):
                 states,
                 regenerate=True,
                 # coupled_states=self.get_states(9, n_modes),
-                coupled_states=4000/self.h2w, #only couple stuff within 5000 wavenumbers
+                coupled_states=10000/self.h2w, #only couple stuff within 5000 wavenumbers
                 # coupled_states=coupled_states,
                 mode_selection=mode_selection
-                , degeneracies=10/self.h2w
+                # , degeneracies=10/self.h2w
                 , log=True
             )
 

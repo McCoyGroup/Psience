@@ -228,7 +228,7 @@ class ExpansionTerms:
         if max_jac > len(exist_jacs):
             need_jacs = [x+1 for x in range(0, max_jac)]
             # for whatever reason I have to recompute a bunch of shit inside sys.jacobian...?
-            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs)]
+            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs, mesh_spacing=1.0e-5)]
             self._cached_jacobians[self.molecule]['int'] = new_jacs
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
@@ -248,7 +248,7 @@ class ExpansionTerms:
         if max_jac > len(exist_jacs):
             need_jacs = [x + 1 for x in range(0, max_jac)]
             new_jacs = [
-                x.squeeze() for x in ccoords.jacobian(internals, need_jacs)
+                x.squeeze() for x in ccoords.jacobian(internals, need_jacs, mesh_spacing=1.0e-5)
                 ]
             self._cached_jacobians[self.molecule]['cart'] = new_jacs
             exist_jacs = new_jacs
@@ -267,237 +267,6 @@ class ExpansionTerms:
             self._inert_frame = B_e, eigs
 
         return self._inert_frame
-
-    @classmethod
-    def _new_get_tensor_derivs(cls, x_derivs, V_derivs, order=4, mixed_XQ=False):
-        """
-        Returns the derivative tensors of the potential with respect to the normal modes
-        (note that this is fully general and the "cartesians" and "normal modes" can be any coordinate sets)
-        :param x_derivs: The derivatives of the cartesians with respect to the normal modes
-        :type x_derivs:
-        :param V_derivs: The derivative of the potential with respect to the cartesians
-        :type V_derivs:
-        :param mixed_XQ: Whether the v_derivs[2] = V_Qxx and v_derivs[3] = V_QQxx or not
-        :type mixed_XQ: bool
-        """
-
-        dot = DumbTensor._dot
-        shift = DumbTensor._shift
-
-        derivs = [None] * order
-
-        # First Derivs
-        xQ = x_derivs[0]
-        Vx = V_derivs[0]
-        V_Q = dot(xQ, Vx)
-
-        derivs[0] = V_Q
-        if order == 1:
-            return tuple(derivs)
-
-        # Second Derivs
-        xQQ = x_derivs[1]
-        Vxx = V_derivs[1]
-
-        V_QQ_1 = dot(xQQ, Vx)
-        V_QQ_2 = dot(xQ, dot(xQ, Vxx, axes=[[1, 0]]), axes=[[1, 1]])
-        V_QQ_terms = (V_QQ_1, V_QQ_2)
-        V_QQ = sum(x for x in V_QQ_terms if not isinstance(x, int))
-        derivs[1] = V_QQ
-        if order == 2:
-            return tuple(derivs)
-
-        # Third Derivs
-        xQQQ = x_derivs[2]
-        Vxxx = V_derivs[2]
-
-        # If Q is just an expansion in X all of these terms will disappear except for V_QQQ_5
-
-        # Gradient contribution
-        V_QQQ_1 = dot(xQQQ, Vx)
-        # Second deriv.
-        # we generate the base arrangement
-        Q32 = dot(xQQ, dot(xQ, Vxx, axes=[[1, 0]]), axes=[[2, 1]])
-        # then we do the transpositions that put the xQ coordinate inside the xQQ
-        if not isinstance(Q32, int):
-            X = tuple(range(3, Q32.ndim))
-            V_QQQ_2_terms = [
-                Q32.transpose(0, 1, 2, *X),
-                Q32.transpose(1, 2, 0, *X),
-                Q32.transpose(2, 0, 1, *X)
-                ]
-            V_QQQ_2 = sum(V_QQQ_2_terms)
-        else:
-            V_QQQ_2 = 0
-
-        # Third derivs.
-        if not mixed_XQ:
-            V_QQQ_3 = dot(xQ, dot(xQ, dot(xQ, Vxxx), axes=[[1, 1]]), axes=[[1, 2]])
-        else:
-            V_QQQ_3 = dot(xQ, dot(xQ, Vxxx, axes=[[1, 1]]), axes=[[1, 2]])
-
-        V_QQQ_terms = (
-            V_QQQ_1,
-            V_QQQ_2,
-            V_QQQ_3
-        )
-        V_QQQ = sum(x for x in V_QQQ_terms if not isinstance(x, int))
-
-        # print("---- V3 ----")
-        # for i, v in enumerate(V_QQQ_terms):
-        #     print(i, v[0, 0, 0] if not isinstance(v, int) else v)
-
-        derivs[2] = V_QQQ
-        if order == 3:
-            return tuple(derivs)
-
-        # Fourth Derivs
-        # For now we'll just generate everything rather than being particularly clever about it
-
-        xQQQQ = x_derivs[3]
-        Vxxxx = V_derivs[3]
-
-        ## Gradient contribution
-        V_QQQQ_1 = dot(xQQQQ, Vx)
-
-        ## Hessian contribution
-        #  All QQQ x Q permutations
-        Q4231 = dot(xQQQ, dot(xQ, Vxx, axes=[[1, 0]]), axes=[[3, 1]])
-        if not isinstance(Q4231, int):
-            X = tuple(range(4, Q4231.ndim))
-            V_QQQQ_21_terms =[
-                Q4231,
-                Q4231.transpose(3, 0, 1, 2, *X),
-                Q4231.transpose(0, 3, 1, 2, *X),
-                Q4231.transpose(0, 1, 3, 2, *X)
-            ]
-            V_QQQQ_21 = sum(V_QQQQ_21_terms)
-        else:
-            V_QQQQ_21_terms = 0
-            V_QQQQ_21 = 0
-        # QQ x QQ permutations
-        Q4222 = dot(xQQ, dot(xQQ, Vxx, axes=[[2, 1]]), axes=[[2, 2]])
-        if not isinstance(Q4222, int):
-            X = tuple(range(4, Q4222.ndim))
-            V_QQQQ_22_terms = [
-                Q4222.transpose(2, 0, 1, 3, *X),
-                Q4222.transpose(2, 3, 0, 1, *X),
-                Q4222.transpose(2, 0, 3, 1, *X)
-            ]
-            V_QQQQ_22 = sum(V_QQQQ_22_terms)
-        else:
-            V_QQQQ_22 = 0
-
-        V_QQQQ_2 = sum(x for x in [V_QQQQ_21, V_QQQQ_22] if not isinstance(x, int))
-
-        if mixed_XQ:
-            Q4321 = dot(xQ, dot(xQQ, Vxxx, axes=[[2, 2]]), axes=[[1, 3]])
-            if not isinstance(Q4321, int):
-                X = tuple(range(4, Q4321.ndim))
-                # raise Exception("??...??", Q4321)
-                V_QQQQ_3_terms = [
-                    Q4321.transpose(3, 1, 2, 0, *X),
-                    Q4321.transpose(1, 3, 2, 0, *X),
-                    Q4321.transpose(0, 1, 3, 2, *X),
-                    Q4321.transpose(0, 3, 1, 2, *X),
-                    Q4321.transpose(1, 0, 3, 2, *X)
-                    ]
-                V_QQQQ_3 = sum(V_QQQQ_3_terms)
-            else:
-                V_QQQQ_3 = 0
-                V_QQQQ_3_terms = 0
-        else:
-            Q4321 = dot(xQ, dot(xQ, dot(xQQ, Vxxx), axes=[[1, 2]]), axes=[[1, 3]])
-            Q4321_2 = dot(xQ, dot(xQQ, dot(xQ, Vxxx), axes=[[2, 2]]), axes=[[1, 3]])
-            if not isinstance(Q4321, int):
-                X = tuple(range(4, Q4321.ndim))
-                # raise Exception("shoot_me", Q4321)
-                # raise Exception("shoot_me2", Q4321_2)
-                # # # do all the necessary permutations...
-                # # to be able to reuse the old permutations we do
-                # # an initial one...
-
-                # V_QQQQ_3_terms = (
-                #     Q4321.transpose(3, 1, 2, 0, *X),
-                #     Q4321.transpose(1, 3, 2, 0, *X),
-                #     Q4321.transpose(0, 1, 3, 2, *X),
-                #     Q4321.transpose(0, 3, 1, 2, *X),
-                #     Q4321.transpose(1, 0, 3, 2, *X),
-                #     Q4321_2.transpose(0, 1, 3, 2, *X)
-                # )
-                V_QQQQ_3_terms_1 = [
-                    Q4321.transpose(*p, *X) for p in ip.permutations(range(4))
-                ]
-                V_QQQQ_3_terms_2 = [
-                    Q4321_2.transpose(*p, *X) for p in ip.permutations(range(4))
-                ]
-                V_QQQQ_3 = 1/6 * sum(V_QQQQ_3_terms_1) + 1/12 * sum(V_QQQQ_3_terms_2)
-                # raise Exception("????", V_QQQQ_3)
-            else:
-                V_QQQQ_3 = 0
-                V_QQQQ_3_terms = 0
-
-        # fourth derivs
-        if not mixed_XQ:
-            V_QQQQ_4 = dot(xQ,
-                           dot(xQ,
-                               dot(xQ,
-                                   dot(xQ, Vxxxx), axes=[[1, 1]]),
-                               axes=[[1, 2]]),
-                           axes=[[1, 3]]
-                           )
-        else:
-            VQQxx = Vxxxx
-
-            if not isinstance(VQQxx, int):
-                V_QQQQ_4 = dot(VQQxx, xQ, xQ, axes=[[3, 1], [2, 1]])
-                N = V_QQQQ_4.ndim
-                X = N - 4
-                if X > 0:
-                    unroll = (0, 1) + tuple(range(2+X, N)) + tuple(range(2, 2+X))
-                    V_QQQQ_4 = V_QQQQ_4.transpose(unroll)
-                # X = tuple(range(4, V_QQQQ_4.ndim))
-                # if mixed_XQ:
-                #     # we need to zero out the elements we don't really have because Gaussian is mean
-                #     import itertools
-                #     nQ = V_QQQQ_4.shape[0]
-                #     if nQ > 3:
-                #         perms = np.array(list(itertools.permutations(range(nQ), 4))).T
-                #         # print(V_QQQQ_4.shape[0], perms)
-                #         V_QQQQ_4[perms] = 0.
-            else:
-                V_QQQQ_4 = 0
-
-        V_QQQQ_terms = (
-                V_QQQQ_1 ,
-                V_QQQQ_2 ,
-                V_QQQQ_3 ,
-                V_QQQQ_4
-        )
-
-        V_QQQQ= sum(x for x in V_QQQQ_terms if not isinstance(x, int))
-
-        # if not mixed_XQ and (not isinstance(Vx, int) and Vx.ndim == 1):
-        #     import McUtils.Plots as plt
-        # #     if not isinstance(V_QQQQ_1, int):
-        # #         g = plt.TensorPlot(V_QQQQ_1)
-        # #     if not isinstance(V_QQQQ_2, int):
-        # #         g = plt.TensorPlot(V_QQQQ_2,
-        # #                            plot_style=dict(vmin=-5.0e-5, vmax=5.0e-5))
-        #     if not isinstance(V_QQQQ_3, int):
-        #         g = plt.TensorPlot(V_QQQQ_3,
-        #                            plot_style=dict(vmin=-5.0e-4, vmax=5.0e-4))
-        # #     if not isinstance(V_QQQQ_4, int):
-        # #         g = plt.TensorPlot(V_QQQQ_4)
-        #     g.show()
-        # print("---- V4 ----")
-        # for i, v in enumerate(V_QQQQ_terms):
-        #     print(i, v[0, 0, 2, 2] if not isinstance(v, int) else v)
-        # if not isinstance(V_QQQQ_3_terms, int):
-        #     for i, v in enumerate(V_QQQQ_3_terms):
-        #         print(i, v[0, 0, 2, 2] if not isinstance(v, int) else v)
-
-        return V_Q, V_QQ, V_QQQ, V_QQQQ
 
     @classmethod
     def _get_tensor_derivs(cls, x_derivs, V_derivs, order=4, mixed_XQ=False, mixed_terms=False):
@@ -726,10 +495,22 @@ class ExpansionTerms:
                 * mass_conv[np.newaxis, :, np.newaxis, np.newaxis]
                 * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
         )
+        # RYY[0, 1] = 0.
+        # RYY[0, 0] = 0.
+        # RYY[1, 0] = 0.
+        # RYY[1, 1] = 0.
+        # RYY[2, 2] = 0.
         QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
         YQ = self.modes.inverse
 
         RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
+        QR = np.tensordot(YR, QY, axes=[-1, 0])
+        # print([RY, YR])
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(RY)
+        # plt.ArrayPlot(YR)
+        # plt.TensorPlot(RYY)
+        # plt.TensorPlot(YRR).show()
 
         # print(
         #     np.max(np.abs(RXX))
@@ -740,6 +521,13 @@ class ExpansionTerms:
         YQ_derivs = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
         YQ, YQQ, YQQQ, YQQQQ = YQ_derivs
 
+        QYY = np.tensordot(RYY, QR, axes=[-1, 0])
+        QYYY = np.tensordot(RYYY, QR, axes=[-1, 0])
+            # np.tensordot(RQ,
+            #                np.tensordot(RQ, np.tensordot(RQ, YRR, axes=[1, 0]), axes=[1, 1]),
+            #                axes=[1, 2]
+            #                )
+
         qQ, qQQ, qQQQ, qQQQQ = self._get_tensor_derivs(
             YQ_derivs, (QY, 0, 0, 0),
             mixed_XQ=False
@@ -748,9 +536,34 @@ class ExpansionTerms:
         # if np.max(np.abs(qQ-np.eye(qQ.shape[0]))) < 1.0e-8:
         #     qQ = np.eye(qQ.shape[0])
 
+        # for l, t in (
+        #     ("dYdQ", YQ),
+        #     ("dYdQQ", YQQ),
+        #     ("dYdQQQ", YQQQ),
+        #     ("dQdY", QY),
+        #     ("dQdYY", QYY),
+        #     ("dQdYYY", QYYY),
+        #     ("dRdY", RY),
+        #     ("dRdYY", RYY),
+        #     ("dRdYYY", RYYY),
+        #     ("dRdYY", RYY),
+        #     ("dRdYYY", RYYY),
+        #     ("dYdR", YR),
+        #     ("dYdRR", YRR),
+        #     ("dYdRRR", YRRR)
+        # ):
+        #     t = np.abs(t)
+        #     M = np.max(t)
+        #     m = np.min(t)
+        #     print(l + ": ", np.round(M, 4), np.where(t == M), np.round(m, 4), np.average(t))
+
+
+        # import McUtils.Plots as plt
+        # plt.TensorPlot(YQQ).show()
+
         self._cached_transforms[self.molecule] = {
             "CartesiansByModes": [YQ, YQQ, YQQQ, YQQQQ],
-            "ModesByCartesians": [QY],
+            "ModesByCartesians": [QY, QYY, QYYY],
             "CartesiansByInternals": [YR, YRR, YRRR, YRRRR],
             "InternalsByCartesians": [RY, RYY, RYYY],
             "CartesianModesByInternalModes": [qQ, qQQ, qQQQ, qQQQQ]
@@ -905,7 +718,6 @@ class PotentialTerms(ExpansionTerms):
         # Now if we've got an internal spec, transform into internal modes
         intcds = self.internal_coordinates
         if intcds is not None:
-            QY, = self.modes_by_cartesians
             YQ, YQQ, _, _ = self.cartesians_by_modes
             qQ_terms = self.cartesian_modes_by_internal_modes
 
@@ -936,14 +748,7 @@ class PotentialTerms(ExpansionTerms):
             #TODO: I'd like to have support for using more/fewer derivs, just in case
 
             xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
-            QY, = self.modes_by_cartesians
-
-            # print(
-            #     np.max(np.abs(xQ)),
-            #     np.max(np.abs(xQQ)),
-            #     np.max(np.abs(QY)),
-            #     np.max(np.abs(hess))
-            # )
+            QY, QYY, QYYY = self.modes_by_cartesians
 
             dot = DumbTensor._dot
             if self.mixed_derivs:
@@ -955,6 +760,16 @@ class PotentialTerms(ExpansionTerms):
             V_derivs = (grad, hess, thirds, fourths)
 
             v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=True, mixed_XQ=self.mixed_derivs)
+
+            # for l, t in (
+            #         ("V2", v2),
+            #         ("V3", v3),
+            #         ("V4", v4)
+            # ):
+            #     t = np.abs(t)
+            #     M = np.max(t)
+            #     m = np.min(t)
+            #     print(l + ": ", np.round(M, 4), np.where(t == M), np.round(m, 4), np.average(t))
 
         if self.mixed_derivs:# and intcds is None:
             # we assume we only got second derivs in Q_i Q_i
@@ -981,45 +796,52 @@ class KineticTerms(ExpansionTerms):
             GQ = 0
             GQQ = 0
         else:
-
-            QY, = self.modes_by_cartesians
+            QY, QYY, QYYY = self.modes_by_cartesians
             YQ, YQQ, YQQQ, YQQQQ = self.cartesians_by_modes
-            YR, YRR, YRRR, YRRRRR = self.cartesians_by_internals
+            # YR, YRR, YRRR, YRRRRR = self.cartesians_by_internals
             RY, RYY, RYYY = self.internals_by_cartesians
 
-            RQ = dot(YQ, RY)
+            # RQ = dot(YQ, RY)
 
             G = dot(QY, QY, axes=[[0, 0]])
 
-            J = DumbTensor(QY)
-            Jd = DumbTensor(YQ)
-            K = DumbTensor(dot(RYY, YR, QY))
-            U = K.dot(J, axes=[[0, 0]])
-
-            GQ = Jd@(U + U[2:1])
-            GQ = GQ.t
-
-            L = DumbTensor(dot(RYYY, YR, QY))
-            H = DumbTensor(dot(RQ, dot(RQ, YRR, axes=[[1, 0]]), axes=[[1, 1]]))
-            K22 = K.dot(K, axes=[[1, 1]])
-            V = L[3:2]@J + K22[2:0]
-
-            GQQ = (H@(U + U[2:1])).t + (Jd@(Jd@(V+V[3:2]))[0:1]).t
-
-            # import McUtils.Plots as plt
+            # J = DumbTensor(QY)
+            # Jd = DumbTensor(YQ)
+            # K = DumbTensor(dot(RYY, YR, QY))
+            # U = K.dot(J, axes=[[0, 0]])
             #
-            # plt.ArrayPlot(G)
-            # plt.TensorPlot(GQ)
-            # plt.TensorPlot(GQQ).show()
+            # GQ = Jd@(U + U[2:1])
+            # GQ = GQ.t
+            #
+            # L = DumbTensor(dot(RYYY, YR, QY))
+            # H = DumbTensor(dot(RQ, dot(RQ, YRR, axes=[[1, 0]]), axes=[[1, 1]]))
+            # K22 = K.dot(K, axes=[[1, 1]])
+            # V = L[3:2]@J + K22[2:0]
+            #
+            # GQQ = (H@(U + U[2:1])).t + (Jd@(Jd@(V+V[3:2]))[0:1]).t
+            # raise Exception(QYY.shape)
+
+            GQ = dot(YQ, QYY, QY, axes=[[1, 0], [1, 0]]) + dot(YQ, dot(QY, QYY, axes=[[0, 0]]), axes=[[-1, 1]])
+            GQQ = (
+                    dot(YQQ, QYY, QY, axes=[[-1, 0], [2, 0]])
+                    + dot(YQQ, dot(QY, QYY, axes=[[0, 0]]), axes=[[-1, 1]])
+                    + dot(YQ, dot(YQ, QYYY, QY, axes=[[-1, 0], [1, 0]]), axes=[[1, 1]])
+                    + dot(YQ, dot(YQ, dot(QY, QYYY, axes=[[0, 0]]), axes=[[1, 1]]), axes=[[1, 2]])
+                    + dot(YQ, dot(YQ, QYY, QYY, axes=[[-1, 0], [1, 1]]), axes=[[1, 2]])
+                    + dot(YQ, dot(YQ, QYY, QYY, axes=[[-1, 0], [1, 1]]), axes=[[1, 2]]).transpose((0, 1, 3, 2))
+                    # + dot(YQ, dot(YQ, dot(QYY, QYY, axes=[[0, 0]]), axes=[[-1, 0]]), axes=[[1, 2]])
+            )
+            # for l, t in (
+            #         ("G", G),
+            #         ("dGdQ", GQ),
+            #         ("dGdQQ", GQQ)
+            # ):
+            #     t = np.abs(t)
+            #     M = np.max(t)
+            #     m = np.min(t)
+            #     print(l + ": ", np.round(M, 4), np.where(t == M), np.round(m, 4), np.average(t))
 
         G_terms = (G, GQ, GQQ)
-
-        # for k,v in (
-        #         ('G', G),
-        #         ('GQ', GQ),
-        #         ('GQQ', GQQ)
-        # ):
-        #     print(k, np.max(np.abs(v)), np.min(np.abs(v)))
 
         return G_terms
 
@@ -1136,7 +958,7 @@ class DipoleTerms(ExpansionTerms):
             xQQQQ = 0
         else:
 
-            QY, = self.modes_by_cartesians
+            QY, QYY, QYYY = self.modes_by_cartesians
             xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
 
         x_derivs = (xQ, xQQ, xQQQ, xQQQQ)

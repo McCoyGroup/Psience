@@ -314,14 +314,17 @@ class PerturbationTheoryHamiltonian:
 
     @staticmethod
     def _Nielsen_xss(s, w, v3, v4, zeta, Be, ndim):
+        # actually pulled from the Stanton VPT4 paper since they had
+        # the same units as I do...
         # we split this up into 3rd derivative, 4th derivative, and coriolis terms
 
-        xss_4 = 1 / 4 * 6 * v4[s, s, s, s]
-        xss_3 = -1 / 4 * (
-                15 * (v3[s, s, s] ** 2 / w[s])
-                + sum((
+        xss_4 = 1 / 16 * v4[s, s, s, s]
+        xss_3 = -(
+                5/48 * (v3[s, s, s] ** 2 / w[s])
+                + 1/16 * sum((
                               (v3[s, s, t] ** 2) / w[t]
-                              * (8 * (w[s] ** 2) - 3 * (w[t] ** 2)) / (4 * (w[s] ** 2) - (w[t] ** 2))
+                              * (8 * (w[s] ** 2) - 3 * (w[t] ** 2))
+                              / (4 * (w[s] ** 2) - (w[t] ** 2))
                       ) for t in range(ndim) if t != s
                       )
         )
@@ -330,24 +333,30 @@ class PerturbationTheoryHamiltonian:
 
     @staticmethod
     def _Nielsen_xst(s, t, w, v3, v4, zeta, Be, ndim):
-        xst_4 = 1 / 2 * v4[s, s, t, t]
-        xst_3 = -1 / 2 * (
-                6 * (v3[s, s, s] * v3[s, t, t] / w[s])
-                + 4 * v3[s, s, t] ** 2 * (w[s] / (4 * w[s] ** 2 - w[t] ** 2))
-                + sum((v3[s, s, r] * v3[r, t, t]) / w[r] for r in range(ndim) if r != s and r != t)
-                + sum((
-                              (v3[s, t, r] ** 2 / 2) * w[r] * (w[r] ** 2 - w[s] ** 2 - w[t] ** 2)
-                              / (
-                                      (w[s] + w[t] + w[r])
-                                      * (w[s] + w[t] - w[r])
-                                      * (w[s] - w[t] + w[r])
-                                      * (w[s] - w[t] - w[r])
+        # actually pulled from Stanton VPT4 paper
+        xst_4 = 1 / 4 * v4[s, s, t, t]
+        xst_3 = - 1 / 2 * (
+                v3[s, s, t] ** 2 * w[s] / (4 * w[s] ** 2 - w[t] ** 2)
+                + v3[s, t, t] ** 2 * w[t] / (4 * w[t] ** 2 - w[s] ** 2)
+                + v3[s, s, s] * v3[s, s, t] / (2 * w[s])
+                + v3[t, t, t] * v3[t, t, s] / (2 * w[t])
+                - sum((
+                              (
+                                      (v3[s, t, r] ** 2) * w[r] * (w[s] ** 2 + w[t] ** 2 - w[r] ** 2)
+                                      / (
+                                          # This fucking delta_ijk term I don't know what it should be
+                                          # because no one has it in my units
+                                          # and none of the force-field definitions are consistent
+                                              w[s] ** 4 + w[t] ** 4 + w[r] ** 4
+                                              - 2 * ((w[s] * w[t]) ** 2 + (w[s] * w[r]) ** 2 + (w[t] * w[r]) ** 2)
+                                      )
                               )
+                              - v3[s, s, r] * v3[t, t, r] / (2 * w[r])
                       ) for r in range(ndim) if r != s and r != t
                       )
         )
-        xst_cor = 2 * sum((
-                                  Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s])
+        xst_cor = sum((
+                                  Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s] + w[t] / w[s])
                           ) for a in range(3))
 
         return [xst_3, xst_4, xst_cor]
@@ -464,22 +473,10 @@ class PerturbationTheoryHamiltonian:
         # TODO: figure out WTF the units on this have to be...
 
         freqs = self.modes.freqs
-        # fdim = np.sqrt(freqs)
         v3 = self.V_terms[1]
-        #      / (
-        #     fdim[:, np.newaxis, np.newaxis]
-        #     * fdim[np.newaxis, :, np.newaxis]
-        #     * fdim[np.newaxis, np.newaxis, :]
-        # )
         v4 = self.V_terms[2]
-        # / (
-        #     fdim[:, np.newaxis, np.newaxis, np.newaxis]
-        #     * fdim[np.newaxis, :, np.newaxis, np.newaxis]
-        #     * fdim[np.newaxis, np.newaxis, :, np.newaxis]
-        #     * fdim[np.newaxis, np.newaxis, np.newaxis, :]
-        # )
 
-        # raise Exception(np.round(v4 * h2w))
+        # raise Exception(np.round( 6 * v3 * h2w))
 
         zeta, Be = self.coriolis_terms.get_zetas_and_momi()
 
