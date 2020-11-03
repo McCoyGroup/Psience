@@ -248,7 +248,7 @@ class ExpansionTerms:
         if max_jac > len(exist_jacs):
             need_jacs = [x + 1 for x in range(0, max_jac)]
             new_jacs = [
-                x.squeeze() for x in ccoords.jacobian(internals, need_jacs, mesh_spacing=1.0e-5)
+                x.squeeze() for x in ccoords.jacobian(internals, need_jacs, mesh_spacing=1.0e-5, analytic_deriv_order=1)
                 ]
             self._cached_jacobians[self.molecule]['cart'] = new_jacs
             exist_jacs = new_jacs
@@ -463,6 +463,8 @@ class ExpansionTerms:
             XRRRR = _contract_dim(XRRRR, 5)
 
         RX, RXX, RXXX = self.get_cart_jacobs([1, 2, 3])
+        # print(self.molecule, self.molecule.internal_coordinates, np.round(RX, 3), np.round(RXX, 3))
+        # raise Exception(RXX.shape)
         if RX.ndim > 2:
             RX = _contract_dim(RX, 2)
         if RXX.ndim > 3:
@@ -941,12 +943,13 @@ class DipoleTerms(ExpansionTerms):
         # fourths = fourths
         # fourths = fourths * undimension_4
 
-        return grad, seconds, thirds
+        return mom, grad, seconds, thirds
 
     def get_terms(self):
-        grad = self.derivs[0]
-        seconds = self.derivs[1]
-        thirds = self.derivs[2]
+        v0 = self.derivs[0]
+        grad = self.derivs[1]
+        seconds = self.derivs[2]
+        thirds = self.derivs[3]
 
         # Use the Molecule's coordinates which know about their embedding by default
         intcds = self.internal_coordinates
@@ -970,7 +973,7 @@ class DipoleTerms(ExpansionTerms):
                 u1, u2, u3 = [DumbTensor(u) for u in u_derivs]
 
                 v1 = (xQ@u1).t
-                v2 = xQ.dot(u2, axes=[[1, 1]]).t
+                v2 = xQ.dot(u2, axes=[[1, 1]]).t + xQQ.dot(u1, axes=[[2, 0]]).t
 
                 # rather than do this, for numerical stability reasons we'll want to
                 # directly apply xQQ since we have YQ QY _should_ be the identity but is not
@@ -1019,7 +1022,7 @@ class DipoleTerms(ExpansionTerms):
                 v2 = np.tensordot(xQ, u2, axes=[1, 1])
                 v3 = np.tensordot(xQ, u3, axes=[1, 2])
 
-            mu[coord] = (v1, v2, v3)#(v1, v2, 0)#(v1, 0, 0)
+            mu[coord] = (v0[coord], v1, v2, v3)#(v1, v2, 0)#(v1, 0, 0)
 
         return mu
 

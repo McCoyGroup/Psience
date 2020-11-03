@@ -58,6 +58,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         self.rep_basis = basis # temporary hack until I decided how to merge the idea of
                                # AnalyticWavefunctions with a RepresentationBasis
         self._tm_dat = None
+        self._dipole_terms = None
+        self.dipole_partitioning = 'standard'
         super().__init__(
             self.corrs.energies,
             self.corrs.wfn_corrections,
@@ -72,7 +74,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     @property
     def zero_order_energies(self):
         return self.corrs.energy_corrs[:, 0]
-    def _transition_moments(self, mu_x, mu_y, mu_z):
+    def _transition_moments(self, mu_x, mu_y, mu_z, partitioning=None):
         """
         Calculates the x, y, and z components of the
         transition moment between the wavefunctions stored
@@ -83,6 +85,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :type mu_y: Iterable[np.ndarray]
         :param mu_z: dipole z components (1st, 2nd, 3rd derivatives in normal modes)
         :type mu_z: Iterable[np.ndarray]
+        :param partitioning: whether to put linear and constant in mu_0 (standard) or linear in mu_1 (intuitive)
+        :type partitioning: None | str
         :return:
         :rtype:
         """
@@ -93,19 +97,35 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         # raise Exception([mu_1[0].shape)
         mu = [mu_x, mu_y, mu_z]
         for a in range(3): #x, y, and z
-            # ...I might need to add the constant term into this?
-            mu_1, mu_2, mu_3 = mu[a]
-            m1 = self.rep_basis.representation("x", coeffs=mu_1)
-            m1 = m1[np.ix_(M, M)]
-            m2 = 1/2*self.rep_basis.representation("x", "x", coeffs=mu_2)
-            m2 = m2[np.ix_(M, M)]
-            m3 = 1/6*self.rep_basis.representation("x", "x", "x", coeffs=mu_3)
-            m3 = m3[np.ix_(M, M)]
+            mu_0, mu_1, mu_2, mu_3 = mu[a]
+            if isinstance(mu[a][0], np.ndarray) and mu[a][0].shape == (M, M):
+                mu_terms = mu
+            else:
+                if partitioning is None:
+                    partitioning = self.dipole_partitioning
+                if partitioning == 'intuitive':
+                    m1 = self.rep_basis.representation(coeffs=mu_0)
+                    m1 = m1[np.ix_(M, M)]
+                    m2 = self.rep_basis.representation("x", coeffs=mu_1)
+                    m2 = m2[np.ix_(M, M)]
+                    m3 = 1 / 2 * self.rep_basis.representation("x", "x", coeffs=mu_2)
+                    m3 = m3[np.ix_(M, M)]
+                else:
+                    m1 = self.rep_basis.representation("x", coeffs=mu_1) + self.rep_basis.representation(coeffs=mu_0)
+                    m1 = m1[np.ix_(M, M)]
+                    m2 = 1/2*self.rep_basis.representation("x", "x", coeffs=mu_2)
+                    m2 = m2[np.ix_(M, M)]
+                    m3 = 1/6*self.rep_basis.representation("x", "x", "x", coeffs=mu_3)
+                    m3 = m3[np.ix_(M, M)]
 
-            mu_terms = [m1, m2, m3]
+                mu_terms = [m1, m2, m3]
+
+            mu_terms = [m.todense() if not isinstance(m, (int, float, np.integer, np.floating, np.ndarray)) else m for m in mu_terms]
+
             corr_terms = [corr_vecs[:, 0], corr_vecs[:, 1], corr_vecs[:, 2]]
 
-            for q in range(3): # total quanta
+            for q in range(len(mu_terms)): # total quanta
+                # print([(i, j, k) for i,j,k in ip.product(range(q+1), range(q+1), range(q+1)) if i+j+k==q])
                 transition_moment_components[q][a] = [
                     np.dot(np.dot(corr_terms[i], mu_terms[k]), corr_terms[j].T)
                     for i, j, k in ip.product(range(q+1), range(q+1), range(q+1)) if i+j+k==q
@@ -123,6 +143,16 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         return tmom, transition_moment_components
 
     @property
+    def dipole_terms(self):
+        if self._dipole_terms is None:
+            self._dipole_terms = DipoleTerms(self.mol).get_terms()
+        return self._dipole_terms
+    @dipole_terms.setter
+    def dipole_terms(self, v):
+        self._dipole_terms = v
+        self._tm_dat = None
+
+    @property
     def transition_moments(self):
         """
         Computes the transition moments between wavefunctions stored in the object
@@ -132,7 +162,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
 
         if self._tm_dat is None:
-           self._tm_dat = self._transition_moments(*DipoleTerms(self.mol).get_terms())
+            self._tm_dat = self._transition_moments(*self.dipole_terms)
         return self._tm_dat[0]
 
     @property
@@ -145,7 +175,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
 
         if self._tm_dat is None:
-            self._tm_dat = self._transition_moments(*DipoleTerms(self.mol).get_terms())
+            self._tm_dat = self._transition_moments(*self.dipole_terms)
         return self._tm_dat[1]
 
     @property

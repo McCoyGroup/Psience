@@ -36,11 +36,13 @@ class VPTTests(TestCase):
 
     wfn_file_dir = os.path.expanduser("~/Desktop/")
 
-    def get_VPT2_wfns_and_ham(self, fchk,
+    def get_VPT2_wfns_and_ham(self,
+                              fchk,
                               internals,
                               states,
                               save_coeffs=False,
-                              regenerate=False,
+                              save_wfns=False,
+                              regenerate=True,
                               coupled_states=None,
                               mode_selection=None,
                               v2=None,
@@ -52,7 +54,8 @@ class VPTTests(TestCase):
                               coriolis=None,
                               watson=None,
                               degeneracies=None,
-                              log=False
+                              log=False,
+                              get_breakdown=False
                               ):
 
         hammer = PerturbationTheoryHamiltonian.from_fchk(
@@ -61,6 +64,43 @@ class VPTTests(TestCase):
             mode_selection=mode_selection,
             log = log
         )
+
+        if get_breakdown:
+            dGdQ = hammer.H1.computers[0].operator.coeffs
+            dFdQ = hammer.H1.computers[1].operator.coeffs
+            dGdQQ = hammer.H2.computers[0].operator.coeffs
+            dFdQQ = hammer.H2.computers[1].operator.coeffs
+            coriolisTerm = hammer.H2.computers[2].operator.coeffs
+            watsonTerm = hammer.H2.computers[3].operator.coeffs
+
+            # print(dGdQ, dFdQ, dGdQQ, dFdQQ, coriolisTerm, watsonTerm)
+
+            hammer.H1.computers[0].operator.coeffs = 0
+            hammer.H1.computers[1].operator.coeffs = 0
+            hammer.H2.computers[0].operator.coeffs = 0
+            hammer.H2.computers[1].operator.coeffs = 0
+            if coriolisTerm is not None:
+                hammer.H2.computers[2].operator.coeffs = 0
+            hammer.H2.computers[3].operator.coeffs = 0
+
+            harmonics = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies)
+
+            hammer.H1.computers[0].operator.coeffs = dGdQ
+            hammer.H1.computers[1].operator.coeffs = dFdQ
+            cubics = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies)
+
+            hammer.H2.computers[0].operator.coeffs = dGdQQ
+            hammer.H2.computers[1].operator.coeffs = dFdQQ
+            if coriolisTerm is not None:
+                hammer.H2.computers[2].operator.coeffs = coriolisTerm
+            hammer.H2.computers[3].operator.coeffs = watsonTerm
+            full = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies)
+
+            hammer.H1.computers[0].operator.coeffs = 0
+            hammer.H1.computers[1].operator.coeffs = 0
+            quartics = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies)
+
+            return [harmonics, cubics, quartics, full], hammer
 
         wfn_file = os.path.join(self.wfn_file_dir, fchk.replace("fchk", "npz"))
         if regenerate or not os.path.exists(wfn_file):
@@ -73,7 +113,9 @@ class VPTTests(TestCase):
                          dGdQ=hammer.H1.computers[0].operator.coeffs,
                          dFdQ=hammer.H1.computers[1].operator.coeffs,
                          dGdQQ=hammer.H2.computers[0].operator.coeffs,
-                         dFdQQ=hammer.H2.computers[1].operator.coeffs
+                         dFdQQ=hammer.H2.computers[1].operator.coeffs,
+                         coriolis=hammer.H2.computers[2].operator.coeffs,
+                         watson=hammer.H2.computers[3].operator.coeffs
                          )
 
             if t2 is not None:
@@ -96,7 +138,8 @@ class VPTTests(TestCase):
                 hammer.H2.computers[3].operator.coeffs = watson
 
             wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies)
-            self.save_wfns(wfn_file, wfns)
+            if save_wfns:
+                self.save_wfns(wfn_file, wfns)
         else:
             wfns = self.load_wfns(hammer.molecule, hammer.basis, wfn_file)
 
@@ -118,7 +161,8 @@ class VPTTests(TestCase):
                       coriolis=None,
                       watson=None,
                       degeneracies=None,
-                      log=False
+                      log=False,
+                      get_breakdown=False
                       ):
         return self.get_VPT2_wfns_and_ham(
             fchk,
@@ -137,7 +181,8 @@ class VPTTests(TestCase):
             coriolis=coriolis,
             watson=watson,
             degeneracies=degeneracies,
-            log=log
+            log=log,
+            get_breakdown=get_breakdown
         )[0]
     def get_states(self, n_quanta, n_modes, max_quanta = None):
         import itertools as ip
@@ -833,7 +878,7 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v4, atol=1))
 
-    @debugTest
+    @inactiveTest
     def test_TestGQInternalsHOH(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOH_freq.fchk"),
@@ -888,7 +933,7 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v3, atol=10))
 
-    @debugTest
+    @inactiveTest
     def test_TestGQQInternalsHOH(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOH_freq.fchk"),
@@ -4041,6 +4086,7 @@ class VPTTests(TestCase):
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
         coupled_states = self.get_states(5, 3, max_quanta=5)
+
         wfns = self.get_VPT2_wfns(
             "HOD_freq.fchk",
             internals,
@@ -4247,3 +4293,278 @@ class VPTTests(TestCase):
             [round(x, 2) for x in gaussian_ints[1:]],
             list(np.round(ints[1:10], 2))
         )
+
+    @inactiveTest
+    def test_HODIntensityBreakdown(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        coupled_states = self.get_states(5, 3, max_quanta=5)
+
+        all_wfns = self.get_VPT2_wfns(
+            "HOD_freq.fchk",
+            internals,
+            states,
+            regenerate=True,
+            coupled_states=coupled_states,
+            get_breakdown=True
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+
+        terms = []
+        plot_specs = False
+        if plot_specs:
+            import McUtils.Plots as plt
+            g = plt.GraphicsGrid(nrows=len(all_wfns), ncols=4, subimage_size=(200, 100))
+        for i, wfns in enumerate(all_wfns):
+            dts = wfns.dipole_terms
+            wfns.dipole_partitioning='intuitive'
+            wfn_terms=[]
+
+            dipole_breakdowns = [
+                [[d[0], d[1], np.zeros(d[2].shape), np.zeros(d[3].shape)] for d in dts],
+                [[d[0], d[1], d[2], np.zeros(d[3].shape)] for d in dts],
+                [[d[0], d[1], np.zeros(d[2].shape), d[3]] for d in dts],
+                dts
+            ]
+
+            engs = h2w * wfns.energies
+            freqs = engs - engs[0]
+
+            harm_engs = h2w * wfns.zero_order_energies
+            harm_freqs = harm_engs - harm_engs[0]
+
+            wfn_terms.append(freqs.tolist())
+            for j, dt in enumerate(dipole_breakdowns):
+                wfns.dipole_terms = dt
+                ints = wfns.intensities
+                harm_ints = wfns.zero_order_intensities
+
+                wfn_terms.append(ints.tolist())
+
+                if plot_specs:
+                    s = plt.StickPlot(freqs, ints,
+                                      aspect_ratio=.5,
+                                      plot_legend=("Anharmonic", "Harmonic"),
+                                      image_size=500,
+                                      figure=g[i, j]
+                                      )
+                    plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                                  aspect_ratio=.5,
+                                  axes_labels=["$\nu$ (cm$^{-1}$)", "I (km mol$^{-1}$)"],
+                                  plot_legend=("Anharmonic", "Harmonic")
+                                  )
+                corrs = wfns.transition_moment_corrections
+                wfn_terms.append([[[[list(a) for a in z] for z in y] for y in x] for x in corrs])
+
+            wfn_terms.append(wfns.corrs.wfn_corrections[:, :, wfns.corrs.coupled_states].tolist())
+
+            terms.append(wfn_terms)
+        if plot_specs:
+            g.show()
+
+
+        import json
+
+        if wfns.dipole_partitioning == 'intuitive':
+            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD_intuitive.json"
+        else:
+            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD.json"
+        with open(dump_file, "w+") as f:
+            json.dump(terms, f)
+
+    @inactiveTest
+    def test_HODCartesianIntensityBreakdown(self):
+
+        internals = None
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        coupled_states = self.get_states(5, 3, max_quanta=5)
+
+        all_wfns = self.get_VPT2_wfns(
+            "HOD_freq.fchk",
+            internals,
+            states,
+            regenerate=True,
+            coupled_states=coupled_states,
+            get_breakdown=True
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+
+        terms = []
+        plot_specs = False
+        if plot_specs:
+            import McUtils.Plots as plt
+            g = plt.GraphicsGrid(nrows=len(all_wfns), ncols=4, subimage_size=(200, 100))
+        for i, wfns in enumerate(all_wfns):
+            dts = wfns.dipole_terms
+            wfns.dipole_partitioning='intuitive'
+            wfn_terms = []
+
+            dipole_breakdowns = [
+                [[d[0], d[1], np.zeros(d[2].shape), np.zeros(d[3].shape)] for d in dts],
+                [[d[0], d[1], d[2], np.zeros(d[3].shape)] for d in dts],
+                [[d[0], d[1], np.zeros(d[2].shape), d[3]] for d in dts],
+                dts
+            ]
+
+            engs = h2w * wfns.energies
+            freqs = engs - engs[0]
+
+            harm_engs = h2w * wfns.zero_order_energies
+            harm_freqs = harm_engs - harm_engs[0]
+
+            wfn_terms.append(freqs.tolist())
+            for j, dt in enumerate(dipole_breakdowns):
+                wfns.dipole_terms = dt
+                ints = wfns.intensities
+                harm_ints = wfns.zero_order_intensities
+
+                wfn_terms.append(ints.tolist())
+
+                if plot_specs:
+                    s = plt.StickPlot(freqs, ints,
+                                      aspect_ratio=.5,
+                                      plot_legend=("Anharmonic", "Harmonic"),
+                                      image_size=500,
+                                      figure=g[i, j]
+                                      )
+                    plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                                  aspect_ratio=.5,
+                                  axes_labels=["$\nu$ (cm$^{-1}$)", "I (km mol$^{-1}$)"],
+                                  plot_legend=("Anharmonic", "Harmonic")
+                                  )
+
+                corrs = wfns.transition_moment_corrections
+                wfn_terms.append([[[[list(a) for a in z] for z in y] for y in x] for x in corrs])
+
+            wfn_terms.append(wfns.corrs.wfn_corrections[:, :, wfns.corrs.coupled_states].tolist())
+
+            terms.append(wfn_terms)
+        if plot_specs:
+            g.show()
+
+        import json
+
+        if wfns.dipole_partitioning == 'intuitive':
+            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD_cart_intuitive.json"
+        else:
+            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD_cart.json"
+        with open(dump_file, "w+") as f:
+            json.dump(terms, f)
+
+    @inactiveTest
+    def test_HOHCartesianIntensityBreakdown(self):
+
+        internals = None
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        coupled_states = self.get_states(5, 3, max_quanta=5)
+
+        all_wfns = self.get_VPT2_wfns(
+            "HOH_freq.fchk",
+            internals,
+            states,
+            regenerate=True,
+            coupled_states=coupled_states,
+            get_breakdown=True
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+
+        terms = []
+        plot_specs = False
+        if plot_specs:
+            import McUtils.Plots as plt
+            g = plt.GraphicsGrid(nrows=len(all_wfns), ncols=4, subimage_size=(200, 100))
+
+        for i, wfns in enumerate(all_wfns):
+            dts = wfns.dipole_terms
+            wfns.dipole_partitioning = 'intuitive'
+            wfn_terms = []
+
+            dipole_breakdowns = [
+                [[d[0], d[1], np.zeros(d[2].shape), np.zeros(d[3].shape)] for d in dts],
+                [[d[0], d[1], d[2], np.zeros(d[3].shape)] for d in dts],
+                [[d[0], d[1], np.zeros(d[2].shape), d[3]] for d in dts],
+                dts
+            ]
+
+            engs = h2w * wfns.energies
+            freqs = engs - engs[0]
+
+            harm_engs = h2w * wfns.zero_order_energies
+            harm_freqs = harm_engs - harm_engs[0]
+
+            wfn_terms.append(freqs.tolist())
+            for j, dt in enumerate(dipole_breakdowns):
+                wfns.dipole_terms = dt
+                ints = wfns.intensities
+                harm_ints = wfns.zero_order_intensities
+
+                wfn_terms.append(ints.tolist())
+
+                if plot_specs:
+                    s = plt.StickPlot(freqs, ints,
+                                      aspect_ratio=.5,
+                                      plot_legend=("Anharmonic", "Harmonic"),
+                                      image_size=500,
+                                      figure=g[i, j]
+                                      )
+                    plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                                  aspect_ratio=.5,
+                                  axes_labels=["$\nu$ (cm$^{-1}$)", "I (km mol$^{-1}$)"],
+                                  plot_legend=("Anharmonic", "Harmonic")
+                                  )
+                corrs = wfns.transition_moment_corrections
+                wfn_terms.append([[[[list(a) for a in z] for z in y] for y in x] for x in corrs])
+
+            wfn_terms.append(wfns.corrs.wfn_corrections[:, :, wfns.corrs.coupled_states].tolist())
+
+            terms.append(wfn_terms)
+
+        if plot_specs:
+            g.show()
+
+        import json
+
+        if wfns.dipole_partitioning == 'intuitive':
+            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOH_cart_intuitive.json"
+        else:
+            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOH_cart.json"
+        with open(dump_file, "w+") as f:
+            json.dump(terms, f)
