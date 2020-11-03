@@ -59,6 +59,16 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         else:
             axes = axes[:2]
 
+        # np.random.seed(100)
+        # com = np.random.rand(3)
+        # ax_1 = np.random.rand(3)
+        # ax_1 = ax_1 / np.linalg.norm(ax_1)
+        # ax_2 = np.random.rand(3)
+        # ax_2 = ax_2 / np.linalg.norm(ax_2)
+        # ax_2 = np.cross(ax_1, ax_2)
+        # ax_2 = ax_2 / np.linalg.norm(ax_2)
+        # axes = np.array([ax_1, ax_2])
+
         converter_options['origins'] = com
         converter_options['axes'] = axes
         converter_options['molecule'] = molecule
@@ -103,7 +113,6 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             first = ordering[0, 0]
         else:
             first = 0
-        converter_options['origins'] = com
 
         # make sure first atom isn't along one of the axes...
         first_pos = molecule.coords[first]
@@ -117,6 +126,17 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         else:
             axes = axes[:2]
 
+        # np.random.seed(100)
+        # com = np.random.rand(3)
+        # ax_1 = np.random.rand(3)
+        # ax_1 = ax_1 / np.linalg.norm(ax_1)
+        # ax_2 = np.random.rand(3)
+        # ax_2 = ax_2 / np.linalg.norm(ax_2)
+        # ax_2 = np.cross(ax_1, ax_2)
+        # ax_2 = ax_2 / np.linalg.norm(ax_2)
+        # axes = np.array([ax_1, ax_2])
+
+        converter_options['origins'] = com
         converter_options['axes'] = axes
         converter_options['molecule'] = molecule
         nats = len(molecule.atoms)

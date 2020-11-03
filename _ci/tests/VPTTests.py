@@ -226,6 +226,8 @@ class VPTTests(TestCase):
         )
         return exc, stat_block, res
 
+    #region Test Representations
+
     @validationTest
     def test_RepresentQQQ(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
@@ -564,6 +566,10 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(sub, expected))
 
+    #endregion
+
+    #region Test Inputs
+
     @validationTest
     def test_TestQuarticsCartesians(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
@@ -691,8 +697,8 @@ class VPTTests(TestCase):
             TestManager.test_data("HOD_freq.fchk"),
             internals=[
                 [0, -1, -1, -1],
-                [1, 0, -1, -1],
-                [2, 0, 1, -1]
+                [1,  0, -1, -1],
+                [2,  0,  1, -1]
             ]
         )
 
@@ -760,36 +766,25 @@ class VPTTests(TestCase):
             ]
         )
 
-        # it turns out Anne and I disagree pretty fucking dramatically on these...
-        # but is it an issue? If I use her cubic force constants the energies are way, way off...
         v4_Anne = [
-            [1, 1, 1, 198.63477267],
-            [2, 1, 1, 41.05987944],
-            [3, 1, 1, 429.45742955],
-            [1, 2, 1, 41.05987944],
-            [2, 2, 1, -90.66588863],
-            [3, 2, 1, 82.31540784],
-            [1, 3, 1, 429.45742955],
-            [2, 3, 1, 82.31540784],
-            [3, 3, 1, -153.50694953],
-            [1, 1, 2, 41.16039749],
-            [2, 1, 2, -90.73683527],
-            [3, 1, 2, 82.32690754],
-            [1, 2, 2, -90.73683527],
-            [2, 2, 2, -1588.89967595],
-            [3, 2, 2, 91.00951548],
-            [1, 3, 2, 82.32690754],
-            [2, 3, 2, 91.00951548],
-            [3, 3, 2, -172.34377091],
-            [1, 1, 3, 430.44067645],
-            [2, 1, 3,  82.33125106],
-            [3, 1, 3, -153.78923868],
-            [1, 2, 3,  82.33125106],
-            [2, 2, 3,  90.96564514],
-            [3, 2, 3, -172.45333790],
-            [1, 3, 3, -153.78923868],
-            [2, 3, 3, -172.45333790],
-            [3, 3, 3, -2558.24567375]
+        [1,   1,   1,    323.8035817067],
+        [2,   1,   1,   -132.0532052153],
+        [1,   2,   1,   -132.0532052153],
+        [1,   1,   2,   -131.6177927698],
+
+        [2,   2,   1,   -117.6853050409],
+        [2,   1,   2,   -117.8181841885],
+        [1,   2,   2,   -117.8181841885],
+
+        [3,   3,   1,   -214.1124120699],
+        [3,   1,   3,   -214.2976999111],
+        [1,   3,   3,   -214.2976999111],
+
+        [2,   2,   2,  -1829.4315686310],
+
+        [3,   3,   2,  -1812.9480307020],
+        [3,   2,   3,  -1812.9726116114],
+        [2,   3,   3,  -1812.9726116114]
         ]
 
         legit = np.zeros((3, 3, 3))
@@ -801,7 +796,7 @@ class VPTTests(TestCase):
 
         v3 = self.h2w * ham.V_terms[1]
 
-        print_errors = True
+        print_errors = False
         if print_errors:
             if not np.allclose(legit, v3, atol=.1):
                 diff = legit - v3
@@ -812,7 +807,7 @@ class VPTTests(TestCase):
                     ) for i, j, k in bad_pos
                 ))
 
-        self.assertTrue(np.allclose(legit, v3, atol=10))
+        self.assertTrue(np.allclose(legit, v3, atol=1))
 
     @validationTest
     def test_TestQuarticsInternalsHOH(self):
@@ -820,56 +815,54 @@ class VPTTests(TestCase):
             TestManager.test_data("HOH_freq.fchk"),
             internals=[
                 [0, -1, -1, -1],
-                [1, 0, -1, -1],
-                [2, 0, 1, -1]
+                [1,  0, -1, -1],
+                [2,  0,  1, -1]
             ]
         )
 
         v4_Anne = [
-            [1, 1, 1, -37.03937000],
-            [2, 1, 1, -32.30391126],
-            [3, 1, 1, -33.08215609],
-            [1, 2, 1, -32.30391126],
-            [2, 2, 1, 3.57147725],
-            [3, 2, 1, 9.77124742],
-            [1, 3, 1, -33.08215609],
-            [2, 3, 1, 9.77124742],
-            [3, 3, 1, 3.08396862],
-            [1, 1, 2, 3.53204514],
-            [2, 1, 2, 66.35374213],
-            [3, 1, 2, -8.46713126],
-            [1, 2, 2, 66.35374213],
-            [2, 2, 2, 804.47871323],
-            [3, 2, 2, -51.44004640],
-            [1, 3, 2, -8.46713126],
-            [2, 3, 2, -51.44004640],
-            [3, 3, 2, 10.60086681],
-            [1, 1, 3, 2.67361974],
-            [2, 1, 3, 3.14497676],
-            [3, 1, 3, 111.80682105],
-            [1, 2, 3, 3.14497676],
-            [2, 2, 3, 10.60153758],
-            [3, 2, 3, 97.05643377],
-            [1, 3, 3, 111.80682105],
-            [2, 3, 3, 97.05643377],
-            [3, 3, 3, 1519.00602277]
+            [1, 1, 1, 1,  -49.5572026693],
+
+            [2, 2, 1, 1,   19.9982906121],
+            [1, 1, 2, 2,   19.8598962862],
+
+            [3, 3, 1, 1,   -7.6481006128],
+            [1, 1, 3, 3,   -7.8037499292],
+
+            [2, 2, 2, 2,  768.5651528907],
+
+            [3, 3, 2, 2,  763.1648005165],
+            [2, 2, 3, 3,  763.1728458966],
+
+            [3, 3, 3, 3,  764.3609369845]
         ]
 
         legit = np.zeros((3, 3, 3, 3))
-        for k, j, i, v in v4_Anne:
-            i = i - 1;
-            j = j - 1;
-            k = k - 1
-            for perm in ip.permutations((i, i, j, k)):
+        for i, j, k, l, v in v4_Anne:
+            i = i - 1; j = j - 1; k = k - 1; l = l - 1
+            for perm in ip.permutations((i, j, k, l)):
                 legit[perm] = v
 
         v4 = self.h2w * ham.V_terms[2]
+        for i, j, k, l in ip.product(range(3), range(3), range(3), range(3)):
+            if i == j:
+                if k != l:
+                    v4[i, j, k, l] = 0.
+            elif i == k:
+                if j != l:
+                    v4[i, j, k, l] = 0.
+            elif i == l:
+                if j != k:
+                    v4[i, j, k, l] = 0.
+            else:
+                v4[i, j, k, l] = 0.
+
 
         print_errors = True
         if print_errors:
-            if not np.allclose(legit, v4, atol=0):
+            if not np.allclose(legit, v4, atol=1):
                 diff = legit - v4
-                bad_pos = np.array(np.where(np.abs(diff) > 0)).T
+                bad_pos = np.array(np.where(np.abs(diff) > 1)).T
                 print("Anne/This Disagreements:\n" + "\n".join(
                     "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
                         i, j, k, l, diff[i, j, k, l], legit[i, j, k, l], v4[i, j, k, l]
@@ -878,7 +871,7 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v4, atol=1))
 
-    @inactiveTest
+    @validationTest
     def test_TestGQInternalsHOH(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOH_freq.fchk"),
@@ -890,25 +883,25 @@ class VPTTests(TestCase):
         )
 
         v3_Anne = [
-            [1, 1, 1,  -42.7571572306],
+        [1,   1,   1,   -42.7571572306],
 
-            [2, 1, 1,   11.2415784419],
-            [1, 2, 1,   11.2415784419],
-            [1, 1, 2, -236.4538948819],
+        [2,   1,   1,    11.2415784419],
+        [1,   2,   1,    11.2415784419],
+        [1,   1,   2,  -236.4538948819],
 
-            [2, 2, 1,   45.2894929663],
-            [2, 1, 2,   14.0668758162],
-            [1, 2, 2,   14.0668758162],
+        [2,   2,   1,    45.2894929663],
+        [2,   1,   2,    14.0668758162],
+        [1,   2,   2,    14.0668758162],
 
-            [3, 3, 1,  -47.2340749349],
-            [3, 1, 3,   10.2421465679],
-            [1, 3, 3,   10.2421465679],
+        [3,   3,   1,   -47.2340749349],
+        [3,   1,   3,    10.2421465679],
+        [1,   3,   3,    10.2421465679],
 
-            [2, 2, 2,   -0.6940443704],
+        [2,   2,   2,    -0.6940443704],
 
-            [3, 3, 2,    0.3058655908],
-            [3, 2, 3,   -1.0551886296],
-            [2, 3, 3,   -1.0551886296]
+        [3,   3,   2,     0.3058655908],
+        [3,   2,   3,    -1.0551886296],
+        [2,   3,   3,    -1.0551886296]
         ]
 
         legit = np.zeros((3, 3, 3))
@@ -920,11 +913,11 @@ class VPTTests(TestCase):
 
         v3 = self.h2w * ham.G_terms[1]
 
-        print_errors = True
+        print_errors = False
         if print_errors:
-            if not np.allclose(legit, v3, atol=.1):
+            if not np.allclose(legit, v3, atol=1):
                 diff = legit - v3
-                bad_pos = np.array(np.where(np.abs(diff) > .1)).T
+                bad_pos = np.array(np.where(np.abs(diff) > 1)).T
                 print("Anne/This Disagreements:\n" + "\n".join(
                     "{:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
                         i, j, k, diff[i, j, k], legit[i, j, k], v3[i, j, k]
@@ -933,7 +926,7 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v3, atol=10))
 
-    @inactiveTest
+    @debugTest
     def test_TestGQQInternalsHOH(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOH_freq.fchk"),
@@ -944,20 +937,21 @@ class VPTTests(TestCase):
             ]
         )
 
+        # it turns out Anne's ij/ij numbers are questionable
         v4_Anne = [
             [1, 1, 1, 1, -0.0813253351],
             [2, 2, 1, 1,  3.9823166834],
-            [2, 1, 2, 1, 27.7264838055],
-            [1, 2, 1, 2, 27.7264838055],
+            # [2, 1, 2, 1, 27.7264838055],
+            # [1, 2, 1, 2, 27.7264838055],
             [1, 1, 2, 2, 49.3985875508],
             [3, 3, 1, 1, -2.5877826647],
-            [3, 1, 3, 1, 20.1052292927],
-            [1, 3, 1, 3, 20.1052292927],
+            # [3, 1, 3, 1, 20.1052292927],
+            # [1, 3, 1, 3, 20.1052292927],
             [1, 1, 3, 3, 48.8826338651],
             [2, 2, 2, 2,  0.2270703177],
             [3, 3, 2, 2, -0.0001049353],
-            [3, 2, 3, 2, -1.6145992219],
-            [2, 3, 2, 3, -1.6145992219],
+            # [3, 2, 3, 2, -1.6145992219],
+            # [2, 3, 2, 3, -1.6145992219],
             [2, 2, 3, 3,  0.2233861641],
             [3, 3, 3, 3, -0.0000015626]
         ]
@@ -978,18 +972,23 @@ class VPTTests(TestCase):
                 # print(s)
                 v4[i, j, k, l] = 0.
 
+        # import McUtils.Plots as plt
+        #
+        # plt.TensorPlot(legit, plot_style={'vmin':-30, 'vmax':30})
+        # plt.TensorPlot(v4, plot_style={'vmin':-30, 'vmax':30}).show()
+
         print_errors = True
         if print_errors:
-            if not np.allclose(legit, v4, atol=0):
+            if not np.allclose(legit, v4, atol=5):
                 diff = legit - v4
-                bad_pos = np.array(np.where(np.abs(diff) > 0)).T
+                bad_pos = np.array(np.where(np.abs(diff) > .5)).T
                 print("Anne/This Disagreements:\n" + "\n".join(
                     "{:>.0f} {:>.0f} {:>.0f} {:>.0f} {:>8.3f} (Anne: {:>10.3f} This: {:>10.3f})".format(
                         i, j, k, l, diff[i, j, k, l], legit[i, j, k, l], v4[i, j, k, l]
                     ) for i, j, k, l in bad_pos
                 ))
 
-        self.assertTrue(np.allclose(legit, v4, atol=1))
+        self.assertTrue(np.allclose(legit, v4, atol=5))
 
     @validationTest
     def test_TestCubicsCartesians2(self):
@@ -1692,6 +1691,10 @@ class VPTTests(TestCase):
         # print(np.round(sum_diff, 3))
         self.assertLess(np.max(sum_diff), .001)
 
+    #endregion
+
+    #region Test Algorithm
+
     @validationTest
     def test_SecondOrderEnergyCorrection(self):
 
@@ -1879,6 +1882,10 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
+    #endregion
+
+    #region Test Systems
+
     @validationTest
     def test_DODVPTCartesians(self):
 
@@ -2057,7 +2064,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HOHVPTInternals(self):
 
         internals = [
@@ -2246,7 +2253,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HODVPTInternals(self):
 
         internals = [
@@ -3506,6 +3513,9 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
+    #endregion Test Systems
+
+    #region Test Terms
     @validationTest
     def test_HODVPTCartesianPotential(self):
 
@@ -4071,6 +4081,10 @@ class VPTTests(TestCase):
 
         self.assertLess(np.max(np.abs(eng_corrs - gaussian_corrs)), .5)
 
+    #endregion Test Components
+
+    #region Test Intensities
+
     @validationTest
     def test_HODIntensities(self):
 
@@ -4294,6 +4308,10 @@ class VPTTests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
+    #endregion Test Intensities
+
+    #region Intensity Breakdowns
+
     @inactiveTest
     def test_HODIntensityBreakdown(self):
 
@@ -4326,67 +4344,69 @@ class VPTTests(TestCase):
         # for i,s in enumerate(states):
         #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
 
-        terms = []
-        plot_specs = False
-        if plot_specs:
-            import McUtils.Plots as plt
-            g = plt.GraphicsGrid(nrows=len(all_wfns), ncols=4, subimage_size=(200, 100))
-        for i, wfns in enumerate(all_wfns):
-            dts = wfns.dipole_terms
-            wfns.dipole_partitioning='intuitive'
-            wfn_terms=[]
+        for mode in ['standard', 'intuitive']:
 
-            dipole_breakdowns = [
-                [[d[0], d[1], np.zeros(d[2].shape), np.zeros(d[3].shape)] for d in dts],
-                [[d[0], d[1], d[2], np.zeros(d[3].shape)] for d in dts],
-                [[d[0], d[1], np.zeros(d[2].shape), d[3]] for d in dts],
-                dts
-            ]
+            terms = []
+            plot_specs = False
+            if plot_specs:
+                import McUtils.Plots as plt
+                g = plt.GraphicsGrid(nrows=len(all_wfns), ncols=4, subimage_size=(200, 100))
+            for i, wfns in enumerate(all_wfns):
+                dts = wfns.dipole_terms
+                wfns.dipole_partitioning='intuitive'
+                wfn_terms=[]
 
-            engs = h2w * wfns.energies
-            freqs = engs - engs[0]
+                dipole_breakdowns = [
+                    [[d[0], d[1], np.zeros(d[2].shape), np.zeros(d[3].shape)] for d in dts],
+                    [[d[0], d[1], d[2], np.zeros(d[3].shape)] for d in dts],
+                    [[d[0], d[1], np.zeros(d[2].shape), d[3]] for d in dts],
+                    dts
+                ]
 
-            harm_engs = h2w * wfns.zero_order_energies
-            harm_freqs = harm_engs - harm_engs[0]
+                engs = h2w * wfns.energies
+                freqs = engs - engs[0]
 
-            wfn_terms.append(freqs.tolist())
-            for j, dt in enumerate(dipole_breakdowns):
-                wfns.dipole_terms = dt
-                ints = wfns.intensities
-                harm_ints = wfns.zero_order_intensities
+                harm_engs = h2w * wfns.zero_order_energies
+                harm_freqs = harm_engs - harm_engs[0]
 
-                wfn_terms.append(ints.tolist())
+                wfn_terms.append(freqs.tolist())
+                for j, dt in enumerate(dipole_breakdowns):
+                    wfns.dipole_terms = dt
+                    ints = wfns.intensities
+                    harm_ints = wfns.zero_order_intensities
 
-                if plot_specs:
-                    s = plt.StickPlot(freqs, ints,
+                    wfn_terms.append(ints.tolist())
+
+                    if plot_specs:
+                        s = plt.StickPlot(freqs, ints,
+                                          aspect_ratio=.5,
+                                          plot_legend=("Anharmonic", "Harmonic"),
+                                          image_size=500,
+                                          figure=g[i, j]
+                                          )
+                        plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
                                       aspect_ratio=.5,
-                                      plot_legend=("Anharmonic", "Harmonic"),
-                                      image_size=500,
-                                      figure=g[i, j]
+                                      axes_labels=["$\nu$ (cm$^{-1}$)", "I (km mol$^{-1}$)"],
+                                      plot_legend=("Anharmonic", "Harmonic")
                                       )
-                    plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
-                                  aspect_ratio=.5,
-                                  axes_labels=["$\nu$ (cm$^{-1}$)", "I (km mol$^{-1}$)"],
-                                  plot_legend=("Anharmonic", "Harmonic")
-                                  )
-                corrs = wfns.transition_moment_corrections
-                wfn_terms.append([[[[list(a) for a in z] for z in y] for y in x] for x in corrs])
+                    corrs = wfns.transition_moment_corrections
+                    wfn_terms.append([[[[list(a) for a in z] for z in y] for y in x] for x in corrs])
 
-            wfn_terms.append(wfns.corrs.wfn_corrections[:, :, wfns.corrs.coupled_states].tolist())
+                wfn_terms.append(wfns.corrs.wfn_corrections[:, :, wfns.corrs.coupled_states].tolist())
 
-            terms.append(wfn_terms)
-        if plot_specs:
-            g.show()
+                terms.append(wfn_terms)
+            if plot_specs:
+                g.show()
 
 
-        import json
+            import json
 
-        if wfns.dipole_partitioning == 'intuitive':
-            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD_intuitive.json"
-        else:
-            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD.json"
-        with open(dump_file, "w+") as f:
-            json.dump(terms, f)
+            if wfns.dipole_partitioning == 'intuitive':
+                dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD_intuitive.json"
+            else:
+                dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD.json"
+            with open(dump_file, "w+") as f:
+                json.dump(terms, f)
 
     @inactiveTest
     def test_HODCartesianIntensityBreakdown(self):
@@ -4416,67 +4436,167 @@ class VPTTests(TestCase):
         # for i,s in enumerate(states):
         #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
 
-        terms = []
-        plot_specs = False
-        if plot_specs:
-            import McUtils.Plots as plt
-            g = plt.GraphicsGrid(nrows=len(all_wfns), ncols=4, subimage_size=(200, 100))
-        for i, wfns in enumerate(all_wfns):
-            dts = wfns.dipole_terms
-            wfns.dipole_partitioning='intuitive'
-            wfn_terms = []
 
-            dipole_breakdowns = [
-                [[d[0], d[1], np.zeros(d[2].shape), np.zeros(d[3].shape)] for d in dts],
-                [[d[0], d[1], d[2], np.zeros(d[3].shape)] for d in dts],
-                [[d[0], d[1], np.zeros(d[2].shape), d[3]] for d in dts],
-                dts
-            ]
+        for mode in ['standard', 'intuitive']:
 
-            engs = h2w * wfns.energies
-            freqs = engs - engs[0]
+            terms = []
+            plot_specs = False
+            if plot_specs:
+                import McUtils.Plots as plt
+                g = plt.GraphicsGrid(nrows=len(all_wfns), ncols=4, subimage_size=(200, 100))
 
-            harm_engs = h2w * wfns.zero_order_energies
-            harm_freqs = harm_engs - harm_engs[0]
+            for i, wfns in enumerate(all_wfns):
+                dts = wfns.dipole_terms
+                wfns.dipole_partitioning=mode
+                wfn_terms = []
 
-            wfn_terms.append(freqs.tolist())
-            for j, dt in enumerate(dipole_breakdowns):
-                wfns.dipole_terms = dt
-                ints = wfns.intensities
-                harm_ints = wfns.zero_order_intensities
+                dipole_breakdowns = [
+                    [[d[0], d[1], np.zeros(d[2].shape), np.zeros(d[3].shape)] for d in dts],
+                    [[d[0], d[1], d[2], np.zeros(d[3].shape)] for d in dts],
+                    [[d[0], d[1], np.zeros(d[2].shape), d[3]] for d in dts],
+                    dts
+                ]
 
-                wfn_terms.append(ints.tolist())
+                engs = h2w * wfns.energies
+                freqs = engs - engs[0]
 
-                if plot_specs:
-                    s = plt.StickPlot(freqs, ints,
+                harm_engs = h2w * wfns.zero_order_energies
+                harm_freqs = harm_engs - harm_engs[0]
+
+                wfn_terms.append(freqs.tolist())
+                for j, dt in enumerate(dipole_breakdowns):
+                    wfns.dipole_terms = dt
+                    ints = wfns.intensities
+                    harm_ints = wfns.zero_order_intensities
+
+                    wfn_terms.append(ints.tolist())
+
+                    if plot_specs:
+                        s = plt.StickPlot(freqs, ints,
+                                          aspect_ratio=.5,
+                                          plot_legend=("Anharmonic", "Harmonic"),
+                                          image_size=500,
+                                          figure=g[i, j]
+                                          )
+                        plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
                                       aspect_ratio=.5,
-                                      plot_legend=("Anharmonic", "Harmonic"),
-                                      image_size=500,
-                                      figure=g[i, j]
+                                      axes_labels=["$\nu$ (cm$^{-1}$)", "I (km mol$^{-1}$)"],
+                                      plot_legend=("Anharmonic", "Harmonic")
                                       )
-                    plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
-                                  aspect_ratio=.5,
-                                  axes_labels=["$\nu$ (cm$^{-1}$)", "I (km mol$^{-1}$)"],
-                                  plot_legend=("Anharmonic", "Harmonic")
-                                  )
 
-                corrs = wfns.transition_moment_corrections
-                wfn_terms.append([[[[list(a) for a in z] for z in y] for y in x] for x in corrs])
+                    corrs = wfns.transition_moment_corrections
+                    wfn_terms.append([[[[list(a) for a in z] for z in y] for y in x] for x in corrs])
 
-            wfn_terms.append(wfns.corrs.wfn_corrections[:, :, wfns.corrs.coupled_states].tolist())
+                wfn_terms.append(wfns.corrs.wfn_corrections[:, :, wfns.corrs.coupled_states].tolist())
 
-            terms.append(wfn_terms)
-        if plot_specs:
-            g.show()
+                terms.append(wfn_terms)
+            if plot_specs:
+                g.show()
 
-        import json
+            import json
 
-        if wfns.dipole_partitioning == 'intuitive':
-            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD_cart_intuitive.json"
-        else:
-            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD_cart.json"
-        with open(dump_file, "w+") as f:
-            json.dump(terms, f)
+            if wfns.dipole_partitioning == 'intuitive':
+                dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD_cart_intuitive.json"
+            else:
+                dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOD_cart.json"
+            with open(dump_file, "w+") as f:
+                json.dump(terms, f)
+
+    @inactiveTest
+    def test_HOHIntensityBreakdown(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        coupled_states = self.get_states(5, 3, max_quanta=5)
+
+        all_wfns = self.get_VPT2_wfns(
+            "HOH_freq.fchk",
+            internals,
+            states,
+            regenerate=True,
+            coupled_states=coupled_states,
+            get_breakdown=True
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+
+        for mode in ['standard', 'intuitive']:
+
+            terms = []
+            plot_specs = False
+            if plot_specs:
+                import McUtils.Plots as plt
+                g = plt.GraphicsGrid(nrows=len(all_wfns), ncols=4, subimage_size=(200, 100))
+
+            for i, wfns in enumerate(all_wfns):
+                dts = wfns.dipole_terms
+                wfns.dipole_partitioning = mode
+                wfn_terms = []
+
+                dipole_breakdowns = [
+                    [[d[0], d[1], np.zeros(d[2].shape), np.zeros(d[3].shape)] for d in dts],
+                    [[d[0], d[1], d[2], np.zeros(d[3].shape)] for d in dts],
+                    [[d[0], d[1], np.zeros(d[2].shape), d[3]] for d in dts],
+                    dts
+                ]
+
+                engs = h2w * wfns.energies
+                freqs = engs - engs[0]
+
+                harm_engs = h2w * wfns.zero_order_energies
+                harm_freqs = harm_engs - harm_engs[0]
+
+                wfn_terms.append(freqs.tolist())
+                for j, dt in enumerate(dipole_breakdowns):
+                    wfns.dipole_terms = dt
+                    ints = wfns.intensities
+                    harm_ints = wfns.zero_order_intensities
+
+                    wfn_terms.append(ints.tolist())
+
+                    if plot_specs:
+                        s = plt.StickPlot(freqs, ints,
+                                          aspect_ratio=.5,
+                                          plot_legend=("Anharmonic", "Harmonic"),
+                                          image_size=500,
+                                          figure=g[i, j]
+                                          )
+                        plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                                      aspect_ratio=.5,
+                                      axes_labels=["$\nu$ (cm$^{-1}$)", "I (km mol$^{-1}$)"],
+                                      plot_legend=("Anharmonic", "Harmonic")
+                                      )
+                    corrs = wfns.transition_moment_corrections
+                    wfn_terms.append([[[[list(a) for a in z] for z in y] for y in x] for x in corrs])
+
+                wfn_terms.append(wfns.corrs.wfn_corrections[:, :, wfns.corrs.coupled_states].tolist())
+
+                terms.append(wfn_terms)
+            if plot_specs:
+                g.show()
+
+            import json
+
+            if wfns.dipole_partitioning == 'intuitive':
+                dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOH_intuitive.json"
+            else:
+                dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOH.json"
+            with open(dump_file, "w+") as f:
+                json.dump(terms, f)
 
     @inactiveTest
     def test_HOHCartesianIntensityBreakdown(self):
@@ -4506,65 +4626,69 @@ class VPTTests(TestCase):
         # for i,s in enumerate(states):
         #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
 
-        terms = []
-        plot_specs = False
-        if plot_specs:
-            import McUtils.Plots as plt
-            g = plt.GraphicsGrid(nrows=len(all_wfns), ncols=4, subimage_size=(200, 100))
+        for mode in ['standard', 'intuitive']:
 
-        for i, wfns in enumerate(all_wfns):
-            dts = wfns.dipole_terms
-            wfns.dipole_partitioning = 'intuitive'
-            wfn_terms = []
+            terms = []
+            plot_specs = False
+            if plot_specs:
+                import McUtils.Plots as plt
+                g = plt.GraphicsGrid(nrows=len(all_wfns), ncols=4, subimage_size=(200, 100))
 
-            dipole_breakdowns = [
-                [[d[0], d[1], np.zeros(d[2].shape), np.zeros(d[3].shape)] for d in dts],
-                [[d[0], d[1], d[2], np.zeros(d[3].shape)] for d in dts],
-                [[d[0], d[1], np.zeros(d[2].shape), d[3]] for d in dts],
-                dts
-            ]
+            for i, wfns in enumerate(all_wfns):
+                dts = wfns.dipole_terms
+                wfns.dipole_partitioning = mode
+                wfn_terms = []
 
-            engs = h2w * wfns.energies
-            freqs = engs - engs[0]
+                dipole_breakdowns = [
+                    [[d[0], d[1], np.zeros(d[2].shape), np.zeros(d[3].shape)] for d in dts],
+                    [[d[0], d[1], d[2], np.zeros(d[3].shape)] for d in dts],
+                    [[d[0], d[1], np.zeros(d[2].shape), d[3]] for d in dts],
+                    dts
+                ]
 
-            harm_engs = h2w * wfns.zero_order_energies
-            harm_freqs = harm_engs - harm_engs[0]
+                engs = h2w * wfns.energies
+                freqs = engs - engs[0]
 
-            wfn_terms.append(freqs.tolist())
-            for j, dt in enumerate(dipole_breakdowns):
-                wfns.dipole_terms = dt
-                ints = wfns.intensities
-                harm_ints = wfns.zero_order_intensities
+                harm_engs = h2w * wfns.zero_order_energies
+                harm_freqs = harm_engs - harm_engs[0]
 
-                wfn_terms.append(ints.tolist())
+                wfn_terms.append(freqs.tolist())
+                for j, dt in enumerate(dipole_breakdowns):
+                    wfns.dipole_terms = dt
+                    ints = wfns.intensities
+                    harm_ints = wfns.zero_order_intensities
 
-                if plot_specs:
-                    s = plt.StickPlot(freqs, ints,
+                    wfn_terms.append(ints.tolist())
+
+                    if plot_specs:
+                        s = plt.StickPlot(freqs, ints,
+                                          aspect_ratio=.5,
+                                          plot_legend=("Anharmonic", "Harmonic"),
+                                          image_size=500,
+                                          figure=g[i, j]
+                                          )
+                        plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
                                       aspect_ratio=.5,
-                                      plot_legend=("Anharmonic", "Harmonic"),
-                                      image_size=500,
-                                      figure=g[i, j]
+                                      axes_labels=["$\nu$ (cm$^{-1}$)", "I (km mol$^{-1}$)"],
+                                      plot_legend=("Anharmonic", "Harmonic")
                                       )
-                    plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
-                                  aspect_ratio=.5,
-                                  axes_labels=["$\nu$ (cm$^{-1}$)", "I (km mol$^{-1}$)"],
-                                  plot_legend=("Anharmonic", "Harmonic")
-                                  )
-                corrs = wfns.transition_moment_corrections
-                wfn_terms.append([[[[list(a) for a in z] for z in y] for y in x] for x in corrs])
+                    corrs = wfns.transition_moment_corrections
+                    wfn_terms.append([[[[list(a) for a in z] for z in y] for y in x] for x in corrs])
 
-            wfn_terms.append(wfns.corrs.wfn_corrections[:, :, wfns.corrs.coupled_states].tolist())
+                wfn_terms.append(wfns.corrs.wfn_corrections[:, :, wfns.corrs.coupled_states].tolist())
 
-            terms.append(wfn_terms)
+                terms.append(wfn_terms)
 
-        if plot_specs:
-            g.show()
+            if plot_specs:
+                g.show()
 
-        import json
+            import json
 
-        if wfns.dipole_partitioning == 'intuitive':
-            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOH_cart_intuitive.json"
-        else:
-            dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOH_cart.json"
-        with open(dump_file, "w+") as f:
-            json.dump(terms, f)
+            if wfns.dipole_partitioning == 'intuitive':
+                dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOH_cart_intuitive.json"
+            else:
+                dump_file = "/Users/Mark/Documents/UW/Research/WaterPT/anne_HOH_cart.json"
+            with open(dump_file, "w+") as f:
+                json.dump(terms, f)
+
+    #endregion Intensity Breakdowns

@@ -232,6 +232,7 @@ class ExpansionTerms:
             self._cached_jacobians[self.molecule]['int'] = new_jacs
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
+
     def get_cart_jacobs(self, jacs):
         intcds = self.internal_coordinates
         ccoords = self.coords
