@@ -926,7 +926,7 @@ class VPTTests(TestCase):
 
         self.assertTrue(np.allclose(legit, v3, atol=10))
 
-    @debugTest
+    @validationTest
     def test_TestGQQInternalsHOH(self):
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOH_freq.fchk"),
@@ -1886,7 +1886,7 @@ class VPTTests(TestCase):
 
     #region Test Systems
 
-    @validationTest
+    @debugTest
     def test_DODVPTCartesians(self):
 
         internals = None
@@ -4353,7 +4353,7 @@ class VPTTests(TestCase):
                 g = plt.GraphicsGrid(nrows=len(all_wfns), ncols=4, subimage_size=(200, 100))
             for i, wfns in enumerate(all_wfns):
                 dts = wfns.dipole_terms
-                wfns.dipole_partitioning='intuitive'
+                wfns.dipole_partitioning=mode
                 wfn_terms=[]
 
                 dipole_breakdowns = [

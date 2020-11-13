@@ -36,13 +36,45 @@ class TermComputer:
         self.operator = operator
         self.compute = compute
         self.dims = n_quanta
+        self._diminds = None
+
     def _compute_op_els(self, inds):
         return self.operator[inds] #compute: c[inds]
 
     @property
     def diag(self):
-        ndims = int(np.prod(self.dims))
-        return self[np.arange(ndims), np.arange(ndims)]
+        return self[self.dim_inds, self.dim_inds]
+    @property
+    def ndims(self):
+        return int(np.prod(self.dims))
+    @property
+    def dim_inds(self):
+        # we probably want to avoid using this...
+        if self._diminds is None:
+            self._diminds = np.arange(self.ndims)
+        return self._diminds
+
+    def _get_inds(self, n):
+        if isinstance(n, slice):
+            start = n.start
+            stop = n.stop
+            step = n.step
+            if start is None:
+                start = 0
+            elif start < 0:
+                start = self.ndims + start
+            if stop is None:
+                stop = self.ndims
+            elif stop < 0:
+                stop = self.ndims + stop
+            if step is None:
+                step = 1
+            return np.arange(start, stop, step)
+        elif isinstance(n, np.ndarray):
+            negs = np.where(n < 0)
+            if len(negs[0]) > 0:
+                n[negs] += self.ndims
+            return n
 
     def get_element(self, n, m):
         """
@@ -58,7 +90,7 @@ class TermComputer:
         """
 
         dims = self.dims
-        ndims = int(np.prod(dims))
+        # ndims = int(np.prod(dims))
         idx = (n, m)
 
         # There are two possible modes for this pulling individual elements or pulling blocks
@@ -86,7 +118,7 @@ class TermComputer:
                 n = n.flatten()
             if not isinstance(n, slice):
                 n = np.array(n, dtype=int)
-            n = np.arange(ndims)[n]
+            n = self._get_inds(n)
         else:
             n = [n]
         # Then the column spec
@@ -95,7 +127,7 @@ class TermComputer:
                 m = m.flatten()
             if not isinstance(m, slice):
                 m = np.array(m)
-            m = np.arange(ndims)[m]
+            m = self._get_inds(m)
         else:
             m = [m]
 

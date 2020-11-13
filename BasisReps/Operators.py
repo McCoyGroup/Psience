@@ -19,19 +19,32 @@ class Operator:
     QQQ and pQp to be calculated block-by-block.
     Crucially, the underlying basis for the operator is assumed to be orthonormal.
     """
-    def __init__(self, funcs, quanta, symmetries=None):
+    def __init__(self, funcs, quanta, prod_dim=None, symmetries=None, selection_rules=None):
         """
         :param funcs: The functions use to calculate representation
         :type funcs: callable | Iterable[callable]
-        :param quanta: The number of quanta to do the deepest-level calculations up to
+        :param quanta: The number of quanta to do the deepest-level calculations up to (also tells us dimension)
         :type quanta: int | Iterable[int]
-        :param symmetry_inds: Labels for the funcs where if two funcs share a label they are symmetry equivalent
-        :type symmetry_inds: Iterable[int] | None
+        :param prod_dim: The number of functions in `funcs`, if `funcs` is a direct term generator
+        :type prod_dim: int | None
+        :param symmetries: Labels for the funcs where if two funcs share a label they are symmetry equivalent
+        :type symmetries: Iterable[int] | None
         """
         if isinstance(quanta, int):
             quanta = [quanta]
             # funcs = [funcs]
-        self.funcs = tuple(funcs)
+        try:
+            funcs = tuple(funcs)
+            single_func = False
+        except TypeError:  # can't iterate
+            single_func = True
+        if prod_dim is None:
+            if single_func:
+                funcs = (funcs,)
+            prod_dim = len(funcs)
+        self.fdim = prod_dim
+        self.funcs = funcs
+        self.sel_rules = selection_rules
         self.symmetry_inds = symmetries
         self.quanta = tuple(quanta)
         self.mode_n = len(quanta)
@@ -42,10 +55,10 @@ class Operator:
 
     @property
     def ndim(self):
-        return len(self.funcs) + len(self.quanta)
+        return self.fdim + self.mode_n
     @property
     def shape(self):
-        return (self.mode_n, ) * len(self.funcs) + self.quanta
+        return (self.mode_n, ) * self.fdim + self.quanta
 
     def get_inner_indices(self):
         """
@@ -55,13 +68,12 @@ class Operator:
         :return:
         :rtype:
         """
-        funcs = self.funcs
-        dims = len(funcs)
-        if len(funcs) == 0:
+        dims = self.fdim
+        if dims == 0:
             return None
         shp = (self.mode_n,) * dims
         inds = np.indices(shp, dtype=int)
-        tp = np.roll(np.arange(len(funcs) + 1), -1)
+        tp = np.roll(np.arange(dims + 1), -1)
         base_tensor = np.transpose(inds, tp)
         return base_tensor
 
@@ -117,14 +129,177 @@ class Operator:
             orthog = np.prod(equivs, axis=0).astype(int)  # taking advantage of the fact that bools act like ints
         return orthog
 
-    def _calculate_single_pop_elements(self, inds, funcs, states, quants):
+    def _apply_sel_rules(self, states, rules):
+        import functools as fp
+
+        # we have a set of rules for every dimension in states...
+        # so we define a function that will tell us where any of the possible selection rules are satisfied
+        # and then we apply that in tandem to the quanta changes between bra and ket and the rules
+        apply_rules = lambda diff, rule: fp.reduce(
+            lambda d, i: np.logical_or(d, diff==i),
+            rule[1:],
+            diff==rule[0]
+        )
+        sels = [
+            apply_rules(x[1] - x[0], r) for x, r in zip(states, rules)
+        ]
+        # then we figure out which states by satisfied all the rules
+        all_sels = fp.reduce(np.logical_and, sels[1:], sels[0])
+        # and then filter the OG lists by those
+        states = [(s[0][all_sels], s[1][all_sels]) for s in states]
+
+        return states, all_sels
+
+    def _mat_prod_operator_terms(self, inds, funcs, states, non_orthog, sel_rules):
+        """
+        Evaluates product operator terms based on 1D representation matrices coming from funcs
+
+        :param inds:
+        :type inds:
+        :param funcs: functions that generate 1D representation matrices
+        :type funcs:
+        :param non_orthog_states:
+        :type non_orthog_states:
+        :param sel_rules: selection rules as 1D arrays of rules for each dimension
+        :type sel_rules:
+        :return:
+        :rtype:
+        """
+
+        # We figure out which indices are actually unique; this gives us a way to map
+        # indices onto operators
+        # We assume we always have as many indices as dimensions in our operator
+        # and so the more unique indices the _lower_ the dimension of the operator
+        # since it acts on the same index more times
+        # The indices will be mapped onto ints for storage in `pieces`
+        uinds = np.unique(inds)
+        mm = {k: i for i, k in enumerate(uinds)}
+
+        # then we determine which states are potentially non-orthogonal
+        non_orthog_states = [(states[i][0][non_orthog], states[i][1][non_orthog]) for i in uinds]
+
+        subdim = len(uinds)
+        # and then apply selection rules if we have them
+        if sel_rules is not None:
+            # we need selection rules for every dimension in the product
+            sel_bits = [None] * subdim
+            for s, i in zip(sel_rules, inds):
+                n = mm[i]  # makes sure that we fill in in the same order as uinds
+                if sel_bits[n] is None:
+                    sel_bits[n] = s
+                else:
+                    sel_bits[n] = np.unique(np.add.outer(s, sel_bits[n])).flatten() # make the next set of rules
+            # print(sel_bits)
+            # apply full selection rules
+            non_orthog_states, all_sels = self._apply_sel_rules(non_orthog_states, sel_bits)
+            if len(non_orthog_states[0][0]) == 0:
+                return None # short-circuit because there's nothing to calculate
+
+        else:
+            all_sels = None
+
+        # determine what size we need for the 1D reps
+        max_dim = np.max(np.array(non_orthog_states))
+        padding = 3  # for approximation reasons we need to pad our representations...
+
+        # then set up a place to hold onto the pieces we'll calculate
+        pieces = [None] * subdim
+        # now we construct the reps from 1D ones
+        for f, i in zip(funcs, inds):
+            n = mm[i]  # makes sure that we fill in in the same order as uinds
+            if pieces[n] is None:
+                pieces[n] = f(max_dim + padding)  # type: sp.spmatrix
+            else:
+                # QQ -> Q.Q & QQQ -> Q.Q.Q
+                og = pieces[n]  # type: sp.spmatrix
+                pieces[n] = og.dot(f(max_dim + padding))
+
+        # now we take the requisite products of the chunks for the indices that are
+        # potentially non-orthogonal
+        chunk = None
+        for s, o in zip(non_orthog_states, pieces):
+            op = o  # type: sp.spmatrix
+            blob = np.asarray(op[s]).squeeze()
+            if chunk is None:
+                if isinstance(blob, (int, np.integer, float, np.floating)):
+                    chunk = np.array([blob])
+                else:
+                    chunk = np.asarray(blob)
+            else:
+                chunk = chunk * blob
+
+        # weird stuff can happen with sp.spmatrix
+        if (
+                isinstance(chunk, (int, np.integer, float, np.floating))
+                or (isinstance(chunk, np.ndarray) and chunk.ndim == 0)
+        ):
+            chunk = np.array([chunk])
+
+        return chunk, all_sels
+
+    def _direct_prod_operator_terms(self, inds, func, states, non_orthog):
+        """
+        Evaluates product operator terms based on 1D representation matrices,
+        but using a direct function to generate them
+
+        :param inds:
+        :type inds:
+        :param func: a function that will take a set of indices and term-generator
+        :type func:
+        :param non_orthog_states:
+        :type non_orthog_states:
+        :return:
+        :rtype:
+        """
+
+        # print(inds)
+
+        # We figure out which indices are actually unique; this gives us a way to map
+        # indices onto operators for our generator
+        _, idx = np.unique(inds, return_index=True)
+        uinds = inds[np.sort(idx)]
+        # print(inds, uinds)
+        # mm = {k: i for i, k in enumerate(uinds)}
+
+        # then we determine which states are potentially non-orthogonal based on precomputed info
+        non_orthog_states = [(states[i][0][non_orthog], states[i][1][non_orthog]) for i in uinds]
+
+        # next we get the term generator defined by inds
+        # this will likely end up calling uinds again, but ah well, that operation is cheap
+        gen = func(inds)
+        # print(gen)
+        try:
+            g, sel_rules = gen
+            r = sel_rules[0][0]
+            if not isinstance(r, (int, np.integer)):
+                raise TypeError("Bad selection rule")
+        except (TypeError, IndexError):
+            sel_rules = None
+        else:
+            gen = g
+
+        # print(gen)
+
+        if sel_rules is not None:
+            # apply full selection rules
+            non_orthog_states, all_sels = self._apply_sel_rules(non_orthog_states, sel_rules)
+            if len(non_orthog_states[0][0]) == 0:
+                return None  # short-circuit because there's nothing to calculate
+        else:
+            all_sels = None
+
+        chunk = gen(non_orthog_states)
+
+        return chunk, all_sels
+
+    def _calculate_single_pop_elements(self, inds, funcs, states, quants, sel_rules):
         """
         Calculates terms for a single product operator.
         Assumes orthogonal product bases.
 
         :param inds: the index in the total operator tensor (i.e. which of the funcs to use)
         :type inds:
-        :param funcs: the functions to use when generating representations
+        :param funcs: the functions to use when generating representations, must return matrices
         :type funcs:
         :param states: the states to compute terms between stored like ((s_1l, s_1r), (s_2l, s_2r), ...)
                         where `s_il` is the set of quanta for mode i for the bras and
@@ -132,15 +307,14 @@ class Operator:
         :type states: Iterable[Iterable[Iterable[int]]]
         :param quants: the total quanta to use when building representations
         :type quants:
+        :param sel_rules: the selection rules to use when building representations
+        :type sel_rules:
         :return:
         :rtype:
         """
-        # determine how many states aren't coupled by the operator
+        # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
-
-        dims = quants
         nstates = len(states[0][0])
-        uinds = np.unique(inds)
         orthog = self._get_orthogonality(inds, states, quants)
         single_state = isinstance(orthog, (int, np.integer)) # means we got a single state to calculate over
         if single_state:
@@ -152,46 +326,18 @@ class Operator:
         if len(non_orthog) == 0:
             return sp.csr_matrix((1, nstates), dtype='float')
         else:
-            non_orthog_states = [(states[i][0][non_orthog], states[i][1][non_orthog]) for i in uinds]
-            max_dim = np.max(np.array(non_orthog_states))
-            # otherwise we calculate only the necessary terms (after building the 1D reps)
-            padding = 3 # for approximation reasons we need to pad our representations...
-            # we figure out which indices are actually unique
-            uinds = np.unique(inds)
-            mm = {k: i for i, k in enumerate(uinds)}
-            # then set up a place to hold onto the pieces we'll calculate
-            subdim = len(uinds)
-            pieces = [None] * subdim
-            # TODO: if it turns out that we only need a small number of non-orthogonal terms
-            #       we should directly compute terms for cheapness
-            for f, i in zip(funcs, inds):
-                n = mm[i] # makes sure that we fill in in the same order as uinds
-                if pieces[n] is None:
-                     pieces[n] = f(max_dim + padding) #type: sp.spmatrix
-                else:
-                    # QQ -> Q.Q & QQQ -> Q.Q.Q
-                    og = pieces[n] #type: sp.spmatrix
-                    pieces[n] = og.dot(f(max_dim + padding))
 
-            # now we take the requisite products of the chunks
-            chunk = None
-            for s, o in zip(non_orthog_states, pieces):
-                op = o #type: sp.spmatrix
-                blob = np.asarray(op[s]).squeeze()
-                if chunk is None:
-                    if isinstance(blob, (int, np.integer, float, np.floating)):
-                        chunk = np.array([blob])
-                    else:
-                        chunk = np.asarray(blob)
-                else:
-                    chunk = chunk * blob
+            if isinstance(funcs, (list, tuple)):
+                chunk = self._mat_prod_operator_terms(inds, funcs, states, non_orthog, sel_rules)
+            else:
+                chunk = self._direct_prod_operator_terms(inds, funcs, states, non_orthog)
 
-            # weird stuff can happen with sp.spmatrix
-            if (
-                    isinstance(chunk, (int, np.integer, float, np.floating))
-                    or (isinstance(chunk, np.ndarray) and chunk.ndim == 0)
-            ):
-                chunk = np.array([chunk])
+            if chunk is None: # after application of sel rules we get nothing
+                return sp.csr_matrix((1, nstates), dtype='float')
+            else:
+                chunk, all_sels = chunk # secondary application of selection rules
+                if all_sels is not None:
+                    non_orthog = non_orthog[all_sels,]
 
             non_zero = np.where(chunk != 0.)[0] # by filtering again we save on computation in the dot products
 
@@ -199,6 +345,7 @@ class Operator:
                 return sp.csr_matrix((1, nstates), dtype='float')
 
             non_orthog = non_orthog[non_zero,]
+            # print(chunk)
             chunk = chunk[non_zero,]
 
             wat = sp.csr_matrix(
@@ -225,7 +372,7 @@ class Operator:
         :return:
         :rtype:
         """
-        res = np.apply_along_axis(self._calculate_single_pop_elements, -1, inds, self.funcs, idx, self.quanta)
+        res = np.apply_along_axis(self._calculate_single_pop_elements, -1, inds, self.funcs, idx, self.quanta, self.sel_rules)
         if save_to_disk:
             new = sp.vstack([x for y in res.flatten() for x in y])
             with tf.NamedTemporaryFile() as tmp:
@@ -236,7 +383,7 @@ class Operator:
 
         return res
 
-    def _get_pop_parallel(self, inds, idx, parallelizer=None):
+    def _get_pop_parallel(self, inds, idx, parallelizer=None):#parallelizer="multiprocessing"):
         if parallelizer != "multiprocessing":
             raise NotImplementedError("More parallelization methods are coming--just not yet")
 
@@ -269,7 +416,7 @@ class Operator:
 
         return res
 
-    def get_elements(self, idx, parallelizer='multiprocessing'):
+    def get_elements(self, idx, parallelizer=None):#parallelizer='multiprocessing'):
         """
         Calculates a subset of elements
 
@@ -329,7 +476,7 @@ class ContractedOperator(Operator):
     and doing the appropriate tensor contractions with the expansion coefficients (i.e. `G` or `dG/dQ`)
     """
 
-    def __init__(self, coeffs, funcs, quanta, axes=None, symmetries=None):
+    def __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None, selection_rules=None):
         """
         :param coeffs: The tensor of coefficients contract with the operator representation (`0` means no term)
         :type coeffs: np.ndarray | int
@@ -344,7 +491,7 @@ class ContractedOperator(Operator):
         """
         self.coeffs = coeffs
         self.axes = axes
-        super().__init__(funcs, quanta, symmetries=symmetries)
+        super().__init__(funcs, quanta, symmetries=symmetries, prod_dim=prod_dim, selection_rules=selection_rules)
 
     def get_elements(self, idx, parallelizer=None):
         """

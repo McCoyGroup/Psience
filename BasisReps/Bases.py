@@ -83,6 +83,8 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
     @property
     def operator_mapping(self):
         return {'x':self.x, 'p':self.p, 'I':self.I}
+
+    selection_rule_mapping = {'x': None, 'p': None, 'I': [0]}
     def operator(self, *terms):
         funcs = [self.operator_mapping[f] if isinstance(f, str) else f for f in terms]
         q = (self.quanta,)
@@ -98,7 +100,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         """
 
         q=self.quanta
-        return TermComputer(self.operator(*terms), q)
+        return TermComputer(self.operator(*terms), (q,))
 
 class SimpleProductBasis(RepresentationBasis):
     """
@@ -172,15 +174,20 @@ class SimpleProductBasis(RepresentationBasis):
         """
 
         funcs = [self.bases[0].operator_mapping[f] if isinstance(f, str) else f for f in terms]
+        sel_rules = [self.bases[0].selection_rules_mapping[f] if isinstance(f, str) else None for f in terms]
+        if any(s is None for s in sel_rules):
+            sel_rules = None
+        else:
+            sel_rules = [np.asarray(s) for s in sel_rules]
         q = self.quanta
         # determine the symmetries up front to make stuff faster
         ids = [hash(f) for f in terms]
         mapping = {k:i for i,k in enumerate(ids)}
         labels = [mapping[k] for k in ids]
         if coeffs is not None:
-            op = ContractedOperator(coeffs, funcs, q, axes=axes, symmetries=labels)
+            op = ContractedOperator(coeffs, funcs, q, axes=axes, symmetries=labels, selection_rules=sel_rules)
         else:
-            op = Operator(funcs, q, symmetries=labels)
+            op = Operator(funcs, q, symmetries=labels, selection_rules=sel_rules)
         return op
     def representation(self, *terms, coeffs=None, axes=None):
         """

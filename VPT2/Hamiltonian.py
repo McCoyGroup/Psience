@@ -8,7 +8,7 @@ from McUtils.Numputils import SparseArray, vec_outer
 from McUtils.Misc import Logger
 
 from ..Molecools import Molecule
-from ..BasisReps import HarmonicOscillatorBasis, SimpleProductBasis
+from ..BasisReps import HarmonicOscillatorBasis, SimpleProductBasis, HarmonicOscillatorProductBasis
 
 from .Common import PerturbationTheoryException
 from .Terms import PotentialTerms, KineticTerms, CoriolisTerm, PotentialLikeTerm
@@ -227,6 +227,7 @@ class PerturbationTheoryHamiltonian:
 
         self._h0 = self._h1 = self._h2 = None
 
+        # self.basis = HarmonicOscillatorProductBasis(self.n_quanta)
         self.basis = SimpleProductBasis(HarmonicOscillatorBasis, self.n_quanta)
 
         if log is None or isinstance(log, Logger):
@@ -264,8 +265,12 @@ class PerturbationTheoryHamiltonian:
         Provides the representation for H0 in this basis
         """
         if self._h0 is None:
+            if isinstance(self.basis, SimpleProductBasis):
+                iphase = -1
+            else:
+                iphase = 1
             self._h0 = (
-                -1/2 * self.basis.representation('p', 'p', coeffs=self.G_terms[0])
+                (iphase*1/2) * self.basis.representation('p', 'p', coeffs=self.G_terms[0])
                  + 1/2 * self.basis.representation('x', 'x', coeffs=self.V_terms[0])
             )
 
@@ -277,8 +282,12 @@ class PerturbationTheoryHamiltonian:
         Provides the representation for H1 in this basis
         """
         if self._h1 is None:
+            if isinstance(self.basis, SimpleProductBasis):
+                iphase = -1
+            else:
+                iphase = 1
             self._h1 = (
-                -1/2 * self.basis.representation('p', 'x', 'p', coeffs=self.G_terms[1], axes=[[0, 1, 2], [1, 0, 2]])
+                (iphase*1/2) * self.basis.representation('p', 'x', 'p', coeffs=self.G_terms[1], axes=[[0, 1, 2], [1, 0, 2]])
                 + 1/6 * self.basis.representation('x', 'x', 'x', coeffs=self.V_terms[1])
             )
         return self._h1
@@ -289,8 +298,12 @@ class PerturbationTheoryHamiltonian:
         Provides the representation for H2 in this basis
         """
         if self._h2 is None:
+            if isinstance(self.basis, SimpleProductBasis):
+                iphase = -1
+            else:
+                iphase = 1
             self._h2 = (
-                -1/4 * self.basis.representation('p', 'x', 'x', 'p',
+                (iphase*1/4) * self.basis.representation('p', 'x', 'x', 'p',
                                                 coeffs=self.G_terms[2], axes=[[0, 1, 2, 3], [2, 0, 1, 3]])
                 + 1/24 * self.basis.representation('x', 'x', 'x', 'x', coeffs=self.V_terms[2])
             )
@@ -300,7 +313,7 @@ class PerturbationTheoryHamiltonian:
                 # plt.ArrayPlot(
                 #     total_cor.reshape(total_cor.shape[0] ** 2, total_cor.shape[0] ** 2)
                 # ).show()
-                self._h2 += -1 * self.basis.representation('x', 'p', 'x', 'p', coeffs=total_cor)
+                self._h2 += iphase*self.basis.representation('x', 'p', 'x', 'p', coeffs=total_cor)
             else:
                 self._h2 += 0 * self.basis.representation(coeffs=0)
 

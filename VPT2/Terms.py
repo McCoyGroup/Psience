@@ -979,6 +979,8 @@ class DipoleTerms(ExpansionTerms):
                 # rather than do this, for numerical stability reasons we'll want to
                 # directly apply xQQ since we have YQ QY _should_ be the identity but is not
                 # since we're working in a subspace
+                v3_1 = xQQQ.dot(u1, axes=[[3, 0]]).t
+
                 v3_2 = xQQ.dot(u2, axes=[[2, 1]]).t
                 v3_2 = 1/6 * sum(v3_2.transpose(p) for p in ip.permutations([0, 1, 2]))
 
@@ -988,7 +990,7 @@ class DipoleTerms(ExpansionTerms):
                 # for p in ip.permutations([0, 1, 2]):
                 #     # we don't have enough data to actually determine anything where i!=j!=k
                 #     v3_3[p] = 0.
-                v3 = v3_2 + v3_3
+                v3 = v3_1 + v3_2 + v3_3
 
                 # raise Exception([
                 #     np.max(np.abs(v3_2.t)),
@@ -1022,6 +1024,8 @@ class DipoleTerms(ExpansionTerms):
                 v1 = np.tensordot(xQ, u1, axes=[1, 0])
                 v2 = np.tensordot(xQ, u2, axes=[1, 1])
                 v3 = np.tensordot(xQ, u3, axes=[1, 2])
+
+            # print(">>>>>", v2)
 
             mu[coord] = (v0[coord], v1, v2, v3)#(v1, v2, 0)#(v1, 0, 0)
 
