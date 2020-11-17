@@ -29,7 +29,7 @@ class BasisSetTests(TestCase):
         term = ['x']
         iphase = (-1) ** (term.count("p") // 2)
         rep1 = basis.representation(*term)
-        rep2 = TermComputer(super(HarmonicOscillatorBasis, basis).operator(*term), (n,))
+        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator(*term), basis)
         xx = rep1[:, :].todense()
         x2 = iphase * rep2[:, :].todense()
 
@@ -42,7 +42,7 @@ class BasisSetTests(TestCase):
         basis = HarmonicOscillatorBasis(n)
 
         rep1 = basis.representation('x', 'x')
-        rep2 = TermComputer(super(HarmonicOscillatorBasis, basis).operator('x', 'x'), (n,))
+        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator('x', 'x'), basis)
         xx = rep1[:, :].todense()
         x2 = rep2[:, :].todense()
         targ =np.zeros((n, n))
@@ -66,7 +66,7 @@ class BasisSetTests(TestCase):
         term = ['p', 'x', 'p']
         iphase = (-1) ** (term.count("p") // 2)
         rep1 = basis.representation(*term)
-        rep2 = TermComputer(super(HarmonicOscillatorBasis, basis).operator(*term), (n,))
+        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator(*term), basis)
         xx = rep1[:, :].todense()
         x2 = iphase * rep2[:, :].todense()
 
@@ -78,7 +78,7 @@ class BasisSetTests(TestCase):
         basis = HarmonicOscillatorBasis(n)
 
         rep1 = basis.representation('p', 'p')
-        rep2 = TermComputer(super(HarmonicOscillatorBasis, basis).operator('p', 'p'), (n,))
+        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator('p', 'p'), basis)
         xx = rep1[:, :].todense()
         x2 = -rep2[:, :].todense()
         # targ = np.zeros((n, n))
@@ -101,7 +101,7 @@ class BasisSetTests(TestCase):
         term = ['x', 'x', 'x']
         iphase = (-1) ** (term.count("p") // 2)
         rep1 = basis.representation(*term)
-        rep2 = TermComputer(super(HarmonicOscillatorBasis, basis).operator(*term), (n,))
+        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator(*term), basis)
         xx = rep1[:, :].todense()
         x2 = iphase * rep2[:, :].todense()
 
@@ -115,7 +115,7 @@ class BasisSetTests(TestCase):
         term = ['p', 'p', 'x', 'x']
         iphase = (-1) ** (term.count("p") // 2)
         rep1 = basis.representation(*term)
-        rep2 = TermComputer(super(HarmonicOscillatorBasis, basis).operator(*term), (n,))
+        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator(*term), basis)
         xx = rep1[:, :].todense()
         x2 = iphase * rep2[:, :].todense()
         # targ = np.zeros((n, n))
@@ -230,7 +230,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 
-    @debugTest
+    @validationTest
     def test_HOBasis3DXXX(self):
         from Peeves import Timer, BlockProfiler
 
@@ -289,4 +289,38 @@ class BasisSetTests(TestCase):
 
         # eval = oppo[0, 1, 0, 1] # same as [1, 0, 1, 0] but not [0, 0, 1, 1]
         # self.assertEquals(eval.terms, (("x", "p"), ("x", "p")))
+
+    @debugTest
+    def test_HOSelRuleTerms(self):
+        from Peeves import Timer, BlockProfiler
+
+        n = 15
+        m = 6
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        states = BasisStateSpace(
+            basis,
+            self.get_states(2, m)
+        )
+
+        transitions_h1 = [
+            [-1],
+            [1],
+            [-3],
+            [3],
+            [-1, -1, -1],
+            [-1, -1, 1],
+            [-1, 1, 1],
+            [1, 1, 1],
+            [1, 2],
+            [-1, 2],
+            [1, -2],
+            [-1, -2]
+        ]
+
+        with BlockProfiler("Selection Rules"):
+            h1_space = states.apply_selection_rules(
+                transitions_h1,
+                1
+            )
 

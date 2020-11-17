@@ -7,7 +7,7 @@ from McUtils.Plots import *
 
 from ..Wavefun import *
 
-from .Terms import TermComputer
+from .Terms import Representation
 from .Operators import Operator
 
 __all__ = [
@@ -71,7 +71,7 @@ class AnalyticWavefunction(Wavefunction):
         :return:
         :rtype:
         """
-        o = TermComputer(op, ...)
+        o = Representation(op, ...)
         # What kind of quanta info do I have?
         # These things clearly need to know about multi-dimensional systems
         return o[self.index, other.index]

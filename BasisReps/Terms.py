@@ -3,8 +3,8 @@ Provides an abstract Hamiltonian object that can be used when building represent
 """
 
 __all__ = [
-    "TermComputer",
-    "ExpansionTerm"
+    "Representation",
+    "ExpansionRepresentation"
 ]
 
 import numpy as np, itertools as ip, scipy.sparse as sp
@@ -14,19 +14,21 @@ from McUtils.Numputils import SparseArray
 from .Operators import Operator
 
 #TODO: add in some level of support for caching
-class TermComputer:
+class Representation:
     """
-    A TermComputer provides a simple interface to compute only some elements of high-dimensional tensors.
+    A `Representation` provides a simple interface to compute only some elements of high-dimensional tensors.
     It takes a tensor shape and a function to compute tensor elements.
     The `compute` function should be able to take a block of indices and return all the matrix elements.
     """
 
-    def __init__(self, compute, n_quanta):
+    def __init__(self, compute, basis, logger=None):
         """
         :param compute: the function that turns indices into values
         :type compute: callable | Operator
-        :param n_quanta: the total quanta used in the representations (necessary for shape reasons)
-        :type n_quanta: tuple[int]
+        :param n_quanta: the basis quanta used in the representations (necessary for shape reasons)
+        :type n_quanta: RepresentationBasis
+        :param logger: logger for printing out debug info
+        :type logger: None | Logger
         """
         if isinstance(compute, Operator):
             operator = compute
@@ -35,8 +37,10 @@ class TermComputer:
             operator = None
         self.operator = operator
         self.compute = compute
-        self.dims = n_quanta
+        self.basis = basis
+        self.dims = basis.dimensions
         self._diminds = None
+        self.logger=logger
 
     def _compute_op_els(self, inds):
         return self.operator[inds] #compute: c[inds]
@@ -149,6 +153,13 @@ class TermComputer:
             if isinstance(b, (int, np.integer)) and not isinstance(a, (int, np.integer)):
                 b = np.full((len(a),), b)
             return a, b
+
+        if self.logger is not None:
+            self.logger.log_print(
+                "computing {} representation elements",
+                len(n[0])
+            )
+
         i = tuple(pad_lens(a, b) for a, b in zip(n, m))
         els = self.compute(i)
         if isinstance(els, int) and els == 0:
@@ -174,7 +185,7 @@ class TermComputer:
 
     def __rmul__(self, other):
         if isinstance(other, (int, float, np.integer, np.floating)):
-            return ExpansionTerm([other], [self], self.dims)
+            return ExpansionRepresentation([other], [self], self.basis, logger=self.logger)
         else:
             raise TypeError("operator * not defined for objects of type {0} and {1} (only numbers are supported with {0})".format(
                 type(self).__name__,
@@ -182,22 +193,22 @@ class TermComputer:
             ))
     def __mul__(self, other):
         if isinstance(other, (int, float, np.integer, np.floating)):
-            return ExpansionTerm([other], [self], self.dims)
+            return ExpansionRepresentation([other], [self], self.basis, logger=self.logger)
         else:
             raise TypeError("operator * not defined for objects of type {0} and {1} (only numbers are supported with {0})".format(
                 type(self).__name__,
                 type(other).__name__
             ))
     def __add__(self, other):
-        if isinstance(other, TermComputer):
+        if isinstance(other, Representation):
             if other.dims != self.dims:
-                if isinstance(other, ExpansionTerm):
+                if isinstance(other, ExpansionRepresentation):
                     return other + self
                 raise ValueError("Can't combine TermComputer objects with dim {} and {}".format(
                     self.dims,
                     other.dims
                 ))
-            return ExpansionTerm([1, 1], [self, other], self.dims)
+            return ExpansionRepresentation([1, 1], [self, other], self.basis, logger=self.logger)
         else:
             raise TypeError("operator * not defined for objects of type {0} and {1} (only subclasses of TermComputer are supported with {0})".format(
                 type(self).__name__,
@@ -211,11 +222,11 @@ class TermComputer:
             self.operator if self.operator is not None else self.compute
         )
 
-class ExpansionTerm(TermComputer):
+class ExpansionRepresentation(Representation):
     """
     Provides support for terms that look like `1/2 pGp + 1/2 dV/dQdQ QQ` by computing each term on its own
     """
-    def __init__(self, coeffs, computers, n_quanta):
+    def __init__(self, coeffs, computers, basis, logger=None):
         """
         :param coeffs: The expansion coefficients
         :type coeffs: Iterable[float]
@@ -225,12 +236,14 @@ class ExpansionTerm(TermComputer):
         :type n_quanta: tuple[int]
         """
         self.coeffs = np.array(coeffs)
-        self.computers = [TermComputer(c, n_quanta) if not isinstance(c, TermComputer) else c for c in computers]
-        super().__init__(None, n_quanta)
+        self.computers = [Representation(c, basis) if not isinstance(c, Representation) else c for c in computers]
+        super().__init__(None, basis, logger=logger)
 
     def __rmul__(self, other):
         if isinstance(other, (int, float, np.integer, np.floating)):
-            return type(self)(self.coeffs * other, self.computers, self.dims)
+            return type(self)(self.coeffs * other, self.computers, self.basis,
+                              logger=self.logger
+                              )
         else:
             raise TypeError(
                 "operator * not defined for objects of type {0} and {1} (only numbers are supported with {0})".format(
@@ -239,7 +252,9 @@ class ExpansionTerm(TermComputer):
                 ))
     def __mul__(self, other):
         if isinstance(other, (int, float, np.integer, np.floating)):
-            return type(self)(self.coeffs*other, self.computers, self.dims)
+            return type(self)(self.coeffs*other, self.computers, self.basis,
+                              logger=self.logger
+                              )
         else:
             raise TypeError(
                 "operator * not defined for objects of type {0} and {1} (only numbers are supported with {0})".format(
@@ -247,23 +262,25 @@ class ExpansionTerm(TermComputer):
                     type(other).__name__
                 ))
     def __add__(self, other):
-        if isinstance(other, TermComputer):
+        if isinstance(other, Representation):
             if other.dims != self.dims:
                 raise ValueError("Can't combine TermComputer objects with dim {} and {}".format(
                     self.dims,
                     other.dims
                 ))
-            if isinstance(other, ExpansionTerm):
+            if isinstance(other, ExpansionRepresentation):
                 return type(self)(
                     np.concatenate([self.coeffs, other.coeffs]),
                     self.computers + other.computers,
-                    self.dims
+                    self.basis,
+                    logger=self.logger
                 )
             else:
                 return type(self)(
                     np.concatenate([self.coeffs, [1]]),
                     self.computers + [other],
-                    self.dims
+                    self.basis,
+                    logger=self.logger
                 )
         else:
             raise TypeError(

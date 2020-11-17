@@ -3,7 +3,8 @@ Provides the operator representations needed when building a Hamiltonian represe
 I chose to only implement direct product operators. Not sure if we'll need a 1D base class...
 """
 
-import numpy as np, scipy.sparse as sp, functools as fp, os, tempfile as tf
+import numpy as np, scipy.sparse as sp, os, tempfile as tf
+from collections import OrderedDict
 from McUtils.Numputils import SparseArray
 
 #TODO: abstract the VPT2 stuff out so we can use it for a general operator too
@@ -19,7 +20,9 @@ class Operator:
     QQQ and pQp to be calculated block-by-block.
     Crucially, the underlying basis for the operator is assumed to be orthonormal.
     """
-    def __init__(self, funcs, quanta, prod_dim=None, symmetries=None, selection_rules=None):
+    def __init__(self, funcs, quanta, prod_dim=None, symmetries=None,
+                 selection_rules=None,
+                 zero_threshold=1.0e-14):
         """
         :param funcs: The functions use to calculate representation
         :type funcs: callable | Iterable[callable]
@@ -48,6 +51,7 @@ class Operator:
         self.symmetry_inds = symmetries
         self.quanta = tuple(quanta)
         self.mode_n = len(quanta)
+        self.zero_threshold = zero_threshold
         # self._tensor = None
         self._parallelizer = None
             # in the future people will be able to supply this so that they can fully control how
@@ -103,7 +107,7 @@ class Operator:
 
     def _get_eye_tensor(self, states, quants):
         orthog = self._get_orthogonality([], states, quants)
-        non_orthog = np.where(orthog!=0.)[0]
+        non_orthog = np.where(orthog != 0.)[0]
         return sp.csr_matrix(
             (
                 orthog[non_orthog],
@@ -252,8 +256,6 @@ class Operator:
         :rtype:
         """
 
-        # print(inds)
-
         # We figure out which indices are actually unique; this gives us a way to map
         # indices onto operators for our generator
         _, idx = np.unique(inds, return_index=True)
@@ -262,7 +264,10 @@ class Operator:
         # mm = {k: i for i, k in enumerate(uinds)}
 
         # then we determine which states are potentially non-orthogonal based on precomputed info
-        non_orthog_states = [(states[i][0][non_orthog], states[i][1][non_orthog]) for i in uinds]
+        non_orthog_states = [
+            (states[i][0][non_orthog], states[i][1][non_orthog])
+            for i in uinds
+        ]
 
         # next we get the term generator defined by inds
         # this will likely end up calling uinds again, but ah well, that operation is cheap
@@ -339,7 +344,8 @@ class Operator:
                 if all_sels is not None:
                     non_orthog = non_orthog[all_sels,]
 
-            non_zero = np.where(chunk != 0.)[0] # by filtering again we save on computation in the dot products
+            non_zero = np.where(np.abs(chunk) >= self.zero_threshold)[0] # by filtering again we save on computation in the dot products
+            # print(len(non_zero), len(non_orthog))
 
             if len(non_zero) == 0:
                 return sp.csr_matrix((1, nstates), dtype='float')
@@ -372,7 +378,9 @@ class Operator:
         :return:
         :rtype:
         """
-        res = np.apply_along_axis(self._calculate_single_pop_elements, -1, inds, self.funcs, idx, self.quanta, self.sel_rules)
+        res = np.apply_along_axis(self._calculate_single_pop_elements,
+                                  -1, inds, self.funcs, idx, self.quanta, self.sel_rules
+                                  )
         if save_to_disk:
             new = sp.vstack([x for y in res.flatten() for x in y])
             with tf.NamedTemporaryFile() as tmp:
@@ -383,7 +391,7 @@ class Operator:
 
         return res
 
-    def _get_pop_parallel(self, inds, idx, parallelizer=None):#parallelizer="multiprocessing"):
+    def _get_pop_parallel(self, inds, idx, parallelizer="multiprocessing"):
         if parallelizer != "multiprocessing":
             raise NotImplementedError("More parallelization methods are coming--just not yet")
 
@@ -416,6 +424,68 @@ class Operator:
 
         return res
 
+    def filter_symmetric_indices(self, inds):
+        """
+        Determines which inds are symmetry unique.
+        For something like `qqq` all permutations are equivalent, but for `pqp` we have `pi qj pj` distinct from `pj qj pi`.
+        This means for `qqq` we have `(1, 0, 0) == (0, 1, 0)` but for `pqp` we only have stuff like `(2, 0, 1) == (1, 0, 2)` .
+
+        :param inds: indices to filter symmetric bits out of
+        :type inds: np.ndarray
+        :return: symmetric indices & inverse map
+        :rtype:
+        """
+
+
+        symm_labels = self.symmetry_inds
+        flat = np.reshape(inds, (-1, inds.shape[-1]))
+        if symm_labels is None:
+            return flat, None
+
+        ind_grps = OrderedDict()
+        for i, l in enumerate(symm_labels):
+            if l in ind_grps:
+                ind_grps[l].append(i)
+            else:
+                ind_grps[l] = [i]
+        ind_grps = list(ind_grps.values())
+
+        if len(ind_grps) == len(symm_labels):
+            # short-circuit case if no symmetry
+            return flat, None
+        elif len(ind_grps) == 1:
+            # totally symmetric so we can just sort and delete the dupes
+            flat = np.sort(flat, axis=1)
+            return np.unique(flat, axis=0, return_inverse=True)
+        else:
+            # if indices are shared between groups we can't do anything about them
+            # so we figure out where there are overlaps in indices
+            # we do this iteratively by looping over groups, figuring out pairwise if they
+            # share elements, and using an `or` op to update our list of indep terms
+            indep_grps = np.full((len(flat),), False, dtype=bool)
+            # this is 4D, but over relatively small numbers of inds (maybe 6x6x6x6 at max)
+            # and so hopefully still fast, esp. relative to computing actual terms
+            for i in range(len(ind_grps)):
+                for j in range(i+1, len(ind_grps)):
+                    for t1 in ind_grps[i]:
+                        for t2 in ind_grps[j]:
+                            indep_grps = np.logical_or(
+                                indep_grps,
+                                flat[:, t1] == flat[:, t2]
+                            )
+            indep_grps = np.logical_not(indep_grps)
+            symmable = flat[indep_grps]
+
+            # pull out the groups of indices and sort them
+            symmetriz_grps = [np.sort(symmable[:, g], axis=1) for g in ind_grps]
+            # stack them together to build a full array
+            # then reshuffle to get the OG ordering
+            reordering = np.argsort(np.concatenate(ind_grps))
+            symmetrized = np.concatenate(symmetriz_grps, axis=1)[:, reordering]
+            flat[indep_grps] = symmetrized
+
+            return np.unique(flat, axis=0, return_inverse=True)
+
     def get_elements(self, idx, parallelizer=None):#parallelizer='multiprocessing'):
         """
         Calculates a subset of elements
@@ -445,15 +515,32 @@ class Operator:
             new = self._get_eye_tensor(idx, self.quanta)
             # raise Exception(new[0], type(new), new.shape)
         else:
-            if parallelizer is not None:
-                # parallelizer = self._parallelizer
-                inds = inds.reshape((-1, inds.shape[-1]))
-                res = self._get_pop_parallel(inds, idx, parallelizer=parallelizer)
-            else:
-                res = self._get_pop_sequential(inds, idx)
 
-            wat = [x for y in res.flatten() for x in y]
+            # self.symmetry_inds = None
+            mapped_inds, inverse = self.filter_symmetric_indices(inds)
+
+            if parallelizer is not None:
+                res = self._get_pop_parallel(mapped_inds, idx,
+                                             parallelizer=parallelizer
+                                             )
+            else:
+                res = self._get_pop_sequential(mapped_inds, idx)
+
+            if inverse is not None:
+                res = res.flatten()[inverse]
+
+            wat = [x for y in res for x in y]
             new = sp.vstack(wat)
+
+            # if inverse is not None:
+            #     # raise Exception(res)
+            #
+            #     new = new.reshape((1, int(np.prod(new.shape))))
+            #     print(new, inverse)
+            #     new = new[inverse]
+
+
+
 
         shp = inds.shape if inds is not None else ()
         # print(type(new), new.shape)
@@ -476,7 +563,10 @@ class ContractedOperator(Operator):
     and doing the appropriate tensor contractions with the expansion coefficients (i.e. `G` or `dG/dQ`)
     """
 
-    def __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None, selection_rules=None):
+    def __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None,
+                 selection_rules=None,
+                 zero_threshold=1.0e-14
+                 ):
         """
         :param coeffs: The tensor of coefficients contract with the operator representation (`0` means no term)
         :type coeffs: np.ndarray | int
@@ -491,7 +581,10 @@ class ContractedOperator(Operator):
         """
         self.coeffs = coeffs
         self.axes = axes
-        super().__init__(funcs, quanta, symmetries=symmetries, prod_dim=prod_dim, selection_rules=selection_rules)
+        super().__init__(funcs, quanta, symmetries=symmetries, prod_dim=prod_dim,
+                         selection_rules=selection_rules,
+                         zero_threshold=zero_threshold
+                         )
 
     def get_elements(self, idx, parallelizer=None):
         """

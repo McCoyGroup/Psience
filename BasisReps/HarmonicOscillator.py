@@ -12,6 +12,7 @@ import scipy.sparse as sp, numpy as np, functools, itertools
 from .Bases import *
 from .Operators import Operator, ContractedOperator
 from McUtils.Data import WavefunctionData
+from McUtils.Misc import MaxSizeCache
 
 class HarmonicOscillatorBasis(RepresentationBasis):
     """
@@ -131,6 +132,11 @@ class HarmonicOscillatorBasis(RepresentationBasis):
     #     q=self.quanta
     #     return TermComputer(self.operator(*terms), q)
 
+    def __repr__(self):
+        return "HOBasis({})".format(
+            ",".join(str(x) for x in self.dimensions)
+        )
+
 class HarmonicOscillatorProductBasis(SimpleProductBasis):
 
     """
@@ -158,21 +164,31 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
 
         if all(isinstance(t, str) for t in terms):
             computer = HarmonicProductOperatorTermEvaluator(terms)
+
+            # determine the symmetries up front to make stuff faster
+            ids = [hash(f) for f in terms]
+            mapping = {k: i for i, k in enumerate(ids)}
+            labels = [mapping[k] for k in ids]
+
             if coeffs is None:
-                op = Operator(computer, self.quanta, prod_dim=len(terms))
+                op = Operator(computer, self.quanta, prod_dim=len(terms), symmetries=labels)
             else:
-                op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms))
+                op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms), symmetries=labels)
             return op
         else:
             return super().operator(*terms, coeffs=coeffs, axes=axes)
 
+    def __repr__(self):
+        return "HOBasis({})".format(
+            ",".join(str(x) for x in self.dimensions)
+        )
 
 class HarmonicProductOperatorTermEvaluator:
     """
     A simple class that can be used to directly evaluate any operator built as a product of `p` and `x` terms.
     Automatically dispatches to provide different permutations.
     """
-    _cache = {}
+    _cache = MaxSizeCache()
     def __init__(self, terms):
         """
         :param terms: list of 'x' and 'p' terms
@@ -210,7 +226,7 @@ class HarmonicProductOperatorTermEvaluator:
         from collections import OrderedDict
 
         if len(inds) != len(self.terms):
-            raise ValueError("number of indices specified {} and number of terms {} must agree (from {} into {})".format(
+            raise ValueError("Number of indices specified {} and number of terms {} must agree (from {} into {})".format(
                 len(inds),
                 len(self.terms),
                 inds,
@@ -311,7 +327,7 @@ class HarmonicProductOperatorTermEvaluator:
         All of the overall `(-i)^N` info is in the `ProdOp` class that's expected to hold this.
         Only maintains phase info & calculates elements.
         """
-        _evaluators = {}
+        _evaluators = MaxSizeCache()
         def __init__(self, terms):
             self.terms = terms
             self.N = len(terms)
