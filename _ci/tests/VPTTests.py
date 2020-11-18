@@ -2232,7 +2232,6 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-
     @validationTest
     def test_HODVPTInternals(self):
 
@@ -2599,7 +2598,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
-    @validationTest
+    @inactiveTest
     def test_OCHHVPTInternals(self):
 
         internals = [
@@ -2722,7 +2721,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @validationTest
+    @inactiveTest
     def test_OCHHVPTCartesians(self):
 
         internals = None
@@ -2844,7 +2843,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @validationTest
+    @inactiveTest
     def test_OCHDVPTInternals(self):
 
         internals = [
@@ -3094,7 +3093,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @validationTest
+    @inactiveTest
     def test_OCHTVPTInternals(self):
 
         internals = [
@@ -3224,7 +3223,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs-gaussian_freqs[:, 1])[:len(states)-1]),
             1)
 
-    @validationTest
+    @inactiveTest
     def test_OCHTVPTCartesians(self):
 
         internals = None
@@ -3363,7 +3362,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @validationTest
+    @inactiveTest
     def test_CH2DTVPTCartesians(self):
 
         internals = None
@@ -3509,7 +3508,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @validationTest
+    @inactiveTest
     def test_WaterDimerVPTCartesians(self):
 
         internals = None
@@ -3710,13 +3709,14 @@ class VPTTests(TestCase):
 
         g0, w, x = expansion
 
+
         raise Exception([
             self.h2w * x,
             self.h2w * w,
             self.h2w * g0
         ])
 
-    @debugTest
+    @inactiveTest
     def test_OCHHCartesianActionExpansion(self):
 
         internals = None
@@ -3744,7 +3744,7 @@ class VPTTests(TestCase):
             # self.h2w * g0
         ])
 
-    @debugTest
+    @inactiveTest
     def test_WaterDimerCartesianActionExpansion(self):
 
         internals = None
