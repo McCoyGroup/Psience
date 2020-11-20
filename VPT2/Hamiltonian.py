@@ -207,6 +207,15 @@ class PerturbationTheoryHamiltonian:
         :type coriolis_coupling: bool
         """
 
+        if log is None or isinstance(log, Logger):
+            self.logger = log
+        elif log is True:
+            self.logger = Logger(padding="    ")
+        elif log is False:
+            self.logger = None
+        else:
+            self.logger = Logger(log, padding="    ")
+
         if molecule is None:
             raise PerturbationTheoryException("{} requires a Molecule to do its dirty-work")
         # molecule = molecule.get_embedded_molecule()
@@ -219,8 +228,8 @@ class PerturbationTheoryHamiltonian:
             n_quanta = 10 # dunno yet how I want to handle this since it should really be defined by the order of state requested...
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
         self.modes = modes
-        self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection)
-        self.G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection)
+        self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection)#, logger=self.logger)
+        self.G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection)#, logger=self.logger)
         if coriolis_coupling and (self.molecule.internal_coordinates is None):
             self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection)
         else:
@@ -231,15 +240,6 @@ class PerturbationTheoryHamiltonian:
 
         self.basis = HarmonicOscillatorProductBasis(self.n_quanta)
         # self.basis = SimpleProductBasis(HarmonicOscillatorBasis, self.n_quanta)
-
-        if log is None or isinstance(log, Logger):
-            self.logger = log
-        elif log is True:
-            self.logger = Logger(padding="    ")
-        elif log is False:
-            self.logger = None
-        else:
-            self.logger = Logger(log, padding="    ")
 
     @classmethod
     def from_fchk(cls, file,

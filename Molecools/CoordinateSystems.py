@@ -15,6 +15,37 @@ from McUtils.Coordinerds import (
     ZMatrixCoordinates, CartesianCoordinates3D, CoordinateSet
 )
 
+def _get_best_axes(first_pos, axes):
+    """
+    Determine the best pair of inertial axes so that we don't get large-scale breakdowns from the choice of embedding
+
+    :param first_pos:
+    :type first_pos:
+    :param axes:
+    :type axes:
+    :return:
+    :rtype:
+    """
+    fp_norm = np.linalg.norm(first_pos)
+    if fp_norm > 1.0e-10:  # not chilling at the origin...
+        first_pos = first_pos / fp_norm
+        # check if it lies along an axis or is perpendicular to an axis
+        b_proj = np.dot(first_pos, axes[1])
+        c_proj = np.dot(first_pos, axes[2])
+        if np.abs(b_proj) < .05: # lies in the A/C plane
+            axes = axes[:2]
+            ax_names = ["A", "B"]
+        elif np.abs(c_proj) < .05: # lies in the A/B plane
+            axes = axes[(0, 2),]
+            ax_names = ["A", "C"]
+        else:
+            axes = axes[1:]
+            ax_names = ["B", "C"]
+    else:
+        axes = axes[:2]
+        ax_names = ["A", "B"]
+    return axes, ax_names
+
 class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
     """
     Mirrors the standard ZMatrix coordinate system in _almost_ all regards, but forces an embedding
@@ -49,30 +80,11 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
             first = 0
 
         first_pos = molecule.coords[first]
-        fp_norm = np.linalg.norm(first_pos)
-        if fp_norm > 1.0e-10:  # not chilling at the origin...
-            first_pos = first_pos / fp_norm
-            if np.abs(np.dot(first_pos, axes[0])) == 1:
-                axes = axes[1:]
-            elif np.abs(np.dot(first_pos, axes[1])) == 1:
-                axes = axes[(0, 2)]
-            else:
-                axes = axes[:2]
-        else:
-            axes = axes[:2]
-
-        # np.random.seed(100)
-        # com = np.random.rand(3)
-        # ax_1 = np.random.rand(3)
-        # ax_1 = ax_1 / np.linalg.norm(ax_1)
-        # ax_2 = np.random.rand(3)
-        # ax_2 = ax_2 / np.linalg.norm(ax_2)
-        # ax_2 = np.cross(ax_1, ax_2)
-        # ax_2 = ax_2 / np.linalg.norm(ax_2)
-        # axes = np.array([ax_1, ax_2])
+        axes, ax_names = _get_best_axes(first_pos, axes)
 
         converter_options['origins'] = com
         converter_options['axes'] = axes
+        converter_options['axes_labels'] = ax_names
         converter_options['molecule'] = molecule
         nats = len(molecule.atoms)
         super().__init__(converter_options=converter_options, dimension=(nats, 3), coordinate_shape=(nats, 3), opts=opts)
@@ -116,34 +128,12 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         else:
             first = 0
 
-        # make sure first atom isn't along one of the axes...
         first_pos = molecule.coords[first]
-        fp_norm = np.linalg.norm(first_pos)
-        if fp_norm > 1.0e-10: # not chilling at the origin...
-            first_pos = first_pos / fp_norm
-            if np.abs(np.dot(first_pos, axes[0])) > .95:
-                axes = axes[1:]
-            elif np.abs(np.dot(first_pos, axes[1])) > .95:
-                axes = axes[(0, 2)]
-            else:
-                axes = axes[:2]
-        else:
-            axes = axes[:2]
-
-        # print(">>>", axes)
-
-        # np.random.seed(100)
-        # com = np.random.rand(3)
-        # ax_1 = np.random.rand(3)
-        # ax_1 = ax_1 / np.linalg.norm(ax_1)
-        # ax_2 = np.random.rand(3)
-        # ax_2 = ax_2 / np.linalg.norm(ax_2)
-        # ax_2 = np.cross(ax_1, ax_2)
-        # ax_2 = ax_2 / np.linalg.norm(ax_2)
-        # axes = np.array([ax_1, ax_2])
+        axes, ax_names = _get_best_axes(first_pos, axes)
 
         converter_options['origins'] = com
         converter_options['axes'] = axes
+        converter_options['axes_labels'] = ax_names
         converter_options['molecule'] = molecule
         nats = len(molecule.atoms)
         super().__init__(converter_options=converter_options, dimension=(nats, 3), opts=opts)

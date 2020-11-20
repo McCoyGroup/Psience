@@ -2,7 +2,7 @@
 Stores all of the terms used inside the VPT2 representations
 """
 
-import numpy as np, functools as fp, itertools as ip, scipy
+import numpy as np, functools as fp, itertools as ip, scipy, time
 
 from McUtils.Numputils import SparseArray, levi_cevita3, vec_tensordot, vec_outer
 from McUtils.Data import UnitsData
@@ -136,6 +136,7 @@ class ExpansionTerms:
                  molecule,
                  modes=None,
                  mode_selection=None,
+                 logger=None,
                  undimensionalize=True
                  ):
         """
@@ -166,6 +167,8 @@ class ExpansionTerms:
         self.mode_sel = mode_selection
         self.freqs = self.modes.freqs
         self._inert_frame = None
+
+        self.logger = logger
 
     def undimensionalize(self, masses, modes):
         L = modes.matrix.T
@@ -448,30 +451,83 @@ class ExpansionTerms:
         if self.molecule in self._cached_transforms:
             return self._cached_transforms[self.molecule]
 
+        ncoords = self.molecule.coords.shape[0]
+        # gc = np.delete(
+        #     np.arange(ncoords*3),
+        #     [0, 1, 2, 4, 5, 8]
+        # )
+
+        # raise Exception(gc)
+
+        if self.logger is not None:
+            self.logger.log_print(
+                [
+                    "Getting coordinate transforms for {}",
+                    "Embedding axes: {}"
+                    ],
+                self.molecule,
+                self.internal_coordinates.system.converter_options["axes_labels"]
+            )
+
         # For speed reasons we've introduced class-level caching of these terms
+        if self.logger is not None:
+            start = time.time()
+            self.logger.log_print(
+                "Getting d^nX/dR^n up to order {}...",
+                3
+            )
         XR, XRR, XRRR = self.get_int_jacobs([1, 2, 3])
         XRRRR = 0
+        if self.logger is not None:
+            end = time.time()
+            self.logger.log_print(
+                "took {}s",
+                round(end-start, 3)
+            )
 
         # The finite difference preserves too much shape by default
         _contract_dim = DumbTensor._contract_dim
         if XR.ndim > 2:
             XR = _contract_dim(XR, 2)
-        if not isinstance(XRR, int) and XRR.ndim > 3:
-            XRR = _contract_dim(XRR, 3)
-        if not isinstance(XRRR, int) and XRRR.ndim > 4:
-            XRRR = _contract_dim(XRRR, 4)
-        if not isinstance(XRRRR, int) and XRRRR.ndim > 5:
-            XRRRR = _contract_dim(XRRRR, 5)
+            # XR = XR[gc]
+        if not isinstance(XRR, int):
+            if XRR.ndim > 3:
+                XRR = _contract_dim(XRR, 3)
+            # XRR = XRR[np.ix_(gc, gc)]
+        if not isinstance(XRRR, int):
+            if XRRR.ndim > 4:
+                XRRR = _contract_dim(XRRR, 4)
+            # XRRR = XRRR[np.ix_(gc, gc, gc)]
+        if not isinstance(XRRRR, int):
+            if XRRRR.ndim > 5:
+                XRRRR = _contract_dim(XRRRR, 5)
+            # XRRRR = XRRRR[np.ix_(gc, gc, gc, gc)]
 
+        if self.logger is not None:
+            start = time.time()
+            self.logger.log_print(
+                "Getting d^nR/dX^n up to order {}...",
+                3
+            )
         RX, RXX, RXXX = self.get_cart_jacobs([1, 2, 3])
+        if self.logger is not None:
+            end = time.time()
+            self.logger.log_print(
+                "took {}s",
+                round(end-start, 3)
+            )
         # print(self.molecule, self.molecule.internal_coordinates, np.round(RX, 3), np.round(RXX, 3))
         # raise Exception(RXX.shape)
+
         if RX.ndim > 2:
             RX = _contract_dim(RX, 2)
+        # RX = RX[:, gc]
         if RXX.ndim > 3:
             RXX = _contract_dim(RXX, 3)
+        # RXX = RXX[:, :, gc]
         if RXXX.ndim > 4:
             RXXX = _contract_dim(RXXX, 4)
+        # RXXX = RXXX[:, :, :, gc]
 
         # Need to then mass weight
         masses = self.masses
@@ -498,26 +554,80 @@ class ExpansionTerms:
                 * mass_conv[np.newaxis, :, np.newaxis, np.newaxis]
                 * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
         )
-        # RYY[0, 1] = 0.
-        # RYY[0, 0] = 0.
-        # RYY[1, 0] = 0.
-        # RYY[1, 1] = 0.
-        # RYY[2, 2] = 0.
+
+        # check for breakdowns?
+        # not sure why I wouldn't also need to correct for other bits in this...
+        test_I = np.dot(YR, RY)
+        bad_modes = np.where( np.abs(1.-np.diag(test_I)) > .001 )[0]
+        if len(bad_modes) > 0:
+            natoms = RY.shape[0] // 3
+            # add back in the coords corresponding to the embedding
+            new_bad = []
+            for b in bad_modes:
+                if b == 0:
+                    b += 3 # 3 embedding coords
+                elif b == 1:
+                    b += 5 # 5 embedding coords
+                else:
+                    b += 6
+                new_bad.append(b)
+
+            bad_pos = np.unravel_index(new_bad, (natoms, 3))
+            ic_sys = self.internal_coordinates.system
+            ordering = ic_sys.converter_options['ordering']
+            ax_names = ic_sys.converter_options['axes_labels']
+            bad_crds = []
+            for line, which in zip(*bad_pos):
+                me = ordering[line]
+                if line == 0:
+                    if which == 0:
+                        bad_crds.append("(embedding) dist({}, COM)".format(me[0]))
+                    elif which == 1:
+                        bad_crds.append("(embedding) angle(COM, {}, {}-axis)".format(me[0], ax_names[0]))
+                    elif which == 2:
+                        bad_crds.append("(embedding) dihed({}, COM, {}-axis, {}-axis))".format(me[0], *ax_names))
+                elif line == 1 and (which == 1 or which == 2):
+                    if which == 1:
+                        bad_crds.append("(embedding) angle({0}, {1}, {2}-axis)".format(*me[:2], ax_names[0]))
+                    elif which == 2:
+                        bad_crds.append("(embedding) dihed({}, {}, {}-axis, {}-axis)".format(*me[:2], *ax_names))
+                elif line == 2 and which == 2:
+                    bad_crds.append("(embedding) dihed({}, {}, {}, {}-axis)".format(*me[:3], ax_names[0]))
+                else:
+                    if which == 0:
+                        bad_crds.append("dist({}, {})".format(*me[:2]))
+                    elif which == 1:
+                        bad_crds.append("angle({1}, {0}, {2})".format(*me[:3]))
+                    elif which == 2:
+                        bad_crds.append("dihed({}, {}, {}, {})".format(*me))
+
+
+            raise PerturbationTheoryException(
+                "dR/dX and dX/dR aren't inverses, specifically in coordinates {} : {}".format(
+                    bad_modes,
+                    ", ".join(bad_crds)
+            ))
+
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(should_be_I)
+        # plt.ArrayPlot(should_be_I2)
+        # plt.ArrayPlot(should_be_I3)
+        # plt.ArrayPlot(should_be_I4).show()
+
+        # raise Exception([
+        #     RY.shape,
+        #     RYY.shape,
+        #     RYYY.shape,
+        #     YR.shape,
+        #     YRR.shape,
+        #     YRRR.shape
+        # ])
+
         QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
-        YQ = self.modes.inverse
+        YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
 
         RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
         QR = np.tensordot(YR, QY, axes=[-1, 0])
-        # print([RY, YR])
-        # import McUtils.Plots as plt
-        # plt.ArrayPlot(RY)
-        # plt.ArrayPlot(YR)
-        # plt.TensorPlot(RYY)
-        # plt.TensorPlot(YRR).show()
-
-        # print(
-        #     np.max(np.abs(RXX))
-        # )
 
         x_derivs = (YR, YRR, YRRR, YRRRR)
         Q_derivs = (RQ, 0, 0, 0)
@@ -526,43 +636,11 @@ class ExpansionTerms:
 
         QYY = np.tensordot(RYY, QR, axes=[-1, 0])
         QYYY = np.tensordot(RYYY, QR, axes=[-1, 0])
-            # np.tensordot(RQ,
-            #                np.tensordot(RQ, np.tensordot(RQ, YRR, axes=[1, 0]), axes=[1, 1]),
-            #                axes=[1, 2]
-            #                )
 
         qQ, qQQ, qQQQ, qQQQQ = self._get_tensor_derivs(
             YQ_derivs, (QY, 0, 0, 0),
             mixed_XQ=False
         )
-
-        # if np.max(np.abs(qQ-np.eye(qQ.shape[0]))) < 1.0e-8:
-        #     qQ = np.eye(qQ.shape[0])
-
-        # for l, t in (
-        #     ("dYdQ", YQ),
-        #     ("dYdQQ", YQQ),
-        #     ("dYdQQQ", YQQQ),
-        #     ("dQdY", QY),
-        #     ("dQdYY", QYY),
-        #     ("dQdYYY", QYYY),
-        #     ("dRdY", RY),
-        #     ("dRdYY", RYY),
-        #     ("dRdYYY", RYYY),
-        #     ("dRdYY", RYY),
-        #     ("dRdYYY", RYYY),
-        #     ("dYdR", YR),
-        #     ("dYdRR", YRR),
-        #     ("dYdRRR", YRRR)
-        # ):
-        #     t = np.abs(t)
-        #     M = np.max(t)
-        #     m = np.min(t)
-        #     print(l + ": ", np.round(M, 4), np.where(t == M), np.round(m, 4), np.average(t))
-
-
-        # import McUtils.Plots as plt
-        # plt.TensorPlot(YQQ).show()
 
         self._cached_transforms[self.molecule] = {
             "CartesiansByModes": [YQ, YQQ, YQQQ, YQQQQ],
@@ -602,7 +680,8 @@ class PotentialTerms(ExpansionTerms):
                  molecule,
                  mixed_derivs=True,
                  modes=None,
-                 mode_selection=None
+                 mode_selection=None,
+                 logger=None
                  ):
         """
         :param molecule: the molecule that will supply the potential derivatives
@@ -614,7 +693,7 @@ class PotentialTerms(ExpansionTerms):
         :param mode_selection: the subset of normal modes to use
         :type mode_selection: None | Iterable[int]
         """
-        super().__init__(molecule, modes, mode_selection)
+        super().__init__(molecule, modes, mode_selection, logger=logger)
         self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.potential_derivatives)
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
 
@@ -748,31 +827,49 @@ class PotentialTerms(ExpansionTerms):
 
             v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_XQ=self.mixed_derivs)
         else:
-            #TODO: I'd like to have support for using more/fewer derivs, just in case
 
             xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
-            QY, QYY, QYYY = self.modes_by_cartesians
+            # QY, QYY, QYYY = self.modes_by_cartesians
 
-            dot = DumbTensor._dot
-            if self.mixed_derivs:
-                qQQ = dot(xQQ, QY)
-                f43 = dot(qQQ, thirds)
-                fourths = fourths.toarray()
+            # dot = DumbTensor._dot
+            # if self.mixed_derivs:
+            #     qQQ = dot(xQQ, QY)
+            #     f43 = dot(qQQ, thirds)
+            #     fourths = fourths.toarray()
+
+            if np.linalg.norm(grad) > 1.0e-4:
+                # add some logger stuff...
+                grad = np.zeros(grad.shape)
+                raise ValueError("Wooooah look at the norm on this grad: {}".format(
+                    np.linalg.norm(grad)
+                ))
+
 
             x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
             V_derivs = (grad, hess, thirds, fourths)
 
             v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=True, mixed_XQ=self.mixed_derivs)
 
-            # for l, t in (
-            #         ("V2", v2),
-            #         ("V3", v3),
-            #         ("V4", v4)
-            # ):
-            #     t = np.abs(t)
-            #     M = np.max(t)
-            #     m = np.min(t)
-            #     print(l + ": ", np.round(M, 4), np.where(t == M), np.round(m, 4), np.average(t))
+            # import McUtils.Plots as plt
+
+            xQ2 = self.modes.inverse
+            _, v2x,  = self._get_tensor_derivs((xQ2, 0, 0, 0), V_derivs, order=2, mixed_XQ=self.mixed_derivs)
+
+            v2_diff = v2 - v2x
+            # wat = xQQ.reshape( (xQQ.shape[0] // 3, 3) + xQQ.shape[1:])
+            # plt.TensorPlot()
+            # plt.ArrayPlot(xQQ[5])
+            # plt.ArrayPlot(hess)
+            # plt.ArrayPlot(v2x)
+            # plt.ArrayPlot(v2)
+            # plt.ArrayPlot(v2_diff).show()
+
+            if np.max(np.abs(v2_diff)) > 1.0e-4:
+                raise PerturbationTheoryException(
+                    "Internal normal mode Hessian differs from Cartesian normal mode Hessian;"
+                    " this likely indicates issues with the second derivatives"
+                    " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)".format(np.min(xQQ), np.max(xQQ))
+                )
 
         if self.mixed_derivs:# and intcds is None:
             # we assume we only got second derivs in Q_i Q_i

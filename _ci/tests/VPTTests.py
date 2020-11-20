@@ -654,7 +654,7 @@ class VPTTests(TestCase):
             [2, 1, 1,    41.05987944],
             [3, 1, 1,   429.45742955],
             [1, 2, 1,    41.05987944],
-            [2, 2, 1,   -90.66588863],
+            [2, 2, 1,  -90.66588863],
             [3, 2, 1,    82.31540784],
             [1, 3, 1,   429.45742955],
             [2, 3, 1,    82.31540784],
@@ -664,18 +664,18 @@ class VPTTests(TestCase):
             [3, 1, 2,    82.32690754],
             [1, 2, 2,   -90.73683527],
             [2, 2, 2, -1588.89967595],
-            [3, 2, 2, 91.00951548],
-            [1, 3, 2, 82.32690754],
-            [2, 3, 2, 91.00951548],
-            [3, 3, 2, -172.34377091],
-            [1, 1, 3, 430.44067645],
-            [2, 1, 3, 82.33125106],
-            [3, 1, 3, -153.78923868],
-            [1, 2, 3, 82.33125106],
-            [2, 2, 3, 90.96564514],
-            [3, 2, 3, -172.45333790],
-            [1, 3, 3, -153.78923868],
-            [2, 3, 3, -172.45333790],
+            [3, 2, 2,    91.00951548],
+            [1, 3, 2,    82.32690754],
+            [2, 3, 2,    91.00951548],
+            [3, 3, 2,  -172.34377091],
+            [1, 1, 3,   430.44067645],
+            [2, 1, 3,    82.33125106],
+            [3, 1, 3,  -153.78923868],
+            [1, 2, 3,    82.33125106],
+            [2, 2, 3,    90.96564514],
+            [3, 2, 3,  -172.45333790],
+            [1, 3, 3,  -153.78923868],
+            [2, 3, 3,  -172.45333790],
             [3, 3, 3, -2558.24567375]
         ]
 
@@ -2083,7 +2083,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @validationTest
+    @debugTest
     def test_HOHVPTInternals(self):
 
         internals = [
@@ -2104,7 +2104,7 @@ class VPTTests(TestCase):
             states,
             save_coeffs=True,
             regenerate=True
-            , coupled_states = self.get_states(5, 3)
+            # , coupled_states = self.get_states(5, 3)
             # , watson=0.
             # , v3=0
             # , v4=0
@@ -2178,7 +2178,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         internals = None
@@ -2272,7 +2272,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @validationTest
+    @debugTest
     def test_HODVPTInternals(self):
 
         internals = [
@@ -2294,7 +2294,8 @@ class VPTTests(TestCase):
             states,
             save_coeffs=True,
             regenerate=True,
-            coupled_states=coupled_states
+            log=True
+            # coupled_states=coupled_states
             # , v3=legit/self.h2w
             # , v4=0
         )
@@ -2365,7 +2366,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
-    @validationTest
+    @debugTest
     def test_HODVPTCartesians(self):
 
         internals = None
@@ -2454,7 +2455,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
-    @validationTest
+    @debugTest
     def test_HOTVPTInternals(self):
 
         internals = [
@@ -2547,7 +2548,7 @@ class VPTTests(TestCase):
 
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
-    @validationTest
+    @debugTest
     def test_HOTVPTCartesians(self):
 
         internals = None
@@ -3731,7 +3732,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @debugTest
+    @inactiveTest
     def test_WaterDimerVPTInternals(self):
 
         """
@@ -3743,33 +3744,53 @@ class VPTTests(TestCase):
       6          1           0        2.858217   -0.761260    2.508248
       """
 
+        COM = -3
+        A = -2
+        C = -1
+        X = 1000
+        LHF = 0
+        LO = 1
+        SH = 2
+        RO = 3
+        RH1 = 4
+        RH2 = 5
         internals = [
-            [0, -1, -1, -1], # LHS free hydrogen
-            [1,  0, -1, -1], # LHS oxygen
-            [2,  1,  0, -1], # Shared hydrogen, LHS oxygen, LHS free hydrogen
-            [3,  1,  0,  2], # RHS oxygen, LHS oxygen, LHS free hydrogen, LHS shared hydrogen
-            [4,  3,  1,  0], # RHS first hydrogen, RHS oxygen, LHS oxygen, free hydrogen
-            [5,  3,  4,  0]  # RHS second hydrogen, RHS oxygen, RHS first hydrogen, free hydrogen
+            [LHF,  X,   X,   X],
+            [LO, LHF,   X,   X],
+            [SH,  LO, LHF,   X],
+            [RH2, SH,  LO, LHF], # get out of plane
+            [RO,  LO, RH2, LHF],
+            [RH1, RO, RH2, LHF]
         ]
 
-        # internals = [
-        #     [0, -1, -1, -1],  # LHS free hydrogen
-        #     [1, 0, -1, -1],  # LHS oxygen
-        #     [2, 1, 0, -1],  # Shared proton hydrogen
-        #     [3, 2, 1, 0],  # RHS oxygen, LHS oxygen, shared proton,
-        #     [4, 3, 2, 1],  # RHS first hydrogen
-        #     [5, 4, 3, 2]  # RHS second hydrogen
-        # ]
+        internals = [
+            [LHF,   X,   X,   X],
+            [LO,  LHF,   X,   X],
+            [SH,   LO, LHF,   X],
+            [RO,   LO,  SH, LHF],
+            [RH1,  RO,  LO, LHF],
+            [RH2,  RO, RH1,  LO]
+        ]
+
+        internals = [
+            [LHF, X, X, X],
+            [LO, LHF, X, X],
+            [SH, LO, LHF, X],
+            [RO, LO, SH, C],
+            [RH1, RO, LO, LHF],
+            [RH2, RO, RH1, LO]
+        ]
 
         n_modes = 6 * 3 - 6
         mode_selection = None
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
 
-        states = self.get_states(2, n_modes)[:2]
+        states = self.get_states(2, n_modes)#[:8]
 
         # coupled_states = self.get_states(5, n_modes, max_quanta=5)
         #
+        # PerturbationTheoryHamiltonian()
 
         def block(self=self,
                   internals=internals,
@@ -3785,6 +3806,12 @@ class VPTTests(TestCase):
                 coupled_states=coupled_states,
                 mode_selection=mode_selection,
                 log=True
+                # , t2=0
+                # , v2=0
+                , t3=0
+                , v3=0
+                , t4=0
+                , v4=0
             )
 
         # block()
