@@ -225,7 +225,9 @@ class Molecule:
     @property
     def internal_coordinates(self):
         if self._ints is None and self._zmat is not None:
-            self._ints = self.coords.convert(MolecularZMatrixCoordinateSystem(self, ordering=self._zmat))
+            zms = MolecularZMatrixCoordinateSystem(self, ordering=self._zmat)
+            # print(zms)
+            self._ints = self.coords.convert(zms)
         return self._ints
     @property
     def normal_modes(self):

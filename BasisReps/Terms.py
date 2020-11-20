@@ -165,8 +165,8 @@ class Representation:
         if isinstance(els, int) and els == 0:
             # short-circuited :|
             return els
-        elif not pull_elements:
 
+        elif not pull_elements:
             shp = (len(np.unique(blocks[:, 0])), len(np.unique(blocks[:, 1])))
             extra_shp = els.shape[:-1] # some terms will return higher-dimensional results?
             # for sparse arrays this happens in-place :|

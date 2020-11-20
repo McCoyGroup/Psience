@@ -2,9 +2,11 @@
 Provides classes to support wave functions coming from VPT calculations
 """
 
-import numpy as np, itertools as ip
+import numpy as np, itertools as ip, time, enum
 
-from ..BasisReps import SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction
+from McUtils.Numputils import SparseArray
+
+from ..BasisReps import BasisStateSpace, SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction
 
 from .Terms import DipoleTerms
 from .Hamiltonian import PerturbationTheoryCorrections
@@ -51,7 +53,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     These things are fed the first and second order corrections
     """
 
-    def __init__(self, mol, basis, corrections):
+    def __init__(self, mol, basis, corrections, logger=None):
         """
         :param mol: the molecule the wavefunction is for
         :type mol: Molecule
@@ -66,7 +68,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         # AnalyticWavefunctions with a RepresentationBasis
         self._tm_dat = None
         self._dipole_terms = None
-        self.dipole_partitioning = 'standard'
+        self._dipole_partitioning = self.DipolePartitioningMethod.Standard
+        self.logger = logger
         super().__init__(
             self.corrs.energies,
             self.corrs.wfn_corrections,
@@ -84,10 +87,163 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     def zero_order_energies(self):
         return self.corrs.energy_corrs[:, 0]
 
-    def _transition_moments(self, mu_x, mu_y, mu_z, partitioning=None):
+    @staticmethod
+    def _generate_rep(h, m_pairs, logger, i, M, space):
+            # m_pairs = rep_inds[i]
+
+            # print(">", len(m_pairs[0]))
+            if logger is not None:
+                start = time.time()
+                logger.log_print(
+                    [
+                        "calculating M^({})...",
+                        "(coupled space size {})"
+                    ],
+                    i,
+                    len(m_pairs[0])
+                )
+            # print(m_pairs)
+            sub = h[m_pairs[0], m_pairs[1]]
+            if isinstance(sub, SparseArray):
+                sub = sub.toarray()  #
+            SparseArray.clear_ravel_caches()
+            if logger is not None:
+                end = time.time()
+                logger.log_print(
+                    [
+                        "took {}s"
+                    ],
+                    round(end - start, 3)
+                )
+            if logger is not None:
+                logger.log_print(
+                    "constructing sparse representation..."
+                )
+
+            if isinstance(sub, (int, np.integer, np.floating, float)):
+                if sub == 0:
+                    sub = SparseArray.empty((M, M), dtype=float)
+                else:
+                    raise ValueError(
+                        "Using a constant shift of {} will force representations to be dense...".format(sub))
+                    sub = np.full((N, N), sub)
+            elif len(sub) == ():
+                sub = SparseArray.empty((M, M), dtype=float)
+            else:
+                # figure out the appropriate inds for this data in the sparse representation
+                row_inds = space.find(m_pairs[0])
+                col_inds = space.find(m_pairs[1])
+
+                # upper triangle of indices
+                up_tri = np.array([row_inds, col_inds]).T
+                # lower triangle is made by transposition
+                low_tri = np.array([col_inds, row_inds]).T
+                # but now we need to remove the duplicates, because many sparse matrix implementations
+                # will sum up any repeated elements
+                full_inds = np.concatenate([up_tri, low_tri])
+                full_dat = np.concatenate([sub, sub])
+
+                full_inds, idx = np.unique(full_inds, axis=0, return_index=True)
+                full_dat = full_dat[idx]
+                sub = SparseArray((full_dat, full_inds.T), shape=(M, M))
+
+            return sub
+
+    def _mu_representations(self,
+                            a,
+                            mu,
+                            M,
+                            space,
+                            bra_space,
+                            ket_space,
+                            partitioning,
+                            rep_inds
+                            ):
+
+        # define out reps based on partitioning style
+        if partitioning is None:
+            partitioning = self.dipole_partitioning
+        elif not isinstance(partitioning, self.DipolePartitioningMethod):
+            partitioning = self.DipolePartitioningMethod(partitioning)
+
+        logger = self.logger
+        if (
+                isinstance(mu[0], (np.ndarray, SparseArray)) and mu[0].shape == (M, M)
+                or isinstance(mu[0], (int, float, np.integer, np.floating)) and mu[0] == 0
+        ): # we were passed representations to reuse
+            mu_terms = mu
+            if partitioning == self.DipolePartitioningMethod.Standard and len(mu_terms) < 4:
+                dts = self.dipole_terms[a]
+                mu_3 = dts[3]
+                m3 = 1 / 6 * self.rep_basis.representation("x", "x", "x", coeffs=mu_3)
+                if rep_inds[3] is None:
+                    m3_inds = bra_space.get_representation_indices(
+                        other=ket_space,
+                        selection_rules=bra_space.basis.selection_rules("x", "x", "x")
+                    )
+                    rep_inds[3] = m3_inds
+
+                rep_3 = self._generate_rep(m3, rep_inds[3], logger, 2, M, space)
+                mu_terms.append(rep_3)
+                # mu_terms = mu_terms + [rep_3]
+        else:
+            mu_0, mu_1, mu_2, mu_3 = mu
+
+            m0 = self.rep_basis.representation(coeffs=mu_0)
+            if rep_inds[0] is None:
+                m0_inds = bra_space.get_representation_indices(other=ket_space,
+                                                               selection_rules=[[]])  # no selection rules here
+                rep_inds[0] = m0_inds
+            m1 = self.rep_basis.representation("x", coeffs=mu_1) + self.rep_basis.representation(coeffs=mu_0)
+            if rep_inds[1] is None:
+                m1_inds = bra_space.get_representation_indices(
+                    other=ket_space,
+                    selection_rules=bra_space.basis.selection_rules("x")
+                )
+                rep_inds[1] = m1_inds
+            m2 = 1 / 2 * self.rep_basis.representation("x", "x", coeffs=mu_2)
+            if rep_inds[2] is None:
+                m2_inds = bra_space.get_representation_indices(
+                    other=ket_space,
+                    selection_rules=bra_space.basis.selection_rules("x", "x"))
+                rep_inds[2] = m2_inds
+
+            if partitioning == self.DipolePartitioningMethod.Intuitive:
+                reps = [m0, m1, m2]
+            elif partitioning == self.DipolePartitioningMethod.Standard:
+                m3 = 1 / 6 * self.rep_basis.representation("x", "x", "x", coeffs=mu_3)
+                if rep_inds[3] is None:
+                    m3_inds = bra_space.get_representation_indices(
+                        other=ket_space,
+                        selection_rules=bra_space.basis.selection_rules("x", "x", "x")
+                    )
+                    rep_inds[3] = m3_inds
+                reps = [m0, m1, m2, m3]
+            else:
+                raise ValueError("don't know how to interpret dipole partitioning {}".format(partitioning))
+
+            # reps = [m1, m2, m3]
+            mu_terms = [None] * len(reps)
+            for i, h in enumerate(reps):
+                m_pairs = rep_inds[i]
+                if m_pairs is None:
+                    raise ValueError("representation indices haven't filled enough to calculate {}".format(i))
+                sub = self._generate_rep(h, m_pairs, logger, i, M, space)
+                # sub = generate_rep(h, m_pairs)
+                mu_terms[i] = sub
+
+        return mu_terms
+
+    def _transition_moments(self,
+                            mu_x, mu_y, mu_z,
+                            lower_states=None,
+                            excited_states=None,
+                            partitioning=None
+                            ):
         """
-        Calculates the x, y, and z components of the
-        transition moment between the wavefunctions stored
+        Calculates the x, y, and z components of the transition moment between
+        the wavefunctions stored.
+        By default, only calculates moments involving the ground states.
 
         :param mu_x: dipole x components (1st, 2nd, 3rd derivatives in normal modes)
         :type mu_x: Iterable[np.ndarray]
@@ -101,46 +257,141 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :rtype:
         """
 
-        M = self.corrs.coupled_states  # the coupled subspace space we're working in
-        corr_vecs = self.corrs.wfn_corrections#[..., M]
+        logger = self.logger
+        if logger is not None:
+            logger.log_print(
+                "Calculating intensities:",
+                padding=""
+            )
+
+        space = self.corrs.coupled_states
+
+        if lower_states is None:
+            low_spec = (0,)
+        else:
+            if isinstance(lower_states, (int, np.integer)):
+                lower_states = (lower_states,)
+            low_spec = lower_states
+        lower_states = space[low_spec]
+
+        if excited_states is None:
+            up_spec = tuple(range(space.nstates))
+            excited_states = space
+        else:
+            if isinstance(excited_states, (int, np.integer)):
+                excited_states = (excited_states,)
+            up_spec = excited_states
+            excited_states = space[up_spec]
+
+        bra_space = lower_states if isinstance(lower_states, BasisStateSpace) else lower_states.to_single()
+        ket_space = excited_states if isinstance(excited_states, BasisStateSpace) else excited_states.to_single()
+
+        # M = len(space.indices)
+        if logger is not None:
+            logger.log_print(
+                [
+                    "lower/upper states: {}/{}"
+                ],
+                len(low_spec),
+                len(up_spec)
+            )
+
+        # corr_vecs = self.corrs.wfn_corrections#[..., M]
         transition_moment_components = np.zeros((3, 3)).tolist()  # x, y, and z components of the 0th, 1st, and 2nd order stuff
-        # raise Exception([mu_1[0].shape)
+
         mu = [mu_x, mu_y, mu_z]
+        rep_inds = [None] * 4
+        corr_terms = self.corrs.wfn_corrections
+        M = corr_terms[0].shape[1]
+        mu_reps = []
+        total_space = self.corrs.total_basis
+
+        # define out reps based on partitioning style
+        if partitioning is None:
+            partitioning = self.dipole_partitioning
+        elif not isinstance(partitioning, self.DipolePartitioningMethod):
+            partitioning = self.DipolePartitioningMethod(partitioning)
+
+        if logger is not None:
+            logger.log_print(
+                [
+                    "dipole partitioning: {}"
+                ],
+                partitioning.value
+            )
+
         for a in range(3):  # x, y, and z
-            mu_0, mu_1, mu_2, mu_3 = mu[a]
-            if isinstance(mu[a][0], np.ndarray) and mu[a][0].shape == (M, M):
-                mu_terms = mu
+
+            mu_terms = self._mu_representations(
+                a,
+                mu[a],
+                M,
+                total_space,
+                bra_space,
+                ket_space,
+                partitioning,
+                rep_inds
+            )
+
+            # print(">>>>", mu_terms)
+            mu_reps.append(mu_terms)
+
+            if partitioning == self.DipolePartitioningMethod.Intuitive:
+                mu_terms = [mu_terms[0], mu_terms[1], mu_terms[2]]
+                # print(mu_terms)
+            elif partitioning == self.DipolePartitioningMethod.Standard:
+                mu_terms = [mu_terms[0] + mu_terms[1], mu_terms[2], mu_terms[3]]
             else:
-                if partitioning is None:
-                    partitioning = self.dipole_partitioning
-                if partitioning == 'intuitive':
-                    m1 = self.rep_basis.representation(coeffs=mu_0)
-                    m1 = m1[np.ix_(M, M)]
-                    m2 = self.rep_basis.representation("x", coeffs=mu_1)
-                    m2 = m2[np.ix_(M, M)]
-                    m3 = 1 / 2 * self.rep_basis.representation("x", "x", coeffs=mu_2)
-                    m3 = m3[np.ix_(M, M)]
-                else:
-                    m1 = self.rep_basis.representation("x", coeffs=mu_1) + self.rep_basis.representation(coeffs=mu_0)
-                    m1 = m1[np.ix_(M, M)]
-                    m2 = 1 / 2 * self.rep_basis.representation("x", "x", coeffs=mu_2)
-                    m2 = m2[np.ix_(M, M)]
-                    m3 = 1 / 6 * self.rep_basis.representation("x", "x", "x", coeffs=mu_3)
-                    m3 = m3[np.ix_(M, M)]
+                raise ValueError("don't know how to interpret dipole partitioning {}".format(partitioning))
 
-                mu_terms = [m1, m2, m3]
+            # define out reps based on partitioning style
+            if logger is not None:
+                logger.log_print(
+                    [
+                        "axis: {}",
+                        "non-zero dipole terms: {}"
+                    ],
+                    a,
+                    len(mu_terms) - mu_terms.count(0)
+                )
 
-            mu_terms = [m.todense() if not isinstance(m, (int, float, np.integer, np.floating, np.ndarray)) else m for m
-                        in mu_terms]
+            for q in range(len(corr_terms)):  # total quanta
+                if logger is not None:
+                    start = time.time()
+                    logger.log_print(
+                        "calculating {} order corrections...",
+                        q
+                    )
+                terms = []
+                for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
+                    if i + j + k == q:
+                        if len(mu_terms) <= k:
+                            new = np.zeros((len(low_spec), len(up_spec)))
+                        else:
+                            m = mu_terms[k]
+                            if isinstance(m, (int, float, np.integer, np.floating)) and m == 0:
+                                # to make it easy to zero stuff out
+                                new = np.zeros((len(low_spec), len(up_spec)))
+                            else:
+                                c_lower = corr_terms[i][low_spec, :]
+                                c_upper = corr_terms[j][up_spec, :]
 
-            corr_terms = [corr_vecs[:, 0], corr_vecs[:, 1], corr_vecs[:, 2]]
-
-            for q in range(len(mu_terms)):  # total quanta
-                # print([(i, j, k) for i,j,k in ip.product(range(q+1), range(q+1), range(q+1)) if i+j+k==q])
-                transition_moment_components[q][a] = [
-                    np.dot(np.dot(corr_terms[i], mu_terms[k]), corr_terms[j].T)
-                    for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)) if i + j + k == q
-                ]
+                                # print(">>", M, c_lower.shape, m.shape, c_upper.shape)
+                                num = c_lower.dot(m)
+                                new = num.dot(c_upper.T)
+                            if isinstance(new, SparseArray):
+                                new = new.toarray()
+                        terms.append(
+                            new.reshape((len(low_spec), len(up_spec))
+                        ))
+                        # raise Exception(new.toarray())
+                transition_moment_components[q][a] = terms
+                if logger is not None:
+                    end = time.time()
+                    logger.log_print(
+                        "took {}s",
+                        round(end - start, 3)
+                    )
 
         # we calculate it explicitly like this up front in case we want to use it later since the shape
         # can be a bit confusing ([0-order, 1-ord, 2-ord], [x, y, z])
@@ -150,8 +401,14 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 for i in range(3)  # correction order
             ) for j in range(3)  # xyz
         ]
-        # raise Exception(tmom)
-        return tmom, transition_moment_components
+
+        # mu_reps already organized like x/y/z
+        # mu_reps = [
+        #     [m[a] for m in mu_reps]
+        #     for a in range(3)
+        # ]
+
+        return [tmom, transition_moment_components, mu_reps]
 
     @property
     def dipole_terms(self):
@@ -164,6 +421,28 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         self._dipole_terms = v
         self._tm_dat = None
 
+    class DipolePartitioningMethod(enum.Enum):
+        Standard="standard"
+        Intuitive="intuitive"
+
+    @property
+    def dipole_partitioning(self):
+        return self._dipole_partitioning
+
+    @dipole_partitioning.setter
+    def dipole_partitioning(self, p):
+        part = self.DipolePartitioningMethod(p)
+        if part is not self._dipole_partitioning:
+            self._dipole_partitioning = part
+            if self._tm_dat is not None:
+                self._tm_dat[0] = None
+
+    def _load_tm_dat(self):
+        if self._tm_dat is None:
+            self._tm_dat = self._transition_moments(*self.dipole_terms)
+        elif self._tm_dat[0] is None:
+            self._tm_dat = self._transition_moments(*self._tm_dat[2])
+
     @property
     def transition_moments(self):
         """
@@ -173,8 +452,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :rtype:
         """
 
-        if self._tm_dat is None:
-            self._tm_dat = self._transition_moments(*self.dipole_terms)
+        self._load_tm_dat()
         return self._tm_dat[0]
 
     @property
@@ -186,8 +464,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :rtype:
         """
 
-        if self._tm_dat is None:
-            self._tm_dat = self._transition_moments(*self.dipole_terms)
+        self._load_tm_dat()
         return self._tm_dat[1]
 
     @property
@@ -200,6 +477,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
 
         tms = self.transition_moments
+        return self._oscillator_strengths(tms)
+
+    def _oscillator_strengths(self, tms):
+
         gs_tms = np.array([tms[i][0] for i in range(3)]).T
         osc = np.linalg.norm(gs_tms, axis=1) ** 2
         return osc
@@ -212,9 +493,12 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :return:
         :rtype:
         """
+        return self._intensities(self.oscillator_strengths)
+
+    def _intensities(self, oscs):
         eng = self.energies
         units = 3.554206329390961e6
-        return units * (eng - eng[0]) * self.oscillator_strengths
+        return units * (eng - eng[0]) * oscs
 
     @property
     def zero_order_intensities(self):
@@ -225,7 +509,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :rtype:
         """
         eng = self.zero_order_energies
-        tm = np.array([self.transition_moment_corrections[0][x][0][0] for x in range(3)]).T
+        tm = np.array([
+            self.transition_moment_corrections[0][x][0][0] for x in range(3)
+        ]).T
         osc = np.linalg.norm(tm, axis=1) ** 2
         units = 3.554206329390961e6
         return units * (eng - eng[0]) * osc
@@ -243,42 +529,56 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         engs = self.energies
         freqs = engs - engs[0]
 
+        # wat = self.intensities
+
         # harm_engs = self.zero_order_energies
         # harm_freqs = harm_engs - harm_engs[0]
 
         terms = OrderedDict((
             ("frequencies", freqs.tolist()),
             ('axes', self.mol.inertial_axes.tolist()),
-            ("states", self.rep_basis.unravel_state_inds(self.corrs.states)),
-            ('breakdowns', OrderedDict()),
-            ("wavefunctions", {
-                "corrections": self.corrs.wfn_corrections[:, :, self.corrs.coupled_states].tolist(),
-                "coupled_states": self.rep_basis.unravel_state_inds(self.corrs.coupled_states)
-            })
+            ("states", self.corrs.states.excitations),
+            ('breakdowns', OrderedDict())
+            # ("wavefunctions", {
+            #     "corrections": [x.toarray().tolist() for x in self.corrs.wfn_corrections],
+            #     "coupled_states": self.corrs.coupled_states.excitations
+            # })
         ))
         bds = terms['breakdowns']
 
-        dts = self.dipole_terms
+        # dts = self.dipole_terms
 
         dipole_breakdowns = OrderedDict((
-            ("Linear", [[d[0], d[1], np.zeros(d[2].shape), np.zeros(d[3].shape)] for d in dts]),
-            ("Quadratic", [[d[0], d[1], d[2], np.zeros(d[3].shape)] for d in dts]),
-            ("Cubic", [[d[0], d[1], np.zeros(d[2].shape), d[3]] for d in dts]),
-            ("Full", dts)
+            ("Full",      (True, True, True, True)),
+            ("Constant",  (True, False, False, False)),
+            ("Linear",    (False, True, False, False)),
+            ("Quadratic", (False, False, True, False)),
+            ("Cubic",     (False, False, False, True))
         ))
 
         # wfn_terms.append(freqs.tolist())
         for key in dipole_breakdowns:
-            dt = dipole_breakdowns[key]
-            self.dipole_terms = dt
-            ints = self.intensities
-
-            # for q in range(len(mu_terms)): # total quanta
-            #     # print([(i, j, k) for i,j,k in ip.product(range(q+1), range(q+1), range(q+1)) if i+j+k==q])
-            #     transition_moment_components[q][a] = [
-            #         np.dot(np.dot(corr_terms[i], mu_terms[k]), corr_terms[j].T)
-            #         for i, j, k in ip.product(range(q+1), range(q+1), range(q+1)) if i+j+k==q
-            #     ]
+            if self.logger is not None:
+                self.logger.log_print(
+                    "-" * 50 + "{} {}" + "-" * 50,
+                    key,
+                    self.dipole_partitioning,
+                    padding="",
+                    newline=" "
+                )
+            if key == "Full":
+                # gotta come first
+                ints = self.intensities
+            else:
+                mu_reps = self._tm_dat[2]
+                dts = dipole_breakdowns[key]
+                new_mu = [
+                    [ m[i] if d and len(m) > i else 0 for i, d in enumerate(dts)]
+                    for m in mu_reps # x/y/z
+                ]
+                tms = self._transition_moments(*new_mu)
+                oscs = self._oscillator_strengths(tms[0])
+                ints = self._intensities(oscs)
 
             full_corrs = self.transition_moment_corrections
             corrs_keys = [y for x in ip.chain(
@@ -357,18 +657,20 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                         corr_block.append([s] + list(v))
                 writer.writerows([padding + x for x in corr_block])
 
-            coupled_state_blocks = [["Wavefunction Corrections"]]
-            wfn_corrs = np.array(ib['wavefunctions']["corrections"])
-            coupled_states = ib['wavefunctions']["coupled_states"]
-            num_corrs = wfn_corrs.shape[1]
-            coupled_state_blocks.append(sum([ [s] + ["|n^({})>".format(i) for i in range(num_corrs)] for s in states ], []))
-            for corr_block, state in zip(wfn_corrs.transpose((2, 0, 1)), coupled_states):
-                row = []
-                for corr in corr_block:
-                    row.extend([state] + list(corr))
-                coupled_state_blocks.append(row)
+            if 'wavefunctions' in ib:
 
-            writer.writerows([padding + x for x in coupled_state_blocks])
+                coupled_state_blocks = [["Wavefunction Corrections"]]
+                wfn_corrs = np.array(ib['wavefunctions']["corrections"])
+                coupled_states = ib['wavefunctions']["coupled_states"]
+                num_corrs = wfn_corrs.shape[1]
+                coupled_state_blocks.append(sum([ [s] + ["|n^({})>".format(i) for i in range(num_corrs)] for s in states ], []))
+                for corr_block, state in zip(wfn_corrs.transpose((2, 0, 1)), coupled_states):
+                    row = []
+                    for corr in corr_block:
+                        row.extend([state] + list(corr))
+                    coupled_state_blocks.append(row)
+
+                writer.writerows([padding + x for x in coupled_state_blocks])
 
             # ints = ib[ey]
             # for

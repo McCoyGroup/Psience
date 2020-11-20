@@ -4,6 +4,8 @@ used to define matrix representations
 """
 import abc, numpy as np, scipy.sparse as sp, itertools as ip, enum
 
+from McUtils.Numputils import SparseArray
+
 from .Terms import Representation
 from .Operators import Operator, ContractedOperator
 
@@ -11,7 +13,8 @@ __all__ = [
     "RepresentationBasis",
     "SimpleProductBasis",
     "BasisStateSpace",
-    "BasisMultiStateSpace"
+    "BasisMultiStateSpace",
+    "SelectionRuleStateSpace"
 ]
 
 class RepresentationBasis(metaclass=abc.ABCMeta):
@@ -130,7 +133,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
     def operator_mapping(self):
         return {'x':self.x, 'p':self.p, 'I':self.I}
 
-    selection_rule_mapping = {'x': None, 'p': None, 'I': [0]}
+    selection_rules_mapping = {'x': None, 'p': None, 'I': [0]}
     def operator(self, *terms):
         funcs = [self.operator_mapping[f] if isinstance(f, str) else f for f in terms]
         q = (self.quanta,)
@@ -148,6 +151,123 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         q=self.quanta
         return Representation(self.operator(*terms), self, logger=logger)
 
+    @classmethod
+    def _sel_rules_from_rules(cls, rules):
+        """
+        We take the combo of the specified rules, where we take successive products of 1D rules with the
+        current set of rules following the pattern that
+            1. a 1D change can apply to any index in an existing rule
+            2. a 1D change can be appended to an existing rule
+
+        We ensure at each step that the rules remain sorted & duplicates are removed so as to keep the rule sets compact.
+        This is done in simple python loops, because doing it with arrayops seemed harder & not worth it for a relatively cheap operation.
+
+        :param rules:
+        :type rules:
+        :return:
+        :rtype:
+        """
+        from collections import OrderedDict
+
+        cur = set()
+        ndim = len(rules)
+        # print([tuple(range(ndim)) for _ in range(ndim)])
+        for p in ip.product(*(tuple(range(ndim)) for _ in range(ndim))): # loop over different permutations of the operators
+            # figure out what inidces are touched by which bits of p
+            opgroups = OrderedDict()
+            for i in p:
+                if i in opgroups:
+                    opgroups[i].append(rules[i])
+                else:
+                    opgroups[i] = [rules[i]]
+
+            # now generate the set of 1D changes from each opgroup
+            ichng = []
+            for subrules in opgroups.values():
+                # print("oooo>", subrules)
+                base = np.array(subrules[0])
+                for new in subrules[1:]:
+                    base = np.unique(np.add.outer(new, base).flatten())
+                ichng.append(base)
+
+            # we do a check for the zero case before the product then drop all zeros
+            # for speed reasons
+            if all(0 in r for r in ichng):
+                cur.add(())
+
+            for i, r in enumerate(ichng):
+                ichng[i] = r[r != 0]
+
+            # print(">>>>", ichng)
+            for t in ip.product(*ichng):
+                # print(p)
+                t = tuple(sorted(t))
+                cur.add(t)
+
+        # for dim, rule_list in enumerate(rules[1:]):
+        #     new = set()
+        #     # loop over the indices that can be touched by the rule
+        #     for p in ip.permutations():
+        #         ...
+        #
+        #     # # loop over the ints held in the rule
+        #     # for r in rule_list:
+        #     #     # transform the existing rules
+        #     #     print(r, cur)
+        #     #     for x in cur:
+        #     #         for i in range(len(x)):
+        #     #             test = tuple(
+        #     #                 sorted(
+        #     #                     y + r if j == i else y for j, y in enumerate(x)
+        #     #                     if y + r != 0
+        #     #                 )
+        #     #             )
+        #     #             if len(test) > 0:
+        #     #                 new.add(test)
+        #     #         test = tuple(sorted(x + (r,)))
+        #     #         new.add(test)
+        #     cur = new
+        #     # cur.update(new)
+
+        return list(sorted(cur, key=lambda l:len(l)*100 + sum(l)))
+
+
+    def selection_rules(self, *terms):
+        """
+        Generates the full set of possible selection rules for terms
+
+        :param terms:
+        :type terms:
+        :return:
+        :rtype:
+        """
+
+        # first we get the rules the basis knows about
+        rules = [None] * len(terms)
+        for i, t in enumerate(terms):
+            if t in self.selection_rules_mapping:
+                rules[i] = self.selection_rules_mapping[t]
+            else:
+                raise ValueError("don't know how to infer selection rules from {}".format(
+                    t
+                ))
+
+        return self._sel_rules_from_rules(rules)
+        # TODO: add in to PerturbationTheory stuff + need to add initial_states & final_states for transition moment code... (otherwise _waaay_ too slow)
+        transitions_h1 = [
+            [-1],
+            [1],
+            [-3],
+            [3],
+            [-1, -1, -1],
+            [-1, -1, 1],
+            [-1, 1, 1],
+            [1, 1, 1],
+            [1, 2],
+            [-1, 2],
+            [1, -2],
+            [-1, -2]
+        ]
     # def __repr__(self):
     #     return "{}('{}')".format(
     #         type(self).__name__,
@@ -188,6 +308,10 @@ class SimpleProductBasis(RepresentationBasis):
                 type(self).__name__,
                 'quanta'
             ))
+
+    @property
+    def selection_rules_mapping(self):
+        return self.bases[0].selection_rules_mapping
 
     def ravel_state_inds(self, idx):
         """
@@ -300,7 +424,7 @@ class BasisStateSpace:
         :param states:
         :type states: Iterable[int]
         :param mode: whether the states were supplied as indices or as excitations
-        :type mode: None | str
+        :type mode: None | str | StateSpaceSpec
         """
 
         self.basis = basis
@@ -405,7 +529,7 @@ class BasisStateSpace:
                 states_type
             ))
 
-    def apply_selection_rules(self, selection_rules, iterations=1):
+    def apply_selection_rules(self, selection_rules, filter_space=None, iterations=1):
         """
         Generates a new state space from the application of `selection_rules` to the state space.
         Returns a `BasisMultiStateSpace` where each state tracks the effect of the application of the selection rules
@@ -419,13 +543,17 @@ class BasisStateSpace:
         :type states:
         :param iterations:
         :type iterations:
+        :param filter_space:
+        :type filter_space:
         :return:
         :rtype: SelectionRuleStateSpace
         """
 
-        return SelectionRuleStateSpace.from_rules(self, selection_rules, iterations=iterations)
+        return SelectionRuleStateSpace.from_rules(self, selection_rules, filter_space=filter_space, iterations=iterations)
 
     def get_representation_indices(self,
+                                   other=None,
+                                   selection_rules=None,
                                    freqs=None,
                                    freq_threshold=None
                                    ):
@@ -439,13 +567,20 @@ class BasisStateSpace:
         :rtype:
         """
 
+        if other is None:
+            other = self
+
         if freq_threshold is None:
-            m = self.indices
-            m_pairs = np.unique(
-                np.concatenate([
-                    np.column_stack([m, m]),
-                    np.array(list(ip.combinations(m, 2)))
-                ], axis=0), axis=0).T
+            if selection_rules is None:
+                l_inds = self.indices
+                r_inds = other.indices
+                m_pairs = np.unique(np.array(list(ip.product(l_inds, r_inds))), axis=0).T
+            else:
+                # Get the representation indices that can be coupled under the supplied set of selection rules
+                # Currently this is clumsy.
+                # We do this by computing transformed states for the whichever space is smaller and finding where this intersects with the larger space
+                transf = self.apply_selection_rules(selection_rules, filter_space=other)
+                m_pairs = transf.get_representation_indices()
         else:
 
             raise NotImplementedError("Changed up how comb will apply, but haven't finished the implementation")
@@ -474,6 +609,13 @@ class BasisStateSpace:
 
         return m_pairs
 
+    # def __getitem__(self, item):
+    #     inds = self.indices[item]
+    #     if isinstance(inds, np.ndarray):
+    #         return type(self)(self.basis, inds, mode=self.StateSpaceSpec.Indices)
+    #     else:
+    #         return inds
+
     def __repr__(self):
         return "{}(nstates={}, basis={})".format(
             type(self).__name__,
@@ -496,7 +638,7 @@ class BasisMultiStateSpace:
         :param selection_rules: array of rules used to generate the subspace
         :type selection_rules: np.ndarray
         """
-        self.spaces = np.asarray(spaces)
+        self.spaces = np.asarray(spaces, dtype=object)
         self._indexer = None
         self._indices = None
         self._excitations = None
@@ -515,6 +657,10 @@ class BasisMultiStateSpace:
 
     def __len__(self):
         return len(np.unique(self.indices))
+
+    @property
+    def nstates(self):
+        return int(np.product(self.spaces.shape))
 
     def __iter__(self):
         return iter(self.spaces)
@@ -588,7 +734,11 @@ class BasisMultiStateSpace:
         return np.searchsorted(self.indices, to_search, sorter=self.indexer)
 
     def __getitem__(self, item):
-        return self.spaces[item]
+        it = self.spaces[item]
+        if isinstance(it, np.ndarray):
+            # multispace
+            it = type(self)(it)
+        return it
 
     def get_representation_indices(self,
                                    freqs=None,
@@ -645,7 +795,18 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
     A `BasisMultiStateSpace` subclass that is only built from applying selection rules to an initial space
     """
 
-    def __init__(self, init_space, excitations, selection_rules):
+    def __init__(self, init_space, excitations, selection_rules=None):
+        """
+        :param init_space:
+        :type init_space:
+        :param excitations:
+        :type excitations:
+        :param selection_rules:
+        :type selection_rules:
+        """
+
+        if isinstance(excitations, np.ndarray) and excitations.dtype == int:
+            excitations = [BasisStateSpace(init_space.basis, x) for x in excitations]
 
         super().__init__(excitations)
         self.base_space = init_space
@@ -718,7 +879,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         return new_stuff
 
     @classmethod
-    def _from_permutations(cls, space, permutations, selection_rules):
+    def _from_permutations(cls, space, permutations, filter_space, selection_rules):
         """
         Applies a set of permutations to an initial space and returns a new state space.
 
@@ -726,6 +887,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :type space:
         :param permutations:
         :type permutations:
+        :param filter_space:
+        :type filter_space: BasisStateSpace
         :return:
         :rtype:
         """
@@ -733,32 +896,59 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         og = space.excitations
         excitations = np.full((len(og),), None, dtype=object)
 
+        use_sparse = isinstance(permutations, SparseArray)
+        if use_sparse:
+            # we drop down to the scipy wrappers until I can improve broadcasting in SparseArray
+            og = sp.csc_matrix(og, dtype=int)
+            permutations = permutations.data
+
+        if filter_space is not None:
+            filter_exc = filter_space.excitations
+            # two quick filters
+            filter_min = np.min(filter_exc)
+            filter_max = np.max(filter_exc)
+            # and the slow sieve
+            filter_inds = filter_space.indices
+        else:
+            filter_min = 0
+            filter_max = None
+            filter_inds = None
+
         # and now we add these onto each of our states to build a new set of states
         for i, o in enumerate(og):
-            initial_states = np.array([o])
-            new_states = np.concatenate(
-                [s[np.newaxis, :] + permutations for s in initial_states],
-                axis=0
-            )
-            well_behaved = np.where(np.min(new_states, axis=1) >= 0)
-            new_states = np.unique(new_states[well_behaved], axis=0)
-            excitations[i] = BasisStateSpace(space.basis, new_states, mode='excitations')
+            if use_sparse:
+                new_states = sp.vstack([o]*(permutations.shape[0])) + permutations
+                mins = np.min(new_states, axis=1).toarray()
+                well_behaved = np.where(mins >= filter_min)
+                new_states = new_states[well_behaved]
+                if filter_space is not None:
+                    maxes = np.max(new_states, axis=1).toarray()
+                    well_behaved = np.where(maxes <= filter_max)
+                    new_states = new_states[well_behaved]
+                new_states = np.unique(new_states, axis=0)
+            else:
+                new_states = o[np.newaxis, :] + permutations
+                mins = np.min(new_states, axis=1)
+                well_behaved = np.where(mins >= filter_min)
+                new_states = new_states[well_behaved]
+                if filter_space is not None:
+                    maxes = np.max(new_states, axis=1)
+                    well_behaved = np.where(maxes <= filter_max)
+                    new_states = new_states[well_behaved]
+                new_states = np.unique(new_states, axis=0)
+            # finally, if we have a filter space, we apply it
+            if filter_space is not None:
+                as_inds = space.basis.ravel_state_inds(new_states) # convert to indices
+                dropped = np.setdiff1d(as_inds, filter_inds, assume_unique=True) # the indices that _aren't_ in the filter set
+                new_states = np.setdiff1d(as_inds, dropped, assume_unique=True) # the indices that _aren't_ _not_ in the filter set
+                excitations[i] = BasisStateSpace(space.basis, new_states, mode=BasisStateSpace.StateSpaceSpec.Indices)
+            else:
+                excitations[i] = BasisStateSpace(space.basis, new_states, mode=BasisStateSpace.StateSpaceSpec.Excitations)
 
         return cls(space, excitations, selection_rules)
 
-
     @classmethod
-    def from_rules(cls, space, selection_rules, iterations=1):
-        """
-        :param space: initial space to which to apply the transformations
-        :type space: BasisStateSpace | BasisMultiStateSpace
-        :param selection_rules: different possible transformations
-        :type selection_rules: Iterable[Iterable[int]]
-        :param iterations: number of times to apply the transformations
-        :type iterations: int
-        :return:
-        :rtype: SelectionRuleStateSpace
-        """
+    def _generate_selection_rule_permutations(cls, space, selection_rules):
 
         nmodes = space.ndim
         # group selection rules by how many modes they touch
@@ -770,68 +960,69 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             else:
                 sel_rule_groups[k] = [s]
         # this determines how many permutations we have
-        num_perms = sum(len(sel_rule_groups[k])*(nmodes**k) for k in sel_rule_groups)
+        num_perms = sum(len(sel_rule_groups[k]) * (nmodes ** k) for k in sel_rule_groups)
+
         # then we can set up storage for each of these
         permutations = np.zeros((num_perms, nmodes), dtype=int)
+
         # loop through the numbers of modes and create the appropriate permutations
-        prev=[]
+        prev = []
         for k, g in sel_rule_groups.items():
             g = np.array(g, dtype=int)
             # where to start filling into perms
-            i_start = sum(pl*(nmodes**pk) for pl, pk in prev)
+            i_start = sum(pl * (nmodes ** pk) for pl, pk in prev)
             l = len(g)
             prev.append([l, k])
-            if k != 0: # special case for the empty rule
-                inds = np.indices((nmodes,)*k)
-                inds = inds.transpose(tuple(range(1, k+1)) + (0,))
+            if k != 0:  # special case for the empty rule
+                inds = np.indices((nmodes,) * k)
+                inds = inds.transpose(tuple(range(1, k + 1)) + (0,))
                 inds = np.reshape(inds, (-1, k))
                 for i, perm in enumerate(inds):
                     uinds = np.unique(perm)
-                    if len(uinds) < k: # must act on totally different modes
+                    if len(uinds) < k:  # must act on totally different modes
                         continue
 
                     sind = i_start + l * i
-                    eind = i_start + l * (i+1)
+                    eind = i_start + l * (i + 1)
                     permutations[sind:eind, perm] = g
 
-        # # add in the fact that we need to be able to leave modes untouched...
-        # # we should also being taking advantage of sparsity here, assuming ndim < max(len(..., selection_rules)
-        # # since we'll have shit tons of zeros and no need to fux with those specifically...
-        # state_rules = [
-        #     (list(x) + [0], sum(abs(y) for y in x)) for x in selection_rules
-        # ]
-        # # clumsy filtering of possible permutations of these transitions
-        # # but we expect to only do this rarely, so we won't make it fast just yet...
-        # # max_changes = max(len() for s in selection_rules)
-        # permutations2 = np.unique(np.array(
-        #     sum((
-        #         [
-        #             p for p in ip.product(*([s] * nmodes))
-        #             if sum(abs(y) for y in p) == k
-        #         ] for s, k in state_rules),
-        #         []
-        #     )), axis=0)
-        # # permutations = permutations2
-        #
-        # # sorting = np.lexsort(permutations, axis=0)
-        # p1 = np.unique(permutations, axis=0)
-        # p2 = np.unique(permutations2, axis=0)
-        # for p in p2:
-        #     diffs = p[np.newaxis, :] - p1
-        #     sums = np.sum(np.abs(diffs), axis=1)
-        #     if 0 not in sums:
-        #         raise ValueError(p)
-        # for p in p1:
-        #     diffs = p[np.newaxis, :] - p1
-        #     sums = np.sum(np.abs(diffs), axis=1)
-        #     if 0 not in sums:
-        #         raise ValueError("????", p)
-        # print(len(p1))
-        # print(len(p2))
+        # TODO: get sparsity working, rather than just slowing shit down
+        # use_sparse = nmodes > 6
+        # use_sparse = use_sparse and max(
+        #     sel_rule_groups.keys()) < nmodes // 2  # means we leave the majority of modes untouched
+        # if use_sparse:
+        #     permutations = SparseArray(sp.csc_matrix(permutations), shape=permutations.shape)
+
+        return permutations
+
+    @classmethod
+    def from_rules(cls, space, selection_rules, filter_space=None, iterations=1):
+        """
+        :param space: initial space to which to apply the transformations
+        :type space: BasisStateSpace | BasisMultiStateSpace
+        :param selection_rules: different possible transformations
+        :type selection_rules: Iterable[Iterable[int]]
+        :param iterations: number of times to apply the transformations
+        :type iterations: int
+        :param filter_space: a space within which all generated `BasisStateSpace` objects must be contained
+        :type filter_space: BasisStateSpace | None
+        :return:
+        :rtype: SelectionRuleStateSpace
+        """
+
+        permutations = cls._generate_selection_rule_permutations(space, selection_rules)
 
         # we set up storage for our excitations
         new = space
         for i in range(iterations):
-            new = cls._from_permutations(new, permutations, selection_rules)
+            new = cls._from_permutations(new, permutations, filter_space, selection_rules)
 
         return new
+
+    def __getitem__(self, item):
+        it = self.spaces[item]
+        if isinstance(it, np.ndarray):
+            # multispace
+            init = self.base_space[it]
+            it = type(self)(init, it)
+        return it

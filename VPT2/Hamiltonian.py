@@ -8,7 +8,7 @@ from McUtils.Numputils import SparseArray, vec_outer
 from McUtils.Misc import Logger
 
 from ..Molecools import Molecule
-from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, HarmonicOscillatorProductBasis
+from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, HarmonicOscillatorProductBasis
 
 from .Common import PerturbationTheoryException
 from .Terms import PotentialTerms, KineticTerms, CoriolisTerm, PotentialLikeTerm
@@ -38,8 +38,8 @@ class PerturbationTheoryCorrections:
         :type hamiltonians: Iterable[np.ndarray]
         """
         self.states = states['states']
-        self.coupled_states = states['coupled_states']
-        # self.total_basis = states['total_states']
+        self.coupled_states = states['coupled_states'] # type: BasisMultiStateSpace
+        self.total_basis = states['total_states']
         self.energy_corrs = corrections['energies']
         self.wfn_corrections = corrections['wavefunctions']
         if 'degenerate_states' in states:
@@ -500,8 +500,7 @@ class PerturbationTheoryHamiltonian:
 
         return harm, anharm
 
-    @staticmethod
-    def get_coupled_space(states, order):
+    def get_coupled_space(self, states, order):
         """
         Returns the set of states that couple the given states up to the given order at each level of perturbation (beyond zero order).
         We keep track of how each individual state in states is transformed, as we only need to compute elements within those
@@ -521,37 +520,28 @@ class PerturbationTheoryHamiltonian:
 
         # the states that can be coupled through H1
         # first we generate the possible transformations +-1, +-3, +1+2, +1-2 -1+2, -1-2
-        transitions_h1 = [
-            [-1],
-            [ 1],
-            [-3],
-            [ 3],
-            [-1, -1, -1],
-            [-1, -1,  1],
-            [-1,  1,  1],
-            [ 1,  1,  1],
-            [ 1,  2],
-            [-1,  2],
-            [ 1, -2],
-            [-1, -2]
-        ]
+
+        transitions_h1 = self.basis.selection_rules("x", "x", "x")
+
         h1_space = states.apply_selection_rules(
             transitions_h1,
-            (order - 1)
+            iterations=(order - 1)
         )
 
         # from second order corrections
         # first we generate the possible transformations +-2, +-4, +2-2, +2+2 -2+2, -2-2, -1+3, -1-3, +1+3, +1-3
-        transitions_h2 = [
-            [],
-            [-2], [2],
-            [-4], [4],
-            [-2, -2], [-2, 2], [2, 2],
-            [-1, -3], [-1, 3], [1, -3], [-3, 1]
-        ]
+        transitions_h2 = self.basis.selection_rules("x", "x", "x", "x")
+        # raise Exception(transitions_h2)
+        #     [
+        #     [],
+        #     [-2], [2],
+        #     [-4], [4],
+        #     [-2, -2], [-2, 2], [2, 2],
+        #     [-1, -3], [-1, 3], [1, -3], [-3, 1]
+        # ]
         h2_space = states.apply_selection_rules(
             transitions_h2,
-            (order - 1)
+            iterations=(order - 1)
         )
 
         # h1_space = h1_space.to_single()
@@ -616,7 +606,9 @@ class PerturbationTheoryHamiltonian:
         coupled_spaces = []
         input_state_space = states
 
-        total_state_space = BasisMultiStateSpace(np.array([input_state_space] + list(coupled_states), dtype=object))
+        # print(coupled_states)
+        space_list = [input_state_space] + list(coupled_states)
+        total_state_space = BasisMultiStateSpace(np.array(space_list,  dtype=object))
         # determine indices of subspaces within this total space
         total_coupled_space = total_state_space.indices
         tot_space_indexer = np.argsort(total_coupled_space)
@@ -958,6 +950,268 @@ class PerturbationTheoryHamiltonian:
         return deg_engs, deg_transf
 
     @classmethod
+    def _apply_nondegenerate_VPT(cls,
+                                 H,
+                                 states,
+                                 order,
+                                 total_state_space,
+                                 state_inds,
+                                 degenerate_states=None,
+                                 logger=None
+                                 ):
+        # We use the iterative equations
+        #            En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
+        #     <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
+        #           |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=1...k-1) + <n^(0)|n^(k)> |n^(0)>
+        #  where Pi_n is the perturbation operator [1/(E_m-E_n) for m!=n]
+
+        total_coupled_space = total_state_space.indices
+        N = len(total_coupled_space)
+
+        all_energies = np.zeros((len(states), order + 1))
+        all_overlaps = np.zeros((len(states), order + 1))
+        all_corrs = np.zeros((len(states), order + 1, N))
+        # all_wfns = [] #np.zeros((len(states), order + 1, total_states))
+
+        H0 = H[0]
+        e_vec_full = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
+        if isinstance(e_vec_full, SparseArray):
+            e_vec_full = e_vec_full.toarray()
+            # raise Exception(e_vec_full)
+
+        if logger is not None:
+            logger.log_print(
+                "calculating perturbation theory correction up to order {} for {} states",
+                order,
+                len(states.indices)
+            )
+            start = time.time()
+
+        # loop on a state-by-state basis
+        for n, energies, overlaps, corrs in zip(
+                states.indices, all_energies, all_overlaps, all_corrs
+        ):
+            # taking advantage of mutability of the arrays here...
+
+            # find the state index in the coupled subspace
+            n_ind = np.where(total_coupled_space == n)[0][0]
+            # generate the perturbation operator
+            E0 = e_vec_full[n_ind]
+            e_vec = e_vec_full - E0
+            e_vec[n_ind] = 1
+            pi = 1 / e_vec
+            pi[n_ind] = 0
+            pi = SparseArray.from_diag(pi)
+
+            energies[0] = E0
+            overlaps[0] = 1
+            corrs[0, n_ind] = 1
+
+            def dot(a, b):
+                if isinstance(a, (int, np.integer, float, np.floating)) and a ==0:
+                    return 0
+
+                if isinstance(a, np.ndarray):
+                    return np.dot(a, b)
+                else:
+                    return a.dot(b)
+
+
+            for k in range(1, order + 1):  # to actually go up to k
+                #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
+
+
+                Ek = (
+                   (H[k][n_ind, n_ind] if not isinstance(H[k], (int, np.integer, float, np.floating)) else 0.)
+                        + sum(
+                    dot(
+                        H[k - i][n_ind] if not isinstance(H[k - i], (int, np.integer, float, np.floating)) else 0.,
+                        corrs[i]
+                        )
+                    - energies[k - i] * overlaps[i]
+                    for i in range(1, k)
+                ))
+                energies[k] = Ek
+                #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
+                ok = -1 / 2 * sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
+                overlaps[k] = ok
+                #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
+                corrs[k] = sum(
+                    dot(pi, energies[k - i] * corrs[i] - dot(H[k - i], corrs[i]))
+                    for i in range(0, k)
+                )
+                corrs[k][n_ind] = ok  # pi (the perturbation operator) ensures it's zero before this
+
+        if logger is not None:
+            end = time.time()
+            logger.log_print(
+                "took {}s",
+                round(end - start, 3)
+            )
+
+        # now we recompute reduced state spaces for use in results processing
+        # and we also convert the correction vectors to sparse representations
+        tci = total_state_space.indices
+        N = len(tci)
+        nstates = len(all_corrs)
+        corr_inds = [[] for i in range(nstates)]
+        corr_mats = [None] * (order + 1)
+        si = state_inds
+
+        if logger is not None:
+            logger.log_print(
+                "constructing sparse correction matrices...",
+            )
+
+        for o in range(order + 1):
+            non_zeros = []
+            for i, corr in enumerate(all_corrs):
+                # we find the non-zero elements within the o level of correction for the ith state
+                nonzi = np.where(np.abs(corr[o]) > 1.0e-14)[0]
+                # print(nonzi)
+                # then we pull these out
+                vals = corr[o][nonzi,]
+                # and we add the values and indices to the list
+                me = si[i]
+                non_zeros.append(
+                    (
+                        vals,
+                        np.column_stack([
+                            np.full(len(nonzi), i),
+                            nonzi
+                        ])
+                    )
+                )
+
+                # and then we add the appropriate basis indices to the list of basis data
+                wat = tci[nonzi,]
+                corr_inds[i].append(wat)
+
+            # now we build the full mat rep for this level of correction
+            vals = np.concatenate([x[0] for x in non_zeros])
+            inds = np.concatenate([x[1] for x in non_zeros], axis=0).T
+            # print(inds, N)
+            corr_mats[o] = SparseArray(
+                (
+                    vals,
+                    inds
+                ),
+                shape=(nstates, N)
+            )
+
+        # now we build state reps from corr_inds
+        for i, dat in enumerate(corr_inds):
+            full_dat = np.unique(np.concatenate(dat))
+            corr_inds[i] = BasisStateSpace(states.basis, full_dat, mode="indices")
+
+        cs_states = SelectionRuleStateSpace(states, corr_inds, None)
+        total_states = total_state_space
+        corrs = PerturbationTheoryCorrections(
+            {
+                "states": states,
+                "coupled_states": cs_states,
+                "total_states": total_states,
+                "degenerate_states": degenerate_states
+            },
+            {
+                "energies": all_energies,
+                "wavefunctions": corr_mats,
+                "degenerate_transformation": None,
+                "degenerate_energies": None
+            },
+            H
+        )
+
+        return corrs
+
+    @classmethod
+    def _get_true_degenerate_states(cls, H, coupled_states, state_inds, degenerate_states, total_state_space, logger=None):
+        if degenerate_states is not None:
+            # we check this twice because the Martin test can return None
+            if isinstance(degenerate_states, (int, np.integer, np.floating, float)):
+                thresh = degenerate_states
+                if logger is not None:
+                    logger.log_print(
+                        "applying Martin test with threshold {}",
+                        thresh
+                    )
+                degenerate_states = cls._martin_test(
+                    H,
+                    state_inds,  # state indices in the coupled_states
+                    thresh,
+                    total_state_space
+                )
+
+            elif all(isinstance(x, (BasisStateSpace, BasisMultiStateSpace)) for x in degenerate_states):
+                # means we just got the degenerate subspace to work with
+                pass
+            elif degenerate_states is not None:
+                try:
+                    degenerate_states = degenerate_states(H, coupled_states)
+                except (TypeError, ValueError):
+                    pass
+
+                if not isinstance(degenerate_states[0], (BasisStateSpace, BasisMultiStateSpace)):
+                    raise NotImplementedError("can't deal with non-BasisStateSpace specs for degeneracies")
+
+        return degenerate_states
+
+    @classmethod
+    def _apply_VPT(cls,
+                   H,
+                   states,
+                   coupled_states,
+                   order,
+                   total_state_space,
+                   degenerate_states=None,
+                   logger=None
+                   ):
+
+        state_inds = total_state_space.find(total_state_space[0].indices)
+
+        degenerate_states = cls._get_true_degenerate_states(
+            H, coupled_states, state_inds, degenerate_states, total_state_space,
+            logger=logger
+        )
+
+        if degenerate_states is None:
+            deg_vals = None
+        else:
+            H, deg_vals, deg_inds = cls._prep_degenerate_perts(
+                H,
+                degenerate_states,
+                total_state_space,
+                logger=logger
+            )
+
+        corrs = cls._apply_nondegenerate_VPT(
+            H,
+            states,
+            order,
+            total_state_space,
+            state_inds,
+            degenerate_states=degenerate_states,
+            logger=logger
+        )
+
+        if degenerate_states is not None:
+            if logger is not None:
+                logger.log_print(
+                    "handling degeneracies...",
+                )
+            deg_engs, deg_transf = cls._apply_degenerate_PT(
+                states,
+                degenerate_states,
+                deg_vals,
+                corrs,
+                logger=logger
+            )
+            corrs.degenerate_energies = deg_engs
+            corrs.degenerate_transf = deg_transf
+
+        return corrs
+
+    @classmethod
     def _get_VPT_corrections(
             cls,
             h_reps,
@@ -987,172 +1241,17 @@ class PerturbationTheoryHamiltonian:
         :rtype: PerturbationTheoryCorrections
         """
 
-        # We use the iterative equations
-        #            En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
-        #     <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
-        #           |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=1...k-1) + <n^(0)|n^(k)> |n^(0)>
-        #  where Pi_n is the perturbation operator [1/(E_m-E_n) for m!=n]
-
-        if logger is not None:
-            bs = []
-            for b in coupled_states:
-                bs.append(len(b))
-            logger.log_print(
-                [
-                    "perturbations: {pert_num}",
-                    "order: {ord}",
-                    "states: {state_num}",
-                    "basis sizes {basis_size}"
-                ],
-                pert_num=len(h_reps) - 1,
-                ord=order,
-                state_num=len(states),
-                basis_size=bs
-            )
         H, total_state_space = cls._get_VPT_representations(h_reps, states, coupled_states, logger)
 
-        del coupled_states # for safety as I debug
-
-        total_coupled_space = total_state_space.indices
-        tot_space_indexer = np.argsort(total_coupled_space)
-        N = len(total_coupled_space)
-        state_inds = total_state_space.find(total_state_space[0].indices)
-
-        if degenerate_states is not None:
-            # we check this twice because the Martin test can return None
-            if isinstance(degenerate_states, (int, np.integer, np.floating, float)):
-                thresh = degenerate_states
-                if logger is not None:
-                    logger.log_print(
-                        "applying Martin test with threshold {}",
-                        thresh
-                    )
-                degenerate_states = cls._martin_test(
-                    H,
-                    state_inds, # state indices in the coupled_states
-                    thresh,
-                    total_state_space
-                )
-
-            elif all(isinstance(x, (BasisStateSpace, BasisMultiStateSpace)) for x in degenerate_states):
-                # means we just got the degenerate subspace to work with
-                pass
-            elif degenerate_states is not None:
-                try:
-                    degenerate_states = degenerate_states(H, coupled_states)
-                except (TypeError, ValueError):
-                    pass
-
-                if not isinstance(degenerate_states[0], (BasisStateSpace, BasisMultiStateSpace)):
-                    raise NotImplementedError("can't deal with non-BasisStateSpace specs for degeneracies")
-
-        if degenerate_states is None:
-            deg_vals = None
-        else:
-            H, deg_vals, deg_inds = cls._prep_degenerate_perts(
-                                   H,
-                                   degenerate_states,
-                                   total_state_space,
-                                   logger=logger
-                                   )
-
-        # print(len(states), order, N)
-
-        all_energies = np.zeros((len(states), order + 1))
-        all_overlaps = np.zeros((len(states), order + 1))
-        all_corrs = np.zeros((len(states), order + 1, N))
-        # all_wfns = [] #np.zeros((len(states), order + 1, total_states))
-
-        H0 = H[0]
-        e_vec_full = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
-        if isinstance(e_vec_full, SparseArray):
-            e_vec_full = e_vec_full.toarray()
-            # raise Exception(e_vec_full)
-
-        # raise Exception(H[1][deg_inds])
-
-        #loop on a state-by-state basis
-        for n, energies, overlaps, corrs in zip(
-                states.indices, all_energies, all_overlaps, all_corrs
-        ):
-            # taking advantage of mutability of the arrays here...
-
-            # find the state index in the coupled subspace
-            n_ind = np.where(total_coupled_space==n)[0][0]
-            # generate the perturbation operator
-            E0 = e_vec_full[n_ind]
-            e_vec = e_vec_full - E0
-            e_vec[n_ind] = 1
-            pi = 1/e_vec
-            pi[n_ind] = 0
-            pi = SparseArray.from_diag(pi)
-
-            energies[0] = E0
-            overlaps[0] = 1
-            corrs[0, n_ind] = 1
-
-            def dot(a, b):
-                if isinstance(a, np.ndarray):
-                    return np.dot(a, b)
-                else:
-                    return a.dot(b)
-
-            for k in range(1, order+1): # to actually go up to k
-                #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
-                Ek = (
-                        H[k][n_ind, n_ind]
-                        + sum(
-                             dot(H[k-i][n_ind], corrs[i]) - energies[k-i]*overlaps[i]
-                            for i in range(1, k)
-                        )
-                )
-                energies[k] = Ek
-                #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
-                ok = -1/2 * sum(dot(corrs[i], corrs[k-i]) for i in range(1, k))
-                overlaps[k] = ok
-                #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
-                corrs[k] = sum(
-                    dot(pi, energies[k-i]*corrs[i] - dot(H[k-i], corrs[i]))
-                    for i in range(0, k)
-                )
-                corrs[k][n_ind] = ok # pi (the perturbation operator) ensures it's zero before this
-
-            # # now we broadcast the corrections back up so that they're good for the _entire_ population of states...
-            # # this should be modified to work with sparse arrays in the future
-            # corr_spec = []
-            # for wfn, cor in zip(wfns, corrs):
-            #     if isinstance(total_coupled_space[0], (int, np.integer)):
-            #         cs = (total_coupled_space,)
-            #     else:
-            #         cs = total_coupled_space
-            #     corr_spec.append(cs, cor)
-
-        corrs = PerturbationTheoryCorrections(
-            {
-                "states":states,
-                 "coupled_states":BasisStateSpace(states.basis, total_coupled_space, mode='indices'),
-                 # "total_states":total_states,
-                 "degenerate_states":degenerate_states
-             },
-            {
-                "energies":all_energies,
-                "wavefunctions":all_corrs, # trying to keep things small?
-                "degenerate_transformation":None,
-                "degenerate_energies": None
-            },
-            H
-        )
-
-        if degenerate_states is not None:
-            deg_engs, deg_transf = cls._apply_degenerate_PT(
-                states,
-                degenerate_states,
-                deg_vals,
-                corrs,
-                logger = logger
-            )
-            corrs.degenerate_energies = deg_engs
-            corrs.degenerate_transf = deg_transf
+        corrs = cls._apply_VPT(
+                   H,
+                   states,
+                   coupled_states,
+                   order,
+                   total_state_space,
+                   degenerate_states=degenerate_states,
+                   logger=logger
+                   )
 
         return corrs
 
@@ -1243,11 +1342,6 @@ class PerturbationTheoryHamiltonian:
             end = time.time()
             self.logger.log_print("took {}s...", round(end - start, 3))
 
-        # raise Exception(
-        #     states,
-        #     coupled_states
-        # )
-
         H, tot_space = self._get_VPT_representations(
             self.perturbations,
             states,
@@ -1312,8 +1406,7 @@ class PerturbationTheoryHamiltonian:
         :rtype: PerturbationTheoryWavefunctions
         """
 
-        from .Wavefunctions import PerturbationTheoryWavefunction, PerturbationTheoryWavefunctions
-
+        from .Wavefunctions import PerturbationTheoryWavefunctions
 
         if self.logger is not None:
             self.logger.log_print("Computing PT corrections:", padding="")
@@ -1326,23 +1419,34 @@ class PerturbationTheoryHamiltonian:
             end = time.time()
             self.logger.log_print("took {}s...", round(end - start, 3))
 
-        # raise Exception(
-        #     states,
-        #     coupled_states
-        # )
-
+        h_reps = self.perturbations
+        if self.logger is not None:
+            bs = []
+            for b in coupled_states:
+                bs.append(len(b))
+            self.logger.log_print(
+                [
+                    "perturbations: {pert_num}",
+                    "order: {ord}",
+                    "states: {state_num}",
+                    "basis sizes {basis_size}"
+                ],
+                pert_num=len(h_reps) - 1,
+                ord=order,
+                state_num=len(states),
+                basis_size=bs
+            )
 
         corrs = self._get_VPT_corrections(
-            self.perturbations,
+            h_reps,
             states,
             coupled_states,
-            # total_states,
             order,
             degenerate_states=degeneracies,
             logger=self.logger
             )
 
-        return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs)
+        return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, logger=self.logger)
 
     @classmethod
     def _invert_action_expansion_tensors(cls,
@@ -1459,45 +1563,68 @@ class PerturbationTheoryHamiltonian:
                       ):
 
             from collections import OrderedDict
+            from .Wavefunctions import PerturbationTheoryWavefunctions
 
-            # store all coeffs
-            dGdQ = self.H1.computers[0].operator.coeffs
-            dFdQ = self.H1.computers[1].operator.coeffs
-            dGdQQ = self.H2.computers[0].operator.coeffs
-            dFdQQ = self.H2.computers[1].operator.coeffs
-            coriolisTerm = self.H2.computers[2].operator.coeffs
-            watsonTerm = self.H2.computers[3].operator.coeffs
+            if self.logger is not None:
+                self.logger.log_print("Computing PT breakdown:", padding="")
+                start = time.time()
+                self.logger.log_print("getting coupled states...")
 
-            # set stuff past Harmonic appx. to 0
-            self.H1.computers[0].operator.coeffs = 0
-            self.H1.computers[1].operator.coeffs = 0
-            self.H2.computers[0].operator.coeffs = 0
-            self.H2.computers[1].operator.coeffs = 0
-            if self.coriolis_terms is not None:
-                self.H2.computers[2].operator.coeffs = 0
-            self.H2.computers[3].operator.coeffs = 0
+            states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies)
 
-            # get harmonic wfns
-            harmonics = self.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order)
+            if self.logger is not None:
+                end = time.time()
+                self.logger.log_print("took {}s...", round(end - start, 3))
 
-            # reintroduce cubics
-            self.H1.computers[0].operator.coeffs = dGdQ
-            self.H1.computers[1].operator.coeffs = dFdQ
-            cubics = self.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order)
+            h_reps = self.perturbations
+            if self.logger is not None:
+                bs = []
+                for b in coupled_states:
+                    bs.append(len(b))
+                self.logger.log_print(
+                    [
+                        "perturbations: {pert_num}",
+                        "order: {ord}",
+                        "states: {state_num}",
+                        "basis sizes {basis_size}"
+                    ],
+                    pert_num=len(h_reps) - 1,
+                    ord=order,
+                    state_num=len(states),
+                    basis_size=bs
+                )
 
-            self.H2.computers[0].operator.coeffs = dGdQQ
-            self.H2.computers[1].operator.coeffs = dFdQQ
-            self.H2.computers[2].operator.coeffs = coriolisTerm
-            self.H2.computers[3].operator.coeffs = watsonTerm
-            full = self.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order)
+            H, total_state_space = self._get_VPT_representations(h_reps, states, coupled_states, self.logger)
 
-            self.H1.computers[0].operator.coeffs = 0
-            self.H1.computers[1].operator.coeffs = 0
-            quartics = self.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order)
-
-            return OrderedDict((
-                ("Harmonics", harmonics),
-                ("Cubic", cubics),
-                ("Quartic", quartics),
-                ("Full", full)
+            specs = OrderedDict((
+                ("Harmonic",   (True, False, False)),
+                ("Cubic",      (True, True,  False)),
+                ("Quartic",    (True, False, True)),
+                ("Full",       (True, True,  True))
             ))
+
+            for k in specs:
+                this_h = [H[i] if len(H) > i and s else 0 for i, s in enumerate(specs[k])]
+                if self.logger is not None:
+                    self.logger.log_print(
+                        [
+                            "getting breakdown for {} terms...",
+                            "(non-zero terms {})"
+                            ],
+                        k,
+                        len(this_h) - this_h.count(0)
+                    )
+                corrs = self._apply_VPT(
+                    this_h,
+                    states,
+                    coupled_states,
+                    order,
+                    total_state_space,
+                    degenerate_states=degeneracies,
+                    logger=self.logger
+                )
+
+                wfns = PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, logger=self.logger)
+                specs[k] = wfns
+
+            return specs

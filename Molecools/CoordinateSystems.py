@@ -56,6 +56,8 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
                 axes = axes[1:]
             elif np.abs(np.dot(first_pos, axes[1])) == 1:
                 axes = axes[(0, 2)]
+            else:
+                axes = axes[:2]
         else:
             axes = axes[:2]
 
@@ -123,8 +125,12 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
                 axes = axes[1:]
             elif np.abs(np.dot(first_pos, axes[1])) > .95:
                 axes = axes[(0, 2)]
+            else:
+                axes = axes[:2]
         else:
             axes = axes[:2]
+
+        # print(">>>", axes)
 
         # np.random.seed(100)
         # com = np.random.rand(3)
