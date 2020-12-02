@@ -228,8 +228,8 @@ class PerturbationTheoryHamiltonian:
             n_quanta = 10 # dunno yet how I want to handle this since it should really be defined by the order of state requested...
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
         self.modes = modes
-        self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection)#, logger=self.logger)
-        self.G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection)#, logger=self.logger)
+        self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection, logger=self.logger)
+        self.G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection, logger=self.logger)
         if coriolis_coupling and (self.molecule.internal_coordinates is None):
             self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection)
         else:
@@ -239,6 +239,8 @@ class PerturbationTheoryHamiltonian:
         self._h0 = self._h1 = self._h2 = None
 
         self.basis = HarmonicOscillatorProductBasis(self.n_quanta)
+
+        # from ..BasisReps import SimpleProductBasis, HarmonicOscillatorBasis
         # self.basis = SimpleProductBasis(HarmonicOscillatorBasis, self.n_quanta)
 
     @classmethod
@@ -292,12 +294,15 @@ class PerturbationTheoryHamiltonian:
                 iphase = 1
             else:
                 iphase = -1
+
             self._h1 = (
-                    (iphase * 1 / 2) * self.basis.representation('p', 'x', 'p', coeffs=self.G_terms[1],
+                    (iphase * 1 / 2) * self.basis.representation('p', 'x', 'p',
+                                                                 coeffs=self.G_terms[1],
                                                                  axes=[[0, 1, 2], [1, 0, 2]],
                                                                  logger=self.logger
                                                                  )
-                    + 1 / 6 * self.basis.representation('x', 'x', 'x', coeffs=self.V_terms[1],
+                    + 1 / 6 * self.basis.representation('x', 'x', 'x',
+                                                        coeffs=self.V_terms[1],
                                                         logger=self.logger
                                                         )
             )
@@ -319,17 +324,15 @@ class PerturbationTheoryHamiltonian:
                                                                  axes=[[0, 1, 2, 3], [2, 0, 1, 3]],
                                                                  logger=self.logger
                                                                  )
-                    + 1 / 24 * self.basis.representation('x', 'x', 'x', 'x', coeffs=self.V_terms[2],
+                    + 1 / 24 * self.basis.representation('x', 'x', 'x', 'x',
+                                                         coeffs=self.V_terms[2],
                                                          logger=self.logger
                                                          )
             )
             if self.coriolis_terms is not None:
                 total_cor = self.coriolis_terms[0] + self.coriolis_terms[1] + self.coriolis_terms[2]
-                # import McUtils.Plots as plt
-                # plt.ArrayPlot(
-                #     total_cor.reshape(total_cor.shape[0] ** 2, total_cor.shape[0] ** 2)
-                # ).show()
-                self._h2 += iphase * self.basis.representation('x', 'p', 'x', 'p', coeffs=total_cor,
+                self._h2 += iphase * self.basis.representation('x', 'p', 'x', 'p',
+                                                               coeffs=total_cor,
                                                                logger=self.logger
                                                                )
             else:
@@ -735,6 +738,13 @@ class PerturbationTheoryHamiltonian:
                 full_dat = full_dat[idx]
                 sub = SparseArray((full_dat, full_inds.T), shape=(N, N))
 
+            # if i == 0:
+            #     "0.028258378995078746"
+            #     "0.022878022823359108"
+            #     "0.005556454808064418"
+            #     "0.11518508464641353"
+            #     "0.1180029152600935"
+            #     raise Exception(np.sum(np.abs(sub.block_vals)))
             H[i+1] = sub #type: np.ndarray
 
         # raise Exception("....")

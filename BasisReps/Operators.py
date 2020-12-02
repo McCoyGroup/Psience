@@ -7,7 +7,7 @@ import numpy as np, scipy.sparse as sp, os, tempfile as tf
 from collections import OrderedDict
 from McUtils.Numputils import SparseArray
 
-#TODO: abstract the VPT2 stuff out so we can use it for a general operator too
+from .StateSpaces import BraKetSpace
 
 __all__ = [
     "Operator",
@@ -120,6 +120,8 @@ class Operator:
         )
 
     def _get_orthogonality(self, inds, states, quants):
+        #TODO: this can mostly be delegated to BraKetSpace
+
         nstates = len(states[0][0])
         ndim = len(quants)
         uinds = np.unique(inds)
@@ -134,6 +136,7 @@ class Operator:
         return orthog
 
     def _apply_sel_rules(self, states, rules):
+        #TODO: this can be delegated to BraKetSpace
         import functools as fp
 
         # we have a set of rules for every dimension in states...
@@ -154,7 +157,7 @@ class Operator:
 
         return states, all_sels
 
-    def _mat_prod_operator_terms(self, inds, funcs, states, non_orthog, sel_rules):
+    def _mat_prod_operator_terms(self, inds, funcs, states, sel_rules):
         """
         Evaluates product operator terms based on 1D representation matrices coming from funcs
 
@@ -162,8 +165,8 @@ class Operator:
         :type inds:
         :param funcs: functions that generate 1D representation matrices
         :type funcs:
-        :param non_orthog_states:
-        :type non_orthog_states:
+        :param states:
+        :type states: BraKetSpace
         :param sel_rules: selection rules as 1D arrays of rules for each dimension
         :type sel_rules:
         :return:
@@ -179,8 +182,7 @@ class Operator:
         uinds = np.unique(inds)
         mm = {k: i for i, k in enumerate(uinds)}
 
-        # then we determine which states are potentially non-orthogonal
-        non_orthog_states = [(states[i][0][non_orthog], states[i][1][non_orthog]) for i in uinds]
+        non_orthog_states, non_orthog_spec = states.apply_non_orthogonality(uinds, assume_unique=True)
 
         subdim = len(uinds)
         # and then apply selection rules if we have them
@@ -195,15 +197,18 @@ class Operator:
                     sel_bits[n] = np.unique(np.add.outer(s, sel_bits[n])).flatten() # make the next set of rules
             # print(sel_bits)
             # apply full selection rules
-            non_orthog_states, all_sels = self._apply_sel_rules(non_orthog_states, sel_bits)
-            if len(non_orthog_states[0][0]) == 0:
+            non_orthog_states, all_sels = non_orthog_states.apply_sel_rules(sel_bits)
+            if len(non_orthog_states) == 0:
                 return None # short-circuit because there's nothing to calculate
 
         else:
             all_sels = None
 
         # determine what size we need for the 1D reps
-        max_dim = np.max(np.array(non_orthog_states))
+        max_dim = np.max([
+            np.max(non_orthog_states.bras.excitations),
+            np.max(non_orthog_states.kets.excitations)
+            ])
         padding = 3  # for approximation reasons we need to pad our representations...
 
         # then set up a place to hold onto the pieces we'll calculate
@@ -241,7 +246,7 @@ class Operator:
 
         return chunk, all_sels
 
-    def _direct_prod_operator_terms(self, inds, func, states, non_orthog):
+    def _direct_prod_operator_terms(self, inds, func, states):
         """
         Evaluates product operator terms based on 1D representation matrices,
         but using a direct function to generate them
@@ -250,29 +255,17 @@ class Operator:
         :type inds:
         :param func: a function that will take a set of indices and term-generator
         :type func:
-        :param non_orthog_states:
-        :type non_orthog_states:
         :return:
         :rtype:
         """
 
         # We figure out which indices are actually unique; this gives us a way to map
         # indices onto operators for our generator
-        _, idx = np.unique(inds, return_index=True)
-        uinds = inds[np.sort(idx)]
-        # print(inds, uinds)
-        # mm = {k: i for i, k in enumerate(uinds)}
-
-        # then we determine which states are potentially non-orthogonal based on precomputed info
-        non_orthog_states = [
-            (states[i][0][non_orthog], states[i][1][non_orthog])
-            for i in uinds
-        ]
+        non_orthog_states = states.apply_non_orthog(inds)
 
         # next we get the term generator defined by inds
         # this will likely end up calling uinds again, but ah well, that operation is cheap
         gen = func(inds)
-        # print(gen)
         try:
             g, sel_rules = gen
             r = sel_rules[0][0]
@@ -282,8 +275,6 @@ class Operator:
             sel_rules = None
         else:
             gen = g
-
-        # print(gen)
 
         if sel_rules is not None:
             # apply full selection rules
@@ -306,10 +297,8 @@ class Operator:
         :type inds:
         :param funcs: the functions to use when generating representations, must return matrices
         :type funcs:
-        :param states: the states to compute terms between stored like ((s_1l, s_1r), (s_2l, s_2r), ...)
-                        where `s_il` is the set of quanta for mode i for the bras and
-                        `s_ir` is the set of quanta for mode i for the kets
-        :type states: Iterable[Iterable[Iterable[int]]]
+        :param states: the states to compute terms between
+        :type states: BraKetSpace
         :param quants: the total quanta to use when building representations
         :type quants:
         :param sel_rules: the selection rules to use when building representations
@@ -317,9 +306,16 @@ class Operator:
         :return:
         :rtype:
         """
+
         # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
-        nstates = len(states[0][0])
+
+        nstates = len(states)
+
+        ndim = len(quants)
+        uinds = np.unique(inds)
+
+        raise NotImplementedError("Currently adding support for much better orthogonality handling")
         orthog = self._get_orthogonality(inds, states, quants)
         single_state = isinstance(orthog, (int, np.integer)) # means we got a single state to calculate over
         if single_state:
@@ -491,23 +487,21 @@ class Operator:
         Calculates a subset of elements
 
         :param idx: bra and ket states as tuples of elements
-        :type idx: Iterable[(Iterable[int], Iterable[int])]
+        :type idx: BraKetSpace
         :return:
         :rtype:
         """
 
-        # we expect this to be an iterable object that looks like
-        # num_modes X [bra, ket] X quanta
-        idx = tuple(
-            tuple(np.array([i]) if isinstance(i, (int, np.integer)) else np.array(i) for i in j)
-            for j in idx
-        )
 
-        if len(idx) != self.mode_n:
-            raise ValueError("BraKet spec {} isn't valid for Operator with dimension {}".format(
-                idx,
-                (self.ndim, self.mode_n)
-            ))
+        if not isinstance(idx, BraKetSpace):
+            idx = BraKetSpace.from_indices(idx, quanta=self.quanta)
+
+
+        # if len(idx) != self.mode_n:
+        #     raise ValueError("BraKet spec {} isn't valid for Operator with dimension {}".format(
+        #         idx,
+        #         (self.ndim, self.mode_n)
+        #     ))
 
         inds = self.get_inner_indices()
 

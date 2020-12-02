@@ -839,10 +839,14 @@ class PotentialTerms(ExpansionTerms):
 
             if np.linalg.norm(grad) > 1.0e-4:
                 # add some logger stuff...
+                if self.logger is not None:
+                    self.logger.log_print("WARNING: gradient norm is {}".format(
+                        np.linalg.norm(grad)
+                    ))
                 grad = np.zeros(grad.shape)
-                raise ValueError("Wooooah look at the norm on this grad: {}".format(
-                    np.linalg.norm(grad)
-                ))
+                # raise ValueError("Wooooah look at the norm on this grad: {}".format(
+                #     np.linalg.norm(grad)
+                # ))
 
 
             x_derivs = (xQ, xQQ, xQQQ, xQQQQ)

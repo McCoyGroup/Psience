@@ -291,6 +291,104 @@ class BasisSetTests(TestCase):
         # self.assertEquals(eval.terms, (("x", "p"), ("x", "p")))
 
     @debugTest
+    def test_HOBasis3DPXP(self):
+        from Peeves import Timer, BlockProfiler
+
+        n = 10
+        m = 3
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+        oppo2 = SimpleProductBasis(HarmonicOscillatorBasis, (n,) * m)
+
+        term = ['p', 'x', 'p']
+        iphase = (-1) ** (term.count("p") // 2)
+        n_terms = len(term)
+
+        g1 = np.array([
+            [[-1.81146079e-04,  3.97836803e-05,  2.91649691e-05],
+             [ 3.97836803e-05,  2.63572358e-05,  2.37597837e-04],
+             [ 2.91649691e-05,  2.37597837e-04, -3.38457268e-05]],
+
+            [[-4.36589189e-04,  2.79004059e-05, -1.50059967e-05],
+             [ 2.79004059e-05, -1.44188965e-06,  3.49657651e-06],
+             [-1.50059967e-05,  3.49657652e-06,  3.11501367e-06]],
+
+            [[-8.10821036e-04,  6.31615150e-06,  5.50255712e-05],
+             [ 6.31615151e-06,  4.05569426e-06,  3.51303496e-08],
+             [ 5.50255712e-05,  3.51303696e-08, -3.80070492e-06]]])
+        xxpp1 = 2*oppo.representation(*term, coeffs=g1, axes=[[0, 1, 2], [1, 0, 2]])
+        xxpp1 = xxpp1 + xxpp1
+        xxpp2 = 2*oppo2.representation(*term, coeffs=g1,  axes=[[0, 1, 2], [1, 0, 2]])
+        xxpp2 = xxpp2 + xxpp2
+
+        usr = os.path.expanduser('~')
+        job_is_dumb = [
+            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
+            os.path.join(usr, "Documents/UW/Research/Development")
+        ]
+
+        quant_states = self.get_states(9, 3, max_quanta=10)
+        states = oppo.ravel_state_inds(quant_states)
+        # print(quant_states)
+        import itertools as ip
+        wat = np.array(list(ip.product(states, states))).T
+        # with Timer("New style"):
+        vals1 = xxpp1[wat[0], wat[1]]
+        # with Timer("New style Broadcasting"):
+        #     vals2 = xxpp1[np.ix_(states, states)]
+
+        # with Timer("Old style"):
+        vals2 = xxpp2[wat[0], wat[1]]
+        # with Timer("Old style Broadcasting"):
+        #     vals2 = xxpp2[np.ix_(states, states)]
+
+        # import McUtils.Plots as plt
+        # n = len(states)
+        # plt.ArrayPlot(vals1.reshape((n, n)))
+        # plt.ArrayPlot(iphase * vals2.reshape((n, n))).show()
+
+        v1 = vals1
+        v2 = iphase * vals2
+
+        self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
+
+    @validationTest
+    def test_HOBasis4DPXXP(self):
+        from Peeves import Timer, BlockProfiler
+
+        n = 15
+        m = 5
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+        oppo2 = SimpleProductBasis(HarmonicOscillatorBasis, (n,) * m)
+
+        term = ['p', 'x', 'x', 'p']
+        iphase = (-1) ** (term.count("p") // 2)
+
+        xxpp1 = oppo.representation(*term)
+        xxpp2 = oppo2.representation(*term)
+
+        usr = os.path.expanduser('~')
+        job_is_dumb = [
+            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
+            os.path.join(usr, "Documents/UW/Research/Development")
+        ]
+
+        quant_states = self.get_states(4, m)
+        states = oppo.ravel_state_inds(quant_states)
+        # print(quant_states)
+        import itertools as ip
+        wat = np.array(list(ip.product(states, states))).T
+        with Timer("New style"):
+            vals1 = xxpp1[wat[0], wat[1]]
+
+        with Timer("Old style"):
+            vals2 = xxpp2[wat[0], wat[1]]
+
+        v1 = vals1.toarray()
+        v2 = iphase * vals2.toarray()
+
+        self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
+
+    @inactiveTest
     def test_HOSelRuleTerms(self):
         from Peeves import Timer, BlockProfiler
 
@@ -323,4 +421,15 @@ class BasisSetTests(TestCase):
                 transitions_h1,
                 1
             )
+
+    # @debugTest
+    # def test_HOPXP(self):
+    #
+    #     new_basi = HarmonicOscillatorProductBasis((10, 10, 10))
+    #     old_prod = SimpleProductBasis(HarmonicOscillatorBasis, (10, 10, 10))
+    #
+    #     new_rep = new_basis.representation('p', 'x', 'p')
+    #     old_rep = old_basis.representation('p', 'x', 'p')
+
+
 

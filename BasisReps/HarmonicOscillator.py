@@ -171,9 +171,9 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
             labels = [mapping[k] for k in ids]
 
             if coeffs is None:
-                op = Operator(computer, self.quanta, prod_dim=len(terms), symmetries=labels)
+                op = Operator(computer, self.quanta, prod_dim=len(terms), symmetries=labels, axes=axes)
             else:
-                op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms), symmetries=labels)
+                op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms), symmetries=labels, axes=axes)
             return op
         else:
             return super().operator(*terms, coeffs=coeffs, axes=axes)
@@ -402,8 +402,8 @@ class HarmonicProductOperatorTermEvaluator:
             for a, s in zip(delta_vals, delta_sels):
                 gen = self.load_generator(a)
                 og = states[0][s]
-                # print("  ", a, s, og, states[1][s])
-                biggo[s] = gen(og)
+                vals, inv = np.unique(og, return_inverse=True)
+                biggo[s] = gen(vals)[inv]
 
             return biggo
 
@@ -416,6 +416,7 @@ class HarmonicProductOperatorTermEvaluator:
                 gen = self.generators[a]
             return gen
 
+        _partitions_cache = MaxSizeCache()
         @classmethod
         def rho_term_generator(cls, a, N, sel):
             """

@@ -1924,10 +1924,10 @@ class VPTTests(TestCase):
                 "DOD_freq.fchk",
                 internals,
                 states,
-                save_coeffs=True,
+                # save_coeffs=True,
                 regenerate=True
                 # , coupled_states=self.get_states(5, 3)
-                , log=True
+                # , log=True
                 # , watson=0.
                 # , v3=0
                 # , v4=0
@@ -2020,7 +2020,7 @@ class VPTTests(TestCase):
             "DOD_freq.fchk",
             internals,
             states,
-            save_coeffs=True,
+            # save_coeffs=True,
             regenerate=True
             , coupled_states=self.get_states(5, 3)
             # , watson=0.
@@ -2083,7 +2083,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HOHVPTInternals(self):
 
         internals = [
@@ -2102,11 +2102,12 @@ class VPTTests(TestCase):
             "HOH_freq.fchk",
             internals,
             states,
-            save_coeffs=True,
+            # save_coeffs=True,
             regenerate=True
             # , coupled_states = self.get_states(5, 3)
             # , watson=0.
-            # , v3=0
+            # , v3 = 0
+            # , t4 = 0
             # , v4=0
         )
 
@@ -2178,7 +2179,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
 
         internals = None
@@ -2272,7 +2273,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HODVPTInternals(self):
 
         internals = [
@@ -2292,9 +2293,9 @@ class VPTTests(TestCase):
             "HOD_freq.fchk",
             internals,
             states,
-            save_coeffs=True,
-            regenerate=True,
-            log=True
+            # save_coeffs=True,
+            regenerate=True
+            # , log=True
             # coupled_states=coupled_states
             # , v3=legit/self.h2w
             # , v4=0
@@ -2366,7 +2367,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
-    @debugTest
+    @validationTest
     def test_HODVPTCartesians(self):
 
         internals = None
@@ -2455,7 +2456,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
-    @debugTest
+    @validationTest
     def test_HOTVPTInternals(self):
 
         internals = [
@@ -2548,7 +2549,7 @@ class VPTTests(TestCase):
 
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
-    @debugTest
+    @validationTest
     def test_HOTVPTCartesians(self):
 
         internals = None
@@ -3560,7 +3561,7 @@ class VPTTests(TestCase):
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
 
-        states = self.get_states(2, n_modes)[:24]
+        states = self.get_states(2, n_modes)
 
         # coupled_states = self.get_states(5, n_modes, max_quanta=5)
 
@@ -3575,243 +3576,8 @@ class VPTTests(TestCase):
                 internals,
                 states,
                 regenerate=True,
-                coupled_states=coupled_states,
                 mode_selection=mode_selection,
                 log=True
-            )
-
-        # block()
-        exc, stat_block, wfns = self.profile_block(block)
-
-        do_profile = False
-        if do_profile:
-            if exc is not None:
-                try:
-                    raise exc
-                except:
-                    raise Exception(stat_block)
-            else:
-                raise Exception(stat_block)
-        elif exc is not None:
-            raise exc
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        gaussian_engs = [10133.860,    9909.756]
-        gaussian_freqs = np.array([
-             [3935.490,    3742.918],
-             [3914.939,    3752.151],
-             [3814.079,    3652.414],
-             [3718.192,    3584.139],
-             [1650.023,    1592.653],
-             [1629.210,    1585.962],
-             [ 631.340,     505.605],
-             [ 362.703,     295.834],
-             [ 183.777,     141.372],
-             [ 154.306,     110.995],
-             [ 146.544,     150.517],
-             [ 127.117,      69.163],
-
-             [7870.980,    7393.560],
-             [7829.879,    7368.493],
-             [7628.159,    7224.882],
-             [7436.384,    7016.025],
-             [3300.045,    3152.473],
-             [3258.421,    3144.157],
-             [1262.679,     921.053],
-             [ 725.405,     488.907],
-             [ 367.554,     268.882],
-             [ 308.612,     207.465],
-             [ 293.089,     299.766],
-             [ 254.234,     114.677],
-
-             [7729.019,    7402.976],
-             [7633.131,    7271.264],
-             [7532.271,    7230.663],
-             [5564.962,    5328.224],
-             [5464.102,    5244.056],
-             [5368.215,    5164.597],
-             [5544.150,    5337.031],
-             [5443.290,    5222.111],
-             [5347.402,    5168.407],
-             [3279.233,    3172.374],
-             [4277.642,    4024.523],
-             [4176.782,    3928.515],
-             [4080.894,    3889.457],
-             [2012.725,    1852.952],
-             [1991.913,    1862.320],
-             [4098.716,    3895.805],
-             [3997.856,    3794.279],
-             [3901.969,    3739.502],
-             [1833.800,    1732.294],
-             [1812.987,    1729.354],
-             [ 546.479,     389.065],
-             [4069.245,    3864.621],
-             [3968.385,    3763.445],
-             [3872.498,    3704.835],
-             [1804.329,    1699.128],
-             [1783.516,    1700.178],
-             [ 517.009,     374.506],
-             [ 338.083,     235.655],
-             [7850.429,    7494.650],
-             [7749.569,    7239.308],
-             [7653.682,    7322.974],
-             [5585.513,    5334.869],
-             [5564.700,    5314.396],
-             [4298.193,    4016.063],
-             [4119.267,    3875.578],
-             [4089.796,    3839.370],
-             [4546.279,    4261.388],
-             [4445.419,    4159.774],
-             [4349.531,    4139.077],
-             [2281.362,    2107.393],
-             [2260.550,    2094.511],
-             [ 994.042,     745.791],
-             [ 815.116,     620.620],
-             [ 785.646,     595.362],
-             [4566.830,    4249.695],
-             [4061.484,    3903.055],
-             [3960.624,    3844.234],
-             [3864.736,    3750.792],
-             [1796.567,    1745.999],
-             [1775.755,    1736.874],
-             [ 509.247,     405.832],
-             [ 330.321,     287.882],
-             [ 300.850,     261.693],
-             [4082.035,    3892.356],
-             [ 777.884,     646.479],
-             [4042.056,    3844.889],
-             [3941.197,    3692.207],
-             [3845.309,    3657.100],
-             [1777.140,    1656.439],
-             [1756.328,    1651.982],
-             [ 489.820,     336.402],
-             [ 310.894,     207.357],
-             [ 281.423,     169.590],
-             [4062.607,    3810.202],
-             [ 758.457,     525.680],
-             [ 273.662,     201.333]
-        ])
-
-        print_report = True
-        if print_report:
-            print("Gaussian Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-                      in
-                      zip(states[1:], gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
-        ns = len(states) - 1
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
-                                                                              engs[0] - gaussian_engs[1], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
-                  )
-                  )
-
-        self.assertLess(
-            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
-            1)
-
-    @inactiveTest
-    def test_WaterDimerVPTInternals(self):
-
-        """
-      1          1           0        0.000000    0.000000    0.000000
-      2          8           0        0.000000    0.000000    0.960485
-      3          1           0        0.938795    0.000000    1.199654
-      4          8           0        2.745004    0.000000    1.930528
-      5          1           0        2.858217    0.761260    2.508248
-      6          1           0        2.858217   -0.761260    2.508248
-      """
-
-        COM = -3
-        A = -2
-        C = -1
-        X = 1000
-        LHF = 0
-        LO = 1
-        SH = 2
-        RO = 3
-        RH1 = 4
-        RH2 = 5
-        internals = [
-            [LHF,  X,   X,   X],
-            [LO, LHF,   X,   X],
-            [SH,  LO, LHF,   X],
-            [RH2, SH,  LO, LHF], # get out of plane
-            [RO,  LO, RH2, LHF],
-            [RH1, RO, RH2, LHF]
-        ]
-
-        internals = [
-            [LHF,   X,   X,   X],
-            [LO,  LHF,   X,   X],
-            [SH,   LO, LHF,   X],
-            [RO,   LO,  SH, LHF],
-            [RH1,  RO,  LO, LHF],
-            [RH2,  RO, RH1,  LO]
-        ]
-
-        internals = [
-            [LHF, X, X, X],
-            [LO, LHF, X, X],
-            [SH, LO, LHF, X],
-            [RO, LO, SH, C],
-            [RH1, RO, LO, LHF],
-            [RH2, RO, RH1, LO]
-        ]
-
-        n_modes = 6 * 3 - 6
-        mode_selection = None
-        if mode_selection is not None and len(mode_selection) < n_modes:
-            n_modes = len(mode_selection)
-
-        states = self.get_states(2, n_modes)#[:8]
-
-        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
-        #
-        # PerturbationTheoryHamiltonian()
-
-        def block(self=self,
-                  internals=internals,
-                  states=states,
-                  coupled_states=None,
-                  mode_selection=mode_selection
-                  ):
-            return self.get_VPT2_wfns(
-                "water_dimer_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                coupled_states=coupled_states,
-                mode_selection=mode_selection,
-                log=True
-                # , t2=0
-                # , v2=0
-                , t3=0
-                , v3=0
-                , t4=0
-                , v4=0
             )
 
         # block()
@@ -3863,71 +3629,293 @@ class VPTTests(TestCase):
             [293.089, 299.766],
             [254.234, 114.677],
 
+            [7850.429, 7494.650],
+            [7749.569, 7239.308],
             [7729.019, 7402.976],
+            [7653.682, 7322.974],
             [7633.131, 7271.264],
             [7532.271, 7230.663],
+            [5585.513, 5334.869],
             [5564.962, 5328.224],
             [5464.102, 5244.056],
             [5368.215, 5164.597],
+            [5564.700, 5314.396],
             [5544.150, 5337.031],
             [5443.290, 5222.111],
             [5347.402, 5168.407],
             [3279.233, 3172.374],
-            [4277.642, 4024.523],
-            [4176.782, 3928.515],
-            [4080.894, 3889.457],
-            [2012.725, 1852.952],
-            [1991.913, 1862.320],
-            [4098.716, 3895.805],
-            [3997.856, 3794.279],
-            [3901.969, 3739.502],
-            [1833.800, 1732.294],
-            [1812.987, 1729.354],
-            [546.479, 389.065],
-            [4069.245, 3864.621],
-            [3968.385, 3763.445],
-            [3872.498, 3704.835],
-            [1804.329, 1699.128],
-            [1783.516, 1700.178],
-            [517.009, 374.506],
-            [338.083, 235.655],
-            [7850.429, 7494.650],
-            [7749.569, 7239.308],
-            [7653.682, 7322.974],
-            [5585.513, 5334.869],
-            [5564.700, 5314.396],
-            [4298.193, 4016.063],
-            [4119.267, 3875.578],
-            [4089.796, 3839.370],
+            [4566.830, 4249.695],
             [4546.279, 4261.388],
             [4445.419, 4159.774],
             [4349.531, 4139.077],
             [2281.362, 2107.393],
             [2260.550, 2094.511],
+            [4298.193, 4016.063],
+            [4277.642, 4024.523],
+            [4176.782, 3928.515],
+            [4080.894, 3889.457],
+            [2012.725, 1852.952],
+            [1991.913, 1862.320],
             [994.042, 745.791],
+            [4119.267, 3875.578],
+            [4098.716, 3895.805],
+            [3997.856, 3794.279],
+            [3901.969, 3739.502],
+            [1833.800, 1732.294],
+            [1812.987, 1729.354],
             [815.116, 620.620],
+            [546.479, 389.065],
+            [4089.796, 3839.370],
+            [4069.245, 3864.621],
+            [3968.385, 3763.445],
+            [3872.498, 3704.835],
+            [1804.329, 1699.128],
+            [1783.516, 1700.178],
             [785.646, 595.362],
-            [4566.830, 4249.695],
+            [517.009, 374.506],
+            [338.083, 235.655],
+            [4082.035, 3892.356],
             [4061.484, 3903.055],
             [3960.624, 3844.234],
             [3864.736, 3750.792],
             [1796.567, 1745.999],
             [1775.755, 1736.874],
+            [777.884, 646.479],
             [509.247, 405.832],
             [330.321, 287.882],
             [300.850, 261.693],
-            [4082.035, 3892.356],
-            [777.884, 646.479],
+            [4062.607, 3810.202],
             [4042.056, 3844.889],
             [3941.197, 3692.207],
             [3845.309, 3657.100],
             [1777.140, 1656.439],
             [1756.328, 1651.982],
+            [758.457, 525.680],
             [489.820, 336.402],
             [310.894, 207.357],
             [281.423, 169.590],
+            [273.662, 201.333]
+        ])
+
+        print_report = True
+        if print_report:
+            print("Gaussian Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
+                      in
+                      zip(states[1:], gaussian_freqs)
+                  )
+                  )
+            print("State Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                      s, e1, e2 in
+                      zip(states[1:], harm_freq, freqs)
+                  )
+                  )
+        ns = len(states) - 1
+        print_difference = True
+        if print_difference:
+            print("Difference Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
+                                                                              engs[0] - gaussian_engs[1], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                      s, e1, e2 in
+                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
+                  )
+                  )
+
+        self.assertLess(
+            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
+            1)
+
+    @debugTest
+    def test_WaterDimerVPTInternals(self):
+
+        """
+      1          1           0        0.000000    0.000000    0.000000
+      2          8           0        0.000000    0.000000    0.960485
+      3          1           0        0.938795    0.000000    1.199654
+      4          8           0        2.745004    0.000000    1.930528
+      5          1           0        2.858217    0.761260    2.508248
+      6          1           0        2.858217   -0.761260    2.508248
+      """
+
+        COM = -3
+        A = -2
+        C = -1
+        X = 1000
+        LHF = 0
+        LO = 1
+        SH = 2
+        RO = 3
+        RH1 = 4
+        RH2 = 5
+        # internals = [
+        #     [LHF,  X,   X,   X],
+        #     [LO, LHF,   X,   X],
+        #     [SH,  LO, LHF,   X],
+        #     [RH2, SH,  LO, LHF], # get out of plane
+        #     [RO,  LO, RH2, LHF],
+        #     [RH1, RO, RH2, LHF]
+        # ]
+        #
+        # internals = [
+        #     [LHF,   X,   X,   X],
+        #     [LO,  LHF,   X,   X],
+        #     [SH,   LO, LHF,   X],
+        #     [RO,   LO,  SH, LHF],
+        #     [RH1,  RO,  LO, LHF],
+        #     [RH2,  RO, RH1,  LO]
+        # ]
+
+        internals = [
+            [LHF,   X,   X,    X],
+            [LO,  LHF,   X,    X],
+            [SH,   LO,  LHF,   X],
+            [RO,   LO,  LHF,   C],
+            [RH1,  RO,   SH, LHF],
+            [RH2,  RO,  RH1, LHF]
+        ]
+
+        n_modes = 6 * 3 - 6
+        mode_selection = None
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+
+        states = self.get_states(2, n_modes)#[:8]
+
+        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
+        #
+        # PerturbationTheoryHamiltonian()
+
+        def block(self=self,
+                  internals=internals,
+                  states=states,
+                  coupled_states=None,
+                  mode_selection=mode_selection
+                  ):
+            return
+
+        with BlockProfiler("Water Dimer"):
+            wfns = self.get_VPT2_wfns(
+                "water_dimer_freq.fchk",
+                internals,
+                states,
+                regenerate=True,
+                coupled_states=None,
+                mode_selection=mode_selection,
+                log=True
+                # , t2=0
+                # , v2=0
+                # , t3=0
+                # , v3=0
+                # , t4=0
+                # , v4=0
+            )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        engs = h2w * wfns.energies
+        freqs = engs[1:] - engs[0]
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freq = harm_engs[1:] - harm_engs[0]
+
+        gaussian_engs = [10133.860, 9909.756]
+        gaussian_freqs = np.array([
+            [3935.490, 3742.918],
+            [3914.939, 3752.151],
+            [3814.079, 3652.414],
+            [3718.192, 3584.139],
+            [1650.023, 1592.653],
+            [1629.210, 1585.962],
+            [631.340, 505.605],
+            [362.703, 295.834],
+            [183.777, 141.372],
+            [154.306, 110.995],
+            [146.544, 150.517],
+            [127.117, 69.163],
+
+            [7870.980, 7393.560],
+            [7829.879, 7368.493],
+            [7628.159, 7224.882],
+            [7436.384, 7016.025],
+            [3300.045, 3152.473],
+            [3258.421, 3144.157],
+            [1262.679, 921.053],
+            [725.405, 488.907],
+            [367.554, 268.882],
+            [308.612, 207.465],
+            [293.089, 299.766],
+            [254.234, 114.677],
+
+            [7850.429, 7494.650],
+            [7749.569, 7239.308],
+            [7729.019, 7402.976],
+            [7653.682, 7322.974],
+            [7633.131, 7271.264],
+            [7532.271, 7230.663],
+            [5585.513, 5334.869],
+            [5564.962, 5328.224],
+            [5464.102, 5244.056],
+            [5368.215, 5164.597],
+            [5564.700, 5314.396],
+            [5544.150, 5337.031],
+            [5443.290, 5222.111],
+            [5347.402, 5168.407],
+            [3279.233, 3172.374],
+            [4566.830, 4249.695],
+            [4546.279, 4261.388],
+            [4445.419, 4159.774],
+            [4349.531, 4139.077],
+            [2281.362, 2107.393],
+            [2260.550, 2094.511],
+            [4298.193, 4016.063],
+            [4277.642, 4024.523],
+            [4176.782, 3928.515],
+            [4080.894, 3889.457],
+            [2012.725, 1852.952],
+            [1991.913, 1862.320],
+            [994.042, 745.791],
+            [4119.267, 3875.578],
+            [4098.716, 3895.805],
+            [3997.856, 3794.279],
+            [3901.969, 3739.502],
+            [1833.800, 1732.294],
+            [1812.987, 1729.354],
+            [815.116, 620.620],
+            [546.479, 389.065],
+            [4089.796, 3839.370],
+            [4069.245, 3864.621],
+            [3968.385, 3763.445],
+            [3872.498, 3704.835],
+            [1804.329, 1699.128],
+            [1783.516, 1700.178],
+            [785.646, 595.362],
+            [517.009, 374.506],
+            [338.083, 235.655],
+            [4082.035, 3892.356],
+            [4061.484, 3903.055],
+            [3960.624, 3844.234],
+            [3864.736, 3750.792],
+            [1796.567, 1745.999],
+            [1775.755, 1736.874],
+            [777.884, 646.479],
+            [509.247, 405.832],
+            [330.321, 287.882],
+            [300.850, 261.693],
             [4062.607, 3810.202],
+            [4042.056, 3844.889],
+            [3941.197, 3692.207],
+            [3845.309, 3657.100],
+            [1777.140, 1656.439],
+            [1756.328, 1651.982],
             [758.457, 525.680],
+            [489.820, 336.402],
+            [310.894, 207.357],
+            [281.423, 169.590],
             [273.662, 201.333]
         ])
 
@@ -3970,7 +3958,7 @@ class VPTTests(TestCase):
 
     #region Test Action Expansions
 
-    @validationTest
+    @debugTest
     def test_HOHCartesianActionExpansion(self):
 
         internals = None
@@ -3989,7 +3977,6 @@ class VPTTests(TestCase):
             [-0.166364e+03, -0.440530e+02,  0.0000000000],
             [-0.230618e+02, -0.200356e+02, -0.140238e+02]
         ])[np.ix_((2, 1, 0), (2, 1, 0))]
-
 
         self.assertTrue(
             np.allclose(gaussian_x, x, atol=.5),
@@ -5050,7 +5037,7 @@ class VPTTests(TestCase):
             wnf.write_CSV_breakdown(s, wnf.generate_intensity_breakdown(), padding=[" "] * 2)
         print(s.getvalue())
 
-    @validationTest
+    @inactiveTest
     def test_WaterDimerCartesianIntensityBreakdown(self):
 
         internals = None
@@ -5092,13 +5079,23 @@ class VPTTests(TestCase):
         :return:
         :rtype:
         """
+        COM = -3
+        A = -2
+        C = -1
+        X = 1000
+        LHF = 0
+        LO = 1
+        SH = 2
+        RO = 3
+        RH1 = 4
+        RH2 = 5
         internals = [
-            [0, -1, -1, -1],
-            [1,  0, -1, -1],
-            [2,  1,  0, -1],
-            [3,  1,  2,  0],
-            [4,  3,  2,  0],
-            [5,  3,  2,  0]
+            [ LHF,   X,   X,   X],
+            [  LO, LHF,   X,   X],
+            [  SH,  LO, LHF,   X],
+            [  RO,  LO, LHF,   C],
+            [ RH1,  RO,  SH, LHF],
+            [ RH2,  RO, RH1, LHF]
         ]
 
         n_modes = 6 * 3 - 6

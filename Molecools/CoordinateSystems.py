@@ -30,17 +30,34 @@ def _get_best_axes(first_pos, axes):
     if fp_norm > 1.0e-10:  # not chilling at the origin...
         first_pos = first_pos / fp_norm
         # check if it lies along an axis or is perpendicular to an axis
+        a_proj = np.dot(first_pos, axes[0])
         b_proj = np.dot(first_pos, axes[1])
         c_proj = np.dot(first_pos, axes[2])
         if np.abs(b_proj) < .05: # lies in the A/C plane
+            if np.abs(a_proj) > .95:
+                axes = axes[1:]
+                ax_names = ["B", "C"]
+            else:
+                axes = axes[:2]
+                ax_names = ["A", "B"]
+        elif np.abs(c_proj) < .05: # lies in the A/B plane
+            if np.abs(a_proj) > .95:
+                axes = axes[1:]
+                ax_names = ["B", "C"]
+            else:
+                axes = axes[(0, 2),]
+                ax_names = ["A", "C"]
+        elif np.abs(a_proj) < .05:  # lies in the B/C plane
+            if np.abs(b_proj) > .95:
+                axes = axes[(0, 2),]
+                ax_names = ["A", "C"]
+            else:
+                axes = axes[:2]
+                ax_names = ["A", "B"]
+        else: # not in any of the planes so no issues
             axes = axes[:2]
             ax_names = ["A", "B"]
-        elif np.abs(c_proj) < .05: # lies in the A/B plane
-            axes = axes[(0, 2),]
-            ax_names = ["A", "C"]
-        else:
-            axes = axes[1:]
-            ax_names = ["B", "C"]
+
     else:
         axes = axes[:2]
         ax_names = ["A", "B"]
