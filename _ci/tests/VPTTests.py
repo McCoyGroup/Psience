@@ -3732,7 +3732,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @debugTest
+    @inactiveTest
     def test_WaterDimerVPTInternals(self):
 
         """
@@ -3958,7 +3958,7 @@ class VPTTests(TestCase):
 
     #region Test Action Expansions
 
-    @debugTest
+    @inactiveTest
     def test_HOHCartesianActionExpansion(self):
 
         internals = None
@@ -4923,7 +4923,7 @@ class VPTTests(TestCase):
 
     #region Intensity Breakdowns
 
-    @validationTest
+    @debugTest
     def test_HODIntensityBreakdownCartesians(self):
 
         states = self.get_states(2, 3)
@@ -4944,7 +4944,7 @@ class VPTTests(TestCase):
         with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
-    @validationTest
+    @debugTest
     def test_HODIntensityBreakdown(self):
 
         internals = [
@@ -4977,7 +4977,7 @@ class VPTTests(TestCase):
         with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
-    @validationTest
+    @debugTest
     def test_HOHIntensityBreakdown(self):
 
         internals = [
@@ -5009,7 +5009,7 @@ class VPTTests(TestCase):
             wnf.write_CSV_breakdown(s, wnf.generate_intensity_breakdown(), padding=[" "] * 2)
         # print(s.getvalue())
 
-    @validationTest
+    @debugTest
     def test_HOHCartesianIntensityBreakdown(self):
 
         internals = None
