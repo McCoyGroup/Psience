@@ -627,6 +627,9 @@ class ExpansionTerms:
         YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
 
         RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
+        # now we do a slightly odd thing, where we convert anything _close_ to zero to rigorously zero
+        # this helps with numerical stability in the nasty second derivatives of curvilinear coordinates
+        RQ[np.abs(RQ) < 1.e-13] = 0.
         QR = np.tensordot(YR, QY, axes=[-1, 0])
 
         x_derivs = (YR, YRR, YRRR, YRRRR)
@@ -643,12 +646,18 @@ class ExpansionTerms:
         )
 
         self._cached_transforms[self.molecule] = {
+            "InternalsByModes": [RQ],
             "CartesiansByModes": [YQ, YQQ, YQQQ, YQQQQ],
             "ModesByCartesians": [QY, QYY, QYYY],
             "CartesiansByInternals": [YR, YRR, YRRR, YRRRR],
             "InternalsByCartesians": [RY, RYY, RYYY],
             "CartesianModesByInternalModes": [qQ, qQQ, qQQQ, qQQQQ]
         }
+
+        import json, os
+        json_dump = { k: [x.tolist() if isinstance(x, np.ndarray) else x for x in v] for k,v in self._cached_transforms[self.molecule].items() }
+        with open(os.path.expanduser("~/Desktop/derivs.json"), "w+") as dump:
+            json.dump(json_dump, dump)
 
         return self._cached_transforms[self.molecule]
 
@@ -1077,9 +1086,9 @@ class DipoleTerms(ExpansionTerms):
                 v1 = (xQ@u1).t
                 v2 = xQ.dot(u2, axes=[[1, 1]]).t + xQQ.dot(u1, axes=[[2, 0]]).t
 
-                # rather than do this, for numerical stability reasons we'll want to
-                # directly apply xQQ since we have YQ QY _should_ be the identity but is not
-                # since we're working in a subspace
+                # rather than do the naive total transformation, for numerical stability reasons
+                # we'll want to directly apply xQQ since we have YQ QY _should_ be the identity
+                # but is not since we're working in a subspace
                 v3_1 = xQQQ.dot(u1, axes=[[3, 0]]).t
 
                 v3_2 = xQQ.dot(u2, axes=[[2, 1]]).t

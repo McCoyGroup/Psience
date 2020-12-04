@@ -223,7 +223,7 @@ class VPTTests(TestCase):
                 wnf.DipolePartitioningMethod.Intuitive,
                 wnf.DipolePartitioningMethod.Standard
             ]:
-                writer.writerow([dp.value.capitalize() + " Dipole Partitioning"])
+                writer.writerow([" ", dp.value.capitalize() + " Dipole Partitioning"])
                 wnf.dipole_partitioning = dp
                 bd = wnf.generate_intensity_breakdown()
                 wnf.write_CSV_breakdown(s, bd, padding=[" "] * 2)
@@ -4910,43 +4910,12 @@ class VPTTests(TestCase):
             )
             print(report)
 
-        # self.assertEquals(
-        #     [round(x, 2) for x in gaussian_harm_ints[1:]],
-        #     list(np.round(harm_ints[1:4], 2))
-        # )
-        # self.assertEquals(
-        #     [round(x, 2) for x in gaussian_ints[1:]],
-        #     list(np.round(ints[1:10], 2))
-        # )
-
     #endregion Test Intensities
 
     #region Intensity Breakdowns
 
-    @debugTest
-    def test_HODIntensityBreakdownCartesians(self):
-
-        states = self.get_states(2, 3)
-
-        all_wfns = self.get_VPT2_wfns(
-            "HOD_freq.fchk",
-            None,
-            states,
-            regenerate=True,
-            # coupled_states=coupled_states,
-            get_breakdown=True
-            # , log=True
-        )
-
-        import io
-        plot_spec = False
-        # with open('/Users/Mark/Desktop/HOD_freq_carts.csv', "w+") as s:
-        with io.StringIO() as s:
-            self.write_intensity_breakdown(s, all_wfns, plot_spec)
-
-    @debugTest
+    @inactiveTest
     def test_HODIntensityBreakdown(self):
-
         internals = [
             [0, -1, -1, -1],
             [1,  0, -1, -1],
@@ -4964,22 +4933,39 @@ class VPTTests(TestCase):
             internals,
             states,
             regenerate=True,
-            # coupled_states=coupled_states,
             get_breakdown=True
-            # , log=True
         )
 
         plot_spec = False
+        with open('/Users/Mark/Desktop/HOD_freq.csv', "w+") as s:
+            # with io.StringIO() as s:
+            self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
-        import io
+    @inactiveTest
+    def test_HODCartesianIntensityBreakdown(self):
+        internals = None
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
 
-        # with open('/Users/Mark/Desktop/HOD_freq.csv', "w+") as s:
-        with io.StringIO() as s:
+        all_wfns = self.get_VPT2_wfns(
+            "HOD_freq.fchk",
+            internals,
+            states,
+            regenerate=True,
+            get_breakdown=True
+        )
+
+        plot_spec = False
+        with open('/Users/Mark/Desktop/HOD_freq_carts.csv', "w+") as s:
+            # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
     @debugTest
     def test_HOHIntensityBreakdown(self):
-
         internals = [
             [0, -1, -1, -1],
             [1,  0, -1, -1],
@@ -4998,20 +4984,16 @@ class VPTTests(TestCase):
             states,
             regenerate=True,
             get_breakdown=True
+            # , log=True
         )
 
-        import io, csv
-        s = io.StringIO()
-        # with open('/Users/Mark/Desktop/HOD_freq.csv', "w+") as s:
-        writer = csv.writer(s)
-        for k, wnf in all_wfns.items():
-            writer.writerow([k + " Wavefunctions"])
-            wnf.write_CSV_breakdown(s, wnf.generate_intensity_breakdown(), padding=[" "] * 2)
-        # print(s.getvalue())
+        plot_spec = False
+        with open('/Users/Mark/Desktop/HOH_freq.csv', "w+") as s:
+            # with io.StringIO() as s:
+            self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
-    @debugTest
+    @inactiveTest
     def test_HOHCartesianIntensityBreakdown(self):
-
         internals = None
         states = (
             (0, 0, 0),
@@ -5026,16 +5008,13 @@ class VPTTests(TestCase):
             states,
             regenerate=True,
             get_breakdown=True
+            # , log=True
         )
 
-        import io, csv
-        s = io.StringIO()
-        # with open('/Users/Mark/Desktop/HOD_freq.csv', "w+") as s:
-        writer = csv.writer(s)
-        for k, wnf in all_wfns.items():
-            writer.writerow([k + " Wavefunctions"])
-            wnf.write_CSV_breakdown(s, wnf.generate_intensity_breakdown(), padding=[" "] * 2)
-        print(s.getvalue())
+        plot_spec=False
+        with open('/Users/Mark/Desktop/HOH_freq_carts.csv', "w+") as s:
+        # with io.StringIO() as s:
+            self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
     @inactiveTest
     def test_WaterDimerCartesianIntensityBreakdown(self):

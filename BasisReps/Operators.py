@@ -205,10 +205,11 @@ class Operator:
             all_sels = None
 
         # determine what size we need for the 1D reps
-        max_dim = np.max([
-            np.max(non_orthog_states.bras.excitations),
-            np.max(non_orthog_states.kets.excitations)
-            ])
+        # max_dim = np.max([
+        #     np.max(non_orthog_states.bras.excitations),
+        #     np.max(non_orthog_states.kets.excitations)
+        #     ])
+        max_dim = np.max(np.array(non_orthog_states))
         padding = 3  # for approximation reasons we need to pad our representations...
 
         # then set up a place to hold onto the pieces we'll calculate
@@ -246,7 +247,7 @@ class Operator:
 
         return chunk, all_sels
 
-    def _direct_prod_operator_terms(self, inds, func, states):
+    def _direct_prod_operator_terms(self, inds, func, states, non_orthog):
         """
         Evaluates product operator terms based on 1D representation matrices,
         but using a direct function to generate them
@@ -261,7 +262,17 @@ class Operator:
 
         # We figure out which indices are actually unique; this gives us a way to map
         # indices onto operators for our generator
-        non_orthog_states = states.apply_non_orthog(inds)
+        # non_orthog_states = states.apply_non_orthog(inds)
+        _, idx = np.unique(inds, return_index=True)
+        uinds = inds[np.sort(idx)]
+        # print(inds, uinds)
+        # mm = {k: i for i, k in enumerate(uinds)}
+
+        # then we determine which states are potentially non-orthogonal based on precomputed info
+        non_orthog_states = [
+            (states[i][0][non_orthog], states[i][1][non_orthog])
+            for i in uinds
+        ]
 
         # next we get the term generator defined by inds
         # this will likely end up calling uinds again, but ah well, that operation is cheap
@@ -297,8 +308,10 @@ class Operator:
         :type inds:
         :param funcs: the functions to use when generating representations, must return matrices
         :type funcs:
-        :param states: the states to compute terms between
-        :type states: BraKetSpace
+        :param states: the states to compute terms between stored like ((s_1l, s_1r), (s_2l, s_2r), ...)
+                        where `s_il` is the set of quanta for mode i for the bras and
+                        `s_ir` is the set of quanta for mode i for the kets
+        :type states: Iterable[Iterable[Iterable[int]]]
         :param quants: the total quanta to use when building representations
         :type quants:
         :param sel_rules: the selection rules to use when building representations
@@ -310,12 +323,13 @@ class Operator:
         # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
 
-        nstates = len(states)
+        # nstates = len(states)
+        #
+        # ndim = len(quants)
+        # uinds = np.unique(inds)
 
-        ndim = len(quants)
-        uinds = np.unique(inds)
-
-        raise NotImplementedError("Currently adding support for much better orthogonality handling")
+        # raise NotImplementedError("Currently adding support for much better orthogonality handling")
+        nstates = len(states[0][0])
         orthog = self._get_orthogonality(inds, states, quants)
         single_state = isinstance(orthog, (int, np.integer)) # means we got a single state to calculate over
         if single_state:
@@ -487,14 +501,23 @@ class Operator:
         Calculates a subset of elements
 
         :param idx: bra and ket states as tuples of elements
-        :type idx: BraKetSpace
+        :type idx: Iterable[(Iterable[int], Iterable[int])]
         :return:
         :rtype:
         """
 
+        # we expect this to be an iterable object that looks like
+        # num_modes X [bra, ket] X quanta
+        idx = tuple(
+            tuple(np.array([i]) if isinstance(i, (int, np.integer)) else np.array(i) for i in j)
+            for j in idx
+        )
 
-        if not isinstance(idx, BraKetSpace):
-            idx = BraKetSpace.from_indices(idx, quanta=self.quanta)
+        if len(idx) != self.mode_n:
+            raise ValueError("BraKet spec {} isn't valid for Operator with dimension {}".format(
+                idx,
+                (self.ndim, self.mode_n)
+            ))
 
 
         # if len(idx) != self.mode_n:

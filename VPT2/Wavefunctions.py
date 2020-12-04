@@ -167,9 +167,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             partitioning = self.DipolePartitioningMethod(partitioning)
 
         logger = self.logger
-        if (
-                isinstance(mu[0], (np.ndarray, SparseArray)) and mu[0].shape == (M, M)
-                or isinstance(mu[0], (int, float, np.integer, np.floating)) and mu[0] == 0
+        if all(
+                    isinstance(m, (np.ndarray, SparseArray)) and m.shape == (M, M)
+                    or isinstance(m, (int, float, np.integer, np.floating)) and m == 0
+                    for m in mu
         ): # we were passed representations to reuse
             mu_terms = mu
             if partitioning == self.DipolePartitioningMethod.Standard and len(mu_terms) < 4:
@@ -346,6 +347,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
             # define out reps based on partitioning style
             if logger is not None:
+                # if a == 1:
+                #     raise Exception(mu_terms)
                 logger.log_print(
                     [
                         "axis: {}",
@@ -375,8 +378,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                             else:
                                 c_lower = corr_terms[i][low_spec, :]
                                 c_upper = corr_terms[j][up_spec, :]
-
-                                # print(">>", M, c_lower.shape, m.shape, c_upper.shape)
                                 num = c_lower.dot(m)
                                 new = num.dot(c_upper.T)
                             if isinstance(new, SparseArray):
@@ -528,21 +529,16 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
         engs = self.energies
         freqs = engs - engs[0]
-
-        # wat = self.intensities
-
-        # harm_engs = self.zero_order_energies
-        # harm_freqs = harm_engs - harm_engs[0]
-
+        # raise Exception(self.corrs.coupled_states.to_single().excitations)
         terms = OrderedDict((
             ("frequencies", freqs.tolist()),
             ('axes', self.mol.inertial_axes.tolist()),
             ("states", self.corrs.states.excitations),
-            ('breakdowns', OrderedDict())
-            # ("wavefunctions", {
-            #     "corrections": [x.toarray().tolist() for x in self.corrs.wfn_corrections],
-            #     "coupled_states": self.corrs.coupled_states.excitations
-            # })
+            ('breakdowns', OrderedDict()),
+            ("wavefunctions", {
+                "corrections": [x.toarray().tolist() for x in self.corrs.wfn_corrections],
+                "coupled_states": self.corrs.total_basis.excitations
+            })
         ))
         bds = terms['breakdowns']
 
@@ -590,7 +586,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             # transpose so we have x-y-z as outermost dimension and correction as innermost
             full_corrs = full_corrs.transpose((0, 2, 3, 1)).tolist()
 
-            # harm_ints = self.zero_order_intensities
             bds[key] = OrderedDict((
                 ("intensities", ints),
                 ("corrections", {
@@ -662,18 +657,15 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 coupled_state_blocks = [["Wavefunction Corrections"]]
                 wfn_corrs = np.array(ib['wavefunctions']["corrections"])
                 coupled_states = ib['wavefunctions']["coupled_states"]
-                num_corrs = wfn_corrs.shape[1]
-                coupled_state_blocks.append(sum([ [s] + ["|n^({})>".format(i) for i in range(num_corrs)] for s in states ], []))
-                for corr_block, state in zip(wfn_corrs.transpose((2, 0, 1)), coupled_states):
-                    row = []
-                    for corr in corr_block:
-                        row.extend([state] + list(corr))
-                    coupled_state_blocks.append(row)
+
+                # raise Exception(coupled_states)
+                cs_keys = list(coupled_states)
+                for corr_block, state in zip(wfn_corrs.transpose((1, 0, 2)), states):
+                    coupled_state_blocks.append([state] + cs_keys)
+                    for i, b in enumerate(corr_block):
+                        coupled_state_blocks.append(["|n^({})>".format(i)] + list(b))
 
                 writer.writerows([padding + x for x in coupled_state_blocks])
-
-            # ints = ib[ey]
-            # for
 
     def format_energies_table(self):
 
