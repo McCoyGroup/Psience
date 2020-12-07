@@ -1,7 +1,7 @@
 """
 A collection of methods used in computing molecule properties
 """
-import numpy as np, scipy.sparse as sp, itertools as ip
+import numpy as np, scipy.sparse as sp, itertools as ip, scipy
 import McUtils.Numputils as nput
 from McUtils.Coordinerds import CoordinateSet
 from McUtils.Data import AtomData, UnitsData, BondData
@@ -120,9 +120,9 @@ class MolecularProperties:
         massy_doop = cls.get_prop_inertia_tensors(coords, masses)
         moms, axes = np.linalg.eigh(massy_doop)
         a = axes[:, :, 0]
-        c = axes[:, :, 2]
-        b = vec_crosses(a, c) # force right-handedness because we can
-        axes[:, :, 1] = b # ensure we have true rotation matrices
+        b = axes[:, :, 1]
+        c = vec_crosses(a, b) # force right-handedness because we can
+        axes[:, :, 2] = c # ensure we have true rotation matrices
         dets = np.linalg.det(axes)
         axes[:, :, 1] *= dets # ensure we have true rotation matrices
         if multiconfig:
@@ -217,7 +217,8 @@ class MolecularProperties:
             coords = coords[..., sel, :]
             masses = masses[sel]
             ref = ref[..., sel, :]
-        transforms = cls.get_prop_principle_axis_rotation(coords, masses)
+        # raise Exception(np.round(coords, 8), np.round(ref, 8))
+        transforms = cls.get_prop_principle_axis_rotation(coords, masses, inverse=True)
         if multiconf:
             coords = list(coords)
         else:
@@ -225,7 +226,18 @@ class MolecularProperties:
         if not multiconf:
             transforms = [transforms]
 
-        ref_transf = cls.get_prop_principle_axis_rotation(ref, masses)
+        ref_transf = cls.get_prop_principle_axis_rotation(ref, masses, inverse=True)
+        inert_rot = ref_transf.transformation_function.transform
+
+        # raise Exception(
+        #     np.round(transforms[0].transformation_function.transform, 8),
+        #     np.round(inert_rot, 8),
+        #
+        #     np.round(coords, 8),
+        #     np.round(ref, 8)
+        # )
+
+
         ref = ref_transf.apply(ref)
         planar_ref = np.allclose(ref[:, 2], 0.)
 
@@ -244,14 +256,27 @@ class MolecularProperties:
                 rot = U @ V
             else:
                 # generate pair-wise product matrix but only in 2D
-                A = ref[:, :2, np.newaxis] * c[:, np.newaxis, :2]
+                A = np.tensordot(masses/np.sum(masses), ref[:, :2, np.newaxis] * c[:, np.newaxis, :2], axes=[0, 0])
                 U, S, V = np.linalg.svd(A)
-                rot = np.identity(3, np.float)
-                rot[:2, :2] = U @ V.T
+                rot = np.eye(3, dtype=float)
+                rot[:2, :2] = U @ V
+
+            a = rot[0]
+            b = rot[1]
+            c = np.cross(a, b)  # force right-handedness because we can
+            c = c / np.linalg.norm(c)
+            rot = np.array([a, b, c])  # ensure we have true unitary rotation matrices
+            dets = np.linalg.det(rot)
+            rot /= dets  # ensure we have true rotation matrices
+
+            # # now we force unitarity because the algorithm can lose it...
+            # rot, bleh = scipy.linalg.polar(rot)
 
             if inverse:
                 rot = rot.T
-            transf = MolecularTransformation(t, rot)
+            # raise Exception(ref_transf.transformation_function, t.transformation_function)
+            transf = MolecularTransformation(inert_rot.T)(MolecularTransformation(rot))(t)
+            # raise Exception(transf.transformation_function, rot, inert_rot)
             transforms[i] = transf
 
         if not multiconf:

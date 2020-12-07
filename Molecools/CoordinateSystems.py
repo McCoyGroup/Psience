@@ -78,14 +78,26 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         :param opts:
         :type opts:
         """
-        # from .Molecule import Molecule
-        # molecule = molecule #type: Molecule
-
-        com = molecule.center_of_mass
-        axes = molecule.inertial_axes
+        from .Molecule import Molecule
+        self.molecule = molecule #type: Molecule
         if converter_options is None:
             converter_options = opts
             opts = {}
+        nats = len(molecule.atoms)
+        super().__init__(converter_options=converter_options, dimension=(nats, 3), coordinate_shape=(nats, 3), opts=opts)
+        self.set_embedding()
+    @property
+    def origins(self):
+        return self.converter_options['origins']
+    @property
+    def axes(self):
+        return self.converter_options['axes']
+
+    def set_embedding(self):
+        molecule = self.molecule
+        com = molecule.center_of_mass
+        axes = molecule.inertial_axes
+        converter_options = self.converter_options
         if 'ordering' in converter_options:
             ordering = np.array(converter_options['ordering'], dtype=int)
             ordering[0, 1] = -3; ordering[0, 2] = -1; ordering[0, 3] = -2
@@ -103,14 +115,19 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         converter_options['axes'] = axes
         converter_options['axes_labels'] = ax_names
         converter_options['molecule'] = molecule
-        nats = len(molecule.atoms)
-        super().__init__(converter_options=converter_options, dimension=(nats, 3), coordinate_shape=(nats, 3), opts=opts)
-    @property
-    def origins(self):
-        return self.converter_options['origins']
-    @property
-    def axes(self):
-        return self.converter_options['axes']
+
+    def jacobian(self, *args, **kwargs):
+        try:
+            remb = self.converter_options['reembed']
+        except KeyError:
+            remb = None
+
+        try:
+            self.converter_options['reembed'] = True
+            return super().jacobian(*args, **kwargs)
+        finally:
+            if remb is not None:
+                self.converter_options['reembed'] = remb
 
 class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
     """
@@ -127,14 +144,25 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         :param opts:
         :type opts:
         """
-
         from .Molecule import Molecule
-        molecule = molecule #type: Molecule
-        com = molecule.center_of_mass
-        axes = molecule.inertial_axes
+        self.molecule = molecule #type: Molecule
+        nats = len(self.molecule.atoms)
         if converter_options is None:
             converter_options = opts
             opts = {}
+        super().__init__(converter_options=converter_options, dimension=(nats, 3), opts=opts)
+        self.set_embedding()
+
+    def set_embedding(self):
+        """
+        Sets up the embedding options...
+        :return:
+        :rtype:
+        """
+        molecule = self.molecule
+        com = molecule.center_of_mass
+        axes = molecule.inertial_axes
+        converter_options = self.converter_options
         if 'ordering' in converter_options:
             ordering = np.array(converter_options['ordering'], dtype=int)
             ordering[0, 1] = -3; ordering[0, 2] = -2; ordering[0, 3] = -1
@@ -152,8 +180,6 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         converter_options['axes'] = axes
         converter_options['axes_labels'] = ax_names
         converter_options['molecule'] = molecule
-        nats = len(molecule.atoms)
-        super().__init__(converter_options=converter_options, dimension=(nats, 3), opts=opts)
 
 class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
     """
@@ -163,7 +189,22 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
     def convert(self, coords, molecule=None, origins=None, axes=None, ordering=None, **kwargs):
         """
         Converts from Cartesian to ZMatrix coords, preserving the embedding
+        :param coords:
+        :type coords: CoordinateSet
+        :param molecule:
+        :type molecule:
+        :param origins:
+        :type origins:
+        :param axes:
+        :type axes:
+        :param ordering:
+        :type ordering:
+        :param kwargs:
+        :type kwargs:
+        :return:
+        :rtype:
         """
+
         n_coords = len(coords)
         n_atoms = len(molecule.atoms)
 
@@ -253,8 +294,6 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
         else:
             zmcs = res
             opts=res.converter_options
-        # opts['origins'] = origins
-        # opts['axes'] = axes
         opts['ordering'] = opts['ordering'][3:] - 3
         zmcs = zmcs[:, 2:]
         if 'derivs' in opts:
@@ -302,7 +341,7 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
         total_points, opts = self.convert_many(coords[np.newaxis], **kw)
         return total_points[0], opts
 
-    def convert_many(self, coords, molecule=None, origins=None, axes=None, ordering=None, **kwargs):
+    def convert_many(self, coords, molecule=None, origins=None, axes=None, ordering=None, reembed=False, **kwargs):
         """
         Converts from Cartesian to ZMatrix coords, preserving the embedding
         """
@@ -350,8 +389,39 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
             opts['ordering'] = ordering[3:] - 3
         carts = carts[..., 3:, :]
         if 'derivs' in opts:
-            derivs = opts['derivs'][..., 2:, :, 3:, :]
-            opts['derivs'] = derivs
+            derivs = opts['derivs']
+            reshaped_derivs = [None] * len(derivs)
+            for i, v in enumerate(derivs):
+                # drop all terms relating to the embedding of the embedding
+                sel_1 = (
+                        (..., ) +
+                        (slice(2, None, None), slice(None, None, None)) * (i + 1)
+                        + (slice(3, None, None), slice(None, None, None))
+                )
+                reshaped_derivs[i] = v[sel_1]
+            opts['derivs'] = reshaped_derivs
+            # raise Exception(derivs.shape)
+        # reembed = False
+        if reembed:
+            from .Molecule import Molecule
+            from .Transformations import MolecularTransformation
+
+            if molecule is None:
+                raise ValueError("can't reembed without a reference structure")
+            # we calculate the Eckart embedding for the generated coords
+            if carts.ndim != 3:
+                raise ValueError("reembedding only currently implemented for stacks of structures")
+            for i, crd in enumerate(carts): # lazy hack right now
+                structures = Molecule(molecule.atoms, crd)
+                ek = structures.eckart_frame(molecule) #type: MolecularTransformation
+                # we chain on a rotation out of the inertial frame to keep stuff consistent
+                # ek = MolecularTransformation(pax.transformation_function.transform, ek)
+                carts[i] = ek.apply(crd)
+                rot = ek.transformation_function.transform # ignore the shift when applying to derivs
+                if 'derivs' in opts:
+                    for v in opts['derivs']:
+                        new = np.tensordot(v[i], rot, axes=[-1, 0])
+                        v[i] = new
         return carts, opts
 
 MolecularZMatrixToCartesianConverter = MolecularZMatrixToCartesianConverter()

@@ -231,7 +231,7 @@ class ExpansionTerms:
         if max_jac > len(exist_jacs):
             need_jacs = [x+1 for x in range(0, max_jac)]
             # for whatever reason I have to recompute a bunch of shit inside sys.jacobian...?
-            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs, mesh_spacing=1.0e-5)]
+            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs, mesh_spacing=1.0e-2, analytic_deriv_order=1, all_numerical=True)]
             self._cached_jacobians[self.molecule]['int'] = new_jacs
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
@@ -559,7 +559,8 @@ class ExpansionTerms:
         # not sure why I wouldn't also need to correct for other bits in this...
         test_I = np.dot(YR, RY)
         bad_modes = np.where( np.abs(1.-np.diag(test_I)) > .001 )[0]
-        if len(bad_modes) > 0:
+        check_modes = False
+        if check_modes and len(bad_modes) > 0:
             natoms = RY.shape[0] // 3
             # add back in the coords corresponding to the embedding
             new_bad = []
@@ -627,9 +628,6 @@ class ExpansionTerms:
         YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
 
         RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
-        # now we do a slightly odd thing, where we convert anything _close_ to zero to rigorously zero
-        # this helps with numerical stability in the nasty second derivatives of curvilinear coordinates
-        RQ[np.abs(RQ) < 1.e-13] = 0.
         QR = np.tensordot(YR, QY, axes=[-1, 0])
 
         x_derivs = (YR, YRR, YRRR, YRRRR)
@@ -645,7 +643,7 @@ class ExpansionTerms:
             mixed_XQ=False
         )
 
-        self._cached_transforms[self.molecule] = {
+        transf_data = {
             "InternalsByModes": [RQ],
             "CartesiansByModes": [YQ, YQQ, YQQQ, YQQQQ],
             "ModesByCartesians": [QY, QYY, QYYY],
@@ -654,8 +652,12 @@ class ExpansionTerms:
             "CartesianModesByInternalModes": [qQ, qQQ, qQQQ, qQQQQ]
         }
 
+        self._cached_transforms[self.molecule] = transf_data
+
         import json, os
-        json_dump = { k: [x.tolist() if isinstance(x, np.ndarray) else x for x in v] for k,v in self._cached_transforms[self.molecule].items() }
+        json_dump = { k: [x.tolist() if isinstance(x, np.ndarray) else x for x in v] for k,v in transf_data.items() }
+        json_dump["Cartesians"] = self.molecule.coords.tolist()
+        json_dump["Internals"] = self.molecule.internal_coordinates.tolist()
         with open(os.path.expanduser("~/Desktop/derivs.json"), "w+") as dump:
             json.dump(json_dump, dump)
 

@@ -235,3 +235,38 @@ class MolecoolsTests(TestCase):
             tuple(np.round(UnitsData.convert("Hartrees", "Wavenumbers")*nms.freqs, 4)),
             tuple(np.round(test_freqs, 4))
         )
+
+    @debugTest
+    def test_InternalCartesianJacobians(self):
+        import McUtils.Plots as plt
+        m = Molecule.from_file(TestManager.test_data('HOH_freq.fchk'),
+                               zmatrix=[
+                                   [0, -1, -1, -1],
+                                   [1,  0, -1, -1],
+                                   [2,  0,  1, -1]
+                               ]
+                               )
+        intcds = m.internal_coordinates
+        carts = m.coords
+        ijacs, ijacs2 = intcds.jacobian(carts.system, [1, 2], mesh_spacing=1.0e-5)
+        ijacs2num = intcds.jacobian(carts.system, 2, mesh_spacing=1.0e-5, analytic_deriv_order=1)
+        jacs, jacs2 = carts.jacobian(intcds.system, [1, 2], mesh_spacing=1.0e-5)
+
+        meh1 = ijacs.squeeze().reshape(9, 9)
+        meh2 = jacs.squeeze().reshape(9, 9)
+
+        itest = np.dot(meh1, meh2)
+        itest2 = np.dot(meh2, meh1)
+
+        plt.ArrayPlot(meh1)
+        plt.ArrayPlot(meh2)
+        plt.ArrayPlot(itest2)
+        plt.ArrayPlot(itest).show()
+        self.assertTrue(np.allclose(np.eye(9), itest))
+
+        meh12 = ijacs2.squeeze().reshape(9, 9, 9)
+        meh22 = ijacs2num.squeeze().reshape(9, 9, 9)
+        meh12 = meh12.reshape(3, 3, 9, 9)
+        meh22 = meh22.reshape(3, 3, 9, 9)
+        plt.TensorPlot(meh12)
+        plt.TensorPlot(meh22).show()

@@ -644,7 +644,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
                 corr_block = [[k]]
                 corrs = b['corrections']
-                corr_keys = ["<gs^({})|mu^({})|es^({})>".format(*lab) for lab in corrs['keys']]
+                corr_keys = ["<gs^({0})|mu^({2})|es^({1})>".format(*lab) for lab in corrs['keys']]
                 for ax, vals in corrs['values'].items():
                     corr_block.append([ax])
                     corr_block.append([" "] + corr_keys)

@@ -499,7 +499,7 @@ class Molecule:
         :param inverse: whether to return the inverse of the rotations or not
         :type inverse: bool
         :return:
-        :rtype:
+        :rtype: MolecularTransformation
         """
         return self.prop('eckart_transformation', mol, sel=sel, inverse=inverse)
 
