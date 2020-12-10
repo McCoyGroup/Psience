@@ -369,7 +369,10 @@ class Molecule:
             with GaussianFChkReader(file) as gr:
                 parse = gr.parse(keys)
 
-            return tuple(parse[k] for k in keys)
+            seconds = parse["ForceConstants"].array
+            thirds = parse["ForceDerivatives"].third_deriv_array
+            fourths = parse["ForceDerivatives"].fourth_deriv_array
+            return (parse["Gradient"], seconds, thirds, fourths)
         elif ext == ".log":
             raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
                 type(self).__name__,
@@ -503,6 +506,16 @@ class Molecule:
         """
         return self.prop('eckart_transformation', mol, sel=sel, inverse=inverse)
 
+    def embed_coords(self, crds, sel=None):
+        """
+        Embeds coords in the Eckart frame using `self` as a reference
+        :param crds:
+        :type crds:
+        :return:
+        :rtype:
+        """
+
+        return self.prop('eckart_embedded_coords', crds, sel=sel)
     def get_embedded_molecule(self, ref=None):
         """
         Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
@@ -510,6 +523,9 @@ class Molecule:
         :return:
         :rtype: Molecule
         """
+
+
+        # raise NotImplementedError("need to handle applying embedding to various derivatives...")
 
         if ref is None:
             frame = self.principle_axis_frame(inverse=True)
@@ -520,13 +536,14 @@ class Molecule:
         if modes is not None:
             modes = modes.embed(frame)
             new.normal_modes = modes
-        pot_d = new.potential_derivatives
-        if pot_d is not None:
-            derivs = [None]*len(pot_d)
-            for i, d in enumerate(pot_d):
-                dim = d.ndim
-                derivs[i] = frame.apply(d)
-            new.potential_derivatives = derivs
+        # pot_d = new.potential_derivatives
+        # if pot_d is not None:
+        #     derivs = [None]*len(pot_d)
+        #     for i, d in enumerate(pot_d):
+        #         if d.shape[-1] != 3:
+        #             d = d.reshape(d.shape[:-1] + (d.shape[-1]//3, 3))
+        #         derivs[i] = frame.apply(d, shift=False)
+        #     new.potential_derivatives = derivs
         return new
 
     @classmethod

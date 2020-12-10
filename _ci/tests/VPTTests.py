@@ -199,7 +199,7 @@ class VPTTests(TestCase):
         )
         return exc, stat_block, res
 
-    def write_intensity_breakdown(self, s, all_wfns, plot_spec):
+    def write_intensity_breakdown(self, s, all_wfns, plot_spec, write_wavefunctions=True):
         """
 
         :param s:
@@ -225,7 +225,7 @@ class VPTTests(TestCase):
             ]:
                 writer.writerow([" ", dp.value.capitalize() + " Dipole Partitioning"])
                 wnf.dipole_partitioning = dp
-                bd = wnf.generate_intensity_breakdown()
+                bd = wnf.generate_intensity_breakdown(include_wavefunctions=write_wavefunctions)
                 wnf.write_CSV_breakdown(s, bd, padding=[" "] * 2)
                 if plot_spec:
                     freqs = self.h2w * bd["frequencies"]
@@ -4914,7 +4914,7 @@ class VPTTests(TestCase):
 
     #region Intensity Breakdowns
 
-    @inactiveTest
+    @debugTest
     def test_HODIntensityBreakdown(self):
         internals = [
             [0, -1, -1, -1],
@@ -5043,9 +5043,9 @@ class VPTTests(TestCase):
 
         with open('/Users/Mark/Desktop/dimer_freq_cart.csv', "w+") as s:
         # with io.StringIO() as s:
-            self.write_intensity_breakdown(s, all_wfns, plot_spec)
+            self.write_intensity_breakdown(s, all_wfns, plot_spec, write_wavefunctions=False)
 
-    @inactiveTest
+    @debugTest
     def test_WaterDimerInternalIntensityBreakdown(self):
 
         """
@@ -5099,6 +5099,6 @@ class VPTTests(TestCase):
 
         with open('/Users/Mark/Desktop/dimer_freq.csv', "w+") as s:
             # with io.StringIO() as s:
-            self.write_intensity_breakdown(s, all_wfns, plot_spec)
+            self.write_intensity_breakdown(s, all_wfns, plot_spec, write_wavefunctions=False)
 
     #endregion Intensity Breakdowns

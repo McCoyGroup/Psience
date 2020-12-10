@@ -517,7 +517,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         units = 3.554206329390961e6
         return units * (eng - eng[0]) * osc
 
-    def generate_intensity_breakdown(self):
+    def generate_intensity_breakdown(self, include_wavefunctions=True):
         """
         Generates a breakdown of the terms that contribute to the intensity
         Returns in a format that can be directly exported to JSON if desired.
@@ -534,12 +534,14 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             ("frequencies", freqs.tolist()),
             ('axes', self.mol.inertial_axes.tolist()),
             ("states", self.corrs.states.excitations),
-            ('breakdowns', OrderedDict()),
-            ("wavefunctions", {
+            ('breakdowns', OrderedDict())
+        ))
+
+        if include_wavefunctions:
+            terms["wavefunctions"] = {
                 "corrections": [x.toarray().tolist() for x in self.corrs.wfn_corrections],
                 "coupled_states": self.corrs.total_basis.excitations
-            })
-        ))
+            }
         bds = terms['breakdowns']
 
         # dts = self.dipole_terms

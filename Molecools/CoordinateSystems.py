@@ -400,28 +400,36 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
                 )
                 reshaped_derivs[i] = v[sel_1]
             opts['derivs'] = reshaped_derivs
-            # raise Exception(derivs.shape)
-        # reembed = False
+
         if reembed:
-            from .Molecule import Molecule
-            from .Transformations import MolecularTransformation
 
             if molecule is None:
                 raise ValueError("can't reembed without a reference structure")
-            # we calculate the Eckart embedding for the generated coords
-            if carts.ndim != 3:
-                raise ValueError("reembedding only currently implemented for stacks of structures")
-            for i, crd in enumerate(carts): # lazy hack right now
-                structures = Molecule(molecule.atoms, crd)
-                ek = structures.eckart_frame(molecule) #type: MolecularTransformation
-                # we chain on a rotation out of the inertial frame to keep stuff consistent
-                # ek = MolecularTransformation(pax.transformation_function.transform, ek)
-                carts[i] = ek.apply(crd)
-                rot = ek.transformation_function.transform # ignore the shift when applying to derivs
+
+            reembed = not (carts.squeeze().ndim == 2 and np.allclose(molecule.coords, carts, atol=1.0e-5)) # agree to like a ten thousandth of an angstrom
+            if reembed:
+                from .Molecule import Molecule
+
+                # we calculate the Eckart embedding for the generated coords
+                if carts.ndim != 3:
+                    raise ValueError("reembedding only currently implemented for stacks of structures")
+
+                carts = molecule.embed_coords(carts)
                 if 'derivs' in opts:
-                    for v in opts['derivs']:
-                        new = np.tensordot(v[i], rot, axes=[-1, 0])
-                        v[i] = new
+                    raise NotImplementedError("can't reembed derivatives yet...")
+
+                # for i, crd in enumerate(carts): # lazy hack right now
+                #     structures = Molecule(molecule.atoms, crd)
+                #     ek = structures.eckart_frame(molecule) #type: MolecularTransformation
+                #     # we chain on a rotation out of the inertial frame to keep stuff consistent
+                #     # ek = MolecularTransformation(pax.transformation_function.transform, ek)
+                #     carts[i] = ek.apply(crd)
+                #     rot = ek.transformation_function.transform # ignore the shift when applying to derivs
+                #     if 'derivs' in opts:
+                #         raise NotImplementedError("can't reembed derivatives")
+                #         for v in opts['derivs']:
+                #             new = np.tensordot(v[i], rot, axes=[-1, 0])
+                #             v[i] = new
         return carts, opts
 
 MolecularZMatrixToCartesianConverter = MolecularZMatrixToCartesianConverter()

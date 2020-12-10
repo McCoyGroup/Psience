@@ -25,6 +25,12 @@ class MolecoolsTests(TestCase):
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(m.atoms, ("O", "H", "H"))
 
+    @debugTest
+    def test_EckartEmbed(self):
+        m = Molecule.from_file(TestManager.test_data('HOH_freq.fchk'))
+        crd = m.embed_coords(m.coords)
+        self.assertTrue(np.allclose(m.coords, crd))
+
     @validationTest
     def test_Eckart(self):
         scan_file = TestManager.test_data("tbhp_030.log")
@@ -246,10 +252,11 @@ class MolecoolsTests(TestCase):
                                    [2,  0,  1, -1]
                                ]
                                )
+        m = m.get_embedded_molecule()
         intcds = m.internal_coordinates
         carts = m.coords
-        ijacs, ijacs2 = intcds.jacobian(carts.system, [1, 2], mesh_spacing=1.0e-5)
-        ijacs2num = intcds.jacobian(carts.system, 2, mesh_spacing=1.0e-5, analytic_deriv_order=1)
+        ijacs = intcds.jacobian(carts.system, 1, mesh_spacing=1.0e-5)
+        ijacs2num = intcds.jacobian(carts.system, 2, mesh_spacing=1.0e-2, all_numerical=True)
         jacs, jacs2 = carts.jacobian(intcds.system, [1, 2], mesh_spacing=1.0e-5)
 
         meh1 = ijacs.squeeze().reshape(9, 9)
@@ -258,15 +265,20 @@ class MolecoolsTests(TestCase):
         itest = np.dot(meh1, meh2)
         itest2 = np.dot(meh2, meh1)
 
-        plt.ArrayPlot(meh1)
-        plt.ArrayPlot(meh2)
-        plt.ArrayPlot(itest2)
-        plt.ArrayPlot(itest).show()
+        # plt.ArrayPlot(meh1)
+        # plt.ArrayPlot(meh2)
+        # plt.ArrayPlot(itest2)
+        # plt.ArrayPlot(itest).show()
         self.assertTrue(np.allclose(np.eye(9), itest))
 
-        meh12 = ijacs2.squeeze().reshape(9, 9, 9)
+        good_sel = (...,) + np.ix_((3, 5, 6), (3, 5, 6))
+        # meh12 = ijacs2.squeeze().reshape(9, 9, 9)
+        # meh12 = meh12.transpose(2, 0, 1).reshape(3, 3, 9, 9)
+        # meh12 = meh12[good_sel]
         meh22 = ijacs2num.squeeze().reshape(9, 9, 9)
-        meh12 = meh12.reshape(3, 3, 9, 9)
-        meh22 = meh22.reshape(3, 3, 9, 9)
-        plt.TensorPlot(meh12)
-        plt.TensorPlot(meh22).show()
+        meh22 = meh22.transpose(2, 0, 1).reshape(3, 3, 9, 9)
+        meh22 = meh22[good_sel]
+        ps = dict(vmin=-.05, vmax=.05)
+        # plt.TensorPlot(meh12, plot_style=ps)
+        plt.TensorPlot(meh22, plot_style=ps).show()
+        # plt.TensorPlot(meh22-meh12, plot_style=ps).show()

@@ -6,7 +6,7 @@ from .Molecule import Molecule
 from McUtils.Coordinerds import CoordinateSet, CoordinateTransform
 
 class MolecularTransformation(CoordinateTransform):
-    def apply(self, mol):
+    def apply(self, mol, shift=True):
         """
 
         :param mol:
@@ -22,9 +22,9 @@ class MolecularTransformation(CoordinateTransform):
             else:
                 new._coords = CoordinateSet(new_coords)
         elif isinstance(mol, CoordinateTransform):
-            new = super().__call__(mol)
+            new = super().__call__(mol, shift=shift)
         else:
-            new = super().apply(mol)
+            new = super().apply(mol, shift=shift)
         return new
-    def __call__(self, mol):
-        return self.apply(mol)
+    def __call__(self, mol, shift=True):
+        return self.apply(mol, shift=shift)

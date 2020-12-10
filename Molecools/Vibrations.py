@@ -141,6 +141,21 @@ class MolecularVibrations:
                 self
             ))
 
+    def embed(self, frame):
+        """
+
+        :param frame:
+        :type frame: MolecularTransformation
+        :return:
+        :rtype:
+        """
+
+        basis = self.basis.embed(frame)
+        if self._coords is not None:
+            raise ValueError("currently not reembedding coords not coming from a Molecule object")
+
+        return type(self)(self.molecule, basis)
+
 class MolecularNormalModes(CoordinateSystem):
     """
     A Coordinerds CoordinateSystem object that manages all of the data needed to
@@ -224,16 +239,15 @@ class MolecularNormalModes(CoordinateSystem):
         :rtype:
         """
 
-        raise NotImplementedError("Haven't finished doing this... :)")
-
+        # raise NotImplementedError("Haven't finished doing this... :)")
         import copy
 
         if self.in_internals:
             raise ValueError("Internal coordinate normals modes can't be re-embedded")
 
-        tmat = frame.matrix
+        tmat = frame.transformation_function.transform
         mat = self.matrix
-        mat = tmat@mat
+        mat = mat@tmat
 
         orig = self.origin
         orig = tmat@orig

@@ -231,7 +231,7 @@ class ExpansionTerms:
         if max_jac > len(exist_jacs):
             need_jacs = [x+1 for x in range(0, max_jac)]
             # for whatever reason I have to recompute a bunch of shit inside sys.jacobian...?
-            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs, mesh_spacing=1.0e-2, analytic_deriv_order=1, all_numerical=True)]
+            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs, mesh_spacing=1.0e-2, all_numerical=True)]
             self._cached_jacobians[self.molecule]['int'] = new_jacs
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
@@ -654,12 +654,12 @@ class ExpansionTerms:
 
         self._cached_transforms[self.molecule] = transf_data
 
-        import json, os
-        json_dump = { k: [x.tolist() if isinstance(x, np.ndarray) else x for x in v] for k,v in transf_data.items() }
-        json_dump["Cartesians"] = self.molecule.coords.tolist()
-        json_dump["Internals"] = self.molecule.internal_coordinates.tolist()
-        with open(os.path.expanduser("~/Desktop/derivs.json"), "w+") as dump:
-            json.dump(json_dump, dump)
+        # import json, os
+        # json_dump = { k: [x.tolist() if isinstance(x, np.ndarray) else x for x in v] for k,v in transf_data.items() }
+        # json_dump["Cartesians"] = self.molecule.coords.tolist()
+        # json_dump["Internals"] = self.molecule.internal_coordinates.tolist()
+        # with open(os.path.expanduser("~/Desktop/derivs.json"), "w+") as dump:
+        #     json.dump(json_dump, dump)
 
         return self._cached_transforms[self.molecule]
 

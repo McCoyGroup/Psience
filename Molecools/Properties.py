@@ -45,7 +45,8 @@ class MolecularProperties:
 
     @classmethod
     def center_of_mass(cls, mol):
-        """Computes the moments of inertia
+        """
+        Computes the moments of inertia
 
         :param mol:
         :type mol: Molecule
@@ -57,18 +58,19 @@ class MolecularProperties:
 
     @classmethod
     def get_prop_inertia_tensors(cls, coords, masses):
-        """Computes the moment of intertia tensors for the walkers with coordinates coords (assumes all have the same masses)
+        """
+        Computes the moment of intertia tensors for the walkers with coordinates coords (assumes all have the same masses)
 
-            :param coords:
-            :type coords: CoordinateSet
-            :param masses:
-            :type masses: np.ndarray
-            :return:
-            :rtype:
-            """
+        :param coords:
+        :type coords: CoordinateSet
+        :param masses:
+        :type masses: np.ndarray
+        :return:
+        :rtype:
+        """
 
         com = cls.get_prop_center_of_mass(coords, masses)
-        coords = coords - com[np.newaxis]
+        coords = coords - com[..., np.newaxis, :]
 
         d = np.zeros(coords.shape[:-1] + (3, 3), dtype=float)
         diag = nput.vec_dots(coords, coords)
@@ -95,7 +97,8 @@ class MolecularProperties:
 
     @classmethod
     def get_prop_moments_of_inertia(cls, coords, masses):
-        """Computes the moment of inertia tensor for the walkers with coordinates coords (assumes all have the same masses)
+        """
+        Computes the moment of inertia tensor for the walkers with coordinates coords (assumes all have the same masses)
 
         :param coords:
         :type coords: CoordinateSet
@@ -104,7 +107,6 @@ class MolecularProperties:
         :return:
         :rtype:
         """
-        from McUtils.Numputils import vec_crosses
 
         if coords.ndim == 1:
             raise ValueError("can't get moment of inertia for single point (?)")
@@ -119,12 +121,12 @@ class MolecularProperties:
 
         massy_doop = cls.get_prop_inertia_tensors(coords, masses)
         moms, axes = np.linalg.eigh(massy_doop)
-        a = axes[:, :, 0]
-        b = axes[:, :, 1]
-        c = vec_crosses(a, b) # force right-handedness because we can
-        axes[:, :, 2] = c # ensure we have true rotation matrices
+        a = axes[..., :, 0]
+        b = axes[..., :, 1]
+        c = nput.vec_crosses(a, b) # force right-handedness because we can
+        axes[..., :, 2] = c # ensure we have true rotation matrices
         dets = np.linalg.det(axes)
-        axes[:, :, 1] *= dets # ensure we have true rotation matrices
+        axes[..., :, 1] *= dets[..., np.newaxis] # ensure we have true rotation matrices
         if multiconfig:
             moms = moms.reshape(extra_shape + (3,))
             axes = axes.reshape(extra_shape + (3, 3))
@@ -197,6 +199,69 @@ class MolecularProperties:
         return cls.get_prop_principle_axis_rotation(mol.coords, mol.masses, sel=sel, inverse=inverse)
 
     @classmethod
+    def get_principle_axis_embedded_coords(cls, coords, masses):
+        com = cls.get_prop_center_of_mass(coords, masses)
+        crds_ = coords
+        coords = coords - com[..., np.newaxis, :]
+        moms, pax_axes = cls.get_prop_moments_of_inertia(coords, masses)
+        # pax_axes = np.swapaxes(pax_axes, -2, -1)
+        coords = np.matmul(coords, pax_axes)
+
+        return coords, com, pax_axes
+
+    @classmethod
+    def get_eckart_rotations(cls, masses, ref, coords, in_paf=False):
+        """
+        Generates the Eckart rotation that will align ref and coords, assuming initially that `ref` and `coords` are
+        in the principle axis frame
+
+        :param masses:
+        :type masses:
+        :param ref:
+        :type ref:
+        :param coords:
+        :type coords: np.ndarray
+        :return:
+        :rtype:
+        """
+
+        if coords.ndim == 2:
+            coords = np.broadcast_to(coords, (1,) + coords.shape)
+
+        if not in_paf:
+            coords, com, pax_axes = cls.get_principle_axis_embedded_coords(coords, masses)
+            ref, ref_com, ref_axes = cls.get_principle_axis_embedded_coords(ref, masses)
+            # raise ValueError(ref)
+        else:
+            com = pax_axes = None
+            ref_com = ref_axes = None
+
+        planar_ref = np.allclose(ref[:, 2], 0., atol=1.0e-8)
+        if not planar_ref:
+            # generate pair-wise product matrix
+            A = np.tensordot(masses / np.sum(masses), ref[np.newaxis, :, :, np.newaxis] * coords[:, :, np.newaxis, :], axes=[0, 1])
+            # take SVD of this
+            U, S, V = np.linalg.svd(A)
+            rot = np.matmul(U, V)
+        else:
+            # generate pair-wise product matrix but only in 2D
+            F = ref[np.newaxis, :, :2, np.newaxis] * coords[:, :, np.newaxis, :2]
+            A = np.tensordot(masses / np.sum(masses), F, axes=[0, 1])
+            U, S, V = np.linalg.svd(A)
+            rot = np.broadcast_to(np.eye(3, dtype=float), (len(coords), 3, 3)).copy()
+            rot[..., :2, :2] = np.matmul(U, V)
+
+        a = rot[..., 0, :]
+        b = rot[..., 1, :]
+        c = nput.vec_crosses(a, b)  # force right-handedness because we can
+        rot[..., 2, :] = c  # ensure we have true rotation matrices
+
+        # dets = np.linalg.det(rot)
+        # raise ValueError(dets)
+
+        return rot, (ref, ref_com, ref_axes), (coords, com, pax_axes)
+
+    @classmethod
     def get_prop_eckart_transformation(cls, masses, ref, coords, sel=None, inverse=False):
         """
         Computes Eckart transformations for a set of coordinates
@@ -211,72 +276,27 @@ class MolecularProperties:
         :rtype: MolecularTransformation | List[MolecularTransformation]
         """
 
-        # first we'll put everything in a principle axis frame
         multiconf = coords.multiconfig
         if sel is not None:
             coords = coords[..., sel, :]
             masses = masses[sel]
             ref = ref[..., sel, :]
-        # raise Exception(np.round(coords, 8), np.round(ref, 8))
-        transforms = cls.get_prop_principle_axis_rotation(coords, masses, inverse=True)
+
         if multiconf:
             coords = list(coords)
         else:
             coords = [coords]
-        if not multiconf:
-            transforms = [transforms]
 
-        ref_transf = cls.get_prop_principle_axis_rotation(ref, masses, inverse=True)
-        inert_rot = ref_transf.transformation_function.transform
+        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, in_paf=False)
+        ref, ref_com, ref_rot = ref_stuff
+        crd, crd_com, crd_rot = coord_stuff
 
-        # raise Exception(
-        #     np.round(transforms[0].transformation_function.transform, 8),
-        #     np.round(inert_rot, 8),
-        #
-        #     np.round(coords, 8),
-        #     np.round(ref, 8)
-        # )
-
-
-        ref = ref_transf.apply(ref)
-        planar_ref = np.allclose(ref[:, 2], 0.)
-
-        for i, ct in enumerate(zip(coords, transforms)):
-            c = ct[0]
-            t = ct[1] # type: MolecularTransformation
-            c = t.apply(c)
-
-            planar_struct = True if planar_ref else np.allclose(c[:, 2], 0.)
-            is_planar = planar_ref or planar_struct
-            if not is_planar:
-                # generate pair-wise product matrix
-                A = np.tensordot(masses/np.sum(masses), ref[:, :, np.newaxis] * c[:, np.newaxis, :], axes=[0, 0])
-                # take SVD of this
-                U, S, V = np.linalg.svd(A)
-                rot = U @ V
-            else:
-                # generate pair-wise product matrix but only in 2D
-                A = np.tensordot(masses/np.sum(masses), ref[:, :2, np.newaxis] * c[:, np.newaxis, :2], axes=[0, 0])
-                U, S, V = np.linalg.svd(A)
-                rot = np.eye(3, dtype=float)
-                rot[:2, :2] = U @ V
-
-            a = rot[0]
-            b = rot[1]
-            c = np.cross(a, b)  # force right-handedness because we can
-            c = c / np.linalg.norm(c)
-            rot = np.array([a, b, c])  # ensure we have true unitary rotation matrices
-            dets = np.linalg.det(rot)
-            rot /= dets  # ensure we have true rotation matrices
-
-            # # now we force unitarity because the algorithm can lose it...
-            # rot, bleh = scipy.linalg.polar(rot)
-
+        transforms = [None] * len(coords)
+        for i, rot, com, crd_rot in enumerate(zip(ek_rot, crd_com, crd_rot)):
             if inverse:
-                rot = rot.T
-            # raise Exception(ref_transf.transformation_function, t.transformation_function)
-            transf = MolecularTransformation(inert_rot.T)(MolecularTransformation(rot))(t)
-            # raise Exception(transf.transformation_function, rot, inert_rot)
+                transf = MolecularTransformation(ref_com, ref_rot.T, ek_rot, crd_rot, -com)
+            else:
+                transf = MolecularTransformation(com, crd_rot.T, ek_rot.T, ref_rot, -ref_com)
             transforms[i] = transf
 
         if not multiconf:
@@ -305,6 +325,63 @@ class MolecularProperties:
                 m2
             ))
         return cls.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse)
+
+    @classmethod
+    def get_eckart_embedded_coords(cls, masses, ref, coords, sel=None):
+        """
+        Embeds a set of coordinates in the reference frame
+
+        :param masses:
+        :type masses: np.ndarray
+        :param ref:
+        :type ref: CoordinateSet
+        :param coords:
+        :type coords: CoordinateSet
+        :return:
+        :rtype: MolecularTransformation | List[MolecularTransformation]
+        """
+
+        multiconf = coords.multiconfig
+        if sel is not None:
+            coords = coords[..., sel, :]
+            masses = masses[sel]
+            ref = ref[..., sel, :]
+
+        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, in_paf=False)
+        ref, ref_com, ref_rot = ref_stuff
+        crd, crd_com, crd_rot = coord_stuff
+
+        # crd is in _its_ principle axis frame, so now we transform it using ek_rot
+        # print(ek_rot)
+        ek_rot = np.swapaxes(ek_rot, -2, -1)
+        crd = crd @ ek_rot
+        # now we rotate this back to the reference frame
+        crd = crd @ (ref_rot.T)[np.newaxis, :, :]
+        # and then shift so the COM doesn't change
+        crd = crd + ref_com[np.newaxis, np.newaxis, :]
+
+        if not multiconf:
+            crd = crd[0]
+
+        return crd
+
+    @classmethod
+    def eckart_embedded_coords(cls, mol, coords, sel=None):
+        """
+
+        :param mol:
+        :type mol: Molecule
+        :param coords:
+        :type coords:
+        :param sel:
+        :type sel:
+        :return:
+        :rtype:
+        """
+        masses = mol.masses
+        ref = mol.coords
+        coords = CoordinateSet(coords)
+        return cls.get_eckart_embedded_coords(masses, ref, coords, sel=sel)
 
     @classmethod
     def get_prop_translation_rotation_eigenvectors(cls, coords, masses):
