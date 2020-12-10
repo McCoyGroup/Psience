@@ -492,6 +492,17 @@ class Molecule:
         :rtype: MolecularTransformation | List[MolecularTransformation]
         """
         return self.prop('principle_axis_transformation', sel=sel, inverse=inverse)
+
+    @property
+    def principle_axis_data(self):
+        """
+        Gets the principle axis embedded coords and embedding parameters for the molecule
+
+        :return:
+        :rtype: MolecularTransformation | List[MolecularTransformation]
+        """
+        return self.prop('principle_axis_data')
+
     def eckart_frame(self, mol, sel=None, inverse=False):
         """
         Gets the Eckart frame(s) for the molecule
@@ -516,6 +527,15 @@ class Molecule:
         """
 
         return self.prop('eckart_embedded_coords', crds, sel=sel)
+    def get_embedding_data(self, crds, sel=None):
+        """
+        Gets the necessary data to embed crds in the Eckart frame using `self` as a reference
+        :param crds:
+        :type crds:
+        :return:
+        :rtype: tuple[np.ndarray, tuple[np.ndarray], tuple[np.ndarray]]
+        """
+        return self.prop('eckart_embedding_data', crds, sel=sel)
     def get_embedded_molecule(self, ref=None):
         """
         Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
@@ -524,8 +544,7 @@ class Molecule:
         :rtype: Molecule
         """
 
-
-        # raise NotImplementedError("need to handle applying embedding to various derivatives...")
+        raise NotImplementedError("need to handle applying embedding to various derivatives...")
 
         if ref is None:
             frame = self.principle_axis_frame(inverse=True)

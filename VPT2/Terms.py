@@ -230,8 +230,10 @@ class ExpansionTerms:
         max_jac = max(jacs)
         if max_jac > len(exist_jacs):
             need_jacs = [x+1 for x in range(0, max_jac)]
-            # for whatever reason I have to recompute a bunch of shit inside sys.jacobian...?
-            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs, mesh_spacing=1.0e-2, all_numerical=True)]
+            new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs, mesh_spacing=1.0e-2,
+                                                             all_numerical=True,
+                                                             converter_options=dict(reembed=False)
+                                                             )]
             self._cached_jacobians[self.molecule]['int'] = new_jacs
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
@@ -560,6 +562,7 @@ class ExpansionTerms:
         test_I = np.dot(YR, RY)
         bad_modes = np.where( np.abs(1.-np.diag(test_I)) > .001 )[0]
         check_modes = False
+        # check_modes = True
         if check_modes and len(bad_modes) > 0:
             natoms = RY.shape[0] // 3
             # add back in the coords corresponding to the embedding

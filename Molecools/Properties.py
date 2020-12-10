@@ -187,6 +187,51 @@ class MolecularProperties:
         return transforms
 
     @classmethod
+    def get_principle_axis_embedded_coords(cls, coords, masses):
+        com = cls.get_prop_center_of_mass(coords, masses)
+        crds_ = coords
+        coords = coords - com[..., np.newaxis, :]
+        moms, pax_axes = cls.get_prop_moments_of_inertia(coords, masses)
+        # pax_axes = np.swapaxes(pax_axes, -2, -1)
+        coords = np.matmul(coords, pax_axes)
+
+        return coords, com, pax_axes
+
+
+    @classmethod
+    def get_prop_principle_axis_data(cls, coords, masses):
+        """
+        Generates the principle axis transformation for a set of coordinates and positions
+
+        :param coords:
+        :type coords: CoordinateSet
+        :param masses:
+        :type masses: np.ndarray
+        :return:
+        :rtype: MolecularTransformation | List[MolecularTransformation]
+        """
+
+        coords, com, axes = cls.get_principle_axis_embedded_coords(coords, masses)
+        return coords, com, axes
+
+    @classmethod
+    def principle_axis_data(cls, mol, sel=None):
+        """
+        Generates the center of masses and inertial axes
+
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+        coords = mol.coords
+        masses = mol.masses
+        if sel is not None:
+            coords = coords[..., sel, :]
+            masses = masses[sel]
+        return cls.get_prop_principle_axis_data(coords, masses)
+
+    @classmethod
     def principle_axis_transformation(cls, mol, sel=None, inverse=False):
         """
         Generates the principle axis transformation for a Molecule
@@ -197,17 +242,6 @@ class MolecularProperties:
         :rtype:
         """
         return cls.get_prop_principle_axis_rotation(mol.coords, mol.masses, sel=sel, inverse=inverse)
-
-    @classmethod
-    def get_principle_axis_embedded_coords(cls, coords, masses):
-        com = cls.get_prop_center_of_mass(coords, masses)
-        crds_ = coords
-        coords = coords - com[..., np.newaxis, :]
-        moms, pax_axes = cls.get_prop_moments_of_inertia(coords, masses)
-        # pax_axes = np.swapaxes(pax_axes, -2, -1)
-        coords = np.matmul(coords, pax_axes)
-
-        return coords, com, pax_axes
 
     @classmethod
     def get_eckart_rotations(cls, masses, ref, coords, in_paf=False):
@@ -262,6 +296,46 @@ class MolecularProperties:
         return rot, (ref, ref_com, ref_axes), (coords, com, pax_axes)
 
     @classmethod
+    def get_eckart_embedding_data(cls, masses, ref, coords, sel=None):
+        """
+        Embeds a set of coordinates in the reference frame
+
+        :param masses:
+        :type masses: np.ndarray
+        :param ref:
+        :type ref: CoordinateSet
+        :param coords:
+        :type coords: CoordinateSet
+        :return:
+        :rtype:
+        """
+
+        if sel is not None:
+            coords = coords[..., sel, :]
+            masses = masses[sel]
+            ref = ref[..., sel, :]
+
+        return cls.get_eckart_rotations(masses, ref, coords, in_paf=False)
+
+    @classmethod
+    def eckart_embedding_data(cls, mol, coords, sel=None):
+        """
+
+        :param mol:
+        :type mol: Molecule
+        :param coords:
+        :type coords:
+        :param sel:
+        :type sel:
+        :return:
+        :rtype:
+        """
+        masses = mol.masses
+        ref = mol.coords
+        coords = CoordinateSet(coords)
+        return cls.get_eckart_embedding_data(masses, ref, coords, sel=sel)
+
+    @classmethod
     def get_prop_eckart_transformation(cls, masses, ref, coords, sel=None, inverse=False):
         """
         Computes Eckart transformations for a set of coordinates
@@ -282,10 +356,10 @@ class MolecularProperties:
             masses = masses[sel]
             ref = ref[..., sel, :]
 
-        if multiconf:
-            coords = list(coords)
-        else:
-            coords = [coords]
+        # if multiconf:
+        #     coords = list(coords)
+        # else:
+        #     coords = [coords]
 
         ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, in_paf=False)
         ref, ref_com, ref_rot = ref_stuff
@@ -338,7 +412,7 @@ class MolecularProperties:
         :param coords:
         :type coords: CoordinateSet
         :return:
-        :rtype: MolecularTransformation | List[MolecularTransformation]
+        :rtype:
         """
 
         multiconf = coords.multiconfig
@@ -352,7 +426,6 @@ class MolecularProperties:
         crd, crd_com, crd_rot = coord_stuff
 
         # crd is in _its_ principle axis frame, so now we transform it using ek_rot
-        # print(ek_rot)
         ek_rot = np.swapaxes(ek_rot, -2, -1)
         crd = crd @ ek_rot
         # now we rotate this back to the reference frame
