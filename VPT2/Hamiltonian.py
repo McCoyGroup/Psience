@@ -712,6 +712,11 @@ class PerturbationTheoryHamiltonian:
                 row_inds = np.searchsorted(total_coupled_space, m_pairs[0], sorter=tot_space_indexer)
                 col_inds = np.searchsorted(total_coupled_space, m_pairs[1], sorter=tot_space_indexer)
 
+                print([
+                    row_inds,
+                    col_inds
+                ])
+
                 # upper triangle of indices
                 up_tri = np.array([row_inds, col_inds]).T
                 # lower triangle is made by transposition
@@ -745,6 +750,9 @@ class PerturbationTheoryHamiltonian:
             #     "0.11518508464641353"
             #     "0.1180029152600935"
             #     raise Exception(np.sum(np.abs(sub.block_vals)))
+
+            import McUtils.Plots as plt
+            plt.ArrayPlot(sub.toarray()).show()
             H[i+1] = sub #type: np.ndarray
 
         # raise Exception("....")
