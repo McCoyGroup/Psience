@@ -2,12 +2,7 @@
 Provides a very general specification for a RepresentationBasis object that can be
 used to define matrix representations
 """
-import abc, numpy as np, scipy.sparse as sp, itertools as ip, enum
-
-from McUtils.Numputils import SparseArray
-
-from .Terms import Representation
-from .Operators import Operator, ContractedOperator
+import abc, numpy as np, scipy.sparse as sp, itertools as ip
 
 __all__ = [
     "RepresentationBasis",
@@ -132,6 +127,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
 
     selection_rules_mapping = {'x': None, 'p': None, 'I': [0]}
     def operator(self, *terms):
+        from .Operators import Operator
         funcs = [self.operator_mapping[f] if isinstance(f, str) else f for f in terms]
         q = (self.quanta,)
         op = Operator(funcs, q)
@@ -144,7 +140,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         :return:
         :rtype:
         """
-
+        from .Terms import Representation
         q=self.quanta
         return Representation(self.operator(*terms), self, logger=logger)
 
@@ -355,6 +351,8 @@ class SimpleProductBasis(RepresentationBasis):
         :rtype:
         """
 
+        from .Operators import Operator, ContractedOperator
+
         funcs = [self.bases[0].operator_mapping[f] if isinstance(f, str) else f for f in terms]
         sel_rules = [self.bases[0].selection_rules_mapping[f] if isinstance(f, str) else None for f in terms]
         if any(s is None for s in sel_rules):
@@ -381,6 +379,9 @@ class SimpleProductBasis(RepresentationBasis):
         :return:
         :rtype:
         """
+
+        from .Terms import Representation
+
         return Representation(self.operator(*terms, coeffs=coeffs, axes=axes), self, logger=logger)
     def x(self, n):
         """

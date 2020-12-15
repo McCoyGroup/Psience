@@ -3009,7 +3009,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @inactiveTest
+    @debugTest
     def test_OCHDVPTCartesians(self):
 
         internals = None
@@ -3031,7 +3031,7 @@ class VPTTests(TestCase):
         #     return
 
         with BlockProfiler("OCHD Cartesians",
-                           print_res=False,#'raise',
+                           print_res='raise',
                            strip_dirs=self.job_is_dumb,
                            sort_by='cumtime'
                            ):
@@ -3044,21 +3044,6 @@ class VPTTests(TestCase):
                 mode_selection=mode_selection,
                 log=True
             )
-
-        # block()
-        # exc, stat_block, wfns = self.profile_block(block)
-        #
-        # do_profile = False
-        # if do_profile:
-        #     if exc is not None:
-        #         try:
-        #             raise exc
-        #         except:
-        #             raise Exception(stat_block)
-        #     else:
-        #         raise Exception(stat_block)
-        # elif exc is not None:
-        #     raise exc
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         engs = h2w * wfns.energies
@@ -4914,7 +4899,7 @@ class VPTTests(TestCase):
 
     #region Intensity Breakdowns
 
-    @debugTest
+    @inactiveTest
     def test_HODIntensityBreakdown(self):
         internals = [
             [0, -1, -1, -1],
@@ -4964,7 +4949,7 @@ class VPTTests(TestCase):
             # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
-    @debugTest
+    @inactiveTest
     def test_HOHIntensityBreakdown(self):
         internals = [
             [0, -1, -1, -1],
@@ -5045,7 +5030,7 @@ class VPTTests(TestCase):
         # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec, write_wavefunctions=False)
 
-    @debugTest
+    @inactiveTest
     def test_WaterDimerInternalIntensityBreakdown(self):
 
         """

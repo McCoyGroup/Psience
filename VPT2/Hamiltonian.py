@@ -5,7 +5,7 @@ Provides support for build perturbation theory Hamiltonians
 import numpy as np, itertools, time
 
 from McUtils.Numputils import SparseArray, vec_outer
-from McUtils.Misc import Logger
+from McUtils.Scaffolding import Logger, NullLogger
 
 from ..Molecools import Molecule
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, HarmonicOscillatorProductBasis
@@ -207,14 +207,14 @@ class PerturbationTheoryHamiltonian:
         :type coriolis_coupling: bool
         """
 
-        if log is None or isinstance(log, Logger):
+        if isinstance(log, Logger):
             self.logger = log
         elif log is True:
-            self.logger = Logger(padding="    ")
+            self.logger = Logger()
         elif log is False:
-            self.logger = None
+            self.logger = NullLogger()
         else:
-            self.logger = Logger(log, padding="    ")
+            self.logger = Logger(log)
 
         if molecule is None:
             raise PerturbationTheoryException("{} requires a Molecule to do its dirty-work")
@@ -619,35 +619,26 @@ class PerturbationTheoryHamiltonian:
         # get explicit matrix reps inside the separate coupled subspaces
         N = len(total_coupled_space)
 
-        if logger is not None:
-            logger.log_print(
-                ["total coupled space dimensions: {}"],
-                N
-            )
+        logger.log_print(
+            ["total coupled space dimensions: {d}"],
+            d=N
+        )
 
         # I should try to walk away from using scipy.sparse here and instead
         # shift to SparseArray, since it'll support swapping out the back end better...
         H = [np.zeros(1)] * len(h_reps)
-        if logger is not None:
+        with logger.block(tag="getting H0"):
             start = time.time()
-            logger.log_print(["calculating diagonal elements of H0..."])
-        diag = h_reps[0][total_coupled_space, total_coupled_space] # this is just diagonal
-        # print(total_coupled_space, diag)
-
-        if logger is not None:
-            start = time.time()
-            logger.log_print(
-                ["constructing sparse representation of H0..."]
-            )
-        H[0] = SparseArray.from_diag(diag)
-        if logger is not None:
+            logger.log_print(["calculating diagonal elements"])
+            diag = h_reps[0][total_coupled_space, total_coupled_space]
+            logger.log_print(["constructing sparse representation"])
+            H[0] = SparseArray.from_diag(diag)
             end = time.time()
             logger.log_print(
                 [
-                    "finished H0...",
-                    "took {}s"
+                    "took {t}s"
                 ],
-                round(end - start, 3)
+                t=round(end - start, 3)
             )
 
         for i,h in enumerate(h_reps[1:]):
@@ -661,82 +652,67 @@ class PerturbationTheoryHamiltonian:
 
             # print(any(tuple(x-blebs.indices) == (0, 0) for x in m_pairs.T))
 
-            if len(m_pairs[0]) > 0:
-                if logger is not None:
-                    start = time.time()
+            with logger.block(tag="getting H" + str(i + 1)):
+                start = time.time()
+                if len(m_pairs[0]) > 0:
                     logger.log_print(
-                        [
-                            "calculating H{}...",
-                            "(coupled space dimension {})"
-                        ],
-                        i + 1,
-                        len(m_pairs[0])
+                        ["coupled space dimension {d}"],
+                        d=len(m_pairs[0])
                     )
-                # print(m_pairs)
-                sub = h[m_pairs[0], m_pairs[1]]
-                SparseArray.clear_ravel_caches()
-                if logger is not None:
-                    end = time.time()
-                    logger.log_print(
-                        [
-                            "finished H{}...",
-                            "took {}s"
-                        ],
-                        i+1,
-                        round(end - start, 3)
-                    )
-            else:
-                if logger is not None:
-                    logger.log_print(
-                        [
-                            "calculating H{}...",
-                            "no states to couple!"
-                        ],
-                        i + 1
-                    )
-                sub = 0
+                    # print(m_pairs)
+                    sub = h[m_pairs[0], m_pairs[1]]
+                    SparseArray.clear_ravel_caches()
+                else:
+                    logger.log_print('no states to couple!')
+                    sub = 0
 
-            if logger is not None:
                 logger.log_print(
                     "constructing sparse representation..."
                 )
 
-            if isinstance(sub, (int, np.integer, np.floating, float)):
-                if sub == 0:
-                    sub = SparseArray.empty((N, N), dtype=float)
+                if isinstance(sub, (int, np.integer, np.floating, float)):
+                    if sub == 0:
+                        sub = SparseArray.empty((N, N), dtype=float)
+                    else:
+                        raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
+                        sub = np.full((N, N), sub)
                 else:
-                    raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
-                    sub = np.full((N, N), sub)
-            else:
-                # figure out the appropriate inds for this data in the sparse representation
-                row_inds = np.searchsorted(total_coupled_space, m_pairs[0], sorter=tot_space_indexer)
-                col_inds = np.searchsorted(total_coupled_space, m_pairs[1], sorter=tot_space_indexer)
+                    # figure out the appropriate inds for this data in the sparse representation
+                    row_inds = np.searchsorted(total_coupled_space, m_pairs[0], sorter=tot_space_indexer)
+                    col_inds = np.searchsorted(total_coupled_space, m_pairs[1], sorter=tot_space_indexer)
 
-                # upper triangle of indices
-                up_tri = np.array([row_inds, col_inds]).T
-                # lower triangle is made by transposition
-                low_tri = np.array([col_inds, row_inds]).T
-                # but now we need to remove the duplicates, because many sparse matrix implementations
-                # will sum up any repeated elements
-                full_inds = np.concatenate([up_tri, low_tri])
-                full_dat = np.concatenate([sub, sub])
-                # zeroes = np.where(sub == 0)
-                # if len(zeroes[0]) > 0:
-                #     raise Exception(
-                #         len(zeroes[0]),
-                #         up_tri[zeroes],
-                #         BasisStateSpace(
-                #             states.basis,
-                #             up_tri[zeroes][:, 0]
-                #         ).excitations,
-                #         BasisStateSpace(
-                #             states.basis,
-                #             up_tri[zeroes][:, 1]
-                #         ).excitations
-                #     )
-                full_inds, idx = np.unique(full_inds, axis=0, return_index=True)
-                full_dat = full_dat[idx]
-                sub = SparseArray((full_dat, full_inds.T), shape=(N, N))
+                    # upper triangle of indices
+                    up_tri = np.array([row_inds, col_inds]).T
+                    # lower triangle is made by transposition
+                    low_tri = np.array([col_inds, row_inds]).T
+                    # but now we need to remove the duplicates, because many sparse matrix implementations
+                    # will sum up any repeated elements
+                    full_inds = np.concatenate([up_tri, low_tri])
+                    full_dat = np.concatenate([sub, sub])
+                    # zeroes = np.where(sub == 0)
+                    # if len(zeroes[0]) > 0:
+                    #     raise Exception(
+                    #         len(zeroes[0]),
+                    #         up_tri[zeroes],
+                    #         BasisStateSpace(
+                    #             states.basis,
+                    #             up_tri[zeroes][:, 0]
+                    #         ).excitations,
+                    #         BasisStateSpace(
+                    #             states.basis,
+                    #             up_tri[zeroes][:, 1]
+                    #         ).excitations
+                    #     )
+                    full_inds, idx = np.unique(full_inds, axis=0, return_index=True)
+                    full_dat = full_dat[idx]
+                    sub = SparseArray((full_dat, full_inds.T), shape=(N, N))
+                end = time.time()
+                logger.log_print(
+                    [
+                        "took {t}s"
+                    ],
+                    t=round(end - start, 3)
+                )
 
             # if i == 0:
             #     "0.028258378995078746"
@@ -989,74 +965,84 @@ class PerturbationTheoryHamiltonian:
             e_vec_full = e_vec_full.toarray()
             # raise Exception(e_vec_full)
 
-        if logger is not None:
+        with logger.block(tag="applying non-degenerate PT"):
             logger.log_print(
-                "calculating perturbation theory correction up to order {} for {} states",
-                order,
-                len(states.indices)
+                [
+                    "order: {o}",
+                    "states: {n}"
+                    ],
+                o=order,
+                n=len(states.indices)
             )
             start = time.time()
 
-        # loop on a state-by-state basis
-        for n, energies, overlaps, corrs in zip(
-                states.indices, all_energies, all_overlaps, all_corrs
-        ):
-            # taking advantage of mutability of the arrays here...
+            # loop on a state-by-state basis
+            for n, energies, overlaps, corrs in zip(
+                    states.indices, all_energies, all_overlaps, all_corrs
+            ):
+                # taking advantage of mutability of the arrays here...
 
-            # find the state index in the coupled subspace
-            n_ind = np.where(total_coupled_space == n)[0][0]
-            # generate the perturbation operator
-            E0 = e_vec_full[n_ind]
-            e_vec = e_vec_full - E0
-            e_vec[n_ind] = 1
-            pi = 1 / e_vec
-            pi[n_ind] = 0
-            pi = SparseArray.from_diag(pi)
+                # find the state index in the coupled subspace
+                n_ind = np.where(total_coupled_space == n)[0][0]
+                # generate the perturbation operator
+                E0 = e_vec_full[n_ind]
+                e_vec = e_vec_full - E0
+                e_vec[n_ind] = 1
+                zero_checks = np.where(np.abs(e_vec) < 1.e-14)[0]
+                if len(zero_checks) > 0:
+                    raise ValueError("degeneracies encountered: state {} and states {} are degenerate (energies: {} and {})".format(
+                        n_ind,
+                        zero_checks,
+                        E0,
+                        e_vec_full[zero_checks]
+                    ))
+                pi = 1 / e_vec
+                pi[n_ind] = 0
+                pi = SparseArray.from_diag(pi)
 
-            energies[0] = E0
-            overlaps[0] = 1
-            corrs[0, n_ind] = 1
+                energies[0] = E0
+                overlaps[0] = 1
+                corrs[0, n_ind] = 1
 
-            def dot(a, b):
-                if isinstance(a, (int, np.integer, float, np.floating)) and a ==0:
-                    return 0
+                def dot(a, b):
+                    if isinstance(a, (int, np.integer, float, np.floating)) and a ==0:
+                        return 0
 
-                if isinstance(a, np.ndarray):
-                    return np.dot(a, b)
-                else:
-                    return a.dot(b)
-
-
-            for k in range(1, order + 1):  # to actually go up to k
-                #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
+                    if isinstance(a, np.ndarray):
+                        return np.dot(a, b)
+                    else:
+                        return a.dot(b)
 
 
-                Ek = (
-                   (H[k][n_ind, n_ind] if not isinstance(H[k], (int, np.integer, float, np.floating)) else 0.)
-                        + sum(
-                    dot(
-                        H[k - i][n_ind] if not isinstance(H[k - i], (int, np.integer, float, np.floating)) else 0.,
-                        corrs[i]
-                        )
-                    - energies[k - i] * overlaps[i]
-                    for i in range(1, k)
-                ))
-                energies[k] = Ek
-                #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
-                ok = -1 / 2 * sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
-                overlaps[k] = ok
-                #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
-                corrs[k] = sum(
-                    dot(pi, energies[k - i] * corrs[i] - dot(H[k - i], corrs[i]))
-                    for i in range(0, k)
-                )
-                corrs[k][n_ind] = ok  # pi (the perturbation operator) ensures it's zero before this
+                for k in range(1, order + 1):  # to actually go up to k
+                    #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
 
-        if logger is not None:
+
+                    Ek = (
+                       (H[k][n_ind, n_ind] if not isinstance(H[k], (int, np.integer, float, np.floating)) else 0.)
+                            + sum(
+                        dot(
+                            H[k - i][n_ind] if not isinstance(H[k - i], (int, np.integer, float, np.floating)) else 0.,
+                            corrs[i]
+                            )
+                        - energies[k - i] * overlaps[i]
+                        for i in range(1, k)
+                    ))
+                    energies[k] = Ek
+                    #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
+                    ok = -1 / 2 * sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
+                    overlaps[k] = ok
+                    #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
+                    corrs[k] = sum(
+                        dot(pi, energies[k - i] * corrs[i] - dot(H[k - i], corrs[i]))
+                        for i in range(0, k)
+                    )
+                    corrs[k][n_ind] = ok  # pi (the perturbation operator) ensures it's zero before this
+
             end = time.time()
             logger.log_print(
-                "took {}s",
-                round(end - start, 3)
+                "took {t}s",
+                t=round(end - start, 3)
             )
 
         # now we recompute reduced state spaces for use in results processing
@@ -1067,11 +1053,6 @@ class PerturbationTheoryHamiltonian:
         corr_inds = [[] for i in range(nstates)]
         corr_mats = [None] * (order + 1)
         si = state_inds
-
-        if logger is not None:
-            logger.log_print(
-                "constructing sparse correction matrices...",
-            )
 
         for o in range(order + 1):
             non_zeros = []
@@ -1341,23 +1322,21 @@ class PerturbationTheoryHamiltonian:
         :rtype:
         """
 
-        if self.logger is not None:
-            self.logger.log_print("Computing PT corrections:", padding="")
-            start = time.time()
-            self.logger.log_print("getting coupled states...")
+        with self.logger.block(tag='Computing PT corrections:'):
+            with self.logger.block(tag='getting coupled states'):
+                start = time.time()
 
-        states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies)
+                states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies)
 
-        if self.logger is not None:
-            end = time.time()
-            self.logger.log_print("took {}s...", round(end - start, 3))
+                end = time.time()
+                self.logger.log_print("took {}s...", round(end - start, 3))
 
-        H, tot_space = self._get_VPT_representations(
-            self.perturbations,
-            states,
-            coupled_states,
-            logger=self.logger
-        )
+            H, tot_space = self._get_VPT_representations(
+                self.perturbations,
+                states,
+                coupled_states,
+                logger=self.logger
+            )
 
         return H
 
@@ -1418,43 +1397,41 @@ class PerturbationTheoryHamiltonian:
 
         from .Wavefunctions import PerturbationTheoryWavefunctions
 
-        if self.logger is not None:
-            self.logger.log_print("Computing PT corrections:", padding="")
-            start = time.time()
-            self.logger.log_print("getting coupled states...")
+        with self.logger.block(tag='Computing PT corrections:'):
+            with self.logger.block(tag='getting coupled states'):
+                start = time.time()
 
-        states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies)
+                states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies)
 
-        if self.logger is not None:
-            end = time.time()
-            self.logger.log_print("took {}s...", round(end - start, 3))
+                end = time.time()
+                self.logger.log_print("took {t}s...", t=round(end - start, 3))
 
-        h_reps = self.perturbations
-        if self.logger is not None:
-            bs = []
-            for b in coupled_states:
-                bs.append(len(b))
-            self.logger.log_print(
-                [
-                    "perturbations: {pert_num}",
-                    "order: {ord}",
-                    "states: {state_num}",
-                    "basis sizes {basis_size}"
-                ],
-                pert_num=len(h_reps) - 1,
-                ord=order,
-                state_num=len(states),
-                basis_size=bs
-            )
+            h_reps = self.perturbations
+            if self.logger is not None:
+                bs = []
+                for b in coupled_states:
+                    bs.append(len(b))
+                self.logger.log_print(
+                    [
+                        "perturbations: {pert_num}",
+                        "order: {ord}",
+                        "states: {state_num}",
+                        "basis sizes {basis_size}"
+                    ],
+                    pert_num=len(h_reps) - 1,
+                    ord=order,
+                    state_num=len(states),
+                    basis_size=bs
+                )
 
-        corrs = self._get_VPT_corrections(
-            h_reps,
-            states,
-            coupled_states,
-            order,
-            degenerate_states=degeneracies,
-            logger=self.logger
-            )
+            corrs = self._get_VPT_corrections(
+                h_reps,
+                states,
+                coupled_states,
+                order,
+                degenerate_states=degeneracies,
+                logger=self.logger
+                )
 
         return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, logger=self.logger)
 

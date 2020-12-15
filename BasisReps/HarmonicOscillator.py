@@ -11,8 +11,10 @@ import scipy.sparse as sp, numpy as np, functools, itertools
 
 from .Bases import *
 from .Operators import Operator, ContractedOperator
+from .StateSpaces import BraKetSpace
+
 from McUtils.Data import WavefunctionData
-from McUtils.Misc import MaxSizeCache
+from McUtils.Scaffolding import MaxSizeCache
 
 class HarmonicOscillatorBasis(RepresentationBasis):
     """
@@ -171,7 +173,7 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
             labels = [mapping[k] for k in ids]
 
             if coeffs is None:
-                op = Operator(computer, self.quanta, prod_dim=len(terms), symmetries=labels, axes=axes)
+                op = Operator(computer, self.quanta, prod_dim=len(terms), symmetries=labels)#, axes=axes)
             else:
                 op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms), symmetries=labels, axes=axes)
             return op
@@ -293,8 +295,9 @@ class HarmonicProductOperatorTermEvaluator:
                 "*".join("({})".format(",".join(o.terms)) for o in self.ops)
             )
         def eval_states(self, states):
-
-            # print(states)
+            if isinstance(states, BraKetSpace):
+                bras, kets = states.state_pairs
+                states = zip(bras, kets)
 
             chunk = None
             for s, op in zip(states, self.ops):

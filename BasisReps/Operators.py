@@ -6,6 +6,7 @@ I chose to only implement direct product operators. Not sure if we'll need a 1D 
 import numpy as np, scipy.sparse as sp, os, tempfile as tf
 from collections import OrderedDict
 from McUtils.Numputils import SparseArray
+from McUtils.Scaffolding import Logger, NullLogger
 
 from .StateSpaces import BraKetSpace
 
@@ -105,57 +106,29 @@ class Operator:
         state['_tensor'] = None
         return state
 
-    def _get_eye_tensor(self, states, quants):
-        orthog = self._get_orthogonality([], states, quants)
-        non_orthog = np.where(orthog != 0.)[0]
+    def _get_eye_tensor(self, states):
+        """
+
+        :param states:
+        :type states: BraKetSpace
+        :param quants:
+        :type quants:
+        :return:
+        :rtype:
+        """
+
+        ntotal = len(states)
+        states, non_orthog = states.apply_non_orthogonality([])
         return sp.csr_matrix(
             (
-                orthog[non_orthog],
+                np.ones(len(non_orthog)),
                 (
                     np.zeros(len(non_orthog)),
                     non_orthog
                 )
             ),
-            shape=(1, len(orthog))
+            shape=(1, ntotal)
         )
-
-    def _get_orthogonality(self, inds, states, quants):
-        #TODO: this can mostly be delegated to BraKetSpace
-
-        nstates = len(states[0][0])
-        ndim = len(quants)
-        uinds = np.unique(inds)
-        if len(uinds) == ndim:  # means we've got no states that are unused (can only rarely happen, but important edge case)
-            orthog = np.ones(nstates, dtype=int)
-        else:
-            # determine which of the unused states (`missing`) have different numbers of
-            # quanta in the bra (`states[i][0]`) than the ket (`states[i][1]`)
-            missing = [i for i in range(ndim) if i not in uinds]
-            equivs = [states[i][0] == states[i][1] for i in missing]
-            orthog = np.prod(equivs, axis=0).astype(int)  # taking advantage of the fact that bools act like ints
-        return orthog
-
-    def _apply_sel_rules(self, states, rules):
-        #TODO: this can be delegated to BraKetSpace
-        import functools as fp
-
-        # we have a set of rules for every dimension in states...
-        # so we define a function that will tell us where any of the possible selection rules are satisfied
-        # and then we apply that in tandem to the quanta changes between bra and ket and the rules
-        apply_rules = lambda diff, rule: fp.reduce(
-            lambda d, i: np.logical_or(d, diff==i),
-            rule[1:],
-            diff==rule[0]
-        )
-        sels = [
-            apply_rules(x[1] - x[0], r) for x, r in zip(states, rules)
-        ]
-        # then we figure out which states by satisfied all the rules
-        all_sels = fp.reduce(np.logical_and, sels[1:], sels[0])
-        # and then filter the OG lists by those
-        states = [(s[0][all_sels], s[1][all_sels]) for s in states]
-
-        return states, all_sels
 
     def _mat_prod_operator_terms(self, inds, funcs, states, sel_rules):
         """
@@ -172,6 +145,7 @@ class Operator:
         :return:
         :rtype:
         """
+        from collections import OrderedDict
 
         # We figure out which indices are actually unique; this gives us a way to map
         # indices onto operators
@@ -179,40 +153,24 @@ class Operator:
         # and so the more unique indices the _lower_ the dimension of the operator
         # since it acts on the same index more times
         # The indices will be mapped onto ints for storage in `pieces`
-        uinds = np.unique(inds)
-        mm = {k: i for i, k in enumerate(uinds)}
 
-        non_orthog_states, non_orthog_spec = states.apply_non_orthogonality(uinds, assume_unique=True)
-
-        subdim = len(uinds)
-        # and then apply selection rules if we have them
         if sel_rules is not None:
-            # we need selection rules for every dimension in the product
-            sel_bits = [None] * subdim
-            for s, i in zip(sel_rules, inds):
-                n = mm[i]  # makes sure that we fill in in the same order as uinds
-                if sel_bits[n] is None:
-                    sel_bits[n] = s
-                else:
-                    sel_bits[n] = np.unique(np.add.outer(s, sel_bits[n])).flatten() # make the next set of rules
-            # print(sel_bits)
-            # apply full selection rules
-            non_orthog_states, all_sels = non_orthog_states.apply_sel_rules(sel_bits)
-            if len(non_orthog_states) == 0:
-                return None # short-circuit because there's nothing to calculate
+            sel_rules = states.get_sel_rules_from1d(inds, sel_rules)
+            states, all_sels = states.apply_sel_rules(sel_rules)
 
-        else:
-            all_sels = None
+        if len(states) == 0:
+            return None, None
 
-        # determine what size we need for the 1D reps
-        # max_dim = np.max([
-        #     np.max(non_orthog_states.bras.excitations),
-        #     np.max(non_orthog_states.kets.excitations)
-        #     ])
-        max_dim = np.max(np.array(non_orthog_states))
+        bras, kets = states.state_pairs
+        max_dim = max(np.max(bras), np.max(kets))
         padding = 3  # for approximation reasons we need to pad our representations...
 
-        # then set up a place to hold onto the pieces we'll calculate
+        uinds = OrderedDict((k, None) for k in inds)
+        uinds = np.array(list(uinds.keys()))
+
+        mm = {k: i for i, k in enumerate(uinds)}
+        subdim = len(uinds)
+        # set up a place to hold onto the pieces we'll calculate
         pieces = [None] * subdim
         # now we construct the reps from 1D ones
         for f, i in zip(funcs, inds):
@@ -227,9 +185,9 @@ class Operator:
         # now we take the requisite products of the chunks for the indices that are
         # potentially non-orthogonal
         chunk = None
-        for s, o in zip(non_orthog_states, pieces):
+        for i, j, o in zip(bras, kets, pieces):
             op = o  # type: sp.spmatrix
-            blob = np.asarray(op[s]).squeeze()
+            blob = np.asarray(op[i, j]).squeeze()
             if chunk is None:
                 if isinstance(blob, (int, np.integer, float, np.floating)):
                     chunk = np.array([blob])
@@ -247,7 +205,7 @@ class Operator:
 
         return chunk, all_sels
 
-    def _direct_prod_operator_terms(self, inds, func, states, non_orthog):
+    def _direct_prod_operator_terms(self, inds, func, states):
         """
         Evaluates product operator terms based on 1D representation matrices,
         but using a direct function to generate them
@@ -259,20 +217,6 @@ class Operator:
         :return:
         :rtype:
         """
-
-        # We figure out which indices are actually unique; this gives us a way to map
-        # indices onto operators for our generator
-        # non_orthog_states = states.apply_non_orthog(inds)
-        _, idx = np.unique(inds, return_index=True)
-        uinds = inds[np.sort(idx)]
-        # print(inds, uinds)
-        # mm = {k: i for i, k in enumerate(uinds)}
-
-        # then we determine which states are potentially non-orthogonal based on precomputed info
-        non_orthog_states = [
-            (states[i][0][non_orthog], states[i][1][non_orthog])
-            for i in uinds
-        ]
 
         # next we get the term generator defined by inds
         # this will likely end up calling uinds again, but ah well, that operation is cheap
@@ -286,20 +230,15 @@ class Operator:
             sel_rules = None
         else:
             gen = g
+            states, sel_rules = states.apply_sel_rules(sel_rules)
+            if len(states) == 0:
+                return None, None
 
-        if sel_rules is not None:
-            # apply full selection rules
-            non_orthog_states, all_sels = self._apply_sel_rules(non_orthog_states, sel_rules)
-            if len(non_orthog_states[0][0]) == 0:
-                return None  # short-circuit because there's nothing to calculate
-        else:
-            all_sels = None
+        chunk = gen(states)
 
-        chunk = gen(non_orthog_states)
+        return chunk, sel_rules
 
-        return chunk, all_sels
-
-    def _calculate_single_pop_elements(self, inds, funcs, states, quants, sel_rules):
+    def _calculate_single_pop_elements(self, inds, funcs, states, sel_rules):
         """
         Calculates terms for a single product operator.
         Assumes orthogonal product bases.
@@ -311,7 +250,7 @@ class Operator:
         :param states: the states to compute terms between stored like ((s_1l, s_1r), (s_2l, s_2r), ...)
                         where `s_il` is the set of quanta for mode i for the bras and
                         `s_ir` is the set of quanta for mode i for the kets
-        :type states: Iterable[Iterable[Iterable[int]]]
+        :type states: BraKetSpace
         :param quants: the total quanta to use when building representations
         :type quants:
         :param sel_rules: the selection rules to use when building representations
@@ -320,55 +259,60 @@ class Operator:
         :rtype:
         """
 
+        # logger = Logger.lookup('debug')
+        # if isinstance(logger, NullLogger):
+        #     logger = Logger()
+        #     logger.register('debug')
+        #
+        # with logger.block(tag="{} - {}".format(inds, isinstance(funcs, (list, tuple)))):
+
+
         # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
+        nstates = len(states)
+        states, non_orthog = states.apply_non_orthogonality(inds)
 
-        # nstates = len(states)
-        #
-        # ndim = len(quants)
-        # uinds = np.unique(inds)
-
-        # raise NotImplementedError("Currently adding support for much better orthogonality handling")
-        nstates = len(states[0][0])
-        orthog = self._get_orthogonality(inds, states, quants)
-        single_state = isinstance(orthog, (int, np.integer)) # means we got a single state to calculate over
-        if single_state:
-            orthog = np.array([orthog])
-
-        non_orthog = np.where(orthog != 0)[0]
+        # logger.log_print('nort: {n}', n=len(non_orthog))
 
         # if none of the states are non-orthogonal...just don't calculate anything
         if len(non_orthog) == 0:
             return sp.csr_matrix((1, nstates), dtype='float')
         else:
-
             if isinstance(funcs, (list, tuple)):
-                chunk = self._mat_prod_operator_terms(inds, funcs, states, non_orthog, sel_rules)
+                # if sel_rules is not None:
+                #     if all_sels is not None:
+                #         non_orthog = non_orthog[all_sels,]
+                chunk, all_sels = self._mat_prod_operator_terms(inds, funcs, states, sel_rules)
             else:
-                chunk = self._direct_prod_operator_terms(inds, funcs, states, non_orthog)
+                chunk, all_sels = self._direct_prod_operator_terms(inds, funcs, states)
 
-            if chunk is None: # after application of sel rules we get nothing
+            # if chunk is None:
+            #     return sp.csr_matrix((1, nstates), dtype='float')
+
+            if all_sels is not None:
+                if not (isinstance(all_sels, np.ndarray) and all_sels.dtype == np.dtype(bool)):
+                    raise ValueError("bad selection rule application result {}".format(all_sels))
+                # logger.log_print('sels: {ns} {sels}', ns=len(all_sels), sels=np.sum(np.where(all_sels)))
+                non_orthog = non_orthog[all_sels,]
+
+            if chunk is None:
                 return sp.csr_matrix((1, nstates), dtype='float')
-            else:
-                chunk, all_sels = chunk # secondary application of selection rules
-                if all_sels is not None:
-                    non_orthog = non_orthog[all_sels,]
 
-            non_zero = np.where(np.abs(chunk) >= self.zero_threshold)[0] # by filtering again we save on computation in the dot products
-            # print(len(non_zero), len(non_orthog))
+            # finally we make sure that everything we're working with is
+            # non-zero because it'll buy us time on dot products later
+            non_zero = np.where(np.abs(chunk) >= self.zero_threshold)[0]
+            # logger.log_print('nz: {nz}', nz=len(non_zero))
 
             if len(non_zero) == 0:
                 return sp.csr_matrix((1, nstates), dtype='float')
-
-            non_orthog = non_orthog[non_zero,]
-            # print(chunk)
             chunk = chunk[non_zero,]
+            non_orthog = non_orthog[non_zero,]
 
             wat = sp.csr_matrix(
                 (
                     chunk,
                     (
-                        np.zeros(len(non_orthog)),
+                        np.zeros(len(non_zero)),
                         non_orthog
                     )
                 ), shape=(1, nstates))
@@ -389,7 +333,7 @@ class Operator:
         :rtype:
         """
         res = np.apply_along_axis(self._calculate_single_pop_elements,
-                                  -1, inds, self.funcs, idx, self.quanta, self.sel_rules
+                                  -1, inds, self.funcs, idx, self.sel_rules
                                   )
         if save_to_disk:
             new = sp.vstack([x for y in res.flatten() for x in y])
@@ -401,7 +345,7 @@ class Operator:
 
         return res
 
-    def _get_pop_parallel(self, inds, idx, parallelizer="multiprocessing"):
+    def _get_pop_parallel(self, inds, idx, parallelizer=None):
         if parallelizer != "multiprocessing":
             raise NotImplementedError("More parallelization methods are coming--just not yet")
 
@@ -496,7 +440,7 @@ class Operator:
 
             return np.unique(flat, axis=0, return_inverse=True)
 
-    def get_elements(self, idx, parallelizer=None):#parallelizer='multiprocessing'):
+    def get_elements(self, idx, parallelizer=None):#'multiprocessing'):
         """
         Calculates a subset of elements
 
@@ -508,32 +452,14 @@ class Operator:
 
         # we expect this to be an iterable object that looks like
         # num_modes X [bra, ket] X quanta
-        idx = tuple(
-            tuple(np.array([i]) if isinstance(i, (int, np.integer)) else np.array(i) for i in j)
-            for j in idx
-        )
-
-        if len(idx) != self.mode_n:
-            raise ValueError("BraKet spec {} isn't valid for Operator with dimension {}".format(
-                idx,
-                (self.ndim, self.mode_n)
-            ))
-
-
-        # if len(idx) != self.mode_n:
-        #     raise ValueError("BraKet spec {} isn't valid for Operator with dimension {}".format(
-        #         idx,
-        #         (self.ndim, self.mode_n)
-        #     ))
+        if not isinstance(idx, BraKetSpace):
+            idx = BraKetSpace.from_indices(idx, quanta=self.quanta)
 
         inds = self.get_inner_indices()
 
         if inds is None: # just a number
-            new = self._get_eye_tensor(idx, self.quanta)
-            # raise Exception(new[0], type(new), new.shape)
+            new = self._get_eye_tensor(idx)
         else:
-
-            # self.symmetry_inds = None
             mapped_inds, inverse = self.filter_symmetric_indices(inds)
 
             if parallelizer is not None:
@@ -549,18 +475,7 @@ class Operator:
             wat = [x for y in res for x in y]
             new = sp.vstack(wat)
 
-            # if inverse is not None:
-            #     # raise Exception(res)
-            #
-            #     new = new.reshape((1, int(np.prod(new.shape))))
-            #     print(new, inverse)
-            #     new = new[inverse]
-
-
-
-
         shp = inds.shape if inds is not None else ()
-        # print(type(new), new.shape)
         res = SparseArray(new)
         res = res.reshape(shp[:-1] + res.shape[-1:])
 

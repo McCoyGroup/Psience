@@ -21,7 +21,7 @@ class BasisSetTests(TestCase):
         ))
 
     #region 1D Basis Tests
-    @debugTest
+    @validationTest
     def test_HOBasis1DX(self):
         n = 7
         basis = HarmonicOscillatorBasis(n)
@@ -35,7 +35,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
 
-    @debugTest
+    @validationTest
     def test_HOBasis1DXX(self):
 
         n = 7
@@ -58,7 +58,7 @@ class BasisSetTests(TestCase):
         self.assertLess(np.average(np.abs(x2 - targ)), 1e-14)
         self.assertLess(np.average(np.abs(xx - targ)), 1e-14)
 
-    @debugTest
+    @validationTest
     def test_HOBasis1DPXP(self):
         n = 7
         basis = HarmonicOscillatorBasis(n)
@@ -72,7 +72,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
 
-    @debugTest
+    @validationTest
     def test_HOBasis1DPP(self):
         n = 7
         basis = HarmonicOscillatorBasis(n)
@@ -93,7 +93,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
 
-    @debugTest
+    @validationTest
     def test_HOBasis1DXXX(self):
         n = 7
         basis = HarmonicOscillatorBasis(n)
@@ -107,7 +107,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
 
-    @debugTest
+    @validationTest
     def test_HOBasis1DPPXX(self):
         n = 7
         basis = HarmonicOscillatorBasis(n)
@@ -181,20 +181,26 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 
-    @validationTest
+    @debugTest
     def test_HOBasis2DPP(self):
         from Peeves import Timer, BlockProfiler
 
-        n = 7
-        m = 10
+        n = 10
+        m = 2
         oppo = HarmonicOscillatorProductBasis((n,) * m)
         oppo2 = SimpleProductBasis(HarmonicOscillatorBasis, (n,) * m)
 
         term = ['p', 'p']
         iphase = (-1) ** (term.count("p") // 2)
         n_terms = len(term)
-        xxpp1 = oppo.representation(*term)
-        xxpp2 = oppo2.representation(*term)
+
+        g1 = np.array(
+            [[-1.81146079e-04, 3.97836803e-05],
+             [3.97836803e-05, 2.63572358e-05]])
+        xxpp1 = 2 * oppo.representation(*term, coeffs=g1, axes=[[0, 1], [1, 0]])
+        xxpp1 = xxpp1 + xxpp1
+        xxpp2 = 2 * oppo2.representation(*term, coeffs=g1, axes=[[0, 1], [1, 0]])
+        xxpp2 = xxpp2 + xxpp2
 
         usr = os.path.expanduser('~')
         job_is_dumb = [
@@ -202,31 +208,27 @@ class BasisSetTests(TestCase):
             os.path.join(usr, "Documents/UW/Research/Development")
         ]
 
-        states = (
-            (0, 0, 0, 0, 0),
-            (0, 1, 2, 3, 4)
+        quant_states = BasisStateSpace(
+            oppo,
+            self.get_states(9, m, max_quanta=10)
         )
+        brakets = quant_states.get_representation_brakets()
+
         # with Timer("New style"):
             # with BlockProfiler("New Style", strip_dirs=job_is_dumb, num_lines=10, sort_by='tottime', filter="Psience"):
-        vals1 = xxpp1[states]
-        self.assertEquals(vals1.shape, (m,) * n_terms + (len(states[0]),))
+        vals1 = xxpp1[brakets]
 
         # with Timer("Old style"):
             # with BlockProfiler("Old Style", strip_dirs=job_is_dumb, num_lines=10, sort_by='tottime', filter="Psience"):
-        vals2 = xxpp2[states]
-        self.assertEquals(vals2.shape, (m,) * n_terms + (len(states[0]),))
+        vals2 = xxpp2[brakets]
 
-        wat = np.roll(np.arange(n_terms + 1), 1)
-        # print(wat)
-        v1 = vals1.toarray().transpose(wat)
-        v2 = iphase * vals2.toarray().transpose(wat)
+        v1 = vals1
+        v2 = iphase * vals2
 
-        # print([np.max(v) for v in v1])
-        # print([np.max(v) for v in v2])
-        # print([np.max(v) for v in np.abs(v1 - v2)])
-        # print(v1[0], v2[0])
-        # print(v1[1], v2[1])
-        # print(vals1.toarray()[:, :, -1] - vals2.toarray()))
+        # import McUtils.Plots as plt
+        # n = len(quant_states)
+        # plt.ArrayPlot(v1.reshape((n, n)))
+        # plt.ArrayPlot(v2.reshape((n, n))).show()
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 
@@ -326,32 +328,30 @@ class BasisSetTests(TestCase):
             os.path.join(usr, "Documents/UW/Research/Development")
         ]
 
-        quant_states = self.get_states(9, 3, max_quanta=10)
-        states = oppo.ravel_state_inds(quant_states)
-        # print(quant_states)
-        import itertools as ip
-        wat = np.array(list(ip.product(states, states))).T
+        quant_states = BasisStateSpace(
+            oppo,
+            self.get_states(9, 3, max_quanta=10)
+        )
+        inds = quant_states.get_representation_brakets()
+
         # with Timer("New style"):
-        vals1 = xxpp1[wat[0], wat[1]]
-        # with Timer("New style Broadcasting"):
-        #     vals2 = xxpp1[np.ix_(states, states)]
-
+        vals1 = xxpp1[inds]
         # with Timer("Old style"):
-        vals2 = xxpp2[wat[0], wat[1]]
-        # with Timer("Old style Broadcasting"):
-        #     vals2 = xxpp2[np.ix_(states, states)]
-
-        # import McUtils.Plots as plt
-        # n = len(states)
-        # plt.ArrayPlot(vals1.reshape((n, n)))
-        # plt.ArrayPlot(iphase * vals2.reshape((n, n))).show()
+        vals2 = xxpp2[inds]
 
         v1 = vals1
         v2 = iphase * vals2
 
+        # import McUtils.Plots as plt
+        # n = len(quant_states)
+        # plt.ArrayPlot(v1.reshape((n, n)))
+        # plt.ArrayPlot(v2.reshape((n, n)))
+        # plt.ArrayPlot((v1 - v2).reshape((n, n)),
+        #               plot_style=dict(vmin=-1.0e-5, vmax=1.0e-5)).show()
+
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 
-    @validationTest
+    @debugTest
     def test_HOBasis4DPXXP(self):
         from Peeves import Timer, BlockProfiler
 

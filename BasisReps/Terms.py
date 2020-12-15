@@ -12,6 +12,7 @@ import numpy as np, itertools as ip, scipy.sparse as sp
 from McUtils.Numputils import SparseArray
 
 from .Operators import Operator
+from .StateSpaces import BraKetSpace
 
 #TODO: add in some level of support for caching
 class Representation:
@@ -80,6 +81,22 @@ class Representation:
                 n[negs] += self.ndims
             return n
 
+    def get_brakets(self, states):
+        """
+        Computes term elements based on getting a BraKetSpace.
+        Can directly pass element specs through, since the shape management shit
+        is managed by the BraKetSpace
+
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+        if not isinstance(states, BraKetSpace):
+            states = BraKetSpace.from_indices(states, basis=self.basis)
+
+        return self.compute(states)
+
     def get_element(self, n, m):
         """
         Computes term elements.
@@ -115,6 +132,8 @@ class Representation:
                     e1 = len(idx[0])
                     pull_elements = all(len(x) == e1 for x in idx)
                     # print(">??", pull_elements)
+
+        # This manages figuring out which indices we pull...
 
         # We figure out the row spec
         if not isinstance(n, int):
@@ -156,8 +175,8 @@ class Representation:
 
         if self.logger is not None:
             self.logger.log_print(
-                "computing {} representation elements",
-                len(n[0])
+                "computing {n} representation elements",
+                n=len(n[0])
             )
 
         i = tuple(pad_lens(a, b) for a, b in zip(n, m))
@@ -175,13 +194,21 @@ class Representation:
         return els
 
     def __getitem__(self, item):
+        if isinstance(item, BraKetSpace): # short circuit here
+            return self.get_brakets(item)
+
         if not isinstance(item, tuple):
             item = (item,)
         if len(item) == 1:
             item = item + (slice(None, None, None),)
         if len(item) > 2:
             raise Exception("index spec '{}' must be of dimension 2".format(item))
-        return self.get_element(*item)
+        else:
+            inds = np.array(item)
+            if inds.dtype == np.dtype(int):
+                return self.get_brakets(inds)
+            else:
+                return self.get_element(*item)
 
     def __rmul__(self, other):
         if isinstance(other, (int, float, np.integer, np.floating)):
@@ -288,13 +315,28 @@ class ExpansionRepresentation(Representation):
                     type(self).__name__,
                     type(other).__name__
                 ))
-    def get_element(self, n, m):
 
-        # try:
+    def get_brakets(self, states):
+        """
+        Computes term elements based on getting a BraKetSpace.
+        Can directly pass element specs through, since the shape management shit
+        is managed by the BraKetSpace
+
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+        if not isinstance(states, BraKetSpace):
+            states = BraKetSpace.from_indices(states, basis=self.basis)
+
+        return self.compute(states)
+
+    def _dispatch_over_expansion(self, attr, *args):
         els = None
         for c, t in zip(self.coeffs, self.computers):
             if not (isinstance(c, (int, float, np.integer, np.floating)) and c == 0):
-                bits = t.get_element(n, m)
+                bits = getattr(t, attr)(*args)
                 scaled = bits * c
                 if isinstance(scaled, (int, float, np.integer, np.floating)) and scaled != 0:
                     # raise Exception(bits, c, scaled, n,m, t)
@@ -321,6 +363,15 @@ class ExpansionRepresentation(Representation):
                         els += scaled
 
         return els
+
+    def get_brakets(self, states):
+        if not isinstance(states, BraKetSpace):
+            states = BraKetSpace.from_indices(states, basis=self.basis)
+
+        return self._dispatch_over_expansion('get_brakets', states)
+
+    def get_element(self, n, m):
+        return self._dispatch_over_expansion('get_element', n, m)
 
     def __repr__(self):
         return "{}(<{}>, ({}), ({}))".format(

@@ -11,7 +11,7 @@ __all__ = [
     "BasisStateSpace",
     "BasisMultiStateSpace",
     "SelectionRuleStateSpace",
-
+    "BraKetSpace"
 ]
 
 class BasisStateSpace:
@@ -217,6 +217,31 @@ class BasisStateSpace:
 
         return m_pairs
 
+    def get_representation_brakets(self,
+                                   other=None,
+                                   selection_rules=None,
+                                   freqs=None,
+                                   freq_threshold=None
+                                   ):
+        """
+        Generates a `BraKetSpace` that can be fed into a `Representation`
+        Basically just takes all pairs of indices.
+        Only returns the upper-triangle indices
+
+        :return:
+        :rtype:
+        """
+
+        inds = self.get_representation_indices(other=other,
+                                               selection_rules=selection_rules,
+                                               freqs=freqs,
+                                               freq_threshold=freq_threshold
+                                               )
+        return BraKetSpace(
+            BasisStateSpace(self.basis, inds[0], mode=BasisStateSpace.StateSpaceSpec.Indices),
+            BasisStateSpace(self.basis, inds[1], mode=BasisStateSpace.StateSpaceSpec.Indices)
+        )
+
     # def __getitem__(self, item):
     #     inds = self.indices[item]
     #     if isinstance(inds, np.ndarray):
@@ -224,8 +249,10 @@ class BasisStateSpace:
     #     else:
     #         return inds
 
-    def take_subspace(self, inds):
-        return type(self)(self.basis, self.indices, mode=self.StateSpaceSpec.Indices)
+    def take_subspace(self, sel):
+        return type(self)(self.basis,
+                          self.indices[sel],
+                          mode=self.StateSpaceSpec.Indices)
 
     def __repr__(self):
         return "{}(nstates={}, basis={})".format(
@@ -641,7 +668,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 class BraKetSpace:
     """
     Represents a set of pairs of states that can be fed into a `Representation` or `Operator`
-    to efficiently tell it what terms it need to calculate
+    to efficiently tell it what terms it need to calculate.
+    This basically just implements a bunch of stuff for generating a Graph defining
+    the connections between states.
     """
     def __init__(self,
                  bra_space,
@@ -656,7 +685,7 @@ class BraKetSpace:
         self.bras = bra_space
         self.kets = ket_space
         self.ndim = self.bras.ndim
-        self._orthogs = None
+        self._orthogs = {}
         self.state_pairs = (
             self.bras.excitations.T,
             self.kets.excitations.T
@@ -673,15 +702,33 @@ class BraKetSpace:
             from .HarmonicOscillator import HarmonicOscillatorProductBasis
             basis = HarmonicOscillatorProductBasis(quanta)
 
+        # we need to coerce the indices into a set of bra states and ket states...
+        inds = np.asarray(inds, dtype=int) # easier for us to work with @ the cost of a bit of perf.
 
+        if inds.shape[1] == 2: # we assume we have a (NDim X (Bra, Ket), X States) array
+            bra_states = inds[:, 0, ...]
+            ket_states = inds[:, 1, ...]
+        elif inds.shape[0] == 2:
+            bra_states = inds[0]
+            ket_states = inds[1]
+        else:
+            raise ValueError("don't know what to do with indices array of shape {}".format(inds.shape))
+
+        return BraKetSpace(
+            BasisStateSpace(basis, bra_states, mode=BasisStateSpace.StateSpaceSpec.Indices),
+            BasisStateSpace(basis, ket_states, mode=BasisStateSpace.StateSpaceSpec.Indices)
+        )
 
     def __len__(self):
         return len(self.bras)
 
+    def __repr__(self):
+        return "{}(nstates={})".format(type(self).__name__, len(self))
+
     def load_non_orthog(self):
-        if self._orthogs is None:
+        if 'base' not in self._orthogs:
             exc_l, exc_r = self.state_pairs
-            self._orthogs = exc_l == exc_r
+            self._orthogs['base'] = exc_l == exc_r
 
     def get_non_orthog(self, inds, assume_unique=False):
         """
@@ -694,8 +741,33 @@ class BraKetSpace:
         """
         if not assume_unique:
             inds = np.unique(inds)
-        self.load_non_orthog()
-        return np.prod(self._orthogs[inds], axis=0)
+        inds = tuple(np.sort(inds))
+        if inds not in self._orthogs:
+            self.load_non_orthog()
+            orthos = self._orthogs['base']
+            unused = np.delete(np.arange(len(orthos)), inds)
+            self._orthogs[inds] = np.where(np.prod(orthos[unused], axis=0) == 1)[0]
+        return self._orthogs[inds]
+
+    def get_sel_rules_from1d(self, inds, rules):
+        from collections import OrderedDict
+
+        uinds = OrderedDict((k, None) for k in inds)
+        uinds = np.array(list(uinds.keys()))
+        # from McUtils.Scaffolding import Logger
+        # logger = Logger.lookup("debug")
+        # logger.log_print("uinds: {u}", u=uinds)
+        mm = {k: i for i, k in enumerate(uinds)}
+        subdim = len(uinds)
+        sel_bits = [None] * subdim
+        for s, i in zip(rules, inds):
+            n = mm[i]  # makes sure that we fill in in the same order as uinds
+            if sel_bits[n] is None:
+                sel_bits[n] = s
+            else:
+                sel_bits[n] = np.unique(np.add.outer(s, sel_bits[n])).flatten()  # make the next set of rules
+
+        return sel_bits
 
     def get_sel_rule_filter(self, rules):
 
@@ -706,6 +778,12 @@ class BraKetSpace:
         # we have a set of rules for every dimension in states...
         # so we define a function that will tell us where any of the possible selection rules are satisfied
         # and then we apply that in tandem to the quanta changes between bra and ket and the rules
+
+        rules = [np.array(r) for r in rules]
+
+        # from McUtils.Scaffolding import Logger
+        # logger = Logger.lookup("debug")
+        # logger.log_print("oh! {r}", r=rules)
         apply_rules = lambda diff, rule: fp.reduce(
             lambda d, i: np.logical_or(d, diff == i),
             rule[1:],
