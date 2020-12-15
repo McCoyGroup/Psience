@@ -2367,7 +2367,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
-    @validationTest
+    @debugTest
     def test_HODVPTCartesians(self):
 
         internals = None
@@ -4914,7 +4914,7 @@ class VPTTests(TestCase):
 
     #region Intensity Breakdowns
 
-    @debugTest
+    @inactiveTest
     def test_HODIntensityBreakdown(self):
         internals = [
             [0, -1, -1, -1],
@@ -4964,7 +4964,7 @@ class VPTTests(TestCase):
             # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
-    @debugTest
+    @inactiveTest
     def test_HOHIntensityBreakdown(self):
         internals = [
             [0, -1, -1, -1],
@@ -5045,7 +5045,7 @@ class VPTTests(TestCase):
         # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec, write_wavefunctions=False)
 
-    @debugTest
+    @inactiveTest
     def test_WaterDimerInternalIntensityBreakdown(self):
 
         """

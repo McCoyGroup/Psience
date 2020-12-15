@@ -5,7 +5,7 @@ Provides support for build perturbation theory Hamiltonians
 import numpy as np, itertools, time
 
 from McUtils.Numputils import SparseArray, vec_outer
-from McUtils.Misc import Logger
+from McUtils.Scaffolding import Logger
 
 from ..Molecools import Molecule
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, HarmonicOscillatorProductBasis

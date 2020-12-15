@@ -12,7 +12,7 @@ import scipy.sparse as sp, numpy as np, functools, itertools
 from .Bases import *
 from .Operators import Operator, ContractedOperator
 from McUtils.Data import WavefunctionData
-from McUtils.Misc import MaxSizeCache
+from McUtils.Scaffolding import MaxSizeCache
 
 class HarmonicOscillatorBasis(RepresentationBasis):
     """
