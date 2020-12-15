@@ -403,3 +403,7 @@ class SimpleProductBasis(RepresentationBasis):
         :rtype:
         """
         return self.representation(self.bases[0].p)[:n, :n]
+
+    def take_subdimensions(self, dims):
+        qq = self.quanta
+        return type(self)(self.basis_type, [qq[d] for d in dims])

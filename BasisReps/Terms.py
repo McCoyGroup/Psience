@@ -320,8 +320,6 @@ class ExpansionRepresentation(Representation):
         els = None
         for c, t in zip(self.coeffs, self.computers):
             if not (isinstance(c, (int, float, np.integer, np.floating)) and c == 0):
-
-                print("...", c)
                 bits = getattr(t, attr)(*args)
                 scaled = bits * c
                 if isinstance(scaled, (int, float, np.integer, np.floating)) and scaled != 0:

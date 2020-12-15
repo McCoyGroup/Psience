@@ -180,6 +180,10 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
         else:
             return super().operator(*terms, coeffs=coeffs, axes=axes)
 
+    def take_subdimensions(self, dims):
+        qq = self.quanta
+        return type(self)([qq[d] for d in dims])
+
     def __repr__(self):
         return "HOBasis({})".format(
             ",".join(str(x) for x in self.dimensions)
@@ -295,12 +299,14 @@ class HarmonicProductOperatorTermEvaluator:
                 "*".join("({})".format(",".join(o.terms)) for o in self.ops)
             )
         def eval_states(self, states):
+            #
+            # if len(states) == 0:
+            #     raise ValueError("no states?")
 
             chunk = None
             for s, op in zip(states, self.ops):
                 # print(op)
                 blob = np.asarray(op(s))
-                # print(states)
                 if chunk is None:
                     if isinstance(blob, (int, np.integer, float, np.floating)):
                         chunk = np.array([blob])
@@ -314,7 +320,6 @@ class HarmonicProductOperatorTermEvaluator:
             return chunk
 
         def __call__(self, states):
-            # print("?????????")
             return self.eval_states(states)
 
         @property
@@ -358,26 +363,6 @@ class HarmonicProductOperatorTermEvaluator:
         def selection_rules(self):
             return list(range(-self.N, self.N+1, 2))
 
-        # @classmethod
-        # def rho_element_generator(cls, op_seq, p_pos):
-        #     """
-        #     A way to represent the elements of an operator composed of a sequence of `p` and `x` terms.
-        #     Returns a callable so that key parts (esp. type-checking stuff) can be reused.
-        #
-        #     :param op_seq: sequence of position and momentum operators
-        #     :type op_seq:
-        #     :return: function that makes a function to get the rho coefficients...
-        #     :rtype:
-        #     """
-        #
-        #     i_phase = (-1) ** (len(p_pos) // 2)  # the -1 terms coming from the complex part of the phase
-        #     # the residual complex part
-        #     is_complex = len(p_pos) % 2 == 1
-        #     def get_terms(a, N=len(op_seq), i_phase=i_phase, is_complex=is_complex, sel=p_pos):
-        #         return cls._rho_term_generator(a, N, i_phase, is_complex, sel)
-        #
-        #     return get_terms
-
         def __call__(self, states):
             return self.evaluate_state_terms(states)
 
@@ -395,8 +380,6 @@ class HarmonicProductOperatorTermEvaluator:
             deltas = states[1] - states[0]
             delta_vals = np.unique(deltas)
             delta_sels = [np.where(deltas==a) for a in delta_vals]
-
-            # print(">>>>", delta_vals)
 
             biggo = np.zeros(states[0].shape)
             for a, s in zip(delta_vals, delta_sels):

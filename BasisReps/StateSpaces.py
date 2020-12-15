@@ -4,6 +4,7 @@ By providing a single interface here, we can avoid recomputing information over 
 """
 
 import numpy as np, itertools as ip, enum, scipy.sparse as sp
+import abc
 
 from McUtils.Numputils import SparseArray
 
@@ -14,32 +15,22 @@ __all__ = [
     "BraKetSpace"
 ]
 
-class BasisStateSpace:
+class AbstractStateSpace(metaclass=abc.ABCMeta):
     """
-    Represents a subspace of states inside a representation basis.
-    Useful largely to provide consistent, unambiguous representations of multiple states across
-    the different representation-generating methods in the code base.
+    Represents a generalized state space which will provide core
+    methods to index into a basis and generate representations
     """
 
     class StateSpaceSpec(enum.Enum):
         Excitations = "excitations"
         Indices = "indices"
 
-    def __init__(self, basis, states, mode=None):
+    def __init__(self, basis):
         """
         :param basis:
         :type basis: RepresentationBasis
-        :param states:
-        :type states: Iterable[int]
-        :param mode: whether the states were supplied as indices or as excitations
-        :type mode: None | str | StateSpaceSpec
         """
-
         self.basis = basis
-        self._init_states = np.asarray(states, dtype=int)
-        if mode is not None and not isinstance(mode, self.StateSpaceSpec):
-            mode = self.StateSpaceSpec(mode)
-        self._init_state_types = mode
         self._indices = None
         self._excitations = None
         self._indexer = None
@@ -81,6 +72,130 @@ class BasisStateSpace:
 
     def __len__(self):
         return len(self.indices)
+
+    @abc.abstractmethod
+    def as_indices(self):
+        """
+        Returns the index version of the stored states
+        :return:
+        :rtype: np.ndarray
+        """
+        return NotImplementedError("abstract base class")
+
+    @abc.abstractmethod
+    def as_excitations(self):
+        """
+        Returns the excitation version of the stored states
+        :return:
+        :rtype: np.ndarray
+        """
+        return NotImplementedError("abstract base class")
+
+    @abc.abstractmethod
+    def get_representation_indices(self,
+                                   other=None,
+                                   selection_rules=None,
+                                   freqs=None,
+                                   freq_threshold=None
+                                   ):
+        """
+        Returns bra and ket indices that can be used as indices to generate representations
+
+        :param other:
+        :type other:
+        :param selection_rules:
+        :type selection_rules:
+        :param freqs:
+        :type freqs:
+        :param freq_threshold:
+        :type freq_threshold:
+        :return:
+        :rtype: (np.ndarray, np.ndarray)
+        """
+        return NotImplementedError("abstract base class")
+
+    @abc.abstractmethod
+    def get_representation_brakets(self,
+                                   other=None,
+                                   selection_rules=None,
+                                   freqs=None,
+                                   freq_threshold=None
+                                   ):
+        """
+        Returns a BraKetSpace that can be used as generate representations
+
+        :param other:
+        :type other:
+        :param selection_rules:
+        :type selection_rules:
+        :param freqs:
+        :type freqs:
+        :param freq_threshold:
+        :type freq_threshold:
+        :return:
+        :rtype: BraKetSpace
+        """
+        return NotImplementedError("abstract base class")
+
+    @abc.abstractmethod
+    def take_intersection(self, states):
+        """
+        Takes the intersection of self and the specified states
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("abstract base class")
+    @abc.abstractmethod
+    def take_subspace(self, sel):
+        """
+        Takes a subset of the states
+
+        :param sel:
+        :type sel:
+        :return:
+        :rtype: AbstractStateSpace
+        """
+        raise NotImplementedError("abstract base class")
+    @abc.abstractmethod
+    def take_subdimensions(self, inds):
+        """
+        Takes a subset of the state dimensions
+
+        :param sel:
+        :type sel:
+        :return:
+        :rtype: AbstractStateSpace
+        """
+        raise NotImplementedError("abstract base class")
+
+class BasisStateSpace(AbstractStateSpace):
+    """
+    Represents a subspace of states inside a representation basis.
+    Useful largely to provide consistent, unambiguous representations of multiple states across
+    the different representation-generating methods in the code base.
+    """
+
+    def __init__(self, basis, states, mode=None):
+        """
+        :param basis:
+        :type basis: RepresentationBasis
+        :param states:
+        :type states: Iterable[int]
+        :param mode: whether the states were supplied as indices or as excitations
+        :type mode: None | str | StateSpaceSpec
+        """
+
+        super().__init__(basis)
+
+        self._init_states = np.asarray(states, dtype=int)
+        if mode is not None and not isinstance(mode, self.StateSpaceSpec):
+            mode = self.StateSpaceSpec(mode)
+        self._init_state_types = mode
+        self._indices = None
+        self._excitations = None
+        self._indexer = None
 
     def infer_state_inds_type(self):
         if self._init_state_types is not None:
@@ -251,10 +366,25 @@ class BasisStateSpace:
     #     else:
     #         return inds
 
+    def take_intersection(self, states):
+        """
+        Takes the intersection of self and the specified states
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+        found = self.find(states)
+        sel = found[found >= 0]
+        return self.take_subspace(sel)
     def take_subspace(self, sel):
         return type(self)(self.basis,
                           self.indices[sel],
                           mode=self.StateSpaceSpec.Indices)
+    def take_subdimensions(self, inds):
+        return type(self)(self.basis.take_subdimensions(inds),
+                          self._excitations[:, inds],
+                          mode=self.StateSpaceSpec.Excitations)
 
     def __repr__(self):
         return "{}(nstates={}, basis={})".format(
@@ -263,7 +393,7 @@ class BasisStateSpace:
             self.basis
         )
 
-class BasisMultiStateSpace:
+class BasisMultiStateSpace(AbstractStateSpace):
     """
     Represents a collection of `BasisStateSpace` objects.
     This is commonly generated by application of selection rules to a standard `BasisStateSpace`.
@@ -279,9 +409,7 @@ class BasisMultiStateSpace:
         :type selection_rules: np.ndarray
         """
         self.spaces = np.asarray(spaces, dtype=object)
-        self._indexer = None
-        self._indices = None
-        self._excitations = None
+        super().__init__(self.basis)
 
     @property
     def representative_space(self):
@@ -290,6 +418,10 @@ class BasisMultiStateSpace:
     @property
     def basis(self):
         return self.representative_space.basis
+    @basis.setter
+    def basis(self, b):
+        if b is not self.basis:
+            raise NotImplementedError("can't change basis after construction")
 
     @property
     def ndim(self):
@@ -308,20 +440,8 @@ class BasisMultiStateSpace:
     def flat(self):
         return self.spaces.flat
 
-    @property
-    def indices(self):
-        """
-        Returns all of the indices inside all of the held state spaces
 
-        :return:
-        :rtype:
-        """
-
-        if self._indices is None:
-            self._indices = self._get_inds()
-        return self._indices
-
-    def _get_inds(self):
+    def as_indices(self):
         inds = None
         for space in self.spaces.flat:
             new_inds = space.indices
@@ -331,20 +451,7 @@ class BasisMultiStateSpace:
                 inds = np.unique(np.concatenate([inds, new_inds]))
         return inds
 
-    @property
-    def excitations(self):
-        """
-        Returns all of the indices inside all of the held state spaces
-
-        :return:
-        :rtype:
-        """
-
-        if self._excitations is None:
-            self._excitations = self._get_exc()
-        return self._excitations
-
-    def _get_exc(self):
+    def as_excitations(self):
 
         inds = None
         for space in self.spaces.flat:
@@ -355,23 +462,6 @@ class BasisMultiStateSpace:
                 inds = np.unique(np.concatenate([inds, new_inds], axis=0), axis=0)
 
         return inds
-
-    @property
-    def indexer(self):
-        if self._indexer is None:
-            self._indexer = np.argsort(self.indices)
-        return self._indexer
-
-    def find(self, to_search):
-        """
-        Finds the indices of a set of indices inside the space
-
-        :param to_search: array of ints
-        :type to_search: np.ndarray
-        :return:
-        :rtype:
-        """
-        return np.searchsorted(self.indices, to_search, sorter=self.indexer)
 
     def __getitem__(self, item):
         it = self.spaces[item]
@@ -425,8 +515,11 @@ class BasisMultiStateSpace:
 
     def get_representation_brakets(self,
                                    freqs=None,
-                                   freq_threshold=None
+                                   freq_threshold=None,
+                                   other=None,
+                                   selection_rules=None
                                    ):
+
         return BasisStateSpace.get_representation_brakets(self, freqs=freqs, freq_threshold=freq_threshold)
 
     def to_single(self):
@@ -434,6 +527,48 @@ class BasisMultiStateSpace:
                                self.indices,
                                mode=BasisStateSpace.StateSpaceSpec.Indices
                                )
+
+    def take_intersection(self, states):
+        """
+        Takes the intersection of each held space and the specified states
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+        def take_inter(space, states=states):
+            return space.take_intersection(states)
+        new_spaces = np.apply_along_axis(
+            take_inter,
+            -1,
+            self.spaces
+        )
+        return type(self)(new_spaces)
+
+    def take_subspace(self, sel):
+        """
+        Takes the specified states, making sure each held space
+        only contains states in `sel`
+        :param sel:
+        :type sel:
+        :return:
+        :rtype:
+        """
+
+        subsel = self.indices[sel,]
+        return self.take_intersection(subsel)
+    def take_subdimensions(self, inds):
+        """
+        Takes the subdimensions from each space
+        :param inds:
+        :type inds:
+        :return:
+        :rtype:
+        """
+        def take(space, inds=inds):
+            return space.take_subdimensions(inds)
+        new_spaces = np.apply_along_axis(take, -1, self.spaces)
+        return type(self)(new_spaces)
 
     def __repr__(self):
         return "{}(nstates={}, shape={}, basis={})".format(
@@ -460,17 +595,16 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         if isinstance(excitations, np.ndarray) and excitations.dtype == int:
             excitations = [BasisStateSpace(init_space.basis, x) for x in excitations]
-
-        super().__init__(excitations)
-        self.base_space = init_space
+        # self.base_space = init_space
         self.sel_rules = selection_rules
+        super().__init__(excitations)
 
-    @property
-    def basis(self):
-        return self.base_space.basis
-    @property
-    def ndim(self):
-        return self.base_space.ndim
+    # @property
+    # def basis(self):
+    #     return self.base_space.basis
+    # @property
+    # def ndim(self):
+    #     return self.base_space.ndim
 
     def get_representation_indices(self,
                                    other=None,
@@ -492,7 +626,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         if freq_threshold is not None:
             raise ValueError("Haven't implemented freq. threshold yet...")
 
-        inds_base = self.base_space.indices
+        inds_base = self.representative_space.indices
         inds_l = []
         inds_r = []
         for i, s in zip(inds_base, self.flat):
@@ -512,7 +646,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
     def get_representation_brakets(self,
                                    freqs=None,
-                                   freq_threshold=None
+                                   freq_threshold=None,
+                                   other=None,
+                                   selection_rules=None
                                    ):
         return BasisStateSpace.get_representation_brakets(self, freqs=freqs, freq_threshold=freq_threshold)
 
@@ -705,9 +841,9 @@ class BraKetSpace:
                  ):
         """
         :param bra_space:
-        :type bra_space: BasisStateSpace
+        :type bra_space: AbstractStateSpace
         :param ket_space:
-        :type ket_space: BasisStateSpace
+        :type ket_space: AbstractStateSpace
         """
         self.bras = bra_space
         self.kets = ket_space
@@ -825,7 +961,13 @@ class BraKetSpace:
     def take_subspace(self, sel):
         return type(self)(
             self.bras.take_subspace(sel),
-            self.kets.take_subspace(sel),
+            self.kets.take_subspace(sel)
+        )
+
+    def take_subdimensions(self, inds):
+        return type(self)(
+            self.bras.take_subdimensions(inds),
+            self.kets.take_subdimensions(inds)
         )
 
     def apply_non_orthogonality(self, inds, assume_unique=False):

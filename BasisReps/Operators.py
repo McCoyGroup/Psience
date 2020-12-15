@@ -156,6 +156,10 @@ class Operator:
         # since it acts on the same index more times
         # The indices will be mapped onto ints for storage in `pieces`
 
+        uinds = OrderedDict((k, None) for k in inds)
+        uinds = np.array(list(uinds.keys()))
+        states = states.take_subdimensions(uinds)
+
         if sel_rules is not None:
             sel_rules = states.get_sel_rules_from1d(inds, sel_rules)
             states, all_sels = states.apply_sel_rules(sel_rules)
@@ -166,9 +170,6 @@ class Operator:
         bras, kets = states.state_pairs
         max_dim = max(np.max(bras), np.max(kets))
         padding = 3  # for approximation reasons we need to pad our representations...
-
-        uinds = OrderedDict((k, None) for k in inds)
-        uinds = np.array(list(uinds.keys()))
 
         mm = {k: i for i, k in enumerate(uinds)}
         subdim = len(uinds)
@@ -222,6 +223,9 @@ class Operator:
 
         # next we get the term generator defined by inds
         # this will likely end up calling uinds again, but ah well, that operation is cheap
+        uinds = OrderedDict((k, None) for k in inds)
+        uinds = np.array(list(uinds.keys()))
+        states = states.take_subdimensions(uinds)
 
         gen = func(inds)
         try:
@@ -237,9 +241,9 @@ class Operator:
             if len(states) == 0:
                 return None, None
 
-        bras, kets = states.state_pairs
-        states = [bk for i, bk in enumerate(zip(bras, kets)) if i in inds]
-        chunk = gen(states)
+        # bras, kets = states.state_pairs
+        # states = [bk for i, bk in enumerate(zip(bras, kets)) if i in inds]
+        chunk = gen(zip(*states.state_pairs))
 
         return chunk, sel_rules
 
@@ -263,7 +267,6 @@ class Operator:
         :return:
         :rtype:
         """
-
 
         # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
@@ -526,7 +529,7 @@ class ContractedOperator(Operator):
                 axes = (tuple(range(c.ndim)), )*2
             subTensor = super().get_elements(idx, parallelizer=parallelizer)
 
-            # print(subTensor.toarray().transpose(2, 0, 1), c)
+            # 1230987654321`subTensor.toarray().transpose(2, 0, 1), c)
             if isinstance(subTensor, np.ndarray):
                 contracted = np.tensordot(subTensor.squeeze(), c, axes=axes)
             else:

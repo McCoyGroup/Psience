@@ -634,9 +634,6 @@ class PerturbationTheoryHamiltonian:
 
         # import McUtils.Plots as plt
         # plt.ArrayPlot(diag.reshape(-1, len(diag)//2)).show()
-        raise Exception([
-            h_reps[1].computers[1].operator.coeffs
-        ])
 
         total_coupled_space = total_state_space.indices
         tot_space_indexer = np.argsort(total_coupled_space)
