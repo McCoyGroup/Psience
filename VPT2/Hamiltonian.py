@@ -294,7 +294,6 @@ class PerturbationTheoryHamiltonian:
                 iphase = 1
             else:
                 iphase = -1
-
             self._h1 = (
                     (iphase * 1 / 2) * self.basis.representation('p', 'x', 'p',
                                                                  coeffs=self.G_terms[1],
@@ -635,15 +634,14 @@ class PerturbationTheoryHamiltonian:
 
         # import McUtils.Plots as plt
         # plt.ArrayPlot(diag.reshape(-1, len(diag)//2)).show()
-        # raise Exception([
-        #     h_reps[0].computers[0].operator.coeffs,
-        #     h_reps[0].computers[1].operator.coeffs
-        # ])
+        raise Exception([
+            h_reps[1].computers[1].operator.coeffs
+        ])
 
         total_coupled_space = total_state_space.indices
         tot_space_indexer = np.argsort(total_coupled_space)
 
-        for i,h in enumerate(h_reps[1:]):
+        for i, h in enumerate(h_reps[1:]):
             # calculate matrix elements in the coupled subspace
             cs = total_state_space[i+1]
 

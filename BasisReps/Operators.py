@@ -264,20 +264,11 @@ class Operator:
         :rtype:
         """
 
-        # logger = Logger.lookup('debug')
-        # if isinstance(logger, NullLogger):
-        #     logger = Logger()
-        #     logger.register('debug')
-        #
-        # with logger.block(tag="{} - {}".format(inds, isinstance(funcs, (list, tuple)))):
 
         # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
         nstates = len(states)
-        oggg = states
         states, non_orthog = states.apply_non_orthogonality(inds)
-
-        # logger.log_print('nort: {n}', n=len(non_orthog))
 
         # if none of the states are non-orthogonal...just don't calculate anything
         if len(non_orthog) == 0:

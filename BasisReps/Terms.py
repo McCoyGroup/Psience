@@ -316,26 +316,12 @@ class ExpansionRepresentation(Representation):
                     type(other).__name__
                 ))
 
-    def get_brakets(self, states):
-        """
-        Computes term elements based on getting a BraKetSpace.
-        Can directly pass element specs through, since the shape management shit
-        is managed by the BraKetSpace
-
-        :param states:
-        :type states:
-        :return:
-        :rtype:
-        """
-        if not isinstance(states, BraKetSpace):
-            states = BraKetSpace.from_indices(states, basis=self.basis)
-
-        return self.compute(states)
-
     def _dispatch_over_expansion(self, attr, *args):
         els = None
         for c, t in zip(self.coeffs, self.computers):
             if not (isinstance(c, (int, float, np.integer, np.floating)) and c == 0):
+
+                print("...", c)
                 bits = getattr(t, attr)(*args)
                 scaled = bits * c
                 if isinstance(scaled, (int, float, np.integer, np.floating)) and scaled != 0:
@@ -367,7 +353,6 @@ class ExpansionRepresentation(Representation):
     def get_brakets(self, states):
         if not isinstance(states, BraKetSpace):
             states = BraKetSpace.from_indices(states, basis=self.basis)
-
         return self._dispatch_over_expansion('get_brakets', states)
 
     def get_element(self, n, m):
