@@ -631,12 +631,7 @@ class PerturbationTheoryHamiltonian:
             logger.log_print(["constructing sparse representation"])
             H[0] = SparseArray.from_diag(diag)
             end = time.time()
-            logger.log_print(
-                [
-                    "took {t}s"
-                ],
-                t=round(end - start, 3)
-            )
+            logger.log_print("took {t:.3f}s", t=end-start)
 
         # import McUtils.Plots as plt
         # plt.ArrayPlot(diag.reshape(-1, len(diag)//2)).show()
@@ -645,18 +640,16 @@ class PerturbationTheoryHamiltonian:
         #     h_reps[0].computers[1].operator.coeffs
         # ])
 
+        total_coupled_space = total_state_space.indices
+        tot_space_indexer = np.argsort(total_coupled_space)
+
         for i,h in enumerate(h_reps[1:]):
             # calculate matrix elements in the coupled subspace
             cs = total_state_space[i+1]
 
-            m_pairs = cs.get_representation_brakets(freq_threshold=freq_threshold)
-            # blebs = BasisStateSpace(cs.basis,
-            #     ((0, 0, 0, 0, 0, 1), (0, 0, 1, 1, 0, 0))
-            # , mode='excitations')
-
-            # print(any(tuple(x-blebs.indices) == (0, 0) for x in m_pairs.T))
-
             with logger.block(tag="getting H" + str(i + 1)):
+                m_pairs = cs.get_representation_brakets(freq_threshold=freq_threshold)
+
                 start = time.time()
                 if len(m_pairs) > 0:
                     logger.log_print(
@@ -697,13 +690,9 @@ class PerturbationTheoryHamiltonian:
                     full_inds, idx = np.unique(full_inds, axis=0, return_index=True)
                     full_dat = full_dat[idx]
                     sub = SparseArray((full_dat, full_inds.T), shape=(N, N))
+                    # sub = SparseArray((np.ones(len(full_dat)), full_inds.T), shape=(N, N))
                 end = time.time()
-                logger.log_print(
-                    [
-                        "took {t}s"
-                    ],
-                    t=round(end - start, 3)
-                )
+                logger.log_print("took {t:.3f}s", t=end - start)
 
             # if i == 0:
             #     "0.028258378995078746"
@@ -712,6 +701,8 @@ class PerturbationTheoryHamiltonian:
             #     "0.11518508464641353"
             #     "0.1180029152600935"
             #     raise Exception(np.sum(np.abs(sub.block_vals)))
+            import McUtils.Plots as plt
+            plt.ArrayPlot(sub.toarray()).show()
             H[i+1] = sub #type: np.ndarray
 
         # raise Exception("....")
