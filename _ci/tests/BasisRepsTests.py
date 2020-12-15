@@ -260,7 +260,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(np.average(diags), 0.036932841734999985)
 
-    @validationTest
+    @debugTest
     def test_HOBasis3DPXP(self):
         from Peeves import Timer, BlockProfiler
 
@@ -298,7 +298,7 @@ class BasisSetTests(TestCase):
 
         quant_states = BasisStateSpace(
             oppo,
-            self.get_states(9, 3, max_quanta=10)
+            self.get_states(3, 3, max_quanta=10)
         )
         inds = quant_states.get_representation_brakets()
 
@@ -330,6 +330,16 @@ class BasisSetTests(TestCase):
         #               plot_style=dict(vmin=-1.0e-5, vmax=1.0e-5))
         # plt.ArrayPlot((v1 - v2).reshape((n, n)),
         #               plot_style=dict(vmin=-1.0e-5, vmax=1.0e-5)).show()
+
+        self.assertTrue(
+            np.allclose(
+                v1[:15],
+                [0.00000000e+00, -2.86578374e-04, 0.00000000e+00, 3.29150701e-06,
+                 -1.53766049e-04, 0.00000000e+00, -1.59263719e-06, 0.00000000e+00,
+                 -5.52442364e-06, 1.24871307e-06, -6.66923918e-05, 0.00000000e+00,
+                 -3.81027078e-05, 0.00000000e+00, -1.61862393e-04],
+                atol=1.0e-5
+            ))
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 
