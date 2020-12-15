@@ -181,7 +181,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 
-    @debugTest
+    @validationTest
     def test_HOBasis2DPP(self):
         from Peeves import Timer, BlockProfiler
 
@@ -293,6 +293,35 @@ class BasisSetTests(TestCase):
         # self.assertEquals(eval.terms, (("x", "p"), ("x", "p")))
 
     @debugTest
+    def test_HarmHam(self):
+
+        n = 10
+        m = 3
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+        G, V = [
+            np.array([[6.47886479e-03, 5.17641431e-12, -1.12922679e-12],
+                      [5.17641431e-12, 1.28034398e-02, -3.15629792e-12],
+                      [-1.12922679e-12, -3.15629792e-12, 1.76505371e-02]]),
+            np.array([[6.47886478e-03, -8.45595180e-13, -1.01327126e-11],
+                      [-8.45595549e-13, 1.28034398e-02, -4.72136245e-12],
+                      [-1.01327124e-11, -4.72136255e-12, 1.76505372e-02]])]
+
+        mommy = (1 / 2) * basis.representation('p', 'p', coeffs=G)
+        possy = (1 / 2) * basis.representation('x', 'x', coeffs=V)
+        H0 = ( mommy + possy )
+
+        states = BasisStateSpace(basis, self.get_states(2, 3, max_quanta=10), mode='excitations')
+
+        diag_inds = BraKetSpace(states, states)
+
+        # raise Exception(diag_inds.state_pairs)
+
+        diags = H0[diag_inds]
+
+        self.assertEquals(np.average(diags), 0.036932841734999985)
+
+
+    @validationTest
     def test_HOBasis3DPXP(self):
         from Peeves import Timer, BlockProfiler
 
@@ -351,7 +380,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 
-    @debugTest
+    @validationTest
     def test_HOBasis4DPXXP(self):
         from Peeves import Timer, BlockProfiler
 
@@ -377,11 +406,11 @@ class BasisSetTests(TestCase):
         # print(quant_states)
         import itertools as ip
         wat = np.array(list(ip.product(states, states))).T
-        with Timer("New style"):
-            vals1 = xxpp1[wat[0], wat[1]]
+        # with Timer("New style"):
+        vals1 = xxpp1[wat[0], wat[1]]
 
-        with Timer("Old style"):
-            vals2 = xxpp2[wat[0], wat[1]]
+        # with Timer("Old style"):
+        vals2 = xxpp2[wat[0], wat[1]]
 
         v1 = vals1.toarray()
         v2 = iphase * vals2.toarray()

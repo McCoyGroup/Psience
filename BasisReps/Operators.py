@@ -84,7 +84,9 @@ class Operator:
 
     def __getitem__(self, item):
         # check to see if we were actually given a bunch of bra and ket states
-        if (
+        if isinstance(item, BraKetSpace): # common case, so we use it to skip further fuckery
+            pass
+        elif (
                 isinstance(item, tuple)
                 and len(item) == 2
                 and all(len(x) == self.mode_n for x in item[0])
@@ -220,6 +222,7 @@ class Operator:
 
         # next we get the term generator defined by inds
         # this will likely end up calling uinds again, but ah well, that operation is cheap
+
         gen = func(inds)
         try:
             g, sel_rules = gen
@@ -234,6 +237,8 @@ class Operator:
             if len(states) == 0:
                 return None, None
 
+        bras, kets = states.state_pairs
+        states = [bk for i, bk in enumerate(zip(bras, kets)) if i in inds]
         chunk = gen(states)
 
         return chunk, sel_rules
@@ -266,10 +271,10 @@ class Operator:
         #
         # with logger.block(tag="{} - {}".format(inds, isinstance(funcs, (list, tuple)))):
 
-
         # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
         nstates = len(states)
+        oggg = states
         states, non_orthog = states.apply_non_orthogonality(inds)
 
         # logger.log_print('nort: {n}', n=len(non_orthog))
@@ -279,15 +284,9 @@ class Operator:
             return sp.csr_matrix((1, nstates), dtype='float')
         else:
             if isinstance(funcs, (list, tuple)):
-                # if sel_rules is not None:
-                #     if all_sels is not None:
-                #         non_orthog = non_orthog[all_sels,]
                 chunk, all_sels = self._mat_prod_operator_terms(inds, funcs, states, sel_rules)
             else:
                 chunk, all_sels = self._direct_prod_operator_terms(inds, funcs, states)
-
-            # if chunk is None:
-            #     return sp.csr_matrix((1, nstates), dtype='float')
 
             if all_sels is not None:
                 if not (isinstance(all_sels, np.ndarray) and all_sels.dtype == np.dtype(bool)):
@@ -535,6 +534,8 @@ class ContractedOperator(Operator):
             if axes is None:
                 axes = (tuple(range(c.ndim)), )*2
             subTensor = super().get_elements(idx, parallelizer=parallelizer)
+
+            # print(subTensor.toarray().transpose(2, 0, 1), c)
             if isinstance(subTensor, np.ndarray):
                 contracted = np.tensordot(subTensor.squeeze(), c, axes=axes)
             else:

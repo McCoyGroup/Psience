@@ -295,9 +295,6 @@ class HarmonicProductOperatorTermEvaluator:
                 "*".join("({})".format(",".join(o.terms)) for o in self.ops)
             )
         def eval_states(self, states):
-            if isinstance(states, BraKetSpace):
-                bras, kets = states.state_pairs
-                states = zip(bras, kets)
 
             chunk = None
             for s, op in zip(states, self.ops):

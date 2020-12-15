@@ -2367,7 +2367,7 @@ class VPTTests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
-    @validationTest
+    @debugTest
     def test_HODVPTCartesians(self):
 
         internals = None
@@ -3009,7 +3009,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @debugTest
+    @validationTest
     def test_OCHDVPTCartesians(self):
 
         internals = None
@@ -3031,7 +3031,7 @@ class VPTTests(TestCase):
         #     return
 
         with BlockProfiler("OCHD Cartesians",
-                           print_res='raise',
+                           print_res=False,#'raise',
                            strip_dirs=self.job_is_dumb,
                            sort_by='cumtime'
                            ):
@@ -4037,7 +4037,7 @@ class VPTTests(TestCase):
 
     #region Test Terms
     @validationTest
-    def test_HODVPTCartesianPotential(self):
+    def test_HODCartesianPotential(self):
 
         internals = None
 
@@ -4096,7 +4096,7 @@ class VPTTests(TestCase):
         self.assertLess(np.max(np.abs(eng_corrs - gaussian_corrs)), .5)
 
     @validationTest
-    def test_HODVPTCartesianCoriolis(self):
+    def test_HODCartesianCoriolis(self):
 
         internals = None
 
@@ -4265,7 +4265,7 @@ class VPTTests(TestCase):
         self.assertLess(np.max(np.abs(eng_corrs - gauss_corrs)), .5) # less than .5 wavenumbers off
 
     @validationTest
-    def test_OCHDVPTCartesiansPotential(self):
+    def test_OCHDCartesiansPotential(self):
 
         internals = None
 
@@ -4322,7 +4322,7 @@ class VPTTests(TestCase):
         self.assertLess(np.max(np.abs(eng_corrs - gaussian_corrs)), .5)
 
     @validationTest
-    def test_OCHDVPTCartesiansCoriolis(self):
+    def test_OCHDCartesiansCoriolis(self):
 
         internals = None
 

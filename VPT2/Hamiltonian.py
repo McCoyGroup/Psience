@@ -8,7 +8,7 @@ from McUtils.Numputils import SparseArray, vec_outer
 from McUtils.Scaffolding import Logger, NullLogger
 
 from ..Molecools import Molecule
-from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, HarmonicOscillatorProductBasis
+from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
 
 from .Common import PerturbationTheoryException
 from .Terms import PotentialTerms, KineticTerms, CoriolisTerm, PotentialLikeTerm
@@ -612,12 +612,9 @@ class PerturbationTheoryHamiltonian:
         # print(coupled_states)
         space_list = [input_state_space] + list(coupled_states)
         total_state_space = BasisMultiStateSpace(np.array(space_list,  dtype=object))
-        # determine indices of subspaces within this total space
-        total_coupled_space = total_state_space.indices
-        tot_space_indexer = np.argsort(total_coupled_space)
-
-        # get explicit matrix reps inside the separate coupled subspaces
-        N = len(total_coupled_space)
+        flat_total_space = total_state_space.to_single()
+        diag_inds = BraKetSpace(flat_total_space, flat_total_space)
+        N = len(total_state_space)
 
         logger.log_print(
             ["total coupled space dimensions: {d}"],
@@ -630,7 +627,7 @@ class PerturbationTheoryHamiltonian:
         with logger.block(tag="getting H0"):
             start = time.time()
             logger.log_print(["calculating diagonal elements"])
-            diag = h_reps[0][total_coupled_space, total_coupled_space]
+            diag = h_reps[0][diag_inds]
             logger.log_print(["constructing sparse representation"])
             H[0] = SparseArray.from_diag(diag)
             end = time.time()
@@ -641,11 +638,18 @@ class PerturbationTheoryHamiltonian:
                 t=round(end - start, 3)
             )
 
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(diag.reshape(-1, len(diag)//2)).show()
+        # raise Exception([
+        #     h_reps[0].computers[0].operator.coeffs,
+        #     h_reps[0].computers[1].operator.coeffs
+        # ])
+
         for i,h in enumerate(h_reps[1:]):
             # calculate matrix elements in the coupled subspace
             cs = total_state_space[i+1]
 
-            m_pairs = cs.get_representation_indices(freq_threshold=freq_threshold)
+            m_pairs = cs.get_representation_brakets(freq_threshold=freq_threshold)
             # blebs = BasisStateSpace(cs.basis,
             #     ((0, 0, 0, 0, 0, 1), (0, 0, 1, 1, 0, 0))
             # , mode='excitations')
@@ -654,13 +658,13 @@ class PerturbationTheoryHamiltonian:
 
             with logger.block(tag="getting H" + str(i + 1)):
                 start = time.time()
-                if len(m_pairs[0]) > 0:
+                if len(m_pairs) > 0:
                     logger.log_print(
                         ["coupled space dimension {d}"],
-                        d=len(m_pairs[0])
+                        d=len(m_pairs)
                     )
                     # print(m_pairs)
-                    sub = h[m_pairs[0], m_pairs[1]]
+                    sub = h[m_pairs]
                     SparseArray.clear_ravel_caches()
                 else:
                     logger.log_print('no states to couple!')
@@ -678,8 +682,8 @@ class PerturbationTheoryHamiltonian:
                         sub = np.full((N, N), sub)
                 else:
                     # figure out the appropriate inds for this data in the sparse representation
-                    row_inds = np.searchsorted(total_coupled_space, m_pairs[0], sorter=tot_space_indexer)
-                    col_inds = np.searchsorted(total_coupled_space, m_pairs[1], sorter=tot_space_indexer)
+                    row_inds = flat_total_space.find(m_pairs.bras)
+                    col_inds = flat_total_space.find(m_pairs.kets)
 
                     # upper triangle of indices
                     up_tri = np.array([row_inds, col_inds]).T
@@ -689,20 +693,7 @@ class PerturbationTheoryHamiltonian:
                     # will sum up any repeated elements
                     full_inds = np.concatenate([up_tri, low_tri])
                     full_dat = np.concatenate([sub, sub])
-                    # zeroes = np.where(sub == 0)
-                    # if len(zeroes[0]) > 0:
-                    #     raise Exception(
-                    #         len(zeroes[0]),
-                    #         up_tri[zeroes],
-                    #         BasisStateSpace(
-                    #             states.basis,
-                    #             up_tri[zeroes][:, 0]
-                    #         ).excitations,
-                    #         BasisStateSpace(
-                    #             states.basis,
-                    #             up_tri[zeroes][:, 1]
-                    #         ).excitations
-                    #     )
+
                     full_inds, idx = np.unique(full_inds, axis=0, return_index=True)
                     full_dat = full_dat[idx]
                     sub = SparseArray((full_dat, full_inds.T), shape=(N, N))

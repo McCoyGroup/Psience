@@ -75,6 +75,8 @@ class BasisStateSpace:
         :return:
         :rtype:
         """
+        if not isinstance(to_search, np.ndarray) and hasattr(to_search, 'indices'):
+            to_search = to_search.indices
         return np.searchsorted(self.indices, to_search, sorter=self.indexer)
 
     def __len__(self):
@@ -380,7 +382,9 @@ class BasisMultiStateSpace:
 
     def get_representation_indices(self,
                                    freqs=None,
-                                   freq_threshold=None
+                                   freq_threshold=None,
+                                   other=None,
+                                   selection_rules=None
                                    ):
         """
         Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
@@ -390,6 +394,11 @@ class BasisMultiStateSpace:
         :return:
         :rtype:
         """
+
+        if other is not None:
+            raise ValueError("haven't implemented getting indices to a set of 'other' states...")
+        if selection_rules is not None:
+            raise ValueError("applying selection_rules in the index generation isn't well defined...")
 
         m_pairs = None
         for space in self.spaces.flat:
@@ -413,6 +422,12 @@ class BasisMultiStateSpace:
         m_pairs = m_pairs.T
 
         return m_pairs
+
+    def get_representation_brakets(self,
+                                   freqs=None,
+                                   freq_threshold=None
+                                   ):
+        return BasisStateSpace.get_representation_brakets(self, freqs=freqs, freq_threshold=freq_threshold)
 
     def to_single(self):
         return BasisStateSpace(self.basis,
@@ -458,8 +473,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         return self.base_space.ndim
 
     def get_representation_indices(self,
+                                   other=None,
                                    freqs=None,
-                                   freq_threshold=None
+                                   freq_threshold=None,
+                                   selection_rules=None
                                    ):
         """
         This is where this pays dividends, as we know that only the init_space and the held excitations can couple
@@ -468,6 +485,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
 
+        if other is not None:
+            raise ValueError("haven't implemented getting indices to a set of 'other' states...")
+        if selection_rules is not None:
+            raise ValueError("applying selection_rules in the index generation isn't well defined...")
         if freq_threshold is not None:
             raise ValueError("Haven't implemented freq. threshold yet...")
 
@@ -488,6 +509,12 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             np.array([inds_l, inds_r]).T,
             axis=0
         ).T
+
+    def get_representation_brakets(self,
+                                   freqs=None,
+                                   freq_threshold=None
+                                   ):
+        return BasisStateSpace.get_representation_brakets(self, freqs=freqs, freq_threshold=freq_threshold)
 
     def filter_representation_inds(self, ind_pairs, q_changes):
         """
