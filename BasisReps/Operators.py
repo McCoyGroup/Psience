@@ -157,7 +157,7 @@ class Operator:
 
         return states, all_sels
 
-    def _mat_prod_operator_terms(self, inds, funcs, states, sel_rules):
+    def _mat_prod_operator_terms(self, inds, funcs, states, non_orthog, sel_rules):
         """
         Evaluates product operator terms based on 1D representation matrices coming from funcs
 
@@ -166,7 +166,7 @@ class Operator:
         :param funcs: functions that generate 1D representation matrices
         :type funcs:
         :param states:
-        :type states: BraKetSpace
+        :type states:
         :param sel_rules: selection rules as 1D arrays of rules for each dimension
         :type sel_rules:
         :return:
@@ -182,7 +182,19 @@ class Operator:
         uinds = np.unique(inds)
         mm = {k: i for i, k in enumerate(uinds)}
 
-        non_orthog_states, non_orthog_spec = states.apply_non_orthogonality(uinds, assume_unique=True)
+        # We figure out which indices are actually unique; this gives us a way to map
+        # indices onto operators for our generator
+        # non_orthog_states = states.apply_non_orthog(inds)
+        _, idx = np.unique(inds, return_index=True)
+        uinds = inds[np.sort(idx)]
+        # print(inds, uinds)
+        # mm = {k: i for i, k in enumerate(uinds)}
+
+        # then we determine which states are potentially non-orthogonal based on precomputed info
+        non_orthog_states = [
+            (states[i][0][non_orthog], states[i][1][non_orthog])
+            for i in uinds
+        ]
 
         subdim = len(uinds)
         # and then apply selection rules if we have them
@@ -197,9 +209,9 @@ class Operator:
                     sel_bits[n] = np.unique(np.add.outer(s, sel_bits[n])).flatten() # make the next set of rules
             # print(sel_bits)
             # apply full selection rules
-            non_orthog_states, all_sels = non_orthog_states.apply_sel_rules(sel_bits)
-            if len(non_orthog_states) == 0:
-                return None # short-circuit because there's nothing to calculate
+            non_orthog_states, all_sels = self._apply_sel_rules(non_orthog_states, sel_rules)
+            if len(non_orthog_states[0][0]) == 0:
+                return None  # short-circuit because there's nothing to calculate
 
         else:
             all_sels = None
