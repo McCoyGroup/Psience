@@ -595,16 +595,13 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         if isinstance(excitations, np.ndarray) and excitations.dtype == int:
             excitations = [BasisStateSpace(init_space.basis, x) for x in excitations]
-        # self.base_space = init_space
+        self._base_space = init_space
         self.sel_rules = selection_rules
         super().__init__(excitations)
 
-    # @property
-    # def basis(self):
-    #     return self.base_space.basis
-    # @property
-    # def ndim(self):
-    #     return self.base_space.ndim
+    @property
+    def representative_space(self):
+        return self._base_space
 
     def get_representation_indices(self,
                                    other=None,
@@ -986,4 +983,29 @@ class BraKetSpace:
         all_sels = self.get_sel_rule_filter(rules)
         return self.take_subspace(all_sels), all_sels
 
+    def adjacency_matrix(self):
+        """
+        Generates the (sparse) unweighted adjacency matrix for the bras & kets
+        :return:
+        :rtype:
+        """
 
+        total_space = BasisStateSpace(
+            self.bras.basis,
+            np.unique(np.concatenate([self.bras.indices, self.kets.indices])),
+            mode=BasisStateSpace.StateSpaceSpec.Indices
+        )
+        bra_inds = total_space.find(self.bras)
+        ket_inds = total_space.find(self.kets)
+
+        utri = np.array([bra_inds, ket_inds]).T
+        ltri = np.array([ket_inds, bra_inds]).T
+        indies = np.unique(np.concatenate([utri, ltri]), axis=0)
+
+        return SparseArray(
+            (
+                np.ones(len(indies)),
+                indies.T
+            ),
+            shape=(len(total_space), len(total_space))
+        )

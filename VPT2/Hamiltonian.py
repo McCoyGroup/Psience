@@ -645,6 +645,11 @@ class PerturbationTheoryHamiltonian:
             with logger.block(tag="getting H" + str(i + 1)):
                 m_pairs = cs.get_representation_brakets(freq_threshold=freq_threshold)
 
+                # import McUtils.Plots as plt
+                # plt.ArrayPlot(m_pairs.adjacency_matrix().toarray()).show()
+                #
+                # raise Exception("...")
+
                 start = time.time()
                 if len(m_pairs) > 0:
                     logger.log_print(
@@ -696,8 +701,8 @@ class PerturbationTheoryHamiltonian:
             #     "0.11518508464641353"
             #     "0.1180029152600935"
             #     raise Exception(np.sum(np.abs(sub.block_vals)))
-            import McUtils.Plots as plt
-            plt.ArrayPlot(sub.toarray()).show()
+            # import McUtils.Plots as plt
+            # plt.ArrayPlot(sub.toarray()).show()
             H[i+1] = sub #type: np.ndarray
 
         # raise Exception("....")
