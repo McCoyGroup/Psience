@@ -302,6 +302,20 @@ class BasisSetTests(TestCase):
         )
         inds = quant_states.get_representation_brakets()
 
+        # import McUtils.Plots as plt
+        #
+        # # raise Exception(inds.bras.indices)
+        #
+        # quant_states = BasisStateSpace(
+        #     oppo,
+        #     self.get_states(3, 3, max_quanta=10)
+        # )
+        # new_stuff = quant_states.apply_selection_rules([[-1, 1]])
+        # inds2 = new_stuff.get_representation_brakets()
+        #
+        # plt.ArrayPlot(inds2.adjacency_matrix().toarray()).show()
+
+
         # inds = BasisStateSpace(
         #     oppo,
         #     (
