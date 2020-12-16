@@ -154,11 +154,11 @@ class Representation:
                 b = np.full((len(a),), b)
             return a, b
 
-        if self.logger is not None:
-            self.logger.log_print(
-                "computing {} representation elements",
-                len(n[0])
-            )
+        # if self.logger is not None:
+        #     self.logger.log_print(
+        #         "computing {n} representation elements",
+        #         n=len(n[0])
+        #     )
 
         i = tuple(pad_lens(a, b) for a, b in zip(n, m))
         els = self.compute(i)

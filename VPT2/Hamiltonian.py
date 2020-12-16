@@ -621,8 +621,8 @@ class PerturbationTheoryHamiltonian:
 
         if logger is not None:
             logger.log_print(
-                ["total coupled space dimensions: {}"],
-                N
+                ["total coupled space dimensions: {N}"],
+                N=N
             )
 
         # I should try to walk away from using scipy.sparse here and instead
@@ -645,9 +645,9 @@ class PerturbationTheoryHamiltonian:
             logger.log_print(
                 [
                     "finished H0...",
-                    "took {}s"
+                    "took {t}s"
                 ],
-                round(end - start, 3)
+                t=round(end - start, 3)
             )
 
         for i,h in enumerate(h_reps[1:]):
@@ -666,11 +666,11 @@ class PerturbationTheoryHamiltonian:
                     start = time.time()
                     logger.log_print(
                         [
-                            "calculating H{}...",
-                            "(coupled space dimension {})"
+                            "calculating H{k}...",
+                            "(coupled space dimension {n})"
                         ],
-                        i + 1,
-                        len(m_pairs[0])
+                        k=i + 1,
+                        n=len(m_pairs[0])
                     )
                 # print(m_pairs)
                 sub = h[m_pairs[0], m_pairs[1]]
@@ -679,20 +679,20 @@ class PerturbationTheoryHamiltonian:
                     end = time.time()
                     logger.log_print(
                         [
-                            "finished H{}...",
-                            "took {}s"
+                            "finished H{k}...",
+                            "took {n}s"
                         ],
-                        i+1,
-                        round(end - start, 3)
+                        k=i+1,
+                        n=round(end - start, 3)
                     )
             else:
                 if logger is not None:
                     logger.log_print(
                         [
-                            "calculating H{}...",
+                            "calculating H{k}...",
                             "no states to couple!"
                         ],
-                        i + 1
+                        k=i + 1
                     )
                 sub = 0
 
@@ -712,10 +712,10 @@ class PerturbationTheoryHamiltonian:
                 row_inds = np.searchsorted(total_coupled_space, m_pairs[0], sorter=tot_space_indexer)
                 col_inds = np.searchsorted(total_coupled_space, m_pairs[1], sorter=tot_space_indexer)
 
-                print([
-                    row_inds,
-                    col_inds
-                ])
+                # print([
+                #     row_inds,
+                #     col_inds
+                # ])
 
                 # upper triangle of indices
                 up_tri = np.array([row_inds, col_inds]).T
@@ -751,8 +751,8 @@ class PerturbationTheoryHamiltonian:
             #     "0.1180029152600935"
             #     raise Exception(np.sum(np.abs(sub.block_vals)))
 
-            import McUtils.Plots as plt
-            plt.ArrayPlot(sub.toarray()).show()
+            # import McUtils.Plots as plt
+            # plt.ArrayPlot(sub.toarray()).show()
             H[i+1] = sub #type: np.ndarray
 
         # raise Exception("....")
@@ -854,8 +854,8 @@ class PerturbationTheoryHamiltonian:
         if logger is not None:
             all_degs = np.unique(np.concatenate([deg_iinds, deg_jinds]))
             logger.log_print(
-                "got {} degenerate states",
-                len(all_degs)
+                "got {n} degenerate states",
+                n=len(all_degs)
             )
 
         # now we have to figure out how these inds map onto the representation indices...
@@ -999,9 +999,9 @@ class PerturbationTheoryHamiltonian:
 
         if logger is not None:
             logger.log_print(
-                "calculating perturbation theory correction up to order {} for {} states",
-                order,
-                len(states.indices)
+                "calculating perturbation theory correction up to order {o} for {n} states",
+                o=order,
+                n=len(states.indices)
             )
             start = time.time()
 
@@ -1435,7 +1435,7 @@ class PerturbationTheoryHamiltonian:
 
         if self.logger is not None:
             end = time.time()
-            self.logger.log_print("took {}s...", round(end - start, 3))
+            self.logger.log_print("took {t}s...", t=round(end - start, 3))
 
         h_reps = self.perturbations
         if self.logger is not None:
@@ -1592,7 +1592,7 @@ class PerturbationTheoryHamiltonian:
 
             if self.logger is not None:
                 end = time.time()
-                self.logger.log_print("took {}s...", round(end - start, 3))
+                self.logger.log_print("took {t}s...", t=round(end - start, 3))
 
             h_reps = self.perturbations
             if self.logger is not None:
@@ -1626,11 +1626,11 @@ class PerturbationTheoryHamiltonian:
                 if self.logger is not None:
                     self.logger.log_print(
                         [
-                            "getting breakdown for {} terms...",
-                            "(non-zero terms {})"
+                            "getting breakdown for {k} terms...",
+                            "(non-zero terms {n})"
                             ],
-                        k,
-                        len(this_h) - this_h.count(0)
+                        k=k,
+                        n=len(this_h) - this_h.count(0)
                     )
                 corrs = self._apply_VPT(
                     this_h,
