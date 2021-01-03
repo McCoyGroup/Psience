@@ -5,15 +5,23 @@ set -e
 ## Runs CI
 ##
 
+branch=$(git rev-parse --abbrev-ref HEAD)
+echo "Running tests on $branch"
+
 # get into the parent folder and merge in changes from the master branch
 cd /home/Psience
 git config user.name ${GITHUB_ACTOR}
 git config user.email ${GITHUB_ACTOR}@users.noreply.github.com
 git checkout gh-pages
-git merge edit
+git merge $branch
 ## run the test script
 cd /home
-PYTHONPATH=/home python3 Psience/ci/tests/run_tests.py -v -d
+
+if [[ "$branch" == "master" ]]; then
+  PYTHONPATH=/home python3 Psience/ci/tests/run_tests.py -v -d
+else
+  PYTHONPATH=/home python3 Psience/ci/tests/run_tests.py -d
+fi
 
 # build docs and push
 PYTHONPATH=/home python3 Psience/ci/build_docs.py
