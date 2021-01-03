@@ -25,11 +25,13 @@ LABEL "com.github.actions.color"="orange"
 RUN \
     cd /home && \
     git clone https://github.com/McCoyGroup/Peeves.git && \
-    git clone https://github.com/McCoyGroup/McUtils.git && \
+    git clone -b edit https://github.com/McCoyGroup/McUtils.git && \
     git clone https://github.com/McCoyGroup/Psience.git
 
 RUN \
     cd /home/Psience && \
     git checkout edit
+
+
 
 ENTRYPOINT ["sh", "/home/Psience/ci/run_ci.sh"]
