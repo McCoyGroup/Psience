@@ -16,8 +16,12 @@ TestManager.test_pkg = test_pkg
 # provide a nice way to automatically pipe print output to stderr so it appears in the regular
 # output area for the unit tests
 stdout = sys.stdout
+if '-v' in sys.argv: # allow for fails if validation tests are running
+    ex_code = None
+else:  # always pass so docs can build
+    ex_code = 0
 try:
     sys.stdout = sys.stderr
-    TestManager.run(exit_code=0) # always pass so docs can build
+    TestManager.run(exit_code=ex_code)
 finally:
     sys.stdout = stdout

@@ -34,4 +34,4 @@ RUN \
 
 
 
-ENTRYPOINT ["sh", "/home/Psience/ci/run_ci.sh"]
+ENTRYPOINT ["/bin/bash", "/home/Psience/ci/run_ci.sh"]

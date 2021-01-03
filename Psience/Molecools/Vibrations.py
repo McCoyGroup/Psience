@@ -5,6 +5,7 @@ Provides classes that manage molecular vibrations
 import numpy as np, scipy.linalg as slag
 from McUtils.Coordinerds import CoordinateSystem, CoordinateSet
 from McUtils.Data import AtomData, UnitsData
+
 from .Molecule import Molecule
 from .Transformations import MolecularTransformation
 
