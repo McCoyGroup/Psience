@@ -32,4 +32,4 @@ RUN \
     cd /home/Psience && \
     git checkout edit
 
-ENTRYPOINT ["sh", "/home/Pscience/ci/run_ci.sh"]
+ENTRYPOINT ["sh", "/home/Psience/ci/run_ci.sh"]
