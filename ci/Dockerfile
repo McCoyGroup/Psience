@@ -13,7 +13,7 @@ RUN pip install \
               scipy \
               h5py
 
-LABEL "name"="McCoyGroup/Psience"
+LABEL "name"="McCoyGroup/PsienceCI"
 LABEL "maintainer"="Mark Boyer <b3m2a1uw.edu>"
 LABEL "version"="0.0.1"
 
@@ -24,6 +24,12 @@ LABEL "com.github.actions.color"="orange"
 
 RUN \
     cd /home && \
-    git clone https://github.com/McCoyGroup/Psience.git
+    git clone https://github.com/McCoyGroup/Peeves.git && \
+    git clone https://github.com/McCoyGroup/McUtils.git && \
+    git clone https://github.com/McCoyGroup/Pscience.git
 
-ENTRYPOINT ["sh", "/home/Psience/_ci/run_ci.sh"]
+RUN \
+    cd /home/Pscience && \
+    git checkout edit
+
+ENTRYPOINT ["sh", "/home/Pscience/ci/run_ci.sh"]

@@ -260,7 +260,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(np.average(diags), 0.036932841734999985)
 
-    @debugTest
+    @validationTest
     def test_HOBasis3DPXP(self):
         from Peeves import Timer, BlockProfiler
 
@@ -427,6 +427,51 @@ class BasisSetTests(TestCase):
                 transitions_h1,
                 1
             )
+
+    @debugTest
+    def test_StateIndexing(self):
+        import itertools
+
+        indexer = PermutationStateIndexer(12)
+
+        # SO code to help generate unique perms
+        class unique_element:
+            def __init__(self, value, occurrences):
+                self.value = value
+                self.occurrences = occurrences
+        def perm_unique(elements):
+            eset = set(elements)
+            listunique = [unique_element(i, elements.count(i)) for i in eset]
+            u = len(elements)
+            return list(sorted(list(perm_unique_helper(listunique, [0] * u, u - 1)), reverse=True))
+        def perm_unique_helper(listunique, result_list, d):
+            if d < 0:
+                yield tuple(result_list)
+            else:
+                for i in listunique:
+                    if i.occurrences > 0:
+                        result_list[d] = i.value
+                        i.occurrences -= 1
+                        for g in perm_unique_helper(listunique, result_list, d - 1):
+                            yield g
+                        i.occurrences += 1
+
+        ndim = 13 # TODO: Works for 12...but not 13?
+        states = np.array(
+            [([0] * ndim)]
+            + perm_unique([1]       + [0] * (ndim-1))
+            # + perm_unique([2]       + [0] * (ndim-1))
+            # + perm_unique([1, 1]    + [0] * (ndim-2))
+            # + perm_unique([3]       + [0] * (ndim-1))
+            # + perm_unique([2, 1]    + [0] * (ndim-2))
+            # + perm_unique([1, 1, 1] + [0] * (ndim-3))
+            )
+        inds = indexer.to_indices(states)
+        print(inds, states)
+
+        self.assertTrue(
+            (inds==np.arange(len(states))).all()
+        )
 
     # @debugTest
     # def test_HOPXP(self):

@@ -2,12 +2,13 @@
 
 Psience is a set of core scientific packages written by the McCoy group for the McCoy group to handle interesting scientific problems, like DVR, managing potential and dipole surfaces, VPT2, normal mode analysis, etc.
 
-We're working on [documenting the package](https://mccoygroup.github.io/References/Documentation/Psience.html), but writing good documentation takes more time than writing good code.
+We're working on [documenting the package](https://mccoygroup.github.io/References/Documentation/Psience.html), but writing good documentation takes more time than writing good code. 
+Documentation for the unstable, actively edited branch is [here](https://mccoygroup.github.io/Psience).
 
 ### Installation & Requirements
 
 Psience is written in pure python.
-We make use of `numpy`, `scipy`, and `matplotlib`, as well as our `McUtils` package, but have worked to avoid any dependencies beyond those four.
+We make use of `numpy`, `scipy`, and `matplotlib`, as well as our `McUtils` package, but have worked to avoid any major dependencies beyond those four. In general, what comes with Anaconda should be way more than enough.
 
 It is unlikely that Psience will even find its way onto PyPI, so the best thing to do is install from GitHub via `git clone`. The `master` branch _should_ be stable. Other branches are intended to be development branches. 
 
