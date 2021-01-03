@@ -6,15 +6,15 @@ target = os.path.join(root, "docs")
 sys.path.insert(0, root)
 doc_config = {
     "config": {
-        "title": "McUtils",
-        "path": "McUtils",
-        "url": "https://mccoygroup.github.io/McUtils/",
+        "title": "Psience Dev Branch Documentation",
+        "path": "Psience",
+        "url": "https://mccoygroup.github.io/Psience/",
         "gh_username": "McCoyGroup",
         "footer": "Brought to you by the McCoy Group"
     },
     "packages": [
         {
-            "id": "McUtils",
+            "id": "Psience",
             'tests_root': os.path.join(root, "ci", "tests")
         }
     ],
