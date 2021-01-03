@@ -18,16 +18,16 @@ git merge $branch
 ## run the test script
 cd /home
 
-if [[ "$branch" == "master" ]]; then
+if [[ "$branch" = "master" ]]; then
   PYTHONPATH=/home python3 Psience/ci/tests/run_tests.py -v -d
 else
   PYTHONPATH=/home python3 Psience/ci/tests/run_tests.py -d
 fi
 
-if [[ "$branch" == "edit" ]]; then
-# build docs and push
-PYTHONPATH=/home python3 Psience/ci/build_docs.py
-cd Psience
-git add -A && git commit -m "Built out docs"
-git push -u "https://$GITHUB_ACTOR:$GITHUB_TOKEN@github.com/McCoyGroup/Psience.git" gh-pages
+if [[ "$branch" = "edit" ]]; then
+  # build docs and push
+  PYTHONPATH=/home python3 Psience/ci/build_docs.py
+  cd Psience
+  git add -A && git commit -m "Built out docs"
+  git push -u "https://$GITHUB_ACTOR:$GITHUB_TOKEN@github.com/McCoyGroup/Psience.git" gh-pages
 fi
