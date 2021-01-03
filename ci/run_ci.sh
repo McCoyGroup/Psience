@@ -12,9 +12,11 @@ echo "Running tests on $branch"
 cd /home/Psience
 git config user.name ${GITHUB_ACTOR}
 git config user.email ${GITHUB_ACTOR}@users.noreply.github.com
+repo="https://$GITHUB_ACTOR:$GITHUB_TOKEN@github.com/McCoyGroup/Psience.git"
 git checkout gh-pages
 git pull
 git merge $branch
+git push -u $repo gh-pages
 ## run the test script
 cd /home
 
@@ -29,5 +31,5 @@ if [[ "$branch" = "edit" ]]; then
   PYTHONPATH=/home python3 Psience/ci/build_docs.py
   cd Psience
   git add -A && git commit -m "Built out docs"
-  git push -u "https://$GITHUB_ACTOR:$GITHUB_TOKEN@github.com/McCoyGroup/Psience.git" gh-pages
+  git push -u $repo gh-pages
 fi
