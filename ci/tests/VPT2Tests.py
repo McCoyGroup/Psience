@@ -6,7 +6,7 @@ from McUtils.Data import UnitsData
 import sys, os, numpy as np, itertools as ip
 import cProfile, pstats, io
 
-class VPTTests(TestCase):
+class VPT2Tests(TestCase):
 
     def setUp(self):
         self.h2w = UnitsData.convert("Hartrees", "Wavenumbers")

@@ -1,3 +1,4 @@
+from Peeves import Timer, BlockProfiler
 from Peeves.TestUtils import *
 from unittest import TestCase
 from Psience.BasisReps import *
@@ -134,7 +135,6 @@ class BasisSetTests(TestCase):
 
     @validationTest
     def test_HOBasis2DXX(self):
-        from Peeves import Timer, BlockProfiler
 
         n = 7
         m = 10
@@ -396,7 +396,12 @@ class BasisSetTests(TestCase):
 
     @inactiveTest
     def test_HOSelRuleTerms(self):
-        from Peeves import Timer, BlockProfiler
+        """
+        Profiler to see how quickly terms can be generated
+
+        :return:
+        :rtype:
+        """
 
         n = 15
         m = 6
@@ -429,10 +434,41 @@ class BasisSetTests(TestCase):
             )
 
     @debugTest
-    def test_StateIndexing(self):
-        import itertools
+    def test_GenerateSelectionRuleSpace(self):
+        """
+        Tests (and profiles) the generation of a state
+        space from a set of selection rules and initial states.
+        Mostly here to more easily speed up state space generation
+        for use in VPT2.
 
-        indexer = PermutationStateIndexer(12)
+        :return:
+        :rtype:
+        """
+
+        basis = HarmonicOscillatorProductBasis(8)
+        rules = basis.selection_rules("x", "x", "x", "x")
+
+        states = BasisStateSpace.from_quanta(basis, 3)
+
+        with BlockProfiler(""):
+            h2_space = states.apply_selection_rules(rules, iterations=1)
+
+        raise Exception(h2_space)
+
+
+
+    @debugTest
+    def test_StateIndexing(self):
+        """
+        Tests indexing state specs through a more
+        intelligent lexicographic order
+        :return:
+        :rtype:
+        """
+
+        ndim = 13 # TODO: Works for 12...but not 13?
+
+        indexer = PermutationStateIndexer(ndim)
 
         # SO code to help generate unique perms
         class unique_element:
@@ -456,18 +492,17 @@ class BasisSetTests(TestCase):
                             yield g
                         i.occurrences += 1
 
-        ndim = 13 # TODO: Works for 12...but not 13?
+        # just setting up the full array of integer partitions
         states = np.array(
             [([0] * ndim)]
             + perm_unique([1]       + [0] * (ndim-1))
-            # + perm_unique([2]       + [0] * (ndim-1))
-            # + perm_unique([1, 1]    + [0] * (ndim-2))
-            # + perm_unique([3]       + [0] * (ndim-1))
-            # + perm_unique([2, 1]    + [0] * (ndim-2))
-            # + perm_unique([1, 1, 1] + [0] * (ndim-3))
+            + perm_unique([2]       + [0] * (ndim-1))
+            + perm_unique([1, 1]    + [0] * (ndim-2))
+            + perm_unique([3]       + [0] * (ndim-1))
+            + perm_unique([2, 1]    + [0] * (ndim-2))
+            + perm_unique([1, 1, 1] + [0] * (ndim-3))
             )
         inds = indexer.to_indices(states)
-        print(inds, states)
 
         self.assertTrue(
             (inds==np.arange(len(states))).all()

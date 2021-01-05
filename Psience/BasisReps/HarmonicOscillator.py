@@ -146,7 +146,10 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
     to support representations of `p` and `x`.
     """
 
+    nquant_max = 10 # arbitrary number from the old days of indexing
     def __init__(self, n_quanta):
+        if isinstance(n_quanta, int):
+            n_quanta = [self.nquant_max] * n_quanta
         super().__init__(HarmonicOscillatorBasis, n_quanta)
 
     def operator(self, *terms, coeffs=None, axes=None):

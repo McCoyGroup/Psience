@@ -203,6 +203,7 @@ class PermutationStateIndexer(BaseStateIndexer):
         :return:
         :rtype:
         """
+
         if num not in self.partitioning_cache:
             indexers = list(reversed([
                 self.PartitionPermutationIndexer(

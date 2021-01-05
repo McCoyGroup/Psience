@@ -170,6 +170,94 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError("abstract base class")
 
+    @staticmethod
+    def _unique_permutations(elements):
+        """
+        From StackOverflow, an efficient enough
+        method to get unique permutations
+        :param perms:
+        :type perms:
+        :return:
+        :rtype:
+        """
+
+        class unique_element:
+            def __init__(self, value, occurrences):
+                self.value = value
+                self.occurrences = occurrences
+        def perm_unique_helper(listunique, result_list, d):
+            if d < 0:
+                yield tuple(result_list)
+            else:
+                for i in listunique:
+                    if i.occurrences > 0:
+                        result_list[d] = i.value
+                        i.occurrences -= 1
+                        for g in perm_unique_helper(listunique, result_list, d - 1):
+                            yield g
+                        i.occurrences += 1
+
+        eset = set(elements)
+        listunique = [unique_element(i, elements.count(i)) for i in eset]
+        u = len(elements)
+        return list(sorted(list(perm_unique_helper(listunique, [0] * u, u - 1)), reverse=True))
+
+    @staticmethod
+    def _accel_asc(n):
+        """
+        Pulled directly from http://jeromekelleher.net/author/jerome-kelleher.html
+        Could easily be translated to C++ if speed is crucial (but this will never be a bottleneck)
+        :param n:
+        :type n:
+        :return:
+        :rtype:
+        """
+
+        a = [0 for i in range(n + 1)]
+        k = 1
+        y = n - 1
+        while k != 0:
+            x = a[k - 1] + 1
+            k -= 1
+            while 2 * x <= y:
+                a[k] = x
+                y -= x
+                k += 1
+            l = k + 1
+            while x <= y:
+                a[k] = x
+                a[l] = y
+                yield a[:k + 2]
+                x += 1
+                y -= 1
+            a[k] = x + y
+            y = x + y - 1
+            yield a[:k + 1]
+
+    @classmethod
+    def get_states_with_quanta(cls, n, ndim):
+        """
+        Returns the states with number of quanta equal to n
+
+        :param quanta:
+        :type quanta:
+        :return:
+        :rtype:
+        """
+
+        # generate basic padded partitions of `n`
+        base_partss = reversed(list(
+                list(reversed(x)) + [0] * (ndim - len(x)) if len(x) < ndim else list(reversed(x))
+                for x in cls._accel_asc(n) if len(x) <= ndim
+        ))
+
+        # then concatenate unique permutations for each and cast to numpy
+        return np.array(sum(
+            (cls._unique_permutations(x) for x in base_partss),
+            []
+        ), dtype=int)
+
+
 class BasisStateSpace(AbstractStateSpace):
     """
     Represents a subspace of states inside a representation basis.
@@ -196,6 +284,30 @@ class BasisStateSpace(AbstractStateSpace):
         self._indices = None
         self._excitations = None
         self._indexer = None
+
+
+    @classmethod
+    def from_quanta(cls, basis, quants):
+        """
+        Returns states with `quants` quanta of excitation
+        using the basis `basis`
+
+        :param basis:
+        :type basis: RepresentationBasis
+        :param quants: set of integers
+        :type quants: int | Iterable[int]
+        :return: BasisStateSpace
+        :rtype:
+        """
+
+        if isinstance(quants, int):
+            quants = [quants]
+
+        states = np.concatenate(
+            [cls.get_states_with_quanta(n, basis.ndim) for n in quants]
+        )
+
+        return cls(basis, states, mode=cls.StateSpaceSpec.Excitations)
 
     def infer_state_inds_type(self):
         if self._init_state_types is not None:
@@ -734,6 +846,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                     well_behaved = np.where(maxes <= filter_max)
                     new_states = new_states[well_behaved]
                 new_states = np.unique(new_states, axis=0)
+
             # finally, if we have a filter space, we apply it
             if filter_space is not None:
                 as_inds = space.basis.ravel_state_inds(new_states) # convert to indices
@@ -747,6 +860,16 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
     @classmethod
     def _generate_selection_rule_permutations(cls, space, selection_rules):
+        """
+        Turns a set of selection rule specs into permutations
+
+        :param space:
+        :type space:
+        :param selection_rules:
+        :type selection_rules:
+        :return:
+        :rtype:
+        """
 
         nmodes = space.ndim
         # group selection rules by how many modes they touch
@@ -757,39 +880,49 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 sel_rule_groups[k].append(s)
             else:
                 sel_rule_groups[k] = [s]
-        # this determines how many permutations we have
-        num_perms = sum(len(sel_rule_groups[k]) * (nmodes ** k) for k in sel_rule_groups)
 
-        # then we can set up storage for each of these
-        permutations = np.zeros((num_perms, nmodes), dtype=int)
+        # now generate unique permutations based on these
+        perms = []
+        for n,v in sel_rule_groups.items():
+            padding = [0] * (nmodes - n)
+            for p in v:
+                p = list(p) + padding
+                perms.extend(cls._unique_permutations(p))
+        permutations = np.array(perms, dtype=int)
 
-        # loop through the numbers of modes and create the appropriate permutations
-        prev = []
-        for k, g in sel_rule_groups.items():
-            g = np.array(g, dtype=int)
-            # where to start filling into perms
-            i_start = sum(pl * (nmodes ** pk) for pl, pk in prev)
-            l = len(g)
-            prev.append([l, k])
-            if k != 0:  # special case for the empty rule
-                inds = np.indices((nmodes,) * k)
-                inds = inds.transpose(tuple(range(1, k + 1)) + (0,))
-                inds = np.reshape(inds, (-1, k))
-                for i, perm in enumerate(inds):
-                    uinds = np.unique(perm)
-                    if len(uinds) < k:  # must act on totally different modes
-                        continue
-
-                    sind = i_start + l * i
-                    eind = i_start + l * (i + 1)
-                    permutations[sind:eind, perm] = g
-
-        # TODO: get sparsity working, rather than just slowing shit down
-        # use_sparse = nmodes > 6
-        # use_sparse = use_sparse and max(
-        #     sel_rule_groups.keys()) < nmodes // 2  # means we leave the majority of modes untouched
-        # if use_sparse:
-        #     permutations = SparseArray(sp.csc_matrix(permutations), shape=permutations.shape)
+        # # this determines how many permutations we have
+        # num_perms = sum(len(sel_rule_groups[k]) * (nmodes ** k) for k in sel_rule_groups)
+        #
+        # # then we can set up storage for each of these
+        # permutations = np.zeros((num_perms, nmodes), dtype=int)
+        #
+        # # loop through the numbers of modes and create the appropriate permutations
+        # prev = []
+        # for k, g in sel_rule_groups.items():
+        #     g = np.array(g, dtype=int)
+        #     # where to start filling into perms
+        #     i_start = sum(pl * (nmodes ** pk) for pl, pk in prev)
+        #     l = len(g)
+        #     prev.append([l, k])
+        #     if k != 0:  # special case for the empty rule
+        #         inds = np.indices((nmodes,) * k)
+        #         inds = inds.transpose(tuple(range(1, k + 1)) + (0,))
+        #         inds = np.reshape(inds, (-1, k))
+        #         for i, perm in enumerate(inds):
+        #             uinds = np.unique(perm)
+        #             if len(uinds) < k:  # must act on totally different modes
+        #                 continue
+        #
+        #             sind = i_start + l * i
+        #             eind = i_start + l * (i + 1)
+        #             permutations[sind:eind, perm] = g
+        #
+        # # TODO: get sparsity working, rather than just slowing shit down
+        # # use_sparse = nmodes > 6
+        # # use_sparse = use_sparse and max(
+        # #     sel_rule_groups.keys()) < nmodes // 2  # means we leave the majority of modes untouched
+        # # if use_sparse:
+        # #     permutations = SparseArray(sp.csc_matrix(permutations), shape=permutations.shape)
 
         return permutations
 
@@ -938,7 +1071,6 @@ class BraKetSpace:
         # we have a set of rules for every dimension in states...
         # so we define a function that will tell us where any of the possible selection rules are satisfied
         # and then we apply that in tandem to the quanta changes between bra and ket and the rules
-
         rules = [np.array(r) for r in rules]
 
         # from McUtils.Scaffolding import Logger

@@ -272,12 +272,14 @@ class SimpleProductBasis(RepresentationBasis):
     Defines a direct product basis from a 1D basis.
     Mixed product bases aren't currently supported.
     """
-    def __init__(self, basis_type, n_quanta):
+    def __init__(self, basis_type, n_quanta, indexer=None):
         """
         :param basis_type: the type of basis to do a product over
         :type basis_type: type
         :param n_quanta: the number of quanta for the representations
         :type n_quanta: Iterable[int]
+        :param indexer: an object that can turn state specs into indices and indices into state specs
+        :type indexer: StateIndexer
         """
         self.basis_type = basis_type
         self.bases = tuple(basis_type(n) for n in n_quanta)
@@ -315,6 +317,7 @@ class SimpleProductBasis(RepresentationBasis):
         :return: array of state indices in the basis
         :rtype: tuple[int]
         """
+        #TODO: handle this with the indexer instead
         idx = np.asarray(idx, dtype=int)
         if idx.ndim == 1:
             idx = idx[np.newaxis]
