@@ -450,12 +450,10 @@ class BasisSetTests(TestCase):
 
         states = BasisStateSpace.from_quanta(basis, 3)
 
-        with BlockProfiler(""):
-            h2_space = states.apply_selection_rules(rules, iterations=1)
+        # with BlockProfiler(""):
+        h2_space = states.apply_selection_rules(rules, iterations=1)
 
-        raise Exception(h2_space)
-
-
+        self.assertEquals(h2_space.nstates, 120)
 
     @debugTest
     def test_StateIndexing(self):
@@ -466,47 +464,27 @@ class BasisSetTests(TestCase):
         :rtype:
         """
 
-        ndim = 13 # TODO: Works for 12...but not 13?
-
+        ndim = 6
         indexer = PermutationStateIndexer(ndim)
 
-        # SO code to help generate unique perms
-        class unique_element:
-            def __init__(self, value, occurrences):
-                self.value = value
-                self.occurrences = occurrences
-        def perm_unique(elements):
-            eset = set(elements)
-            listunique = [unique_element(i, elements.count(i)) for i in eset]
-            u = len(elements)
-            return list(sorted(list(perm_unique_helper(listunique, [0] * u, u - 1)), reverse=True))
-        def perm_unique_helper(listunique, result_list, d):
-            if d < 0:
-                yield tuple(result_list)
-            else:
-                for i in listunique:
-                    if i.occurrences > 0:
-                        result_list[d] = i.value
-                        i.occurrences -= 1
-                        for g in perm_unique_helper(listunique, result_list, d - 1):
-                            yield g
-                        i.occurrences += 1
-
-        # just setting up the full array of integer partitions
-        states = np.array(
-            [([0] * ndim)]
-            + perm_unique([1]       + [0] * (ndim-1))
-            + perm_unique([2]       + [0] * (ndim-1))
-            + perm_unique([1, 1]    + [0] * (ndim-2))
-            + perm_unique([3]       + [0] * (ndim-1))
-            + perm_unique([2, 1]    + [0] * (ndim-2))
-            + perm_unique([1, 1, 1] + [0] * (ndim-3))
-            )
+        states = BasisStateSpace.from_quanta(HarmonicOscillatorProductBasis(ndim), range(10)).excitations
+        # print(states)
         inds = indexer.to_indices(states)
 
-        self.assertTrue(
-            (inds==np.arange(len(states))).all()
+        # print(states[44:])
+
+        checks = inds != np.arange(len(states))
+        self.assertFalse(
+            checks.any()
+            , msg="{} no good ({} out of {})".format(states[checks], inds[checks], inds)
         )
+
+        # np.random.seed(0)
+        # some_sel = np.arange(len(states))
+        some_sel = np.unique(np.random.choice(np.arange(len(states)), 100))
+        rev = indexer.from_indices(inds[some_sel,])
+        self.assertTrue((states[some_sel,] == rev).all(),
+                        msg="{} != {}".format(states[some_sel,], rev))
 
     # @debugTest
     # def test_HOPXP(self):
@@ -517,5 +495,52 @@ class BasisSetTests(TestCase):
     #     new_rep = new_basis.representation('p', 'x', 'p')
     #     old_rep = old_basis.representation('p', 'x', 'p')
 
+    @debugTest
+    def test_FindIndices(self):
+        ndim = 6
+        states = BasisStateSpace.from_quanta(HarmonicOscillatorProductBasis(ndim), range(5))
+        test_1 = states.find(states)
+        ntest = np.arange(len(test_1))
+        self.assertEquals(tuple(test_1), tuple(ntest))
 
+        sel = np.random.choice(ntest, 15)
+        _, upos = np.unique(sel, return_index=True)
+        sel = sel[np.sort(upos)]
+        states2 = states.take_subspace(sel)
+        test_2 = states2.find(states2)
+        self.assertEquals(tuple(test_2), tuple(np.arange(len(sel))))
 
+    @inactiveTest
+    def test_PermIndices(self):
+        ndim = 3
+        indexer = PermutationStateIndexer(ndim)
+
+        states = [[0, 0, 0],
+         [0, 0, 1],
+         [0, 0, 2],
+         [0, 0, 3],
+         [0, 0, 4],
+         [0, 0, 5],
+         [0, 0, 6],
+         [0, 1, 0],
+         [0, 1, 1],
+         [0, 1, 2],
+         [0, 2, 3],
+         [0, 2, 4],
+         [3, 1, 0],
+         [3, 1, 1],
+         [3, 1, 2],
+         [3, 2, 0],
+         [3, 2, 1],
+         [3, 3, 0],
+         [4, 0, 0],
+         [4, 0, 1],
+         [4, 0, 2],
+         [4, 1, 0],
+         [4, 1, 1],
+         [4, 2, 0],
+         [5, 0, 0],
+         [5, 0, 1],
+         [5, 1, 0],
+         [6, 0, 0]]
+        raise Exception(indexer.to_indices(states))

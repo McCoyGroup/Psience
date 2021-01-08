@@ -157,19 +157,27 @@ class VPT2Tests(TestCase):
             log=log,
             get_breakdown=get_breakdown
         )[0]
-    def get_states(self, n_quanta, n_modes, max_quanta = None):
-        import itertools as ip
 
-        if max_quanta is None:
-            max_quanta = n_quanta
-        return tuple(sorted(
-            [p for p in ip.product(*(range(n_quanta+1) for i in range(n_modes))) if all(x<=max_quanta for x in p) and sum(p) <= n_quanta],
-            key=lambda p: (
-                    sum(p)
-                    + sum(1 for v in p if v != 0) * n_quanta ** (-1)
-                    + sum(v * n_quanta ** (-i - 2) for i, v in enumerate(p))
-            )
-        ))
+    def get_states(self, n_quanta, n_modes, max_quanta = None):
+        from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
+
+        return BasisStateSpace.from_quanta(
+            HarmonicOscillatorProductBasis(n_modes),
+            range(n_quanta)
+        ).excitations
+
+        # import itertools as ip
+        #
+        # if max_quanta is None:
+        #     max_quanta = n_quanta
+        # return tuple(sorted(
+        #     [p for p in ip.product(*(range(n_quanta+1) for i in range(n_modes))) if all(x<=max_quanta for x in p) and sum(p) <= n_quanta],
+        #     key=lambda p: (
+        #             sum(p)
+        #             + sum(1 for v in p if v != 0) * n_quanta ** (-1)
+        #             + sum(v * n_quanta ** (-i - 2) for i, v in enumerate(p))
+        #     )
+        # ))
     def profile_block(self, block):
 
         pr = cProfile.Profile()
@@ -2380,15 +2388,16 @@ class VPT2Tests(TestCase):
         )
 
         # coupled_states = self.get_states(5, 3)
-        wfns = self.get_VPT2_wfns(
-            "HOD_freq.fchk",
-            internals,
-            states,
-            regenerate=True,
-            coupled_states=None#coupled_states
-            # , v3=0
-            # , v4=0
-        )
+        with BlockProfiler("HOD", print_res=False):
+            wfns = self.get_VPT2_wfns(
+                "HOD_freq.fchk",
+                internals,
+                states,
+                regenerate=True
+                , log=True
+                # , v3=0
+                # , v4=0
+            )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
@@ -2428,7 +2437,7 @@ class VPT2Tests(TestCase):
             energies[1:] - energies[0]
         ])
 
-        print_report = False
+        print_report = True
         if print_report:
             print("Gaussian:\n",
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
@@ -3009,7 +3018,7 @@ class VPT2Tests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @debugTest
+    @validationTest
     def test_OCHDVPTCartesians(self):
 
         internals = None
@@ -3535,7 +3544,7 @@ class VPT2Tests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 

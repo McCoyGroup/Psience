@@ -244,7 +244,8 @@ class PerturbationTheoryHamiltonian:
         # self.basis = SimpleProductBasis(HarmonicOscillatorBasis, self.n_quanta)
 
     @classmethod
-    def from_fchk(cls, file,
+    def from_fchk(cls,
+                  file,
                   internals=None,
                   mode_selection=None,
                   **kw
@@ -554,27 +555,32 @@ class PerturbationTheoryHamiltonian:
 
         return h1_space, h2_space
 
-    @classmethod
-    def _get_coupled_state_inds(cls, m):
-        if not isinstance(m[0], (int, np.integer)):  # got inds for each state individually
-            m_pairs = []
-            for s in m:
-                m_pairs.append(
-                    np.concatenate([
-                        np.column_stack([s, s]),
-                        np.array(list(itertools.combinations(s, 2)))
-                        ])
-                )
-            m_pairs = np.unique(
-                np.concatenate(m_pairs),
-                axis=0).T
-        else:
-            m_pairs = np.unique(np.concatenate([
-                np.column_stack([m, m]),
-                np.array(list(itertools.combinations(m, 2)))
-            ], axis=0), axis=0).T
-
-        return m_pairs
+    # @classmethod
+    # def _get_coupled_state_inds(cls, m):
+    #     if not isinstance(m[0], (int, np.integer)):  # got inds for each state individually
+    #         m_pairs = []
+    #         for s in m:
+    #             m_pairs.append(
+    #                 np.concatenate([
+    #                     np.column_stack([s, s]),
+    #                     np.array(list(itertools.combinations(s, 2)))
+    #                     ])
+    #             )
+    #
+    #         pairs = np.concatenate(m_pairs)
+    #         _, upos = np.unique(pairs, axis=0, return_index=True)
+    #         pairs = pairs[np.sort(upos)]
+    #         m_pairs = pairs.T
+    #     else:
+    #         pairs = np.concatenate([
+    #             np.column_stack([m, m]),
+    #             np.array(list(itertools.combinations(m, 2)))
+    #         ], axis=0)
+    #         _, upos = np.unique(pairs, axis=0, return_index=True)
+    #         pairs = pairs[np.sort(upos)]
+    #         m_pairs = pairs.T
+    #
+    #     return m_pairs
 
     @classmethod
     def _get_VPT_representations(
@@ -620,8 +626,6 @@ class PerturbationTheoryHamiltonian:
             d=N
         )
 
-        # I should try to walk away from using scipy.sparse here and instead
-        # shift to SparseArray, since it'll support swapping out the back end better...
         H = [np.zeros(1)] * len(h_reps)
         with logger.block(tag="getting H0"):
             start = time.time()
@@ -632,12 +636,7 @@ class PerturbationTheoryHamiltonian:
             end = time.time()
             logger.log_print("took {t:.3f}s", t=end-start)
 
-        # import McUtils.Plots as plt
-        # plt.ArrayPlot(diag.reshape(-1, len(diag)//2)).show()
-
-        total_coupled_space = total_state_space.indices
-        tot_space_indexer = np.argsort(total_coupled_space)
-
+        # print(flat_total_space.indices)
         for i, h in enumerate(h_reps[1:]):
             # calculate matrix elements in the coupled subspace
             cs = total_state_space[i+1]
@@ -645,27 +644,16 @@ class PerturbationTheoryHamiltonian:
             with logger.block(tag="getting H" + str(i + 1)):
                 m_pairs = cs.get_representation_brakets(freq_threshold=freq_threshold)
 
-                # import McUtils.Plots as plt
-                # plt.ArrayPlot(m_pairs.adjacency_matrix().toarray()).show()
-                #
-                # raise Exception("...")
-
                 start = time.time()
                 if len(m_pairs) > 0:
-                    logger.log_print(
-                        ["coupled space dimension {d}"],
-                        d=len(m_pairs)
-                    )
-                    # print(m_pairs)
+                    logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
                     sub = h[m_pairs]
                     SparseArray.clear_ravel_caches()
                 else:
                     logger.log_print('no states to couple!')
                     sub = 0
 
-                logger.log_print(
-                    "constructing sparse representation..."
-                )
+                logger.log_print("constructing sparse representation...")
 
                 if isinstance(sub, (int, np.integer, np.floating, float)):
                     if sub == 0:
@@ -677,6 +665,8 @@ class PerturbationTheoryHamiltonian:
                     # figure out the appropriate inds for this data in the sparse representation
                     row_inds = flat_total_space.find(m_pairs.bras)
                     col_inds = flat_total_space.find(m_pairs.kets)
+                    # raise Exception([row_inds, col_inds,
+                    #                  np.unique(m_pairs.bras.excitations, axis=0), np.average(sub)])
 
                     # upper triangle of indices
                     up_tri = np.array([row_inds, col_inds]).T
@@ -687,25 +677,21 @@ class PerturbationTheoryHamiltonian:
                     full_inds = np.concatenate([up_tri, low_tri])
                     full_dat = np.concatenate([sub, sub])
 
-                    full_inds, idx = np.unique(full_inds, axis=0, return_index=True)
-                    full_dat = full_dat[idx]
+                    _, idx = np.unique(full_inds, axis=0, return_index=True)
+                    sidx = np.sort(idx)
+                    full_inds = full_inds[sidx]
+                    full_dat = full_dat[sidx]
                     sub = SparseArray((full_dat, full_inds.T), shape=(N, N))
-                    # sub = SparseArray((np.ones(len(full_dat)), full_inds.T), shape=(N, N))
                 end = time.time()
                 logger.log_print("took {t:.3f}s", t=end - start)
 
-            # if i == 0:
-            #     "0.028258378995078746"
-            #     "0.022878022823359108"
-            #     "0.005556454808064418"
-            #     "0.11518508464641353"
-            #     "0.1180029152600935"
-            #     raise Exception(np.sum(np.abs(sub.block_vals)))
-            # import McUtils.Plots as plt
-            # plt.ArrayPlot(sub.toarray()).show()
             H[i+1] = sub #type: np.ndarray
+            # raise Exception(np.min(H[1].toarray()), np.max(H[1].toarray()))
 
-        # raise Exception("....")
+            # import McUtils.Plots as plt
+            # plt.ArrayPlot(H[1].toarray()).show()
+            # raise Exception("...")
+
         return H, total_state_space
 
     @staticmethod
@@ -802,7 +788,9 @@ class PerturbationTheoryHamiltonian:
         #     deg_j.excitations
         # )
         if logger is not None:
-            all_degs = np.unique(np.concatenate([deg_iinds, deg_jinds]))
+            cat = np.concatenate([deg_iinds, deg_jinds])
+            _, upos = np.unique(cat, return_index=True)
+            all_degs = cat[np.sort(upos)]
             logger.log_print(
                 "got {} degenerate states",
                 len(all_degs)
@@ -847,16 +835,16 @@ class PerturbationTheoryHamiltonian:
         # has to be an NxN, so we figure out what the total space of potential degeneracies is
         dinds_i = degenerate_states[0].indices
         dinds_j = degenerate_states[1].indices
-        deg_inds_all = np.unique(np.concatenate([dinds_i, dinds_j]))
+        cat = np.concatenate([dinds_i, dinds_j])
+        _, upos = np.unique(cat, return_index=True)
+        deg_inds_all = cat[np.sort(cat)]
         deg_dim = len(deg_inds_all)
         degenerate_space = BasisStateSpace(states.basis, deg_inds_all, mode='indices')
 
         # then we have to work out how indices in the larger space map onto those in the smaller one
         remap = {i: k for k, i in enumerate(deg_inds_all)}
-        mapped_inds = (
-            np.array([remap[i] for i in dinds_i]),
-            np.array([remap[j] for j in dinds_j])
-        )
+        mapped_inds = (np.array([remap[i] for i in dinds_i]), np.array([remap[j] for j in dinds_j]))
+
         # at this point, we can fill H_deg in the basis of degenerate states
         H_deg = [np.zeros(1)] * len(deg_vals)
         for i, v in enumerate(deg_vals):
@@ -925,8 +913,27 @@ class PerturbationTheoryHamiltonian:
                                  total_state_space,
                                  state_inds,
                                  degenerate_states=None,
-                                 logger=None
+                                 logger=None,
+                                 non_zero_cutoff=1.0e-14
                                  ):
+        """
+        :param H:
+        :type H:
+        :param states:
+        :type states:
+        :param order:
+        :type order:
+        :param total_state_space:
+        :type total_state_space:
+        :param state_inds:
+        :type state_inds:
+        :param degenerate_states:
+        :type degenerate_states:
+        :param logger:
+        :type logger:
+        :return:
+        :rtype:
+        """
         # We use the iterative equations
         #            En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
         #     <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
@@ -946,6 +953,8 @@ class PerturbationTheoryHamiltonian:
         if isinstance(e_vec_full, SparseArray):
             e_vec_full = e_vec_full.toarray()
             # raise Exception(e_vec_full)
+
+        H1 = H[1]
 
         with logger.block(tag="applying non-degenerate PT"):
             logger.log_print(
@@ -970,7 +979,7 @@ class PerturbationTheoryHamiltonian:
                 E0 = e_vec_full[n_ind]
                 e_vec = e_vec_full - E0
                 e_vec[n_ind] = 1
-                zero_checks = np.where(np.abs(e_vec) < 1.e-14)[0]
+                zero_checks = np.where(np.abs(e_vec) < non_zero_cutoff)[0]
                 if len(zero_checks) > 0:
                     raise ValueError("degeneracies encountered: state {} and states {} are degenerate (energies: {} and {})".format(
                         n_ind,
@@ -998,8 +1007,6 @@ class PerturbationTheoryHamiltonian:
 
                 for k in range(1, order + 1):  # to actually go up to k
                     #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
-
-
                     Ek = (
                        (H[k][n_ind, n_ind] if not isinstance(H[k], (int, np.integer, float, np.floating)) else 0.)
                             + sum(
@@ -1034,18 +1041,17 @@ class PerturbationTheoryHamiltonian:
         nstates = len(all_corrs)
         corr_inds = [[] for i in range(nstates)]
         corr_mats = [None] * (order + 1)
-        si = state_inds
+        # si = state_inds
 
         for o in range(order + 1):
             non_zeros = []
             for i, corr in enumerate(all_corrs):
                 # we find the non-zero elements within the o level of correction for the ith state
-                nonzi = np.where(np.abs(corr[o]) > 1.0e-14)[0]
+                nonzi = np.where(np.abs(corr[o]) > non_zero_cutoff)[0]
                 # print(nonzi)
                 # then we pull these out
                 vals = corr[o][nonzi,]
                 # and we add the values and indices to the list
-                me = si[i]
                 non_zeros.append(
                     (
                         vals,
@@ -1074,8 +1080,10 @@ class PerturbationTheoryHamiltonian:
 
         # now we build state reps from corr_inds
         for i, dat in enumerate(corr_inds):
-            full_dat = np.unique(np.concatenate(dat))
-            corr_inds[i] = BasisStateSpace(states.basis, full_dat, mode="indices")
+            cat = np.concatenate(dat)
+            _, upos = np.unique(cat, return_index=True)
+            full_dat = cat[np.sort(upos)]
+            corr_inds[i] = total_state_space.to_single().take_states(full_dat) # BasisStateSpace(states.basis, full_dat, mode="indices")
 
         cs_states = SelectionRuleStateSpace(states, corr_inds, None)
         total_states = total_state_space
@@ -1342,19 +1350,14 @@ class PerturbationTheoryHamiltonian:
         :rtype:
         """
 
+        # raise Exception(states)
         # need to rewrite this to work better with BasisStateSpace
         if not isinstance(states, BasisStateSpace):
             states = BasisStateSpace(self.basis, states)
 
-        coupled_states = self._prep_coupled_states(
-            states,
-            coupled_states,
-            order
-        )
+        coupled_states = self._prep_coupled_states(states, coupled_states, order)
 
-        degeneracies = self._prep_degeneracies_spec(
-            degeneracies
-        )
+        degeneracies = self._prep_degeneracies_spec(degeneracies)
 
         return states, coupled_states, degeneracies
 
@@ -1382,7 +1385,7 @@ class PerturbationTheoryHamiltonian:
         with self.logger.block(tag='Computing PT corrections:'):
             with self.logger.block(tag='getting coupled states'):
                 start = time.time()
-
+                # raise Exception("???", states)
                 states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies)
 
                 end = time.time()
@@ -1498,24 +1501,23 @@ class PerturbationTheoryHamiltonian:
         ndim = len(self.n_quanta)
         nterms = 1 + order // 2
 
-        # clumsy buy w/e it works for now
-        def get_states(n_quanta, n_modes, max_quanta=None):
-            import itertools as ip
+        # # clumsy buy w/e it works for now
+        # def get_states(n_quanta, n_modes, max_quanta=None):
+        #     import itertools as ip
+        #
+        #     if max_quanta is None:
+        #         max_quanta = n_quanta
+        #     return tuple(sorted(
+        #         [p for p in ip.product(*(range(n_quanta + 1) for i in range(n_modes))) if
+        #          all(x <= max_quanta for x in p) and sum(p) <= n_quanta],
+        #         key=lambda p: (
+        #                 sum(p)
+        #                 + sum(1 for v in p if v != 0) * n_quanta ** (-1)
+        #                 + sum(v * n_quanta ** (-i - 2) for i, v in enumerate(p))
+        #         )
+        #     ))
 
-            if max_quanta is None:
-                max_quanta = n_quanta
-            return tuple(sorted(
-                [p for p in ip.product(*(range(n_quanta + 1) for i in range(n_modes))) if
-                 all(x <= max_quanta for x in p) and sum(p) <= n_quanta],
-                key=lambda p: (
-                        sum(p)
-                        + sum(1 for v in p if v != 0) * n_quanta ** (-1)
-                        + sum(v * n_quanta ** (-i - 2) for i, v in enumerate(p))
-                )
-            ))
-
-
-        states = get_states(nterms, ndim)
+        states = BasisStateSpace.from_quanta(HarmonicOscillatorProductBasis(ndim), range(nterms)).excitations
 
         wfns = self.get_wavefunctions(states)
 

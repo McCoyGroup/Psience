@@ -143,8 +143,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 full_inds = np.concatenate([up_tri, low_tri])
                 full_dat = np.concatenate([sub, sub])
 
-                full_inds, idx = np.unique(full_inds, axis=0, return_index=True)
-                full_dat = full_dat[idx]
+                _, idx = np.unique(full_inds, axis=0, return_index=True)
+                sidx = np.sort(idx)
+                full_inds = full_dat[sidx]
+                full_dat = full_dat[sidx]
                 sub = SparseArray((full_dat, full_inds.T), shape=(M, M))
 
             return sub
