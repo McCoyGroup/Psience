@@ -210,8 +210,7 @@ class Operator:
 
     def _direct_prod_operator_terms(self, inds, func, states):
         """
-        Evaluates product operator terms based on 1D representation matrices,
-        but using a direct function to generate them
+        Evaluates product operator terms using a function to directly generate them
 
         :param inds:
         :type inds:

@@ -279,6 +279,7 @@ class SimpleProductBasis(RepresentationBasis):
     """
 
     _indexer_cache = MaxSizeCache()
+    array_indexer_cutoff = 6
     def __init__(self, basis_type, n_quanta, indexer=None):
         """
         :param basis_type: the type of basis to do a product over
@@ -291,7 +292,7 @@ class SimpleProductBasis(RepresentationBasis):
         self.basis_type = basis_type
         self.bases = tuple(basis_type(n) for n in n_quanta)
         if indexer is None:
-            if self.ndim > 0: # initially I thought I might use a flag to use the faster version by default...
+            if self.ndim > self.array_indexer_cutoff: # use the faster version when there are few permutations
                 if self.ndim not in self._indexer_cache:
                     indexer = PermutationStateIndexer(self.ndim)
                     self._indexer_cache[self.ndim] = indexer
@@ -429,5 +430,13 @@ class SimpleProductBasis(RepresentationBasis):
         return self.representation(self.bases[0].p)[:n, :n]
 
     def take_subdimensions(self, dims):
+        """
+        Casts down to lower dimensional space
+
+        :param dims:
+        :type dims:
+        :return:
+        :rtype:
+        """
         qq = self.quanta
         return type(self)(self.basis_type, [qq[d] for d in dims])

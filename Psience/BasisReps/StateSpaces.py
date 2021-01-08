@@ -62,6 +62,9 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         if self._indexer is None:
             self._indexer = np.argsort(self.indices)
         return self._indexer
+    @indexer.setter
+    def indexer(self, idxer):
+        self._indexer = idxer
 
     def find(self, to_search):
         """
@@ -84,7 +87,10 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         return vals
 
     def __len__(self):
-        return len(self.indices)
+        if self._indices is not None:
+            return len(self._indices)
+        else:
+            return len(self._excitations)
 
     @abc.abstractmethod
     def as_indices(self):
@@ -489,19 +495,33 @@ class BasisStateSpace(AbstractStateSpace):
 
     def take_subspace(self, sel):
         """
-        Returns a subsample of the space
+        Returns a subsample of the space.
+        Intended to be a cheap operation, so samples
+        along either the indices or the excitations, depending
+        on which we have
+
         :param sel:
         :type sel:
         :return:
         :rtype:
         """
-        subspace = type(self)(
-                          self.basis,
-                          self.indices[sel,],
-                          mode=self.StateSpaceSpec.Indices
-        )
+
         if self._excitations is not None:
-            subspace.excitations = self.excitations[sel,]
+            subspace = type(self)(
+                self.basis,
+                self.excitations[sel,],
+                mode=self.StateSpaceSpec.Excitations
+            )
+            if self._indices is not None:
+                subspace.indices = self.indices[sel,]
+        else:
+            subspace = type(self)(
+                self.basis,
+                self.indices[sel,],
+                mode=self.StateSpaceSpec.Indices
+            )
+            if self._excitations is not None:
+                subspace.excitations = self.excitations[sel,]
         return subspace
     def take_subdimensions(self, inds):
         """
@@ -574,7 +594,10 @@ class BasisMultiStateSpace(AbstractStateSpace):
 
     def __len__(self):
         if self._nunique is None:
-            self._nunique = len(np.unique(self.indices))
+            if self._indices is not None:
+                self._nunique = len(np.unique(self.indices))
+            else:
+                self._nunique = len(np.unique(self.excitations, axis=0))
         return self._nunique
 
     @property
