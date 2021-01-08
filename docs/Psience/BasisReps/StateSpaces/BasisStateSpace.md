@@ -4,6 +4,9 @@ Useful largely to provide consistent, unambiguous representations of multiple st
 the different representation-generating methods in the code base.
 
 ### Properties and Methods
+```python
+from_quanta: method
+```
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, basis, states, mode=None): 
@@ -84,25 +87,40 @@ Generates a `BraKetSpace` that can be fed into a `Representation`
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_intersection" class="docs-object-method">&nbsp;</a>
-```python
-take_intersection(self, states): 
-```
-Takes the intersection of self and the specified states
-- `states`: `Any`
-    >No description...
-- `:returns`: `_`
-    >No description...
-
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_subspace" class="docs-object-method">&nbsp;</a>
 ```python
 take_subspace(self, sel): 
 ```
+Returns a subsample of the space.
+        Intended to be a cheap operation, so samples
+        along either the indices or the excitations, depending
+        on which we have
+- `sel`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_subdimensions" class="docs-object-method">&nbsp;</a>
 ```python
 take_subdimensions(self, inds): 
 ```
+Returns a subsample of the space with some dimensions
+        dropped
+- `inds`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_states" class="docs-object-method">&nbsp;</a>
+```python
+take_states(self, states): 
+```
+Takes the set of specified states from the space.
+        A lot like take_subspace, but operates on states, not indices
+- `states`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.__repr__" class="docs-object-method">&nbsp;</a>
 ```python

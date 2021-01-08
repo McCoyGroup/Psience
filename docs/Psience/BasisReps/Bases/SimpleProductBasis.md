@@ -1,17 +1,24 @@
 ## <a id="Psience.BasisReps.Bases.SimpleProductBasis">SimpleProductBasis</a>
 Defines a direct product basis from a 1D basis.
-Mixed product bases aren't currently supported.
+Mixed product bases aren't currently supported, but this provides
+at least a sample for how that kind of things could be
+generated.
 
 ### Properties and Methods
+```python
+array_indexer_cutoff: int
+```
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, basis_type, n_quanta): 
+__init__(self, basis_type, n_quanta, indexer=None): 
 ```
 
 - `basis_type`: `type`
     >the type of basis to do a product over
 - `n_quanta`: `Iterable[int]`
     >the number of quanta for the representations
+- `indexer`: `BaseStateIndexer`
+    >an object that can turn state specs into indices and indices into state specs
 
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.ndim" class="docs-object-method">&nbsp;</a>
 ```python
@@ -114,6 +121,11 @@ Returns the representation of p in the multi-dimensional basis with every term e
 ```python
 take_subdimensions(self, dims): 
 ```
+Casts down to lower dimensional space
+- `dims`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 ### Examples
 

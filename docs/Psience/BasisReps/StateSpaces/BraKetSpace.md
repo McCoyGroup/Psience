@@ -72,7 +72,7 @@ apply_non_orthogonality(self, inds, assume_unique=False):
 ```python
 apply_sel_rules(self, rules): 
 ```
-Applies selections rules, assuming we have
+Applies selections rules
 - `rules`: `Any`
     >No description...
 - `:returns`: `_`

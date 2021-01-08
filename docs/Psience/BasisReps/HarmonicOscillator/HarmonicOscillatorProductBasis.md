@@ -3,6 +3,9 @@ Tiny, tiny layer on `SimpleProductBasis` that makes use of some analytic work do
 to support representations of `p` and `x`.
 
 ### Properties and Methods
+```python
+nquant_max: int
+```
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorProductBasis.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, n_quanta): 

@@ -10,6 +10,7 @@ systems.
 ### Properties and Methods
 ```python
 PartitionPermutationIndexer: type
+max_quants: int
 ```
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.__init__" class="docs-object-method">&nbsp;</a>
 ```python
@@ -25,7 +26,7 @@ Gives basically the second sort criterion by calculating integer partitions
         Sorted by default, which is our saving grace
 - `num`: `Any`
     >No description...
-- `:returns`: `_`
+- `:returns`: `Tuple[int, int, Iterable[PermutationStateIndexer.PartitionPermutationIndexer]]`
     >No description...
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.to_indices" class="docs-object-method">&nbsp;</a>
@@ -40,10 +41,14 @@ Finds the appropriate integer partitioning for each state
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.from_indices" class="docs-object-method">&nbsp;</a>
 ```python
-from_indices(self, indices): 
+from_indices(self, indices, check=False): 
 ```
-Inverts the index calculation...not implemented yet
-- `indices`: `Any`
+Inverts the index calculation.
+        First determines what number of quanta the index corresponds to,
+        then which integer partition, and finally just loops through the unique
+        permutations of the partition to get the right one.
+        This is not assured to be a fast process in any way.
+- `indices`: `Iterable[int]`
     >No description...
 - `:returns`: `_`
     >No description...

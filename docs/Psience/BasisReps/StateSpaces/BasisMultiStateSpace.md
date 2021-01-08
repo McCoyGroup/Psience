@@ -59,6 +59,10 @@ flat(self):
 ```python
 as_indices(self): 
 ```
+Pulls the unique values & indices out of _all_ of the
+        held spaces and returns them as a flat vector
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.as_excitations" class="docs-object-method">&nbsp;</a>
 ```python
@@ -89,10 +93,14 @@ get_representation_brakets(self, freqs=None, freq_threshold=None, other=None, se
 ```python
 to_single(self): 
 ```
+Condenses the multi state space down to
+        a single BasisStateSpace
+- `:returns`: `_`
+    >No description...
 
-<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.take_intersection" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.take_states" class="docs-object-method">&nbsp;</a>
 ```python
-take_intersection(self, states): 
+take_states(self, states): 
 ```
 Takes the intersection of each held space and the specified states
 - `states`: `Any`
