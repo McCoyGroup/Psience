@@ -816,7 +816,6 @@ class PotentialTerms(ExpansionTerms):
         if intcds is not None:
             YQ, YQQ, _, _ = self.cartesians_by_modes
             qQ_terms = self.cartesian_modes_by_internal_modes
-
             v1, v2, v3, v4 = self._get_tensor_derivs(qQ_terms, (v1, v2, v3, v4), mixed_XQ=False)
 
         return v2, v3, v4
@@ -843,13 +842,6 @@ class PotentialTerms(ExpansionTerms):
         else:
 
             xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
-            # QY, QYY, QYYY = self.modes_by_cartesians
-
-            # dot = DumbTensor._dot
-            # if self.mixed_derivs:
-            #     qQQ = dot(xQQ, QY)
-            #     f43 = dot(qQQ, thirds)
-            #     fourths = fourths.toarray()
 
             if np.linalg.norm(grad) > 1.0e-4:
                 # add some logger stuff...
@@ -858,29 +850,16 @@ class PotentialTerms(ExpansionTerms):
                         np.linalg.norm(grad)
                     ))
                 grad = np.zeros(grad.shape)
-                # raise ValueError("Wooooah look at the norm on this grad: {}".format(
-                #     np.linalg.norm(grad)
-                # ))
-
 
             x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
             V_derivs = (grad, hess, thirds, fourths)
 
             v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=True, mixed_XQ=self.mixed_derivs)
 
-            # import McUtils.Plots as plt
-
             xQ2 = self.modes.inverse
             _, v2x,  = self._get_tensor_derivs((xQ2, 0, 0, 0), V_derivs, order=2, mixed_XQ=self.mixed_derivs)
 
             v2_diff = v2 - v2x
-            # wat = xQQ.reshape( (xQQ.shape[0] // 3, 3) + xQQ.shape[1:])
-            # plt.TensorPlot()
-            # plt.ArrayPlot(xQQ[5])
-            # plt.ArrayPlot(hess)
-            # plt.ArrayPlot(v2x)
-            # plt.ArrayPlot(v2)
-            # plt.ArrayPlot(v2_diff).show()
 
             if np.max(np.abs(v2_diff)) > 1.0e-4:
                 raise PerturbationTheoryException(

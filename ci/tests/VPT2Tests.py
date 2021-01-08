@@ -6,7 +6,7 @@ from McUtils.Data import UnitsData
 import sys, os, numpy as np, itertools as ip
 import cProfile, pstats, io
 
-class VPTTests(TestCase):
+class VPT2Tests(TestCase):
 
     def setUp(self):
         self.h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -157,19 +157,15 @@ class VPTTests(TestCase):
             log=log,
             get_breakdown=get_breakdown
         )[0]
-    def get_states(self, n_quanta, n_modes, max_quanta = None):
-        import itertools as ip
 
-        if max_quanta is None:
-            max_quanta = n_quanta
-        return tuple(sorted(
-            [p for p in ip.product(*(range(n_quanta+1) for i in range(n_modes))) if all(x<=max_quanta for x in p) and sum(p) <= n_quanta],
-            key=lambda p: (
-                    sum(p)
-                    + sum(1 for v in p if v != 0) * n_quanta ** (-1)
-                    + sum(v * n_quanta ** (-i - 2) for i, v in enumerate(p))
-            )
-        ))
+    def get_states(self, n_quanta, n_modes, max_quanta = None):
+        from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
+
+        return [np.flip(x) for x in BasisStateSpace.from_quanta(
+            HarmonicOscillatorProductBasis(n_modes),
+            range(n_quanta)
+        ).excitations]
+
     def profile_block(self, block):
 
         pr = cProfile.Profile()
@@ -2288,7 +2284,7 @@ class VPTTests(TestCase):
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
 
-        coupled_states = self.get_states(5, 3)
+        # coupled_states = self.get_states(5, 3)
         wfns = self.get_VPT2_wfns(
             "HOD_freq.fchk",
             internals,
@@ -2380,15 +2376,16 @@ class VPTTests(TestCase):
         )
 
         # coupled_states = self.get_states(5, 3)
-        wfns = self.get_VPT2_wfns(
-            "HOD_freq.fchk",
-            internals,
-            states,
-            regenerate=True,
-            coupled_states=None#coupled_states
-            # , v3=0
-            # , v4=0
-        )
+        with BlockProfiler("HOD", print_res=False):
+            wfns = self.get_VPT2_wfns(
+                "HOD_freq.fchk",
+                internals,
+                states,
+                regenerate=True
+                , log=True
+                # , v3=0
+                # , v4=0
+            )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
@@ -2428,7 +2425,7 @@ class VPTTests(TestCase):
             energies[1:] - energies[0]
         ])
 
-        print_report = False
+        print_report = True
         if print_report:
             print("Gaussian:\n",
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
@@ -2472,25 +2469,14 @@ class VPTTests(TestCase):
         )
         n_modes = 3
         coupled_states = self.get_states(5, n_modes, max_quanta=5)
-        def block(self=self, internals=internals, states=states, coupled_states=coupled_states):
-            return self.get_VPT2_wfns(
+        with BlockProfiler("HOT", print_res=False):
+            wfns = self.get_VPT2_wfns(
                 "HOT_freq.fchk",
                 internals,
                 states,
                 regenerate=True,
                 coupled_states=coupled_states
             )
-        wfns = block()
-        exc, stat_block, wfns = self.profile_block(block)
-
-        do_profile = False
-        if exc is not None:
-            try:
-                raise exc
-            except:
-                raise Exception(stat_block)
-        elif do_profile:
-            raise Exception(stat_block)
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         engs = h2w * wfns.energies
@@ -3009,7 +2995,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @debugTest
+    @inactiveTest
     def test_OCHDVPTCartesians(self):
 
         internals = None
@@ -3250,7 +3236,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs-gaussian_freqs[:, 1])[:len(states)-1]),
             1)
 
-    @inactiveTest
+    @debugTest
     def test_OCHTVPTCartesians(self):
 
         internals = None
@@ -3261,13 +3247,8 @@ class VPTTests(TestCase):
             n_modes = len(mode_selection)
 
         states = self.get_states(2, n_modes)
-
-        def block(self=self,
-                  internals=internals,
-                  states=states,
-                  mode_selection=mode_selection
-                  ):
-            return self.get_VPT2_wfns(
+        with BlockProfiler("OCHT", print_res=False):
+            wfns = self.get_VPT2_wfns(
                 "OCHT_freq.fchk",
                 internals,
                 states,
@@ -3287,21 +3268,6 @@ class VPTTests(TestCase):
                 # , degeneracies=50/self.h2w
                 , log=True
             )
-
-        # block()
-        exc, stat_block, wfns = self.profile_block(block)
-        do_profile = False
-        if do_profile:
-            if exc is not None:
-                try:
-                    raise exc
-                except:
-                    raise Exception(stat_block)
-            else:
-                raise Exception(stat_block)
-        elif exc is not None:
-            raise exc
-
 
         # print(len(coupled_states), len(wfns.corrs.coupled_states))
         # print(wfns.corrs.degenerate_states)
@@ -3389,7 +3355,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @debugTest
+    @inactiveTest
     def test_CH2DTVPTCartesians(self):
 
         internals = None
@@ -3403,36 +3369,15 @@ class VPTTests(TestCase):
         # coupled_states = self.get_states(5, n_modes, max_quanta=5)
         #
 
-        def block(self=self,
-                  internals=internals,
-                  states=states,
-                  coupled_states=None,
-                  mode_selection=mode_selection
-                  ):
-            return self.get_VPT2_wfns(
+        with BlockProfiler("CH2DT"):
+            wfns = self.get_VPT2_wfns(
                 "CH2DT_freq.fchk",
                 internals,
                 states,
                 regenerate=True,
-                coupled_states=coupled_states,
                 mode_selection=mode_selection,
                 log=True
             )
-
-        # block()
-        exc, stat_block, wfns = self.profile_block(block)
-
-        do_profile = False
-        if do_profile:
-            if exc is not None:
-                try:
-                    raise exc
-                except:
-                    raise Exception(stat_block)
-            else:
-                raise Exception(stat_block)
-        elif exc is not None:
-            raise exc
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         engs = h2w * wfns.energies
@@ -3535,7 +3480,7 @@ class VPTTests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 

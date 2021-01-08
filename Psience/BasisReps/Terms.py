@@ -155,10 +155,12 @@ class Representation:
             m = [m]
 
         if pull_elements:
+            raise NotImplementedError("we shouldn't be here...")
             # If we're just pulling elements we need only unravel those indices
             n = np.unravel_index(n, dims)
             m = np.unravel_index(m, dims)
         else:
+            raise NotImplementedError("we shouldn't be here...")
             # If we're pulling blocks we need to compute the product of the row
             #  and column indices to get the total index spec
             blocks = np.array(list(ip.product(n, m)))

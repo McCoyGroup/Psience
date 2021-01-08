@@ -210,8 +210,7 @@ class Operator:
 
     def _direct_prod_operator_terms(self, inds, func, states):
         """
-        Evaluates product operator terms based on 1D representation matrices,
-        but using a direct function to generate them
+        Evaluates product operator terms using a function to directly generate them
 
         :param inds:
         :type inds:
@@ -225,6 +224,8 @@ class Operator:
         # this will likely end up calling uinds again, but ah well, that operation is cheap
         uinds = OrderedDict((k, None) for k in inds)
         uinds = np.array(list(uinds.keys()))
+        # the issue here is that _this_ operation is not necessarily cheap...
+        # the subdimension states still can be quite expensive to get indices from
         states = states.take_subdimensions(uinds)
 
         gen = func(inds)
@@ -294,7 +295,6 @@ class Operator:
             # finally we make sure that everything we're working with is
             # non-zero because it'll buy us time on dot products later
             non_zero = np.where(np.abs(chunk) >= self.zero_threshold)[0]
-            # logger.log_print('nz: {nz}', nz=len(non_zero))
 
             if len(non_zero) == 0:
                 return sp.csr_matrix((1, nstates), dtype='float')

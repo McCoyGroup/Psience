@@ -2,7 +2,10 @@
 Provides a very general specification for a RepresentationBasis object that can be
 used to define matrix representations
 """
+
 import abc, numpy as np, scipy.sparse as sp, itertools as ip
+from .StateIndexers import BaseStateIndexer, ArrayStateIndexer, PermutationStateIndexer
+from McUtils.Scaffolding import MaxSizeCache
 
 __all__ = [
     "RepresentationBasis",
@@ -247,20 +250,20 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
 
         return self._sel_rules_from_rules(rules)
         # TODO: add in to PerturbationTheory stuff + need to add initial_states & final_states for transition moment code... (otherwise _waaay_ too slow)
-        transitions_h1 = [
-            [-1],
-            [1],
-            [-3],
-            [3],
-            [-1, -1, -1],
-            [-1, -1, 1],
-            [-1, 1, 1],
-            [1, 1, 1],
-            [1, 2],
-            [-1, 2],
-            [1, -2],
-            [-1, -2]
-        ]
+        # transitions_h1 = [
+        #     [-1],
+        #     [1],
+        #     [-3],
+        #     [3],
+        #     [-1, -1, -1],
+        #     [-1, -1, 1],
+        #     [-1, 1, 1],
+        #     [1, 1, 1],
+        #     [1, 2],
+        #     [-1, 2],
+        #     [1, -2],
+        #     [-1, -2]
+        # ]
     # def __repr__(self):
     #     return "{}('{}')".format(
     #         type(self).__name__,
@@ -270,17 +273,39 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
 class SimpleProductBasis(RepresentationBasis):
     """
     Defines a direct product basis from a 1D basis.
-    Mixed product bases aren't currently supported.
+    Mixed product bases aren't currently supported, but this provides
+    at least a sample for how that kind of things could be
+    generated.
     """
-    def __init__(self, basis_type, n_quanta):
+
+    _indexer_cache = MaxSizeCache()
+    array_indexer_cutoff = 6
+    def __init__(self, basis_type, n_quanta, indexer=None):
         """
         :param basis_type: the type of basis to do a product over
         :type basis_type: type
         :param n_quanta: the number of quanta for the representations
         :type n_quanta: Iterable[int]
+        :param indexer: an object that can turn state specs into indices and indices into state specs
+        :type indexer: BaseStateIndexer
         """
         self.basis_type = basis_type
         self.bases = tuple(basis_type(n) for n in n_quanta)
+        if indexer is None:
+            if self.ndim > self.array_indexer_cutoff: # use the faster version when there are few permutations
+                if self.ndim not in self._indexer_cache:
+                    indexer = PermutationStateIndexer(self.ndim)
+                    self._indexer_cache[self.ndim] = indexer
+                else:
+                    indexer = self._indexer_cache[self.ndim]
+            else:
+                dims = self.dimensions
+                if dims not in self._indexer_cache:
+                    indexer = ArrayStateIndexer(dims)
+                    self._indexer_cache[dims] = indexer
+                else:
+                    indexer = self._indexer_cache[dims]
+        self.indexer = indexer
         super().__init__(self.get_function, None)
 
     @property
@@ -315,10 +340,8 @@ class SimpleProductBasis(RepresentationBasis):
         :return: array of state indices in the basis
         :rtype: tuple[int]
         """
-        idx = np.asarray(idx, dtype=int)
-        if idx.ndim == 1:
-            idx = idx[np.newaxis]
-        return np.ravel_multi_index(idx.T, self.quanta)
+
+        return self.indexer.to_indices(idx)
 
     def unravel_state_inds(self, idx):
         """
@@ -330,7 +353,9 @@ class SimpleProductBasis(RepresentationBasis):
         :rtype: tuple[tuple[int]]
         """
 
-        return np.array(np.unravel_index(idx, self.quanta)).T
+        return self.indexer.from_indices(idx)
+
+        # return np.array(np.unravel_index(idx, self.quanta)).T
 
     def get_function(self, idx):
         fs = tuple(b[n] for b, n in zip(self.bases, idx))
@@ -405,5 +430,13 @@ class SimpleProductBasis(RepresentationBasis):
         return self.representation(self.bases[0].p)[:n, :n]
 
     def take_subdimensions(self, dims):
+        """
+        Casts down to lower dimensional space
+
+        :param dims:
+        :type dims:
+        :return:
+        :rtype:
+        """
         qq = self.quanta
         return type(self)(self.basis_type, [qq[d] for d in dims])
