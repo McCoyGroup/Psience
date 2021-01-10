@@ -46,6 +46,23 @@ Returns states as sets of excitations, rather than indices indo the basis functi
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.to_single" class="docs-object-method">&nbsp;</a>
+```python
+to_single(self): 
+```
+Basically a no-op
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_unique" class="docs-object-method">&nbsp;</a>
+```python
+take_unique(self): 
+```
+Returns only the unique states, but preserves
+        ordering and all of that
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.apply_selection_rules" class="docs-object-method">&nbsp;</a>
 ```python
 apply_selection_rules(self, selection_rules, filter_space=None, iterations=1): 

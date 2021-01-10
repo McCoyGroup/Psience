@@ -33,11 +33,6 @@ basis(self):
 ndim(self): 
 ```
 
-<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__len__" class="docs-object-method">&nbsp;</a>
-```python
-__len__(self): 
-```
-
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.nstates" class="docs-object-method">&nbsp;</a>
 ```python
 @property
@@ -59,7 +54,7 @@ flat(self):
 ```python
 as_indices(self): 
 ```
-Pulls the unique values & indices out of _all_ of the
+Pulls the full set indices out of all of the
         held spaces and returns them as a flat vector
 - `:returns`: `_`
     >No description...
@@ -68,6 +63,10 @@ Pulls the unique values & indices out of _all_ of the
 ```python
 as_excitations(self): 
 ```
+Pulls the full set excitations out of all of the
+        held spaces and returns them as a flat vector
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__getitem__" class="docs-object-method">&nbsp;</a>
 ```python

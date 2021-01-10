@@ -67,6 +67,14 @@ take_subdimensions(self, inds):
 ```python
 apply_non_orthogonality(self, inds, assume_unique=False): 
 ```
+Takes the bra-ket pairs that are non-orthogonal under the
+        indices `inds`
+- `inds`: `Any`
+    >No description...
+- `assume_unique`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.apply_sel_rules" class="docs-object-method">&nbsp;</a>
 ```python

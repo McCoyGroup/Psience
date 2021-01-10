@@ -3400,7 +3400,7 @@ class VPT2Tests(TestCase):
         # coupled_states = self.get_states(5, n_modes, max_quanta=5)
         #
 
-        with BlockProfiler("CH2DT"):
+        with BlockProfiler("CH2DT", print_res=False):
             wfns = self.get_VPT2_wfns(
                 "CH2DT_freq.fchk",
                 internals,
@@ -3511,7 +3511,7 @@ class VPT2Tests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @inactiveTest
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
