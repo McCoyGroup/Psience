@@ -69,6 +69,7 @@ class SpaceStateIndexer(BaseStateIndexer):
     def from_indices(self, indices):
         return self.og_states[indices,]
 
+PermutationStateKey = collections.namedtuple("PermutationStateKey", ['non_zero', 'classes'])
 class PermutationStateIndexer(BaseStateIndexer):
     """
     A sophisticated indexer that takes a state dimension and provides
@@ -129,9 +130,8 @@ class PermutationStateIndexer(BaseStateIndexer):
             self.classes = np.flip(self.classes)
             self.counts = np.flip(self.counts)
             self.non_zero = sum(x for x,c in zip(self.counts, self.classes) if c != 0)
-            self.key = self.pkey(self.non_zero, tuple(self.classes))
+            self.key = PermutationStateKey(self.non_zero, tuple(self.classes))
             self.total_states = self._fac_rat(self.counts)
-        pkey = collections.namedtuple("pkey", ['non_zero', 'classes'])
 
         @staticmethod
         def _fac_rat(counts):
@@ -381,7 +381,7 @@ class PermutationStateIndexer(BaseStateIndexer):
             cls = np.flip(cls)
             cnt = np.flip(cnt)
             nz = sum(x for x,c in zip(cnt, cls) if c != 0)
-            cls_key = self.PartitionPermutationIndexer.pkey(nz, tuple(cls))
+            cls_key = PermutationStateKey(nz, tuple(cls))
             for indexer in partitions:
                 ikey = indexer.key
                 if ikey == cls_key: # it's a match!
@@ -394,7 +394,7 @@ class PermutationStateIndexer(BaseStateIndexer):
         else:
             # build an array of state classes to sort and stuff
             # to minimize checks down the line
-            make_class = lambda cls, cnt: self.PartitionPermutationIndexer.pkey(sum(x for x,c in zip(cnt, cls) if c!=0), tuple(np.flip(cls)))
+            make_class = lambda cls, cnt: PermutationStateKey(sum(x for x,c in zip(cnt, cls) if c!=0), tuple(np.flip(cls)))
             state_dat = np.array([make_class(*np.unique(s, return_counts=True)) for s in states], dtype=object)
             if not assume_sorted:
                 # we do an initial sorting of the states and the data

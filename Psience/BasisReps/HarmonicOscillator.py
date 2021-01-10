@@ -85,7 +85,7 @@ class HarmonicOscillatorBasis(RepresentationBasis):
         ]
         return sp.csr_matrix(sp.diags([b[0] for b in bands], [b[1] for b in bands]))
 
-    def operator(self, *terms):
+    def operator(self, *terms, parallelizer=None):
         """
         Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -106,9 +106,9 @@ class HarmonicOscillatorBasis(RepresentationBasis):
                 if len(idx) > 1:
                     raise ValueError("multidimensional index by one-dimensional basis ?_?")
                 return term_eval, term_eval.selection_rules
-            return Operator(computer, (self.quanta,), prod_dim=1)
+            return Operator(computer, (self.quanta,), prod_dim=1, parallelizer=parallelizer)
         else:
-            return super().operator(*terms)
+            return super().operator(*terms, parallelizer=parallelizer)
 
         # funcs = [self.bases[0].operator_mapping[f] if isinstance(f, str) else f for f in terms]
         # q = self.quanta
@@ -152,7 +152,7 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
             n_quanta = [self.nquant_max] * n_quanta
         super().__init__(HarmonicOscillatorBasis, n_quanta)
 
-    def operator(self, *terms, coeffs=None, axes=None):
+    def operator(self, *terms, coeffs=None, axes=None, parallelizer=None):
         """
         Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -176,12 +176,12 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
             labels = [mapping[k] for k in ids]
 
             if coeffs is None:
-                op = Operator(computer, self.quanta, prod_dim=len(terms), symmetries=labels)#, axes=axes)
+                op = Operator(computer, self.quanta, prod_dim=len(terms), symmetries=labels, parallelizer=parallelizer)#, axes=axes)
             else:
-                op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms), symmetries=labels, axes=axes)
+                op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms), symmetries=labels, axes=axes, parallelizer=parallelizer)
             return op
         else:
-            return super().operator(*terms, coeffs=coeffs, axes=axes)
+            return super().operator(*terms, coeffs=coeffs, axes=axes, parallelizer=parallelizer)
 
     def take_subdimensions(self, dims):
         qq = self.quanta
@@ -286,6 +286,11 @@ class HarmonicProductOperatorTermEvaluator:
         """
         op = self[inds]
         return op, op.selection_rules
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # print(state)
+        return state
 
     class ProdOp:
         """

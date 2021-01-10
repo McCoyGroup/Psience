@@ -3,6 +3,7 @@ from Peeves import Timer, BlockProfiler
 from unittest import TestCase
 from Psience.VPT2 import *
 from McUtils.Data import UnitsData
+from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
 import sys, os, numpy as np, itertools as ip
 import cProfile, pstats, io
 
@@ -61,60 +62,69 @@ class VPT2Tests(TestCase):
                               watson=None,
                               degeneracies=None,
                               log=False,
-                              get_breakdown=False
+                              get_breakdown=False,
+                              parallelized=False
                               ):
-
-        hammer = PerturbationTheoryHamiltonian.from_fchk(
-            TestManager.test_data(fchk),
-            internals=internals,
-            mode_selection=mode_selection,
-            log = log
-        )
-
-        if get_breakdown:
-            bd = hammer.get_breakdown(states=states, degeneracies=degeneracies, coupled_states=coupled_states)
-            return bd, hammer
-
-        wfn_file = os.path.join(self.wfn_file_dir, fchk.replace("fchk", "npz"))
-        if regenerate or not os.path.exists(wfn_file):
-
-            if save_coeffs:
-                coeffs_file = os.path.join(self.wfn_file_dir, fchk.replace(".fchk", "_coeffs.npz"))
-                np.savez(coeffs_file,
-                         G=hammer.H0.computers[0].operator.coeffs,
-                         F=hammer.H0.computers[1].operator.coeffs,
-                         dGdQ=hammer.H1.computers[0].operator.coeffs,
-                         dFdQ=hammer.H1.computers[1].operator.coeffs,
-                         dGdQQ=hammer.H2.computers[0].operator.coeffs,
-                         dFdQQ=hammer.H2.computers[1].operator.coeffs,
-                         coriolis=hammer.H2.computers[2].operator.coeffs,
-                         watson=hammer.H2.computers[3].operator.coeffs
-                         )
-
-            if t2 is not None:
-                hammer.H0.computers[0].operator.coeffs = t2
-            if v2 is not None:
-                hammer.H0.computers[1].operator.coeffs = v2
-            if t3 is not None:
-                hammer.H1.computers[0].operator.coeffs = t3
-            if v3 is not None:
-                hammer.H1.computers[1].operator.coeffs = v3
-            if t4 is not None:
-                hammer.H2.computers[0].operator.coeffs = t4
-            if v4 is not None:
-                hammer.H2.computers[1].operator.coeffs = v4
-            if coriolis is not None:
-                hammer.H2.computers[2].operator.coeffs = coriolis
-                if watson is None and isinstance(coriolis, (int, float)) and coriolis == 0:
-                    watson = 0
-            if watson is not None:
-                hammer.H2.computers[3].operator.coeffs = watson
-
-            wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies)
-            if save_wfns:
-                self.save_wfns(wfn_file, wfns)
+        if parallelized:
+            parallelizer = MultiprocessingParallelizer()
         else:
-            wfns = self.load_wfns(hammer.molecule, hammer.basis, wfn_file)
+            parallelizer = SerialNonParallelizer()
+
+
+        with parallelizer:
+
+            hammer = PerturbationTheoryHamiltonian.from_fchk(
+                TestManager.test_data(fchk),
+                internals=internals,
+                mode_selection=mode_selection,
+                log=log,
+                parallelizer=parallelizer
+            )
+
+            if get_breakdown:
+                bd = hammer.get_breakdown(states=states, degeneracies=degeneracies, coupled_states=coupled_states)
+                return bd, hammer
+
+            wfn_file = os.path.join(self.wfn_file_dir, fchk.replace("fchk", "npz"))
+            if regenerate or not os.path.exists(wfn_file):
+
+                if save_coeffs:
+                    coeffs_file = os.path.join(self.wfn_file_dir, fchk.replace(".fchk", "_coeffs.npz"))
+                    np.savez(coeffs_file,
+                             G=hammer.H0.computers[0].operator.coeffs,
+                             F=hammer.H0.computers[1].operator.coeffs,
+                             dGdQ=hammer.H1.computers[0].operator.coeffs,
+                             dFdQ=hammer.H1.computers[1].operator.coeffs,
+                             dGdQQ=hammer.H2.computers[0].operator.coeffs,
+                             dFdQQ=hammer.H2.computers[1].operator.coeffs,
+                             coriolis=hammer.H2.computers[2].operator.coeffs,
+                             watson=hammer.H2.computers[3].operator.coeffs
+                             )
+
+                if t2 is not None:
+                    hammer.H0.computers[0].operator.coeffs = t2
+                if v2 is not None:
+                    hammer.H0.computers[1].operator.coeffs = v2
+                if t3 is not None:
+                    hammer.H1.computers[0].operator.coeffs = t3
+                if v3 is not None:
+                    hammer.H1.computers[1].operator.coeffs = v3
+                if t4 is not None:
+                    hammer.H2.computers[0].operator.coeffs = t4
+                if v4 is not None:
+                    hammer.H2.computers[1].operator.coeffs = v4
+                if coriolis is not None:
+                    hammer.H2.computers[2].operator.coeffs = coriolis
+                    if watson is None and isinstance(coriolis, (int, float)) and coriolis == 0:
+                        watson = 0
+                if watson is not None:
+                    hammer.H2.computers[3].operator.coeffs = watson
+
+                wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies)
+                if save_wfns:
+                    self.save_wfns(wfn_file, wfns)
+            else:
+                wfns = self.load_wfns(hammer.molecule, hammer.basis, wfn_file)
 
         return wfns, hammer
 
@@ -135,6 +145,7 @@ class VPT2Tests(TestCase):
                       watson=None,
                       degeneracies=None,
                       log=False,
+                      parallelized=False,
                       get_breakdown=False
                       ):
         return self.get_VPT2_wfns_and_ham(
@@ -155,6 +166,7 @@ class VPT2Tests(TestCase):
             watson=watson,
             degeneracies=degeneracies,
             log=log,
+            parallelized=parallelized,
             get_breakdown=get_breakdown
         )[0]
 
@@ -3267,6 +3279,7 @@ class VPT2Tests(TestCase):
                 # )
                 # , degeneracies=50/self.h2w
                 , log=True
+                # , parallelized=True
             )
 
         # print(len(coupled_states), len(wfns.corrs.coupled_states))
@@ -3355,7 +3368,7 @@ class VPT2Tests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @inactiveTest
+    @debugTest
     def test_CH2DTVPTCartesians(self):
 
         internals = None
@@ -3480,7 +3493,7 @@ class VPT2Tests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @validationTest
+    @inactiveTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -3495,35 +3508,16 @@ class VPT2Tests(TestCase):
 
         # coupled_states = self.get_states(5, n_modes, max_quanta=5)
 
-        def block(self=self,
-                  internals=internals,
-                  states=states,
-                  coupled_states=None,
-                  mode_selection=mode_selection
-                  ):
-            return self.get_VPT2_wfns(
+        with BlockProfiler("WaterDimer", print_res=False):
+            wfns = self.get_VPT2_wfns(
                 "water_dimer_freq.fchk",
                 internals,
                 states,
                 regenerate=True,
                 mode_selection=mode_selection,
                 log=True
+                # , parallelized=True
             )
-
-        # block()
-        exc, stat_block, wfns = self.profile_block(block)
-
-        do_profile = False
-        if do_profile:
-            if exc is not None:
-                try:
-                    raise exc
-                except:
-                    raise Exception(stat_block)
-            else:
-                raise Exception(stat_block)
-        elif exc is not None:
-            raise exc
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         engs = h2w * wfns.energies

@@ -7,6 +7,7 @@ import numpy as np, scipy.sparse as sp, os, tempfile as tf
 from collections import OrderedDict
 from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
+from McUtils.Parallelizers import Parallelizer, SerialNonParallelizer
 
 from .StateSpaces import BraKetSpace
 
@@ -21,8 +22,11 @@ class Operator:
     QQQ and pQp to be calculated block-by-block.
     Crucially, the underlying basis for the operator is assumed to be orthonormal.
     """
-    def __init__(self, funcs, quanta, prod_dim=None, symmetries=None,
+    def __init__(self, funcs, quanta,
+                 prod_dim=None,
+                 symmetries=None,
                  selection_rules=None,
+                 parallelizer=None,
                  zero_threshold=1.0e-14):
         """
         :param funcs: The functions use to calculate representation
@@ -54,7 +58,7 @@ class Operator:
         self.mode_n = len(quanta)
         self.zero_threshold = zero_threshold
         # self._tensor = None
-        self._parallelizer = None
+        self._parallelizer = parallelizer
             # in the future people will be able to supply this so that they can fully control how
             # the code gets parallelized
 
@@ -64,6 +68,33 @@ class Operator:
     @property
     def shape(self):
         return (self.mode_n, ) * self.fdim + self.quanta
+
+    def load_parallelizer(self):
+        """
+        Loads the held parallelizer if needed
+
+        :return:
+        :rtype:
+        """
+        from McUtils.Parallelizers import Parallelizer
+
+        if not isinstance(self._parallelizer, Parallelizer):
+            return Parallelizer.lookup(self._parallelizer)
+        else:
+            return self._parallelizer
+
+    @property
+    def parallelizer(self):
+        """
+        Loads a parallelizer that can be used to speed up various bits of the calculation
+
+        :return:
+        :rtype:
+        """
+        if self._parallelizer is not None:
+            return self.load_parallelizer()
+        else:
+            return self._parallelizer
 
     def get_inner_indices(self):
         """
@@ -131,6 +162,68 @@ class Operator:
             ),
             shape=(1, ntotal)
         )
+
+
+    def filter_symmetric_indices(self, inds):
+        """
+        Determines which inds are symmetry unique.
+        For something like `qqq` all permutations are equivalent, but for `pqp` we have `pi qj pj` distinct from `pj qj pi`.
+        This means for `qqq` we have `(1, 0, 0) == (0, 1, 0)` but for `pqp` we only have stuff like `(2, 0, 1) == (1, 0, 2)` .
+
+        :param inds: indices to filter symmetric bits out of
+        :type inds: np.ndarray
+        :return: symmetric indices & inverse map
+        :rtype:
+        """
+
+        symm_labels = self.symmetry_inds
+        flat = np.reshape(inds, (-1, inds.shape[-1]))
+        if symm_labels is None:
+            return flat, None
+
+        ind_grps = OrderedDict()
+        for i, l in enumerate(symm_labels):
+            if l in ind_grps:
+                ind_grps[l].append(i)
+            else:
+                ind_grps[l] = [i]
+        ind_grps = list(ind_grps.values())
+
+        if len(ind_grps) == len(symm_labels):
+            # short-circuit case if no symmetry
+            return flat, None
+        elif len(ind_grps) == 1:
+            # totally symmetric so we can just sort and delete the dupes
+            flat = np.sort(flat, axis=1)
+            return np.unique(flat, axis=0, return_inverse=True)
+        else:
+            # if indices are shared between groups we can't do anything about them
+            # so we figure out where there are overlaps in indices
+            # we do this iteratively by looping over groups, figuring out pairwise if they
+            # share elements, and using an `or` op to update our list of indep terms
+            indep_grps = np.full((len(flat),), False, dtype=bool)
+            # this is 4D, but over relatively small numbers of inds (maybe 6x6x6x6 at max)
+            # and so hopefully still fast, esp. relative to computing actual terms
+            for i in range(len(ind_grps)):
+                for j in range(i+1, len(ind_grps)):
+                    for t1 in ind_grps[i]:
+                        for t2 in ind_grps[j]:
+                            indep_grps = np.logical_or(
+                                indep_grps,
+                                flat[:, t1] == flat[:, t2]
+                            )
+            indep_grps = np.logical_not(indep_grps)
+            symmable = flat[indep_grps]
+
+            # pull out the groups of indices and sort them
+            symmetriz_grps = [np.sort(symmable[:, g], axis=1) for g in ind_grps]
+            # stack them together to build a full array
+            # then reshuffle to get the OG ordering
+            reordering = np.argsort(np.concatenate(ind_grps))
+            symmetrized = np.concatenate(symmetriz_grps, axis=1)[:, reordering]
+            flat[indep_grps] = symmetrized
+
+            return np.unique(flat, axis=0, return_inverse=True)
 
     def _mat_prod_operator_terms(self, inds, funcs, states, sel_rules):
         """
@@ -325,36 +418,33 @@ class Operator:
         :return:
         :rtype:
         """
+
         res = np.apply_along_axis(self._calculate_single_pop_elements,
                                   -1, inds, self.funcs, idx, self.sel_rules
                                   )
         if save_to_disk:
-            new = sp.vstack([x for y in res.flatten() for x in y])
-            with tf.NamedTemporaryFile() as tmp:
-                res = tmp.name + ".npz"
-            # print(res)
-            # os.remove(tmp.name)
-            sp.save_npz(res, new, compressed=False)
+            flattened = [x for y in res.flatten() for x in y]
+            res = []
+            try:
+                for array in flattened:
+                    with tf.NamedTemporaryFile() as tmp:
+                        dump = tmp.name + ".npz"
+                    # print(res)
+                    # os.remove(tmp.name)
+                    sp.save_npz(dump, array, compressed=False)
+                    res.append(dump)
+            except:
+                for file in res:
+                    try:
+                        os.remove(file)
+                    except:
+                        pass
+                raise
 
         return res
 
-    def _get_pop_parallel(self, inds, idx, parallelizer=None):
-        if parallelizer != "multiprocessing":
-            raise NotImplementedError("More parallelization methods are coming--just not yet")
-
-        # in the future this will be like Parallizer.num_cores
-        # and we can just have Parallelizer.apply_along_axis(func, ...)
-
-        import multiprocessing as mp
-        cores = mp.cpu_count()
-
-        if self._parallelizer is None:
-            self._parallelizer = mp.Pool()
-
-        ind_chunks = np.array_split(inds, min(cores, inds.shape[0]))
-
-        chunks = [(sub_arr, idx, True) for sub_arr in ind_chunks]
-        res = self._parallelizer.starmap(self._get_pop_sequential, chunks)
+    @Parallelizer.main_restricted
+    def _load_arrays(self, res, parallelizer=None):
         if isinstance(res[0], str):
             try:
                 sparrays = np.array([sp.load_npz(f) for f in res])
@@ -366,79 +456,41 @@ class Operator:
                     # print(e)
                     pass
             res = sparrays
-
-        # raise Exception(res)
-
         return res
 
-    def filter_symmetric_indices(self, inds):
+    def _get_pop_parallel(self, inds, idx, parallelizer):
         """
-        Determines which inds are symmetry unique.
-        For something like `qqq` all permutations are equivalent, but for `pqp` we have `pi qj pj` distinct from `pj qj pi`.
-        This means for `qqq` we have `(1, 0, 0) == (0, 1, 0)` but for `pqp` we only have stuff like `(2, 0, 1) == (1, 0, 2)` .
-
-        :param inds: indices to filter symmetric bits out of
-        :type inds: np.ndarray
-        :return: symmetric indices & inverse map
+        :param inds:
+        :type inds:
+        :param idx:
+        :type idx:
+        :param parallelizer:
+        :type parallelizer: Parallelizer
+        :return:
         :rtype:
         """
 
+        # parallelizer.print("calling...")
+        inds = parallelizer.scatter(inds)
+        # parallelizer.print(inds.shape)
+        dump = self._get_pop_sequential(inds, idx, True)
+        res = parallelizer.gather(dump)
+        # parallelizer.print(res)
+        if parallelizer.on_main:
+            res = sum(res, [])
+            res = self._load_arrays(res)
 
-        symm_labels = self.symmetry_inds
-        flat = np.reshape(inds, (-1, inds.shape[-1]))
-        if symm_labels is None:
-            return flat, None
+        return res
 
-        ind_grps = OrderedDict()
-        for i, l in enumerate(symm_labels):
-            if l in ind_grps:
-                ind_grps[l].append(i)
-            else:
-                ind_grps[l] = [i]
-        ind_grps = list(ind_grps.values())
-
-        if len(ind_grps) == len(symm_labels):
-            # short-circuit case if no symmetry
-            return flat, None
-        elif len(ind_grps) == 1:
-            # totally symmetric so we can just sort and delete the dupes
-            flat = np.sort(flat, axis=1)
-            return np.unique(flat, axis=0, return_inverse=True)
-        else:
-            # if indices are shared between groups we can't do anything about them
-            # so we figure out where there are overlaps in indices
-            # we do this iteratively by looping over groups, figuring out pairwise if they
-            # share elements, and using an `or` op to update our list of indep terms
-            indep_grps = np.full((len(flat),), False, dtype=bool)
-            # this is 4D, but over relatively small numbers of inds (maybe 6x6x6x6 at max)
-            # and so hopefully still fast, esp. relative to computing actual terms
-            for i in range(len(ind_grps)):
-                for j in range(i+1, len(ind_grps)):
-                    for t1 in ind_grps[i]:
-                        for t2 in ind_grps[j]:
-                            indep_grps = np.logical_or(
-                                indep_grps,
-                                flat[:, t1] == flat[:, t2]
-                            )
-            indep_grps = np.logical_not(indep_grps)
-            symmable = flat[indep_grps]
-
-            # pull out the groups of indices and sort them
-            symmetriz_grps = [np.sort(symmable[:, g], axis=1) for g in ind_grps]
-            # stack them together to build a full array
-            # then reshuffle to get the OG ordering
-            reordering = np.argsort(np.concatenate(ind_grps))
-            symmetrized = np.concatenate(symmetriz_grps, axis=1)[:, reordering]
-            flat[indep_grps] = symmetrized
-
-            return np.unique(flat, axis=0, return_inverse=True)
-
-    def get_elements(self, idx, parallelizer=None):#'multiprocessing'):
+    @Parallelizer.main_restricted
+    def _main_get_elements(self, inds, idx, parallelizer=None):
         """
-        Calculates a subset of elements
+        Implementation of get_elements to be run on the main process...
 
-        :param idx: bra and ket states as tuples of elements
-        :type idx: Iterable[(Iterable[int], Iterable[int])]
+        :param idx:
+        :type idx:
+        :param parallelizer:
+        :type parallelizer:
         :return:
         :rtype:
         """
@@ -448,17 +500,12 @@ class Operator:
         if not isinstance(idx, BraKetSpace):
             idx = BraKetSpace.from_indices(idx, quanta=self.quanta)
 
-        inds = self.get_inner_indices()
-
         if inds is None: # just a number
             new = self._get_eye_tensor(idx)
         else:
             mapped_inds, inverse = self.filter_symmetric_indices(inds)
-
-            if parallelizer is not None:
-                res = self._get_pop_parallel(mapped_inds, idx,
-                                             parallelizer=parallelizer
-                                             )
+            if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
+                res = self._get_pop_parallel(mapped_inds, idx, parallelizer)
             else:
                 res = self._get_pop_sequential(mapped_inds, idx)
 
@@ -473,6 +520,57 @@ class Operator:
         res = res.reshape(shp[:-1] + res.shape[-1:])
 
         return res
+
+    @Parallelizer.worker_restricted
+    def _worker_get_elements(self, idx, parallelizer=None):
+        """
+
+        :param idx:
+        :type idx:
+        :param parallelizer:
+        :type parallelizer:
+        :return:
+        :rtype:
+        """
+        # worker threads only need to do a small portion of the work
+        # and actually inherit most of their info from the parent process
+        self._get_pop_parallel(None, idx, parallelizer)
+
+    def _get_elements(self, inds, idx, parallelizer=None):
+        """
+        Runs the regular element getting algorithm in parallel
+
+        :param idx:
+        :type idx:
+        :param parallelizer:
+        :type parallelizer:
+        :return:
+        :rtype:
+        """
+        self._worker_get_elements(idx, parallelizer=parallelizer)
+        return self._main_get_elements(inds, idx, parallelizer=parallelizer)
+
+    def get_elements(self, idx, parallelizer=None):
+        """
+        Calculates a subset of elements
+
+        :param idx: bra and ket states as tuples of elements
+        :type idx: Iterable[(Iterable[int], Iterable[int])]
+        :return:
+        :rtype:
+        """
+
+        inds = self.get_inner_indices()
+        if inds is None:
+            return self._get_elements(inds, idx)
+
+        if parallelizer is None:
+            parallelizer = self.parallelizer
+
+        if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
+            return parallelizer.run(self._get_elements, inds, idx)
+        else:
+            return self._main_get_elements(inds, idx, parallelizer=None)
 
     def __repr__(self):
         return "{}(<{}>, {})".format(
@@ -489,7 +587,7 @@ class ContractedOperator(Operator):
     """
 
     def __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None,
-                 selection_rules=None,
+                 selection_rules=None, parallelizer=None,
                  zero_threshold=1.0e-14
                  ):
         """
@@ -508,7 +606,8 @@ class ContractedOperator(Operator):
         self.axes = axes
         super().__init__(funcs, quanta, symmetries=symmetries, prod_dim=prod_dim,
                          selection_rules=selection_rules,
-                         zero_threshold=zero_threshold
+                         zero_threshold=zero_threshold,
+                         parallelizer=parallelizer
                          )
 
     def get_elements(self, idx, parallelizer=None):
@@ -529,7 +628,6 @@ class ContractedOperator(Operator):
                 axes = (tuple(range(c.ndim)), )*2
             subTensor = super().get_elements(idx, parallelizer=parallelizer)
 
-            # 1230987654321`subTensor.toarray().transpose(2, 0, 1), c)
             if isinstance(subTensor, np.ndarray):
                 contracted = np.tensordot(subTensor.squeeze(), c, axes=axes)
             else:

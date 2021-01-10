@@ -10,6 +10,7 @@ __all__ = [
 import numpy as np, itertools as ip, scipy.sparse as sp
 
 from McUtils.Numputils import SparseArray
+from McUtils.Scaffolding import Logger
 
 from .Operators import Operator
 from .StateSpaces import BraKetSpace
@@ -58,7 +59,6 @@ class Representation:
         if self._diminds is None:
             self._diminds = np.arange(self.ndims)
         return self._diminds
-
     def _get_inds(self, n):
         if isinstance(n, slice):
             start = n.start

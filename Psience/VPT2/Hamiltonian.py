@@ -5,7 +5,8 @@ Provides support for build perturbation theory Hamiltonians
 import numpy as np, itertools, time
 
 from McUtils.Numputils import SparseArray, vec_outer
-from McUtils.Scaffolding import Logger, NullLogger
+from McUtils.Scaffolding import Logger, NullLogger, CheckpointerBase, HDF5Checkpointer, NullCheckpointer
+from McUtils.Parallelizers import Parallelizer
 
 from ..Molecools import Molecule
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
@@ -191,8 +192,10 @@ class PerturbationTheoryHamiltonian:
                  n_quanta=None,
                  modes=None,
                  mode_selection=None,
-                 coriolis_coupling = True,
-                 log = None
+                 coriolis_coupling=True,
+                 parallelizer=None,
+                 log=None,
+                 checkpoint=None
                  ):
         """
         :param molecule: the molecule on which we're doing perturbation theory
@@ -205,6 +208,12 @@ class PerturbationTheoryHamiltonian:
         :type mode_selection: None | Iterable[int]
         :param coriolis_coupling: whether to add coriolis coupling if not in internals
         :type coriolis_coupling: bool
+        :param parallelizer: parallelism manager
+        :type parallelizer: Parallelizer
+        :param log: log file or logger to write to
+        :type log: str | Logger
+        :param checkpoint: checkpoint file or checkpointer to store intermediate results
+        :type checkpoint: str | CheckpointerBase
         """
 
         if isinstance(log, Logger):
@@ -215,6 +224,16 @@ class PerturbationTheoryHamiltonian:
             self.logger = NullLogger()
         else:
             self.logger = Logger(log)
+
+        if parallelizer is None:
+            parallelizer = "VPT"
+        self.parallelizer = parallelizer
+
+        if checkpoint is None:
+            checkpoint = NullCheckpointer(None)
+        elif isinstance(checkpoint, str):
+            checkpoint = HDF5Checkpointer(checkpoint)
+        self.checkpointer = checkpoint
 
         if molecule is None:
             raise PerturbationTheoryException("{} requires a Molecule to do its dirty-work")
@@ -275,11 +294,15 @@ class PerturbationTheoryHamiltonian:
             else:
                 iphase = -1
             self._h0 = (
-                    (iphase * 1 / 2) * self.basis.representation('p', 'p', coeffs=self.G_terms[0],
-                                                                 logger=self.logger
+                    (iphase * 1 / 2) * self.basis.representation('p', 'p',
+                                                                 coeffs=self.G_terms[0],
+                                                                 logger=self.logger,
+                                                                 parallelizer=self.parallelizer
                                                                  )
-                    + 1 / 2 * self.basis.representation('x', 'x', coeffs=self.V_terms[0],
-                                                        logger=self.logger
+                    + 1 / 2 * self.basis.representation('x', 'x',
+                                                        coeffs=self.V_terms[0],
+                                                        logger=self.logger,
+                                                        parallelizer=self.parallelizer
                                                         )
             )
 
@@ -299,11 +322,13 @@ class PerturbationTheoryHamiltonian:
                     (iphase * 1 / 2) * self.basis.representation('p', 'x', 'p',
                                                                  coeffs=self.G_terms[1],
                                                                  axes=[[0, 1, 2], [1, 0, 2]],
-                                                                 logger=self.logger
+                                                                 logger=self.logger,
+                                                                 parallelizer=self.parallelizer
                                                                  )
                     + 1 / 6 * self.basis.representation('x', 'x', 'x',
                                                         coeffs=self.V_terms[1],
-                                                        logger=self.logger
+                                                        logger=self.logger,
+                                                        parallelizer=self.parallelizer
                                                         )
             )
         return self._h1
@@ -322,26 +347,31 @@ class PerturbationTheoryHamiltonian:
                     (iphase * 1 / 4) * self.basis.representation('p', 'x', 'x', 'p',
                                                                  coeffs=self.G_terms[2],
                                                                  axes=[[0, 1, 2, 3], [2, 0, 1, 3]],
-                                                                 logger=self.logger
+                                                                 logger=self.logger,
+                                                                 parallelizer=self.parallelizer
                                                                  )
                     + 1 / 24 * self.basis.representation('x', 'x', 'x', 'x',
                                                          coeffs=self.V_terms[2],
-                                                         logger=self.logger
+                                                         logger=self.logger,
+                                                         parallelizer=self.parallelizer
                                                          )
             )
             if self.coriolis_terms is not None:
                 total_cor = self.coriolis_terms[0] + self.coriolis_terms[1] + self.coriolis_terms[2]
                 self._h2 += iphase * self.basis.representation('x', 'p', 'x', 'p',
                                                                coeffs=total_cor,
-                                                               logger=self.logger
+                                                               logger=self.logger,
+                                                               parallelizer=self.parallelizer
                                                                )
             else:
                 self._h2 += 0 * self.basis.representation(coeffs=0,
-                                                          logger=self.logger
+                                                          logger=self.logger,
+                                                          parallelizer=self.parallelizer
                                                           )
 
             self._h2 += 1 / 8 * self.basis.representation(coeffs=self.watson_term[0],
-                                                          logger=self.logger
+                                                          logger=self.logger,
+                                                          parallelizer=self.parallelizer
                                                           )
 
         return self._h2
@@ -589,10 +619,12 @@ class PerturbationTheoryHamiltonian:
             states,
             coupled_states,
             logger=None,
+            parallelizer=None,
             freq_threshold=None
     ):
         """
-        Gets the sparse representations of h_reps inside the basis of coupled states
+        Gets the sparse representations of h_reps inside the basis of coupled states.
+        Doesn't really need to be a classmethod but ah well.
 
         :param h_reps:
         :type h_reps: Iterable[Representation]
@@ -604,95 +636,97 @@ class PerturbationTheoryHamiltonian:
         :rtype:
         """
 
-        if len(coupled_states) != len(h_reps) - 1:
-            raise ValueError("coupled states must be specified for all perturbations (got {}, expected {})".format(
-                len(coupled_states),
-                len(h_reps) - 1
-            ))
+        par = Parallelizer.lookup(parallelizer)
+        with par: # we put an outermost block here to just make sure everything is clean
+            if len(coupled_states) != len(h_reps) - 1:
+                raise ValueError("coupled states must be specified for all perturbations (got {}, expected {})".format(
+                    len(coupled_states),
+                    len(h_reps) - 1
+                ))
 
-        # determine the total coupled space
-        coupled_spaces = []
-        input_state_space = states
+            # determine the total coupled space
+            coupled_spaces = []
+            input_state_space = states
 
-        # print(coupled_states)
-        space_list = [input_state_space] + list(coupled_states)
-        total_state_space = BasisMultiStateSpace(np.array(space_list,  dtype=object))
-        flat_total_space = total_state_space.to_single()
-        diag_inds = BraKetSpace(flat_total_space, flat_total_space)
-        N = len(total_state_space)
+            # print(coupled_states)
+            space_list = [input_state_space] + list(coupled_states)
+            total_state_space = BasisMultiStateSpace(np.array(space_list,  dtype=object))
+            flat_total_space = total_state_space.to_single()
+            diag_inds = BraKetSpace(flat_total_space, flat_total_space)
+            N = len(total_state_space)
 
-        logger.log_print(
-            ["total coupled space dimensions: {d}"],
-            d=N
-        )
+            logger.log_print(
+                ["total coupled space dimensions: {d}"],
+                d=N
+            )
 
-        H = [np.zeros(1)] * len(h_reps)
-        with logger.block(tag="getting H0"):
-            start = time.time()
-            logger.log_print(["calculating diagonal elements"])
-            diag = h_reps[0][diag_inds]
-            logger.log_print(["constructing sparse representation"])
-            H[0] = SparseArray.from_diag(diag)
-            end = time.time()
-            logger.log_print("took {t:.3f}s", t=end-start)
-
-        # print(flat_total_space.indices)
-        for i, h in enumerate(h_reps[1:]):
-            # calculate matrix elements in the coupled subspace
-            cs = total_state_space[i+1]
-
-            with logger.block(tag="getting H" + str(i + 1)):
-                m_pairs = cs.get_representation_brakets(freq_threshold=freq_threshold)
-
+            H = [np.zeros(1)] * len(h_reps)
+            with logger.block(tag="getting H0"):
                 start = time.time()
-                if len(m_pairs) > 0:
-                    logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
-                    sub = h[m_pairs]
-                    SparseArray.clear_ravel_caches()
-                else:
-                    logger.log_print('no states to couple!')
-                    sub = 0
-
-                logger.log_print("constructing sparse representation...")
-
-                if isinstance(sub, (int, np.integer, np.floating, float)):
-                    if sub == 0:
-                        sub = SparseArray.empty((N, N), dtype=float)
-                    else:
-                        raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
-                        sub = np.full((N, N), sub)
-                else:
-                    # figure out the appropriate inds for this data in the sparse representation
-                    row_inds = flat_total_space.find(m_pairs.bras)
-                    col_inds = flat_total_space.find(m_pairs.kets)
-                    # raise Exception([row_inds, col_inds,
-                    #                  np.unique(m_pairs.bras.excitations, axis=0), np.average(sub)])
-
-                    # upper triangle of indices
-                    up_tri = np.array([row_inds, col_inds]).T
-                    # lower triangle is made by transposition
-                    low_tri = np.array([col_inds, row_inds]).T
-                    # but now we need to remove the duplicates, because many sparse matrix implementations
-                    # will sum up any repeated elements
-                    full_inds = np.concatenate([up_tri, low_tri])
-                    full_dat = np.concatenate([sub, sub])
-
-                    _, idx = np.unique(full_inds, axis=0, return_index=True)
-                    sidx = np.sort(idx)
-                    full_inds = full_inds[sidx]
-                    full_dat = full_dat[sidx]
-                    sub = SparseArray((full_dat, full_inds.T), shape=(N, N))
+                logger.log_print(["calculating diagonal elements"])
+                diag = h_reps[0][diag_inds]
+                logger.log_print(["constructing sparse representation"])
+                H[0] = SparseArray.from_diag(diag)
                 end = time.time()
-                logger.log_print("took {t:.3f}s", t=end - start)
+                logger.log_print("took {t:.3f}s", t=end-start)
 
-            H[i+1] = sub #type: np.ndarray
-            # raise Exception(np.min(H[1].toarray()), np.max(H[1].toarray()))
+            # print(flat_total_space.indices)
+            for i, h in enumerate(h_reps[1:]):
+                # calculate matrix elements in the coupled subspace
+                cs = total_state_space[i+1]
 
-            # import McUtils.Plots as plt
-            # plt.ArrayPlot(H[1].toarray()).show()
-            # raise Exception("...")
+                with logger.block(tag="getting H" + str(i + 1)):
+                    m_pairs = cs.get_representation_brakets(freq_threshold=freq_threshold)
 
-        return H, total_state_space
+                    start = time.time()
+                    if len(m_pairs) > 0:
+                        logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
+                        sub = h[m_pairs]
+                        SparseArray.clear_ravel_caches()
+                    else:
+                        logger.log_print('no states to couple!')
+                        sub = 0
+
+                    logger.log_print("constructing sparse representation...")
+
+                    if isinstance(sub, (int, np.integer, np.floating, float)):
+                        if sub == 0:
+                            sub = SparseArray.empty((N, N), dtype=float)
+                        else:
+                            raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
+                            sub = np.full((N, N), sub)
+                    else:
+                        # figure out the appropriate inds for this data in the sparse representation
+                        row_inds = flat_total_space.find(m_pairs.bras)
+                        col_inds = flat_total_space.find(m_pairs.kets)
+                        # raise Exception([row_inds, col_inds,
+                        #                  np.unique(m_pairs.bras.excitations, axis=0), np.average(sub)])
+
+                        # upper triangle of indices
+                        up_tri = np.array([row_inds, col_inds]).T
+                        # lower triangle is made by transposition
+                        low_tri = np.array([col_inds, row_inds]).T
+                        # but now we need to remove the duplicates, because many sparse matrix implementations
+                        # will sum up any repeated elements
+                        full_inds = np.concatenate([up_tri, low_tri])
+                        full_dat = np.concatenate([sub, sub])
+
+                        _, idx = np.unique(full_inds, axis=0, return_index=True)
+                        sidx = np.sort(idx)
+                        full_inds = full_inds[sidx]
+                        full_dat = full_dat[sidx]
+                        sub = SparseArray((full_dat, full_inds.T), shape=(N, N))
+                    end = time.time()
+                    logger.log_print("took {t:.3f}s", t=end - start)
+
+                H[i+1] = sub #type: np.ndarray
+                # raise Exception(np.min(H[1].toarray()), np.max(H[1].toarray()))
+
+                # import McUtils.Plots as plt
+                # plt.ArrayPlot(H[1].toarray()).show()
+                # raise Exception("...")
+
+            return H, total_state_space
 
     @staticmethod
     def _martin_test(h_reps, states, threshold, total_coupled_space):
@@ -775,7 +809,8 @@ class PerturbationTheoryHamiltonian:
                                perts,
                                degenerate_states,
                                total_state_space,
-                               logger=None
+                               logger=None,
+                               checkpointer=None
                                ):
 
         deg_i, deg_j = degenerate_states
@@ -823,7 +858,8 @@ class PerturbationTheoryHamiltonian:
                              degenerate_states,
                              deg_vals,
                              corrs,
-                             logger=None
+                             logger=None,
+                             checkpointer=None
                              ):
         # means we need to do the second level of corrections
         # we're going to need to do a full diagonalization, but we handle this
@@ -914,6 +950,7 @@ class PerturbationTheoryHamiltonian:
                                  state_inds,
                                  degenerate_states=None,
                                  logger=None,
+                                 checkpointer=None,
                                  non_zero_cutoff=1.0e-14
                                  ):
         """
@@ -931,6 +968,8 @@ class PerturbationTheoryHamiltonian:
         :type degenerate_states:
         :param logger:
         :type logger:
+        :param checkpointer:
+        :type checkpointer:
         :return:
         :rtype:
         """
@@ -940,8 +979,13 @@ class PerturbationTheoryHamiltonian:
         #           |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=1...k-1) + <n^(0)|n^(k)> |n^(0)>
         #  where Pi_n is the perturbation operator [1/(E_m-E_n) for m!=n]
 
+        if checkpointer is None:
+            checkpointer = NullCheckpointer()
+
         total_coupled_space = total_state_space.indices
         N = len(total_coupled_space)
+
+        checkpointer['indices'] = total_coupled_space
 
         all_energies = np.zeros((len(states), order + 1))
         all_overlaps = np.zeros((len(states), order + 1))
