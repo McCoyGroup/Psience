@@ -71,7 +71,7 @@ get_function(self, idx):
 
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.operator" class="docs-object-method">&nbsp;</a>
 ```python
-operator(self, *terms, coeffs=None, axes=None): 
+operator(self, *terms, coeffs=None, axes=None, parallelizer=None): 
 ```
 Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -86,7 +86,7 @@ Builds an operator based on supplied terms, remapping names where possible.
 
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.representation" class="docs-object-method">&nbsp;</a>
 ```python
-representation(self, *terms, coeffs=None, axes=None, logger=None): 
+representation(self, *terms, coeffs=None, axes=None, logger=None, parallelizer=None): 
 ```
 Provides a representation of a product operator specified by _terms_.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.

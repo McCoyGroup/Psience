@@ -42,7 +42,7 @@ qmatrix_ho(n):
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis.operator" class="docs-object-method">&nbsp;</a>
 ```python
-operator(self, *terms): 
+operator(self, *terms, parallelizer=None): 
 ```
 Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.

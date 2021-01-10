@@ -6,7 +6,7 @@ Crucially, the underlying basis for the operator is assumed to be orthonormal.
 ### Properties and Methods
 <a id="Psience.BasisReps.Operators.Operator.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, funcs, quanta, prod_dim=None, symmetries=None, selection_rules=None, zero_threshold=1e-14): 
+__init__(self, funcs, quanta, prod_dim=None, symmetries=None, selection_rules=None, parallelizer=None, zero_threshold=1e-14): 
 ```
 
 - `funcs`: `callable | Iterable[callable]`
@@ -29,6 +29,23 @@ ndim(self):
 @property
 shape(self): 
 ```
+
+<a id="Psience.BasisReps.Operators.Operator.load_parallelizer" class="docs-object-method">&nbsp;</a>
+```python
+load_parallelizer(self): 
+```
+Loads the held parallelizer if needed
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.Operators.Operator.parallelizer" class="docs-object-method">&nbsp;</a>
+```python
+@property
+parallelizer(self): 
+```
+Loads a parallelizer that can be used to speed up various bits of the calculation
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.BasisReps.Operators.Operator.get_inner_indices" class="docs-object-method">&nbsp;</a>
 ```python

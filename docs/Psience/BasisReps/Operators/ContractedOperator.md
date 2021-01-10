@@ -6,7 +6,7 @@ and doing the appropriate tensor contractions with the expansion coefficients (i
 ### Properties and Methods
 <a id="Psience.BasisReps.Operators.ContractedOperator.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None, selection_rules=None, zero_threshold=1e-14): 
+__init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None, selection_rules=None, parallelizer=None, zero_threshold=1e-14): 
 ```
 
 - `coeffs`: `np.ndarray | int`

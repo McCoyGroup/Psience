@@ -8,7 +8,7 @@ from_fchk: method
 ```
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, coriolis_coupling=True, log=None): 
+__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, coriolis_coupling=True, parallelizer=None, log=None, checkpoint=None): 
 ```
 
 - `molecule`: `Molecule`
@@ -21,6 +21,12 @@ __init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, co
     >the subset of modes to use when doing expansions
 - `coriolis_coupling`: `bool`
     >whether to add coriolis coupling if not in internals
+- `parallelizer`: `Parallelizer`
+    >parallelism manager
+- `log`: `str | Logger`
+    >log file or logger to write to
+- `checkpoint`: `str | CheckpointerBase`
+    >checkpoint file or checkpointer to store intermediate results
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.H0" class="docs-object-method">&nbsp;</a>
 ```python
