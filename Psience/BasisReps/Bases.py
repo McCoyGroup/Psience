@@ -279,7 +279,7 @@ class SimpleProductBasis(RepresentationBasis):
     """
 
     _indexer_cache = MaxSizeCache()
-    array_indexer_cutoff = 6
+    array_indexer_cutoff = 50
     def __init__(self, basis_type, n_quanta, indexer=None):
         """
         :param basis_type: the type of basis to do a product over

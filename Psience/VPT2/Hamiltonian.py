@@ -5,7 +5,7 @@ Provides support for build perturbation theory Hamiltonians
 import numpy as np, itertools, time
 
 from McUtils.Numputils import SparseArray, vec_outer
-from McUtils.Scaffolding import Logger, NullLogger
+from McUtils.Scaffolding import Logger, NullLogger, CheckpointerBase, HDF5Checkpointer, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer
 
 from ..Molecools import Molecule
@@ -194,7 +194,8 @@ class PerturbationTheoryHamiltonian:
                  mode_selection=None,
                  coriolis_coupling=True,
                  parallelizer=None,
-                 log=None
+                 log=None,
+                 checkpoint=None
                  ):
         """
         :param molecule: the molecule on which we're doing perturbation theory
@@ -207,10 +208,12 @@ class PerturbationTheoryHamiltonian:
         :type mode_selection: None | Iterable[int]
         :param coriolis_coupling: whether to add coriolis coupling if not in internals
         :type coriolis_coupling: bool
-        :param parallelizer:
-        :type parallelizer:
-        :param log:
-        :type log:
+        :param parallelizer: parallelism manager
+        :type parallelizer: Parallelizer
+        :param log: log file or logger to write to
+        :type log: str | Logger
+        :param checkpoint: checkpoint file or checkpointer to store intermediate results
+        :type checkpoint: str | CheckpointerBase
         """
 
         if isinstance(log, Logger):
@@ -224,8 +227,13 @@ class PerturbationTheoryHamiltonian:
 
         if parallelizer is None:
             parallelizer = "VPT"
-
         self.parallelizer = parallelizer
+
+        if checkpoint is None:
+            checkpoint = NullCheckpointer(None)
+        elif isinstance(checkpoint, str):
+            checkpoint = HDF5Checkpointer(checkpoint)
+        self.checkpointer = checkpoint
 
         if molecule is None:
             raise PerturbationTheoryException("{} requires a Molecule to do its dirty-work")
@@ -801,7 +809,8 @@ class PerturbationTheoryHamiltonian:
                                perts,
                                degenerate_states,
                                total_state_space,
-                               logger=None
+                               logger=None,
+                               checkpointer=None
                                ):
 
         deg_i, deg_j = degenerate_states
@@ -849,7 +858,8 @@ class PerturbationTheoryHamiltonian:
                              degenerate_states,
                              deg_vals,
                              corrs,
-                             logger=None
+                             logger=None,
+                             checkpointer=None
                              ):
         # means we need to do the second level of corrections
         # we're going to need to do a full diagonalization, but we handle this
@@ -940,6 +950,7 @@ class PerturbationTheoryHamiltonian:
                                  state_inds,
                                  degenerate_states=None,
                                  logger=None,
+                                 checkpointer=None,
                                  non_zero_cutoff=1.0e-14
                                  ):
         """
@@ -957,6 +968,8 @@ class PerturbationTheoryHamiltonian:
         :type degenerate_states:
         :param logger:
         :type logger:
+        :param checkpointer:
+        :type checkpointer:
         :return:
         :rtype:
         """
@@ -966,8 +979,13 @@ class PerturbationTheoryHamiltonian:
         #           |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=1...k-1) + <n^(0)|n^(k)> |n^(0)>
         #  where Pi_n is the perturbation operator [1/(E_m-E_n) for m!=n]
 
+        if checkpointer is None:
+            checkpointer = NullCheckpointer()
+
         total_coupled_space = total_state_space.indices
         N = len(total_coupled_space)
+
+        checkpointer['indices'] = total_coupled_space
 
         all_energies = np.zeros((len(states), order + 1))
         all_overlaps = np.zeros((len(states), order + 1))

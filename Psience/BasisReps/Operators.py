@@ -567,10 +567,10 @@ class Operator:
         if parallelizer is None:
             parallelizer = self.parallelizer
 
-        if parallelizer is not None:
+        if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
             return parallelizer.run(self._get_elements, inds, idx)
         else:
-            return self._get_elements(inds, idx)
+            return self._main_get_elements(inds, idx, parallelizer=None)
 
     def __repr__(self):
         return "{}(<{}>, {})".format(
