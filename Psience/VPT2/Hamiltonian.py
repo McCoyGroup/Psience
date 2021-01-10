@@ -651,9 +651,9 @@ class PerturbationTheoryHamiltonian:
             # print(coupled_states)
             space_list = [input_state_space] + list(coupled_states)
             total_state_space = BasisMultiStateSpace(np.array(space_list,  dtype=object))
-            flat_total_space = total_state_space.to_single()
+            flat_total_space = total_state_space.to_single().take_unique()
             diag_inds = BraKetSpace(flat_total_space, flat_total_space)
-            N = len(total_state_space)
+            N = len(flat_total_space)
 
             logger.log_print(
                 ["total coupled space dimensions: {d}"],
@@ -982,7 +982,8 @@ class PerturbationTheoryHamiltonian:
         if checkpointer is None:
             checkpointer = NullCheckpointer()
 
-        total_coupled_space = total_state_space.indices
+        flat_total_space = total_state_space.to_single().take_unique()
+        total_coupled_space = flat_total_space.indices
         N = len(total_coupled_space)
 
         checkpointer['indices'] = total_coupled_space
@@ -1025,11 +1026,12 @@ class PerturbationTheoryHamiltonian:
                 e_vec[n_ind] = 1
                 zero_checks = np.where(np.abs(e_vec) < non_zero_cutoff)[0]
                 if len(zero_checks) > 0:
-                    raise ValueError("degeneracies encountered: state {} and states {} are degenerate (energies: {} and {})".format(
+                    bad_vec = np.concatenate([[E0], e_vec_full[zero_checks]])
+                    raise ValueError("degeneracies encountered: state {} and {} other states are degenerate (average energy: {} stddev: {})".format(
                         n_ind,
-                        zero_checks,
-                        E0,
-                        e_vec_full[zero_checks]
+                        len(zero_checks),
+                        np.average(bad_vec),
+                        np.std(bad_vec)
                     ))
                 pi = 1 / e_vec
                 pi[n_ind] = 0
@@ -1439,7 +1441,7 @@ class PerturbationTheoryHamiltonian:
             if self.logger is not None:
                 bs = []
                 for b in coupled_states:
-                    bs.append(len(b))
+                    bs.append(b.unique_len)
                 self.logger.log_print(
                     [
                         "perturbations: {pert_num}",
