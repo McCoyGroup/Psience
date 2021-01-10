@@ -361,7 +361,7 @@ class SimpleProductBasis(RepresentationBasis):
         fs = tuple(b[n] for b, n in zip(self.bases, idx))
         return lambda *r, _fs=fs, **kw: np.prod(f(*r, **kw) for f in _fs)
 
-    def operator(self, *terms, coeffs=None, axes=None):
+    def operator(self, *terms, coeffs=None, axes=None, parallelizer=None):
         """
         Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -375,7 +375,6 @@ class SimpleProductBasis(RepresentationBasis):
         :return:
         :rtype:
         """
-
         from .Operators import Operator, ContractedOperator
 
         funcs = [self.bases[0].operator_mapping[f] if isinstance(f, str) else f for f in terms]
@@ -390,11 +389,14 @@ class SimpleProductBasis(RepresentationBasis):
         mapping = {k:i for i,k in enumerate(ids)}
         labels = [mapping[k] for k in ids]
         if coeffs is not None:
-            op = ContractedOperator(coeffs, funcs, q, axes=axes, symmetries=labels, selection_rules=sel_rules)
+            op = ContractedOperator(coeffs, funcs, q, axes=axes, symmetries=labels,
+                                    selection_rules=sel_rules,
+                                    parallelizer=parallelizer
+                                    )
         else:
-            op = Operator(funcs, q, symmetries=labels, selection_rules=sel_rules)
+            op = Operator(funcs, q, symmetries=labels, selection_rules=sel_rules, parallelizer=parallelizer)
         return op
-    def representation(self, *terms, coeffs=None, axes=None, logger=None):
+    def representation(self, *terms, coeffs=None, axes=None, logger=None, parallelizer=None):
         """
         Provides a representation of a product operator specified by _terms_.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -404,10 +406,8 @@ class SimpleProductBasis(RepresentationBasis):
         :return:
         :rtype:
         """
-
         from .Terms import Representation
-
-        return Representation(self.operator(*terms, coeffs=coeffs, axes=axes), self, logger=logger)
+        return Representation(self.operator(*terms, coeffs=coeffs, axes=axes, parallelizer=parallelizer), self, logger=logger)
     def x(self, n):
         """
         Returns the representation of x in the multi-dimensional basis with every term evaluated up to n quanta
