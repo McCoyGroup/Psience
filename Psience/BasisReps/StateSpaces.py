@@ -34,6 +34,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         self._indices = None
         self._excitations = None
         self._indexer = None
+        self._uinds = None
 
     @property
     def ndim(self):
@@ -88,9 +89,34 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
 
     def __len__(self):
         if self._indices is not None:
-            return len(self._indices)
+            return len(self.indices)
         else:
-            return len(self._excitations)
+            return len(self.excitations)
+
+    @property
+    def unique_len(self):
+        if self._indices is not None:
+            return len(self.unique_indices)
+        else:
+            return len(self.unique_excitations)
+
+    @property
+    def unique_indices(self):
+        """
+        Returns the unique indices
+        :return:
+        :rtype:
+        """
+        return self.as_unique_indices()
+
+    @property
+    def unique_excitations(self):
+        """
+        Returns the unique excitations
+        :return:
+        :rtype:
+        """
+        return self.as_unique_excitations()
 
     @abc.abstractmethod
     def as_indices(self):
@@ -101,6 +127,18 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         """
         return NotImplementedError("abstract base class")
 
+    def as_unique_indices(self):
+        """
+        Returns unique indices
+        :return:
+        :rtype:
+        """
+        inds = self.indices
+        if self._uinds is None:
+            _, uinds = np.unique(inds, return_index=True)
+            self._uinds = np.sort(uinds)
+        return inds[self._uinds,]
+
     @abc.abstractmethod
     def as_excitations(self):
         """
@@ -109,6 +147,18 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         :rtype: np.ndarray
         """
         return NotImplementedError("abstract base class")
+
+    def as_unique_excitations(self):
+        """
+        Returns unique excitations
+        :return:
+        :rtype:
+        """
+        exc = self.excitations
+        if self._uinds is None:
+            _, uinds = np.unique(exc, axis=0, return_index=True)
+            self._uinds = np.sort(uinds)
+        return exc[self._uinds,]
 
     @abc.abstractmethod
     def get_representation_indices(self,
@@ -277,6 +327,17 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
             dtype=int
         )
 
+    @abc.abstractmethod
+    def to_single(self):
+        """
+        Flattens any complicated state space structure into a
+        single space like a `BasisStateSpace`
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("abstract base class")
+
 class BasisStateSpace(AbstractStateSpace):
     """
     Represents a subspace of states inside a representation basis.
@@ -388,6 +449,35 @@ class BasisStateSpace(AbstractStateSpace):
                 states_type
             ))
 
+    def to_single(self):
+        """
+        Basically a no-op
+        :return:
+        :rtype:
+        """
+        return self
+
+    def take_unique(self):
+        """
+        Returns only the unique states, but preserves
+        ordering and all of that
+        :return:
+        :rtype:
+        """
+        if self._indices is not None:
+            states = self.unique_indices
+            spec = self.StateSpaceSpec.Indices
+            new = type(self)(self.basis, states, mode=spec)
+            if self._excitations is not None:
+                new.excitations = self.unique_excitations
+        else:
+            states = self.unique_excitations
+            spec = self.StateSpaceSpec.Excitations
+            new = type(self)(self.basis, states, mode=spec)
+            if self._indices is not None:
+                new.indices = self.unique_indices
+        return new
+
     def apply_selection_rules(self, selection_rules, filter_space=None, iterations=1):
         """
         Generates a new state space from the application of `selection_rules` to the state space.
@@ -489,8 +579,8 @@ class BasisStateSpace(AbstractStateSpace):
                                                freqs=freqs,
                                                freq_threshold=freq_threshold
                                                )
-        bras = self.take_states(inds[0])
-        kets = self.take_states(inds[1])
+        bras = self.to_single().take_states(inds[0])
+        kets = self.to_single().take_states(inds[1])
         return BraKetSpace(bras, kets)
 
     def take_subspace(self, sel):
@@ -573,7 +663,6 @@ class BasisMultiStateSpace(AbstractStateSpace):
         :type selection_rules: np.ndarray
         """
         self.spaces = np.asarray(spaces, dtype=object)
-        self._nunique = None
         super().__init__(self.basis)
 
     @property
@@ -592,14 +681,6 @@ class BasisMultiStateSpace(AbstractStateSpace):
     def ndim(self):
         return self.representative_space.ndim
 
-    def __len__(self):
-        if self._nunique is None:
-            if self._indices is not None:
-                self._nunique = len(np.unique(self.indices))
-            else:
-                self._nunique = len(np.unique(self.excitations, axis=0))
-        return self._nunique
-
     @property
     def nstates(self):
         return int(np.product(self.spaces.shape))
@@ -612,7 +693,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
 
     def as_indices(self):
         """
-        Pulls the unique values & indices out of _all_ of the
+        Pulls the full set indices out of all of the
         held spaces and returns them as a flat vector
         :return:
         :rtype:
@@ -623,22 +704,27 @@ class BasisMultiStateSpace(AbstractStateSpace):
             if inds is None:
                 inds = new_inds
             else:
-                cat = np.concatenate([inds, new_inds])
-                _, pos = np.unique(cat, return_index=True)
-                inds = cat[np.sort(pos)]
+                inds = np.concatenate([inds, new_inds])
+                # _, pos = np.unique(cat, return_index=True)
+                # inds = cat[np.sort(pos)]
         return inds
 
     def as_excitations(self):
-
+        """
+        Pulls the full set excitations out of all of the
+        held spaces and returns them as a flat vector
+        :return:
+        :rtype:
+        """
         exc = None
         for space in self.spaces.flat:
             new_exc = space.excitations
             if exc is None:
                 exc = new_exc
             else:
-                cat = np.concatenate([exc, new_exc], axis=0)
-                _, pos = np.unique(cat, axis=0, return_index=True)
-                exc = cat[np.sort(pos)]
+                exc = np.concatenate([exc, new_exc], axis=0)
+                # _, pos = np.unique(cat, axis=0, return_index=True)
+                # exc = cat[np.sort(pos)]
 
         return exc
 
@@ -697,7 +783,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
                                    other=None,
                                    selection_rules=None
                                    ):
-        return self.to_single().get_representation_brakets(freqs=freqs, freq_threshold=freq_threshold)
+        return BasisStateSpace.get_representation_brakets(self, freqs=freqs, freq_threshold=freq_threshold)
 
     def to_single(self):
         """
@@ -707,6 +793,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+
         states = BasisStateSpace(
             self.basis,
             self.indices,
@@ -790,6 +877,42 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
     def representative_space(self):
         return self._base_space
 
+    def take_states(self, states):
+        """
+        Takes the intersection of each held space and the specified states
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+
+        def take_inter(space, states=states):
+            try:
+                return space.take_states(states)
+            except:
+                raise ValueError(space, len(self.spaces[0]), self.spaces[0], self.spaces.shape)
+
+        if self.spaces.ndim == 1:
+            new_spaces = np.array([s.take_states(states) for s in self.spaces])
+        else:
+            new_spaces = np.apply_along_axis(take_inter, -1, self.spaces)
+
+        return type(self)(self._base_space, new_spaces)
+
+    def take_subdimensions(self, inds):
+        """
+        Takes the subdimensions from each space
+        :param inds:
+        :type inds:
+        :return:
+        :rtype:
+        """
+
+        def take(space, inds=inds):
+            return space.take_subdimensions(inds)
+        new_spaces = np.apply_along_axis(take, -1, self.spaces)
+        return type(self)(self._base_space.take_subdimensions(inds), new_spaces)
+
     def get_representation_indices(self,
                                    other=None,
                                    freqs=None,
@@ -824,16 +947,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         # print(inds_base, self.spaces)
 
         pairs = np.array([inds_l, inds_r]).T
-        _, pos = np.unique(pairs, axis=0, return_index=True)
-        return pairs[np.sort(pos)].T
-
-    def get_representation_brakets(self,
-                                   freqs=None,
-                                   freq_threshold=None,
-                                   other=None,
-                                   selection_rules=None
-                                   ):
-        return self.to_single().get_representation_brakets(freqs=freqs, freq_threshold=freq_threshold)
+        _, upos = np.unique(pairs, axis=0, return_index=True)
+        upairs = pairs[np.sort(upos), ...]
+        # raise Exception(len(upos), len(pairs), len(inds_l), len(upairs))
+        return upairs.T
 
     def filter_representation_inds(self, ind_pairs, q_changes):
         """
@@ -897,6 +1014,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             filter_min = 0
             filter_max = None
             filter_inds = None
+
 
         # and now we add these onto each of our states to build a new set of states
         for i, o in enumerate(og):
@@ -986,6 +1104,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         permutations = cls._generate_selection_rule_permutations(space, selection_rules)
 
+        # print(len(permutations))
+
         # we set up storage for our excitations
         new = space
         for i in range(iterations):
@@ -1022,6 +1142,8 @@ class BraKetSpace:
         self.kets = ket_space
         self.ndim = self.bras.ndim
         self._orthogs = {}
+        if len(bra_space) != len(ket_space) or (bra_space.ndim != ket_space.ndim):
+            raise ValueError("Bras {} and kets {} have different dimension".format(bra_space, ket_space))
         self.state_pairs = (
             self.bras.excitations.T,
             self.kets.excitations.T
@@ -1056,7 +1178,7 @@ class BraKetSpace:
         )
 
     def __len__(self):
-        return len(self.bras)
+        return len(self.state_pairs[0][0])
 
     def __repr__(self):
         return "{}(nstates={})".format(type(self).__name__, len(self))
@@ -1064,7 +1186,12 @@ class BraKetSpace:
     def load_non_orthog(self):
         if 'base' not in self._orthogs:
             exc_l, exc_r = self.state_pairs
-            self._orthogs['base'] = exc_l == exc_r
+            exc_l = np.asarray(exc_l, dtype=int)
+            exc_r = np.asarray(exc_r, dtype=int)
+            # print(type(exc_l), type(exc_r), exc_l, exc_r)
+            womp = np.equal(exc_l, exc_r)
+            # print(womp, len(exc_l), len(exc_r))
+            self._orthogs['base'] = womp
 
     def get_non_orthog(self, inds, assume_unique=False):
         """
@@ -1145,6 +1272,16 @@ class BraKetSpace:
         )
 
     def apply_non_orthogonality(self, inds, assume_unique=False):
+        """
+        Takes the bra-ket pairs that are non-orthogonal under the
+        indices `inds`
+        :param inds:
+        :type inds:
+        :param assume_unique:
+        :type assume_unique:
+        :return:
+        :rtype:
+        """
         non_orthog = self.get_non_orthog(inds, assume_unique=assume_unique)
         return self.take_subspace(non_orthog), non_orthog
 
