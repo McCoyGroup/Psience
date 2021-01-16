@@ -17,9 +17,10 @@ __all__ = [
 class MolecularVibrations:
 
     def __init__(self,
-                 molecule, basis,
-                 freqs = None,
-                 init = None
+                 molecule,
+                 basis,
+                 freqs=None,
+                 init=None
                  ):
         """Sets up a vibration for a Molecule object over the CoordinateSystem basis
 
@@ -48,6 +49,10 @@ class MolecularVibrations:
         self._mol = mol
     @property
     def coords(self):
+        """
+        :return:
+        :rtype: CoordinateSet
+        """
         if self._coords is None:
             if self._basis.in_internals:
                 return self._mol.internal_coordinates
@@ -59,34 +64,75 @@ class MolecularVibrations:
     def __len__(self):
         return self._basis.matrix.shape[0]
 
-    def displace(self, displacements = None, amt = .1, n = 1, which = 0):
+    def displace(self, displacements=None, amt=.1, n=1, which=0):
+        """
+        Displaces along the vibrational mode specified by `which`
+        :param displacements:
+        :type displacements:
+        :param amt:
+        :type amt:
+        :param n:
+        :type n:
+        :param which:
+        :type which:
+        :return:
+        :rtype:
+        """
+        from .CoordinateSystems import MolecularCartesianCoordinateSystem
 
         if displacements is None:
             displacements = self._basis.displacement(np.arange(1, n+1)*amt)
         displacements = np.asarray(displacements)
+        if displacements.shape == ():
+            displacements = np.array([displacements])
+
+        coords = self.coords
         if displacements.ndim == 1:
             disp_coords = CoordinateSet(np.zeros((n,) + self._basis.coordinate_shape), self._basis)
             disp_coords[:, which] = displacements
         else:
             disp_coords = CoordinateSet(displacements, self._basis)
-        coords = np.broadcast_to(self._coords, (n, ) + self._coords.shape)
-        disp_coords = disp_coords.convert(self._coords.system)
-        displaced = coords + disp_coords
+        displaced = disp_coords.convert(self.coords.system)
+
         return displaced
 
-    def visualize(self, step_size = .1, steps = (5, 5), which = 0, anim_opts = None, mode = 'fast', **plot_args):
+    def visualize(self, step_size=.1, steps=(5, 5), which=0, anim_opts=None, mode='fast', **plot_args):
+        """
+        :param step_size:
+        :type step_size:
+        :param steps:
+        :type steps:
+        :param which:
+        :type which:
+        :param anim_opts:
+        :type anim_opts:
+        :param mode:
+        :type mode:
+        :param plot_args:
+        :type plot_args:
+        :return:
+        :rtype:
+        """
         from McUtils.Plots import Animator
+
+
+        coords = self.coords
+        if coords is None:
+            raise ValueError("can't visualize vibrations if no starting structure is provided")
 
         if isinstance(steps, (int, np.integer)):
             steps = [steps, steps]
 
         left  = np.flip(self.displace(amt=-step_size, n=steps[0], which=which), axis=0)
         right = self.displace(amt=step_size, n=steps[1], which=which)
-        all_geoms = np.concatenate((left, np.broadcast_to(self._coords, (1, ) + self._coords.shape), right))
+        all_geoms = np.concatenate((left, np.broadcast_to(coords, (1, ) + coords.shape), right))
 
-        figure, atoms, bonds = self._mol.plot(*all_geoms, objects = True, mode = mode, **plot_args)
+        figure, atoms, bonds = self._mol.plot(*all_geoms, objects=True, mode=mode, **plot_args)
 
-        def animate(*args, frame = 0, _atoms = atoms, _bonds = bonds, _figure = figure):
+        def animate(*args, frame=0, _atoms=atoms, _bonds=bonds, _figure=figure):
+            """
+            Animates a vibration. Currently uses Matplotlib and so can be _verrry_ slow
+            """
 
             my_stuff = []
             nframes = len(_atoms)
@@ -112,7 +158,7 @@ class MolecularVibrations:
 
         if anim_opts is None:
             anim_opts = {}
-        return Animator(figure, None, plot_method = animate, **anim_opts)
+        return Animator(figure, None, plot_method=animate, **anim_opts)
 
     def __getitem__(self, item):
         """
@@ -123,9 +169,13 @@ class MolecularVibrations:
         :return:
         :rtype:
         """
+
+        if isinstance(item, int):
+            item = (item,)
+
         m = self._basis[item]
         if self.freqs is not None:
-            f = self.freqs[m]
+            f = self.freqs[item,]
         else:
             f = None
         if isinstance(m, MolecularNormalModes):
@@ -338,14 +388,24 @@ class MolecularNormalModes(CoordinateSystem):
         return cls(molecule, modes, freqs = freqs, **opts)
 
     def __getitem__(self, item):
+        """
+        Takes a slice of the modes
+        :param item:
+        :type item:
+        :return:
+        :rtype:
+        """
 
-        sub_modes = self.matrix[:, item].squeeze()
+        if isinstance(item, int):
+            item = (item,)
+
+        sub_modes = self.matrix[:, item]
         inv = self._inv
         if inv is not None:
             i0 = inv
-            inv = inv[item, :].squeeze()
+            inv = inv[item, :]
             # raise Exception([sub_modes.shape, inv.shape, i0.shape])
-        freq = self.freqs[item]
+        freq = self.freqs[item,]
         return type(self)(
             self.molecule,
             sub_modes,

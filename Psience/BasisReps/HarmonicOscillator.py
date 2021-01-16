@@ -147,10 +147,10 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
     """
 
     nquant_max = 10 # arbitrary number from the old days of indexing
-    def __init__(self, n_quanta):
+    def __init__(self, n_quanta, indexer=None):
         if isinstance(n_quanta, int):
             n_quanta = [self.nquant_max] * n_quanta
-        super().__init__(HarmonicOscillatorBasis, n_quanta)
+        super().__init__(HarmonicOscillatorBasis, n_quanta, indexer=indexer)
 
     def operator(self, *terms, coeffs=None, axes=None, parallelizer=None):
         """

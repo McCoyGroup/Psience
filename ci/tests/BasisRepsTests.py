@@ -544,3 +544,80 @@ class BasisSetTests(TestCase):
          [5, 1, 0],
          [6, 0, 0]]
         raise Exception(indexer.to_indices(states))
+
+    @inactiveTest
+    def test_OperatorAdjacencyGraph(self):
+        """
+        Tests building an adjacency graph for an operator
+        under an initial set of states
+
+        :return:
+        :rtype:
+        """
+
+        from McUtils.Numputils import SparseArray
+
+        ndim = 4
+        basis = HarmonicOscillatorProductBasis(ndim)
+        oppo = basis.representation("x", "x", "x", "x", coeffs=np.ones((ndim,)*4))
+        rules = basis.selection_rules("x", "x", "x", "x")
+
+        states = BasisStateSpace.from_quanta(basis, 3)
+        h2_space = states.apply_selection_rules(rules, iterations=1)
+        bk = h2_space.get_representation_brakets()
+        flat_total_space = h2_space.to_single().take_unique()
+
+        # pull from get_vpt2_reps or whatever
+        # sub = oppo[bk]
+        # flat_total_space = h2_space.to_single().take_unique()
+        # N = len(flat_total_space)
+        #
+        # row_inds = flat_total_space.find(bk.bras)
+        # col_inds = flat_total_space.find(bk.kets)
+        #
+        # up_tri = np.array([row_inds, col_inds]).T
+        # low_tri = np.array([col_inds, row_inds]).T
+        # # but now we need to remove the duplicates, because many sparse matrix implementations
+        # # will sum up any repeated elements
+        # full_inds = np.concatenate([up_tri, low_tri])
+        # full_dat = np.concatenate([sub, sub])
+        #
+        # _, idx = np.unique(full_inds, axis=0, return_index=True)
+        # sidx = np.sort(idx)
+        # full_inds = full_inds[sidx]
+        # full_dat = full_dat[sidx]
+        # adj_mat = SparseArray((full_dat, full_inds.T), shape=(N, N))
+
+        adj_arr = bk.adjacency_matrix(total_space=flat_total_space).toarray()
+
+        import McUtils.Plots as plt
+        plt.ArrayPlot(adj_arr).show()
+
+        np.savetxt(os.path.expanduser("~/Desktop/bleh.dat"), adj_arr)
+
+        adj_dat = adj_mat.data.reshape(N, N)
+        import networkx
+        graph = networkx.from_scipy_sparse_matrix(adj_dat)
+
+    @debugTest
+    def test_PermIndexingChange(self):
+        import json
+        ndim = 5
+        basis = HarmonicOscillatorProductBasis(ndim, indexer=PermutationStateIndexer(ndim))
+        rules = basis.selection_rules("x", "x", "x", "x")
+
+        full_states = BasisStateSpace.from_quanta(basis, 1)
+        for x in range(4):
+            states = full_states.take_subspace([x])
+            # if len(states) == 0:
+            #     raise ValueError(states)
+
+            # with BlockProfiler(""):
+            h2_space = states.apply_selection_rules(rules, iterations=1)
+
+            print(h2_space)
+
+            print(states.indices.tolist(), np.sort(h2_space.indices).tolist())
+
+
+
