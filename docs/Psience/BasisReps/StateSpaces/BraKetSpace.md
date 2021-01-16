@@ -88,7 +88,7 @@ Applies selections rules
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.adjacency_matrix" class="docs-object-method">&nbsp;</a>
 ```python
-adjacency_matrix(self): 
+adjacency_matrix(self, total_space=None): 
 ```
 Generates the (sparse) unweighted adjacency matrix for the bras & kets
 - `:returns`: `_`

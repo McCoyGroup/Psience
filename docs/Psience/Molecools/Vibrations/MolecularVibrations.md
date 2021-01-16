@@ -32,6 +32,9 @@ molecule(self):
 coords(self): 
 ```
 
+- `:returns`: `CoordinateSet`
+    >No description...
+
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.__len__" class="docs-object-method">&nbsp;</a>
 ```python
 __len__(self): 
@@ -41,11 +44,37 @@ __len__(self):
 ```python
 displace(self, displacements=None, amt=0.1, n=1, which=0): 
 ```
+Displaces along the vibrational mode specified by `which`
+- `displacements`: `Any`
+    >No description...
+- `amt`: `Any`
+    >No description...
+- `n`: `Any`
+    >No description...
+- `which`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.visualize" class="docs-object-method">&nbsp;</a>
 ```python
 visualize(self, step_size=0.1, steps=(5, 5), which=0, anim_opts=None, mode='fast', **plot_args): 
 ```
+
+- `step_size`: `Any`
+    >No description...
+- `steps`: `Any`
+    >No description...
+- `which`: `Any`
+    >No description...
+- `anim_opts`: `Any`
+    >No description...
+- `mode`: `Any`
+    >No description...
+- `plot_args`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.__getitem__" class="docs-object-method">&nbsp;</a>
 ```python

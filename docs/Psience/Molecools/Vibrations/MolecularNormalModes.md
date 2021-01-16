@@ -37,6 +37,11 @@ embed(self, frame):
 ```python
 __getitem__(self, item): 
 ```
+Takes a slice of the modes
+- `item`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 ### Examples
 

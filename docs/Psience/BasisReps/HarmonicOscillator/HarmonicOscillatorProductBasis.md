@@ -8,7 +8,7 @@ nquant_max: int
 ```
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorProductBasis.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, n_quanta): 
+__init__(self, n_quanta, indexer=None): 
 ```
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorProductBasis.operator" class="docs-object-method">&nbsp;</a>
