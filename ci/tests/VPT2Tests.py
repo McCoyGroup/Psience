@@ -3508,7 +3508,7 @@ class VPT2Tests(TestCase):
 
         # coupled_states = self.get_states(5, n_modes, max_quanta=5)
 
-        with BlockProfiler("WaterDimer", print_res=False):
+        with BlockProfiler("WaterDimer", print_res=True):
             wfns = self.get_VPT2_wfns(
                 "water_dimer_freq.fchk",
                 internals,

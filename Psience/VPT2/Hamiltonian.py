@@ -648,17 +648,24 @@ class PerturbationTheoryHamiltonian:
             coupled_spaces = []
             input_state_space = states
 
-            # print(coupled_states)
-            space_list = [input_state_space] + list(coupled_states)
-            total_state_space = BasisMultiStateSpace(np.array(space_list,  dtype=object))
-            flat_total_space = total_state_space.to_single().take_unique()
-            diag_inds = BraKetSpace(flat_total_space, flat_total_space)
-            N = len(flat_total_space)
+            with logger.block(tag="generating total space"):
+                start = time.time()
+                space_list = [input_state_space] + list(coupled_states)
+                total_state_space = BasisMultiStateSpace(np.array(space_list,  dtype=object))
+                flat_total_space = total_state_space.to_single().take_unique()
+                diag_inds = BraKetSpace(flat_total_space, flat_total_space)
+                N = len(flat_total_space)
 
-            logger.log_print(
-                ["total coupled space dimensions: {d}"],
-                d=N
-            )
+
+                end = time.time()
+                logger.log_print(
+                    [
+                        "total coupled space dimensions: {d}",
+                        "took {t:.3f}s"
+                     ],
+                    d=N,
+                    t=end-start
+                )
 
             H = [np.zeros(1)] * len(h_reps)
             with logger.block(tag="getting H0"):
@@ -982,172 +989,178 @@ class PerturbationTheoryHamiltonian:
         if checkpointer is None:
             checkpointer = NullCheckpointer()
 
-        flat_total_space = total_state_space.to_single().take_unique()
-        total_coupled_space = flat_total_space.indices
-        N = len(total_coupled_space)
+        with checkpointer:
 
-        checkpointer['indices'] = total_coupled_space
+            flat_total_space = total_state_space.to_single().take_unique()
+            total_coupled_space = flat_total_space.indices
+            N = len(total_coupled_space)
 
-        all_energies = np.zeros((len(states), order + 1))
-        all_overlaps = np.zeros((len(states), order + 1))
-        all_corrs = np.zeros((len(states), order + 1, N))
-        # all_wfns = [] #np.zeros((len(states), order + 1, total_states))
+            checkpointer['indices'] = total_coupled_space
+            checkpointer['representations'] = [
+                {
+                    "indices": x.block_inds,
+                    "vals": x.block_vals
+                } if isinstance(x, SparseArray) else x for x in H
+            ]
 
-        H0 = H[0]
-        e_vec_full = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
-        if isinstance(e_vec_full, SparseArray):
-            e_vec_full = e_vec_full.toarray()
-            # raise Exception(e_vec_full)
+            all_energies = np.zeros((len(states), order + 1))
+            all_overlaps = np.zeros((len(states), order + 1))
+            all_corrs = np.zeros((len(states), order + 1, N))
+            # all_wfns = [] #np.zeros((len(states), order + 1, total_states))
 
-        H1 = H[1]
+            H0 = H[0]
+            e_vec_full = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
+            if isinstance(e_vec_full, SparseArray):
+                e_vec_full = e_vec_full.toarray()
+                # raise Exception(e_vec_full)
 
-        with logger.block(tag="applying non-degenerate PT"):
-            logger.log_print(
-                [
-                    "order: {o}",
-                    "states: {n}"
-                    ],
-                o=order,
-                n=len(states.indices)
-            )
-            start = time.time()
+            with logger.block(tag="applying non-degenerate PT"):
+                logger.log_print(
+                    [
+                        "order: {o}",
+                        "states: {n}"
+                        ],
+                    o=order,
+                    n=len(states.indices)
+                )
+                start = time.time()
 
-            # loop on a state-by-state basis
-            for n, energies, overlaps, corrs in zip(
-                    states.indices, all_energies, all_overlaps, all_corrs
-            ):
-                # taking advantage of mutability of the arrays here...
+                # loop on a state-by-state basis
+                for n, energies, overlaps, corrs in zip(
+                        states.indices, all_energies, all_overlaps, all_corrs
+                ):
+                    # taking advantage of mutability of the arrays here...
 
-                # find the state index in the coupled subspace
-                n_ind = np.where(total_coupled_space == n)[0][0]
-                # generate the perturbation operator
-                E0 = e_vec_full[n_ind]
-                e_vec = e_vec_full - E0
-                e_vec[n_ind] = 1
-                zero_checks = np.where(np.abs(e_vec) < non_zero_cutoff)[0]
-                if len(zero_checks) > 0:
-                    bad_vec = np.concatenate([[E0], e_vec_full[zero_checks]])
-                    raise ValueError("degeneracies encountered: state {} and {} other states are degenerate (average energy: {} stddev: {})".format(
-                        n_ind,
-                        len(zero_checks),
-                        np.average(bad_vec),
-                        np.std(bad_vec)
-                    ))
-                pi = 1 / e_vec
-                pi[n_ind] = 0
-                pi = SparseArray.from_diag(pi)
+                    # find the state index in the coupled subspace
+                    n_ind = np.where(total_coupled_space == n)[0][0]
+                    # generate the perturbation operator
+                    E0 = e_vec_full[n_ind]
+                    e_vec = e_vec_full - E0
+                    e_vec[n_ind] = 1
+                    zero_checks = np.where(np.abs(e_vec) < non_zero_cutoff)[0]
+                    if len(zero_checks) > 0:
+                        bad_vec = np.concatenate([[E0], e_vec_full[zero_checks]])
+                        raise ValueError("degeneracies encountered: state {} and {} other states are degenerate (average energy: {} stddev: {})".format(
+                            n_ind,
+                            len(zero_checks),
+                            np.average(bad_vec),
+                            np.std(bad_vec)
+                        ))
+                    pi = 1 / e_vec
+                    pi[n_ind] = 0
+                    pi = SparseArray.from_diag(pi)
 
-                energies[0] = E0
-                overlaps[0] = 1
-                corrs[0, n_ind] = 1
+                    energies[0] = E0
+                    overlaps[0] = 1
+                    corrs[0, n_ind] = 1
 
-                def dot(a, b):
-                    if isinstance(a, (int, np.integer, float, np.floating)) and a ==0:
-                        return 0
+                    def dot(a, b):
+                        if isinstance(a, (int, np.integer, float, np.floating)) and a ==0:
+                            return 0
 
-                    if isinstance(a, np.ndarray):
-                        return np.dot(a, b)
-                    else:
-                        return a.dot(b)
+                        if isinstance(a, np.ndarray):
+                            return np.dot(a, b)
+                        else:
+                            return a.dot(b)
 
 
-                for k in range(1, order + 1):  # to actually go up to k
-                    #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
-                    Ek = (
-                       (H[k][n_ind, n_ind] if not isinstance(H[k], (int, np.integer, float, np.floating)) else 0.)
-                            + sum(
-                        dot(
-                            H[k - i][n_ind] if not isinstance(H[k - i], (int, np.integer, float, np.floating)) else 0.,
-                            corrs[i]
-                            )
-                        - energies[k - i] * overlaps[i]
-                        for i in range(1, k)
-                    ))
-                    energies[k] = Ek
-                    #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
-                    ok = -1 / 2 * sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
-                    overlaps[k] = ok
-                    #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
-                    corrs[k] = sum(
-                        dot(pi, energies[k - i] * corrs[i] - dot(H[k - i], corrs[i]))
-                        for i in range(0, k)
-                    )
-                    corrs[k][n_ind] = ok  # pi (the perturbation operator) ensures it's zero before this
+                    for k in range(1, order + 1):  # to actually go up to k
+                        #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
+                        Ek = (
+                           (H[k][n_ind, n_ind] if not isinstance(H[k], (int, np.integer, float, np.floating)) else 0.)
+                                + sum(
+                            dot(
+                                H[k - i][n_ind] if not isinstance(H[k - i], (int, np.integer, float, np.floating)) else 0.,
+                                corrs[i]
+                                )
+                            - energies[k - i] * overlaps[i]
+                            for i in range(1, k)
+                        ))
+                        energies[k] = Ek
+                        #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
+                        ok = -1 / 2 * sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
+                        overlaps[k] = ok
+                        #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
+                        corrs[k] = sum(
+                            dot(pi, energies[k - i] * corrs[i] - dot(H[k - i], corrs[i]))
+                            for i in range(0, k)
+                        )
+                        corrs[k][n_ind] = ok  # pi (the perturbation operator) ensures it's zero before this
 
-            end = time.time()
-            logger.log_print(
-                "took {t}s",
-                t=round(end - start, 3)
-            )
-
-        # now we recompute reduced state spaces for use in results processing
-        # and we also convert the correction vectors to sparse representations
-        tci = total_state_space.indices
-        N = len(tci)
-        nstates = len(all_corrs)
-        corr_inds = [[] for i in range(nstates)]
-        corr_mats = [None] * (order + 1)
-        # si = state_inds
-
-        for o in range(order + 1):
-            non_zeros = []
-            for i, corr in enumerate(all_corrs):
-                # we find the non-zero elements within the o level of correction for the ith state
-                nonzi = np.where(np.abs(corr[o]) > non_zero_cutoff)[0]
-                # print(nonzi)
-                # then we pull these out
-                vals = corr[o][nonzi,]
-                # and we add the values and indices to the list
-                non_zeros.append(
-                    (
-                        vals,
-                        np.column_stack([
-                            np.full(len(nonzi), i),
-                            nonzi
-                        ])
-                    )
+                end = time.time()
+                logger.log_print(
+                    "took {t}s",
+                    t=round(end - start, 3)
                 )
 
-                # and then we add the appropriate basis indices to the list of basis data
-                wat = tci[nonzi,]
-                corr_inds[i].append(wat)
+            # now we recompute reduced state spaces for use in results processing
+            # and we also convert the correction vectors to sparse representations
+            tci = total_state_space.indices
+            N = len(tci)
+            nstates = len(all_corrs)
+            corr_inds = [[] for i in range(nstates)]
+            corr_mats = [None] * (order + 1)
+            # si = state_inds
 
-            # now we build the full mat rep for this level of correction
-            vals = np.concatenate([x[0] for x in non_zeros])
-            inds = np.concatenate([x[1] for x in non_zeros], axis=0).T
-            # print(inds, N)
-            corr_mats[o] = SparseArray(
-                (
-                    vals,
-                    inds
-                ),
-                shape=(nstates, N)
+            for o in range(order + 1):
+                non_zeros = []
+                for i, corr in enumerate(all_corrs):
+                    # we find the non-zero elements within the o level of correction for the ith state
+                    nonzi = np.where(np.abs(corr[o]) > non_zero_cutoff)[0]
+                    # print(nonzi)
+                    # then we pull these out
+                    vals = corr[o][nonzi,]
+                    # and we add the values and indices to the list
+                    non_zeros.append(
+                        (
+                            vals,
+                            np.column_stack([
+                                np.full(len(nonzi), i),
+                                nonzi
+                            ])
+                        )
+                    )
+
+                    # and then we add the appropriate basis indices to the list of basis data
+                    wat = tci[nonzi,]
+                    corr_inds[i].append(wat)
+
+                # now we build the full mat rep for this level of correction
+                vals = np.concatenate([x[0] for x in non_zeros])
+                inds = np.concatenate([x[1] for x in non_zeros], axis=0).T
+                # print(inds, N)
+                corr_mats[o] = SparseArray(
+                    (
+                        vals,
+                        inds
+                    ),
+                    shape=(nstates, N)
+                )
+
+            # now we build state reps from corr_inds
+            for i, dat in enumerate(corr_inds):
+                cat = np.concatenate(dat)
+                _, upos = np.unique(cat, return_index=True)
+                full_dat = cat[np.sort(upos)]
+                corr_inds[i] = total_state_space.to_single().take_states(full_dat) # BasisStateSpace(states.basis, full_dat, mode="indices")
+
+            cs_states = SelectionRuleStateSpace(states, corr_inds, None)
+            total_states = total_state_space
+            corrs = PerturbationTheoryCorrections(
+                {
+                    "states": states,
+                    "coupled_states": cs_states,
+                    "total_states": total_states,
+                    "degenerate_states": degenerate_states
+                },
+                {
+                    "energies": all_energies,
+                    "wavefunctions": corr_mats,
+                    "degenerate_transformation": None,
+                    "degenerate_energies": None
+                },
+                H
             )
-
-        # now we build state reps from corr_inds
-        for i, dat in enumerate(corr_inds):
-            cat = np.concatenate(dat)
-            _, upos = np.unique(cat, return_index=True)
-            full_dat = cat[np.sort(upos)]
-            corr_inds[i] = total_state_space.to_single().take_states(full_dat) # BasisStateSpace(states.basis, full_dat, mode="indices")
-
-        cs_states = SelectionRuleStateSpace(states, corr_inds, None)
-        total_states = total_state_space
-        corrs = PerturbationTheoryCorrections(
-            {
-                "states": states,
-                "coupled_states": cs_states,
-                "total_states": total_states,
-                "degenerate_states": degenerate_states
-            },
-            {
-                "energies": all_energies,
-                "wavefunctions": corr_mats,
-                "degenerate_transformation": None,
-                "degenerate_energies": None
-            },
-            H
-        )
 
         return corrs
 

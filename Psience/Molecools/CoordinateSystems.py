@@ -12,7 +12,7 @@ import McUtils.Numputils as nput
 
 from McUtils.Coordinerds import (
     ZMatrixCoordinateSystem, CartesianCoordinateSystem, CoordinateSystemConverter,
-    ZMatrixCoordinates, CartesianCoordinates3D, CoordinateSet
+    ZMatrixCoordinates, CartesianCoordinates3D, CoordinateSet, CoordinateSystemConverters
 )
 
 def _get_best_axes(first_pos, axes):
@@ -284,8 +284,8 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
             # raise Exception(derivs.shape)
         return zmcs, opts
 
-MolecularCartesianToMatrixConverter = MolecularCartesianToZMatrixConverter()
-MolecularCartesianToMatrixConverter.register()
+MolecularCartesianToZMatrixConverter = MolecularCartesianToZMatrixConverter()
+MolecularCartesianToZMatrixConverter.register()
 
 class MolecularCartesianToRegularCartesianConverter(CoordinateSystemConverter):
     """
@@ -421,6 +421,5 @@ class MolecularZMatrixToRegularZMatrixConverter(CoordinateSystemConverter):
         return coords, kwargs
 MolecularZMatrixToRegularZMatrixConverter = MolecularZMatrixToRegularZMatrixConverter()
 MolecularZMatrixToRegularZMatrixConverter.register()
-
 
 

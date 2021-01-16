@@ -668,6 +668,9 @@ class Molecule:
         else:
             geometries = CoordinateSet(geometries, self._coords.system)
 
+        # from McUtils.Coordinerds import CoordinateSystemConverters
+        # raise Exception(">>>>>", [(k.__name__, b.__name__) for k, b in CoordinateSystemConverters.converters])
+
         geometries = geometries.convert(CartesianCoordinates3D)
 
         if figure is None:

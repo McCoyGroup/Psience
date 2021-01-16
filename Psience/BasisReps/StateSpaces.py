@@ -76,14 +76,18 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         :return:
         :rtype:
         """
-        if not isinstance(to_search, np.ndarray) and hasattr(to_search, 'indices'):
-            to_search = to_search.indices
+        if not isinstance(to_search, np.ndarray):
+            if hasattr(to_search, 'indices'):
+                to_search = to_search.indices
+            else:
+                to_search = np.array(to_search)
         vals = np.searchsorted(self.indices, to_search, sorter=self.indexer)
-        bad_vals = vals == len(self.indices)
         # we have the ordering according to the _sorted_ version of `indices`
         # so now we need to invert that back to the unsorted version
-        vals[bad_vals] = 0
         vals = self.indexer[vals]
+        # now because of how searchsorted works, we need to check if the found values
+        # truly agree with what we asked for
+        bad_vals = self.indices[vals] != to_search
         vals[bad_vals] = -1
         return vals
 
@@ -646,6 +650,17 @@ class BasisStateSpace(AbstractStateSpace):
             len(self),
             self.basis
         )
+
+    # def __getitem__(self, item):
+    #     """
+    #     Pulls a sample of the held states
+    #     :param item:
+    #     :type item:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     states = self._init_states[item]
+    #     return self.take_states(states)
 
 class BasisMultiStateSpace(AbstractStateSpace):
     """
@@ -1297,24 +1312,22 @@ class BraKetSpace:
         all_sels = self.get_sel_rule_filter(rules)
         return self.take_subspace(all_sels), all_sels
 
-    def adjacency_matrix(self):
+    def adjacency_matrix(self, total_space=None):
         """
         Generates the (sparse) unweighted adjacency matrix for the bras & kets
         :return:
         :rtype:
         """
 
-        raise NotImplementedError("gotta deal with unwanted sorting coming from `unique`")
+        base_inds = np.concatenate([self.bras.unique_indices, self.kets.unique_indices])
+        _, upos = np.unique(base_inds, return_index=True)
+        inds = base_inds[np.sort(upos)]
+        if total_space is None:
+            total_space = BasisStateSpace(self.bras.basis, inds, mode=BasisStateSpace.StateSpaceSpec.Indices)
+        bra_inds = total_space.find(self.bras.indices)
+        ket_inds = total_space.find(self.kets.indices)
 
-        total_space = BasisStateSpace(
-            self.bras.basis,
-            np.unique(
-                np.concatenate([self.bras.indices, self.kets.indices])
-            ),
-            mode=BasisStateSpace.StateSpaceSpec.Indices
-        )
-        bra_inds = total_space.find(self.bras)
-        ket_inds = total_space.find(self.kets)
+        # raise Exception(len(ket_inds), len(bra_inds))
 
         utri = np.array([bra_inds, ket_inds]).T
         ltri = np.array([ket_inds, bra_inds]).T
