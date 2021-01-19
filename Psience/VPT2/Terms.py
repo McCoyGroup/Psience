@@ -453,7 +453,7 @@ class ExpansionTerms:
         if self.molecule in self._cached_transforms:
             return self._cached_transforms[self.molecule]
 
-        ncoords = self.molecule.coords.shape[0]
+        # ncoords = self.molecule.coords.shape[0]
         # gc = np.delete(
         #     np.arange(ncoords*3),
         #     [0, 1, 2, 4, 5, 8]
@@ -464,27 +464,27 @@ class ExpansionTerms:
         if self.logger is not None:
             self.logger.log_print(
                 [
-                    "Getting coordinate transforms for {}",
-                    "Embedding axes: {}"
+                    "Getting coordinate transforms for {m}",
+                    "Embedding axes: {a}"
                     ],
-                self.molecule,
-                self.internal_coordinates.system.converter_options["axes_labels"]
+                m=self.molecule,
+                a=self.internal_coordinates.system.converter_options["axes_labels"]
             )
 
         # For speed reasons we've introduced class-level caching of these terms
         if self.logger is not None:
             start = time.time()
             self.logger.log_print(
-                "Getting d^nX/dR^n up to order {}...",
-                3
+                "Getting d^nX/dR^n up to order {o}...",
+                o=3
             )
         XR, XRR, XRRR = self.get_int_jacobs([1, 2, 3])
         XRRRR = 0
         if self.logger is not None:
             end = time.time()
             self.logger.log_print(
-                "took {}s",
-                round(end-start, 3)
+                "took {t}s",
+                t=round(end-start, 3)
             )
 
         # The finite difference preserves too much shape by default
@@ -508,15 +508,15 @@ class ExpansionTerms:
         if self.logger is not None:
             start = time.time()
             self.logger.log_print(
-                "Getting d^nR/dX^n up to order {}...",
-                3
+                "Getting d^nR/dX^n up to order {o}...",
+                o=3
             )
         RX, RXX, RXXX = self.get_cart_jacobs([1, 2, 3])
         if self.logger is not None:
             end = time.time()
             self.logger.log_print(
-                "took {}s",
-                round(end-start, 3)
+                "took {t}s",
+                t=round(end-start, 3)
             )
         # print(self.molecule, self.molecule.internal_coordinates, np.round(RX, 3), np.round(RXX, 3))
         # raise Exception(RXX.shape)
