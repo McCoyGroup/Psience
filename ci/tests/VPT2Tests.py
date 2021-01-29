@@ -9,6 +9,8 @@ import cProfile, pstats, io
 
 class VPT2Tests(TestCase):
 
+    #region setup
+
     def setUp(self):
         self.h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
@@ -247,6 +249,9 @@ class VPT2Tests(TestCase):
                             ploot = spec.plot(figure=ploot, plot_style=dict(linefmt=colors[i]))
                     ploot.show()
             # break
+
+    #endregion
+
     #region Test Representations
 
     @validationTest
@@ -1907,6 +1912,8 @@ class VPT2Tests(TestCase):
 
     #region Test Systems
 
+    #region Water Analogs
+
     @validationTest
     def test_DODVPTCartesians(self):
 
@@ -1916,12 +1923,7 @@ class VPT2Tests(TestCase):
         #     [1, 0, -1, -1],
         #     [2, 0, 1, -1]
         # ]
-        states = (
-            (0, 0, 0),
-            (0, 0, 1), (0, 1, 0), (1, 0, 0),
-            (0, 0, 2), (0, 2, 0), (2, 0, 0),
-            (0, 1, 1), (1, 0, 1), (1, 1, 0)
-        )
+        states = self.get_states(3, 2)
 
         with BlockProfiler("DOD Cartesians",
                            print_res=False,
@@ -2281,6 +2283,94 @@ class VPT2Tests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
+    @debugTest
+    def test_HOHVPTCartesiansDegenerate(self):
+
+        internals = None
+
+        states = self.get_states(3, 3)
+
+        wfns = self.get_VPT2_wfns(
+            "HOH_freq.fchk",
+            internals,
+            states,
+            regenerate=True,
+            log=True
+            , degeneracies=(1, 2, 2) # use N_T = 1 bend + 2 stretch
+            # degeneracies=100/self.h2w # any pair of states within 100 wavenumbers can be treated as degenerate
+            # , coupled_states = self.get_states(5, 3)
+            # , v3=0
+            # , v4=0
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
+        energies = h2w * wfns.energies
+        zero_ord = h2w * wfns.zero_order_energies
+
+        # print(len(self.get_states(5, 3)), len(wfns.corrs.coupled_states))
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
+
+        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
+                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
+                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
+        gaussian_energies = np.array([4681.564, 4605.953])
+        gaussian_freqs = np.array([
+            [3937.525, 3744.734],
+            [3803.300, 3621.994],
+            [1622.303, 1572.707],
+
+            [7875.049, 7391.391],
+            [7606.599, 7155.881],
+            [3244.606, 3117.366],
+
+            [7740.824, 7200.364],
+            [5559.828, 5294.379],
+            [5425.603, 5174.665]
+        ])
+
+        my_energies = np.array([zero_ord[0], energies[0]])
+        my_freqs = np.column_stack([
+            zero_ord[1:] - zero_ord[0],
+            energies[1:] - energies[0]
+        ])
+
+        print_report = False
+        if print_report:
+            print("Gaussian:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(gaussian_states, gaussian_freqs)
+                  )
+                  )
+            print("State Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs)
+                  )
+                  )
+
+        print_diffs = True
+        if print_diffs:
+            print("Difference Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
+                  )
+                  )
+        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
+
     @validationTest
     def test_HODVPTInternals(self):
 
@@ -2375,7 +2465,7 @@ class VPT2Tests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
 
-    @debugTest
+    @validationTest
     def test_HODVPTCartesians(self):
 
         internals = None
@@ -2637,6 +2727,10 @@ class VPT2Tests(TestCase):
                   )
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
+
+    #endregion Water Analogs
+
+    #region Formaldehyde Analogs
 
     @inactiveTest
     def test_OCHHVPTInternals(self):
@@ -3034,7 +3128,7 @@ class VPT2Tests(TestCase):
                            sort_by='cumtime'
                            ):
             wfns = self.get_VPT2_wfns(
-                "OCHD_freq.fchk",
+                "OCHD_freq_16.fchk",
                 internals,
                 states,
                 regenerate=True,
@@ -3227,7 +3321,7 @@ class VPT2Tests(TestCase):
                   ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
                   *(
                       ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                  s, e1, e2 in
+                      s, e1, e2 in
                       zip(states[1:], harm_freq, freqs)
                   )
                   )
@@ -3248,7 +3342,7 @@ class VPT2Tests(TestCase):
             np.max(np.abs(freqs-gaussian_freqs[:, 1])[:len(states)-1]),
             1)
 
-    @debugTest
+    @inactiveTest
     def test_OCHTVPTCartesians(self):
 
         internals = None
@@ -3368,7 +3462,11 @@ class VPT2Tests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @debugTest
+    #endregion Formaldehyde Analogs
+
+    #region Methane
+
+    @inactiveTest
     def test_CH2DTVPTCartesians(self):
 
         internals = None
@@ -3493,7 +3591,10 @@ class VPT2Tests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @debugTest
+    #endregion Methane
+
+    #region Water Dimer
+    @inactiveTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -3877,6 +3978,8 @@ class VPT2Tests(TestCase):
         self.assertLess(
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
+
+    #endregion Water Dimer
 
     #endregion Test Systems
 
@@ -4543,7 +4646,6 @@ class VPT2Tests(TestCase):
     #endregion Test Components
 
     #region Test Intensities
-
     @validationTest
     def test_HODIntensities(self):
 

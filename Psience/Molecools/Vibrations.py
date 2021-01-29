@@ -34,9 +34,7 @@ class MolecularVibrations:
         self._mol = molecule
         self._coords = init
         self._basis = basis
-        if freqs is None and hasattr(basis, "freqs"):
-            freqs = basis.freqs
-        self.freqs = freqs
+        self._freqs = freqs
 
     @property
     def basis(self):
@@ -47,6 +45,14 @@ class MolecularVibrations:
     @molecule.setter
     def molecule(self, mol):
         self._mol = mol
+
+    @property
+    def freqs(self):
+        freqs = self._freqs
+        if freqs is None and hasattr(self.basis, "freqs"):
+            freqs = self.basis.freqs
+        return freqs
+
     @property
     def coords(self):
         """
@@ -207,6 +213,20 @@ class MolecularVibrations:
 
         return type(self)(self.molecule, basis)
 
+    def rescale(self, scaling):
+        """
+        Multiplies each mode by some scaling factor
+        :param phases:
+        :type phases:
+        :return:
+        :rtype:
+        """
+
+        return type(self)(self._mol,
+                          self.basis.rescale(scaling),
+                          freqs=self._freqs,
+                          init=self._coords
+                          )
 class MolecularNormalModes(CoordinateSystem):
     """
     A Coordinerds CoordinateSystem object that manages all of the data needed to
@@ -309,6 +329,26 @@ class MolecularNormalModes(CoordinateSystem):
             origin = orig
         )
 
+    def rescale(self, scaling_factors):
+        """
+        Rescales each mode in the expansion matrix
+        by the passed `scaling_factors`
+
+        :param scaling_factors:
+        :type scaling_factors:
+        :return:
+        :rtype:
+        """
+
+        mat = self.matrix * scaling_factors[np.newaxis, :]
+        inv = self.inverse / scaling_factors[:, np.newaxis]
+
+        return type(self)(
+            self.molecule, mat,
+            name=self.name, freqs=self.freqs,
+            internal=self.in_internals, origin=self.origin,
+            basis=self.basis, inverse=inv
+        )
 
     @classmethod
     def from_force_constants(cls,

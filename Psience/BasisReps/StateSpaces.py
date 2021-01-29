@@ -72,12 +72,12 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         Finds the indices of a set of indices inside the space
 
         :param to_search: array of ints
-        :type to_search: np.ndarray
+        :type to_search: np.ndarray | AbstractStateSpace
         :return:
         :rtype:
         """
         if not isinstance(to_search, np.ndarray):
-            if hasattr(to_search, 'indices'):
+            if isinstance(to_search, AbstractStateSpace) or hasattr(to_search, 'indices'):
                 to_search = to_search.indices
             else:
                 to_search = np.array(to_search)
@@ -88,7 +88,11 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         # now because of how searchsorted works, we need to check if the found values
         # truly agree with what we asked for
         bad_vals = self.indices[vals] != to_search
-        vals[bad_vals] = -1
+        if vals.shape == ():
+            if bad_vals:
+                vals = -1
+        else:
+            vals[bad_vals] = -1
         return vals
 
     def __len__(self):

@@ -6,6 +6,8 @@ import numpy as np, functools as fp, itertools as ip, scipy, time
 
 from McUtils.Numputils import SparseArray, levi_cevita3, vec_tensordot, vec_outer
 from McUtils.Data import UnitsData
+from McUtils.Scaffolding import Logger, NullLogger, CheckpointerBase, NullCheckpointer
+from McUtils.Parallelizers import Parallelizer
 
 from ..Molecools import MolecularVibrations, MolecularNormalModes
 
@@ -136,8 +138,10 @@ class ExpansionTerms:
                  molecule,
                  modes=None,
                  mode_selection=None,
+                 undimensionalize=True,
                  logger=None,
-                 undimensionalize=True
+                 parallelizer=None,
+                 checkpointer=None
                  ):
         """
         :param molecule: the molecule we're doing the expansion for
@@ -168,7 +172,15 @@ class ExpansionTerms:
         self.freqs = self.modes.freqs
         self._inert_frame = None
 
+        if logger is None:
+            logger = NullLogger()
         self.logger = logger
+        if parallelizer is None:
+            parallelizer = Parallelizer.get_default()
+        self.parallelizer = parallelizer
+        if checkpointer is None:
+            checkpointer = NullCheckpointer()
+        self.checkpointer = checkpointer
 
     def undimensionalize(self, masses, modes):
         L = modes.matrix.T
@@ -557,76 +569,6 @@ class ExpansionTerms:
                 * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
         )
 
-        # check for breakdowns?
-        # not sure why I wouldn't also need to correct for other bits in this...
-        test_I = np.dot(YR, RY)
-        bad_modes = np.where( np.abs(1.-np.diag(test_I)) > .001 )[0]
-        check_modes = False
-        # check_modes = True
-        if check_modes and len(bad_modes) > 0:
-            natoms = RY.shape[0] // 3
-            # add back in the coords corresponding to the embedding
-            new_bad = []
-            for b in bad_modes:
-                if b == 0:
-                    b += 3 # 3 embedding coords
-                elif b == 1:
-                    b += 5 # 5 embedding coords
-                else:
-                    b += 6
-                new_bad.append(b)
-
-            bad_pos = np.unravel_index(new_bad, (natoms, 3))
-            ic_sys = self.internal_coordinates.system
-            ordering = ic_sys.converter_options['ordering']
-            ax_names = ic_sys.converter_options['axes_labels']
-            bad_crds = []
-            for line, which in zip(*bad_pos):
-                me = ordering[line]
-                if line == 0:
-                    if which == 0:
-                        bad_crds.append("(embedding) dist({}, COM)".format(me[0]))
-                    elif which == 1:
-                        bad_crds.append("(embedding) angle(COM, {}, {}-axis)".format(me[0], ax_names[0]))
-                    elif which == 2:
-                        bad_crds.append("(embedding) dihed({}, COM, {}-axis, {}-axis))".format(me[0], *ax_names))
-                elif line == 1 and (which == 1 or which == 2):
-                    if which == 1:
-                        bad_crds.append("(embedding) angle({0}, {1}, {2}-axis)".format(*me[:2], ax_names[0]))
-                    elif which == 2:
-                        bad_crds.append("(embedding) dihed({}, {}, {}-axis, {}-axis)".format(*me[:2], *ax_names))
-                elif line == 2 and which == 2:
-                    bad_crds.append("(embedding) dihed({}, {}, {}, {}-axis)".format(*me[:3], ax_names[0]))
-                else:
-                    if which == 0:
-                        bad_crds.append("dist({}, {})".format(*me[:2]))
-                    elif which == 1:
-                        bad_crds.append("angle({1}, {0}, {2})".format(*me[:3]))
-                    elif which == 2:
-                        bad_crds.append("dihed({}, {}, {}, {})".format(*me))
-
-
-            raise PerturbationTheoryException(
-                "dR/dX and dX/dR aren't inverses, specifically in coordinates {} : {}".format(
-                    bad_modes,
-                    ", ".join(bad_crds)
-            ))
-
-        # import McUtils.Plots as plt
-        # plt.ArrayPlot(should_be_I)
-        # plt.ArrayPlot(should_be_I2)
-        # plt.ArrayPlot(should_be_I3)
-        # plt.ArrayPlot(should_be_I4).show()
-
-        # raise Exception([
-        #     RY.shape,
-        #     RYY.shape,
-        #     RYYY.shape,
-        #     YR.shape,
-        #     YRR.shape,
-        #     YRRR.shape
-        # ])
-
         QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
         YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
 
@@ -656,13 +598,7 @@ class ExpansionTerms:
         }
 
         self._cached_transforms[self.molecule] = transf_data
-
-        # import json, os
-        # json_dump = { k: [x.tolist() if isinstance(x, np.ndarray) else x for x in v] for k,v in transf_data.items() }
-        # json_dump["Cartesians"] = self.molecule.coords.tolist()
-        # json_dump["Internals"] = self.molecule.internal_coordinates.tolist()
-        # with open(os.path.expanduser("~/Desktop/derivs.json"), "w+") as dump:
-        #     json.dump(json_dump, dump)
+        self.checkpointer['coordinate_transforms'] = transf_data
 
         return self._cached_transforms[self.molecule]
 
@@ -695,7 +631,9 @@ class PotentialTerms(ExpansionTerms):
                  mixed_derivs=True,
                  modes=None,
                  mode_selection=None,
-                 logger=None
+                 logger=None,
+                 parallelizer=None,
+                 checkpointer=None
                  ):
         """
         :param molecule: the molecule that will supply the potential derivatives
@@ -707,7 +645,8 @@ class PotentialTerms(ExpansionTerms):
         :param mode_selection: the subset of normal modes to use
         :type mode_selection: None | Iterable[int]
         """
-        super().__init__(molecule, modes, mode_selection, logger=logger)
+        super().__init__(molecule, modes, mode_selection=mode_selection,
+                         logger=logger, parallelizer=parallelizer, checkpointer=checkpointer)
         self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.potential_derivatives)
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
 
@@ -947,7 +886,10 @@ class DipoleTerms(ExpansionTerms):
                  molecule,
                  mixed_derivs=True,
                  modes=None,
-                 mode_selection=None
+                 mode_selection=None,
+                 logger=None,
+                 parallelizer=None,
+                 checkpointer=None
                  ):
         """
         :param molecule: the molecule that will supply the dipole derivatives
@@ -959,7 +901,8 @@ class DipoleTerms(ExpansionTerms):
         :param mode_selection: the subset of normal modes to use
         :type mode_selection: None | Iterable[int]
         """
-        super().__init__(molecule, modes=modes, mode_selection=mode_selection)
+        super().__init__(molecule, modes=modes, mode_selection=mode_selection,
+                         logger=logger, parallelizer=parallelizer, checkpointer=checkpointer)
         self.derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.dipole_derivatives)
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
 
@@ -968,6 +911,8 @@ class DipoleTerms(ExpansionTerms):
         Makes sure all of the dipole moments are clean and ready to rotate
         """
 
+        # TODO: this will need major clean up now that I've improved
+        #       dipole handling in Molecule
         mom, grad, higher = derivs
         grad = grad.array
         seconds = higher.second_deriv_array
