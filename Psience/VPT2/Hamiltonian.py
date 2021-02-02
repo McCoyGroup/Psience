@@ -791,40 +791,77 @@ class PerturbationTheoryHamiltonian:
         diagonalize
         :type corrs: PerturbationTheoryCorrections
         """
+        from McUtils.Data import UnitsData
 
-        # logger.log_print(
-        #     ["generating representation of resonance terms in Hamiltonian"]
-        # )
-        subcorrs = corrs.take_subspace(degenerate_space)
-        H_nd = sum([x.toarray() for x in subcorrs.operator_representation(H)])
-        deg_engs, deg_transf = np.linalg.eigh(H_nd)
+        with logger.block(tag="applying degenerate PT"):
+            with logger.block(tag="states"):
+                logger.log_print(
+                    str(
+                        corrs.states.take_states(degenerate_space).excitations
+                    ).splitlines()
+                )
 
-        for i in range(len(deg_transf)):
-            max_ov = np.max(deg_transf[:, i] ** 2)
-            ov_thresh = .5
-            if max_ov < ov_thresh:  # there must be a single mode that has more than 50% of the initial state character?
-                if logger is not None:
+            subcorrs = corrs.take_subspace(degenerate_space)
+            # with logger.block(tag="first order corrections...."):
+            #     logger.log_print(
+            #         np.array2string(
+            #             subcorrs.wfn_corrections[1].toarray()
+            #         ).replace("\n", "").replace("]", "]\n").splitlines()
+            #     )
+            H_nd = sum([x.toarray() for x in subcorrs.operator_representation(H)])
+            # logger.log_print("non-degenerate energies {e}",
+            #                  e=np.diag(H_nd)*UnitsData.convert("Hartrees", "Wavenumbers"))
+
+            with logger.block(tag="non-degenerate Hamiltonian"):
+                logger.log_print(
+                    str(
+                        np.round(H_nd*UnitsData.convert("Hartrees", "Wavenumbers"))
+                    ).splitlines()
+                )
+
+            deg_engs, deg_transf = np.linalg.eigh(H_nd)
+
+            for i in range(len(deg_transf)):
+                max_ov = np.max(deg_transf[:, i] ** 2)
+                ov_thresh = .5
+                if max_ov < ov_thresh:  # there must be a single mode that has more than 50% of the initial state character?
                     logger.log_print(
                         "    state {i} is more than 50% mixed",
                         i=i
                     )
-            #     raise PerturbationTheoryException("mode {} is has no contribution of greater than {}".format(
-            #         i, ov_thresh
-            #     ))
+                #     raise PerturbationTheoryException("mode {} is has no contribution of greater than {}".format(
+                #         i, ov_thresh
+                #     ))
 
-        # sort_transf = deg_transf.copy()
-        # sorting = [-1] * len(deg_transf)
-        # for i in range(len(deg_transf)):
-        #     o = np.argmax(abs(sort_transf[:, i]))
-        #     sorting[i] = o
-        #     sort_transf[o] = np.zeros(len(sort_transf))
-        # sorting = [ np.argmax(abs(sort_transf[:, i])) for i in range(len(deg_transf)) ]
-        #
-        # print(sorting)
-        # # if len(sorting) != len(np.unique(sorting)):
-        # #     raise PerturbationTheoryException("After diagonalizing can't distinguish modes...")
-        # deg_engs = deg_engs[sorting,]
-        # deg_transf = deg_transf[sorting, :]
+            # we pick the terms with the max contribution from each input state
+            # and zero out the contributions so that two states can't map
+            # to the same input state
+            sort_transf = np.abs(deg_transf.copy())
+            sorting = [-1] * len(deg_transf)
+            for i in range(len(deg_transf)):
+                o = np.argmax(sort_transf[i, :])
+                sorting[i] = o
+                sort_transf[:, o] = 0.#np.zeros(len(sort_transf))
+
+            with logger.block(tag='contributions'):
+                logger.log_print(
+                        str(np.round(100 * (deg_transf**2)).astype(int)).splitlines()
+                )
+
+            logger.log_print('sorting: {s}', s=sorting)
+
+            # sorting = np.argsort(sorting)
+
+            #
+            # print(sorting)
+            # # if len(sorting) != len(np.unique(sorting)):
+            # #     raise PerturbationTheoryException("After diagonalizing can't distinguish modes...")
+            deg_engs = deg_engs[sorting,]
+
+            logger.log_print("degenerate energies {e}",
+                             e=np.round(deg_engs * UnitsData.convert("Hartrees", "Wavenumbers")))
+
+            deg_transf = deg_transf[:, sorting]
 
         return deg_engs, deg_transf
 
@@ -931,7 +968,7 @@ class PerturbationTheoryHamiltonian:
         # generate the perturbation operator
         E0 = e_vec_full[n_ind]
         e_vec = e_vec_full - E0
-        e_vec[deg_inds] = 1
+        e_vec[n_ind] = 1
         zero_checks = np.where(np.abs(e_vec) < non_zero_cutoff)[0]
         if len(zero_checks) > 0:
             bad_vec = np.concatenate([[E0], e_vec_full[zero_checks]])
@@ -943,7 +980,7 @@ class PerturbationTheoryHamiltonian:
                     np.std(bad_vec)
                 ))
         pi = 1 / e_vec
-        pi[deg_inds] = 0
+        pi[n_ind] = 0
         pi = SparseArray.from_diag(pi)
 
         energies[0] = E0
@@ -987,7 +1024,7 @@ class PerturbationTheoryHamiltonian:
 
     @classmethod
     def _apply_nondegenerate_VPT(cls,
-                                 H,
+                                 perturbations,
                                  states,
                                  order,
                                  total_state_space,
@@ -997,8 +1034,8 @@ class PerturbationTheoryHamiltonian:
                                  non_zero_cutoff=1.0e-14
                                  ):
         """
-        :param H: the zero-order Hamiltonian and perturbations to be applied
-        :type H: Iterable[SparseArray]
+        :param perturbations: the zero-order Hamiltonian and perturbations to be applied
+        :type perturbations: Iterable[SparseArray]
         :param states: the set of states for which the perturbation theory will be applied
         :type states: BasisStateSpace
         :param order: the order of perturbation theory to apply
@@ -1029,14 +1066,14 @@ class PerturbationTheoryHamiltonian:
             N = len(flat_total_space)
 
             checkpointer['indices'] = total_state_space
-            checkpointer['representations'] = H
+            checkpointer['representations'] = perturbations
 
             all_energies = np.zeros((len(states), order + 1))
             all_overlaps = np.zeros((len(states), order + 1))
             all_corrs = np.zeros((len(states), order + 1, N))
             # all_wfns = [] #np.zeros((len(states), order + 1, total_states))
 
-            H0 = H[0]
+            H0 = perturbations[0]
             e_vec_full = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
             if isinstance(e_vec_full, SparseArray):
                 e_vec_full = e_vec_full.toarray()
@@ -1060,12 +1097,22 @@ class PerturbationTheoryHamiltonian:
                     deg_inds = flat_total_space.find(deg_group)
                     if hasattr(deg_group, 'indices'):
                         deg_group = deg_group.indices
+
+                    if len(deg_inds) > 1:
+                        H, transf, transfinv = cls._get_degenerate_transformation(perturbations, deg_inds)
+                    else:
+                        H = perturbations
+
                     for n in deg_group:
                         energies, overlaps, corrs = cls._apply_VPT_equations(H, order, n,
                                                                              deg_inds, flat_total_space,
                                                                              e_vec_full,
                                                                              non_zero_cutoff=non_zero_cutoff
                                                                              )
+
+                        if len(deg_inds) > 1:
+                            corrs = transfinv.tensordot(corrs, axes=[-1, -1]).T
+
                         res_index = states.find(n)
                         all_energies[res_index] = energies
                         all_corrs[res_index] = corrs
@@ -1149,7 +1196,93 @@ class PerturbationTheoryHamiltonian:
                 H
             )
 
+            # subcorrs = corrs.take_subspace(
+            #     BasisStateSpace(
+            #         states.basis,
+            #         [[0, 0, 2], [0, 2, 0], [0, 1, 1]]
+            #     )
+            # )
+            #
+            # H_reps = subcorrs.operator_representation(H)
+            # import json, os
+            # with open(os.path.expanduser("~/Desktop/H_embed_subspace_test_deg.json"), "w+") as corr_dump:
+            #     json.dump([x.toarray().tolist() for x in H_reps], corr_dump)
+            #
+            # with open(os.path.expanduser("~/Desktop/H_dump.json"), "w+") as corr_dump:
+            #     json.dump([x.toarray().tolist() for x in H], corr_dump)
+
         return corrs
+
+    @classmethod
+    def _get_degenerate_transformation(cls, perturbations, deg_inds):
+        """
+        Diagonalizes the perturbations in the degenerate subspace to
+        get a cleaner basis in which to do the perturbation theory
+
+        :param perturbations:
+        :type perturbations:
+        :param deg_inds:
+        :type deg_inds:
+        :return:
+        :rtype: tuple[Iterable[SparseArray], SparseArray, SparseArray]
+        """
+
+        inds = np.array(list(itertools.product(deg_inds, deg_inds))).T
+        subham = sum(
+            np.reshape(H[inds], (len(deg_inds), len(deg_inds)))
+            for H in perturbations
+        )
+
+        new_eng, transf = np.linalg.eigh(subham)
+
+        # now we build a large, mostly sparse transformation matrix
+        # we know it's normal, since H is Hermitian, so we don't need
+        # to compute inverse
+        rest_inds = np.setdiff1d(
+            np.arange(perturbations[0].shape[0]),
+            deg_inds
+        )
+        transf = SparseArray(
+            (
+                np.concatenate([np.ones(len(rest_inds)), transf.flatten()]),
+                (
+                    np.concatenate([rest_inds, inds[0]]),
+                    np.concatenate([rest_inds, inds[1]])
+                )
+            ),
+            shape=perturbations[0].shape
+        )
+        transfinv = transf.transpose([1, 0])
+
+        # now we create a new set of perturbations using
+        # this transformation
+        new_perts = [transfinv.dot(H).dot(transf) for H in perturbations]
+
+        # and then modify these to move all of the effect of the perturbation on
+        # H0 into the H1
+        if len(new_perts) > 2:
+            off_diags = np.array([x for x in inds.T if x[0] != x[1]]).T
+            zero_stuff = new_perts[0][off_diags].flatten()
+            new_perts[1][off_diags] = zero_stuff
+        # for i,H in enumerate(new_perts):
+        #     H[inds] = 0.
+        #
+        #     if i == 0:
+        #         H[deg_inds, deg_inds] = new_eng
+
+        # import McUtils.Plots as plt
+        # print(new_eng)
+        # plot_style=dict(vmin=-1e-3, vmax=1e-3)
+        # plt.ArrayPlot(new_perts[0], plot_style=plot_style)
+        # plt.ArrayPlot(new_perts[0].toarray() - perturbations[0].toarray()
+        #               , plot_style=plot_style)
+        # plt.ArrayPlot(sum(
+        #     np.reshape(H[inds], (len(deg_inds), len(deg_inds)))
+        #     for H in new_perts
+        # ), plot_style=plot_style).show()
+        # plt.ArrayPlot(transf).show()
+
+        return new_perts, transf, transfinv
 
 
     @classmethod
@@ -1302,55 +1435,101 @@ class PerturbationTheoryHamiltonian:
         total_state_space = total_state_space.to_single().take_unique()
 
         if degenerate_states is not None:
+
             with logger.block(tag="getting degeneracies"):
-                def _is_degenerate_NT_spec(spec):
-                    test1 = isinstance(spec, np.ndarray) and spec.dtype == np.dtype(int)
-                    if test1:
-                        return test1
-                    else:
+                if isinstance(degenerate_states, dict):
+                    if 'MartinTest' in degenerate_states:
+                        martin_test = degenerate_states['MartinTest']
+                    if 'states' in degenerate_states:
+                        degenerate_states = degenerate_states['states']
+                    elif 'NT' in degenerate_states:
+                        logger.log_print(
+                            "NT vector: {s}",
+                            s=degenerate_states
+                        )
+                        degenerate_states = cls._group_states_by_nt_spec(H, states, total_state_space,
+                                                                         degenerate_states['NT'])
+                    elif 'energy_cutoff' in degenerate_states:
+                        logger.log_print(
+                            "energy cutoff: {s}",
+                            s=degenerate_states
+                        )
+                        degenerate_states = cls._group_states_by_energy_cutoff(H, states, total_state_space,
+                                                                               degenerate_states['energy_cutoff'])
+                    elif 'generator' in degenerate_states:
+                        logger.log_print(
+                            "callable: {s}",
+                            s=degenerate_states
+                        )
+
+                        # we assume we have some kind of callable
                         try:
-                            it = iter(spec)
-                        except TypeError:
-                            return False
+                            degenerate_states = degenerate_states['generator'](H, states)
+                        except (TypeError, ValueError):
+                            pass
+
+                        if not isinstance(degenerate_states[0], (BasisStateSpace, BasisMultiStateSpace)):
+                            raise NotImplementedError("can't deal with non-BasisStateSpace specs for degeneracies")
+
+                    else:
+                        raise NotImplementedError("unsure what to do with degeneracy spec {}".format(degenerate_states))
+
+                else:
+
+                    def _is_degenerate_NT_spec(spec):
+                        test1 = isinstance(spec, np.ndarray) and spec.dtype == np.dtype(int)
+                        if test1:
+                            return test1
                         else:
-                            return all(isinstance(x, int) for x in it)
-                # we dispatch on the types of degeneracy specs we support
-                if isinstance(degenerate_states, (int, np.integer, np.floating, float)):
-                    logger.log_print(
-                        "energy cutoff: {s}",
-                        s=degenerate_states
-                    )
-                    degenerate_states = cls._group_states_by_energy_cutoff(H, states, total_state_space, degenerate_states)
-                elif _is_degenerate_NT_spec(degenerate_states):
-                    logger.log_print(
-                        "N_T vector: {s}",
-                        s=degenerate_states
-                    )
-                    degenerate_states = cls._group_states_by_nt_spec(H, states, total_state_space, degenerate_states)
-                elif all(isinstance(x, (BasisStateSpace, BasisMultiStateSpace)) for x in degenerate_states):
-                    # means we just got the degenerate subspaces to work with
-                    pass
-                elif degenerate_states is not None:
-                    logger.log_print(
-                        "callable: {s}",
-                        s=degenerate_states
-                    )
+                            try:
+                                it = iter(spec)
+                            except TypeError:
+                                return False
+                            else:
+                                return all(isinstance(x, int) for x in it)
 
-                    # we assume we have some kind of callable
-                    try:
-                        degenerate_states = degenerate_states(H, states)
-                    except (TypeError, ValueError):
-                        pass
+                    def _is_degenerate_state_spec(spec):
+                        test1 = all(isinstance(x, (BasisStateSpace, BasisMultiStateSpace)) for x in spec)
+                        if test1:
+                            return test1
+                        else:
+                            spec = np.asarray(spec)
+                            return (
+                                    spec.dtype == int
+                                    and (spec.ndim == 2 or spec.ndim == 3)
+                            )
 
-                    if not isinstance(degenerate_states[0], (BasisStateSpace, BasisMultiStateSpace)):
-                        raise NotImplementedError("can't deal with non-BasisStateSpace specs for degeneracies")
+                    # we dispatch on the types of degeneracy specs we support
+                    if isinstance(degenerate_states, (int, np.integer, np.floating, float)):
+                        logger.log_print(
+                            "energy cutoff: {s}",
+                            s=degenerate_states
+                        )
+                        degenerate_states = cls._group_states_by_energy_cutoff(H, states, total_state_space, degenerate_states)
+                    elif _is_degenerate_NT_spec(degenerate_states):
+                        logger.log_print(
+                            "N_T vector: {s}",
+                            s=degenerate_states
+                        )
+                        degenerate_states = cls._group_states_by_nt_spec(H, states, total_state_space, degenerate_states)
+                    elif _is_degenerate_state_spec(degenerate_states):
+                        if not isinstance(degenerate_states[0], (BasisStateSpace, BasisMultiStateSpace)):
+                            degenerate_states = [BasisStateSpace(states.basis, x) for x in degenerate_states]
+                    elif degenerate_states is not None:
+                        logger.log_print(
+                            "callable: {s}",
+                            s=degenerate_states
+                        )
 
-                # # TODO: Not sure I want this...
-                # if (
-                #         degenerate_states is not None
-                #         and not isinstance(degenerate_states[0], BasisStateSpace)
-                # ):
-                #     degenerate_states = [BasisStateSpace(total_state_space.basis, x) for x in degenerate_states
+                        # we assume we have some kind of callable
+                        try:
+                            degenerate_states = degenerate_states(H, states)
+                        except (TypeError, ValueError):
+                            pass
+
+                        if not isinstance(degenerate_states[0], (BasisStateSpace, BasisMultiStateSpace)):
+                            raise NotImplementedError("can't deal with non-BasisStateSpace specs for degeneracies")
+
                 logger.log_print(
                     "degenerate state sets found {n}",
                     n=len([x for x in degenerate_states if len(x) > 1])
@@ -1442,20 +1621,20 @@ class PerturbationTheoryHamiltonian:
             logger=logger
         )
 
-        if degenerate_states is not None and any(len(x) > 1 for x in degenerate_states):
-
-            # if logger is not None:
-            #     logger.log_print(
-            #         "handling degeneracies...",
-            #     )
-            deg_engs, deg_transf = cls._apply_degenerate_PT(
-                H,
-                corrs,
-                degenerate_states,
-                logger=logger
-            )
-            corrs.degenerate_energies = deg_engs
-            corrs.degenerate_transf = deg_transf
+        # if degenerate_states is not None and any(len(x) > 1 for x in degenerate_states):
+        #
+        #     # if logger is not None:
+        #     #     logger.log_print(
+        #     #         "handling degeneracies...",
+        #     #     )
+        #     deg_engs, deg_transf = cls._apply_degenerate_PT(
+        #         H,
+        #         corrs,
+        #         degenerate_states,
+        #         logger=logger
+        #     )
+        #     corrs.degenerate_energies = deg_engs
+        #     corrs.degenerate_transf = deg_transf
 
         return corrs
 

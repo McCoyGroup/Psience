@@ -81,6 +81,8 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
                 to_search = to_search.indices
             else:
                 to_search = np.array(to_search)
+        if to_search.ndim > 1:
+            raise ValueError("currently only accept subspaces as indices or AbstractStateSpaces")
         vals = np.searchsorted(self.indices, to_search, sorter=self.indexer)
         # we have the ordering according to the _sorted_ version of `indices`
         # so now we need to invert that back to the unsorted version

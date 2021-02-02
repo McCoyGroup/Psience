@@ -2198,12 +2198,7 @@ class VPT2Tests(TestCase):
         #     [1, 0, -1, -1],
         #     [2, 0, 1, -1]
         # ]
-        states = (
-            (0, 0, 0),
-            (0, 0, 1), (0, 1, 0), (1, 0, 0),
-            (0, 0, 2), (0, 2, 0), (2, 0, 0),
-            (0, 1, 1), (1, 0, 1), (1, 1, 0)
-        )
+        states = self.get_states(3, 3)
 
         wfns = self.get_VPT2_wfns(
             "HOH_freq.fchk",
@@ -2255,7 +2250,7 @@ class VPT2Tests(TestCase):
             energies[1:] - energies[0]
         ])
 
-        print_report = False
+        print_report = True
         if print_report:
             print("Gaussian:\n",
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
@@ -2272,16 +2267,17 @@ class VPT2Tests(TestCase):
                   )
                   )
 
+        sigh = min(len(my_freqs), len(gaussian_freqs))
         print_diffs = True
         if print_diffs:
             print("Difference Energies:\n",
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
                   *(
                       "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
+                      zip(states[1:], my_freqs[:sigh] - gaussian_freqs[:sigh])
                   )
                   )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
+        self.assertLess(np.max(np.abs(my_freqs[:sigh] - gaussian_freqs[:sigh])), 1.5)
 
     @debugTest
     def test_HOHVPTCartesiansDegenerate(self):
@@ -2296,6 +2292,110 @@ class VPT2Tests(TestCase):
             states,
             regenerate=True,
             log=True
+            # , degeneracies = {
+            #     'NT':(1, 2, 2),
+            #     'MartinTest': False
+            # }
+            # , degeneracies=1 # anything within 1 Hartree (i.e. everything)
+            # , degeneracies=(1, 2, 2) # use N_T = 1 bend + 2 stretch
+            , degeneracies=([[0, 0, 2], [0, 2, 0], [0, 1, 1]],)
+            # degeneracies=100/self.h2w # any pair of states within 100 wavenumbers can be treated as degenerate
+            # , coupled_states = self.get_states(5, 3)
+            # , v3=0
+            # , v4=0
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
+        energies = h2w * wfns.energies
+        zero_ord = h2w * wfns.zero_order_energies
+
+        # print(len(self.get_states(5, 3)), len(wfns.corrs.coupled_states))
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
+        # print([
+        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
+        #     for i in range(len(wfns.corrs.wfn_corrections))
+        # ])
+
+        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
+                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
+                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
+        gaussian_energies = np.array([4681.564, 4605.953])
+        gaussian_freqs = np.array([
+            [3937.525, 3744.734],
+            [3803.300, 3621.994],
+            [1622.303, 1572.707],
+
+            [7875.049, 7391.391],
+            [7606.599, 7155.881],
+            [3244.606, 3117.366],
+
+            [7740.824, 7200.364],
+            [5559.828, 5294.379],
+            [5425.603, 5174.665]
+        ])
+
+        my_energies = np.array([zero_ord[0], energies[0]])
+        my_freqs = np.column_stack([
+            zero_ord[1:] - zero_ord[0],
+            energies[1:] - energies[0]
+        ])
+
+        print_report = True
+        if print_report:
+            print("Gaussian:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(gaussian_states, gaussian_freqs)
+                  )
+                  )
+            print("State Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs)
+                  )
+                  )
+
+        sigh = min(len(my_freqs), len(gaussian_freqs))
+        print_diffs = True
+        if print_diffs:
+            print("Difference Energies:\n",
+                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
+                  *(
+                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
+                      zip(states[1:], my_freqs[:sigh] - gaussian_freqs[:sigh])
+                  )
+                  )
+        self.assertLess(np.max(np.abs(my_freqs[:sigh] - gaussian_freqs[:sigh])), 1.5)
+
+    @inactiveTest
+    def test_HOHVPTInternalsDegenerate(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+
+        states = self.get_states(3, 3)
+
+        wfns = self.get_VPT2_wfns(
+            "HOH_freq.fchk",
+            internals,
+            states,
+            regenerate=True,
+            log=True
+            # , degeneracies = {
+            #     'NT':(1, 2, 2),
+            #     'MartinTest': False
+            # }
+            # , degeneracies=1  # anything within 1 Hartree (i.e. everything)
             , degeneracies=(1, 2, 2) # use N_T = 1 bend + 2 stretch
             # degeneracies=100/self.h2w # any pair of states within 100 wavenumbers can be treated as degenerate
             # , coupled_states = self.get_states(5, 3)
@@ -2343,7 +2443,7 @@ class VPT2Tests(TestCase):
             energies[1:] - energies[0]
         ])
 
-        print_report = False
+        print_report = True
         if print_report:
             print("Gaussian:\n",
                   "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
