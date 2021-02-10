@@ -93,6 +93,14 @@ class PermutationStateIndexer(BaseStateIndexer):
         self.ndim = ndim
         self.partitioning_cache = {}
 
+    def to_state(self, serializer=None):
+        return {
+            'ndim': self.ndim
+        }
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(data['ndim'])
+
     @staticmethod
     def _accel_asc(n):
         """
