@@ -25,7 +25,7 @@ __init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, co
     >parallelism manager
 - `log`: `str | Logger`
     >log file or logger to write to
-- `checkpoint`: `str | CheckpointerBase`
+- `checkpoint`: `str | Checkpointer`
     >checkpoint file or checkpointer to store intermediate results
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.H0" class="docs-object-method">&nbsp;</a>

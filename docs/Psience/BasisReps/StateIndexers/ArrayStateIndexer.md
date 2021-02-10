@@ -3,9 +3,17 @@ Very simple indexer that takes a set of max state dimensions and
 provides the appropriate indices in that space
 
 ### Properties and Methods
+```python
+from_state: method
+```
 <a id="Psience.BasisReps.StateIndexers.ArrayStateIndexer.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, dims): 
+```
+
+<a id="Psience.BasisReps.StateIndexers.ArrayStateIndexer.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
 ```
 
 <a id="Psience.BasisReps.StateIndexers.ArrayStateIndexer.to_indices" class="docs-object-method">&nbsp;</a>

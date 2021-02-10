@@ -36,6 +36,25 @@ class MolecoolsTests(TestCase):
     test_fchk = TestManager.test_data("water_freq.fchk")
     test_log_h2 = TestManager.test_data("outer_H2_scan_new.log")
 
+    @debugTest
+    def test_NormalModeRephasing(self):
+        m_16 = Molecule.from_file(TestManager.test_data('CH2DT_freq_16.fchk'))
+        m_09 = Molecule.from_file(TestManager.test_data('CH2DT_freq.fchk'))
+        modes_09 = m_09.normal_modes
+        # modes_16 = m_16.normal_modes
+
+        modes_09 = np.array([x / np.linalg.norm(x) for x in modes_09.basis.matrix.T])
+        # modes_16 = np.array([x / np.linalg.norm(x) for x in modes_16.basis.matrix.T])
+
+        phases = m_16.get_fchk_normal_mode_rephasing()
+        rescaled = m_16.normal_modes.rescale(phases)
+
+        rescaled_16 = np.array([x / np.linalg.norm(x) for x in rescaled.basis.matrix.T])
+
+        phase_test = np.sign(np.diag(np.dot(modes_09, rescaled_16.T)))
+
+        self.assertEquals(np.sum(np.diff(phase_test)), 0)
+
     @validationTest
     def test_ImportMolecule(self):
 
@@ -43,7 +62,7 @@ class MolecoolsTests(TestCase):
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(m.atoms, ("O", "H", "H"))
 
-    @debugTest
+    @validationTest
     def test_EckartEmbed(self):
         m = Molecule.from_file(TestManager.test_data('HOH_freq.fchk'))
         crd = m.embed_coords(m.coords)
@@ -260,7 +279,7 @@ class MolecoolsTests(TestCase):
             tuple(np.round(test_freqs, 4))
         )
 
-    @debugTest
+    @inactiveTest
     def test_InternalCartesianJacobians(self):
         import McUtils.Plots as plt
         m = Molecule.from_file(TestManager.test_data('HOH_freq.fchk'),

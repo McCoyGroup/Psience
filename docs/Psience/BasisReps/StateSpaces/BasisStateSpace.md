@@ -5,6 +5,7 @@ the different representation-generating methods in the code base.
 
 ### Properties and Methods
 ```python
+from_state: method
 from_quanta: method
 ```
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.__init__" class="docs-object-method">&nbsp;</a>
@@ -18,6 +19,11 @@ __init__(self, basis, states, mode=None):
     >No description...
 - `mode`: `None | str | StateSpaceSpec`
     >whether the states were supplied as indices or as excitations
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
+```
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.infer_state_inds_type" class="docs-object-method">&nbsp;</a>
 ```python

@@ -4,19 +4,32 @@ Can be used to correct other operators in the basis of the original calculation.
 
 ### Properties and Methods
 ```python
+from_dicts: method
 loadz: method
 ```
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryCorrections.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, states, corrections, hamiltonians): 
+__init__(self, hamiltonians, states, coupled_states, total_basis, energy_corrs, wfn_corrections, degenerate_states=None, degenerate_transformation=None, degenerate_energies=None): 
 ```
 
-- `states`: `dict`
-    >a dict with the states described by the corrections, the set of states coupled, and the size of the overall basis
-- `corrections`: `dict`
-    >the corrections generated, including the corrections for the energies, wavefunctions, and a transformation from degenerate PT
-- `hamiltonians`: `Iterable[np.ndarray]`
-    >the set of Hamiltonian matrices used as an expansion
+- `hamiltonians`: `Iterable[SparseArray]`
+    >No description...
+- `states`: `BasisStateSpace`
+    >No description...
+- `coupled_states`: `BasisMultiStateSpace`
+    >No description...
+- `total_basis`: `BasisMultiStateSpace`
+    >No description...
+- `energy_corrs`: `np.ndarray`
+    >No description...
+- `wfn_corrections`: `Iterable[SparseArray]`
+    >No description...
+- `degenerate_states`: `None | np.ndarray`
+    >No description...
+- `degenerate_transformation`: `None | np.ndarray`
+    >No description...
+- `degenerate_energies`: `None | np.ndarray`
+    >No description...
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryCorrections.degenerate" class="docs-object-method">&nbsp;</a>
 ```python
@@ -35,6 +48,16 @@ energies(self):
 @property
 order(self): 
 ```
+
+<a id="Psience.VPT2.Hamiltonian.PerturbationTheoryCorrections.take_subspace" class="docs-object-method">&nbsp;</a>
+```python
+take_subspace(self, space): 
+```
+Takes only those elements that are in space
+- `space`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryCorrections.operator_representation" class="docs-object-method">&nbsp;</a>
 ```python

@@ -26,6 +26,12 @@ basis(self):
 molecule(self): 
 ```
 
+<a id="Psience.Molecools.Vibrations.MolecularVibrations.freqs" class="docs-object-method">&nbsp;</a>
+```python
+@property
+freqs(self): 
+```
+
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.coords" class="docs-object-method">&nbsp;</a>
 ```python
 @property
@@ -92,6 +98,16 @@ embed(self, frame):
 ```
 
 - `frame`: `MolecularTransformation`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.Vibrations.MolecularVibrations.rescale" class="docs-object-method">&nbsp;</a>
+```python
+rescale(self, scaling): 
+```
+Multiplies each mode by some scaling factor
+- `phases`: `Any`
     >No description...
 - `:returns`: `_`
     >No description...

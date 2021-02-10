@@ -3,6 +3,7 @@ A `BasisMultiStateSpace` subclass that is only built from applying selection rul
 
 ### Properties and Methods
 ```python
+from_state: method
 from_rules: method
 ```
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.__init__" class="docs-object-method">&nbsp;</a>
@@ -16,6 +17,11 @@ __init__(self, init_space, excitations, selection_rules=None):
     >No description...
 - `selection_rules`: `Any`
     >No description...
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
+```
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.representative_space" class="docs-object-method">&nbsp;</a>
 ```python

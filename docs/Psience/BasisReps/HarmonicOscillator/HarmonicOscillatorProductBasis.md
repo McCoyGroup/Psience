@@ -5,10 +5,16 @@ to support representations of `p` and `x`.
 ### Properties and Methods
 ```python
 nquant_max: int
+from_state: method
 ```
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorProductBasis.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, n_quanta, indexer=None): 
+```
+
+<a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorProductBasis.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
 ```
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorProductBasis.operator" class="docs-object-method">&nbsp;</a>

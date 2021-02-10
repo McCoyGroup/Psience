@@ -7,6 +7,7 @@ generated.
 ### Properties and Methods
 ```python
 array_indexer_cutoff: int
+from_state: method
 ```
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.__init__" class="docs-object-method">&nbsp;</a>
 ```python
@@ -19,6 +20,11 @@ __init__(self, basis_type, n_quanta, indexer=None):
     >the number of quanta for the representations
 - `indexer`: `BaseStateIndexer`
     >an object that can turn state specs into indices and indices into state specs
+
+<a id="Psience.BasisReps.Bases.SimpleProductBasis.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
+```
 
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.ndim" class="docs-object-method">&nbsp;</a>
 ```python

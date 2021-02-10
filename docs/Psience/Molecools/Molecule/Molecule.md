@@ -261,11 +261,13 @@ Loads potential derivatives from a file (or from `source_file` if set)
 
 <a id="Psience.Molecools.Molecule.Molecule.load_normal_modes" class="docs-object-method">&nbsp;</a>
 ```python
-load_normal_modes(self, file=None): 
+load_normal_modes(self, file=None, rephase=True): 
 ```
 Loads potential derivatives from a file (or from `source_file` if set)
 - `file`: `Any`
     >No description...
+- `rephase`: `bool`
+    >whether to rephase FChk normal modes or not
 - `:returns`: `_`
     >No description...
 
@@ -286,6 +288,15 @@ load_dipole_derivatives(self, file=None):
 Loads dipole derivatives from a file (or from `source_file` if set)
 - `file`: `Any`
     >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.get_fchk_normal_mode_rephasing" class="docs-object-method">&nbsp;</a>
+```python
+get_fchk_normal_mode_rephasing(self): 
+```
+Returns the necessary rephasing to make the numerical dipole derivatives
+        agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
 - `:returns`: `_`
     >No description...
 
@@ -364,6 +375,12 @@ plot(self, *geometries, figure=None, bond_radius=0.1, atom_radius_scaling=0.25, 
 ```python
 get_normal_modes(self, **kwargs): 
 ```
+Loads normal modes from file or calculates
+        from force constants
+- `kwargs`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 ### Examples
 

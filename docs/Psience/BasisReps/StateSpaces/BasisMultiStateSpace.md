@@ -5,6 +5,9 @@ Each of these state spaces is nominally independent of the rest, allowing for co
 efficiency later down the line.
 
 ### Properties and Methods
+```python
+from_state: method
+```
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, spaces): 
@@ -14,6 +17,11 @@ __init__(self, spaces):
     >array of `BasisStateSpace` objects
 - `selection_rules`: `np.ndarray`
     >array of rules used to generate the subspace
+
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
+```
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.representative_space" class="docs-object-method">&nbsp;</a>
 ```python

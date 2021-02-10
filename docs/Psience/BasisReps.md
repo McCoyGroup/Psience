@@ -622,14 +622,14 @@ class BasisSetTests(TestCase):
 
         adj_arr = bk.adjacency_matrix(total_space=flat_total_space).toarray()
 
-        import McUtils.Plots as plt
-        plt.ArrayPlot(adj_arr).show()
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(adj_arr).show()
 
-        np.savetxt(os.path.expanduser("~/Desktop/bleh.dat"), adj_arr)
+        # np.savetxt(os.path.expanduser("~/Desktop/bleh.dat"), adj_arr)
 
-        adj_dat = adj_mat.data.reshape(N, N)
-        import networkx
-        graph = networkx.from_scipy_sparse_matrix(adj_dat)
+        # adj_dat = adj_mat.data.reshape(N, N)
+        # import networkx
+        # graph = networkx.from_scipy_sparse_matrix(adj_dat)
 
     @debugTest
     def test_PermIndexingChange(self):

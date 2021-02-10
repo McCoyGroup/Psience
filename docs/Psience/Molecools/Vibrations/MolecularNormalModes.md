@@ -33,6 +33,17 @@ embed(self, frame):
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.rescale" class="docs-object-method">&nbsp;</a>
+```python
+rescale(self, scaling_factors): 
+```
+Rescales each mode in the expansion matrix
+        by the passed `scaling_factors`
+- `scaling_factors`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.__getitem__" class="docs-object-method">&nbsp;</a>
 ```python
 __getitem__(self, item): 
