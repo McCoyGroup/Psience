@@ -9,12 +9,18 @@ systems.
 
 ### Properties and Methods
 ```python
+from_state: method
 PartitionPermutationIndexer: type
 max_quants: int
 ```
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, ndim): 
+```
+
+<a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
 ```
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.integer_partitions" class="docs-object-method">&nbsp;</a>
