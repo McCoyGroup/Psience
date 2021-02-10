@@ -46,6 +46,15 @@ class ArrayStateIndexer(BaseStateIndexer):
     """
     def __init__(self, dims):
         self.dims = np.array(dims)
+
+    def to_state(self, serializer=None):
+        return {
+            'dims': self.dims
+        }
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(data['dims'])
+
     def to_indices(self, states):
         idx = np.asarray(states, dtype=int)
         if idx.ndim == 1:

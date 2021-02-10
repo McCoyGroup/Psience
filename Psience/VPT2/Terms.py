@@ -6,7 +6,7 @@ import numpy as np, functools as fp, itertools as ip, scipy, time
 
 from McUtils.Numputils import SparseArray, levi_cevita3, vec_tensordot, vec_outer
 from McUtils.Data import UnitsData
-from McUtils.Scaffolding import Logger, NullLogger, CheckpointerBase, NullCheckpointer
+from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer
 
 from ..Molecools import MolecularVibrations, MolecularNormalModes
@@ -813,7 +813,10 @@ class PotentialTerms(ExpansionTerms):
             for i in range(v4.shape[0]):
                 v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
 
+        self.checkpointer['potential_terms'] = (v2, v3, v4)
+
         return v2, v3, v4
+
 
     get_terms = old_get_terms
 
@@ -878,6 +881,8 @@ class KineticTerms(ExpansionTerms):
             #     print(l + ": ", np.round(M, 4), np.where(t == M), np.round(m, 4), np.average(t))
 
         G_terms = (G, GQ, GQQ)
+
+        self.checkpointer['gmatrix_terms'] = G_terms
 
         return G_terms
 
@@ -1068,6 +1073,9 @@ class DipoleTerms(ExpansionTerms):
 
             mu[coord] = (v0[coord], v1, v2, v3)#(v1, v2, 0)#(v1, 0, 0)
 
+
+        self.checkpointer['dipole_terms'] = mu
+
         return mu
 
 class CoriolisTerm(ExpansionTerms):
@@ -1122,6 +1130,8 @@ class CoriolisTerm(ExpansionTerms):
         )
 
         corr = B_e[:, np.newaxis, np.newaxis, np.newaxis, np.newaxis] * coriolis
+
+        self.checkpointer['coriolis_terms'] = (corr[0], corr[1], corr[2])
 
         return corr[0], corr[1], corr[2]
 
@@ -1306,5 +1316,6 @@ class PotentialLikeTerm(KineticTerms):
 
         # print(wat)
 
+        self.checkpointer['psuedopotential_terms'] = [wat]
 
         return [wat]

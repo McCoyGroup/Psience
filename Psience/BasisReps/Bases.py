@@ -308,6 +308,18 @@ class SimpleProductBasis(RepresentationBasis):
         self.indexer = indexer
         super().__init__(self.get_function, None)
 
+    def to_state(self, serializer=None):
+        return {
+            'basis': self.basis_type,
+            'quanta': self.quanta,
+            'indexer': self.indexer
+        }
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(serializer.deserializer(data['basis']),
+                   serializer.deserializer(data['quanta']),
+                   indexer=serializer.deserializer(data['indexer']))
+
     @property
     def ndim(self):
         return len(self.bases)

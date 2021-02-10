@@ -152,6 +152,15 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
             n_quanta = [self.nquant_max] * n_quanta
         super().__init__(HarmonicOscillatorBasis, n_quanta, indexer=indexer)
 
+    def to_state(self, serializer=None):
+        return {
+            'quanta': self.quanta,
+            'indexer': self.indexer
+        }
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(data['quanta'], indexer=serializer.deserialize(data['indexer']))
+
     def operator(self, *terms, coeffs=None, axes=None, parallelizer=None):
         """
         Builds an operator based on supplied terms, remapping names where possible.

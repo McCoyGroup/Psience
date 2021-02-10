@@ -65,7 +65,8 @@ class VPT2Tests(TestCase):
                               degeneracies=None,
                               log=False,
                               get_breakdown=False,
-                              parallelized=False
+                              parallelized=False,
+                              checkpoint=None
                               ):
         if parallelized:
             parallelizer = MultiprocessingParallelizer()
@@ -80,7 +81,8 @@ class VPT2Tests(TestCase):
                 internals=internals,
                 mode_selection=mode_selection,
                 log=log,
-                parallelizer=parallelizer
+                parallelizer=parallelizer,
+                checkpoint=checkpoint
             )
 
             if get_breakdown:
@@ -148,6 +150,7 @@ class VPT2Tests(TestCase):
                       degeneracies=None,
                       log=False,
                       parallelized=False,
+                      checkpoint=None,
                       get_breakdown=False
                       ):
         return self.get_VPT2_wfns_and_ham(
@@ -169,6 +172,7 @@ class VPT2Tests(TestCase):
             degeneracies=degeneracies,
             log=log,
             parallelized=parallelized,
+            checkpoint=checkpoint,
             get_breakdown=get_breakdown
         )[0]
 
@@ -2093,7 +2097,7 @@ class VPT2Tests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @validationTest
+    @debugTest
     def test_HOHVPTInternals(self):
 
         internals = [
@@ -2101,18 +2105,22 @@ class VPT2Tests(TestCase):
             [1,  0, -1, -1],
             [2,  0,  1, -1]
         ]
-        states = (
-            (0, 0, 0),
-            (0, 0, 1), (0, 1, 0), (1, 0, 0),
-            (0, 0, 2), (0, 2, 0), (2, 0, 0),
-            (0, 1, 1), (1, 0, 1), (1, 1, 0)
-        )
+
+        states = self.get_states(3, 3)
+        chk = os.path.expanduser("~/Desktop/HOH_internal_data.json")
+
+        try:
+            os.remove(chk)
+        except:
+            pass
+
 
         wfns = self.get_VPT2_wfns(
             "HOH_freq.fchk",
             internals,
             states,
             # save_coeffs=True,
+            checkpoint=chk,
             regenerate=True
             # , coupled_states = self.get_states(5, 3)
             # , watson=0.
@@ -2189,7 +2197,7 @@ class VPT2Tests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         internals = None
@@ -2199,16 +2207,29 @@ class VPT2Tests(TestCase):
         #     [2, 0, 1, -1]
         # ]
         states = self.get_states(3, 3)
+        chk = os.path.expanduser("~/Desktop/HOH_data.json")
+
+        try:
+            os.remove(chk)
+        except:
+            pass
 
         wfns = self.get_VPT2_wfns(
             "HOH_freq.fchk",
             internals,
             states,
-            regenerate=True
+            regenerate=True,
+            checkpoint=chk
             # , coupled_states = self.get_states(5, 3)
             # , v3=0
             # , v4=0
         )
+
+        # from McUtils.Scaffolding import Checkpointer
+        #
+        # wat = Checkpointer.from_file(chk)
+        # with wat:
+        #     raise Exception(wat['indices'].indices)
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
@@ -3694,7 +3715,7 @@ class VPT2Tests(TestCase):
     #endregion Methane
 
     #region Water Dimer
-    @debugTest
+    @inactiveTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 

@@ -382,6 +382,19 @@ class BasisStateSpace(AbstractStateSpace):
             self._excitations = self._init_states
         self._indexer = None
 
+
+    def to_state(self, serializer=None):
+        return {
+            'basis':self.basis,
+            'indices':self.indices
+        }
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(
+            serializer.deserialize(data['basis']),
+            serializer.deserialize(data['indices']),
+            mode=cls.StateSpaceSpec.Indices)
+
     @classmethod
     def from_quanta(cls, basis, quants):
         """
@@ -689,6 +702,14 @@ class BasisMultiStateSpace(AbstractStateSpace):
         self.spaces = np.asarray(spaces, dtype=object)
         super().__init__(self.basis)
 
+    def to_state(self, serializer=None):
+        return {
+            'spaces':self.spaces
+        }
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(serializer.deserialize(data['spaces']))
+
     @property
     def representative_space(self):
         return self.spaces.flatten()[0]
@@ -896,6 +917,21 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         self._base_space = init_space
         self.sel_rules = selection_rules
         super().__init__(excitations)
+
+    def to_state(self, serializer=None):
+        return {
+            'base_space':self._base_space,
+            'spaces':self.spaces,
+            'selection_rules':self.sel_rules
+        }
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(
+            serializer.deserialize(data['base_space']),
+            serializer.deserialize(data['spaces']),
+            selection_rules=serializer.deserialize(data['selection_rules'])
+            )
+
 
     @property
     def representative_space(self):
