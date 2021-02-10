@@ -2279,7 +2279,7 @@ class VPT2Tests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs[:sigh] - gaussian_freqs[:sigh])), 1.5)
 
-    @debugTest
+    @inactiveTest
     def test_HOHVPTCartesiansDegenerate(self):
 
         internals = None
@@ -3694,7 +3694,7 @@ class VPT2Tests(TestCase):
     #endregion Methane
 
     #region Water Dimer
-    @inactiveTest
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 

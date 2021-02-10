@@ -86,15 +86,18 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         vals = np.searchsorted(self.indices, to_search, sorter=self.indexer)
         # we have the ordering according to the _sorted_ version of `indices`
         # so now we need to invert that back to the unsorted version
-        vals = self.indexer[vals]
-        # now because of how searchsorted works, we need to check if the found values
-        # truly agree with what we asked for
-        bad_vals = self.indices[vals] != to_search
-        if vals.shape == ():
-            if bad_vals:
-                vals = -1
+        if len(self.indexer) > 0:
+            vals = self.indexer[vals]
+            # now because of how searchsorted works, we need to check if the found values
+            # truly agree with what we asked for
+            bad_vals = self.indices[vals] != to_search
+            if vals.shape == ():
+                if bad_vals:
+                    vals = -1
+            else:
+                vals[bad_vals] = -1
         else:
-            vals[bad_vals] = -1
+            vals = np.full_like(vals, -1)
         return vals
 
     def __len__(self):

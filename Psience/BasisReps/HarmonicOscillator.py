@@ -408,6 +408,42 @@ class HarmonicProductOperatorTermEvaluator:
             return gen
 
         _partitions_cache = MaxSizeCache()
+
+        @staticmethod
+        def _unique_permutations(elements):
+            """
+            From StackOverflow, an efficient enough
+            method to get unique permutations
+            :param perms:
+            :type perms:
+            :return:
+            :rtype:
+            """
+
+            class unique_element:
+                def __init__(self, value, occurrences):
+                    self.value = value
+                    self.occurrences = occurrences
+
+            def perm_unique_helper(listunique, result_list, d):
+                if d < 0:
+                    yield tuple(result_list)
+                else:
+                    for i in listunique:
+                        if i.occurrences > 0:
+                            result_list[d] = i.value
+                            i.occurrences -= 1
+                            for g in perm_unique_helper(listunique, result_list, d - 1):
+                                yield g
+                            i.occurrences += 1
+
+            if not hasattr(elements, 'count'):
+                elements = list(elements)
+            eset = set(elements)
+            listunique = [unique_element(i, elements.count(i)) for i in eset]
+            u = len(elements)
+            return list(sorted(list(perm_unique_helper(listunique, [0] * u, u - 1)), reverse=True))
+
         @classmethod
         def rho_term_generator(cls, a, N, sel):
             """
@@ -444,15 +480,20 @@ class HarmonicProductOperatorTermEvaluator:
                 up_steps = (N + abs(a)) // 2
 
             # this can be sped up considerably by using cleverer integer partitioning stuff and whatno
-            partitions = np.unique(
-                np.array(list(
-                    itertools.permutations(
-                        [-1] * down_steps
-                        + [1] * up_steps
-                    )
-                )),
-                axis=0
-            )
+            #TODO: use properer unique permutations code...
+            partitions = np.array(cls._unique_permutations(
+                [-1] * down_steps
+                + [1] * up_steps
+            ))
+            # np.unique(
+            #     np.array(list(
+            #         itertools.permutations(
+            #             [-1] * down_steps
+            #             + [1] * up_steps
+            #         )
+            #     )),
+            #     axis=0
+            # )
 
             # print(a, down_steps, up_steps, partitions)
             # determine the 'phase' of each 'path'

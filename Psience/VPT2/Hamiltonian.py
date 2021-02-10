@@ -7,6 +7,7 @@ import numpy as np, itertools, time
 from McUtils.Numputils import SparseArray, vec_outer
 from McUtils.Scaffolding import Logger, NullLogger, CheckpointerBase, HDF5Checkpointer, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer
+from McUtils.Data import UnitsData
 
 from ..Molecools import Molecule
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
@@ -560,9 +561,7 @@ class PerturbationTheoryHamiltonian:
 
         x_mat = cls._get_Nielsen_xmat(freqs, v3, v4, zeta, Be)
 
-        from McUtils.Data import UnitsData
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
         raise Exception(x_mat * h2w)
 
         states = np.array(states) + 1/2 # n+1/2 for harmonic vibrations
@@ -577,7 +576,6 @@ class PerturbationTheoryHamiltonian:
 
     def get_Nielsen_xmatrix(self):
 
-        from McUtils.Data import UnitsData
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
         # TODO: figure out WTF the units on this have to be...
@@ -603,8 +601,6 @@ class PerturbationTheoryHamiltonian:
         :rtype:
         """
 
-
-        from McUtils.Data import UnitsData
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
         # TODO: figure out WTF the units on this have to be...
@@ -791,7 +787,6 @@ class PerturbationTheoryHamiltonian:
         diagonalize
         :type corrs: PerturbationTheoryCorrections
         """
-        from McUtils.Data import UnitsData
 
         with logger.block(tag="applying degenerate PT"):
             with logger.block(tag="states"):
@@ -864,6 +859,8 @@ class PerturbationTheoryHamiltonian:
             deg_transf = deg_transf[:, sorting]
 
         return deg_engs, deg_transf
+
+
 
     @classmethod
     def _apply_degenerate_PT(cls,
@@ -939,13 +936,61 @@ class PerturbationTheoryHamiltonian:
 
         return energies, rotations
 
+    @classmethod
+    def _get_degenerate_transformation(cls, perturbations, deg_inds):
+        """
+        Diagonalizes the perturbations in the degenerate subspace to
+        get a cleaner basis in which to do the perturbation theory.
+        This comes from Sakurai.
 
+        :param perturbations:
+        :type perturbations:
+        :param deg_inds:
+        :type deg_inds:
+        :return:
+        :rtype: tuple[Iterable[SparseArray], SparseArray, SparseArray]
+        """
+
+        inds = np.array(list(itertools.product(deg_inds, deg_inds))).T
+        subham = sum(
+            np.reshape(H[inds], (len(deg_inds), len(deg_inds)))
+            for H in perturbations[1:]
+        )
+
+        import McUtils.Plots as plt
+        plt.ArrayPlot(subham).show()
+
+        new_eng, deg_transf = np.linalg.eigh(subham)
+
+        # we sort now to get the "best" mapping back onto the OG states
+
+        sort_transf = np.abs(deg_transf.copy())
+        sorting = [-1] * len(deg_transf)
+        for i in range(len(deg_transf)):
+            o = np.argmax(sort_transf[i, :])
+            sorting[i] = o
+            sort_transf[:, o] = 0.  # np.zeros(len(sort_transf))
+
+        new_eng = new_eng[sorting]
+        deg_transf = deg_transf.T[sorting]
+
+        # with logger.block(tag='contributions'):
+        #     logger.log_print(
+        #         str(np.round(100 * (deg_transf ** 2)).astype(int)).splitlines()
+        #     )
+
+        # logger.log_print('sorting: {s}', s=sorting)
+
+        return new_eng, deg_transf
 
     @classmethod
     def _apply_VPT_equations(cls,
                              H, order,
-                             state_index, degenerate_space_indices,
-                             total_state_space, zero_order_energies,
+                             state_index,
+                             degenerate_space_indices,
+                             degenerate_energy,
+                             degenerate_corrs,
+                             total_state_space,
                              non_zero_cutoff=1.0e-14
                              ):
         """
@@ -956,7 +1001,8 @@ class PerturbationTheoryHamiltonian:
         """
 
         n = state_index
-        e_vec_full = zero_order_energies
+        # this is relatively cheap to get and totally general
+        e_vec_full = H[0].diag if isinstance(H[0], SparseArray) else np.diag(H[0])#zero_order_energies
         deg_inds = degenerate_space_indices
 
         energies = np.zeros((order+1,), dtype=float)
@@ -968,7 +1014,7 @@ class PerturbationTheoryHamiltonian:
         # generate the perturbation operator
         E0 = e_vec_full[n_ind]
         e_vec = e_vec_full - E0
-        e_vec[n_ind] = 1
+        e_vec[deg_inds] = 1
         zero_checks = np.where(np.abs(e_vec) < non_zero_cutoff)[0]
         if len(zero_checks) > 0:
             bad_vec = np.concatenate([[E0], e_vec_full[zero_checks]])
@@ -980,12 +1026,17 @@ class PerturbationTheoryHamiltonian:
                     np.std(bad_vec)
                 ))
         pi = 1 / e_vec
-        pi[n_ind] = 0
+        pi[deg_inds] = 0
         pi = SparseArray.from_diag(pi)
 
         energies[0] = E0
+        if degenerate_energy is not None:
+            energies[1] = degenerate_energy
         overlaps[0] = 1
-        corrs[0, n_ind] = 1
+        if degenerate_corrs is not None:
+            corrs[0, deg_inds] = degenerate_corrs
+        else:
+            corrs[0, n_ind] = 1
 
         # generalizes the dot product so that we can use 0 as a special value...
         def dot(a, b):
@@ -999,18 +1050,19 @@ class PerturbationTheoryHamiltonian:
 
         for k in range(1, order + 1):  # to actually go up to k
             #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
-            Ek = (
-                    (H[k][n_ind, n_ind] if not isinstance(H[k], (int, np.integer, float, np.floating)) else 0.)
-                    + sum(
-                dot(
-                    H[k - i][n_ind] if not isinstance(H[k - i], (int, np.integer, float, np.floating)) else 0.,
-                    corrs[i]
-                )
-                - energies[k - i] * overlaps[i]
-                for i in range(1, k)
-            ))
-            energies[k] = Ek
-            #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
+            if k >1 or degenerate_corrs is None:
+                Ek = (
+                        (H[k][n_ind, n_ind] if not isinstance(H[k], (int, np.integer, float, np.floating)) else 0.)
+                        + sum(
+                    dot(
+                        H[k - i][n_ind] if not isinstance(H[k - i], (int, np.integer, float, np.floating)) else 0.,
+                        corrs[i]
+                    )
+                    - energies[k - i] * overlaps[i]
+                    for i in range(1, k)
+                ))
+                energies[k] = Ek
+                #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
             ok = -1 / 2 * sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
             overlaps[k] = ok
             #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
@@ -1029,6 +1081,7 @@ class PerturbationTheoryHamiltonian:
                                  order,
                                  total_state_space,
                                  degenerate_states=None,
+                                 degeneracy_mode=None,
                                  logger=None,
                                  checkpointer=None,
                                  non_zero_cutoff=1.0e-14
@@ -1098,20 +1151,39 @@ class PerturbationTheoryHamiltonian:
                     if hasattr(deg_group, 'indices'):
                         deg_group = deg_group.indices
 
-                    if len(deg_inds) > 1:
-                        H, transf, transfinv = cls._get_degenerate_transformation(perturbations, deg_inds)
-                    else:
-                        H = perturbations
+                    # if len(deg_inds) > 1:
+                    #     H, transf, transfinv, denseinv = cls._get_degenerate_transformation(perturbations, deg_inds)
+                    # else:
+                    #     H = perturbations
 
-                    for n in deg_group:
-                        energies, overlaps, corrs = cls._apply_VPT_equations(H, order, n,
-                                                                             deg_inds, flat_total_space,
-                                                                             e_vec_full,
+                    if degeneracy_mode == "PT" and len(deg_inds) > 1:
+                        deg_engs, deg_corrs = cls._get_degenerate_transformation(perturbations, deg_inds)
+                        with logger.block(tag="handling degeneracies"):
+                            logger.log_print(
+                                [
+                                    "degenerate space: {s}",
+                                    "first-order energies: {e}"
+                                ],
+                                s=deg_inds,
+                                e=deg_engs*UnitsData.convert("Hartrees", "Wavenumbers")
+                            )
+                            with logger.block(tag='zero-order states'):
+                                logger.log_print(
+                                    np.array_str(deg_corrs).splitlines()
+                                )
+
+                    else:
+                        deg_engs = deg_corrs = [None]*len(deg_group)
+
+                    for n, de, dc in zip(deg_group, deg_engs, deg_corrs):
+                        energies, overlaps, corrs = cls._apply_VPT_equations(perturbations,
+                                                                             order, n,
+                                                                             deg_inds,
+                                                                             de, dc,
+                                                                             # e_vec_full,
+                                                                             flat_total_space,
                                                                              non_zero_cutoff=non_zero_cutoff
                                                                              )
-
-                        if len(deg_inds) > 1:
-                            corrs = transfinv.tensordot(corrs, axes=[-1, -1]).T
 
                         res_index = states.find(n)
                         all_energies[res_index] = energies
@@ -1193,7 +1265,7 @@ class PerturbationTheoryHamiltonian:
                     "degenerate_transformation": None,
                     "degenerate_energies": None
                 },
-                H
+                perturbations
             )
 
             # subcorrs = corrs.take_subspace(
@@ -1212,78 +1284,6 @@ class PerturbationTheoryHamiltonian:
             #     json.dump([x.toarray().tolist() for x in H], corr_dump)
 
         return corrs
-
-    @classmethod
-    def _get_degenerate_transformation(cls, perturbations, deg_inds):
-        """
-        Diagonalizes the perturbations in the degenerate subspace to
-        get a cleaner basis in which to do the perturbation theory
-
-        :param perturbations:
-        :type perturbations:
-        :param deg_inds:
-        :type deg_inds:
-        :return:
-        :rtype: tuple[Iterable[SparseArray], SparseArray, SparseArray]
-        """
-
-        inds = np.array(list(itertools.product(deg_inds, deg_inds))).T
-        subham = sum(
-            np.reshape(H[inds], (len(deg_inds), len(deg_inds)))
-            for H in perturbations
-        )
-
-        new_eng, transf = np.linalg.eigh(subham)
-
-        # now we build a large, mostly sparse transformation matrix
-        # we know it's normal, since H is Hermitian, so we don't need
-        # to compute inverse
-        rest_inds = np.setdiff1d(
-            np.arange(perturbations[0].shape[0]),
-            deg_inds
-        )
-        transf = SparseArray(
-            (
-                np.concatenate([np.ones(len(rest_inds)), transf.flatten()]),
-                (
-                    np.concatenate([rest_inds, inds[0]]),
-                    np.concatenate([rest_inds, inds[1]])
-                )
-            ),
-            shape=perturbations[0].shape
-        )
-        transfinv = transf.transpose([1, 0])
-
-        # now we create a new set of perturbations using
-        # this transformation
-        new_perts = [transfinv.dot(H).dot(transf) for H in perturbations]
-
-        # and then modify these to move all of the effect of the perturbation on
-        # H0 into the H1
-        if len(new_perts) > 2:
-            off_diags = np.array([x for x in inds.T if x[0] != x[1]]).T
-            zero_stuff = new_perts[0][off_diags].flatten()
-            new_perts[1][off_diags] = zero_stuff
-        # for i,H in enumerate(new_perts):
-        #     H[inds] = 0.
-        #
-        #     if i == 0:
-        #         H[deg_inds, deg_inds] = new_eng
-
-        # import McUtils.Plots as plt
-        # print(new_eng)
-        # plot_style=dict(vmin=-1e-3, vmax=1e-3)
-        # plt.ArrayPlot(new_perts[0], plot_style=plot_style)
-        # plt.ArrayPlot(new_perts[0].toarray() - perturbations[0].toarray()
-        #               , plot_style=plot_style)
-        # plt.ArrayPlot(sum(
-        #     np.reshape(H[inds], (len(deg_inds), len(deg_inds)))
-        #     for H in new_perts
-        # ), plot_style=plot_style).show()
-        # plt.ArrayPlot(transf).show()
-
-        return new_perts, transf, transfinv
-
 
     @classmethod
     def _martin_test(cls, h_reps, states, threshold, total_coupled_space):
@@ -1580,6 +1580,7 @@ class PerturbationTheoryHamiltonian:
                    order,
                    total_state_space,
                    degenerate_states=None,
+                   degeneracy_mode="PT",
                    logger=None
                    ):
         """
@@ -1618,23 +1619,28 @@ class PerturbationTheoryHamiltonian:
             order,
             total_state_space,
             degenerate_states=degenerate_states,
+            degeneracy_mode=degeneracy_mode,
             logger=logger
         )
 
-        # if degenerate_states is not None and any(len(x) > 1 for x in degenerate_states):
-        #
-        #     # if logger is not None:
-        #     #     logger.log_print(
-        #     #         "handling degeneracies...",
-        #     #     )
-        #     deg_engs, deg_transf = cls._apply_degenerate_PT(
-        #         H,
-        #         corrs,
-        #         degenerate_states,
-        #         logger=logger
-        #     )
-        #     corrs.degenerate_energies = deg_engs
-        #     corrs.degenerate_transf = deg_transf
+        if (
+                degeneracy_mode == "basis" and
+                degenerate_states is not None
+                and any(len(x) > 1 for x in degenerate_states)
+        ):
+
+            # if logger is not None:
+            #     logger.log_print(
+            #         "handling degeneracies...",
+            #     )
+            deg_engs, deg_transf = cls._apply_degenerate_PT(
+                H,
+                corrs,
+                degenerate_states,
+                logger=logger
+            )
+            corrs.degenerate_energies = deg_engs
+            corrs.degenerate_transf = deg_transf
 
         return corrs
 
