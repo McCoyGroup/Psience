@@ -72,23 +72,32 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         Finds the indices of a set of indices inside the space
 
         :param to_search: array of ints
-        :type to_search: np.ndarray
+        :type to_search: np.ndarray | AbstractStateSpace
         :return:
         :rtype:
         """
         if not isinstance(to_search, np.ndarray):
-            if hasattr(to_search, 'indices'):
+            if isinstance(to_search, AbstractStateSpace) or hasattr(to_search, 'indices'):
                 to_search = to_search.indices
             else:
                 to_search = np.array(to_search)
+        if to_search.ndim > 1:
+            raise ValueError("currently only accept subspaces as indices or AbstractStateSpaces")
         vals = np.searchsorted(self.indices, to_search, sorter=self.indexer)
         # we have the ordering according to the _sorted_ version of `indices`
         # so now we need to invert that back to the unsorted version
-        vals = self.indexer[vals]
-        # now because of how searchsorted works, we need to check if the found values
-        # truly agree with what we asked for
-        bad_vals = self.indices[vals] != to_search
-        vals[bad_vals] = -1
+        if len(self.indexer) > 0:
+            vals = self.indexer[vals]
+            # now because of how searchsorted works, we need to check if the found values
+            # truly agree with what we asked for
+            bad_vals = self.indices[vals] != to_search
+            if vals.shape == ():
+                if bad_vals:
+                    vals = -1
+            else:
+                vals[bad_vals] = -1
+        else:
+            vals = np.full_like(vals, -1)
         return vals
 
     def __len__(self):
@@ -372,6 +381,19 @@ class BasisStateSpace(AbstractStateSpace):
         else:
             self._excitations = self._init_states
         self._indexer = None
+
+
+    def to_state(self, serializer=None):
+        return {
+            'basis':self.basis,
+            'indices':self.indices
+        }
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(
+            serializer.deserialize(data['basis']),
+            serializer.deserialize(data['indices']),
+            mode=cls.StateSpaceSpec.Indices)
 
     @classmethod
     def from_quanta(cls, basis, quants):
@@ -680,6 +702,14 @@ class BasisMultiStateSpace(AbstractStateSpace):
         self.spaces = np.asarray(spaces, dtype=object)
         super().__init__(self.basis)
 
+    def to_state(self, serializer=None):
+        return {
+            'spaces':self.spaces
+        }
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(serializer.deserialize(data['spaces']))
+
     @property
     def representative_space(self):
         return self.spaces.flatten()[0]
@@ -887,6 +917,21 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         self._base_space = init_space
         self.sel_rules = selection_rules
         super().__init__(excitations)
+
+    def to_state(self, serializer=None):
+        return {
+            'base_space':self._base_space,
+            'spaces':self.spaces,
+            'selection_rules':self.sel_rules
+        }
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(
+            serializer.deserialize(data['base_space']),
+            serializer.deserialize(data['spaces']),
+            selection_rules=serializer.deserialize(data['selection_rules'])
+            )
+
 
     @property
     def representative_space(self):

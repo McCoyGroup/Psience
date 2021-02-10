@@ -385,12 +385,14 @@ class Molecule:
             ))
 
     #TODO: need to be careful about transition states...
-    def load_normal_modes(self, file=None):
+    def load_normal_modes(self, file=None, rephase=True):
         """
         Loads potential derivatives from a file (or from `source_file` if set)
 
         :param file:
         :type file:
+        :param rephase: whether to rephase FChk normal modes or not
+        :type rephase: bool
         :return:
         :rtype:
         """
@@ -410,26 +412,55 @@ class Molecule:
 
             modes = parse["VibrationalModes"]
             freqs = parse["VibrationalData"]["Frequencies"] * UnitsData.convert("Wavenumbers", "Hartrees")
-            masses = parse['Real atomic weights'] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
+            amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
+            masses = parse['Real atomic weights'] # * amu_conv
             fcs = self.force_constants
 
-            # raise Exception([modes.shape, parse["VibrationalData"]["Frequencies"], fcs.shape])
+            # I do a bunch of messing with stuff here for like 0 pay off
+            # over the old simple method...not sure what un-dimensioning
+            # is really happening here...
+            mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten() * amu_conv
+            modes_conv = modes * np.sqrt(mass_vec[np.newaxis, :])
+            modes_conv = modes_conv / (
+                    np.linalg.norm(modes_conv, axis=1)[:, np.newaxis] *
+                    np.sqrt(freqs[:, np.newaxis]) * np.sqrt(mass_vec[np.newaxis, :])
+            )
 
-            internal_F = np.dot(np.dot(modes, fcs), modes.T)
-            raw = np.sqrt(np.abs(np.diag(internal_F)))
-            reweight = freqs / raw
-            modes = modes * reweight[:, np.newaxis]
+            #
+            internal_F2 = np.dot(np.dot(modes_conv, fcs), modes_conv.T)
 
-            # mass_conv = np.sqrt(np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten())
-            # modes = modes * mass_conv[np.newaxis, :]
+            final_scale = freqs**(3/2) / np.diag(internal_F2)
+            modes_conv *= final_scale[:, np.newaxis]
+            modes = modes_conv
+
+            # internal_F2 = np.dot(np.dot(modes_conv, fcs), modes_conv.T)
+
+            # internal_F = np.dot(np.dot(modes, fcs), modes.T)
+            # raw = np.sqrt(np.abs(np.diag(internal_F)))
+            # reweight = freqs / raw
+            # modes = modes * reweight[:, np.newaxis]
+            #
+            # raise Exception(modes_conv - modes)
+
+            # raise Exception(
+            #     np.diag(internal_F2) / np.diag(internal_F),
+            #     # freqs,
+            #     np.round(modes_conv, 5),
+            #     np.round(modes, 5)
+            # )
 
             # add in translations and rotations
             # tr_freqs, tr_vecs = self.prop("translation_rotation_eigenvectors")
             # freqs = np.concatenate([tr_freqs, freqs])
             # modes = np.concatenate([tr_vecs, modes.T], axis=1)
+
+            # modes = modes_conv
+
             modes = modes.T
 
-            return MolecularNormalModes(self, modes, inverse=modes.T, freqs=freqs)
+            modes = MolecularNormalModes(self, modes, inverse=modes.T, freqs=freqs)
+
+            return modes
         elif ext == ".log":
             raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
                 type(self).__name__,
@@ -445,6 +476,50 @@ class Molecule:
         raise NotImplemented
     def load_dipole_surface(self):
         raise NotImplemented
+
+    def _load_gaussian_fchk_dipoles(self, file):
+        from McUtils.GaussianInterface import GaussianFChkReader
+        keys = ['DipoleMoment', 'DipoleDerivatives', 'DipoleHigherDerivatives', 'DipoleNumDerivatives']
+        with GaussianFChkReader(file) as gr:
+            parse = gr.parse(keys)
+
+        mom, grad, high = tuple(parse[k] for k in keys[:3])
+        seconds = high.second_deriv_array
+        thirds = high.third_deriv_array
+        num_derivs = parse[keys[3]]
+        num_grad = num_derivs.first_derivatives
+        num_secs = num_derivs.second_derivatives
+
+        # now instead of reweighting modes, we reweight all terms _using_ these modes
+
+        # remove dimensioning
+
+        # # grad = grad
+        # seconds = seconds / (
+        #         f_conv[:, np.newaxis, np.newaxis]
+        #         # * m_conv[np.newaxis, :, np.newaxis]
+        # )
+        # thirds = thirds / (
+        #         f_conv[:, np.newaxis, np.newaxis, np.newaxis]
+        #         * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
+        #         # * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
+        # )
+        #
+        # num_grad = num_grad / (
+        #         f_conv[:, np.newaxis]
+        #         # * m_conv[np.newaxis, :, np.newaxis]
+        # )
+        #
+        # num_secs = num_secs / (
+        #     f_conv[:, np.newaxis]
+        #     # * m_conv[np.newaxis, :, np.newaxis]
+        # )
+
+        return {
+            "analytic": (mom, grad, seconds, thirds),
+            "numerical": (num_grad, num_secs)
+        }
+
 
     def load_dipole_derivatives(self, file=None):
         """
@@ -462,12 +537,7 @@ class Molecule:
         ext = ext.lower()
 
         if ext == ".fchk":
-            from McUtils.GaussianInterface import GaussianFChkReader
-            keys= ['DipoleMoment', 'DipoleDerivatives', 'DipoleHigherDerivatives']
-            with GaussianFChkReader(file) as gr:
-                parse = gr.parse(keys)
-
-            return tuple(parse[k] for k in keys)
+            return self._load_gaussian_fchk_dipoles(file)
         elif ext == ".log":
             raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
                 type(self).__name__,
@@ -478,6 +548,41 @@ class Molecule:
                 type(self).__name__,
                 ext
             ))
+
+    def get_fchk_normal_mode_rephasing(self):
+        """
+        Returns the necessary rephasing to make the numerical dipole derivatives
+        agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
+        :return:
+        :rtype:
+        """
+
+        derivs = self.dipole_derivatives
+        if isinstance(derivs, dict):
+            d1_analytic = derivs['analytic'][1]
+            d1_numerical = derivs['numerical'][0]
+        else:
+            raise NotImplementedError("not sure how to calculate rephasing for dipoles {}".format(derivs))
+
+        if not isinstance(d1_analytic, np.ndarray):
+            d1_analytic = d1_analytic.array
+        if not isinstance(d1_numerical, np.ndarray):
+            d1_numerical = d1_numerical.first_derivatives
+
+        # raise Exception(d1_analytic.shape, d1_numerical.shape
+
+        mode_basis = self.normal_modes.basis.matrix
+        rot_analytic = np.dot(d1_analytic.T, mode_basis)
+
+        rot_analytic = np.array([x/np.linalg.norm(x) for x in rot_analytic])
+        d1_numerical = np.array([x/np.linalg.norm(x) for x in d1_numerical.T])
+
+        # could force some orientation relative to PAX frame?
+        # dot each into each other
+        phases = np.sign(np.diag(np.dot(d1_numerical.T, rot_analytic)))
+
+        return phases
+
 
     def principle_axis_frame(self, sel=None, inverse=False):
         """
@@ -748,6 +853,15 @@ class Molecule:
         return figure, atoms, bonds
 
     def get_normal_modes(self, **kwargs):
+        """
+        Loads normal modes from file or calculates
+        from force constants
+
+        :param kwargs:
+        :type kwargs:
+        :return:
+        :rtype:
+        """
         from .Vibrations import MolecularNormalModes, MolecularVibrations
 
         if self.source_file is not None:
@@ -770,26 +884,6 @@ class Molecule:
             raise AttributeError("No pybel molecule")
         else:
             return getattr(self._mol, item)
-
-    # def __getattr__(self, item):
-    #     if '_kw' in self.__dict__:
-    #         needs_raise = False
-    #         try:
-    #             res = self._kw[item]
-    #         except KeyError:
-    #             if self._mol is not None:
-    #                 try:
-    #                     res = self._get_ob_attr(item)
-    #                 except AttributeError:
-    #                     res = None
-    #                     needs_raise = True
-    #             else:
-    #                 needs_raise = True
-    #         if needs_raise:
-    #             raise AttributeError("{} has no attribute '{}'".format(type(self).__name__, item))
-    #         return res
-    #     else:
-    #         raise AttributeError("{} has no attribute '{}'".format(type(self).__name__, item))
 
 class MolecoolException(Exception):
     pass

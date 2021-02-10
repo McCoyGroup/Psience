@@ -19,14 +19,10 @@ class MolecularPropertyError(Exception):
     General error class for MolecularProperties
     """
 
-class MolecularProperties:
+class StructuralProperties:
     """
-    An object whose sole purpose in life is to get molecular properties
-    A property should be implemented in two parts:
-        1) a classmethod called get_prop_<prop name> that takes raw inputs and uses them to compute a property
-        2) a classmethod called <prop name> that extracts the property from a passed molecule
-
-    All properties should be appropriately vectorized to work on a single configuration or a set of configurations
+    The set of molecular properties
+    that depend on its coordinates/configuration
     """
 
     @classmethod
@@ -42,19 +38,6 @@ class MolecularProperties:
         """
 
         return np.tensordot(masses / np.sum(masses), coords, axes=[0, -2])
-
-    @classmethod
-    def center_of_mass(cls, mol):
-        """
-        Computes the moments of inertia
-
-        :param mol:
-        :type mol: Molecule
-        :return:
-        :rtype:
-        """
-
-        return cls.get_prop_center_of_mass(mol.coords, mol.masses)
 
     @classmethod
     def get_prop_inertia_tensors(cls, coords, masses):
@@ -81,19 +64,6 @@ class MolecularProperties:
         # print(masses)
 
         return tens
-
-    @classmethod
-    def inertia_tensor(cls, mol):
-        """
-        Computes the inertia tensors for the stored geometries
-
-        :param mol:
-        :type mol: Molecule
-        :return:
-        :rtype:
-        """
-
-        return cls.get_prop_inertia_tensors(mol.coords, mol.masses)
 
     @classmethod
     def get_prop_moments_of_inertia(cls, coords, masses):
@@ -123,10 +93,10 @@ class MolecularProperties:
         moms, axes = np.linalg.eigh(massy_doop)
         a = axes[..., :, 0]
         b = axes[..., :, 1]
-        c = nput.vec_crosses(a, b) # force right-handedness because we can
-        axes[..., :, 2] = c # ensure we have true rotation matrices
+        c = nput.vec_crosses(a, b)  # force right-handedness because we can
+        axes[..., :, 2] = c  # ensure we have true rotation matrices
         dets = np.linalg.det(axes)
-        axes[..., :, 1] *= dets[..., np.newaxis] # ensure we have true rotation matrices
+        axes[..., :, 1] *= dets[..., np.newaxis]  # ensure we have true rotation matrices
         if multiconfig:
             moms = moms.reshape(extra_shape + (3,))
             axes = axes.reshape(extra_shape + (3, 3))
@@ -134,19 +104,6 @@ class MolecularProperties:
             moms = moms[0]
             axes = axes[0]
         return moms, axes
-
-    @classmethod
-    def moments_of_inertia(cls, mol):
-        """
-        Computes the moments of inertia
-
-        :param mol:
-        :type mol: Molecule
-        :return:
-        :rtype:
-        """
-
-        return cls.get_prop_moments_of_inertia(mol.coords, mol.masses)
 
     @classmethod
     def get_prop_principle_axis_rotation(cls, coords, masses, sel=None, inverse=False):
@@ -162,7 +119,7 @@ class MolecularProperties:
         """
 
         multiconf = coords.multiconfig
-        transforms = [None]*(1 if not multiconf else len(coords))
+        transforms = [None] * (1 if not multiconf else len(coords))
         if sel is not None:
             coords = coords[..., sel, :]
             masses = masses[sel]
@@ -171,7 +128,7 @@ class MolecularProperties:
         else:
             coords = [coords]
         mass = masses
-        for i,c in enumerate(coords):
+        for i, c in enumerate(coords):
             com = cls.get_prop_center_of_mass(c, mass)
             transf = MolecularTransformation(-com)
             c = transf(c)
@@ -188,15 +145,24 @@ class MolecularProperties:
 
     @classmethod
     def get_principle_axis_embedded_coords(cls, coords, masses):
+        """
+        Returns coordinate embedded in the principle axis frame
+
+        :param coords:
+        :type coords:
+        :param masses:
+        :type masses:
+        :return:
+        :rtype:
+        """
         com = cls.get_prop_center_of_mass(coords, masses)
-        crds_ = coords
+        # crds_ = coords
         coords = coords - com[..., np.newaxis, :]
         moms, pax_axes = cls.get_prop_moments_of_inertia(coords, masses)
         # pax_axes = np.swapaxes(pax_axes, -2, -1)
         coords = np.matmul(coords, pax_axes)
 
         return coords, com, pax_axes
-
 
     @classmethod
     def get_prop_principle_axis_data(cls, coords, masses):
@@ -213,35 +179,6 @@ class MolecularProperties:
 
         coords, com, axes = cls.get_principle_axis_embedded_coords(coords, masses)
         return coords, com, axes
-
-    @classmethod
-    def principle_axis_data(cls, mol, sel=None):
-        """
-        Generates the center of masses and inertial axes
-
-        :param mol:
-        :type mol: Molecule
-        :return:
-        :rtype:
-        """
-        coords = mol.coords
-        masses = mol.masses
-        if sel is not None:
-            coords = coords[..., sel, :]
-            masses = masses[sel]
-        return cls.get_prop_principle_axis_data(coords, masses)
-
-    @classmethod
-    def principle_axis_transformation(cls, mol, sel=None, inverse=False):
-        """
-        Generates the principle axis transformation for a Molecule
-
-        :param mol:
-        :type mol: Molecule
-        :return:
-        :rtype:
-        """
-        return cls.get_prop_principle_axis_rotation(mol.coords, mol.masses, sel=sel, inverse=inverse)
 
     @classmethod
     def get_eckart_rotations(cls, masses, ref, coords, in_paf=False):
@@ -273,7 +210,8 @@ class MolecularProperties:
         planar_ref = np.allclose(ref[:, 2], 0., atol=1.0e-8)
         if not planar_ref:
             # generate pair-wise product matrix
-            A = np.tensordot(masses / np.sum(masses), ref[np.newaxis, :, :, np.newaxis] * coords[:, :, np.newaxis, :], axes=[0, 1])
+            A = np.tensordot(masses / np.sum(masses), ref[np.newaxis, :, :, np.newaxis] * coords[:, :, np.newaxis, :],
+                             axes=[0, 1])
             # take SVD of this
             U, S, V = np.linalg.svd(A)
             rot = np.matmul(U, V)
@@ -316,24 +254,6 @@ class MolecularProperties:
             ref = ref[..., sel, :]
 
         return cls.get_eckart_rotations(masses, ref, coords, in_paf=False)
-
-    @classmethod
-    def eckart_embedding_data(cls, mol, coords, sel=None):
-        """
-
-        :param mol:
-        :type mol: Molecule
-        :param coords:
-        :type coords:
-        :param sel:
-        :type sel:
-        :return:
-        :rtype:
-        """
-        masses = mol.masses
-        ref = mol.coords
-        coords = CoordinateSet(coords)
-        return cls.get_eckart_embedding_data(masses, ref, coords, sel=sel)
 
     @classmethod
     def get_prop_eckart_transformation(cls, masses, ref, coords, sel=None, inverse=False):
@@ -379,28 +299,6 @@ class MolecularProperties:
         return transforms
 
     @classmethod
-    def eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False):
-        """
-
-        :param ref_mol: reference geometry
-        :type ref_mol: Molecule
-        :param mol: molecules to get Eckart embeddings for
-        :type mol: Molecule
-        :param sel: coordinate selection to use when doing the Eckart stuff
-        :type mol:
-        :return:
-        :rtype:
-        """
-        m1 = ref_mol.masses
-        m2 = mol.masses
-        if not np.all(m1 == m2):
-            raise ValueError("Eckart reference has different masses from scan ({}) vs. ({})".format(
-                m1,
-                m2
-            ))
-        return cls.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse)
-
-    @classmethod
     def get_eckart_embedded_coords(cls, masses, ref, coords, sel=None):
         """
         Embeds a set of coordinates in the reference frame
@@ -439,24 +337,6 @@ class MolecularProperties:
         return crd
 
     @classmethod
-    def eckart_embedded_coords(cls, mol, coords, sel=None):
-        """
-
-        :param mol:
-        :type mol: Molecule
-        :param coords:
-        :type coords:
-        :param sel:
-        :type sel:
-        :return:
-        :rtype:
-        """
-        masses = mol.masses
-        ref = mol.coords
-        coords = CoordinateSet(coords)
-        return cls.get_eckart_embedded_coords(masses, ref, coords, sel=sel)
-
-    @classmethod
     def get_prop_translation_rotation_eigenvectors(cls, coords, masses):
         """
         Returns the eigenvectors corresponding to translations and rotations
@@ -476,20 +356,20 @@ class MolecularProperties:
         mT = np.sqrt(np.sum(masses))
         mvec = np.sqrt(masses)
 
-        M = np.kron(mvec/mT, np.eye(3)).T # translation eigenvectors
+        M = np.kron(mvec / mT, np.eye(3)).T  # translation eigenvectors
         mom_rot, ax_rot = cls.get_prop_moments_of_inertia(coords, masses)
-        inv_rot_2 = np.dot(np.dot(ax_rot, np.diag(1/np.sqrt(mom_rot))), ax_rot.T)
+        inv_rot_2 = np.dot(np.dot(ax_rot, np.diag(1 / np.sqrt(mom_rot))), ax_rot.T)
         com = cls.get_prop_center_of_mass(coords, masses)
-        shift_crds = mvec[:, np.newaxis]*(coords - com[np.newaxis, :])
+        shift_crds = mvec[:, np.newaxis] * (coords - com[np.newaxis, :])
         e = nput.levi_cevita3
         R = np.tensordot(
             shift_crds,
             np.tensordot(e, inv_rot_2, axes=[0, 1]),
             axes=[1, 0]
-        ).reshape((3*n, 3)) # rotations
+        ).reshape((3 * n, 3))  # rotations
         freqs = np.concatenate([
             [1e-14, 1e-14, 1e-14],
-            (1/(2*mom_rot))
+            (1 / (2 * mom_rot))
             # this isn't right, I'm totally aware, but I think the frequency is supposed to be zero anyway and this
             # will be tiny
         ])
@@ -501,20 +381,12 @@ class MolecularProperties:
         # plt.ArrayPlot(eigs).show()
         # raise Exception([M, R])
         return freqs, eigs
-    @classmethod
-    def translation_rotation_eigenvectors(cls, mol, sel=None):
-        """
 
-        :param mol: molecules to get eigenvectors for
-        :type mol: Molecule
-        :param sel: coordinate selection to use when doing the rotation/translation calculations
-        :type mol:
-        :return:
-        :rtype:
-        """
-        if sel is not None:
-            raise NotImplementedError("Still need to add coordinate subselection")
-        return cls.get_prop_translation_rotation_eigenvectors(mol.coords, mol.masses)
+class BondingProperties:
+    """
+    The set of properties that depend only on bonding
+    and that kind of format
+    """
 
     @classmethod
     def get_prop_adjacency_matrix(cls, atoms, bonds):
@@ -529,7 +401,7 @@ class MolecularProperties:
 
         cons = np.array([x[:2] for x in bonds])
         adj = sp.csr_matrix(
-            (np.ones((len(bonds), )), (cons[:, 0], cons[:, 1])),
+            (np.ones((len(bonds),)), (cons[:, 0], cons[:, 1])),
             (len(atoms), len(atoms))
         )
         return adj + adj.T
@@ -569,49 +441,14 @@ class MolecularProperties:
             adj_mat = cls.get_prop_adjacency_matrix(atoms, bonds)
 
         ngroups, labels = sp.csgraph.connected_components(adj_mat)
+
         def pull(l, i):
-            w = np.where(labels==i)
+            w = np.where(labels == i)
             if len(w) > 0:
                 w = w[0]
             return w
+
         return [pull(labels, i) for i in range(ngroups)]
-
-    @classmethod
-    def fragments(cls, mol):
-        """
-
-        :param mol:
-        :type mol: Molecule
-        :return:
-        :rtype:
-        """
-
-        cds = mol.coords
-        bonds = mol.bonds
-        ats = mol.atoms
-
-        comps = cls.get_prop_fragments(ats, bonds)
-        bond_map = {}
-        for k in bonds:
-            if k[0] not in bond_map:
-                bond_map[k[0]] = [k]
-            else:
-                bond_map[k[0]].append(k)
-        for i in range(len(ats)):
-            if i not in bond_map:
-                bond_map[i] = []
-
-        frags = [None]*len(comps)
-        for i,g in enumerate(comps):
-            frag_ats = [ats[x] for x in g]
-            frag_cds = cds[g] if not cds.multiconfig else cds[:, g]
-            frag_bonds = [bond_map[x] for x in g]
-            frags[i] = Molecule(
-                frag_ats,
-                frag_cds,
-                bonds=sum(frag_bonds, [])
-            )
-        return frags
 
     @classmethod
     def get_prop_zmat_ordering(cls, atoms, bonds):
@@ -650,9 +487,10 @@ class MolecularProperties:
         frags = cls.get_prop_fragments(atoms, bonds)
         conn = cls.get_prop_connectivity(atoms, adj)
         # TODO: finish this off for real
+        raise NotImplementedError("ran out of time to do this in May ;_;")
 
     @classmethod
-    def guessed_bonds(cls, mol, tol=1.05, guess_type=True):
+    def get_prop_guessed_bonds(cls, mol, tol=1.05, guess_type=True):
         """
         Guesses the bonds for the molecule by finding the ones that are less than some percentage of a single bond for that
         pair of elements
@@ -712,6 +550,206 @@ class MolecularProperties:
             guessed_bonds = guessed_bonds[0]
 
         return guessed_bonds
+
+class MolecularProperties:
+    """
+    An object whose sole purpose in life is to get molecular properties
+    A property should be implemented in two parts:
+        1) a classmethod called get_prop_<prop name> that takes raw inputs and uses them to compute a property
+        2) a classmethod called <prop name> that extracts the property from a passed molecule
+
+    All properties should be appropriately vectorized to work on a single configuration or a set of configurations
+    """
+
+    @classmethod
+    def center_of_mass(cls, mol):
+        """
+        Computes the moments of inertia
+
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+
+        return StructuralProperties.get_prop_center_of_mass(mol.coords, mol.masses)
+
+    @classmethod
+    def inertia_tensor(cls, mol):
+        """
+        Computes the inertia tensors for the stored geometries
+
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+
+        return StructuralProperties.get_prop_inertia_tensors(mol.coords, mol.masses)
+
+    @classmethod
+    def moments_of_inertia(cls, mol):
+        """
+        Computes the moments of inertia
+
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+
+        return StructuralProperties.get_prop_moments_of_inertia(mol.coords, mol.masses)
+
+    @classmethod
+    def principle_axis_data(cls, mol, sel=None):
+        """
+        Generates the center of masses and inertial axes
+
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+        coords = mol.coords
+        masses = mol.masses
+        if sel is not None:
+            coords = coords[..., sel, :]
+            masses = masses[sel]
+        return StructuralProperties.get_prop_principle_axis_data(coords, masses)
+
+    @classmethod
+    def principle_axis_transformation(cls, mol, sel=None, inverse=False):
+        """
+        Generates the principle axis transformation for a Molecule
+
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+        return StructuralProperties.get_prop_principle_axis_rotation(mol.coords, mol.masses, sel=sel, inverse=inverse)
+
+    @classmethod
+    def eckart_embedding_data(cls, mol, coords, sel=None):
+        """
+
+        :param mol:
+        :type mol: Molecule
+        :param coords:
+        :type coords:
+        :param sel:
+        :type sel:
+        :return:
+        :rtype:
+        """
+        masses = mol.masses
+        ref = mol.coords
+        coords = CoordinateSet(coords)
+        return StructuralProperties.get_eckart_embedding_data(masses, ref, coords, sel=sel)
+
+    @classmethod
+    def eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False):
+        """
+
+        :param ref_mol: reference geometry
+        :type ref_mol: Molecule
+        :param mol: molecules to get Eckart embeddings for
+        :type mol: Molecule
+        :param sel: coordinate selection to use when doing the Eckart stuff
+        :type mol:
+        :return:
+        :rtype:
+        """
+        m1 = ref_mol.masses
+        m2 = mol.masses
+        if not np.all(m1 == m2):
+            raise ValueError("Eckart reference has different masses from scan ({}) vs. ({})".format(
+                m1,
+                m2
+            ))
+        return StructuralProperties.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse)
+
+    @classmethod
+    def eckart_embedded_coords(cls, mol, coords, sel=None):
+        """
+
+        :param mol:
+        :type mol: Molecule
+        :param coords:
+        :type coords:
+        :param sel:
+        :type sel:
+        :return:
+        :rtype:
+        """
+        masses = mol.masses
+        ref = mol.coords
+        coords = CoordinateSet(coords)
+        return StructuralProperties.get_eckart_embedded_coords(masses, ref, coords, sel=sel)
+
+    @classmethod
+    def translation_rotation_eigenvectors(cls, mol, sel=None):
+        """
+
+        :param mol: molecules to get eigenvectors for
+        :type mol: Molecule
+        :param sel: coordinate selection to use when doing the rotation/translation calculations
+        :type mol:
+        :return:
+        :rtype:
+        """
+        if sel is not None:
+            raise NotImplementedError("Still need to add coordinate subselection")
+        return StructuralProperties.get_prop_translation_rotation_eigenvectors(mol.coords, mol.masses)
+
+    @classmethod
+    def fragments(cls, mol):
+        """
+
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+
+        cds = mol.coords
+        bonds = mol.bonds
+        ats = mol.atoms
+
+        comps = BondingProperties.get_prop_fragments(ats, bonds)
+        bond_map = {}
+        for k in bonds:
+            if k[0] not in bond_map:
+                bond_map[k[0]] = [k]
+            else:
+                bond_map[k[0]].append(k)
+        for i in range(len(ats)):
+            if i not in bond_map:
+                bond_map[i] = []
+
+        frags = [None]*len(comps)
+        for i,g in enumerate(comps):
+            frag_ats = [ats[x] for x in g]
+            frag_cds = cds[g] if not cds.multiconfig else cds[:, g]
+            frag_bonds = [bond_map[x] for x in g]
+            frags[i] = Molecule(
+                frag_ats,
+                frag_cds,
+                bonds=sum(frag_bonds, [])
+            )
+        return frags
+
+    @classmethod
+    def guessed_bonds(cls, mol, tol=1.05, guess_type=True):
+        """
+        Guesses the bonds for the molecule by finding the ones that are less than some percentage of a single bond for that
+        pair of elements
+
+        :return:
+        :rtype:
+        """
+
+        return BondingProperties.get_prop_guessed_bonds(mol, tol=1.05, guess_type=True)
 
     @classmethod
     def get_prop_chemical_formula(cls, atoms):
