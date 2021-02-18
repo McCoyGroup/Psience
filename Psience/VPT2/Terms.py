@@ -866,8 +866,8 @@ class PotentialTerms(ExpansionTerms):
 
         new_freqs = np.diag(v2)
         old_freqs = self.modes.freqs
-
-        if any(new_freqs != old_freqs):
+        # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
+        if np.max(np.abs(new_freqs - old_freqs)) > 2e-5:
             raise PerturbationTheoryException(
                 "Force constants in normal modes don't return frequencies along diagonal;"
                 " this likely indicates issues with the mass-weighting"
