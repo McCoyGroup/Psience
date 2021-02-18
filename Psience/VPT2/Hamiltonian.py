@@ -20,6 +20,8 @@ __all__ = [
     'PerturbationTheoryCorrections'
 ]
 
+__reload_hook__ = [ '.Terms', "..Molecools", "..BasisReps" ]
+
 class PerturbationTheoryCorrections:
     """
     Represents a set of corrections from perturbation theory.
@@ -264,7 +266,9 @@ class PerturbationTheoryCorrections:
 class PerturbationTheoryHamiltonian:
     """
     Represents the main Hamiltonian used in the perturbation theory calculation.
-    Uses a harmonic oscillator basis for representing H0, H1, and H2 (and only goes up to H2 for now)
+    Uses a harmonic oscillator basis for representing H0, H1, and H2 (and only goes up to H2 for now).
+    Will before too long be split into a PerturbationTheoryHandler and a PerturbationTheoryHamiltonian
+    where the Hamiltonian just implements the split of the perturbation and the Handler manages the equations.
     """
 
     def __init__(self,
@@ -272,6 +276,7 @@ class PerturbationTheoryHamiltonian:
                  n_quanta=None,
                  modes=None,
                  mode_selection=None,
+                 potential_derivatives=None,
                  coriolis_coupling=True,
                  parallelizer=None,
                  log=None,
@@ -328,7 +333,10 @@ class PerturbationTheoryHamiltonian:
             except NotImplementedError:
                 pass
             else:
-                modes = modes.rescale(phases)
+                if phases is not None:
+                    modes = modes.rescale(phases)
+        if mode_selection is not None:
+            mode_selection = tuple(mode_selection)
         mode_n = modes.basis.matrix.shape[1] if mode_selection is None else len(mode_selection)
         self.mode_n = mode_n
         if n_quanta is None:
@@ -336,15 +344,16 @@ class PerturbationTheoryHamiltonian:
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
         self.modes = modes
         self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection,
+                                      potential_derivatives=potential_derivatives,
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
         self.G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection,
-                                      logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
+                                    logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
         if coriolis_coupling and (self.molecule.internal_coordinates is None):
-            self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes,
+            self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection,
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
         else:
             self.coriolis_terms = None
-        self.watson_term = PotentialLikeTerm(self.molecule, modes=modes,
+        self.watson_term = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
 
         self._h0 = self._h1 = self._h2 = None
@@ -372,7 +381,10 @@ class PerturbationTheoryHamiltonian:
         :rtype:
         """
 
-        molecule = Molecule.from_file(file, zmatrix=internals, mode='fchk')
+        molecule = Molecule.from_file(file,
+                                      zmatrix=internals,
+                                      mode='fchk'
+                                      )
         return cls(molecule=molecule, mode_selection=mode_selection, **kw)
 
     @property

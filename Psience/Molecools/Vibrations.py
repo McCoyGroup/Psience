@@ -178,6 +178,8 @@ class MolecularVibrations:
 
         if isinstance(item, int):
             item = (item,)
+        elif not isinstance(item[0], int):
+            item = tuple(item[0])
 
         m = self._basis[item]
         if self.freqs is not None:
@@ -438,13 +440,15 @@ class MolecularNormalModes(CoordinateSystem):
 
         if isinstance(item, int):
             item = (item,)
+        elif not isinstance(item[0], int):
+            item = tuple(item[0])
 
         sub_modes = self.matrix[:, item]
         inv = self._inv
         if inv is not None:
-            i0 = inv
+            # i0 = inv
             inv = inv[item, :]
-            # raise Exception([sub_modes.shape, inv.shape, i0.shape])
+            # raise Exception([item, sub_modes.shape, inv.shape, i0.shape])
         freq = self.freqs[item,]
         return type(self)(
             self.molecule,

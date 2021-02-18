@@ -10,12 +10,13 @@ __all__ = [
 import numpy as np, itertools as ip, scipy.sparse as sp
 
 from McUtils.Numputils import SparseArray
-from McUtils.Scaffolding import Logger
+from McUtils.Scaffolding import Logger, NullLogger
 
 from .Operators import Operator
 from .StateSpaces import BraKetSpace
 
-#TODO: add in some level of support for caching
+__reload_hook__ = [ '.StateSpaces', ".Operators" ]
+
 class Representation:
     """
     A `Representation` provides a simple interface to compute only some elements of high-dimensional tensors.
@@ -42,6 +43,8 @@ class Representation:
         self.basis = basis
         self.dims = basis.dimensions
         self._diminds = None
+        if logger is None:
+            logger = NullLogger()
         self.logger=logger
 
     def _compute_op_els(self, inds):
@@ -94,6 +97,11 @@ class Representation:
         """
         if not isinstance(states, BraKetSpace):
             states = BraKetSpace.from_indices(states, basis=self.basis)
+
+        self.logger.log_print(
+            "evaluating in BraKet space {states}",
+            states=states
+        )
 
         return self.compute(states)
 
@@ -175,12 +183,6 @@ class Representation:
                 b = np.full((len(a),), b)
             return a, b
 
-        if self.logger is not None:
-            self.logger.log_print(
-                "computing {n} representation elements",
-                n=len(n[0])
-            )
-
         i = tuple(pad_lens(a, b) for a, b in zip(n, m))
         els = self.compute(i)
         if isinstance(els, int) and els == 0:
@@ -244,10 +246,21 @@ class Representation:
                 type(other).__name__
             ))
 
+    @staticmethod
+    def _get_dim_string(dims):
+        if len(dims) < 7:
+            return ", ".join(str(s) for s in dims)
+        else:
+            return "{}, ({} more), {}".format(
+                ", ".join(str(s) for s in dims[:2]),
+                len(dims) - 4,
+                ", ".join(str(s) for s in dims[-2:])
+            )
+
     def __repr__(self):
         return "{}(<{}>, {})".format(
             type(self).__name__,
-            ", ".join(str(s) for s in self.dims) if hasattr(self, 'dims') else '???',
+            self._get_dim_string(self.dims) if hasattr(self, 'dims') else '???',
             self.operator if self.operator is not None else self.compute
         )
 
@@ -322,31 +335,32 @@ class ExpansionRepresentation(Representation):
         els = None
         for c, t in zip(self.coeffs, self.computers):
             if not (isinstance(c, (int, float, np.integer, np.floating)) and c == 0):
-                bits = getattr(t, attr)(*args)
-                scaled = bits * c
-                if isinstance(scaled, (int, float, np.integer, np.floating)) and scaled != 0:
-                    # raise Exception(bits, c, scaled, n,m, t)
-                    raise ValueError(" ".join([
-                        "Adding a constant ({}) to a sparse operator ({}) would cast to dense.",
-                        "Error likely occurred in getting elements for {}.",
-                        "Explicitly subclass {} if you truly need the constant shift.",
-                    ]).format(
-                        scaled,
-                        els,
-                        t,
-                        type(self).__name__
-                    ))
-                else:
-                    if els is None:
-                        els = scaled
+                with self.logger.block(tag="in {}".format(t)):
+                    bits = getattr(t, attr)(*args)
+                    scaled = bits * c
+                    if isinstance(scaled, (int, float, np.integer, np.floating)) and scaled != 0:
+                        # raise Exception(bits, c, scaled, n,m, t)
+                        raise ValueError(" ".join([
+                            "Adding a constant ({}) to a sparse operator ({}) would cast to dense.",
+                            "Error likely occurred in getting elements for {}.",
+                            "Explicitly subclass {} if you truly need the constant shift.",
+                        ]).format(
+                            scaled,
+                            els,
+                            t,
+                            type(self).__name__
+                        ))
                     else:
-                        if isinstance(scaled, (SparseArray, sp.spmatrix)):
-                            scaled = scaled.toarray()
-                            # import McUtils.Plots as plt
-                            #
-                            # plt.ArrayPlot(scaled).show()
-                        # print(scaled.shape, els.shape)
-                        els += scaled
+                        if els is None:
+                            els = scaled
+                        else:
+                            if isinstance(scaled, (SparseArray, sp.spmatrix)):
+                                scaled = scaled.toarray()
+                                # import McUtils.Plots as plt
+                                #
+                                # plt.ArrayPlot(scaled).show()
+                            # print(scaled.shape, els.shape)
+                            els += scaled
 
         return els
 
@@ -361,7 +375,7 @@ class ExpansionRepresentation(Representation):
     def __repr__(self):
         return "{}(<{}>, ({}), ({}))".format(
             type(self).__name__,
-            ", ".join(str(s) for s in self.dims) if hasattr(self, 'dims') else '???',
+            self._get_dim_string(self.dims) if hasattr(self, 'dims') else '???',
             self.coeffs,
             self.computers
         )

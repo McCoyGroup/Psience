@@ -6,13 +6,14 @@ import McUtils.Numputils as nput
 from McUtils.Coordinerds import CoordinateSet
 from McUtils.Data import AtomData, UnitsData, BondData
 
-from .Molecule import Molecule
 from .Transformations import MolecularTransformation
 
 __all__ = [
     "MolecularProperties",
     "MolecularPropertyError"
 ]
+
+__reload_hook__ = ['.Transformations']
 
 class MolecularPropertyError(Exception):
     """
@@ -24,6 +25,20 @@ class StructuralProperties:
     The set of molecular properties
     that depend on its coordinates/configuration
     """
+
+    @classmethod
+    def get_prop_mass_weighted_coords(cls, coords, masses):
+        """Gets the center of mass for the coordinates
+
+        :param coords:
+        :type coords: CoordinateSet
+        :param masses:
+        :type masses:
+        :return:
+        :rtype:
+        """
+
+        return np.sqrt(masses)[:, np.newaxis] * coords
 
     @classmethod
     def get_prop_center_of_mass(cls, coords, masses):
@@ -562,6 +577,19 @@ class MolecularProperties:
     """
 
     @classmethod
+    def mass_weighted_coords(cls, mol):
+        """
+        Computes the moments of inertia
+
+        :param mol:
+        :type mol: Molecule
+        :return:
+        :rtype:
+        """
+
+        return StructuralProperties.get_prop_mass_weighted_coords(mol.coords, mol.masses)
+
+    @classmethod
     def center_of_mass(cls, mol):
         """
         Computes the moments of inertia
@@ -711,6 +739,8 @@ class MolecularProperties:
         :return:
         :rtype:
         """
+
+        from .Molecule import Molecule
 
         cds = mol.coords
         bonds = mol.bonds

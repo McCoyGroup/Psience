@@ -3,7 +3,7 @@ Provides the operator representations needed when building a Hamiltonian represe
 I chose to only implement direct product operators. Not sure if we'll need a 1D base class...
 """
 
-import numpy as np, scipy.sparse as sp, os, tempfile as tf
+import numpy as np, scipy.sparse as sp, os, tempfile as tf, time
 from collections import OrderedDict
 from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
@@ -16,6 +16,8 @@ __all__ = [
     "ContractedOperator"
 ]
 
+__reload_hook__ = [ '.StateSpaces' ]
+
 class Operator:
     """
     Provides a (usually) _lazy_ representation of an operator, which allows things like
@@ -27,7 +29,9 @@ class Operator:
                  symmetries=None,
                  selection_rules=None,
                  parallelizer=None,
-                 zero_threshold=1.0e-14):
+                 logger=None,
+                 zero_threshold=1.0e-14
+                 ):
         """
         :param funcs: The functions use to calculate representation
         :type funcs: callable | Iterable[callable]
@@ -58,6 +62,9 @@ class Operator:
         self.mode_n = len(quanta)
         self.zero_threshold = zero_threshold
         # self._tensor = None
+        if logger is None:
+            logger = NullLogger()
+        self.logger = logger
         self._parallelizer = parallelizer
             # in the future people will be able to supply this so that they can fully control how
             # the code gets parallelized
@@ -136,6 +143,7 @@ class Operator:
     def __getstate__(self):
         state = self.__dict__.copy()
         state['_parallelizer'] = None
+        state['logger'] = None
         state['_tensor'] = None
         return state
 
@@ -446,8 +454,11 @@ class Operator:
     @Parallelizer.main_restricted
     def _load_arrays(self, res, parallelizer=None):
         if isinstance(res[0], str):
+            res = sum(res, [])
+
+            start = time.time()
             try:
-                sparrays = np.array([sp.load_npz(f) for f in res])
+                sparrays = [sp.load_npz(f) for f in res]
             finally: # gotta clean up after myself
                 try:
                     for f in res:
@@ -455,7 +466,9 @@ class Operator:
                 except Exception as e:
                     # print(e)
                     pass
-            res = sparrays
+            self.logger.log_print("reloading arrays from disk: took {e:.3f}s", e=(time.time() - start))
+            res = np.array(sparrays, dtype=object)
+
         return res
 
     def _get_pop_parallel(self, inds, idx, parallelizer):
@@ -473,11 +486,11 @@ class Operator:
         # parallelizer.print("calling...")
         inds = parallelizer.scatter(inds)
         # parallelizer.print(inds.shape)
-        dump = self._get_pop_sequential(inds, idx, True)
+        # parallelizer.print(inds.shape)
+        dump = self._get_pop_sequential(inds, idx, False)
         res = parallelizer.gather(dump)
         # parallelizer.print(res)
         if parallelizer.on_main:
-            res = sum(res, [])
             res = self._load_arrays(res)
 
         return res
@@ -498,15 +511,26 @@ class Operator:
         # we expect this to be an iterable object that looks like
         # num_modes X [bra, ket] X quanta
         if not isinstance(idx, BraKetSpace):
+            self.logger.log_print("constructing BraKet space")
             idx = BraKetSpace.from_indices(idx, quanta=self.quanta)
 
         if inds is None: # just a number
+            self.logger.log_print("returning identity tensor")
             new = self._get_eye_tensor(idx)
         else:
             mapped_inds, inverse = self.filter_symmetric_indices(inds)
             if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
+                self.logger.log_print("evaluating {nel} elements over {nind} unique indices using {cores} processes".format(
+                    nel = len(idx),
+                    nind = len(mapped_inds),
+                    cores = parallelizer.nproc
+                ))
                 res = self._get_pop_parallel(mapped_inds, idx, parallelizer)
             else:
+                self.logger.log_print("evaluating {nel} elements over {nind} unique indices sequentially".format(
+                    nel = len(idx),
+                    nind = len(mapped_inds)
+                ))
                 res = self._get_pop_sequential(mapped_inds, idx)
 
             if inverse is not None:
@@ -567,15 +591,26 @@ class Operator:
         if parallelizer is None:
             parallelizer = self.parallelizer
 
+        parallelizer.printer = self.logger.log_print
         if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
             return parallelizer.run(self._get_elements, inds, idx)
         else:
             return self._main_get_elements(inds, idx, parallelizer=None)
 
+    @staticmethod
+    def _get_dim_string(dims):
+        if len(dims) < 7:
+            return ", ".join(str(s) for s in dims)
+        else:
+            return "{}, ({} more), {}".format(
+                ", ".join(str(s) for s in dims[:2]),
+                len(dims) - 4,
+                ", ".join(str(s) for s in dims[-2:])
+            )
     def __repr__(self):
         return "{}(<{}>, {})".format(
             type(self).__name__,
-            ", ".join(str(s) for s in self.shape),
+            self._get_dim_string(self.shape),
             self.funcs
         )
 
@@ -587,7 +622,7 @@ class ContractedOperator(Operator):
     """
 
     def __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None,
-                 selection_rules=None, parallelizer=None,
+                 selection_rules=None, parallelizer=None, logger=None,
                  zero_threshold=1.0e-14
                  ):
         """
@@ -607,7 +642,8 @@ class ContractedOperator(Operator):
         super().__init__(funcs, quanta, symmetries=symmetries, prod_dim=prod_dim,
                          selection_rules=selection_rules,
                          zero_threshold=zero_threshold,
-                         parallelizer=parallelizer
+                         parallelizer=parallelizer,
+                         logger=logger
                          )
 
     def get_elements(self, idx, parallelizer=None):
@@ -643,10 +679,10 @@ class ContractedOperator(Operator):
         return contracted
 
     def __repr__(self):
-        return "{}(opdim=<{}>, cdim=<{}>, {})".format(
+        return "{}(<{}>x<{}>, {})".format(
             type(self).__name__,
-            ", ".join(str(s) for s in self.shape),
-            None if not hasattr(self.coeffs, 'shape') else ", ".join(str(s) for s in self.shape),
+            None if not hasattr(self.coeffs, 'shape') else self._get_dim_string(self.coeffs.shape),
+            self._get_dim_string(self.shape),
             self.funcs
         )
 
