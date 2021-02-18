@@ -128,6 +128,15 @@ dipole_surface(self):
 dipole_derivatives(self): 
 ```
 
+<a id="Psience.Molecools.Molecule.Molecule.mass_weighted_coords" class="docs-object-method">&nbsp;</a>
+```python
+@property
+mass_weighted_coords(self): 
+```
+
+- `:returns`: `CoordinateSet`
+    >No description...
+
 <a id="Psience.Molecools.Molecule.Molecule.center_of_mass" class="docs-object-method">&nbsp;</a>
 ```python
 @property

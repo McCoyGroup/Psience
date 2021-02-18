@@ -87,7 +87,7 @@ class VPT2Tests(TestCase):
                               checkpoint=None
                               ):
         if parallelized:
-            parallelizer = MultiprocessingParallelizer()
+            parallelizer = MultiprocessingParallelizer()#verbose=True, processes=2)
         else:
             parallelizer = SerialNonParallelizer()
 
@@ -2115,7 +2115,7 @@ class VPT2Tests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HOHVPTInternals(self):
 
         internals = [
@@ -2215,7 +2215,7 @@ class VPT2Tests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
 
         internals = None
@@ -2227,17 +2227,17 @@ class VPT2Tests(TestCase):
         states = self.get_states(3, 3)
         chk = os.path.expanduser("~/Desktop/HOH_data.json")
 
-        try:
-            os.remove(chk)
-        except:
-            pass
+        # try:
+        #     os.remove(chk)
+        # except:
+        #     pass
 
         wfns = self.get_VPT2_wfns(
             "HOH_freq.fchk",
             internals,
             states,
             regenerate=True,
-            checkpoint=chk
+            # checkpoint=chk
             # , coupled_states = self.get_states(5, 3)
             # , v3=0
             # , v4=0
@@ -3748,7 +3748,7 @@ class VPT2Tests(TestCase):
 
         # coupled_states = self.get_states(5, n_modes, max_quanta=5)
 
-        with BlockProfiler("WaterDimer", print_res=True):
+        with BlockProfiler("WaterDimer", print_res=False):
             wfns = self.get_VPT2_wfns(
                 "water_dimer_freq.fchk",
                 internals,
@@ -3895,6 +3895,332 @@ class VPT2Tests(TestCase):
         self.assertLess(
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
+
+    @validationTest
+    def test_WaterDimerVPTCartesiansParallel(self):
+        # the high-frequency stuff agrees with Gaussian, but not the low-freq
+
+        internals = None
+
+        n_modes = 6 * 3 - 6
+        mode_selection = None
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+
+        states = self.get_states(2, n_modes)
+
+        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
+
+        with BlockProfiler("WaterDimer", print_res=False):
+            wfns = self.get_VPT2_wfns(
+                "water_dimer_freq.fchk",
+                internals,
+                states,
+                regenerate=True,
+                mode_selection=mode_selection,
+                log=True
+                , parallelized=True
+            )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        engs = h2w * wfns.energies
+        freqs = engs[1:] - engs[0]
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freq = harm_engs[1:] - harm_engs[0]
+
+        gaussian_engs = [10133.860, 9909.756]
+        gaussian_freqs = np.array([
+            [3935.490, 3742.918],
+            [3914.939, 3752.151],
+            [3814.079, 3652.414],
+            [3718.192, 3584.139],
+            [1650.023, 1592.653],
+            [1629.210, 1585.962],
+            [631.340, 505.605],
+            [362.703, 295.834],
+            [183.777, 141.372],
+            [154.306, 110.995],
+            [146.544, 150.517],
+            [127.117, 69.163],
+
+            [7870.980, 7393.560],
+            [7829.879, 7368.493],
+            [7628.159, 7224.882],
+            [7436.384, 7016.025],
+            [3300.045, 3152.473],
+            [3258.421, 3144.157],
+            [1262.679, 921.053],
+            [725.405, 488.907],
+            [367.554, 268.882],
+            [308.612, 207.465],
+            [293.089, 299.766],
+            [254.234, 114.677],
+
+            [7850.429, 7494.650],
+            [7749.569, 7239.308],
+            [7729.019, 7402.976],
+            [7653.682, 7322.974],
+            [7633.131, 7271.264],
+            [7532.271, 7230.663],
+            [5585.513, 5334.869],
+            [5564.962, 5328.224],
+            [5464.102, 5244.056],
+            [5368.215, 5164.597],
+            [5564.700, 5314.396],
+            [5544.150, 5337.031],
+            [5443.290, 5222.111],
+            [5347.402, 5168.407],
+            [3279.233, 3172.374],
+            [4566.830, 4249.695],
+            [4546.279, 4261.388],
+            [4445.419, 4159.774],
+            [4349.531, 4139.077],
+            [2281.362, 2107.393],
+            [2260.550, 2094.511],
+            [4298.193, 4016.063],
+            [4277.642, 4024.523],
+            [4176.782, 3928.515],
+            [4080.894, 3889.457],
+            [2012.725, 1852.952],
+            [1991.913, 1862.320],
+            [994.042, 745.791],
+            [4119.267, 3875.578],
+            [4098.716, 3895.805],
+            [3997.856, 3794.279],
+            [3901.969, 3739.502],
+            [1833.800, 1732.294],
+            [1812.987, 1729.354],
+            [815.116, 620.620],
+            [546.479, 389.065],
+            [4089.796, 3839.370],
+            [4069.245, 3864.621],
+            [3968.385, 3763.445],
+            [3872.498, 3704.835],
+            [1804.329, 1699.128],
+            [1783.516, 1700.178],
+            [785.646, 595.362],
+            [517.009, 374.506],
+            [338.083, 235.655],
+            [4082.035, 3892.356],
+            [4061.484, 3903.055],
+            [3960.624, 3844.234],
+            [3864.736, 3750.792],
+            [1796.567, 1745.999],
+            [1775.755, 1736.874],
+            [777.884, 646.479],
+            [509.247, 405.832],
+            [330.321, 287.882],
+            [300.850, 261.693],
+            [4062.607, 3810.202],
+            [4042.056, 3844.889],
+            [3941.197, 3692.207],
+            [3845.309, 3657.100],
+            [1777.140, 1656.439],
+            [1756.328, 1651.982],
+            [758.457, 525.680],
+            [489.820, 336.402],
+            [310.894, 207.357],
+            [281.423, 169.590],
+            [273.662, 201.333]
+        ])
+
+        print_report = True
+        if print_report:
+            print("Gaussian Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
+                      in
+                      zip(states[1:], gaussian_freqs)
+                  )
+                  )
+            print("State Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                      s, e1, e2 in
+                      zip(states[1:], harm_freq, freqs)
+                  )
+                  )
+        ns = len(states) - 1
+        print_difference = True
+        if print_difference:
+            print("Difference Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
+                                                                              engs[0] - gaussian_engs[1], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                      s, e1, e2 in
+                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
+                  )
+                  )
+
+        # self.assertLess(
+        #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
+        #     1)
+
+    @debugTest
+    def test_WaterDimerVPTCartesiansSubspace(self):
+        # the high-frequency stuff agrees with Gaussian, but not the low-freq
+
+        internals = None
+
+        n_modes = 6 * 3 - 6
+        mode_selection = [-3, -2, -1]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+
+        states = self.get_states(2, n_modes)
+
+        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
+
+        with BlockProfiler("WaterDimer", print_res=False):
+            wfns = self.get_VPT2_wfns(
+                "water_dimer_freq.fchk",
+                internals,
+                states,
+                regenerate=True,
+                mode_selection=mode_selection,
+                log=True
+                # , parallelized=True
+            )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        engs = h2w * wfns.energies
+        freqs = engs[1:] - engs[0]
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freq = harm_engs[1:] - harm_engs[0]
+
+        gaussian_engs = [10133.860, 9909.756]
+        gaussian_freqs = np.array([
+            [3935.490, 3742.918],
+            [3914.939, 3752.151],
+            [3814.079, 3652.414],
+            [3718.192, 3584.139],
+            [1650.023, 1592.653],
+            [1629.210, 1585.962],
+            [631.340, 505.605],
+            [362.703, 295.834],
+            [183.777, 141.372],
+            [154.306, 110.995],
+            [146.544, 150.517],
+            [127.117, 69.163],
+
+            [7870.980, 7393.560],
+            [7829.879, 7368.493],
+            [7628.159, 7224.882],
+            [7436.384, 7016.025],
+            [3300.045, 3152.473],
+            [3258.421, 3144.157],
+            [1262.679, 921.053],
+            [725.405, 488.907],
+            [367.554, 268.882],
+            [308.612, 207.465],
+            [293.089, 299.766],
+            [254.234, 114.677],
+
+            [7850.429, 7494.650],
+            [7749.569, 7239.308],
+            [7729.019, 7402.976],
+            [7653.682, 7322.974],
+            [7633.131, 7271.264],
+            [7532.271, 7230.663],
+            [5585.513, 5334.869],
+            [5564.962, 5328.224],
+            [5464.102, 5244.056],
+            [5368.215, 5164.597],
+            [5564.700, 5314.396],
+            [5544.150, 5337.031],
+            [5443.290, 5222.111],
+            [5347.402, 5168.407],
+            [3279.233, 3172.374],
+            [4566.830, 4249.695],
+            [4546.279, 4261.388],
+            [4445.419, 4159.774],
+            [4349.531, 4139.077],
+            [2281.362, 2107.393],
+            [2260.550, 2094.511],
+            [4298.193, 4016.063],
+            [4277.642, 4024.523],
+            [4176.782, 3928.515],
+            [4080.894, 3889.457],
+            [2012.725, 1852.952],
+            [1991.913, 1862.320],
+            [994.042, 745.791],
+            [4119.267, 3875.578],
+            [4098.716, 3895.805],
+            [3997.856, 3794.279],
+            [3901.969, 3739.502],
+            [1833.800, 1732.294],
+            [1812.987, 1729.354],
+            [815.116, 620.620],
+            [546.479, 389.065],
+            [4089.796, 3839.370],
+            [4069.245, 3864.621],
+            [3968.385, 3763.445],
+            [3872.498, 3704.835],
+            [1804.329, 1699.128],
+            [1783.516, 1700.178],
+            [785.646, 595.362],
+            [517.009, 374.506],
+            [338.083, 235.655],
+            [4082.035, 3892.356],
+            [4061.484, 3903.055],
+            [3960.624, 3844.234],
+            [3864.736, 3750.792],
+            [1796.567, 1745.999],
+            [1775.755, 1736.874],
+            [777.884, 646.479],
+            [509.247, 405.832],
+            [330.321, 287.882],
+            [300.850, 261.693],
+            [4062.607, 3810.202],
+            [4042.056, 3844.889],
+            [3941.197, 3692.207],
+            [3845.309, 3657.100],
+            [1777.140, 1656.439],
+            [1756.328, 1651.982],
+            [758.457, 525.680],
+            [489.820, 336.402],
+            [310.894, 207.357],
+            [281.423, 169.590],
+            [273.662, 201.333]
+        ])
+
+        print_report = True
+        if print_report:
+            print("Gaussian Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
+                      in
+                      zip(states[1:], gaussian_freqs)
+                  )
+                  )
+            print("State Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                      s, e1, e2 in
+                      zip(states[1:], harm_freq, freqs)
+                  )
+                  )
+        ns = len(states) - 1
+        print_difference = True
+        if print_difference:
+            print("Difference Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
+                                                                              engs[0] - gaussian_engs[1], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                      s, e1, e2 in
+                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
+                  )
+                  )
+
+        # self.assertLess(
+        #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
+        #     1)
 
     @inactiveTest
     def test_WaterDimerVPTInternals(self):

@@ -77,7 +77,7 @@ get_function(self, idx):
 
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.operator" class="docs-object-method">&nbsp;</a>
 ```python
-operator(self, *terms, coeffs=None, axes=None, parallelizer=None): 
+operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None): 
 ```
 Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -132,6 +132,11 @@ Casts down to lower dimensional space
     >No description...
 - `:returns`: `_`
     >No description...
+
+<a id="Psience.BasisReps.Bases.SimpleProductBasis.get_state_space" class="docs-object-method">&nbsp;</a>
+```python
+get_state_space(self, quanta): 
+```
 
 ### Examples
 

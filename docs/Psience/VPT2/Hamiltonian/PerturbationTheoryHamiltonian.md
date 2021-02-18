@@ -1,6 +1,8 @@
 ## <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian">PerturbationTheoryHamiltonian</a>
 Represents the main Hamiltonian used in the perturbation theory calculation.
-Uses a harmonic oscillator basis for representing H0, H1, and H2 (and only goes up to H2 for now)
+Uses a harmonic oscillator basis for representing H0, H1, and H2 (and only goes up to H2 for now).
+Will before too long be split into a PerturbationTheoryHandler and a PerturbationTheoryHamiltonian
+where the Hamiltonian just implements the split of the perturbation and the Handler manages the equations.
 
 ### Properties and Methods
 ```python
@@ -8,7 +10,7 @@ from_fchk: method
 ```
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, coriolis_coupling=True, parallelizer=None, log=None, checkpoint=None): 
+__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, coriolis_coupling=True, parallelizer=None, log=None, checkpoint=None): 
 ```
 
 - `molecule`: `Molecule`
