@@ -14,6 +14,8 @@ __all__ = [
     "MolecoolException"
 ]
 
+# __reload_hook__ = [ '.Properties', '.Vibrations' ]
+
 class Molecule:
     """
     General purpose 'Molecule' class where the 'Molecule' need not be a molecule at all
@@ -179,6 +181,13 @@ class Molecule:
             self._dipds = self.load_dipole_derivatives()
         return self._dipds
 
+    @property
+    def mass_weighted_coords(self):
+        """
+        :return:
+        :rtype: CoordinateSet
+        """
+        return self.prop('mass_weighted_coords')
     @property
     def center_of_mass(self):
         """
@@ -479,16 +488,25 @@ class Molecule:
 
     def _load_gaussian_fchk_dipoles(self, file):
         from McUtils.GaussianInterface import GaussianFChkReader
-        keys = ['DipoleMoment', 'DipoleDerivatives', 'DipoleHigherDerivatives', 'DipoleNumDerivatives']
-        with GaussianFChkReader(file) as gr:
-            parse = gr.parse(keys)
+        try:
+            keys = ['DipoleMoment', 'DipoleDerivatives', 'DipoleHigherDerivatives', 'DipoleNumDerivatives']
+            with GaussianFChkReader(file) as gr:
+                parse = gr.parse(keys)
 
-        mom, grad, high = tuple(parse[k] for k in keys[:3])
-        seconds = high.second_deriv_array
-        thirds = high.third_deriv_array
-        num_derivs = parse[keys[3]]
-        num_grad = num_derivs.first_derivatives
-        num_secs = num_derivs.second_derivatives
+            mom, grad, high = tuple(parse[k] for k in keys[:3])
+            seconds = high.second_deriv_array
+            thirds = high.third_deriv_array
+            num_derivs = parse[keys[3]]
+            num_grad = num_derivs.first_derivatives
+            num_secs = num_derivs.second_derivatives
+        except GaussianFChkReader.GaussianFChkReaderException:
+            keys = ['DipoleMoment', 'DipoleDerivatives']
+            with GaussianFChkReader(file) as gr:
+                parse = gr.parse(keys)
+
+            mom, grad = tuple(parse[k] for k in keys[:2])
+            seconds = thirds = None
+            num_grad = num_secs = None
 
         # now instead of reweighting modes, we reweight all terms _using_ these modes
 
@@ -561,6 +579,8 @@ class Molecule:
         if isinstance(derivs, dict):
             d1_analytic = derivs['analytic'][1]
             d1_numerical = derivs['numerical'][0]
+            if d1_numerical is None:
+                return None
         else:
             raise NotImplementedError("not sure how to calculate rephasing for dipoles {}".format(derivs))
 
@@ -718,7 +738,7 @@ class Molecule:
         return mol
 
     @classmethod
-    def from_file(cls, file, mode = None, **opts):
+    def from_file(cls, file, mode=None, **opts):
         """In general we'll delegate to pybel except for like Fchk and Log files
 
         :param file:

@@ -12,6 +12,8 @@ __all__ = [
     "SimpleProductBasis"
 ]
 
+__reload_hook__ = ['.StateIndexers', '.Terms', '.Operators']
+
 class RepresentationBasis(metaclass=abc.ABCMeta):
     """
     Metaclass for representations.
@@ -373,7 +375,7 @@ class SimpleProductBasis(RepresentationBasis):
         fs = tuple(b[n] for b, n in zip(self.bases, idx))
         return lambda *r, _fs=fs, **kw: np.prod(f(*r, **kw) for f in _fs)
 
-    def operator(self, *terms, coeffs=None, axes=None, parallelizer=None):
+    def operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None):
         """
         Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -403,10 +405,11 @@ class SimpleProductBasis(RepresentationBasis):
         if coeffs is not None:
             op = ContractedOperator(coeffs, funcs, q, axes=axes, symmetries=labels,
                                     selection_rules=sel_rules,
-                                    parallelizer=parallelizer
+                                    parallelizer=parallelizer,
+                                    logger=logger
                                     )
         else:
-            op = Operator(funcs, q, symmetries=labels, selection_rules=sel_rules, parallelizer=parallelizer)
+            op = Operator(funcs, q, symmetries=labels, selection_rules=sel_rules, parallelizer=parallelizer, logger=logger)
         return op
     def representation(self, *terms, coeffs=None, axes=None, logger=None, parallelizer=None):
         """
@@ -419,7 +422,8 @@ class SimpleProductBasis(RepresentationBasis):
         :rtype:
         """
         from .Terms import Representation
-        return Representation(self.operator(*terms, coeffs=coeffs, axes=axes, parallelizer=parallelizer), self, logger=logger)
+        return Representation(
+            self.operator(*terms, coeffs=coeffs, axes=axes, parallelizer=parallelizer, logger=logger), self, logger=logger)
     def x(self, n):
         """
         Returns the representation of x in the multi-dimensional basis with every term evaluated up to n quanta
@@ -452,3 +456,7 @@ class SimpleProductBasis(RepresentationBasis):
         """
         qq = self.quanta
         return type(self)(self.basis_type, [qq[d] for d in dims])
+
+    def get_state_space(self, quanta):
+        from .StateSpaces import BasisStateSpace
+        return BasisStateSpace.from_quanta(self, quanta)

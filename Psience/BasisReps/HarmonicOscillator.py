@@ -161,7 +161,7 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
     def from_state(cls, data, serializer=None):
         return cls(data['quanta'], indexer=serializer.deserialize(data['indexer']))
 
-    def operator(self, *terms, coeffs=None, axes=None, parallelizer=None):
+    def operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None):
         """
         Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -185,12 +185,15 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
             labels = [mapping[k] for k in ids]
 
             if coeffs is None:
-                op = Operator(computer, self.quanta, prod_dim=len(terms), symmetries=labels, parallelizer=parallelizer)#, axes=axes)
+                op = Operator(computer, self.quanta, prod_dim=len(terms), symmetries=labels,
+                              parallelizer=parallelizer, logger=logger)#, axes=axes)
             else:
-                op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms), symmetries=labels, axes=axes, parallelizer=parallelizer)
+                op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms), symmetries=labels, axes=axes,
+                                        parallelizer=parallelizer, logger=logger)
             return op
         else:
-            return super().operator(*terms, coeffs=coeffs, axes=axes, parallelizer=parallelizer)
+            return super().operator(*terms, coeffs=coeffs, axes=axes,
+                                    parallelizer=parallelizer, logger=logger)
 
     def take_subdimensions(self, dims):
         qq = self.quanta
@@ -552,3 +555,6 @@ class HarmonicProductOperatorTermEvaluator:
             path_terms = np.sqrt(np.prod(path_displacements, axis=1))
 
             return np.sum(phases * path_terms, axis=0)
+
+    def __repr__(self):
+        return "{}({})".format("HOTermEvaluator", ", ".join(str(t) for t in self.terms))

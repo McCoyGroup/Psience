@@ -166,7 +166,7 @@ class ExpansionTerms:
         else:
             self.raw_modes = None
         if mode_selection is not None:
-            modes = modes[(mode_selection,)]
+            modes = modes[mode_selection]
         self.modes = modes
         self.mode_sel = mode_selection
         self.freqs = self.modes.freqs
@@ -630,6 +630,7 @@ class PotentialTerms(ExpansionTerms):
                  molecule,
                  mixed_derivs=True,
                  modes=None,
+                 potential_derivatives=None,
                  mode_selection=None,
                  logger=None,
                  parallelizer=None,
@@ -647,63 +648,114 @@ class PotentialTerms(ExpansionTerms):
         """
         super().__init__(molecule, modes, mode_selection=mode_selection,
                          logger=logger, parallelizer=parallelizer, checkpointer=checkpointer)
-        self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.potential_derivatives)
+        if potential_derivatives is None:
+            potential_derivatives = molecule.potential_derivatives
+        self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, potential_derivatives)
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
 
         if len(derivs) == 3:
             grad, fcs, fds = derivs
-            fcs = fcs.array
-            thirds = fds.third_deriv_array
-            fourths = fds.fourth_deriv_array
+            try:
+                fcs = fcs.array
+            except AttributeError:
+                fcs, thirds, fourths = derivs
+                grad = None
+            else:
+                thirds = fds.third_deriv_array
+                fourths = fds.fourth_deriv_array
         else:
             grad, fcs, thirds, fourths = derivs
 
         n = len(masses)
-        # modes_matrix = self.modes.inverse
-        # modes_n = len(modes_matrix)
-        modes_n = 3*n - 6
+        modes_n = len(self.modes.freqs)
+        # modes_n = 3*n - 6
         # if modes_n == 3*n:
         #     modes_n = modes_n - 6
         #     modes_matrix = modes_matrix[6:]
         #     freqs = freqs[6:]
-        coord_n = 3*n
-        if grad.shape != (coord_n,):
-            raise PerturbationTheoryException(
-                "{0}.{1}: length of gradient array ({2[0]}) is not {3[0]}".format(
-                    type(self).__name__,
-                    "_canonicalize_force_constants",
-                    grad.shape,
-                    (coord_n,)
+        internals_n = 3 * n - 6
+        coord_n = 3 * n
+
+        if self.mode_sel is not None and thirds.shape[0] == internals_n:
+            # TODO: need to handle more cases of input formats...
+            thirds = thirds[(self.mode_sel,)]
+
+        if self.mode_sel is not None and fourths.shape[0] == internals_n:
+            # TODO: need to handle more cases of input formats...
+            if not isinstance(self.mode_sel, slice):
+                fourths = fourths[np.ix_(self.mode_sel, self.mode_sel)]
+            else:
+                fourths = fourths[self.mode_sel, self.mode_sel]
+
+        if grad is not None:
+            if grad.shape != (coord_n,) and grad.shape != (internals_n,):
+                raise PerturbationTheoryException(
+                    "{0}.{1}: length of gradient array {2[0]} is not {3[0]} or {4[0]}".format(
+                        type(self).__name__,
+                        "_canonicalize_force_constants",
+                        grad.shape,
+                        (coord_n,),
+                        (internals_n,)
+                    )
                 )
-            )
-        if fcs.shape != (coord_n, coord_n):
+        if (
+                fcs.shape != (coord_n, coord_n)
+                and fcs.shape != (internals_n, internals_n)
+                and fcs.shape != (modes_n, modes_n)
+        ):
             raise PerturbationTheoryException(
-                "{0}.{1}: dimension of force constant array ({2[0]}x{2[1]}) is not {3[0]}x{3[1]}".format(
+                "{0}.{1}: dimension of force constant array ({2[0]}x{2[1]}) is not in ({3})".format(
                     type(self).__name__,
                     "_canonicalize_force_constants",
                     fcs.shape,
-                    (coord_n, coord_n)
+                    ", ".join("({0[0]}x{0[1]})".format(x) for x in [
+                        (coord_n, coord_n),
+                        (internals_n, internals_n),
+                        (modes_n, modes_n)
+                    ])
                 )
             )
-        if thirds.shape != (modes_n, coord_n, coord_n):
+        if (
+                thirds.shape != (modes_n, coord_n, coord_n)
+                and thirds.shape != (modes_n, internals_n, internals_n)
+                and thirds.shape != (modes_n, modes_n, modes_n)
+                and thirds.shape != (coord_n, coord_n, coord_n)
+                and thirds.shape != (internals_n, internals_n, internals_n)
+        ):
             raise PerturbationTheoryException(
-                "{0}.{1}: dimension of third derivative array ({2[0]}x{2[1]}x{2[2]}) is not ({3[0]}x{3[1]}x{3[2]})".format(
+                "{0}.{1}: dimension of third derivative array ({2[0]}x{2[1]}x{2[2]}) is not in ({3})".format(
                     type(self).__name__,
                     "_canonicalize_derivs",
                     thirds.shape,
-                    (modes_n, coord_n, coord_n)
+                    ", ".join("({0[0]}x{0[1]}x{0[2]})".format(x) for x in [
+                        (modes_n, coord_n, coord_n),
+                        (modes_n, internals_n, internals_n),
+                        (modes_n, modes_n, modes_n)
+                    ])
                 )
             )
         # this might need to change in the future
-        if fourths.shape != (modes_n, modes_n, coord_n, coord_n):
+        if (
+                fourths.shape != (modes_n, modes_n, coord_n, coord_n)
+                and fourths.shape != (modes_n, modes_n, internals_n, internals_n)
+                and fourths.shape != (modes_n, modes_n, modes_n, modes_n)
+                and fourths.shape != (coord_n, coord_n, coord_n, coord_n)
+                and fourths.shape != (internals_n, internals_n, internals_n, internals_n)
+        ):
             raise PerturbationTheoryException(
-                "{0}.{1}: dimension of fourth derivative array ({2[0]}x{2[1]}x{2[2]}x{2[3]}) is not ({3[0]}x{3[1]}x{3[2]}x{3[3]})".format(
+                "{0}.{1}: dimension of fourth derivative array ({2[0]}x{2[1]}x{2[2]}x{2[3]}) is not ({3})".format(
                     type(self).__name__,
                     "_canonicalize_derivs",
                     fourths.shape,
-                    (modes_n, modes_n, coord_n, coord_n)
+                    ", ".join("({0[0]}x{0[1]}x{0[2]}x{0[3]})".format(x) for x in [
+                        (modes_n, modes_n, coord_n, coord_n),
+                        (modes_n, modes_n, internals_n, internals_n),
+                        (modes_n, modes_n, modes_n, modes_n),
+                        (coord_n, coord_n, coord_n, coord_n),
+                        (internals_n, internals_n, internals_n, internals_n)
+                    ])
                 )
             )
 
@@ -715,19 +767,16 @@ class PotentialTerms(ExpansionTerms):
         undimension_2 = np.outer(m_conv, m_conv)
         fcs = fcs / undimension_2
 
-        if self.mode_sel is not None:
-            thirds = thirds[(self.mode_sel,)]
         undimension_3 = np.outer(m_conv, m_conv)[np.newaxis, :, :] * f_conv[:, np.newaxis, np.newaxis]
         thirds = thirds * (1 / undimension_3 / np.sqrt(amu_conv))
 
         wat = np.outer(m_conv, m_conv)[np.newaxis, :, :] * (f_conv ** 2)[:, np.newaxis, np.newaxis]
-        undimension_4 = SparseArray.from_diag(1 / wat / amu_conv)
-        if self.mode_sel is not None:
-            if not isinstance(self.mode_sel, slice):
-                fourths = fourths[np.ix_(self.mode_sel, self.mode_sel)]
-            else:
-                fourths = fourths[self.mode_sel, self.mode_sel]
-        fourths = fourths * undimension_4
+        if isinstance(fourths, SparseArray):
+            undimension_4 = SparseArray.from_diag(1 / wat / amu_conv)
+
+            fourths = fourths * undimension_4
+        else:
+            fourths = fourths * (1 / wat / amu_conv)
 
         return grad, fcs, thirds, fourths
 
@@ -814,6 +863,16 @@ class PotentialTerms(ExpansionTerms):
                 v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
 
         self.checkpointer['potential_terms'] = (v2, v3, v4)
+
+        new_freqs = np.diag(v2)
+        old_freqs = self.modes.freqs
+
+        if any(new_freqs != old_freqs):
+            raise PerturbationTheoryException(
+                "Force constants in normal modes don't return frequencies along diagonal;"
+                " this likely indicates issues with the mass-weighting"
+                " got {} but expected {}".format(new_freqs, old_freqs)
+            )
 
         return v2, v3, v4
 
