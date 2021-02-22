@@ -46,6 +46,8 @@ class DumbTensor:
 
         def tdot(a, b, **kw):
             if hasattr(a, "tensordot"):
+                if 'axes' not in kw:
+                    kw['axes'] = [-1, 0]
                 td = a.tensordot(b, **kw)
             else:
                 try:
@@ -68,7 +70,9 @@ class DumbTensor:
         if axes is None:
             axes = [1] * (len(t) - 1)
 
+
         return fp.reduce(td, zip(t[1:], axes), t[0])
+
     def dot(self, b, *args, **kwargs):
         if isinstance(b, DumbTensor):
             b = b.t
@@ -432,7 +436,9 @@ class ExpansionTerms:
             VQQxx = Vxxxx
 
         if not isinstance(VQQxx, int):
+
             V_QQQQ_4 = dot(VQQxx, xQ, xQ, axes=[[3, 1], [2, 1]])
+
             N = V_QQQQ_4.ndim
             X = N - 4
             if X > 0:
@@ -773,7 +779,6 @@ class PotentialTerms(ExpansionTerms):
         wat = np.outer(m_conv, m_conv)[np.newaxis, :, :] * (f_conv ** 2)[:, np.newaxis, np.newaxis]
         if isinstance(fourths, SparseArray):
             undimension_4 = SparseArray.from_diag(1 / wat / amu_conv)
-
             fourths = fourths * undimension_4
         else:
             fourths = fourths * (1 / wat / amu_conv)
@@ -826,7 +831,12 @@ class PotentialTerms(ExpansionTerms):
             x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
             V_derivs = (grad, hess, thirds, fourths)
 
+
+            # try:
             v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_XQ=self.mixed_derivs)
+            # except:
+
+                # raise Exception(fourths)
         else:
 
             xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
@@ -859,6 +869,8 @@ class PotentialTerms(ExpansionTerms):
         if self.mixed_derivs:# and intcds is None:
             # we assume we only got second derivs in Q_i Q_i
             # at this point, then, we should be able to fill in the terms we know are missing
+            if not isinstance(v4, np.ndarray):
+                v4 = v4.asarray()
             for i in range(v4.shape[0]):
                 v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
 
@@ -875,7 +887,6 @@ class PotentialTerms(ExpansionTerms):
             )
 
         return v2, v3, v4
-
 
     get_terms = old_get_terms
 

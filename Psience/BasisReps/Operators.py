@@ -540,7 +540,7 @@ class Operator:
             new = sp.vstack(wat)
 
         shp = inds.shape if inds is not None else ()
-        res = SparseArray(new)
+        res = SparseArray.from_data(new)
         res = res.reshape(shp[:-1] + res.shape[-1:])
 
         return res
@@ -593,9 +593,11 @@ class Operator:
 
         parallelizer.printer = self.logger.log_print
         if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
-            return parallelizer.run(self._get_elements, inds, idx)
+            elems = parallelizer.run(self._get_elements, inds, idx)
         else:
-            return self._main_get_elements(inds, idx, parallelizer=None)
+            elems = self._main_get_elements(inds, idx, parallelizer=None)
+
+        return elems
 
     @staticmethod
     def _get_dim_string(dims):
@@ -668,6 +670,10 @@ class ContractedOperator(Operator):
                 contracted = np.tensordot(subTensor.squeeze(), c, axes=axes)
             else:
                 contracted = subTensor.tensordot(c, axes=axes).squeeze()
+
+            # if self.fdim > 3:
+            #     raise RuntimeError("wwwwooooof")
+
         elif c == 0:
             contracted = 0  # a short-circuit
         else:
