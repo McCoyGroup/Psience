@@ -351,6 +351,18 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError("abstract base class")
 
+    def split(self, chunksize):
+        """
+        Subclass overridable function to allow for spaces to be
+        split up into chunks
+        :param chunksize:
+        :type chunksize:
+        :return:
+        :rtype:
+        """
+        raise TypeError("{} can't be split".format(type(self).__name__))
+
+
 class BasisStateSpace(AbstractStateSpace):
     """
     Represents a subspace of states inside a representation basis.
@@ -381,7 +393,6 @@ class BasisStateSpace(AbstractStateSpace):
         else:
             self._excitations = self._init_states
         self._indexer = None
-
 
     def to_state(self, serializer=None):
         return {
@@ -683,6 +694,38 @@ class BasisStateSpace(AbstractStateSpace):
     #     """
     #     states = self._init_states[item]
     #     return self.take_states(states)
+
+    def split(self, chunksize):
+        """
+        Splits the space up into chunks of at max chunksize
+        :param chunksize:
+        :type chunksize: int
+        :return:
+        :rtype: Iterable[BasisStateSpace]
+        """
+
+        nblocks = np.ceil(len(self) / chunksize)
+
+        if self._indices is not None:
+            ind_chunks = np.array_split(self._indices, nblocks, axis=0)
+            if self._excitations is not None:
+                exc_chunks = np.array_split(self._excitations, nblocks, axis=0)
+            else:
+                exc_chunks = [None] * len(ind_chunks)
+        else:
+            exc_chunks = np.array_split(self._excitations, nblocks, axis=0)
+            ind_chunks = [None] * len(exc_chunks)
+
+        spaces = []
+        for i,e in zip(ind_chunks, exc_chunks):
+            if i is None:
+                new = type(self)(self.basis, e, mode = self.StateSpaceSpec.Excitations)
+            else:
+                new = type(self)(self.basis, i, mode=self.StateSpaceSpec.Indices)
+                if e is not None:
+                    new.excitations = e
+            spaces.append(new)
+        return spaces
 
 class BasisMultiStateSpace(AbstractStateSpace):
     """
@@ -1385,3 +1428,20 @@ class BraKetSpace:
             ),
             shape=(len(total_space), len(total_space))
         )
+
+    def split(self, chunksize):
+        """
+        splits the brakets into blocks of at max chunksize
+        :param chunksize:
+        :type chunksize: int
+        :return:
+        :rtype: Iterable[BraKetSpace]
+        """
+
+        bra_splits = self.bras.split(chunksize)
+        ket_splits = self.kets.split(chunksize)
+
+        # raise Exception(ket_splits)
+
+        return [type(self)(b, k) for b,k in zip(bra_splits, ket_splits)]
+

@@ -667,6 +667,65 @@ class PerturbationTheoryHamiltonian:
         return h1_space, h2_space
 
     @classmethod
+    def _build_representation_matrix(cls,
+                                     i,
+                                     h,
+                                     cs,
+                                     logger,
+                                     N,
+                                     flat_total_space,
+                                     freq_threshold=None):
+
+        with logger.block(tag="getting H" + str(i + 1)):
+            m_pairs = cs.get_representation_brakets(freq_threshold=freq_threshold)
+
+            start = time.time()
+            if len(m_pairs) > 0:
+                logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
+                sub = h[m_pairs]
+                # if i == 1:
+                #     raise RuntimeError("woof")
+                SparseArray.clear_caches()
+
+            else:
+                logger.log_print('no states to couple!')
+                sub = 0
+
+            logger.log_print("constructing sparse representation...")
+
+            if isinstance(sub, (int, np.integer, np.floating, float)):
+                if sub == 0:
+                    sub = SparseArray.empty((N, N), dtype=float)
+                else:
+                    raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
+                    sub = np.full((N, N), sub)
+            else:
+                # figure out the appropriate inds for this data in the sparse representation
+                row_inds = flat_total_space.find(m_pairs.bras)
+                col_inds = flat_total_space.find(m_pairs.kets)
+                # raise Exception([row_inds, col_inds,
+                #                  np.unique(m_pairs.bras.excitations, axis=0), np.average(sub)])
+
+                # upper triangle of indices
+                up_tri = np.array([row_inds, col_inds]).T
+                # lower triangle is made by transposition
+                low_tri = np.array([col_inds, row_inds]).T
+                # but now we need to remove the duplicates, because many sparse matrix implementations
+                # will sum up any repeated elements
+                full_inds = np.concatenate([up_tri, low_tri])
+                full_dat = np.concatenate([sub, sub])
+
+                _, idx = np.unique(full_inds, axis=0, return_index=True)
+                sidx = np.sort(idx)
+                full_inds = full_inds[sidx]
+                full_dat = full_dat[sidx]
+                sub = SparseArray.from_data((full_dat, full_inds.T), shape=(N, N))
+            end = time.time()
+            logger.log_print("took {t:.3f}s", t=end - start)
+
+        return sub
+
+    @classmethod
     def _get_VPT_representations(
             cls,
             h_reps,
@@ -737,58 +796,10 @@ class PerturbationTheoryHamiltonian:
             # print(flat_total_space.indices)
             for i, h in enumerate(h_reps[1:]):
                 # calculate matrix elements in the coupled subspace
-                cs = total_state_space[i+1]
 
-                with logger.block(tag="getting H" + str(i + 1)):
-                    m_pairs = cs.get_representation_brakets(freq_threshold=freq_threshold)
-
-                    start = time.time()
-                    if len(m_pairs) > 0:
-                        logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
-                        sub = h[m_pairs]
-                        SparseArray.clear_ravel_caches()
-                    else:
-                        logger.log_print('no states to couple!')
-                        sub = 0
-
-                    logger.log_print("constructing sparse representation...")
-
-                    if isinstance(sub, (int, np.integer, np.floating, float)):
-                        if sub == 0:
-                            sub = SparseArray.empty((N, N), dtype=float)
-                        else:
-                            raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
-                            sub = np.full((N, N), sub)
-                    else:
-                        # figure out the appropriate inds for this data in the sparse representation
-                        row_inds = flat_total_space.find(m_pairs.bras)
-                        col_inds = flat_total_space.find(m_pairs.kets)
-                        # raise Exception([row_inds, col_inds,
-                        #                  np.unique(m_pairs.bras.excitations, axis=0), np.average(sub)])
-
-                        # upper triangle of indices
-                        up_tri = np.array([row_inds, col_inds]).T
-                        # lower triangle is made by transposition
-                        low_tri = np.array([col_inds, row_inds]).T
-                        # but now we need to remove the duplicates, because many sparse matrix implementations
-                        # will sum up any repeated elements
-                        full_inds = np.concatenate([up_tri, low_tri])
-                        full_dat = np.concatenate([sub, sub])
-
-                        _, idx = np.unique(full_inds, axis=0, return_index=True)
-                        sidx = np.sort(idx)
-                        full_inds = full_inds[sidx]
-                        full_dat = full_dat[sidx]
-                        sub = SparseArray((full_dat, full_inds.T), shape=(N, N))
-                    end = time.time()
-                    logger.log_print("took {t:.3f}s", t=end - start)
-
-                H[i+1] = sub #type: np.ndarray
-                # raise Exception(np.min(H[1].toarray()), np.max(H[1].toarray()))
-
-                # import McUtils.Plots as plt
-                # plt.ArrayPlot(H[1].toarray()).show()
-                # raise Exception("...")
+                cs = total_state_space[i + 1]
+                H[i+1] = cls._build_representation_matrix(i, h, cs, logger, N, flat_total_space,
+                                                          freq_threshold=freq_threshold)
 
             return H, total_state_space
 
@@ -936,7 +947,7 @@ class PerturbationTheoryHamiltonian:
         rotation_row_inds = np.concatenate(rotation_row_inds)
         rotation_col_inds = np.concatenate(rotation_col_inds)
 
-        rotations = SparseArray(
+        rotations = SparseArray.from_data(
             (
                 rotation_vals,
                 (
@@ -1057,9 +1068,17 @@ class PerturbationTheoryHamiltonian:
                 return 0
 
             if isinstance(a, np.ndarray):
-                return np.dot(a, b)
+                doots = np.dot(a, b)
             else:
-                return a.dot(b)
+                try:
+                    doots = a.dot(b)
+                except:
+                    raise Exception(a.shape, b.shape)
+
+            if isinstance(b, np.ndarray) and isinstance(doots, SparseArray):
+                doots = doots.asarray()
+
+            return doots
 
         for k in range(1, order + 1):  # to actually go up to k
             #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
@@ -1243,7 +1262,7 @@ class PerturbationTheoryHamiltonian:
             vals = np.concatenate([x[0] for x in non_zeros])
             inds = np.concatenate([x[1] for x in non_zeros], axis=0).T
             # print(inds, N)
-            corr_mats[o] = SparseArray(
+            corr_mats[o] = SparseArray.from_data(
                 (
                     vals,
                     inds

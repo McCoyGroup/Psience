@@ -7,7 +7,7 @@ __all__ = [
     "ExpansionRepresentation"
 ]
 
-import numpy as np, itertools as ip, scipy.sparse as sp
+import numpy as np, itertools as ip, scipy.sparse as sp, time, gc
 
 from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
@@ -336,6 +336,7 @@ class ExpansionRepresentation(Representation):
         for c, t in zip(self.coeffs, self.computers):
             if not (isinstance(c, (int, float, np.integer, np.floating)) and c == 0):
                 with self.logger.block(tag="in {}".format(t)):
+                    start = time.time()
                     bits = getattr(t, attr)(*args)
                     scaled = bits * c
                     if isinstance(scaled, (int, float, np.integer, np.floating)) and scaled != 0:
@@ -354,13 +355,18 @@ class ExpansionRepresentation(Representation):
                         if els is None:
                             els = scaled
                         else:
-                            if isinstance(scaled, (SparseArray, sp.spmatrix)):
+                            if isinstance(scaled, (SparseArray,)):
+                                scaled = scaled.asarray()
+                            elif isinstance(scaled, (sp.spmatrix,)):
                                 scaled = scaled.toarray()
                                 # import McUtils.Plots as plt
                                 #
                                 # plt.ArrayPlot(scaled).show()
                             # print(scaled.shape, els.shape)
                             els += scaled
+                    self.logger.log_print("took {e:.3f}s", e=(time.time() - start))
+                    # this can be memory intensive so we collect each step
+                    gc.collect()
 
         return els
 
