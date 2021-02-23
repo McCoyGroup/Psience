@@ -280,7 +280,8 @@ class PerturbationTheoryHamiltonian:
                  coriolis_coupling=True,
                  parallelizer=None,
                  log=None,
-                 checkpoint=None
+                 checkpoint=None,
+                 operator_chunk_size=None
                  ):
         """
         :param molecule: the molecule on which we're doing perturbation theory
@@ -360,6 +361,12 @@ class PerturbationTheoryHamiltonian:
 
         self.basis = HarmonicOscillatorProductBasis(self.n_quanta)
 
+        self.operator_settings = {
+            'chunk_size': operator_chunk_size,
+            'logger': self.logger,
+            'parallelizer': self.parallelizer
+        }
+
         # from ..BasisReps import SimpleProductBasis, HarmonicOscillatorBasis
         # self.basis = SimpleProductBasis(HarmonicOscillatorBasis, self.n_quanta)
 
@@ -400,13 +407,11 @@ class PerturbationTheoryHamiltonian:
             self._h0 = (
                     (iphase * 1 / 2) * self.basis.representation('p', 'p',
                                                                  coeffs=self.G_terms[0],
-                                                                 logger=self.logger,
-                                                                 parallelizer=self.parallelizer
+                                                                 **self.operator_settings
                                                                  )
                     + 1 / 2 * self.basis.representation('x', 'x',
                                                         coeffs=self.V_terms[0],
-                                                        logger=self.logger,
-                                                        parallelizer=self.parallelizer
+                                                        **self.operator_settings
                                                         )
             )
 
@@ -426,13 +431,11 @@ class PerturbationTheoryHamiltonian:
                     (iphase * 1 / 2) * self.basis.representation('p', 'x', 'p',
                                                                  coeffs=self.G_terms[1],
                                                                  axes=[[0, 1, 2], [1, 0, 2]],
-                                                                 logger=self.logger,
-                                                                 parallelizer=self.parallelizer
+                                                                 **self.operator_settings
                                                                  )
                     + 1 / 6 * self.basis.representation('x', 'x', 'x',
                                                         coeffs=self.V_terms[1],
-                                                        logger=self.logger,
-                                                        parallelizer=self.parallelizer
+                                                        **self.operator_settings
                                                         )
             )
         return self._h1
@@ -451,31 +454,26 @@ class PerturbationTheoryHamiltonian:
                     (iphase * 1 / 4) * self.basis.representation('p', 'x', 'x', 'p',
                                                                  coeffs=self.G_terms[2],
                                                                  axes=[[0, 1, 2, 3], [2, 0, 1, 3]],
-                                                                 logger=self.logger,
-                                                                 parallelizer=self.parallelizer
+                                                                 **self.operator_settings
                                                                  )
                     + 1 / 24 * self.basis.representation('x', 'x', 'x', 'x',
                                                          coeffs=self.V_terms[2],
-                                                         logger=self.logger,
-                                                         parallelizer=self.parallelizer
+                                                         **self.operator_settings
                                                          )
             )
             if self.coriolis_terms is not None:
                 total_cor = self.coriolis_terms[0] + self.coriolis_terms[1] + self.coriolis_terms[2]
                 self._h2 += iphase * self.basis.representation('x', 'p', 'x', 'p',
                                                                coeffs=total_cor,
-                                                               logger=self.logger,
-                                                               parallelizer=self.parallelizer
+                                                               **self.operator_settings
                                                                )
             else:
                 self._h2 += 0 * self.basis.representation(coeffs=0,
-                                                          logger=self.logger,
-                                                          parallelizer=self.parallelizer
+                                                          **self.operator_settings
                                                           )
 
             self._h2 += 1 / 8 * self.basis.representation(coeffs=self.watson_term[0],
-                                                          logger=self.logger,
-                                                          parallelizer=self.parallelizer
+                                                          **self.operator_settings
                                                           )
 
         return self._h2
