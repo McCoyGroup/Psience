@@ -6,7 +6,7 @@ and doing the appropriate tensor contractions with the expansion coefficients (i
 ### Properties and Methods
 <a id="Psience.BasisReps.Operators.ContractedOperator.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None, selection_rules=None, parallelizer=None, logger=None, zero_threshold=1e-14): 
+__init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None, selection_rules=None, zero_threshold=1e-14, chunk_size=None, parallelizer=None, logger=None): 
 ```
 
 - `coeffs`: `np.ndarray | int`
@@ -19,6 +19,18 @@ __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None,
     >The axes to use when doing the contractions
 - `symmetries`: `Iterable[int] | None`
     >The symmetries to pass through to `Operator`
+- `prod_dim`: `Any`
+    >No description...
+- `selection_rules`: `Any`
+    >No description...
+- `parallelizer`: `Any`
+    >No description...
+- `logger`: `Any`
+    >No description...
+- `zero_threshold`: `Any`
+    >No description...
+- `chunk_size`: `int | None`
+    >number of elements that can be evaluated at once (for memory reasons)
 
 <a id="Psience.BasisReps.Operators.ContractedOperator.get_elements" class="docs-object-method">&nbsp;</a>
 ```python

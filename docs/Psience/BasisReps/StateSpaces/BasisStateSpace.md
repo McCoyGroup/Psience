@@ -150,6 +150,16 @@ Takes the set of specified states from the space.
 __repr__(self): 
 ```
 
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.split" class="docs-object-method">&nbsp;</a>
+```python
+split(self, chunksize): 
+```
+Splits the space up into chunks of at max chunksize
+- `chunksize`: `int`
+    >No description...
+- `:returns`: `Iterable[BasisStateSpace]`
+    >No description...
+
 ### Examples
 
 

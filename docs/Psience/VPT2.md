@@ -91,9 +91,7 @@ class VPT2Tests(TestCase):
         else:
             parallelizer = SerialNonParallelizer()
 
-
         with parallelizer:
-
             hammer = PerturbationTheoryHamiltonian.from_fchk(
                 TestManager.test_data(fchk),
                 internals=internals,
@@ -3732,8 +3730,8 @@ class VPT2Tests(TestCase):
 
     #endregion Methane
 
-    #region Water Dimer
-    @inactiveTest
+    #region Water Clusters
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4059,7 +4057,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesiansSubspace(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4221,6 +4219,57 @@ class VPT2Tests(TestCase):
         # self.assertLess(
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
+
+    @validationTest
+    def test_WaterTrimerVPTCartesians(self):
+        # the high-frequency stuff agrees with Gaussian, but not the low-freq
+
+        internals = None
+
+        n_modes = 9 * 3 - 6
+        mode_selection = None#[-3, -2, -1]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+
+        states = self.get_states(2, n_modes)
+
+        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
+
+        with BlockProfiler("WaterTrimer", print_res=False):
+            wfns = self.get_VPT2_wfns(
+                "water_trimer_freq.fchk",
+                internals,
+                states,
+                regenerate=True,
+                mode_selection=mode_selection,
+                log=True
+                # , parallelized=True
+            )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        engs = h2w * wfns.energies
+        freqs = engs[1:] - engs[0]
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freq = harm_engs[1:] - harm_engs[0]
+
+        print_report = True
+        if print_report:
+            # print("Gaussian Energies:\n",
+            #       ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
+            #       *(
+            #           ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
+            #           in
+            #           zip(states[1:], gaussian_freqs)
+            #       )
+            #       )
+            print("State Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                      s, e1, e2 in
+                      zip(states[1:], harm_freq, freqs)
+                  )
+                  )
 
     @inactiveTest
     def test_WaterDimerVPTInternals(self):

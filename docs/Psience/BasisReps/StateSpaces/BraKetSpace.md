@@ -94,6 +94,16 @@ Generates the (sparse) unweighted adjacency matrix for the bras & kets
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.split" class="docs-object-method">&nbsp;</a>
+```python
+split(self, chunksize): 
+```
+splits the brakets into blocks of at max chunksize
+- `chunksize`: `int`
+    >No description...
+- `:returns`: `Iterable[BraKetSpace]`
+    >No description...
+
 ### Examples
 
 
