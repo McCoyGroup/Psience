@@ -85,7 +85,7 @@ class HarmonicOscillatorBasis(RepresentationBasis):
         ]
         return sp.csr_matrix(sp.diags([b[0] for b in bands], [b[1] for b in bands]))
 
-    def operator(self, *terms, parallelizer=None):
+    def operator(self, *terms, logger=None, parallelizer=None, chunk_size=None):
         """
         Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -106,9 +106,11 @@ class HarmonicOscillatorBasis(RepresentationBasis):
                 if len(idx) > 1:
                     raise ValueError("multidimensional index by one-dimensional basis ?_?")
                 return term_eval, term_eval.selection_rules
-            return Operator(computer, (self.quanta,), prod_dim=1, parallelizer=parallelizer)
+            return Operator(computer, (self.quanta,), prod_dim=1,
+                            logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)
         else:
-            return super().operator(*terms, parallelizer=parallelizer)
+            return super().operator(*terms,
+                                    logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)
 
         # funcs = [self.bases[0].operator_mapping[f] if isinstance(f, str) else f for f in terms]
         # q = self.quanta
@@ -161,7 +163,7 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
     def from_state(cls, data, serializer=None):
         return cls(data['quanta'], indexer=serializer.deserialize(data['indexer']))
 
-    def operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None):
+    def operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None, chunk_size=None):
         """
         Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -186,14 +188,14 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
 
             if coeffs is None:
                 op = Operator(computer, self.quanta, prod_dim=len(terms), symmetries=labels,
-                              parallelizer=parallelizer, logger=logger)#, axes=axes)
+                              logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)#, axes=axes)
             else:
                 op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms), symmetries=labels, axes=axes,
-                                        parallelizer=parallelizer, logger=logger)
+                                        logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)
             return op
         else:
             return super().operator(*terms, coeffs=coeffs, axes=axes,
-                                    parallelizer=parallelizer, logger=logger)
+                                    logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)
 
     def take_subdimensions(self, dims):
         qq = self.quanta
