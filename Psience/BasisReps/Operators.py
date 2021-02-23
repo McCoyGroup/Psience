@@ -30,7 +30,8 @@ class Operator:
                  selection_rules=None,
                  parallelizer=None,
                  logger=None,
-                 zero_threshold=1.0e-14
+                 zero_threshold=1.0e-14,
+                 chunk_size=None
                  ):
         """
         :param funcs: The functions use to calculate representation
@@ -66,8 +67,7 @@ class Operator:
             logger = NullLogger()
         self.logger = logger
         self._parallelizer = parallelizer
-            # in the future people will be able to supply this so that they can fully control how
-            # the code gets parallelized
+        self.chunk_size = chunk_size
 
     @property
     def ndim(self):
@@ -584,18 +584,40 @@ class Operator:
         :rtype:
         """
 
-        inds = self.get_inner_indices()
-        if inds is None:
-            return self._get_elements(inds, idx)
-
-        if parallelizer is None:
-            parallelizer = self.parallelizer
-
-        parallelizer.printer = self.logger.log_print
-        if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
-            elems = parallelizer.run(self._get_elements, inds, idx)
+        if self.chunk_size is not None:
+            if isinstance(idx, BraKetSpace):
+                if len(idx) > self.chunk_size:
+                    idx_splits = idx.split(self.chunk_size)
+                else:
+                    idx_splits = [idx]
+            else:
+                idx_splits = [idx]
         else:
-            elems = self._main_get_elements(inds, idx, parallelizer=None)
+            idx_splits = [idx]
+
+        chunks = []
+        for idx in idx_splits:
+
+            inds = self.get_inner_indices()
+            if inds is None:
+                return self._get_elements(inds, idx)
+
+            if parallelizer is None:
+                parallelizer = self.parallelizer
+
+            parallelizer.printer = self.logger.log_print
+            if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
+                elem_chunk = parallelizer.run(self._get_elements, inds, idx)
+            else:
+                elem_chunk = self._main_get_elements(inds, idx, parallelizer=None)
+
+            chunks.append(elem_chunk)
+
+        if all(isinstance(x, np.ndarray) for x in chunks):
+            elems = np.concatenate(chunks, axis=0)
+        else:
+            from functools import reduce
+            elems = reduce(lambda a, b: a.concatenate(b), chunks[1:], chunks[0])
 
         return elems
 
