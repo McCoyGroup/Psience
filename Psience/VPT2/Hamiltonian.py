@@ -1068,9 +1068,17 @@ class PerturbationTheoryHamiltonian:
                 return 0
 
             if isinstance(a, np.ndarray):
-                return np.dot(a, b)
+                doots = np.dot(a, b)
             else:
-                return a.dot(b)
+                try:
+                    doots = a.dot(b)
+                except:
+                    raise Exception(a.shape, b.shape)
+
+            if isinstance(b, np.ndarray) and isinstance(doots, SparseArray):
+                doots = doots.asarray()
+
+            return doots
 
         for k in range(1, order + 1):  # to actually go up to k
             #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)

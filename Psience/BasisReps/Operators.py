@@ -3,7 +3,7 @@ Provides the operator representations needed when building a Hamiltonian represe
 I chose to only implement direct product operators. Not sure if we'll need a 1D base class...
 """
 
-import numpy as np, scipy.sparse as sp, os, tempfile as tf, time
+import numpy as np, scipy.sparse as sp, os, tempfile as tf, time, gc
 from collections import OrderedDict
 from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
@@ -624,10 +624,13 @@ class ContractedOperator(Operator):
     """
 
     def __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None,
-                 selection_rules=None, parallelizer=None, logger=None,
-                 zero_threshold=1.0e-14
+                 selection_rules=None,
+                 zero_threshold=1.0e-14,
+                 chunk_size=None,
+                 parallelizer=None, logger=None
                  ):
         """
+
         :param coeffs: The tensor of coefficients contract with the operator representation (`0` means no term)
         :type coeffs: np.ndarray | int
         :param funcs: The functions use to calculate representation
@@ -638,9 +641,22 @@ class ContractedOperator(Operator):
         :type axes: Iterable[int] | None
         :param symmetries: The symmetries to pass through to `Operator`
         :type symmetries: Iterable[int] | None
+        :param prod_dim:
+        :type prod_dim:
+        :param selection_rules:
+        :type selection_rules:
+        :param parallelizer:
+        :type parallelizer:
+        :param logger:
+        :type logger:
+        :param zero_threshold:
+        :type zero_threshold:
+        :param chunk_size: number of elements that can be evaluated at once (for memory reasons)
+        :type chunk_size: int | None
         """
         self.coeffs = coeffs
         self.axes = axes
+        self.chunk_size = chunk_size
         super().__init__(funcs, quanta, symmetries=symmetries, prod_dim=prod_dim,
                          selection_rules=selection_rules,
                          zero_threshold=zero_threshold,
@@ -648,22 +664,13 @@ class ContractedOperator(Operator):
                          logger=logger
                          )
 
-    def get_elements(self, idx, parallelizer=None):
-        """
-        Computes the operator values over the specified indices
-
-        :param idx: which elements of H0 to compute
-        :type idx: Iterable[int]
-        :return:
-        :rtype:
-        """
-
+    def _get_element_block(self, idx, parallelizer=None):
         c = self.coeffs
         if not isinstance(c, (int, np.integer, float, np.floating)):
             # takes an (e.g.) 5-dimensional SparseTensor and turns it into a contracted 2D one
             axes = self.axes
             if axes is None:
-                axes = (tuple(range(c.ndim)), )*2
+                axes = (tuple(range(c.ndim)),) * 2
             subTensor = super().get_elements(idx, parallelizer=parallelizer)
 
             if isinstance(subTensor, np.ndarray):
@@ -682,6 +689,40 @@ class ContractedOperator(Operator):
                 return subTensor
             contracted = c * subTensor
 
+        gc.collect()
+
+        return contracted
+
+    def get_elements(self, idx, parallelizer=None):
+        """
+        Computes the operator values over the specified indices
+
+        :param idx: which elements of H0 to compute
+        :type idx: Iterable[int]
+        :return:
+        :rtype:
+        """
+        c = self.coeffs
+        if isinstance(c, (int, np.integer, float, np.floating)) and c == 0:
+            return 0
+
+        if self.chunk_size is not None:
+            if isinstance(idx, BraKetSpace):
+                if len(idx) > self.chunk_size:
+                    idx_splits = idx.split(self.chunk_size)
+                else:
+                    idx_splits = [idx]
+            else:
+                idx_splits = [idx]
+        else:
+            idx_splits = [idx]
+
+        chunks = [self._get_element_block(idx) for idx in idx_splits]
+        if all(isinstance(x, np.ndarray) for x in chunks):
+            contracted = np.concatenate(chunks, axis=0)
+        else:
+            from functools import reduce
+            contracted = reduce(lambda a,b: a.concatenate(b), chunks[1:], chunks[0])
         return contracted
 
     def __repr__(self):
