@@ -19,7 +19,7 @@ to_state(self, serializer=None):
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorProductBasis.operator" class="docs-object-method">&nbsp;</a>
 ```python
-operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None): 
+operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None, chunk_size=None): 
 ```
 Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.

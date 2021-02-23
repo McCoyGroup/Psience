@@ -104,12 +104,12 @@ operator_mapping(self):
 
 <a id="Psience.BasisReps.Bases.RepresentationBasis.operator" class="docs-object-method">&nbsp;</a>
 ```python
-operator(self, *terms): 
+operator(self, *terms, logger=None, parallelizer=None, chunk_size=None): 
 ```
 
 <a id="Psience.BasisReps.Bases.RepresentationBasis.representation" class="docs-object-method">&nbsp;</a>
 ```python
-representation(self, *terms, logger=None): 
+representation(self, *terms, logger=None, parallelizer=None, chunk_size=None): 
 ```
 Provides a representation of a product operator specified by 'terms'
 - `terms`: `Any`
