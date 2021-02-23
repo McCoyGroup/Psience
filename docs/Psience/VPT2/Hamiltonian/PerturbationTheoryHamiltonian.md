@@ -10,7 +10,7 @@ from_fchk: method
 ```
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, coriolis_coupling=True, parallelizer=None, log=None, checkpoint=None): 
+__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, coriolis_coupling=True, parallelizer=None, log=None, checkpoint=None, operator_chunk_size=None): 
 ```
 
 - `molecule`: `Molecule`
