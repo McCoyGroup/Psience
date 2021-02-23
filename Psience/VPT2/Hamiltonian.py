@@ -648,19 +648,24 @@ class PerturbationTheoryHamiltonian:
         :rtype: tuple[BasisMultiStateSpace]
         """
 
-        # the states that can be coupled through H1
-        transitions_h1 = self.basis.selection_rules("x", "x", "x")
-        h1_space = states.apply_selection_rules(
-            transitions_h1,
-            iterations=(order - 1)
-        )
+        nits = order - 1
+        if nits >= 0:
+            # the states that can be coupled through H1
+            transitions_h1 = self.basis.selection_rules("x", "x", "x")
+            h1_space = states.apply_selection_rules(
+                transitions_h1,
+                iterations=(order - 1)
+            )
 
-        # from second order corrections
-        transitions_h2 = self.basis.selection_rules("x", "x", "x", "x")
-        h2_space = states.apply_selection_rules(
-            transitions_h2,
-            iterations=(order - 1)
-        )
+            # from second order corrections
+            transitions_h2 = self.basis.selection_rules("x", "x", "x", "x")
+            h2_space = states.apply_selection_rules(
+                transitions_h2,
+                iterations=(order - 1)
+            )
+        else:
+            h1_space = states.take_states([])
+            h2_space = states.take_states([])
 
         return h1_space, h2_space
 
@@ -1702,7 +1707,9 @@ class PerturbationTheoryHamiltonian:
         :rtype: PerturbationTheoryCorrections
         """
 
-        H, total_state_space = cls._get_VPT_representations(h_reps, states, coupled_states, logger)
+        H, total_state_space = cls._get_VPT_representations(h_reps,
+                                                            states,
+                                                            coupled_states, logger)
 
         corrs = cls._apply_VPT(
                    H,
@@ -1869,7 +1876,8 @@ class PerturbationTheoryHamiltonian:
                 with self.logger.block(tag='getting coupled states'):
                     start = time.time()
                     # raise Exception("???", states)
-                    states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies)
+                    states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies,
+                                                                                       order=order)
 
                     end = time.time()
                     self.logger.log_print("took {t}s...", t=round(end - start, 3))

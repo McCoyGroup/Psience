@@ -616,8 +616,12 @@ class BasisStateSpace(AbstractStateSpace):
                                                freqs=freqs,
                                                freq_threshold=freq_threshold
                                                )
-        bras = self.to_single().take_states(inds[0])
-        kets = self.to_single().take_states(inds[1])
+        if len(inds) > 0:
+            bras = self.to_single().take_states(inds[0])
+            kets = self.to_single().take_states(inds[1])
+        else:
+            bras = BasisStateSpace(self.basis, [])
+            kets = BasisStateSpace(self.basis, [])
         return BraKetSpace(bras, kets)
 
     def take_subspace(self, sel):

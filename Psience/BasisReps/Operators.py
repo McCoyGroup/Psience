@@ -678,13 +678,13 @@ class ContractedOperator(Operator):
         """
         self.coeffs = coeffs
         self.axes = axes
-        self.chunk_size = chunk_size
         super().__init__(funcs, quanta, symmetries=symmetries, prod_dim=prod_dim,
                          selection_rules=selection_rules,
                          zero_threshold=zero_threshold,
                          parallelizer=parallelizer,
                          logger=logger
                          )
+        self.chunk_size = chunk_size
 
     def _get_element_block(self, idx, parallelizer=None):
         c = self.coeffs
