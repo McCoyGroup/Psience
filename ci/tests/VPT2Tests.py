@@ -5477,7 +5477,7 @@ class VPT2Tests(TestCase):
     #endregion Test Components
 
     #region Test Intensities
-    @debugTest
+    @validationTest
     def test_HODIntensities(self):
 
         internals = [
@@ -5498,7 +5498,8 @@ class VPT2Tests(TestCase):
             internals,
             states,
             regenerate=True,
-            coupled_states=coupled_states
+            coupled_states=coupled_states,
+            log=True
         )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
