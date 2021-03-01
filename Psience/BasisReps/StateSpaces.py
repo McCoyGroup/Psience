@@ -67,7 +67,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
     def indexer(self, idxer):
         self._indexer = idxer
 
-    def find(self, to_search):
+    def find(self, to_search, check=True):
         """
         Finds the indices of a set of indices inside the space
 
@@ -97,7 +97,10 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
             else:
                 vals[bad_vals] = -1
         else:
+            bad_vals = np.full_like(to_search, True)
             vals = np.full_like(vals, -1)
+        if check and bad_vals.any():
+            raise IndexError("{} not in {}".format(to_search[bad_vals], self))
         return vals
 
     def __len__(self):
@@ -677,7 +680,7 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
-        found = self.find(states)
+        found = self.find(states, check=False)
         sel = found[found >= 0]
         return self.take_subspace(sel)
 

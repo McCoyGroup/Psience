@@ -604,8 +604,8 @@ class Operator:
 
             if parallelizer is None:
                 parallelizer = self.parallelizer
-
-            parallelizer.printer = self.logger.log_print
+            if parallelizer is not None:
+                parallelizer.printer = self.logger.log_print
             if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
                 elem_chunk = parallelizer.run(self._get_elements, inds, idx)
             else:
