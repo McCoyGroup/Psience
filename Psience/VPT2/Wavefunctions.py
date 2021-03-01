@@ -87,6 +87,61 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     def zero_order_energies(self):
         return self.corrs.energy_corrs[:, 0]
 
+    def _build_representation_matrix(self, h, m_pairs):
+        """
+        Constructs a representation of an operator in a coupled
+        space...
+
+        :param h:
+        :type h:
+        :param cs:
+        :type cs:
+        :return:
+        :rtype:
+        """
+        logger = self.logger
+
+        if len(m_pairs) > 0:
+            logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
+            sub = h[m_pairs]
+            if isinstance(sub, SparseArray):
+                sub = sub.asarray()
+            SparseArray.clear_caches()
+        else:
+            logger.log_print('no states to couple!')
+            sub = 0
+
+        logger.log_print("constructing sparse representation...")
+
+        N = len(self.corrs.total_basis)
+        if isinstance(sub, (int, np.integer, np.floating, float)):
+            if sub == 0:
+                sub = SparseArray.empty((N, N), dtype=float)
+            else:
+                raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
+                sub = np.full((N, N), sub)
+        else:
+            # figure out the appropriate inds for this data in the sparse representation
+            row_inds = self.corrs.total_basis.find(m_pairs.bras)
+            col_inds = self.corrs.total_basis.find(m_pairs.kets)
+
+            # upper triangle of indices
+            up_tri = np.array([row_inds, col_inds]).T
+            # lower triangle is made by transposition
+            low_tri = np.array([col_inds, row_inds]).T
+            # but now we need to remove the duplicates, because many sparse matrix implementations
+            # will sum up any repeated elements
+            full_inds = np.concatenate([up_tri, low_tri])
+            full_dat = np.concatenate([sub, sub])
+
+            _, idx = np.unique(full_inds, axis=0, return_index=True)
+            sidx = np.sort(idx)
+            full_inds = full_inds[sidx]
+            full_dat = full_dat[sidx]
+            sub = SparseArray.from_data((full_dat, full_inds.T), shape=(N, N))
+
+        return sub
+
     @staticmethod
     def _generate_rep(h, m_pairs, logger, i, M, space):
             # m_pairs = rep_inds[i]
@@ -105,7 +160,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             # print(m_pairs)
             sub = h[m_pairs[0], m_pairs[1]]
             if isinstance(sub, SparseArray):
-                sub = sub.toarray()  #
+                sub = sub.asarray()  #
             SparseArray.clear_ravel_caches()
             if logger is not None:
                 end = time.time()
@@ -180,13 +235,13 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 mu_3 = dts[3]
                 m3 = 1 / 6 * self.rep_basis.representation("x", "x", "x", coeffs=mu_3)
                 if rep_inds[3] is None:
-                    m3_inds = bra_space.get_representation_indices(
+                    m3_inds = bra_space.get_representation_brakets(
                         other=ket_space,
                         selection_rules=bra_space.basis.selection_rules("x", "x", "x")
                     )
                     rep_inds[3] = m3_inds
 
-                rep_3 = self._generate_rep(m3, rep_inds[3], logger, 2, M, space)
+                rep_3 = self._build_representation_matrix(m3, rep_inds[3])
                 mu_terms.append(rep_3)
                 # mu_terms = mu_terms + [rep_3]
         else:
@@ -194,19 +249,19 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
             m0 = self.rep_basis.representation(coeffs=mu_0)
             if rep_inds[0] is None:
-                m0_inds = bra_space.get_representation_indices(other=ket_space,
+                m0_inds = bra_space.get_representation_brakets(other=ket_space,
                                                                selection_rules=[[]])  # no selection rules here
                 rep_inds[0] = m0_inds
             m1 = self.rep_basis.representation("x", coeffs=mu_1) + self.rep_basis.representation(coeffs=mu_0)
             if rep_inds[1] is None:
-                m1_inds = bra_space.get_representation_indices(
+                m1_inds = bra_space.get_representation_brakets(
                     other=ket_space,
                     selection_rules=bra_space.basis.selection_rules("x")
                 )
                 rep_inds[1] = m1_inds
             m2 = 1 / 2 * self.rep_basis.representation("x", "x", coeffs=mu_2)
             if rep_inds[2] is None:
-                m2_inds = bra_space.get_representation_indices(
+                m2_inds = bra_space.get_representation_brakets(
                     other=ket_space,
                     selection_rules=bra_space.basis.selection_rules("x", "x"))
                 rep_inds[2] = m2_inds
@@ -216,7 +271,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             elif partitioning == self.DipolePartitioningMethod.Standard:
                 m3 = 1 / 6 * self.rep_basis.representation("x", "x", "x", coeffs=mu_3)
                 if rep_inds[3] is None:
-                    m3_inds = bra_space.get_representation_indices(
+                    m3_inds = bra_space.get_representation_brakets(
                         other=ket_space,
                         selection_rules=bra_space.basis.selection_rules("x", "x", "x")
                     )
@@ -231,7 +286,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 m_pairs = rep_inds[i]
                 if m_pairs is None:
                     raise ValueError("representation indices haven't filled enough to calculate {}".format(i))
-                sub = self._generate_rep(h, m_pairs, logger, i, M, space)
+                sub = self._build_representation_matrix(h, m_pairs)
                 # sub = generate_rep(h, m_pairs)
                 mu_terms[i] = sub
 
@@ -383,7 +438,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                                 num = c_lower.dot(m)
                                 new = num.dot(c_upper.T)
                             if isinstance(new, SparseArray):
-                                new = new.toarray()
+                                new = new.asarray()
                         terms.append(
                             new.reshape((len(low_spec), len(up_spec))
                         ))

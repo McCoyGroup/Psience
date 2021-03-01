@@ -988,10 +988,10 @@ class DipoleTerms(ExpansionTerms):
 
         # TODO: this will need major clean up now that I've improved
         #       dipole handling in Molecule
-        mom, grad, higher = derivs
+        mom, grad, seconds, thirds = derivs['analytic']
         grad = grad.array
-        seconds = higher.second_deriv_array
-        thirds = higher.third_deriv_array
+        # seconds = higher.second_deriv_array
+        # thirds = higher.third_deriv_array
 
         n = len(masses)
         modes_matrix = self.modes.inverse
