@@ -240,8 +240,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                         selection_rules=bra_space.basis.selection_rules("x", "x", "x")
                     )
                     rep_inds[3] = m3_inds
-
-                rep_3 = self._build_representation_matrix(m3, rep_inds[3])
+                with self.logger.block(tag="getting M^(3)"):
+                    rep_3 = self._build_representation_matrix(m3, rep_inds[3])
                 mu_terms.append(rep_3)
                 # mu_terms = mu_terms + [rep_3]
         else:
@@ -286,7 +286,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 m_pairs = rep_inds[i]
                 if m_pairs is None:
                     raise ValueError("representation indices haven't filled enough to calculate {}".format(i))
-                sub = self._build_representation_matrix(h, m_pairs)
+
+                with self.logger.block(tag="getting M^({})".format(i)):
+                    sub = self._build_representation_matrix(h, m_pairs)
                 # sub = generate_rep(h, m_pairs)
                 mu_terms[i] = sub
 
@@ -316,155 +318,141 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
 
         logger = self.logger
-        if logger is not None:
-            logger.log_print(
-                "Calculating intensities:",
-                padding=""
-            )
+        with logger.block(tag="Calculating intensities:"):
 
-        space = self.corrs.coupled_states
+            space = self.corrs.coupled_states
 
-        if lower_states is None:
-            low_spec = (0,)
-        else:
-            if isinstance(lower_states, (int, np.integer)):
-                lower_states = (lower_states,)
-            low_spec = lower_states
-        lower_states = space[low_spec]
-
-        if excited_states is None:
-            up_spec = tuple(range(space.nstates))
-            excited_states = space
-        else:
-            if isinstance(excited_states, (int, np.integer)):
-                excited_states = (excited_states,)
-            up_spec = excited_states
-            excited_states = space[up_spec]
-
-        bra_space = lower_states if isinstance(lower_states, BasisStateSpace) else lower_states.to_single()
-        ket_space = excited_states if isinstance(excited_states, BasisStateSpace) else excited_states.to_single()
-
-        # M = len(space.indices)
-        if logger is not None:
-            logger.log_print(
-                [
-                    "lower/upper states: {}/{}"
-                ],
-                len(low_spec),
-                len(up_spec)
-            )
-
-        # corr_vecs = self.corrs.wfn_corrections#[..., M]
-        transition_moment_components = np.zeros((3, 3)).tolist()  # x, y, and z components of the 0th, 1st, and 2nd order stuff
-
-        mu = [mu_x, mu_y, mu_z]
-        rep_inds = [None] * 4
-        corr_terms = self.corrs.wfn_corrections
-        M = corr_terms[0].shape[1]
-        mu_reps = []
-        total_space = self.corrs.total_basis
-
-        # define out reps based on partitioning style
-        if partitioning is None:
-            partitioning = self.dipole_partitioning
-        elif not isinstance(partitioning, self.DipolePartitioningMethod):
-            partitioning = self.DipolePartitioningMethod(partitioning)
-
-        if logger is not None:
-            logger.log_print(
-                [
-                    "dipole partitioning: {}"
-                ],
-                partitioning.value
-            )
-
-        for a in range(3):  # x, y, and z
-
-            mu_terms = self._mu_representations(
-                a,
-                mu[a],
-                M,
-                total_space,
-                bra_space,
-                ket_space,
-                partitioning,
-                rep_inds
-            )
-
-            # print(">>>>", mu_terms)
-            mu_reps.append(mu_terms)
-
-            if partitioning == self.DipolePartitioningMethod.Intuitive:
-                mu_terms = [mu_terms[0], mu_terms[1], mu_terms[2]]
-                # print(mu_terms)
-            elif partitioning == self.DipolePartitioningMethod.Standard:
-                mu_terms = [mu_terms[0] + mu_terms[1], mu_terms[2], mu_terms[3]]
+            if lower_states is None:
+                low_spec = (0,)
             else:
-                raise ValueError("don't know how to interpret dipole partitioning {}".format(partitioning))
+                if isinstance(lower_states, (int, np.integer)):
+                    lower_states = (lower_states,)
+                low_spec = lower_states
+            lower_states = space[low_spec]
+
+            if excited_states is None:
+                up_spec = tuple(range(space.nstates))
+                excited_states = space
+            else:
+                if isinstance(excited_states, (int, np.integer)):
+                    excited_states = (excited_states,)
+                up_spec = excited_states
+                excited_states = space[up_spec]
+
+            bra_space = lower_states if isinstance(lower_states, BasisStateSpace) else lower_states.to_single()
+            ket_space = excited_states if isinstance(excited_states, BasisStateSpace) else excited_states.to_single()
+
+            # M = len(space.indices)
+            logger.log_print(
+                [
+                    "lower/upper states: {l}/{u}"
+                ],
+                l=len(low_spec),
+                u=len(up_spec)
+            )
+
+            # corr_vecs = self.corrs.wfn_corrections#[..., M]
+            transition_moment_components = np.zeros((3, 3)).tolist()  # x, y, and z components of the 0th, 1st, and 2nd order stuff
+
+            mu = [mu_x, mu_y, mu_z]
+            rep_inds = [None] * 4
+            corr_terms = self.corrs.wfn_corrections
+            M = corr_terms[0].shape[1]
+            mu_reps = []
+            total_space = self.corrs.total_basis
 
             # define out reps based on partitioning style
-            if logger is not None:
-                # if a == 1:
-                #     raise Exception(mu_terms)
-                logger.log_print(
-                    [
-                        "axis: {}",
-                        "non-zero dipole terms: {}"
-                    ],
+            if partitioning is None:
+                partitioning = self.dipole_partitioning
+            elif not isinstance(partitioning, self.DipolePartitioningMethod):
+                partitioning = self.DipolePartitioningMethod(partitioning)
+
+            logger.log_print(
+                [
+                    "dipole partitioning: {m}"
+                ],
+                m=partitioning.value
+            )
+
+            for a in range(3):  # x, y, and z
+
+                mu_terms = self._mu_representations(
                     a,
-                    len(mu_terms) - mu_terms.count(0)
+                    mu[a],
+                    M,
+                    total_space,
+                    bra_space,
+                    ket_space,
+                    partitioning,
+                    rep_inds
                 )
 
-            for q in range(len(corr_terms)):  # total quanta
-                if logger is not None:
-                    start = time.time()
+                # print(">>>>", mu_terms)
+                mu_reps.append(mu_terms)
+
+                if partitioning == self.DipolePartitioningMethod.Intuitive:
+                    mu_terms = [mu_terms[0], mu_terms[1], mu_terms[2]]
+                    # print(mu_terms)
+                elif partitioning == self.DipolePartitioningMethod.Standard:
+                    mu_terms = [mu_terms[0] + mu_terms[1], mu_terms[2], mu_terms[3]]
+                else:
+                    raise ValueError("don't know how to interpret dipole partitioning {}".format(partitioning))
+
+                # define out reps based on partitioning style
+                with logger.block(tag="axis: {}".format(a)):
                     logger.log_print(
-                        "calculating {} order corrections...",
-                        q
-                    )
-                terms = []
-                for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
-                    if i + j + k == q:
-                        if len(mu_terms) <= k:
-                            new = np.zeros((len(low_spec), len(up_spec)))
-                        else:
-                            m = mu_terms[k]
-                            if isinstance(m, (int, float, np.integer, np.floating)) and m == 0:
-                                # to make it easy to zero stuff out
-                                new = np.zeros((len(low_spec), len(up_spec)))
-                            else:
-                                c_lower = corr_terms[i][low_spec, :]
-                                c_upper = corr_terms[j][up_spec, :]
-                                num = c_lower.dot(m)
-                                new = num.dot(c_upper.T)
-                            if isinstance(new, SparseArray):
-                                new = new.asarray()
-                        terms.append(
-                            new.reshape((len(low_spec), len(up_spec))
-                        ))
-                        # raise Exception(new.toarray())
-                transition_moment_components[q][a] = terms
-                if logger is not None:
-                    end = time.time()
-                    logger.log_print(
-                        "took {}s",
-                        round(end - start, 3)
+                        [
+                            "non-zero dipole terms: {nt}"
+                        ],
+                        nt=len(mu_terms) - mu_terms.count(0)
                     )
 
-        # we calculate it explicitly like this up front in case we want to use it later since the shape
-        # can be a bit confusing ([0-order, 1-ord, 2-ord], [x, y, z])
-        tmom = [
-            sum(
-                sum(ip.chain(transition_moment_components[i][j]))
-                for i in range(3)  # correction order
-            ) for j in range(3)  # xyz
-        ]
+                    with logger.block(tag="calculating corrections..."):
+                        start = time.time()
+                        for q in range(len(corr_terms)):  # total quanta
+                            terms = []
+                            for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
+                                if i + j + k == q:
+                                    if len(mu_terms) <= k:
+                                        new = np.zeros((len(low_spec), len(up_spec)))
+                                    else:
+                                        m = mu_terms[k]
+                                        if isinstance(m, (int, float, np.integer, np.floating)) and m == 0:
+                                            # to make it easy to zero stuff out
+                                            new = np.zeros((len(low_spec), len(up_spec)))
+                                        else:
+                                            c_lower = corr_terms[i][low_spec, :]
+                                            c_upper = corr_terms[j][up_spec, :]
+                                            num = c_lower.dot(m)
+                                            new = num.dot(c_upper.T)
+                                        if isinstance(new, SparseArray):
+                                            new = new.asarray()
+                                    terms.append(
+                                        new.reshape((len(low_spec), len(up_spec))
+                                                    ))
+                                    # raise Exception(new.toarray())
+                            transition_moment_components[q][a] = terms
 
-        # mu_reps already organized like x/y/z
-        # mu_reps = [
-        #     [m[a] for m in mu_reps]
-        #     for a in range(3)
-        # ]
+                        end = time.time()
+                        logger.log_print(
+                            "took {t}s",
+                            t=round(end - start, 3)
+                        )
+
+            # we calculate it explicitly like this up front in case we want to use it later since the shape
+            # can be a bit confusing ([0-order, 1-ord, 2-ord], [x, y, z])
+            tmom = [
+                sum(
+                    sum(ip.chain(transition_moment_components[i][j]))
+                    for i in range(3)  # correction order
+                ) for j in range(3)  # xyz
+            ]
+
+            # mu_reps already organized like x/y/z
+            # mu_reps = [
+            #     [m[a] for m in mu_reps]
+            #     for a in range(3)
+            # ]
 
         return [tmom, transition_moment_components, mu_reps]
 
