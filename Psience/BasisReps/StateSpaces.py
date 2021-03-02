@@ -84,9 +84,13 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         if to_search.ndim > 1:
             raise ValueError("currently only accept subspaces as indices or AbstractStateSpaces")
         vals = np.searchsorted(self.indices, to_search, sorter=self.indexer)
+        if isinstance(vals, (np.integer, int)):
+            vals = np.array([vals])
         # we have the ordering according to the _sorted_ version of `indices`
         # so now we need to invert that back to the unsorted version
         if len(self.indexer) > 0:
+            big_vals = vals == len(self.indexer)
+            vals[big_vals] = -1
             vals = self.indexer[vals]
             # now because of how searchsorted works, we need to check if the found values
             # truly agree with what we asked for
@@ -619,12 +623,17 @@ class BasisStateSpace(AbstractStateSpace):
                                                freqs=freqs,
                                                freq_threshold=freq_threshold
                                                )
+
         if len(inds) > 0:
             bras = self.to_single().take_states(inds[0])
-            kets = self.to_single().take_states(inds[1])
+            if other is not None:
+                kets = other.to_single().take_states(inds[1])
+            else:
+                kets = self.to_single().take_states(inds[1])
         else:
             bras = BasisStateSpace(self.basis, [])
             kets = BasisStateSpace(self.basis, [])
+
         return BraKetSpace(bras, kets)
 
     def take_subspace(self, sel):
