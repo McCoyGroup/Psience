@@ -1393,7 +1393,7 @@ class PerturbationTheorySolver:
         n_ind = total_state_space.find(n)
         D = degenerate_space_indices
         if D is None:
-            D = [n_ind]
+            D = (n_ind,)
         E0 = e_vec_full[n_ind]
         pi = self._get_Pi0(D, non_zero_cutoff=non_zero_cutoff)
         energies[0] = E0

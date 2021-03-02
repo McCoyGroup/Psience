@@ -70,6 +70,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         self._dipole_terms = None
         self._dipole_partitioning = self.DipolePartitioningMethod.Standard
         self.logger = logger
+        self._order = None
         super().__init__(
             self.corrs.energies,
             self.corrs.wfn_corrections,
@@ -78,7 +79,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
     @property
     def order(self):
-        return self.corrs.order
+        if self._order is None:
+            return self.corrs.order
+        else:
+            return self._order
 
     def expectation(self, operator, other):
         return NotImplemented
@@ -252,7 +256,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 m0_inds = bra_space.get_representation_brakets(other=ket_space,
                                                                selection_rules=[[]])  # no selection rules here
                 rep_inds[0] = m0_inds
-            m1 = self.rep_basis.representation("x", coeffs=mu_1) + self.rep_basis.representation(coeffs=mu_0)
+            m1 = (
+                    self.rep_basis.representation("x", coeffs=mu_1)
+                    + self.rep_basis.representation(coeffs=mu_0)
+            )
             if rep_inds[1] is None:
                 m1_inds = bra_space.get_representation_brakets(
                     other=ket_space,
@@ -298,7 +305,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                             mu_x, mu_y, mu_z,
                             lower_states=None,
                             excited_states=None,
-                            partitioning=None
+                            partitioning=None,
+                            order=None
                             ):
         """
         Calculates the x, y, and z components of the transition moment between
@@ -316,6 +324,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :return:
         :rtype:
         """
+
+        if order is None:
+            order = self.order
 
         logger = self.logger
         with logger.block(tag="Calculating intensities:"):
@@ -409,11 +420,13 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
                     with logger.block(tag="calculating corrections..."):
                         start = time.time()
-                        for q in range(len(corr_terms)):  # total quanta
+                        for q in range(order+1):  # total quanta
                             terms = []
                             for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
                                 if i + j + k == q:
                                     if len(mu_terms) <= k:
+                                        new = np.zeros((len(low_spec), len(up_spec)))
+                                    elif len(corr_terms) <= i or len(corr_terms) <= j:
                                         new = np.zeros((len(low_spec), len(up_spec)))
                                     else:
                                         m = mu_terms[k]
@@ -444,6 +457,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             tmom = [
                 sum(
                     sum(ip.chain(transition_moment_components[i][j]))
+                    if not isinstance(transition_moment_components[i][j], (float, int, np.floating, np.integer))
+                    else transition_moment_components[i][j]
                     for i in range(3)  # correction order
                 ) for j in range(3)  # xyz
             ]
