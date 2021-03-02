@@ -5610,6 +5610,122 @@ class VPT2Tests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
+    @debugTest
+    def test_HODIntensitiesHarmonic(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        # coupled_states = self.get_states(5, 3, max_quanta=5)
+
+        wfns = self.get_VPT2_wfns(
+            "HOD_freq.fchk",
+            internals,
+            states,
+            regenerate=True,
+            # coupled_states=coupled_states,
+            log=True,
+            order=0
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+        engs = h2w * wfns.energies
+        freqs = engs - engs[0]
+        ints = wfns.intensities
+
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freqs = harm_engs - harm_engs[0]
+        harm_ints = wfns.zero_order_intensities
+
+        plot_specs = False
+        if plot_specs:
+            import McUtils.Plots as plt
+            s = plt.StickPlot(freqs, ints,
+                              aspect_ratio=.5,
+                              plot_legend=("Anharmonic", "Harmonic"),
+                              image_size=500
+                              )
+            plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                          aspect_ratio=.5,
+                          axes_labels=["Frequency (cm$^{-1}$)", "Intensity (km mol$^{-1}$)"],
+                          plot_legend=("Anharmonic", "Harmonic")
+                          )
+            s.show()
+
+        # plt.TensorPlot(np.array(tms)).show()
+        # print(tms[0])
+        gaussian_harm_freqs = [
+            0.,
+            3873.846,
+            2810.031,
+            1421.946
+        ]
+        gaussian_harm_ints = [
+            0.,
+            40.02416012,
+            17.23521259,
+            57.65661496
+        ]
+        gaussian_freqs = [
+            0.,
+            3685.815,
+            2706.132,
+            1383.391,
+            7202.835,
+            5323.917,
+            2749.027,
+            6377.958,
+            5044.721,
+            4072.407
+        ]
+        gaussian_ints = [
+            0.,
+            36.93616327,
+            14.01377595,
+            58.17413771,
+            1.16678234,
+            0.55376888,
+            3.30245090,
+            0.19253704,
+            1.57560144,
+            1.82673531
+        ]
+
+        print_specs = True
+        if print_specs:
+            report = "Harmonic:   State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, harm_freqs, harm_ints, gaussian_harm_freqs, gaussian_harm_ints)
+            )
+            print(report)
+            report = "Anharmonic: State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, freqs, ints, gaussian_freqs, gaussian_ints)
+            )
+            print(report)
+
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_harm_ints[1:]],
+            list(np.round(harm_ints[1:4], 2))
+        )
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_ints[1:]],
+            list(np.round(ints[1:10], 2))
+        )
+
     @validationTest
     def test_HODIntensitiesCartesian(self):
 
