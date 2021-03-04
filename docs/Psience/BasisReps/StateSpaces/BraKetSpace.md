@@ -7,6 +7,8 @@ the connections between states.
 ### Properties and Methods
 ```python
 from_indices: method
+OrthogoIndexerTrie: type
+OrthogonalIndexCalculator: type
 ```
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
@@ -30,12 +32,25 @@ __repr__(self):
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.load_non_orthog" class="docs-object-method">&nbsp;</a>
 ```python
-load_non_orthog(self): 
+load_non_orthog(self, use_preindex_trie=True, preindex_trie_depth=None): 
 ```
+
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.load_preindex_trie" class="docs-object-method">&nbsp;</a>
+```python
+load_preindex_trie(self, tests, max_depth=4): 
+```
+Loads the preindex trie we'll use to speed up non-orthogonality calcs.
+        If only a single non-orthog is needed, this probably isn't the way to go...
+- `max_comp`: `Any`
+    >No description...
+- `max_depth`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.get_non_orthog" class="docs-object-method">&nbsp;</a>
 ```python
-get_non_orthog(self, inds, assume_unique=False): 
+get_non_orthog(self, inds, assume_unique=False, use_preindex_trie=True, preindex_trie_depth=None): 
 ```
 Returns whether the states are non-orthogonal under the set of indices.
 - `inds`: `Any`
@@ -65,7 +80,7 @@ take_subdimensions(self, inds):
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.apply_non_orthogonality" class="docs-object-method">&nbsp;</a>
 ```python
-apply_non_orthogonality(self, inds, assume_unique=False): 
+apply_non_orthogonality(self, inds, use_preindex_trie=True, assume_unique=False): 
 ```
 Takes the bra-ket pairs that are non-orthogonal under the
         indices `inds`

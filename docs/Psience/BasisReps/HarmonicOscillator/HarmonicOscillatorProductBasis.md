@@ -22,7 +22,7 @@ to_state(self, serializer=None):
 operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None, chunk_size=None): 
 ```
 Builds an operator based on supplied terms, remapping names where possible.
-        If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
+        If `coeffs` are supplied, a `ContractedOperator` is built.
 - `terms`: `Any`
     >No description...
 - `coeffs`: `Any`
