@@ -1261,12 +1261,14 @@ class BraKetSpace:
         self.kets = ket_space
         self.ndim = self.bras.ndim
         self._orthogs = {}
+        self._preind_trie = None
         if len(bra_space) != len(ket_space) or (bra_space.ndim != ket_space.ndim):
             raise ValueError("Bras {} and kets {} have different dimension".format(bra_space, ket_space))
         self.state_pairs = (
             self.bras.excitations.T,
             self.kets.excitations.T
         )
+
 
     @classmethod
     def from_indices(cls, inds, basis=None, quanta=None):
@@ -1307,12 +1309,76 @@ class BraKetSpace:
             exc_l, exc_r = self.state_pairs
             exc_l = np.asarray(exc_l, dtype=int)
             exc_r = np.asarray(exc_r, dtype=int)
-            # print(type(exc_l), type(exc_r), exc_l, exc_r)
             womp = np.equal(exc_l, exc_r)
             # print(womp, len(exc_l), len(exc_r))
             self._orthogs['base'] = womp
 
-    def get_non_orthog(self, inds, assume_unique=False):
+    class OrthogoIndexerTrie:
+        """
+        A trie that makes it faster to determine which states are
+        non-orthogonal excluding some subset of indices
+        """
+        def __init__(self, base_orthogs, max_depth=4):
+            self.orthogs = base_orthogs
+            self.max_depth = max_depth
+            self.trie = {'idx':np.arange(len(self.orthogs[0]))}
+
+        def __getitem__(self, idx):
+            """
+            idx is a assumed sorted and since so many
+            of the request idx will start with the same
+            first few indices, we'll get a significant benefit at the end
+            of the day
+            :param idx:
+            :type idx:
+            :return:
+            :rtype:
+            """
+            trie = self.trie
+            tests = self.orthogs
+            for i in idx[:self.max_depth]:
+                if i not in trie:
+                    cur_idx = trie['idx']
+                    trie[i] = {'idx':cur_idx[tests[i, cur_idx]]}
+                trie = trie[i]
+            return trie['idx'], idx[self.max_depth:]
+
+    class OrthogonalIndexCache:
+        """
+        Provides a way to use 
+        """
+
+    def load_preindex_trie(self, max_depth=4):
+        """
+        Loads the preindex trie we'll use to speed up non-orthogonality calcs.
+        If only a single non-orthog is needed, this probably isn't the way to go...
+
+        :param max_comp:
+        :type max_comp:
+        :param max_depth:
+        :type max_depth:
+        :return:
+        :rtype:
+        """
+        if self._preind_trie is None:
+            self.load_non_orthog()
+            self._preind_trie = self.OrthogoIndexerTrie(self._orthogs['base'], max_depth=max_depth)
+        return self._preind_trie
+
+    def _pull_nonorthog(self, inds):
+        self.load_non_orthog()
+        orthos = self._orthogs['base']
+        unused = np.delete(np.arange(len(orthos)), inds)
+        return np.where(np.prod(orthos[unused], axis=0) == 1)[0]
+
+    def _pull_nonorthog_trie(self, inds, preindex_trie):
+        orthos = self._orthogs['base']
+        unused = np.delete(np.arange(len(orthos)), inds)
+        init_inds, rest = preindex_trie[unused]
+        # raise Exception(orthos[rest, init_inds].shape)
+        return init_inds[np.prod(orthos[np.ix_(rest, init_inds)], axis=0) == 1]
+
+    def get_non_orthog(self, inds, assume_unique=False, max_inds=4, use_preindex_trie=True, preindex_trie_depth=4):
         """
         Returns whether the states are non-orthogonal under the set of indices.
 
@@ -1321,14 +1387,19 @@ class BraKetSpace:
         :return:
         :rtype:
         """
+
         if not assume_unique:
             inds = np.unique(inds)
+
         inds = tuple(np.sort(inds))
-        if inds not in self._orthogs:
-            self.load_non_orthog()
-            orthos = self._orthogs['base']
-            unused = np.delete(np.arange(len(orthos)), inds)
-            self._orthogs[inds] = np.where(np.prod(orthos[unused], axis=0) == 1)[0]
+        if inds not in self._orthogs: # we cache this because we can
+
+            if use_preindex_trie and len(inds) > 0: # we add the len check because diagonal shit doesn't need this...
+                preindex_trie = self.load_preindex_trie(max_depth=preindex_trie_depth)
+                self._orthogs[inds] = self._pull_nonorthog_trie(inds, preindex_trie)
+            else:
+                self._orthogs[inds] = self._pull_nonorthog(inds)
+
         return self._orthogs[inds]
 
     def get_sel_rules_from1d(self, inds, rules):
@@ -1390,7 +1461,7 @@ class BraKetSpace:
             self.kets.take_subdimensions(inds)
         )
 
-    def apply_non_orthogonality(self, inds, assume_unique=False):
+    def apply_non_orthogonality(self, inds, max_inds=4, use_preindex_trie=True, assume_unique=False):
         """
         Takes the bra-ket pairs that are non-orthogonal under the
         indices `inds`
@@ -1401,7 +1472,7 @@ class BraKetSpace:
         :return:
         :rtype:
         """
-        non_orthog = self.get_non_orthog(inds, assume_unique=assume_unique)
+        non_orthog = self.get_non_orthog(inds, assume_unique=assume_unique, use_preindex_trie=use_preindex_trie, max_inds=max_inds)
         return self.take_subspace(non_orthog), non_orthog
 
     def apply_sel_rules(self, rules):

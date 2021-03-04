@@ -4537,7 +4537,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @validationTest
+    @debugTest
     def test_WaterTrimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4552,7 +4552,7 @@ class VPT2Tests(TestCase):
 
         # coupled_states = self.get_states(5, n_modes, max_quanta=5)
 
-        with BlockProfiler("WaterTrimer", print_res=False):
+        with BlockProfiler("WaterTrimer", print_res=True):#, sort_by='tottime'):
             wfns = self.get_VPT2_wfns(
                 "water_trimer_freq.fchk",
                 internals,
@@ -5592,7 +5592,7 @@ class VPT2Tests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
-    @debugTest
+    @validationTest
     def test_HODIntensitiesHarmonic(self):
 
         internals = [
@@ -5699,14 +5699,32 @@ class VPT2Tests(TestCase):
             )
             print(report)
 
-        self.assertEquals(
-            [round(x, 2) for x in gaussian_harm_ints[1:]],
-            list(np.round(harm_ints[1:4], 2))
-        )
-        self.assertEquals(
-            [round(x, 2) for x in gaussian_ints[1:]],
-            list(np.round(ints[1:10], 2))
-        )
+        # self.assertEquals(
+        #     [round(x, 2) for x in gaussian_harm_ints[1:]],
+        #     list(np.round(harm_ints[1:4], 2))
+        # )
+        # self.assertEquals(
+        #     [round(x, 2) for x in gaussian_ints[1:]],
+        #     list(np.round(ints[1:10], 2))
+        # )
+
+        wfns.dipole_paritioning="intuitive"
+        ints = wfns.intensities
+
+        harm_ints = wfns.zero_order_intensities
+
+        print_specs = True
+        if print_specs:
+            report = "Harmonic:   State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, harm_freqs, harm_ints, gaussian_harm_freqs, gaussian_harm_ints)
+            )
+            print(report)
+            report = "Anharmonic: State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, freqs, ints, gaussian_freqs, gaussian_ints)
+            )
+            print(report)
 
     @validationTest
     def test_HODIntensitiesCartesian(self):

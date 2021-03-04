@@ -102,7 +102,7 @@ class HarmonicOscillatorBasis(RepresentationBasis):
 
         if all(isinstance(t, str) for t in terms):
             term_eval = HarmonicProductOperatorTermEvaluator(terms).diag
-            def computer(idx, term_eval=term_eval): # for because of how Operator works...
+            def computer(idx, term_eval=term_eval): # because of how Operator works...
                 if len(idx) > 1:
                     raise ValueError("multidimensional index by one-dimensional basis ?_?")
                 return term_eval, term_eval.selection_rules
@@ -166,7 +166,7 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
     def operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None, chunk_size=None):
         """
         Builds an operator based on supplied terms, remapping names where possible.
-        If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
+        If `coeffs` are supplied, a `ContractedOperator` is built.
 
         :param terms:
         :type terms:
@@ -232,7 +232,7 @@ class HarmonicProductOperatorTermEvaluator:
         # the residual complex part, in general we need this to be zero
         self.is_complex = len(p_pos) % 2 == 1
         if self.is_complex:
-            raise ValueError("For efficiency, complex-valued operators not supported right now")
+            raise ValueError("For simplicity, complex-valued operators not supported right now")
 
     def take_suboperator(self, inds):
         """
@@ -399,6 +399,7 @@ class HarmonicProductOperatorTermEvaluator:
             :rtype:
             """
 
+            # group possible
             deltas = states[1] - states[0]
             delta_vals = np.unique(deltas)
             delta_sels = [np.where(deltas==a) for a in delta_vals]
@@ -411,6 +412,7 @@ class HarmonicProductOperatorTermEvaluator:
                 biggo[s] = gen(vals)[inv]
 
             return biggo
+
 
         def load_generator(self, a):
             # print(a)
@@ -536,27 +538,29 @@ class HarmonicProductOperatorTermEvaluator:
             :rtype:
             """
             # finally define a function that will apply the the "path" to a quantum number and add everything up
-            if not isinstance(ni, (int, np.integer)):
+            mult = not isinstance(ni, (int, np.integer))
+            if mult:
                 # print("   ??", ni)
-                ni = np.asarray(ni)
+                ni = np.asanyarray(ni)
                 # we need to make the broadcasting work
                 # requires basically that we copy the shape from ni to the beginning for phases and paths
-                # so basically we figure out how many (1) we need to insert at the end of phases and paths
+                # so basically we figure out how many (1) we need to insert at the end of paths
                 # and add a (1) to the start of ni
                 nidim = ni.ndim
                 for i in range(nidim):
-                    phases = np.expand_dims(phases, axis=-1)
+                    # phases = np.expand_dims(phases, axis=-1)
                     paths = np.expand_dims(paths, axis=-1)
-                #
-                # phases = np.broadcast_to(phases, phases.shape + (1,)*nidim)
-                # paths = np.broadcast_to(paths, paths.shape + (1,)*nidim)
                 ni = np.expand_dims(ni, 0)
 
             path_displacements = paths + ni
             path_displacements[path_displacements < 0] = 0
             path_terms = np.sqrt(np.prod(path_displacements, axis=1))
 
-            return np.sum(phases * path_terms, axis=0)
+            # return np.sum(phases * path_terms, axis=0)
+            if mult:
+                return np.dot(phases, path_terms)
+            else:
+                return phases * path_terms
 
     def __repr__(self):
         return "{}({})".format("HOTermEvaluator", ", ".join(str(t) for t in self.terms))

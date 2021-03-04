@@ -518,10 +518,23 @@ class PerturbationTheorySolver:
                 len(perturbations) - 1
             ))
 
-        space_list = [states] + list(coupled_states)
-        self.total_state_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
-        self.flat_total_space = self.total_state_space.to_single().take_unique()
-        self.total_space_dim = len(self.flat_total_space)
+        with logger.block(tag="generating total space"):
+            start = time.time()
+
+            space_list = [states] + list(coupled_states)
+            self.total_state_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
+            self.flat_total_space = self.total_state_space.to_single().take_unique()
+            self.total_space_dim = len(self.flat_total_space)
+
+            end = time.time()
+            logger.log_print(
+                [
+                    "total coupled space dimensions: {d}",
+                    "took {t:.3f}s"
+                ],
+                d=self.total_space_dim,
+                t=end - start
+            )
 
         self._zo_engs = None
 
@@ -572,22 +585,8 @@ class PerturbationTheorySolver:
         par = Parallelizer.lookup(self.parallelizer)
         with par:  # we put an outermost block here to just make sure everything is clean
 
-
-            with logger.block(tag="generating total space"):
-                start = time.time()
-
-                diag_inds = BraKetSpace(self.flat_total_space, self.flat_total_space)
-                N = len(self.flat_total_space)
-
-                end = time.time()
-                logger.log_print(
-                    [
-                        "total coupled space dimensions: {d}",
-                        "took {t:.3f}s"
-                    ],
-                    d=N,
-                    t=end - start
-                )
+            diag_inds = BraKetSpace(self.flat_total_space, self.flat_total_space)
+            N = len(self.flat_total_space)
 
             H = [np.zeros(1)] * len(self.perts)
             with logger.block(tag="getting H0"):

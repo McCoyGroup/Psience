@@ -328,6 +328,8 @@ class Operator:
         # the issue here is that _this_ operation is not necessarily cheap...
         # the subdimension states still can be quite expensive to get indices from
         states = states.take_subdimensions(uinds)
+        # we also probably want to enable some kind of caching so we can maintain orthog
+        # relationships?
 
         gen = func(inds)
         try:
@@ -373,7 +375,8 @@ class Operator:
         # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
         nstates = len(states)
-        states, non_orthog = states.apply_non_orthogonality(inds)
+        # raise Exception(len(self.fdim))
+        states, non_orthog = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
 
         # if none of the states are non-orthogonal...just don't calculate anything
         if len(non_orthog) == 0:
