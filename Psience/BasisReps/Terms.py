@@ -339,6 +339,8 @@ class ExpansionRepresentation(Representation):
                     start = time.time()
                     bits = getattr(t, attr)(*args)
                     scaled = bits * c
+                    if self.ndims == 4:
+                        raise ValueError("woop")
                     if isinstance(scaled, (int, float, np.integer, np.floating)) and scaled != 0:
                         # raise Exception(bits, c, scaled, n,m, t)
                         raise ValueError(" ".join([

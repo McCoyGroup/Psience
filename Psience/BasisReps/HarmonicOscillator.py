@@ -102,7 +102,7 @@ class HarmonicOscillatorBasis(RepresentationBasis):
 
         if all(isinstance(t, str) for t in terms):
             term_eval = HarmonicProductOperatorTermEvaluator(terms).diag
-            def computer(idx, term_eval=term_eval): # for because of how Operator works...
+            def computer(idx, term_eval=term_eval): # because of how Operator works...
                 if len(idx) > 1:
                     raise ValueError("multidimensional index by one-dimensional basis ?_?")
                 return term_eval, term_eval.selection_rules
@@ -166,7 +166,7 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
     def operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None, chunk_size=None):
         """
         Builds an operator based on supplied terms, remapping names where possible.
-        If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
+        If `coeffs` are supplied, a `ContractedOperator` is built.
 
         :param terms:
         :type terms:
@@ -232,7 +232,7 @@ class HarmonicProductOperatorTermEvaluator:
         # the residual complex part, in general we need this to be zero
         self.is_complex = len(p_pos) % 2 == 1
         if self.is_complex:
-            raise ValueError("For efficiency, complex-valued operators not supported right now")
+            raise ValueError("For simplicity, complex-valued operators not supported right now")
 
     def take_suboperator(self, inds):
         """
@@ -321,19 +321,19 @@ class HarmonicProductOperatorTermEvaluator:
                 "*".join("({})".format(",".join(o.terms)) for o in self.ops)
             )
         def eval_states(self, states):
-            #
-            # if len(states) == 0:
-            #     raise ValueError("no states?")
+
+            if isinstance(states, BraKetSpace): # allows us to use this space as a hashing key
+                states = zip(*states.state_pairs)
 
             chunk = None
             for s, op in zip(states, self.ops):
                 # print(op)
-                blob = np.asarray(op(s))
+                blob = np.asanyarray(op(s))
                 if chunk is None:
                     if isinstance(blob, (int, np.integer, float, np.floating)):
                         chunk = np.array([blob])
                     else:
-                        chunk = np.asarray(blob)
+                        chunk = np.asanyarray(blob)
                 else:
                     chunk = chunk * blob
 
@@ -364,6 +364,8 @@ class HarmonicProductOperatorTermEvaluator:
                 if o == "p":
                     p_pos.append(i)
             self.p_pos = tuple(p_pos)
+            self._state_group_cache = {}
+            self._state_eval_cache = {}
 
         def __repr__(self):
             return "{}({})".format(
@@ -386,7 +388,33 @@ class HarmonicProductOperatorTermEvaluator:
             return list(range(-self.N, self.N+1, 2))
 
         def __call__(self, states):
+
             return self.evaluate_state_terms(states)
+
+        def state_pair_hash(self, states):
+            # we need something faster than unique and
+            # setdiff and all that so we'll try to write
+            # something which can be refined later
+            h1 = states[0].astype('int8')
+            h1.flags.writeable = False
+            h2 = states[1].astype('int8')
+            h2.flags.writeable = False
+            # raise Exception(h1.data, h2.data)
+            return (hash(h1.data.tobytes()), hash(h2.data.tobytes()))
+            # return (len(states[0]), np.max(states[0]), np.min(states[0]), np.max(states[1]), np.min(states[1]),)
+
+        def pull_state_groups(self, states):
+
+            deltas = states[1] - states[0]
+            delta_vals = np.unique(deltas)
+            delta_sels = [np.where(deltas == a) for a in delta_vals]
+            # delta_sels = []
+            # reminds = np.arange(len(deltas))
+            # for a in delta_vals:
+            #     woop = np.where(deltas[reminds] == a)
+            #     reminds = np.setdiff1d(reminds, woop[0])
+            #     delta_sels.append(woop)
+            return (delta_vals, delta_sels)
 
         def evaluate_state_terms(self, states):
             """
@@ -399,18 +427,38 @@ class HarmonicProductOperatorTermEvaluator:
             :rtype:
             """
 
-            deltas = states[1] - states[0]
-            delta_vals = np.unique(deltas)
-            delta_sels = [np.where(deltas==a) for a in delta_vals]
+            h = self.state_pair_hash(states)
+            # might fuck things up from a memory perspective...
+            if h not in self._state_group_cache:
+                (delta_vals, delta_sels) = self.pull_state_groups(states)
 
-            biggo = np.zeros(states[0].shape)
-            for a, s in zip(delta_vals, delta_sels):
-                gen = self.load_generator(a)
-                og = states[0][s]
-                vals, inv = np.unique(og, return_inverse=True)
-                biggo[s] = gen(vals)[inv]
+                biggo = np.zeros(states[0].shape)
+                for a, s in zip(delta_vals, delta_sels):
+                    gen = self.load_generator(a)
+                    og = states[0][s]
+                    vals, inv = np.unique(og, return_inverse=True)
+                    biggo[s] = gen(vals)[inv]
+
+                self._state_group_cache[h] = biggo
+
+            return self._state_group_cache[h]
+
+            # (delta_vals, delta_sels) = self._state_group_cache[h]
+            #
+            # h = (np.sum(states[0]), np.sum(states[1]), len(states), np.min(states), np.max(states), tuple(delta_vals))
+            # if h in self._seen_states:
+            #     self._seen_states[h] += 1
+            #     if self._seen_states[h] % 5 == 0:
+            #         print(self._seen_states[h], h)
+            # else:
+            #     self._seen_states[h] = 1
+
+            # delta_sels = [np.where(deltas==a) for a in delta_vals]
+
+
 
             return biggo
+
 
         def load_generator(self, a):
             # print(a)
@@ -536,27 +584,29 @@ class HarmonicProductOperatorTermEvaluator:
             :rtype:
             """
             # finally define a function that will apply the the "path" to a quantum number and add everything up
-            if not isinstance(ni, (int, np.integer)):
+            mult = not isinstance(ni, (int, np.integer))
+            if mult:
                 # print("   ??", ni)
-                ni = np.asarray(ni)
+                ni = np.asanyarray(ni)
                 # we need to make the broadcasting work
                 # requires basically that we copy the shape from ni to the beginning for phases and paths
-                # so basically we figure out how many (1) we need to insert at the end of phases and paths
+                # so basically we figure out how many (1) we need to insert at the end of paths
                 # and add a (1) to the start of ni
                 nidim = ni.ndim
                 for i in range(nidim):
-                    phases = np.expand_dims(phases, axis=-1)
+                    # phases = np.expand_dims(phases, axis=-1)
                     paths = np.expand_dims(paths, axis=-1)
-                #
-                # phases = np.broadcast_to(phases, phases.shape + (1,)*nidim)
-                # paths = np.broadcast_to(paths, paths.shape + (1,)*nidim)
                 ni = np.expand_dims(ni, 0)
 
             path_displacements = paths + ni
             path_displacements[path_displacements < 0] = 0
             path_terms = np.sqrt(np.prod(path_displacements, axis=1))
 
-            return np.sum(phases * path_terms, axis=0)
+            # return np.sum(phases * path_terms, axis=0)
+            if mult:
+                return np.dot(phases, path_terms)
+            else:
+                return phases * path_terms
 
     def __repr__(self):
         return "{}({})".format("HOTermEvaluator", ", ".join(str(t) for t in self.terms))

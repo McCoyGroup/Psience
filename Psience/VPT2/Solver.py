@@ -518,10 +518,23 @@ class PerturbationTheorySolver:
                 len(perturbations) - 1
             ))
 
-        space_list = [states] + list(coupled_states)
-        self.total_state_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
-        self.flat_total_space = self.total_state_space.to_single().take_unique()
-        self.total_space_dim = len(self.flat_total_space)
+        with logger.block(tag="generating total space"):
+            start = time.time()
+
+            space_list = [states] + list(coupled_states)
+            self.total_state_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
+            self.flat_total_space = self.total_state_space.to_single().take_unique()
+            self.total_space_dim = len(self.flat_total_space)
+
+            end = time.time()
+            logger.log_print(
+                [
+                    "total coupled space dimensions: {d}",
+                    "took {t:.3f}s"
+                ],
+                d=self.total_space_dim,
+                t=end - start
+            )
 
         self._zo_engs = None
 
@@ -572,22 +585,8 @@ class PerturbationTheorySolver:
         par = Parallelizer.lookup(self.parallelizer)
         with par:  # we put an outermost block here to just make sure everything is clean
 
-
-            with logger.block(tag="generating total space"):
-                start = time.time()
-
-                diag_inds = BraKetSpace(self.flat_total_space, self.flat_total_space)
-                N = len(self.flat_total_space)
-
-                end = time.time()
-                logger.log_print(
-                    [
-                        "total coupled space dimensions: {d}",
-                        "took {t:.3f}s"
-                    ],
-                    d=N,
-                    t=end - start
-                )
+            diag_inds = BraKetSpace(self.flat_total_space, self.flat_total_space)
+            N = len(self.flat_total_space)
 
             H = [np.zeros(1)] * len(self.perts)
             with logger.block(tag="getting H0"):
@@ -1401,11 +1400,12 @@ class PerturbationTheorySolver:
         corrs[0, n_ind] = 1
         H = self.representations
         dot = self._safe_dot
-        take = lambda h, *els: h[els] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
+        takeDiag = lambda h, n_ind: h[n_ind, n_ind] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
+        take = lambda h, el: h[el] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
         for k in range(1, order + 1):  # to actually go up to k
             #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
             Ek = (
-                    take(H[k], n_ind, n_ind)
+                    takeDiag(H[k], n_ind)
                     + sum(dot(take(H[k - i], n_ind), corrs[i]) - energies[k - i] * overlaps[i]
                 for i in range(1, k)
             ))

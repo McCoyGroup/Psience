@@ -814,6 +814,8 @@ class PotentialTerms(ExpansionTerms):
         return v2, v3, v4
 
     def old_get_terms(self):
+
+        self.logger.log_print('calculating potential derivatives')
         grad = self.v_derivs[0]
         hess = self.v_derivs[1]
         thirds = self.v_derivs[2]
@@ -894,6 +896,8 @@ class KineticTerms(ExpansionTerms):
     """Represents the KE coefficients"""
 
     def get_terms(self):
+
+        self.logger.log_print('calculating G-matrix derivatives')
 
         dot = DumbTensor._dot
         shift = DumbTensor._shift
