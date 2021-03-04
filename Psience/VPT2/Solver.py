@@ -1400,11 +1400,12 @@ class PerturbationTheorySolver:
         corrs[0, n_ind] = 1
         H = self.representations
         dot = self._safe_dot
-        take = lambda h, *els: h[els] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
+        takeDiag = lambda h, n_ind: h[n_ind, n_ind] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
+        take = lambda h, el: h[el] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
         for k in range(1, order + 1):  # to actually go up to k
             #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
             Ek = (
-                    take(H[k], n_ind, n_ind)
+                    takeDiag(H[k], n_ind)
                     + sum(dot(take(H[k - i], n_ind), corrs[i]) - energies[k - i] * overlaps[i]
                 for i in range(1, k)
             ))

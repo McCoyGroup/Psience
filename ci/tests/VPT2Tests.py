@@ -2212,7 +2212,7 @@ class VPT2Tests(TestCase):
         #     [2, 0, 1, -1]
         # ]
         states = self.get_states(3, 3)
-        chk = os.path.expanduser("~/Desktop/HOH_data.json")
+        # chk = os.path.expanduser("~/Desktop/HOH_data.json")
 
         # try:
         #     os.remove(chk)
@@ -4552,7 +4552,10 @@ class VPT2Tests(TestCase):
 
         # coupled_states = self.get_states(5, n_modes, max_quanta=5)
 
-        with BlockProfiler("WaterTrimer", print_res=True):#, sort_by='tottime'):
+        with BlockProfiler("WaterTrimer", print_res=True,
+                           filter='BasisReps',
+                           strip_dirs=[os.path.expanduser(
+                               '~/Documents/UW/Research/Development/Psience/Psience/')]):  # , sort_by='tottime'):
             wfns = self.get_VPT2_wfns(
                 "water_trimer_freq.fchk",
                 internals,

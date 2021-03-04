@@ -321,19 +321,19 @@ class HarmonicProductOperatorTermEvaluator:
                 "*".join("({})".format(",".join(o.terms)) for o in self.ops)
             )
         def eval_states(self, states):
-            #
-            # if len(states) == 0:
-            #     raise ValueError("no states?")
+
+            if isinstance(states, BraKetSpace): # allows us to use this space as a hashing key
+                states = zip(*states.state_pairs)
 
             chunk = None
             for s, op in zip(states, self.ops):
                 # print(op)
-                blob = np.asarray(op(s))
+                blob = np.asanyarray(op(s))
                 if chunk is None:
                     if isinstance(blob, (int, np.integer, float, np.floating)):
                         chunk = np.array([blob])
                     else:
-                        chunk = np.asarray(blob)
+                        chunk = np.asanyarray(blob)
                 else:
                     chunk = chunk * blob
 
@@ -364,6 +364,8 @@ class HarmonicProductOperatorTermEvaluator:
                 if o == "p":
                     p_pos.append(i)
             self.p_pos = tuple(p_pos)
+            self._state_group_cache = {}
+            self._state_eval_cache = {}
 
         def __repr__(self):
             return "{}({})".format(
@@ -386,7 +388,33 @@ class HarmonicProductOperatorTermEvaluator:
             return list(range(-self.N, self.N+1, 2))
 
         def __call__(self, states):
+
             return self.evaluate_state_terms(states)
+
+        def state_pair_hash(self, states):
+            # we need something faster than unique and
+            # setdiff and all that so we'll try to write
+            # something which can be refined later
+            h1 = states[0].astype('int8')
+            h1.flags.writeable = False
+            h2 = states[1].astype('int8')
+            h2.flags.writeable = False
+            # raise Exception(h1.data, h2.data)
+            return (hash(h1.data.tobytes()), hash(h2.data.tobytes()))
+            # return (len(states[0]), np.max(states[0]), np.min(states[0]), np.max(states[1]), np.min(states[1]),)
+
+        def pull_state_groups(self, states):
+
+            deltas = states[1] - states[0]
+            delta_vals = np.unique(deltas)
+            delta_sels = [np.where(deltas == a) for a in delta_vals]
+            # delta_sels = []
+            # reminds = np.arange(len(deltas))
+            # for a in delta_vals:
+            #     woop = np.where(deltas[reminds] == a)
+            #     reminds = np.setdiff1d(reminds, woop[0])
+            #     delta_sels.append(woop)
+            return (delta_vals, delta_sels)
 
         def evaluate_state_terms(self, states):
             """
@@ -399,17 +427,35 @@ class HarmonicProductOperatorTermEvaluator:
             :rtype:
             """
 
-            # group possible
-            deltas = states[1] - states[0]
-            delta_vals = np.unique(deltas)
-            delta_sels = [np.where(deltas==a) for a in delta_vals]
+            h = self.state_pair_hash(states)
+            # might fuck things up from a memory perspective...
+            if h not in self._state_group_cache:
+                (delta_vals, delta_sels) = self.pull_state_groups(states)
 
-            biggo = np.zeros(states[0].shape)
-            for a, s in zip(delta_vals, delta_sels):
-                gen = self.load_generator(a)
-                og = states[0][s]
-                vals, inv = np.unique(og, return_inverse=True)
-                biggo[s] = gen(vals)[inv]
+                biggo = np.zeros(states[0].shape)
+                for a, s in zip(delta_vals, delta_sels):
+                    gen = self.load_generator(a)
+                    og = states[0][s]
+                    vals, inv = np.unique(og, return_inverse=True)
+                    biggo[s] = gen(vals)[inv]
+
+                self._state_group_cache[h] = biggo
+
+            return self._state_group_cache[h]
+
+            # (delta_vals, delta_sels) = self._state_group_cache[h]
+            #
+            # h = (np.sum(states[0]), np.sum(states[1]), len(states), np.min(states), np.max(states), tuple(delta_vals))
+            # if h in self._seen_states:
+            #     self._seen_states[h] += 1
+            #     if self._seen_states[h] % 5 == 0:
+            #         print(self._seen_states[h], h)
+            # else:
+            #     self._seen_states[h] = 1
+
+            # delta_sels = [np.where(deltas==a) for a in delta_vals]
+
+
 
             return biggo
 
