@@ -69,6 +69,19 @@ class Operator:
         self._parallelizer = parallelizer
         self.chunk_size = chunk_size
 
+    def clear_cache(self):
+        """
+        :return:
+        :rtype:
+        """
+
+        funcs = self.funcs
+        if not isinstance(funcs, tuple):
+            funcs = (funcs,)
+        for f in funcs:
+            if hasattr(f, 'clear_cache'):
+                f.clear_cache()
+
     @property
     def ndim(self):
         return self.fdim + self.mode_n
@@ -698,6 +711,10 @@ class ContractedOperator(Operator):
                 axes = (tuple(range(c.ndim)),) * 2
             subTensor = super().get_elements(idx, parallelizer=parallelizer)
 
+            # we collect here to minimize the effect of memory spikes if possible
+            # self.clear_cache()
+            # SparseArray.clear_cache()
+            gc.collect()
             if isinstance(subTensor, np.ndarray):
                 contracted = np.tensordot(subTensor.squeeze(), c, axes=axes)
             else:

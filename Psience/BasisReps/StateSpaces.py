@@ -7,6 +7,7 @@ import numpy as np, itertools as ip, enum, scipy.sparse as sp
 import abc
 
 from McUtils.Numputils import SparseArray
+from McUtils.Scaffolding import MaxSizeCache
 
 __all__ = [
     "BasisStateSpace",
@@ -344,7 +345,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         # then concatenate unique permutations for each and cast to numpy
         return np.array(
             sum((cls._unique_permutations(list(x)) for x in partitions[sorting,]), []),
-            dtype=int
+            dtype='int8'
         )
 
     @abc.abstractmethod
@@ -389,16 +390,16 @@ class BasisStateSpace(AbstractStateSpace):
 
         super().__init__(basis)
 
-        self._init_states = np.asarray(states, dtype=int)
+        self._init_states = np.asanyarray(states)#, dtype=int)
         if mode is not None and not isinstance(mode, self.StateSpaceSpec):
             mode = self.StateSpaceSpec(mode)
         self._init_state_types = mode
         self._indices = None
         self._excitations = None
         if self.infer_state_inds_type() == self.StateSpaceSpec.Indices:
-            self._indices = self._init_states
+            self._indices = self._init_states.astype(int)
         else:
-            self._excitations = self._init_states
+            self._excitations = self._init_states.astype('int8')
         self._indexer = None
 
     def to_state(self, serializer=None):
@@ -1113,17 +1114,17 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
 
-        og = space.excitations
+        og = space.excitations.astype('int8')
         excitations = np.full((len(og),), None, dtype=object)
 
         use_sparse = isinstance(permutations, SparseArray)
         if use_sparse:
             # we drop down to the scipy wrappers until I can improve broadcasting in SparseArray
-            og = sp.csc_matrix(og, dtype=int)
+            og = sp.csc_matrix(og, dtype='int8')
             permutations = permutations.data
 
         if filter_space is not None:
-            filter_exc = filter_space.excitations
+            filter_exc = filter_space.excitations.astype('int8')
             # two quick filters
             filter_min = np.min(filter_exc)
             filter_max = np.max(filter_exc)
@@ -1133,7 +1134,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             filter_min = 0
             filter_max = None
             filter_inds = None
-
 
         # and now we add these onto each of our states to build a new set of states
         for i, o in enumerate(og):
@@ -1202,7 +1202,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 for p in v:
                     p = list(p) + padding
                     perms.extend(cls._unique_permutations(p))
-        permutations = np.array(perms, dtype=int)
+        permutations = np.array(perms, dtype='int8')
 
         return permutations
 
@@ -1304,19 +1304,28 @@ class BraKetSpace:
     def __repr__(self):
         return "{}(nstates={})".format(type(self).__name__, len(self))
 
-    def load_non_orthog(self, use_preindex_trie=True, preindex_trie_depth=None):
+    def load_non_orthog(self,
+                        use_aggressive_caching=None,
+                        use_preindex_trie=None,
+                        preindex_trie_depth=None
+                        ):
         if self._orthogs is None:
 
             exc_l, exc_r = self.state_pairs
-            exc_l = np.asarray(exc_l, dtype=int)
-            exc_r = np.asarray(exc_r, dtype=int)
+            exc_l = np.asanyarray(exc_l)#, dtype='int8')
+            exc_r = np.asanyarray(exc_r)#, dtype='int8')
             womp = np.equal(exc_l, exc_r)
-            # we can add the Trie support later if we want to...
             if use_preindex_trie:
                 trie = self.OrthogoIndexerTrie(womp, max_depth=preindex_trie_depth)
             else:
                 trie = None
-            self._orthogs = self.OrthogonalIndexCalculator(womp, trie)
+
+            # caching version tries very hard to be clever, non-caching version
+            # only caches up to the specified trie depth
+            if use_aggressive_caching:
+                self._orthogs = self.CachingOrthogonalIndexCalculator(womp, trie)
+            else:
+                self._orthogs = self.OrthogonalIndexCalculator(womp, trie)
 
     class OrthogoIndexerTrie:
         """
@@ -1324,10 +1333,12 @@ class BraKetSpace:
         non-orthogonal excluding some subset of indices
         """
         default_max_depth=8 # more depth means faster evals but more memory; worth getting a trade-off here
-        def __init__(self, base_orthogs, max_depth=8):
+        def __init__(self, base_orthogs, max_depth=None):
             self.orthogs = base_orthogs
+            if max_depth is None:
+                max_depth = self.default_max_depth
             self.max_depth = max_depth
-            self.trie = {'idx':np.arange(len(self.orthogs[0]))}
+            self.trie = {}#{'idx':np.arange(len(self.orthogs[0]))}
 
         def get_idx_terms(self, idx):
             """
@@ -1342,21 +1353,42 @@ class BraKetSpace:
             """
             trie = self.trie
             tests = self.orthogs
-            for i in idx[:self.max_depth]:
-                if i not in trie:
-                    cur_idx = trie['idx']
-                    trie[i] = {'idx':cur_idx[tests[i, cur_idx]]}
-                trie = trie[i]
-            return trie['idx'], idx[self.max_depth:]
+            if len(idx) > 1:
+                # we explicilty calculate paths of length 1 because of the memory
+                # required to store them
+                for n,i in enumerate(idx[:self.max_depth]):
+                    if i not in trie:
+                        if n == 0:
+                            trie[i] = {}
+                        elif n == 1:
+                            cur_idx = np.where(tests[idx[0]])[0]
+                            trie[i] = {'idx': cur_idx[tests[i, cur_idx]]}
+                        else:
+                            cur_idx = trie['idx']
+                            trie[i] = {'idx': cur_idx[tests[i, cur_idx]]}
+                    trie = trie[i]
 
-    class OrthogonalIndexCalculator:
+                return trie['idx'], idx[self.max_depth:]
+            else:
+                vals = np.where(tests[idx[0]])[0]
+                return vals, ()
+                # idx_1 = np.arange(len(self.orthogs[0]))
+                # for i in idx[:self.max_depth]:
+                #     if i not in trie:
+                #         cur_idx = trie['idx']
+                #         trie[i] = {'idx':cur_idx[tests[i, cur_idx]]}
+                #     trie = trie[i]
+
+    class CachingOrthogonalIndexCalculator:
         """
         Provides a way to use Boolean algebra to construct new values from old values on
         the cheap
         """
+
         def __init__(self, eq_tests, trie):
             self.tests = eq_tests
-            self.cache = {}
+            self.pretest = eq_tests.flatten().all()
+            self.cache = {}#MaxSizeCache()
             self.trie = trie
 
         def get_idx_comp(self, item):
@@ -1370,6 +1402,8 @@ class BraKetSpace:
             :return:
             :rtype:
             """
+            if self.pretest:
+                return np.arange(len(self.tests[0]))
 
             # we first determine which sets of indices we've already
             # computed so that we can reuse that information
@@ -1379,7 +1413,7 @@ class BraKetSpace:
                 if i in cache:
                     cache = cache[i]
                 else:
-                    # we check if the we're only one element away from the end
+                    # we check if we're only one element away from the end
                     # i.e. if we can use the current cache info to efficiently calculate the
                     # next cache bit
                     if n == len(item) - 1 and 'vals' in cache:
@@ -1405,7 +1439,7 @@ class BraKetSpace:
                 # so now we either check to see if we've already computed the indices
                 if 'vals' not in cache:
                     # we see if we can compute this stuff from a later term
-                    for next_key in cache:
+                    for next_key in cache.keys():
                         if 'vals' in cache[next_key]:
                             break
                     else:
@@ -1452,18 +1486,29 @@ class BraKetSpace:
             cur_inds = cache['vals']
             next_tests = self.tests[inds[-1]]
 
-            # we can reuse the entirety of cur_inds, since the next case is just a relaxation on those
-            # the new positions we need to calculate are just the intersection of the complement of cur_inds and where
-            # next_tests fails...which is just the symmetric difference of where next_tests fails and cur_inds
+            if self.trie is not None:
+                # we use the trie to do an initial index filtering which allows
+                # us to do (potentially) even less work than before
+                unused = np.setdiff1d(np.arange(len(self.tests)), inds)
+                init_inds, rest = self.trie.get_idx_terms(unused)
+                init_inds = np.setdiff1d(init_inds, cur_inds)
+                init_inds = init_inds[np.logical_not(next_tests[init_inds])]
 
-            recalc_pos = np.setdiff1d(np.where(np.logical_not(next_tests))[0], cur_inds)
+                for e in rest:
+                    init_inds = init_inds[self.tests[e, init_inds]]
 
-            if self.trie is None:
-                recalcs = self._pull_nonorthog(inds, subinds=recalc_pos)
+                recalcs = init_inds
+
             else:
-                recalcs = self._pull_nonorthog_trie(inds, self.trie, subinds=recalc_pos)
+                # we can reuse the entirety of cur_inds, since the next case is just a relaxation on those
+                # the new positions we need to calculate are just the intersection of the complement of cur_inds and where
+                # next_tests fails...which is just the symmetric difference of where next_tests fails and cur_inds
+                recalc_pos = np.setdiff1d(np.where(np.logical_not(next_tests))[0], cur_inds)
 
-            # print(inds, len(recalcs), len(cur_inds), len(next_tests))
+                if self.trie is None:
+                    recalcs = self._pull_nonorthog(inds, subinds=recalc_pos)
+                else:
+                    recalcs = self._pull_nonorthog_trie(inds, self.trie, subinds=recalc_pos)
 
             return np.sort(np.concatenate([cur_inds, recalcs]), kind='mergesort') # this sort might kill any benefit...
 
@@ -1478,9 +1523,16 @@ class BraKetSpace:
             orthos = self.tests
             unused = np.delete(np.arange(len(orthos)), inds)
             if subinds is None:
-                return np.where(np.prod(orthos[unused], axis=0) == 1)[0]
+                cur_inds = np.where(self.tests[unused[0]])[0]
+                unused = unused[1:]
+                for e in unused:
+                    cur_inds = cur_inds[self.tests[e, cur_inds]]
+                return cur_inds
             else:
-                return subinds[np.prod(orthos[np.ix_(unused, subinds)], axis=0) == 1]
+                cur_inds = subinds
+                for e in unused:
+                    cur_inds = cur_inds[self.tests[e, cur_inds]]
+                return cur_inds
 
         def _pull_nonorthog_trie(self, inds, preindex_trie, subinds=None):
             orthos = self.tests
@@ -1488,26 +1540,82 @@ class BraKetSpace:
             init_inds, rest = preindex_trie.get_idx_terms(unused)
             if subinds is not None:
                 init_inds = np.intersect1d(init_inds, subinds)
-            # raise Exception(orthos[rest, init_inds].shape)
-            return init_inds[np.prod(orthos[np.ix_(rest, init_inds)], axis=0) == 1]
+            for e in rest:
+                init_inds = init_inds[self.tests[e, init_inds]]
+            return init_inds
 
-    def load_preindex_trie(self, tests, max_depth=4):
-        """
-        Loads the preindex trie we'll use to speed up non-orthogonality calcs.
-        If only a single non-orthog is needed, this probably isn't the way to go...
+    # def load_preindex_trie(self, tests, max_depth=None):
+    #     """
+    #     Loads the preindex trie we'll use to speed up non-orthogonality calcs.
+    #     If only a single non-orthog is needed, this probably isn't the way to go...
+    #
+    #     :param max_comp:
+    #     :type max_comp:
+    #     :param max_depth:
+    #     :type max_depth:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     if self._preind_trie is None:
+    #         self._preind_trie = self.OrthogoIndexerTrie(tests, max_depth=max_depth)
+    #     return self._preind_trie
 
-        :param max_comp:
-        :type max_comp:
-        :param max_depth:
-        :type max_depth:
-        :return:
-        :rtype:
-        """
-        if self._preind_trie is None:
-            self._preind_trie = self.OrthogoIndexerTrie(tests, max_depth=max_depth)
-        return self._preind_trie
+    class OrthogonalIndexSparseCalculator:
+        def __init__(self, orthogs):
+            self.tests = sp.csc_matrix(orthogs.T)
+            # if len(np.where(orthogs == 0)[0]) > 0:
+            #     raise Exception(self.tests.nnz, np.prod(self.tests.shape))
+        def get_idx_comp(self, inds):
+            nterms = self.tests.shape[1]
+            ninds = len(inds)
+            sampling_vector = np.ones(nterms)
+            sampling_vector[inds,] = 0
 
-    def get_non_orthog(self, inds, assume_unique=False, use_preindex_trie=True, preindex_trie_depth=None):
+            out = self.tests.dot(sampling_vector)
+            targ_val = nterms-ninds
+            return np.where(out==targ_val)[0]
+
+    def clear_cache(self):
+        self._orthogs = None
+
+    class OrthogonalIndexCalculator:
+        def __init__(self, tests, trie):
+            self.tests = tests # a bunch of t/f statements
+            self.pretest = tests.flatten().all()
+            self.trie = trie # cached prefiltering
+        def get_idx_comp(self, item):
+            """
+            :param item:
+            :type item:
+            :return:
+            :rtype:
+            """
+            if self.pretest:
+                return np.arange(len(self.tests[0]))
+
+            rest_inds = np.setdiff1d(np.arange(len(self.tests)), item)
+
+            if self.trie is None:
+                cur_inds = np.where(self.tests[rest_inds[0]])[0]
+                rest_inds = rest_inds[1:]
+            else:
+                cur_inds, rest_inds = self.trie.get_idx_terms(rest_inds)
+
+            for e in rest_inds:
+                # if len(item) > 3:
+                #     wat = np.where(self.tests[e, cur_inds])[0]
+                #     print("   ?", e, len(wat))
+                cur_inds = cur_inds[self.tests[e, cur_inds]]
+            # if len(item) > 3:
+            #     print("   >", cur_inds.shape)
+            return cur_inds
+    def get_non_orthog(self,
+                       inds,
+                       assume_unique=False,
+                       use_aggressive_caching=None,
+                       use_preindex_trie=None,
+                       preindex_trie_depth=None
+                       ):
         """
         Returns whether the states are non-orthogonal under the set of indices.
 
@@ -1520,14 +1628,12 @@ class BraKetSpace:
         if not assume_unique:
             inds = np.unique(inds)
 
-        self.load_non_orthog(use_preindex_trie=use_preindex_trie, preindex_trie_depth=preindex_trie_depth)
+        self.load_non_orthog(
+            use_aggressive_caching=use_aggressive_caching,
+            use_preindex_trie=use_preindex_trie,
+            preindex_trie_depth=preindex_trie_depth
+        )
         inds = tuple(np.sort(inds))
-
-            # if use_preindex_trie and len(inds) > 0: # we add the len check because diagonal shit doesn't need this...
-            #     preindex_trie = self.load_preindex_trie(max_depth=preindex_trie_depth)
-            #     self._orthogs[inds] = self._pull_nonorthog_trie(inds, preindex_trie)
-            # else:
-            #     self._orthogs[inds] = self._pull_nonorthog(inds)
 
         return self._orthogs.get_idx_comp(inds)
 
@@ -1590,10 +1696,16 @@ class BraKetSpace:
             self.kets.take_subdimensions(inds)
         )
 
-    def apply_non_orthogonality(self, inds, use_preindex_trie=True, assume_unique=False):
+    def apply_non_orthogonality(self,
+                                inds,
+                                use_aggressive_caching=True,
+                                use_preindex_trie=True,
+                                preindex_trie_depth=None,
+                                assume_unique=False
+                                ):
         """
-        Takes the bra-ket pairs that are non-orthogonal under the
-        indices `inds`
+        Takes the bra-ket pairs that are non-orthogonal under the indices `inds`
+
         :param inds:
         :type inds:
         :param assume_unique:
@@ -1601,7 +1713,12 @@ class BraKetSpace:
         :return:
         :rtype:
         """
-        non_orthog = self.get_non_orthog(inds, assume_unique=assume_unique, use_preindex_trie=use_preindex_trie)
+        non_orthog = self.get_non_orthog(inds,
+                                         use_aggressive_caching=use_aggressive_caching,
+                                         assume_unique=assume_unique,
+                                         use_preindex_trie=use_preindex_trie,
+                                         preindex_trie_depth=preindex_trie_depth
+                                         )
         return self.take_subspace(non_orthog), non_orthog
 
     def apply_sel_rules(self, rules):

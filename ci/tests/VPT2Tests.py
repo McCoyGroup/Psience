@@ -3721,7 +3721,7 @@ class VPT2Tests(TestCase):
     #endregion Methane
 
     #region Water Clusters
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4537,7 +4537,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @debugTest
+    @validationTest
     def test_WaterTrimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 

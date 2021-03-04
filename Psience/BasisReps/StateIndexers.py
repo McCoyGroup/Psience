@@ -305,7 +305,7 @@ class PermutationStateIndexer(BaseStateIndexer):
             """
 
             if len(inds) == 0:
-                return np.array([], dtype=int)
+                return np.array([], dtype='int8')
 
             if not assume_sorted:
                 sorting = np.argsort(inds)
@@ -328,7 +328,7 @@ class PermutationStateIndexer(BaseStateIndexer):
                     self
                 ))
 
-            perms = np.array(perms, dtype=int)
+            perms = np.array(perms, dtype='int8')
             if sorting is not None:
                 perms = perms[np.argsort(sorting)]
 
@@ -353,7 +353,10 @@ class PermutationStateIndexer(BaseStateIndexer):
         """
 
         if num not in self.partitioning_cache:
-            partitions = np.array([list(reversed(x))+[0]*(self.ndim - len(x)) for x in self._accel_asc(num) if len(x) <= self.ndim])
+            partitions = np.array(
+                [list(reversed(x))+[0]*(self.ndim - len(x)) for x in self._accel_asc(num) if len(x) <= self.ndim],
+                dtype='int8'
+            )
             sorting = np.lexsort(partitions.T)
             indexers = [ self.PartitionPermutationIndexer(x) for x in partitions[sorting,] ]
             total_dim = np.sum([x.total_states for x in indexers])
@@ -421,7 +424,7 @@ class PermutationStateIndexer(BaseStateIndexer):
                 sort_classes = np.array([
                     np.concatenate([-np.flip(s), np.flip(z), [c[0]]])
                     for c, s, z in zip(state_dat, states, np.sort(states, axis=-1))
-                ], dtype=int)
+                ], dtype='int8')
                 lexxy = np.lexsort(sort_classes.T)
                 state_dat = state_dat[lexxy]
                 states = states[lexxy]
@@ -521,14 +524,14 @@ class PermutationStateIndexer(BaseStateIndexer):
         """
 
         og = inds
-        res = np.full((len(inds), self.ndim), -1, dtype=int)
+        res = np.full((len(inds), self.ndim), -1, dtype='int8')
         block_skips = 0
         block_start = 0
         for indexer in indexers:
             # figure out how many states this indexer supports
             block_size = indexer.total_states
             block_end = block_start + block_size
-            block_inds = np.array(np.where(inds < block_end)[0], dtype=int)
+            block_inds = np.where(inds < block_end)[0]
             # we know things are sorted, so we add a constant skip
             # on before sticking back into the res array
             if len(block_inds) > 0:
@@ -568,8 +571,8 @@ class PermutationStateIndexer(BaseStateIndexer):
 
         # we'll pre-sort this so that we can be
         # more efficient in how we apply the algorithm
-        rem_inds, inverse = np.unique(np.asarray(indices, dtype=int), return_inverse=True)
-        res = np.full((len(rem_inds), self.ndim), -1, dtype=int)
+        rem_inds, inverse = np.unique(np.asanyarray(indices, dtype=int), return_inverse=True)
+        res = np.full((len(rem_inds), self.ndim), -1, dtype='int8')
         n = 0
         block_skips=0
         while len(rem_inds)>0 and n < self.max_quants:
@@ -579,7 +582,7 @@ class PermutationStateIndexer(BaseStateIndexer):
             prev_num, block_num, indexers = self.integer_partitions(n)
             # we can be more efficient than this, but in the aggregate
             # it won't be significant I think
-            block_inds = np.array(np.where(rem_inds < block_num)[0], dtype=int)
+            block_inds = np.where(rem_inds < block_num)[0]
             # we know things are sorted, so we add a constant skip
             # on before sticking back into the res array
             res_inds = block_inds + block_skips
