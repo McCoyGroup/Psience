@@ -16,6 +16,11 @@ __init__(self, compute, basis, logger=None):
 - `logger`: `None | Logger`
     >logger for printing out debug info
 
+<a id="Psience.BasisReps.Terms.Representation.clear_cache" class="docs-object-method">&nbsp;</a>
+```python
+clear_cache(self): 
+```
+
 <a id="Psience.BasisReps.Terms.Representation.diag" class="docs-object-method">&nbsp;</a>
 ```python
 @property

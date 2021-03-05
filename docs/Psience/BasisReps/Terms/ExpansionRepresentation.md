@@ -14,6 +14,11 @@ __init__(self, coeffs, computers, basis, logger=None):
 - `n_quanta`: `tuple[int]`
     >the total quanta used in the representations (necessary for shape reasons)
 
+<a id="Psience.BasisReps.Terms.ExpansionRepresentation.clear_cache" class="docs-object-method">&nbsp;</a>
+```python
+clear_cache(self): 
+```
+
 <a id="Psience.BasisReps.Terms.ExpansionRepresentation.__rmul__" class="docs-object-method">&nbsp;</a>
 ```python
 __rmul__(self, other): 

@@ -18,6 +18,14 @@ __init__(self, funcs, quanta, prod_dim=None, symmetries=None, selection_rules=No
 - `symmetries`: `Iterable[int] | None`
     >Labels for the funcs where if two funcs share a label they are symmetry equivalent
 
+<a id="Psience.BasisReps.Operators.Operator.clear_cache" class="docs-object-method">&nbsp;</a>
+```python
+clear_cache(self): 
+```
+
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.BasisReps.Operators.Operator.ndim" class="docs-object-method">&nbsp;</a>
 ```python
 @property
