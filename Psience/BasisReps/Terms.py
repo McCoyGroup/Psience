@@ -47,6 +47,13 @@ class Representation:
             logger = NullLogger()
         self.logger=logger
 
+    def clear_cache(self):
+        # print(">>>>>>>>>>>>> wat", self.compute, self.operator)
+        if self.operator is not None:
+            # print("?????")
+            self.operator.clear_cache()
+        elif hasattr(self.compute, 'clear_cache'):
+            self.compute.clear_cache()
     def _compute_op_els(self, inds):
         return self.operator[inds] #compute: c[inds]
 
@@ -280,6 +287,10 @@ class ExpansionRepresentation(Representation):
         self.coeffs = np.array(coeffs)
         self.computers = [Representation(c, basis) if not isinstance(c, Representation) else c for c in computers]
         super().__init__(None, basis, logger=logger)
+
+    def clear_cache(self):
+        for c in self.computers:
+            c.clear_cache()
 
     def __rmul__(self, other):
         if isinstance(other, (int, float, np.integer, np.floating)):

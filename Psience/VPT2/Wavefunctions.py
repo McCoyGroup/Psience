@@ -110,7 +110,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             sub = h[m_pairs]
             if isinstance(sub, SparseArray):
                 sub = sub.asarray()
-            SparseArray.clear_caches()
+            SparseArray.clear_cache()
         else:
             logger.log_print('no states to couple!')
             sub = 0

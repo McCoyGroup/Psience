@@ -415,6 +415,7 @@ class PerturbationTheoryHamiltonian:
         nits = order - 1
         if nits >= 0:
             # the states that can be coupled through H1
+            self.logger.log_print('getting states coupled through H^(1)')
             transitions_h1 = self.basis.selection_rules("x", "x", "x")
             h1_space = states.apply_selection_rules(
                 transitions_h1,
@@ -422,6 +423,7 @@ class PerturbationTheoryHamiltonian:
             )
 
             # from second order corrections
+            self.logger.log_print('getting states coupled through H^(2)')
             transitions_h2 = self.basis.selection_rules("x", "x", "x", "x")
             h2_space = states.apply_selection_rules(
                 transitions_h2,
@@ -699,10 +701,9 @@ class PerturbationTheoryHamiltonian:
         from collections import OrderedDict
         from .Wavefunctions import PerturbationTheoryWavefunctions
 
-        if self.logger is not None:
-            self.logger.log_print("Computing PT breakdown:", padding="")
-            start = time.time()
-            self.logger.log_print("getting coupled states...")
+        self.logger.log_print("Computing PT breakdown:", padding="")
+        start = time.time()
+        self.logger.log_print("getting coupled states...")
 
         states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies)
 

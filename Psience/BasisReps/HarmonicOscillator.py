@@ -206,12 +206,13 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
             ",".join(str(x) for x in self.dimensions)
         )
 
+default_cache_size = 128
 class HarmonicProductOperatorTermEvaluator:
     """
     A simple class that can be used to directly evaluate any operator built as a product of `p` and `x` terms.
     Automatically dispatches to provide different permutations.
     """
-    _cache = MaxSizeCache()
+
     def __init__(self, terms):
         """
         :param terms: list of 'x' and 'p' terms
@@ -233,6 +234,22 @@ class HarmonicProductOperatorTermEvaluator:
         self.is_complex = len(p_pos) % 2 == 1
         if self.is_complex:
             raise ValueError("For simplicity, complex-valued operators not supported right now")
+
+    _operator_cache = None
+    _operator_cache_size = default_cache_size
+    @classmethod
+    def clear_cache(cls):
+        cls.TermEvaluator1D.clear_cache()
+        cls._operator_cache = MaxSizeCache(cls._operator_cache_size)
+    @classmethod
+    def set_cache_size(cls, new_size):
+        cls._eval_cache_size = new_size
+        cls._operator_cache = cls.get_operator_cache()[:new_size]
+    @classmethod
+    def get_operator_cache(cls):
+        if cls._operator_cache is None:
+            cls.clear_cache()
+        return cls._operator_cache
 
     def take_suboperator(self, inds):
         """
@@ -265,13 +282,14 @@ class HarmonicProductOperatorTermEvaluator:
 
         term_spec = tuple(tuple(t) for t in ind_map.values())
 
-        if term_spec in self._cache:
-            prop = self._cache[term_spec]
+        cache = self.get_operator_cache()
+        if term_spec in cache:
+            prop = cache[term_spec]
         else:
             terms_1D = [self.TermEvaluator1D.load_cached(terms) for terms in term_spec]
             uinds = list(ind_map.keys())
             prop = self.ProdOp(terms_1D, uinds, self.i_phase, self.is_complex)
-            self._cache[term_spec] = prop
+            cache[term_spec] = prop
 
         return prop
     @property
@@ -354,7 +372,9 @@ class HarmonicProductOperatorTermEvaluator:
         All of the overall `(-i)^N` info is in the `ProdOp` class that's expected to hold this.
         Only maintains phase info & calculates elements.
         """
-        _evaluators = MaxSizeCache()
+
+
+        state_cache_size = default_cache_size
         def __init__(self, terms):
             self.terms = terms
             self.N = len(terms)
@@ -364,8 +384,7 @@ class HarmonicProductOperatorTermEvaluator:
                 if o == "p":
                     p_pos.append(i)
             self.p_pos = tuple(p_pos)
-            self._state_group_cache = {}
-            self._state_eval_cache = {}
+            self._state_group_cache = MaxSizeCache(self.state_cache_size)
 
         def __repr__(self):
             return "{}({})".format(
@@ -373,8 +392,19 @@ class HarmonicProductOperatorTermEvaluator:
                 ", ".join(self.terms)
             )
 
+        _eval_cache_size = default_cache_size
+        _evaluators = None
+        @classmethod
+        def clear_cache(cls):
+            cls._evaluators = MaxSizeCache(cls._eval_cache_size)
+        @classmethod
+        def set_cache_size(cls, new_size):
+            cls._eval_cache_size = new_size
+            cls._evaluators = cls._evaluators[:new_size]
         @classmethod
         def load_cached(cls, terms):
+            if cls._evaluators is None:
+                cls.clear_cache() # lol
             if terms in cls._evaluators:
                 eval = cls._evaluators[terms]
             else:
@@ -388,16 +418,14 @@ class HarmonicProductOperatorTermEvaluator:
             return list(range(-self.N, self.N+1, 2))
 
         def __call__(self, states):
-
             return self.evaluate_state_terms(states)
 
         def state_pair_hash(self, states):
-            # we need something faster than unique and
-            # setdiff and all that so we'll try to write
-            # something which can be refined later
-            h1 = states[0].astype('int8')
+            # we use a hash to avoid recomputing harmonic terms
+            # whether or not this is the best hash is certainly up for debate
+            h1 = states[0]
             h1.flags.writeable = False
-            h2 = states[1].astype('int8')
+            h2 = states[1]
             h2.flags.writeable = False
             # raise Exception(h1.data, h2.data)
             return (hash(h1.data.tobytes()), hash(h2.data.tobytes()))
@@ -443,22 +471,6 @@ class HarmonicProductOperatorTermEvaluator:
 
             return self._state_group_cache[h]
 
-            # (delta_vals, delta_sels) = self._state_group_cache[h]
-            #
-            # h = (np.sum(states[0]), np.sum(states[1]), len(states), np.min(states), np.max(states), tuple(delta_vals))
-            # if h in self._seen_states:
-            #     self._seen_states[h] += 1
-            #     if self._seen_states[h] % 5 == 0:
-            #         print(self._seen_states[h], h)
-            # else:
-            #     self._seen_states[h] = 1
-
-            # delta_sels = [np.where(deltas==a) for a in delta_vals]
-
-
-
-            return biggo
-
 
         def load_generator(self, a):
             # print(a)
@@ -470,7 +482,6 @@ class HarmonicProductOperatorTermEvaluator:
             return gen
 
         _partitions_cache = MaxSizeCache()
-
         @staticmethod
         def _unique_permutations(elements):
             """

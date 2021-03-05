@@ -586,7 +586,7 @@ class PerturbationTheorySolver:
         with par:  # we put an outermost block here to just make sure everything is clean
 
             diag_inds = BraKetSpace(self.flat_total_space, self.flat_total_space)
-            N = len(self.flat_total_space)
+            # N = len(self.flat_total_space)
 
             H = [np.zeros(1)] * len(self.perts)
             with logger.block(tag="getting H0"):
@@ -597,6 +597,7 @@ class PerturbationTheorySolver:
                 H[0] = SparseArray.from_diag(diag)
                 end = time.time()
                 logger.log_print("took {t:.3f}s", t=end - start)
+                self.perts[0].clear_cache()
 
             # print(flat_total_space.indices)
             for i, h in enumerate(self.perts[1:]):
@@ -605,9 +606,10 @@ class PerturbationTheorySolver:
                 with logger.block(tag="getting H" + str(i + 1)):
                     start = time.time()
                     H[i + 1] = self._build_representation_matrix(h, cs)
+                    h.clear_cache()
+                    # cs.clear_cache()
                     end = time.time()
                     logger.log_print("took {t:.3f}s", t=end - start)
-
 
             return H
 
@@ -628,7 +630,7 @@ class PerturbationTheorySolver:
         if len(m_pairs) > 0:
             logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
             sub = h[m_pairs]
-            SparseArray.clear_caches()
+            SparseArray.clear_cache()
         else:
             logger.log_print('no states to couple!')
             sub = 0
