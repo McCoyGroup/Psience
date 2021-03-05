@@ -564,6 +564,22 @@ class PerturbationTheoryHamiltonian:
             from .Wavefunctions import PerturbationTheoryWavefunctions
 
             with self.logger.block(tag='Computing PT corrections:'):
+
+                self.logger.log_print(
+                    [
+                        "states: {state_num}",
+                        "order: {ord}",
+                    ],
+                    ord=order,
+                    state_num=len(states),
+                )
+
+                h_reps = self.perturbations
+                self.logger.log_print(
+                        "perturbations: {pert_num}",
+                    pert_num=len(h_reps) - 1,
+                )
+
                 with self.logger.block(tag='getting coupled states'):
                     start = time.time()
                     states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies,
@@ -571,23 +587,15 @@ class PerturbationTheoryHamiltonian:
                     end = time.time()
                     self.logger.log_print("took {t}s...", t=round(end - start, 3))
 
-                h_reps = self.perturbations
-                if self.logger is not None:
-                    bs = []
-                    for b in coupled_states:
-                        bs.append(b.unique_len)
-                    self.logger.log_print(
-                        [
-                            "perturbations: {pert_num}",
-                            "order: {ord}",
-                            "states: {state_num}",
-                            "basis sizes {basis_size}"
-                        ],
-                        pert_num=len(h_reps) - 1,
-                        ord=order,
-                        state_num=len(states),
-                        basis_size=bs
-                    )
+                bs = []
+                for b in coupled_states:
+                    bs.append(b.unique_len)
+                self.logger.log_print(
+                    [
+                        "basis sizes {basis_size}"
+                    ],
+                    basis_size=bs
+                )
 
                 solver = PerturbationTheorySolver(h_reps, states, coupled_states, order,
                                                  degeneracy_spec=degeneracies,
