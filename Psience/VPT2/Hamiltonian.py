@@ -23,6 +23,7 @@ __all__ = [
 
 __reload_hook__ = [ "..BasisReps" , '.Terms', ".Solver", "..Molecools", ]
 
+
 class PerturbationTheoryHamiltonian:
     """
     Represents the main Hamiltonian used in the perturbation theory calculation.
@@ -414,9 +415,12 @@ class PerturbationTheoryHamiltonian:
 
         nits = order - 1
         if nits >= 0:
+
+            transitions_h1 = self.basis.selection_rules("x", "x", "x")
+            transitions_h2 = self.basis.selection_rules("x", "x", "x", "x")
+
             # the states that can be coupled through H1
             self.logger.log_print('getting states coupled through H^(1)')
-            transitions_h1 = self.basis.selection_rules("x", "x", "x")
             h1_space = states.apply_selection_rules(
                 transitions_h1,
                 iterations=(order - 1)
@@ -424,11 +428,12 @@ class PerturbationTheoryHamiltonian:
 
             # from second order corrections
             self.logger.log_print('getting states coupled through H^(2)')
-            transitions_h2 = self.basis.selection_rules("x", "x", "x", "x")
             h2_space = states.apply_selection_rules(
                 transitions_h2,
                 iterations=(order - 1)
             )
+
+
         else:
             h1_space = states.take_states([])
             h2_space = states.take_states([])
@@ -449,6 +454,8 @@ class PerturbationTheoryHamiltonian:
         :return:
         :rtype:
         """
+
+        raise NotImplementedError("gotta fix this...")
 
         with self.logger.block(tag='Computing PT corrections:'):
             with self.logger.block(tag='getting coupled states'):
@@ -472,7 +479,8 @@ class PerturbationTheoryHamiltonian:
                                states,
                                coupled_states=None,
                                degeneracies=None,
-                               order=2
+                               order=2,
+                               deg_extra_order=2
                                ):
         """
         Converts the input state specs into proper `BasisStateSpace` specs that
@@ -493,11 +501,32 @@ class PerturbationTheoryHamiltonian:
         if not isinstance(states, BasisStateSpace):
             states = BasisStateSpace(self.basis, states)
 
+        no_states_to_start = coupled_states is None
+
         coupled_states = self._prep_coupled_states(states, coupled_states, order)
 
-        # degeneracies = self._prep_degeneracies_spec(degeneracies)
+        # raise Exception(coupled_states)
 
-        return states, coupled_states, degeneracies
+        space_list = [states] + list(coupled_states)
+        total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
+        flat_total_space = total_space.to_single().take_unique()
+
+        degeneracies = DegenerateMultiStateSpace.from_spec(self, states, flat_total_space, degeneracies)
+
+        if no_states_to_start and degeneracies is not None:
+            for g in degeneracies:
+                if len(g) > 1: # these states can now couple to many more states through indirect couplings
+                    extra_states = self.get_coupled_space(g, order+2) # we
+                    g_inds = tuple(states.find(g))
+                    for c, e in zip(coupled_states, extra_states):
+                        for i, s in zip(g_inds, e):
+                            c[i] = s
+
+        space_list = [states] + list(coupled_states)
+        total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
+        flat_total_space = total_space.to_single().take_unique()
+
+        return states, coupled_states, total_space, flat_total_space, degeneracies
 
     def _prep_coupled_states(self, states, coupled_states, order):
         """
@@ -514,7 +543,7 @@ class PerturbationTheoryHamiltonian:
         """
         if coupled_states is None or isinstance(coupled_states, (int, np.integer, float, np.floating)):
             # pull the states that we really want to couple
-            coupled_states = self.get_coupled_space(states, order
+            coupled_states = self.get_coupled_space(states, order,
                                                     # freqs=self.modes.freqs,
                                                     # freq_threshold=coupled_states
                                                     )
@@ -580,30 +609,26 @@ class PerturbationTheoryHamiltonian:
                     pert_num=len(h_reps) - 1,
                 )
 
-                with self.logger.block(tag='getting coupled states'):
-                    start = time.time()
-                    states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies,
-                                                                                       order=order)
-                    end = time.time()
-                    self.logger.log_print("took {t}s...", t=round(end - start, 3))
+                # with self.logger.block(tag='getting coupled states'):
+                #     start = time.time()
+                #     states, coupled_states, total_space, flat_space, degeneracies = self.get_input_state_spaces(states,
+                #                                                                        coupled_states,
+                #                                                                        degeneracies,
+                #                                                                        order=order)
+                #     end = time.time()
+                #     self.logger.log_print("took {t}s...", t=round(end - start, 3))
+                if not isinstance(states, BasisStateSpace):
+                    states = BasisStateSpace(self.basis, states)
 
-                bs = []
-                for b in coupled_states:
-                    bs.append(b.unique_len)
-                self.logger.log_print(
-                    [
-                        "basis sizes {basis_size}"
-                    ],
-                    basis_size=bs
-                )
-
-                solver = PerturbationTheorySolver(h_reps, states, coupled_states, order,
-                                                 degeneracy_spec=degeneracies,
-                                                 logger=self.logger,
-                                                 checkpointer=self.checkpointer,
-                                                 allow_sakurai_degs=True,
-                                                 allow_post_PT_calc=True
-                                                 )
+                solver = PerturbationTheorySolver(h_reps, states,
+                                                  order=order,
+                                                  coupled_states=coupled_states,
+                                                  degenerate_states=degeneracies,
+                                                  logger=self.logger,
+                                                  checkpointer=self.checkpointer,
+                                                  allow_sakurai_degs=True,
+                                                  allow_post_PT_calc=True
+                                                  )
                 corrs = solver.apply_VPT()
 
         return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, logger=self.logger)

@@ -420,7 +420,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
                     with logger.block(tag="calculating corrections..."):
                         start = time.time()
-                        for q in range(order+1):  # total quanta
+                        for q in range(order):  # total quanta
                             terms = []
                             for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
                                 if i + j + k == q:
@@ -444,6 +444,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                                         new.reshape((len(low_spec), len(up_spec))
                                                     ))
                                     # raise Exception(new.toarray())
+                            # print(q, a)
                             transition_moment_components[q][a] = terms
 
                         end = time.time()

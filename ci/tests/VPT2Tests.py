@@ -2,6 +2,8 @@ from Peeves.TestUtils import *
 from Peeves import Timer, BlockProfiler
 from unittest import TestCase
 from Psience.VPT2 import *
+from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
+
 from McUtils.Data import UnitsData
 from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
 import sys, os, numpy as np, itertools as ip
@@ -182,7 +184,6 @@ class VPT2Tests(TestCase):
         )[0]
 
     def get_states(self, n_quanta, n_modes, max_quanta = None):
-        from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
 
         return [np.flip(x) for x in BasisStateSpace.from_quanta(
             HarmonicOscillatorProductBasis(n_modes),
@@ -2305,12 +2306,25 @@ class VPT2Tests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs[:sigh] - gaussian_freqs[:sigh])), 1.5)
 
-    @inactiveTest
+    @debugTest
     def test_HOHVPTCartesiansDegenerate(self):
 
         internals = None
 
+        basis = HarmonicOscillatorProductBasis(3)
+
         states = self.get_states(3, 3)
+
+        # raise Exception([states[w] for w in [4, 5, 21, 22, 31]])
+
+        # raise Exception([
+        #     BasisStateSpace(basis, self.get_states(6, 3)).apply_selection_rules(
+        #         basis.selection_rules("x", "x", "x")
+        #     ),
+        #     BasisStateSpace(basis, self.get_states(6, 3)).apply_selection_rules(
+        #         basis.selection_rules("x", "x", "x", "x")
+        #     )
+        # ])
 
         wfns = self.get_VPT2_wfns(
             "HOH_freq.fchk",
@@ -2327,7 +2341,14 @@ class VPT2Tests(TestCase):
             # , apply_variational
             , degeneracies=([[0, 0, 2], [0, 2, 0], [0, 1, 1]],)
             # degeneracies=100/self.h2w # any pair of states within 100 wavenumbers can be treated as degenerate
-            # , coupled_states = self.get_states(5, 3)
+            # , coupled_states = [
+            #     BasisStateSpace(basis, self.get_states(10, 3)).apply_selection_rules(
+            #         basis.selection_rules("x", "x", "x")
+            #     ),
+            #     BasisStateSpace(basis, self.get_states(6, 3)).apply_selection_rules(
+            #         basis.selection_rules("x", "x", "x", "x")
+            #     )
+            # ]
             # , v3=0
             # , v4=0
         )
@@ -2399,7 +2420,7 @@ class VPT2Tests(TestCase):
                       zip(states[1:], my_freqs[:sigh] - gaussian_freqs[:sigh])
                   )
                   )
-        self.assertLess(np.max(np.abs(my_freqs[:sigh] - gaussian_freqs[:sigh])), 100)
+        self.assertLess(np.max(np.abs(my_freqs[:sigh] - gaussian_freqs[:sigh])), 15)
 
     @validationTest
     def test_HOHVPTInternalsDegenerate(self):
@@ -2859,7 +2880,7 @@ class VPT2Tests(TestCase):
 
     #region Formaldehyde Analogs
 
-    @inactiveTest
+    @validationTest
     def test_OCHHVPTInternals(self):
 
         internals = [
@@ -2875,37 +2896,20 @@ class VPT2Tests(TestCase):
             n_modes = len(mode_selection)
 
         states = self.get_states(2, n_modes)
-        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
+        # coupled_states = self.get_states(9, n_modes)
+        coupled_states=None
 
-        def block(self=self,
-                  internals=internals,
-                  states=states,
-                  coupled_states=None,#coupled_states,
-                  mode_selection=mode_selection
-                  ):
-            return self.get_VPT2_wfns(
+        with BlockProfiler("", print_res=False):
+            wfns = self.get_VPT2_wfns(
                 "OCHH_freq.fchk",
                 internals,
                 states,
+                log=True,
                 regenerate=True,
                 coupled_states=coupled_states,
                 mode_selection=mode_selection
             )
 
-        # block()
-        exc, stat_block, wfns = self.profile_block(block)
-
-        do_profile = False
-        if do_profile:
-            if exc is not None:
-                try:
-                    raise exc
-                except:
-                    raise Exception(stat_block)
-            else:
-                raise Exception(stat_block)
-        elif exc is not None:
-            raise exc
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         engs = h2w * wfns.energies
@@ -2929,24 +2933,24 @@ class VPT2Tests(TestCase):
             [2504.328,    2459.646],
             [2376.227,    2327.621],
             # mixed states
-            [6039.342,    5586.305],
-            [4788.784,    4589.165],
-            [4704.723,    4510.744],
-            [4588.742,    4374.903],
-            [4504.681,    4278.834],
-            [3254.123,    3181.610],
-            [4313.865,    4114.701],
-            [4229.804,    4043.264],
-            [2979.247,    2967.726],
-            [2779.205,    2710.416],
-            [4249.815,    4043.462],
-            [4165.754,    3978.440],
-            [2915.196,    2854.766],
-            [2715.155,    2657.682],
-            [2440.278,    2404.805]
+            [6039.342, 5586.305],
+            [4788.784, 4589.165],
+            [4588.742, 4374.903],
+            [4313.865, 4114.701],
+            [4249.815, 4043.462],
+            [4704.723, 4510.744],
+            [4504.681, 4278.834],
+            [4229.804, 4043.264],
+            [4165.754, 3978.440],
+            [3254.123, 3181.610],
+            [2979.247, 2967.726],
+            [2915.196, 2854.766],
+            [2779.205, 2710.416],
+            [2715.155, 2657.682],
+            [2440.278, 2404.805]
         ])
 
-        print_report = False
+        print_report = True
         if print_report:
             if n_modes == 6:
                 print("Gaussian Energies:\n",
@@ -2982,7 +2986,7 @@ class VPT2Tests(TestCase):
             np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
             1)
 
-    @inactiveTest
+    @validationTest
     def test_OCHHVPTCartesians(self):
 
         internals = None
@@ -2992,13 +2996,13 @@ class VPT2Tests(TestCase):
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
 
-        states = self.get_states(2, n_modes)
+        states = self.get_states(3, n_modes)
         coupled_states = self.get_states(5, n_modes, max_quanta=5)
 
         def block(self=self,
                   internals=internals,
                   states=states,
-                  coupled_states=coupled_states,
+                  # coupled_states=coupled_states,
                   mode_selection=mode_selection
                   ):
             return self.get_VPT2_wfns(
@@ -3007,7 +3011,9 @@ class VPT2Tests(TestCase):
                 states,
                 regenerate=True,
                 coupled_states=coupled_states,
-                mode_selection=mode_selection
+                mode_selection=mode_selection,
+                log=True
+                # , degeneracies=([[0, 0, 0, 0, 1, 0], [0, 1, 0, 1, 0, 0]],)
                 # , degeneracies=(
                 #     coupled_states.index((0, 0, 0, 0, 0, 1)),
                 #     coupled_states.index((0, 0, 2, 0, 0, 0))
@@ -3053,22 +3059,22 @@ class VPT2Tests(TestCase):
             # mixed states
             [6039.342,    5586.305],
             [4788.784,    4589.165],
-            [4704.723,    4510.744],
             [4588.742,    4374.903],
-            [4504.681,    4278.834],
-            [3254.123,    3181.610],
             [4313.865,    4114.701],
-            [4229.804,    4043.264],
-            [2979.247,    2967.726],
-            [2779.205,    2710.416],
             [4249.815,    4043.462],
+            [4704.723,    4510.744],
+            [4504.681,    4278.834],
+            [4229.804,    4043.264],
             [4165.754,    3978.440],
+            [3254.123,    3181.610],
+            [2979.247,    2967.726],
             [2915.196,    2854.766],
+            [2779.205,    2710.416],
             [2715.155,    2657.682],
             [2440.278,    2404.805]
         ])
 
-        print_report = False
+        print_report = True
         if print_report:
             if n_modes == 6:
                 print("Gaussian Energies:\n",
@@ -3721,7 +3727,7 @@ class VPT2Tests(TestCase):
     #endregion Methane
 
     #region Water Clusters
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 

@@ -57,7 +57,7 @@ class Operator:
             prod_dim = len(funcs)
         self.fdim = prod_dim
         self.funcs = funcs
-        self.sel_rules = selection_rules
+        self.selection_rules = selection_rules
         self.symmetry_inds = symmetries
         self.quanta = tuple(quanta)
         self.mode_n = len(quanta)
@@ -444,7 +444,7 @@ class Operator:
         """
 
         res = np.apply_along_axis(self._calculate_single_pop_elements,
-                                  -1, inds, self.funcs, idx, self.sel_rules
+                                  -1, inds, self.funcs, idx, self.selection_rules
                                   )
         if save_to_disk:
             flattened = [x for y in res.flatten() for x in y]
@@ -653,6 +653,18 @@ class Operator:
             self._get_dim_string(self.shape),
             self.funcs
         )
+
+    def get_transformed_space(self, base_space):
+        """
+        Returns the space one would get from applying
+        the selection rules from this operator
+
+        :param base_space:
+        :type base_space: BasisStateSpace
+        :return:
+        :rtype:
+        """
+        return base_space.apply_selection_rules(self.selection_rules)
 
 class ContractedOperator(Operator):
     """

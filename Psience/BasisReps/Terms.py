@@ -271,6 +271,41 @@ class Representation:
             self.operator if self.operator is not None else self.compute
         )
 
+    @property
+    def selection_rules(self):
+        """
+
+        :return:
+        :rtype:
+        """
+        if self.operator is not None:
+            return self.operator.selection_rules
+        else:
+            return None
+
+
+    @property
+    def selection_rule(self):
+        if self.operator is not None:
+            return self.operator.selection_rules
+        else:
+            raise ValueError("can't get a selection rules without a held operator")
+    def get_transformed_space(self, space):
+        """
+        Returns the state space obtained by using the
+        held operator to transform `space`
+
+        :param space:
+        :type space:
+        :return:
+        :rtype:
+        """
+        if self.operator is not None:
+            return self.operator.get_transformed_space(space)
+        else:
+            raise ValueError("can't get a transformed space without a held operator")
+
+
 class ExpansionRepresentation(Representation):
     """
     Provides support for terms that look like `1/2 pGp + 1/2 dV/dQdQ QQ` by computing each term on its own
@@ -390,6 +425,29 @@ class ExpansionRepresentation(Representation):
 
     def get_element(self, n, m):
         return self._dispatch_over_expansion('get_element', n, m)
+
+    def get_transformed_space(self, space):
+        """
+        Returns the state space obtained by using the
+        held operators to transform `space`
+
+        :param space:
+        :type space: BasisStateSpace
+        :return:
+        :rtype:
+        """
+        import functools
+
+        # we take a union of all transformation rules and just apply that
+        # if possible
+        if all(hasattr(x, 'selection_rules') for x in self.computers):
+            total_sel_rules = sum((list(x.selection_rules) for x in self.computers), [])
+            ooooh_shiz = space.apply_selection_rules(total_sel_rules)
+        else:
+            spaces = [r.get_transformed_space(space) for r in self.computers]
+            ooooh_shiz = functools.reduce(lambda s1,s2: s1.union(s2), spaces[1:], spaces[0])
+
+        return ooooh_shiz
 
     def __repr__(self):
         return "{}(<{}>, ({}), ({}))".format(
