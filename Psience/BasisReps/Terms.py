@@ -19,17 +19,19 @@ __reload_hook__ = [ '.StateSpaces', ".Operators" ]
 
 class Representation:
     """
-    A `Representation` provides a simple interface to compute only some elements of high-dimensional tensors.
-    It takes a tensor shape and a function to compute tensor elements.
-    The `compute` function should be able to take a block of indices and return all the matrix elements.
+    A `Representation` provides a simple interface to build matrix representations of operators expressed
+    in high-dimensional spaces.
+    It maintains a `BasisStateSpace` to know which states it has computed and a `SparseArray` to track associated values
+    The `BasisStateSpace` may be extended, but it is worth noting the potential expense associated with this operation
+    as it requires the `SparseArray` to be rebuilt as well.
     """
 
     def __init__(self, compute, basis, logger=None):
         """
         :param compute: the function that turns indices into values
         :type compute: callable | Operator
-        :param n_quanta: the basis quanta used in the representations (necessary for shape reasons)
-        :type n_quanta: RepresentationBasis
+        :param basis: the basis quanta used in the representations
+        :type basis: RepresentationBasis
         :param logger: logger for printing out debug info
         :type logger: None | Logger
         """
@@ -46,6 +48,7 @@ class Representation:
         if logger is None:
             logger = NullLogger()
         self.logger=logger
+        self.array=SparseArray.empty((len(self.basis), len(self.basis)))
 
     def clear_cache(self):
         # print(">>>>>>>>>>>>> wat", self.compute, self.operator)
@@ -98,7 +101,7 @@ class Representation:
         is managed by the BraKetSpace
 
         :param states:
-        :type states:
+        :type states: BraKetSpace | Tuple[np.ndarray, np.ndarray]
         :return:
         :rtype:
         """
@@ -110,7 +113,20 @@ class Representation:
             states=states
         )
 
-        return self.compute(states)
+        states = self._get_uncached_states(states)
+        self._compute_cached(states)
+
+        return self.get_states(states)
+
+    def _get_uncached_states(self, space):
+        if space.basis is not self.basis:
+            self._expand_if_needed(space.basis)
+
+        row_inds = self.basis.as_indices(space.bras)
+        col_inds = self.basis.as_indices(space.kets)
+
+        stored_inds = self.array.indices
+
 
     def get_element(self, n, m):
         """
@@ -170,12 +186,10 @@ class Representation:
             m = [m]
 
         if pull_elements:
-            raise NotImplementedError("we shouldn't be here...")
             # If we're just pulling elements we need only unravel those indices
             n = np.unravel_index(n, dims)
             m = np.unravel_index(m, dims)
         else:
-            raise NotImplementedError("we shouldn't be here...")
             # If we're pulling blocks we need to compute the product of the row
             #  and column indices to get the total index spec
             blocks = np.array(list(ip.product(n, m)))
@@ -282,7 +296,6 @@ class Representation:
             return self.operator.selection_rules
         else:
             return None
-
 
     @property
     def selection_rule(self):

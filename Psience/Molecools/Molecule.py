@@ -165,6 +165,13 @@ class Molecule:
         if self._pds is None:
             self._pds = self.load_potential_derivatives()
         return self._pds
+    @potential_derivatives.setter
+    def potential_derivatives(self, pds):
+        #TODO: add validation to this
+        self._pds = pds
+        if self._fcs is None:
+            if pds is not None and len(pds) > 1:
+                self._fcs = pds[1]
     @property
     def potential_surface(self):
         if self._pes is None:
@@ -381,6 +388,11 @@ class Molecule:
             seconds = parse["ForceConstants"].array
             thirds = parse["ForceDerivatives"].third_deriv_array
             fourths = parse["ForceDerivatives"].fourth_deriv_array
+
+            amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            thirds = thirds / np.sqrt(amu_conv)
+            fourths = fourths / amu_conv
+
             return (parse["Gradient"], seconds, thirds, fourths)
         elif ext == ".log":
             raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
@@ -517,6 +529,14 @@ class Molecule:
         #         f_conv[:, np.newaxis, np.newaxis]
         #         # * m_conv[np.newaxis, :, np.newaxis]
         # )
+
+        if seconds is not None:
+            amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            seconds = seconds / np.sqrt(amu_conv)
+        if thirds is not None:
+            amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            thirds = thirds / amu_conv
+
         # thirds = thirds / (
         #         f_conv[:, np.newaxis, np.newaxis, np.newaxis]
         #         * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
@@ -551,6 +571,9 @@ class Molecule:
 
         if file is None:
             file = self.source_file
+        if file is None:
+            return None
+
         path, ext = os.path.splitext(file)
         ext = ext.lower()
 

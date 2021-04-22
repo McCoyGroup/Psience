@@ -61,7 +61,10 @@ class ArrayStateIndexer(BaseStateIndexer):
             idx = idx[np.newaxis]
         return np.ravel_multi_index(idx.T, self.dims)
     def from_indices(self, indices):
-        return np.array(np.unravel_index(indices, self.dims)).T
+        if len(indices) == 0:
+            return np.array([], dtype='int8')
+        unravel = np.unravel_index(indices, self.dims)
+        return np.array(unravel, dtype='int8').T
 
 class SpaceStateIndexer(BaseStateIndexer):
     """
@@ -600,6 +603,6 @@ class PermutationStateIndexer(BaseStateIndexer):
                     np.asarray(indices, dtype=int)[bad]
                 ))
 
-        return res[inverse]
+        return res
 
 

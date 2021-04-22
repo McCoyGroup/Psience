@@ -634,7 +634,7 @@ class PotentialTerms(ExpansionTerms):
     """
     def __init__(self,
                  molecule,
-                 mixed_derivs=True,
+                 mixed_derivs=None,
                  modes=None,
                  potential_derivatives=None,
                  mode_selection=None,
@@ -656,8 +656,8 @@ class PotentialTerms(ExpansionTerms):
                          logger=logger, parallelizer=parallelizer, checkpointer=checkpointer)
         if potential_derivatives is None:
             potential_derivatives = molecule.potential_derivatives
-        self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, potential_derivatives)
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
+        self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, potential_derivatives)
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
 
@@ -765,23 +765,76 @@ class PotentialTerms(ExpansionTerms):
                 )
             )
 
-        amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        # amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         m_conv = np.sqrt(self._tripmass(masses))
         f_conv = np.sqrt(freqs)
         # f_conv = np.ones(f_conv.shape) # debugging
 
-        undimension_2 = np.outer(m_conv, m_conv)
-        fcs = fcs / undimension_2
-
-        undimension_3 = np.outer(m_conv, m_conv)[np.newaxis, :, :] * f_conv[:, np.newaxis, np.newaxis]
-        thirds = thirds * (1 / undimension_3 / np.sqrt(amu_conv))
-
-        wat = np.outer(m_conv, m_conv)[np.newaxis, :, :] * (f_conv ** 2)[:, np.newaxis, np.newaxis]
-        if isinstance(fourths, SparseArray):
-            undimension_4 = SparseArray.from_diag(1 / wat / amu_conv)
-            fourths = fourths * undimension_4
+        if fcs.shape == (coord_n, coord_n):
+            undimension_2 = np.outer(m_conv, m_conv)
+        elif fcs.shape == (modes_n, modes_n):
+            undimension_2 = f_conv[:, np.newaxis] * f_conv[np.newaxis, :]
         else:
-            fourths = fourths * (1 / wat / amu_conv)
+            undimension_2 = 1
+        fcs = fcs * (1 / undimension_2)
+
+        if thirds.shape == (modes_n, coord_n, coord_n):
+            if self.mixed_derivs is None:
+                self.mixed_derivs = True
+            undimension_3 = (
+                    f_conv[:, np.newaxis, np.newaxis]
+                    * m_conv[np.newaxis, :, np.newaxis]
+                    * m_conv[np.newaxis, np.newaxis, :]
+            )
+        elif thirds.shape == (coord_n, coord_n, coord_n):
+            if self.mixed_derivs is None:
+                self.mixed_derivs = False
+            undimension_3 = (
+                    m_conv[:, np.newaxis, np.newaxis]
+                    * m_conv[np.newaxis, :, np.newaxis]
+                    * m_conv[np.newaxis, np.newaxis, :]
+            )
+        elif thirds.shape == (modes_n, modes_n, modes_n):
+            if self.mixed_derivs is None:
+                self.mixed_derivs = False
+            undimension_3 = (
+                    f_conv[:, np.newaxis, np.newaxis]
+                    * f_conv[np.newaxis, :, np.newaxis]
+                    * f_conv[np.newaxis, np.newaxis, :]
+            )
+        else:
+            if self.mixed_derivs is None:
+                self.mixed_derivs = False
+            undimension_3 = 1
+        thirds = thirds * (1 / undimension_3)
+
+        if fourths.shape == (modes_n, modes_n, coord_n, coord_n):
+            undimension_4 = (
+                    f_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                    * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                    * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
+                    * m_conv[np.newaxis, np.newaxis, np.newaxis, :]
+            )
+        elif fourths.shape == (coord_n, coord_n, coord_n, coord_n):
+            undimension_4 = (
+                    m_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                    * m_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                    * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
+                    * m_conv[np.newaxis, np.newaxis, np.newaxis, :]
+            )
+        elif fourths.shape == (modes_n, modes_n, modes_n, modes_n):
+            undimension_4 = (
+                    f_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                    * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                    * f_conv[np.newaxis, np.newaxis, :, np.newaxis]
+                    * f_conv[np.newaxis, np.newaxis, np.newaxis, :]
+            )
+        else:
+            undimension_4 = 1
+
+        if isinstance(fourths, SparseArray):
+            fourths = fourths.asarray()
+        fourths = fourths * (1 / undimension_4)
 
         return grad, fcs, thirds, fourths
 
@@ -833,12 +886,13 @@ class PotentialTerms(ExpansionTerms):
             x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
             V_derivs = (grad, hess, thirds, fourths)
 
-
             # try:
             v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_XQ=self.mixed_derivs)
             # except:
 
-                # raise Exception(fourths)
+            # raise Exception(
+            #     np.max(np.abs(xQ)), np.max(np.abs(fourths)),
+            #     np.max(np.abs(thirds)), np.max(np.abs(v3)), np.max(np.abs(v4)))
         else:
 
             xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
@@ -881,7 +935,7 @@ class PotentialTerms(ExpansionTerms):
         new_freqs = np.diag(v2)
         old_freqs = self.modes.freqs
         # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
-        if np.max(np.abs(new_freqs - old_freqs)) > 2e-5:
+        if np.max(np.abs(new_freqs - old_freqs)) > 2e-3:
             raise PerturbationTheoryException(
                 "Force constants in normal modes don't return frequencies along diagonal;"
                 " this likely indicates issues with the mass-weighting"
@@ -963,7 +1017,8 @@ class KineticTerms(ExpansionTerms):
 class DipoleTerms(ExpansionTerms):
     def __init__(self,
                  molecule,
-                 mixed_derivs=True,
+                 derivatives=None,
+                 mixed_derivs=None,
                  modes=None,
                  mode_selection=None,
                  logger=None,
@@ -980,10 +1035,15 @@ class DipoleTerms(ExpansionTerms):
         :param mode_selection: the subset of normal modes to use
         :type mode_selection: None | Iterable[int]
         """
+        self.derivs = None
         super().__init__(molecule, modes=modes, mode_selection=mode_selection,
                          logger=logger, parallelizer=parallelizer, checkpointer=checkpointer)
-        self.derivs = self._canonicalize_derivs(self.freqs, self.masses, molecule.dipole_derivatives)
-        self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
+        self.mixed_derivs = mixed_derivs
+        if self.mixed_derivs is None:
+            self.mixed_derivs = mixed_derivs
+        if derivatives is None:
+            derivatives = molecule.dipole_derivatives
+        self.derivs = self._canonicalize_derivs(self.freqs, self.masses, derivatives)
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
         """
@@ -992,53 +1052,113 @@ class DipoleTerms(ExpansionTerms):
 
         # TODO: this will need major clean up now that I've improved
         #       dipole handling in Molecule
-        mom, grad, seconds, thirds = derivs['analytic']
-        grad = grad.array
+        try:
+            mom, grad, seconds, thirds = derivs['analytic']
+        except (IndexError, TypeError):
+            mom, grad, seconds, thirds = derivs
+        else:
+            grad = grad.array
         # seconds = higher.second_deriv_array
         # thirds = higher.third_deriv_array
 
+        # n = len(masses)
+        # modes_matrix = self.modes.inverse
+        # modes_n = len(modes_matrix)
+        # if modes_n == 3*n:
+        #     modes_n = modes_n - 6
+        #     modes_matrix = modes_matrix[6:]
+        #     freqs = freqs[6:]
+        # coord_n = modes_n + 6
+
         n = len(masses)
-        modes_matrix = self.modes.inverse
-        modes_n = len(modes_matrix)
-        if modes_n == 3*n:
-            modes_n = modes_n - 6
-            modes_matrix = modes_matrix[6:]
-            freqs = freqs[6:]
-        coord_n = modes_n + 6
-        if grad.shape != (coord_n, 3):
-            raise PerturbationTheoryException(
-                "{0}.{1}: dimension of dipole derivative array ({2[0]}) is not {3[0]}".format(
-                    type(self).__name__,
-                    "_canonicalize_derivs",
-                    grad.shape,
-                    (coord_n, 3)
+        modes_n = len(self.modes.freqs)
+        # modes_n = 3*n - 6
+        # if modes_n == 3*n:
+        #     modes_n = modes_n - 6
+        #     modes_matrix = modes_matrix[6:]
+        #     freqs = freqs[6:]
+        internals_n = 3 * n - 6
+        coord_n = 3 * n
+
+        if self.mode_sel is not None and thirds.shape[0] == internals_n:
+            # TODO: need to handle more cases of input formats...
+            if not isinstance(self.mode_sel, slice):
+                thirds = thirds[np.ix_(self.mode_sel, self.mode_sel)]
+            else:
+                thirds = thirds[self.mode_sel, self.mode_sel]
+
+        # if self.mode_sel is not None and fourths.shape[0] == internals_n:
+        #     # TODO: need to handle more cases of input formats...
+        #     if not isinstance(self.mode_sel, slice):
+        #         fourths = fourths[np.ix_(self.mode_sel, self.mode_sel)]
+        #     else:
+        #         fourths = fourths[self.mode_sel, self.mode_sel]
+
+        if grad is not None:
+            if (
+                    grad.shape != (coord_n, 3)
+                    and grad.shape != (internals_n, 3)
+            ):
+                raise PerturbationTheoryException(
+                    "{0}.{1}: dimension of dipole derivative array ({2[0]}) is not {3[0]} or {4[0]}".format(
+                        type(self).__name__,
+                        "_canonicalize_derivs",
+                        grad.shape,
+                        (coord_n, 3),
+                        (internals_n, 3)
+                    )
                 )
-            )
-        if seconds.shape != (modes_n, coord_n, 3):
+
+        if (
+                seconds.shape != (modes_n, coord_n, 3)
+                and seconds.shape != (modes_n, internals_n, 3)
+                and seconds.shape != (modes_n, modes_n, 3)
+                and seconds.shape != (coord_n, coord_n, 3)
+                and seconds.shape != (internals_n, internals_n, 3)
+        ):
             raise PerturbationTheoryException(
-                "{0}.{1}: dimension of dipole second derivative array ({2[0]}x{2[1]}) is not {3[0]}x{3[1]}".format(
+                "{0}.{1}: dimension of dipole second derivative array ({2[0]}x{2[1]}) not in {3}".format(
                     type(self).__name__,
                     "_canonicalize_derivs",
                     seconds.shape,
-                    (modes_n, coord_n, 3)
+                    ", ".join("({0[0]}x{0[1]})".format(x) for x in [
+                        (modes_n, coord_n, 3),
+                        (modes_n, internals_n, 3),
+                        (modes_n, modes_n, 3),
+                        (coord_n, coord_n, 3),
+                        (internals_n, internals_n, 3)
+                    ])
                 )
             )
-        if thirds.shape != (modes_n, modes_n, coord_n, 3):
+
+        if (
+                thirds.shape != (modes_n, modes_n, coord_n, 3)
+                and thirds.shape != (modes_n, modes_n, internals_n, 3)
+                and thirds.shape != (modes_n, modes_n, modes_n, 3)
+                and thirds.shape != (coord_n, coord_n, coord_n, 3)
+                and thirds.shape != (internals_n, internals_n, internals_n, 3)
+        ):
             raise PerturbationTheoryException(
-                "{0}.{1}: dimension of dipole third derivative array ({2[0]}x{2[1]}x{2[2]}) is not ({3[0]}x{3[1]}x{3[2]})".format(
+                "{0}.{1}: dimension of dipole third derivative array ({2[0]}x{2[1]}x{2[2]}) not in ({3})".format(
                     type(self).__name__,
                     "_canonicalize_derivs",
                     thirds.shape,
-                    (modes_n, modes_n, coord_n, 3)
+                    ", ".join("({0[0]}x{0[1]}x{0[2]})".format(x) for x in [
+                        (modes_n, modes_n, coord_n, 3),
+                        (modes_n, modes_n, internals_n, 3),
+                        (modes_n, modes_n, modes_n, 3),
+                        (coord_n, coord_n, coord_n, 3),
+                        (internals_n, internals_n, internals_n, 3)
+                    ])
                 )
             )
 
         # We need to mass-weight the pure cartesian derivs
         # & undimensionalize the ones in terms of normal modes
 
-        amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        # amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         m_conv = np.sqrt(self._tripmass(masses))
-        f_conv = np.sqrt(freqs*amu_conv)
+        f_conv = np.sqrt(freqs)#*amu_conv)
 
         grad = grad / m_conv[:, np.newaxis]
         seconds = seconds / (

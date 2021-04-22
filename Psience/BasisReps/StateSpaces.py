@@ -831,7 +831,13 @@ class BasisStateSpace(AbstractStateSpace):
             # secondarily based on excitations if possible
             self_inds = self.indices
             other_inds = other.indices
-            new_inds = np.concatenate([self_inds, other_inds], axis=0)
+
+            if len(self_inds) == 0:
+                new_inds = other_inds
+            elif len(other_inds) == 0:
+                new_inds = self_inds
+            else:
+                new_inds = np.concatenate([self_inds, other_inds], axis=0)
             _, uinds = np.unique(new_inds, axis=0, return_index=True)
             sorting = np.argsort(uinds)
             uinds = uinds[sorting]
@@ -842,7 +848,12 @@ class BasisStateSpace(AbstractStateSpace):
             if self._excitations is not None or other._excitations is not None:
                 self_exc = self.excitations
                 other_exc = other.excitations
-                new_exc = np.concatenate([self_exc, other_exc], axis=0)
+                if len(self_exc) == 0:
+                    new_exc = other_exc
+                elif len(other_exc) == 0:
+                    new_exc = self_exc
+                else:
+                    new_exc = np.concatenate([self_exc, other_exc], axis=0)
                 new._excitations = new_exc[uinds,]
 
         else:
@@ -850,7 +861,12 @@ class BasisStateSpace(AbstractStateSpace):
             # secondarily based on indices if possible
             self_exc = self.excitations
             other_exc = other.excitations
-            new_exc = np.concatenate([self_exc, other_exc], axis=0)
+            if len(self_exc) == 0:
+                new_exc = other_exc
+            elif len(other_exc) == 0:
+                new_exc = self_exc
+            else:
+                new_exc = np.concatenate([self_exc, other_exc], axis=0)
             _, uinds = np.unique(new_exc, axis=0, return_index=True)
             sorting = np.argsort(uinds)
             uinds = uinds[sorting]
@@ -1831,6 +1847,7 @@ class BraKetSpace:
             exc_l = np.asanyarray(exc_l)#, dtype='int8')
             exc_r = np.asanyarray(exc_r)#, dtype='int8')
             womp = np.equal(exc_l, exc_r)
+
             if use_preindex_trie:
                 trie = self.OrthogoIndexerTrie(womp, max_depth=preindex_trie_depth)
             else:
@@ -1926,6 +1943,12 @@ class BraKetSpace:
             """
             if self.pretest:
                 return np.arange(len(self.tests[0]))
+            # skip doing any work if we're in this special case
+            rest_inds = np.setdiff1d(np.arange(len(self.tests)), item)
+            if len(rest_inds) == 0:
+                return np.arange(len(self.tests[0]))
+
+
 
             # we first determine which sets of indices we've already
             # computed so that we can reuse that information
@@ -2112,10 +2135,13 @@ class BraKetSpace:
             :return:
             :rtype:
             """
+
             if self.pretest:
                 return np.arange(len(self.tests[0]))
 
             rest_inds = np.setdiff1d(np.arange(len(self.tests)), item)
+            if len(rest_inds) == 0:
+                return np.arange(len(self.tests[0]))
 
             if self.trie is None:
                 cur_inds = np.where(self.tests[rest_inds[0]])[0]
@@ -2131,6 +2157,9 @@ class BraKetSpace:
             # if len(item) > 3:
             #     print("   >", cur_inds.shape)
             return cur_inds
+
+    aggressive_caching_enabled=True
+    preindex_trie_enabled=True
     def get_non_orthog(self,
                        inds,
                        assume_unique=False,
@@ -2146,6 +2175,11 @@ class BraKetSpace:
         :return:
         :rtype:
         """
+
+        if use_aggressive_caching is None:
+            use_aggressive_caching = self.aggressive_caching_enabled
+        if use_preindex_trie is None:
+            use_preindex_trie = self.preindex_trie_enabled
 
         if not assume_unique:
             inds = np.unique(inds)
@@ -2220,8 +2254,8 @@ class BraKetSpace:
 
     def apply_non_orthogonality(self,
                                 inds,
-                                use_aggressive_caching=True,
-                                use_preindex_trie=True,
+                                use_aggressive_caching=None,
+                                use_preindex_trie=None,
                                 preindex_trie_depth=None,
                                 assume_unique=False
                                 ):
@@ -2235,6 +2269,10 @@ class BraKetSpace:
         :return:
         :rtype:
         """
+        if use_aggressive_caching is None:
+            use_aggressive_caching = self.aggressive_caching_enabled
+        if use_preindex_trie is None:
+            use_preindex_trie = self.preindex_trie_enabled
         non_orthog = self.get_non_orthog(inds,
                                          use_aggressive_caching=use_aggressive_caching,
                                          assume_unique=assume_unique,

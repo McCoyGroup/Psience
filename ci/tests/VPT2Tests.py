@@ -5,6 +5,8 @@ from Psience.VPT2 import *
 from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
 
 from McUtils.Data import UnitsData
+import McUtils.Plots as plt
+from McUtils.Scaffolding import *
 from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
 import sys, os, numpy as np, itertools as ip
 import cProfile, pstats, io
@@ -71,6 +73,8 @@ class VPT2Tests(TestCase):
                               checkpoint=None,
                               chunk_size=None,
                               order=2
+                              , allow_sakurai_degs = True
+                              , allow_post_PT_calc = True
                               ):
         if parallelized:
             parallelizer = MultiprocessingParallelizer()#verbose=True, processes=2)
@@ -127,7 +131,10 @@ class VPT2Tests(TestCase):
                 if watson is not None:
                     hammer.H2.computers[3].operator.coeffs = watson
 
-                wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order)
+                wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order
+                                                , allow_sakurai_degs=allow_sakurai_degs
+                                                , allow_post_PT_calc=allow_post_PT_calc
+                                                )
                 if save_wfns:
                     self.save_wfns(wfn_file, wfns)
             else:
@@ -157,6 +164,8 @@ class VPT2Tests(TestCase):
                       get_breakdown=False,
                       chunk_size=None,
                       order=2
+                      , allow_sakurai_degs = True
+                      , allow_post_PT_calc = True
                       ):
         return self.get_VPT2_wfns_and_ham(
             fchk,
@@ -181,6 +190,8 @@ class VPT2Tests(TestCase):
             get_breakdown=get_breakdown,
             chunk_size=chunk_size,
             order=order
+            , allow_sakurai_degs=allow_sakurai_degs
+            , allow_post_PT_calc=allow_post_PT_calc
         )[0]
 
     def get_states(self, n_quanta, n_modes, max_quanta = None):
@@ -1922,6 +1933,148 @@ class VPT2Tests(TestCase):
 
     #region Test Systems
 
+    #region Analytic Models
+
+    @debugTest
+    def test_TwoMorseCartesiansDegenerate(self):
+
+        from Psience.Molecools import Molecule
+        import McUtils.Numputils as nput
+
+        # internals = [
+        #     [0, -1,  -1, -1],
+        #     [1,  0,  -1, -1],
+        #     [2,  0,   1, -1],
+        #     [3,  2,   1,  0]
+        # ]
+        internals = None
+
+        re_1 = 1.0
+        re_2 = 1.0
+
+        mol0 = Molecule(
+            ["O", "H", "O", "H"],
+            np.array([
+                [0.000000, 0.000000, 0.000000],
+                [re_1,     0.000000, 0.000000],
+                [0.000000, 1.000000, 0.000000],
+                [re_2,     1.000000, 0.000000]
+                ]),
+            zmatrix=internals,
+            guess_bonds=False,
+        )
+
+        # masses = mol0.masses
+        # anchor_pos = np.average(mol0.coords[:2], weights=masses[:2]/np.sum(masses[:2]), axis=0)
+        # mol0.coords[2] += anchor_pos
+
+        # put in PAF
+        mol = mol0
+        # mol = mol0.principle_axis_frame()(mol0)
+        # raise Exception(mol.coords)
+
+        from McUtils.Zachary import FiniteDifferenceDerivative
+
+        masses = mol0.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+
+        w2h = UnitsData.convert("Wavenumbers", "Hartrees")
+        w1 = 3500*w2h; wx1 = 100*w2h
+        mu_1 = (1 / masses[0] + 1 / masses[1]) ** (-1)
+        De_1 = (w1 ** 2) / (4*wx1)
+        a_1 = np.sqrt(2 * mu_1 * wx1)
+
+        w2 = 3500*w2h; wx2 = 100*w2h
+        mu_2 = (1 / masses[2] + 1 / masses[3]) ** (-1)
+        De_2 = (w2 ** 2) / (4 * wx2)
+        a_2 = np.sqrt(2 * mu_2 * wx2)
+
+        # mass_weights = masses[:2] / np.sum(masses[:2])
+        def two_morse(carts, *,
+                      De_1 = De_1, a_1=a_1, re_1=re_1,
+                      De_2 = De_2, a_2=a_2, re_2=re_2
+                      ):
+
+            # anchor_pos = np.average(carts[..., :2, :], weights=mass_weights, axis=-2)
+            r1 = nput.vec_norms(carts[..., 1, :] - carts[..., 0, :]) - re_1
+            r2 = nput.vec_norms(carts[..., 3, :] - carts[..., 2, :]) - re_2
+
+            return (
+                De_1 * (1 - np.exp(-a_1 * r1))**2
+                + De_2 * (1 - np.exp(-a_2 * r2))**2
+            )
+
+        deriv_gen = FiniteDifferenceDerivative(two_morse,
+                                               function_shape=((None, None), 0),
+                                               mesh_spacing=1e-3,
+                                               stencil=5
+                                               ).derivatives(mol.coords)
+
+        # v1, v2 = deriv_gen.derivative_tensor([1, 2])
+        v1, v2, v3, v4 = deriv_gen.derivative_tensor([1, 2, 3, 4])
+
+        mol.potential_derivatives = [v1, v2, v3, v4]
+
+        modes = mol.normal_modes[-1, -2]
+        stretches = modes.basis.matrix.T
+        symm = (stretches[1] + stretches[0])*np.sqrt(1/2)
+        asym = (stretches[1] - stretches[0])*np.sqrt(1/2)
+        new_mat = np.array([symm, asym]).T
+        modes.basis.matrix = new_mat
+        modes.basis.inverse = new_mat.T
+        ham = PerturbationTheoryHamiltonian(mol, modes=modes, n_quanta=50, coriolis_coupling=False, watson_term=False)
+
+        # mode_selection=[-1, -2]
+        # ham = PerturbationTheoryHamiltonian(mol, mode_selection=mode_selection, n_quanta=50)
+
+        # import json
+        # raise Exception(json.dumps(ham.V_terms[1].tolist()))
+
+        states = ham.basis.get_state_space(range(5))
+        wfns = ham.get_wavefunctions(
+            states
+            , degeneracies=(
+                ([1, 0], [0, 1]),
+                ([2, 0], [1, 1], [0, 2]),
+                ([3, 0], [2, 1], [1, 2], [0, 3]),
+                ([4, 0], [3, 1], [2, 2], [1, 3], [0, 4])
+            )
+            , allow_sakurai_degs=True
+            , allow_post_PT_calc=True
+            , order=2
+            , coupled_states = [self.get_states(11, 2), self.get_states(11, 2)]
+        )
+
+        with JSONCheckpointer(os.path.expanduser('~/Desktop/test_dat.json')) as woof:
+            woof['h1'] = wfns.corrs.hams[1].asarray()
+            woof['h2'] = wfns.corrs.hams[2].asarray()
+            woof['states'] = wfns.corrs.total_basis.excitations
+        # raise Exception(np.diag(wfns.corrs.hams[0].asarray()))
+        states = states.excitations
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
+        energies = h2w * wfns.energies
+        zero_ord = h2w * wfns.zero_order_energies
+
+        print_report = True
+        n_modes = len(states[0])
+        harm_engs = zero_ord
+        engs = energies
+        harm_freq = zero_ord[1:] - zero_ord[0]
+        freqs = energies[1:] - energies[0]
+        if print_report:
+            print("State Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                      s, e1, e2 in
+                      zip(states[1:], harm_freq, freqs)
+                  )
+                  )
+
+    #endregion
+
     #region Water Analogs
 
     @validationTest
@@ -1933,7 +2086,7 @@ class VPT2Tests(TestCase):
         #     [1, 0, -1, -1],
         #     [2, 0, 1, -1]
         # ]
-        states = self.get_states(3, 2)
+        states = self.get_states(3, 3)
 
         with BlockProfiler("DOD Cartesians",
                            print_res=False,
@@ -2306,25 +2459,14 @@ class VPT2Tests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs[:sigh] - gaussian_freqs[:sigh])), 1.5)
 
-    @debugTest
+    @inactiveTest
     def test_HOHVPTCartesiansDegenerate(self):
 
         internals = None
 
         basis = HarmonicOscillatorProductBasis(3)
 
-        states = self.get_states(3, 3)
-
-        # raise Exception([states[w] for w in [4, 5, 21, 22, 31]])
-
-        # raise Exception([
-        #     BasisStateSpace(basis, self.get_states(6, 3)).apply_selection_rules(
-        #         basis.selection_rules("x", "x", "x")
-        #     ),
-        #     BasisStateSpace(basis, self.get_states(6, 3)).apply_selection_rules(
-        #         basis.selection_rules("x", "x", "x", "x")
-        #     )
-        # ])
+        states = self.get_states(6, 3)
 
         wfns = self.get_VPT2_wfns(
             "HOH_freq.fchk",
@@ -2336,18 +2478,27 @@ class VPT2Tests(TestCase):
             #     'NT':(1, 2, 2),
             #     'MartinTest': False
             # }
-            # , degeneracies=1 # anything within 1 Hartree (i.e. everything)
+            # , degeneracies=.0005 # anything within 1 Hartree (i.e. everything)
             # , degeneracies=(1, 2, 2) # use N_T = 1 bend + 2 stretch
-            # , apply_variational
-            , degeneracies=([[0, 0, 2], [0, 2, 0], [0, 1, 1]],)
+            , degeneracies=(
+                # [[0, 0, 1], [0, 1, 0], [2, 0, 0]],
+                [[0, 0, 2], [0, 2, 0], [0, 1, 1]],
+            )
+            , allow_sakurai_degs=True
+            , allow_post_PT_calc=True
+            # , order=4
             # degeneracies=100/self.h2w # any pair of states within 100 wavenumbers can be treated as degenerate
             # , coupled_states = [
-            #     BasisStateSpace(basis, self.get_states(10, 3)).apply_selection_rules(
+            #     BasisStateSpace(basis, self.get_states(12, 3)).apply_selection_rules(
             #         basis.selection_rules("x", "x", "x")
             #     ),
-            #     BasisStateSpace(basis, self.get_states(6, 3)).apply_selection_rules(
+            #     BasisStateSpace(basis, self.get_states(12, 3)).apply_selection_rules(
             #         basis.selection_rules("x", "x", "x", "x")
             #     )
+            # ]
+            # , coupled_states=[
+            #     BasisStateSpace(basis, self.get_states(12, 3)),
+            #     BasisStateSpace(basis, self.get_states(12, 3))
             # ]
             # , v3=0
             # , v4=0
@@ -2358,16 +2509,6 @@ class VPT2Tests(TestCase):
         # wfns = hammer.get_wavefunctions(states, coupled_states=None)
         energies = h2w * wfns.energies
         zero_ord = h2w * wfns.zero_order_energies
-
-        # print(len(self.get_states(5, 3)), len(wfns.corrs.coupled_states))
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
 
         gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
                            (0, 0, 2), (0, 2, 0), (2, 0, 0),

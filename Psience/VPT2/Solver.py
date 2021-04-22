@@ -96,10 +96,12 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                         if test1:
                             return test1
                         else:
-                            spec = np.asarray(spec)
-                            return (
-                                    spec.dtype == int
-                                    and (spec.ndim == 2 or spec.ndim == 3)
+                            specs = [np.asanyarray(s) for s in spec]
+                            return all(
+                                (
+                                    s.dtype == int
+                                    and (s.ndim == 2 or s.ndim == 3)
+                                ) for s in specs
                             )
 
                     # we dispatch on the types of degeneracy specs we support
@@ -108,15 +110,13 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                             "energy cutoff: {s}",
                             s=degenerate_states
                         )
-                        degenerate_states = cls._group_states_by_energy_cutoff(H0, states, total_state_space,
-                                                                               degenerate_states)
+                        degenerate_states = cls._group_states_by_energy_cutoff(H0, states, degenerate_states)
                     elif _is_degenerate_NT_spec(degenerate_states):
                         logger.log_print(
                             "N_T vector: {s}",
                             s=degenerate_states
                         )
-                        degenerate_states = cls._group_states_by_nt_spec(H0, states, total_state_space,
-                                                                         degenerate_states)
+                        degenerate_states = cls._group_states_by_nt_spec(H0, states, degenerate_states)
                     elif _is_degenerate_state_spec(degenerate_states):
                         if not isinstance(degenerate_states[0], (BasisStateSpace, BasisMultiStateSpace)):
                             degenerate_states = [BasisStateSpace(states.basis, x) for x in degenerate_states]
@@ -128,7 +128,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
                         # we assume we have some kind of callable
                         try:
-                            degenerate_states = degenerate_states(H, states)
+                            degenerate_states = degenerate_states(H0, states)
                         except (TypeError, ValueError):
                             pass
 
@@ -178,12 +178,16 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         # now turn these into proper BasisStateSpace objects so we can work with them more easily
         ugh = np.full(len(groups), None)
         for i,g in enumerate(groups):
-            ugh[i] = BasisStateSpace(states.basis, g, mode=BasisStateSpace.StateSpaceSpec.Indices)
+            # g = np.sort(np.array(g))
+            ugh[i] = BasisStateSpace(states.basis, np.array(g), mode=BasisStateSpace.StateSpaceSpec.Indices)
+            # if len(g) > 1:
+            #     raise Exception(ugh[i].indices, g, ugh[i].excitations,
+            #             states.basis.unravel_state_inds(np.arange(10)))
 
         return cls(ugh)
 
     @classmethod
-    def _group_states_by_energy_cutoff(cls, H0, states, total_state_space, cutoff):
+    def _group_states_by_energy_cutoff(cls, H0, states, cutoff):
         """
         :type H: Iterable[SparseArray]
         :type states: BasisStateSpace
@@ -198,7 +202,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         energies = H0[diag_inds, diag_inds]
         degenerate_groups = []
         # then we look through the input states
-        for n in total_state_space.find(states):
+        for n, e in enumerate(energies):
             # we only want to apply this once per degenerate group
             # NOTE: this is a path to subtlety, since
             #   if state a is within 50 cm^-1 of state b, and state b is within of c,
@@ -206,15 +210,15 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             #   we are wagering that states are distinct _enough_ such that this is not
             #   an issue, but if it is a different strategy will be required
             if all(n not in d for d in degenerate_groups):
-                e_diffs = np.abs(energies - energies[n])
+                e_diffs = np.abs(energies - e)
                 inds = np.where(e_diffs < cutoff)[0]
                 degenerate_groups.append(set(inds))
         # raise Exception(degenerate_groups)
-        degenerate_groups = [total_state_space.take_subspace(np.array(list(d), dtype=int)) for d in degenerate_groups]
+        degenerate_groups = [states.take_subspace(np.array(list(d), dtype=int)) for d in degenerate_groups]
         return degenerate_groups
 
     @classmethod
-    def _group_states_by_nt_spec(cls, H, states, total_state_space, q_vec):
+    def _group_states_by_nt_spec(cls, H, states, q_vec):
         """
         :type H: Iterable[SparseArray]
         :type states: BasisStateSpace
@@ -223,7 +227,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         :rtype: Iterable[BasisStateSpace]
         """
         # we build the total N_t to compare against once...
-        tot_n_t = np.dot(total_state_space.excitations, q_vec)
+        tot_n_t = np.dot(states.excitations, q_vec)
         degenerate_groups = {}
         # then we look through the input states
         for vec in states.excitations:
@@ -231,7 +235,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             n_t = np.dot(q_vec, vec)
             if n_t not in degenerate_groups:
                 degenerate_groups[n_t] = np.where(tot_n_t == n_t)[0]
-        degenerate_groups = [total_state_space.take_subspace(np.array(d)) for d in degenerate_groups.values()]
+        degenerate_groups = [states.take_subspace(np.array(d)) for d in degenerate_groups.values()]
         return degenerate_groups
 
 class PerturbationTheoryCorrections:
@@ -355,8 +359,8 @@ class PerturbationTheoryCorrections:
         # raise Exception(new_states)
         return type(self)(
             self.hams,
-            self.states.take_subspace(new_states),
-            self.coupled_states.take_subspace(new_states),
+            self.states.take_states(space),
+            self.coupled_states.take_states(space),
             self.total_basis,
             self.energy_corrs[new_states],
             [w[new_states, :] for w in self.wfn_corrections],
@@ -657,24 +661,6 @@ class PerturbationTheorySolver:
         #
         # wat = corrs.get_overlap_matrices()
 
-        # check quality of corrections?
-        # woof = np.sum(wat, axis=0)
-        # ploots = [plt.ArrayPlot(x, plot_style=dict(vmin=-1e-2, vmax=1e-2)) for x in wat]
-        # raise Exception(np.linalg.norm(woof, axis=0))
-        # raise Exception(
-        #     np.abs(wat[2][4]),
-        #     np.where( np.abs(wat[2][4]) > 0)[0]
-        # )
-        # plt.ArrayPlot(woof).show()#, plot_style=dict(vmin=-1e-2, vmax=1e-2))
-        #
-        # watttt = self.get_transformed_Hamiltonians(corrs)
-        # ploots = [ plt.ArrayPlot(x) for x in watttt ]
-        # full_wattt = np.sum(watttt, axis=0)
-        # plt.ArrayPlot(full_wattt).show()
-
-        # yuck, _ = np.linalg.eigh(full_wattt)
-        # self.logger.log_print("full_diag energies={e}", e=(yuck-yuck[0])*UnitsData.convert("Hartrees", "Wavenumbers") )
-
         # degeneracy_mode = self.degeneracy_mode
         degenerate_states = self.degenerate_spaces
         if (
@@ -686,11 +672,6 @@ class PerturbationTheorySolver:
                 deg_engs, deg_transf = self.apply_post_PT_variational_calc(degenerate_states, corrs)
                 corrs.degenerate_energies = deg_engs
                 corrs.degenerate_transf = deg_transf
-
-        # tf = deg_transf.asarray()
-        # tf_wat = np.dot(np.dot(tf, watttt), tf.T)
-        #
-        # plt.ArrayPlot(tf_wat).show()
 
         return corrs
 
@@ -880,7 +861,7 @@ class PerturbationTheorySolver:
         pi = 1 / e_vec
         pi[degenerate_subspace] = 0
         return SparseArray.from_diag(pi)
-    def _get_Pi1(self, D, G, E1, non_zero_cutoff=1.0e-14, singular_check=1e10):
+    def _get_Pi1(self, D, E1, G=None, non_zero_cutoff=1.0e-14, singular_check=1e10):
         """
         Returns the first-order perturbation operator in the D_n subspace
 
@@ -894,24 +875,21 @@ class PerturbationTheorySolver:
         :rtype:
         """
 
-        H1D = self._take_subham(self.representations[1], D)
-        if np.max(np.abs(H1D)) < non_zero_cutoff:
-            return np.zeros((len(D), len(D)))
+        D_engs, D_vecs = D
+        if G is None:
+            n_ind = np.where(np.abs(D_engs - E1) < non_zero_cutoff)[0]
+            rest_ind = np.delete(np.arange(len(D_engs)), n_ind)
+        else:
+            G_inds, G_ends, G_vecs = G
+            rest_ind = np.setdiff1d(np.arange(len(D_engs)), G_inds)
 
-        Pn = np.dot(G.T, G)
-        Rn = np.eye(len(Pn)) - Pn
-        dH = Rn@(H1D - E1 * np.eye(len(Pn)))@Rn
+        if len(rest_ind) == 0:
+            return np.zeros((len(D_engs), len(D_engs)))
 
-        dHE, Q = np.linalg.eigh(dH)
+        rest_engs = D_engs[rest_ind] - E1
+        rest_vecs = D_vecs[rest_ind, :]
 
-        goodSpots = np.where(np.abs(dHE) > 1.0e-8)[0]
-
-        if len(goodSpots) == 0:
-            return np.zeros((len(D), len(D)))
-
-        dHE = dHE[goodSpots]
-        Q = Q[:, goodSpots]
-        pi =  Q @ np.diag(1/dHE) @ Q.T
+        pi = rest_vecs.T @ np.diag(1 / rest_engs) @ rest_vecs
 
         if np.max(np.abs(pi)) > singular_check:
             raise ValueError("singular perturbation operator in degenerate subspace {}".format(D))
@@ -932,11 +910,11 @@ class PerturbationTheorySolver:
         :rtype:
         """
 
-        G_engs, G_vecs = G
+        G_inds, G_engs, G_vecs = G
         n_ind = np.where(np.abs(G_engs - E2) < 1e-14)[0][0]
         rest_ind = np.delete(np.arange(len(G_engs)), n_ind)
 
-        rest_engs = G_engs[rest_ind]
+        rest_engs = G_engs[rest_ind] - E2
         rest_vecs = G_vecs[rest_ind, :]
 
         pi = rest_vecs.T @ np.diag(1/rest_engs) @ rest_vecs
@@ -969,7 +947,7 @@ class PerturbationTheorySolver:
 
         :param deg_inds:
         :type deg_inds:
-        :param deg_transf:
+        :param deg_transf: column oriented
         :type deg_transf:
         :param subspace: secondary degenerate subspace (I called it G in my OG stuff...)
         :type subspace:
@@ -981,7 +959,7 @@ class PerturbationTheorySolver:
             PiU = self._get_Pi0(deg_inds)
         except ValueError:
             PiU = self._get_Pi0(deg_inds, E0=self.zero_order_energies[deg_inds[0]])
-        subtf = deg_transf[subspace, :]
+        subtf = deg_transf[:, subspace]
         Ps = subtf.T@subtf
 
         H2 = self._take_subham(self.representations[2], deg_inds)
@@ -990,6 +968,8 @@ class PerturbationTheorySolver:
             H1UH1 = self._take_subham(H1UH1, deg_inds)
 
         subham = np.dot(np.dot(Ps, H2 - H1UH1), Ps)
+
+        # raise Exception(subham)
 
         # import McUtils.Plots as plt
         # h1 = self._take_subham(self.representations[1], deg_inds)
@@ -1023,7 +1003,7 @@ class PerturbationTheorySolver:
         # raise Exception(deg_transf2, new_eng, sorting)
 
         return new_eng, deg_transf2
-    def _get_deg_eq_inputs(self, deg_inds, degeneracy_cutoff=.00001): # within a few wavenumbers or so
+    def _get_deg_eq_inputs(self, deg_inds, degeneracy_cutoff=1e-8): # within a few wavenumbers or so
         """
         Diagonalizes the perturbations in the degenerate subspace to
         get a cleaner basis in which to do the perturbation theory.
@@ -1037,40 +1017,53 @@ class PerturbationTheorySolver:
 
         H1 = self.representations[1]
         subham = self._take_subham(H1, deg_inds)
+        # raise Exception(self.flat_total_space.take_subspace(deg_inds).excitations,
+        #                 self.flat_total_space.take_subspace(deg_inds).indices)
+        # raise Exception(subham)
 
         new_eng1, deg_transf = np.linalg.eigh(subham)
+        main_transf = deg_transf.T.copy()
 
         # now we split this into degenerate subspaces by grouping up
         # runs of degenerate states
+        # ...except I fucked this up
         deg_spaces = []
         deg_set = set()
         for i,a in enumerate(new_eng1):
+            deg_set.add(i)
             if i+1 < len(new_eng1):
                 b_ind = i+1
             else:
                 b_ind = i
             b = new_eng1[b_ind]
             if abs(a - b) < degeneracy_cutoff:
-                deg_set.add(i)
                 deg_set.add(b_ind)
             else:
                 deg_spaces.append(deg_set)
-                deg_set.add(i)
+                deg_set = set()
         deg_spaces.append(deg_set)
         deg_spaces = [np.sort(np.array(list(s))) for s in deg_spaces]
         # now we handle secondary degeneracies...
 
+        self.logger.log_print(
+            "handling degeneracies for {space}...",
+            space=deg_inds
+        )
         subspaces = [ ]
         new_engs = [ ]
         for s in deg_spaces:
             if len(s) > 1:
+                self.logger.log_print(
+                    "need second-level degeneracies for {sub}",
+                    sub=deg_inds[s]
+                )
                 new_eng2, subs_transf = self._get_secondary_degenerate_inputs(deg_inds, deg_transf, s)
                 deg_transf[:, s] = subs_transf.T
             else:
                 new_eng2 = [None]
                 subs_transf = None
             new_engs.extend(zip(new_eng1[s], new_eng2))
-            subspaces.extend([(new_eng2, subs_transf)] * len(s))
+            subspaces.extend([(s, new_eng2, subs_transf)] * len(s))
 
         new_eng = np.full(len(new_engs), None)
         new_subspace = np.full(len(subspaces), None)
@@ -1090,7 +1083,7 @@ class PerturbationTheorySolver:
         new_subspace = new_subspace[sorting]
         deg_transf = deg_transf.T[sorting]
 
-        return new_eng, deg_transf, new_subspace
+        return new_eng, deg_transf, main_transf, new_subspace
     #endregion
 
     #region Get Coupled Spaces
@@ -1166,31 +1159,41 @@ class PerturbationTheorySolver:
         total_state_spaces = []
         # loop over the degenerate sets and build a full
         # set of connected states
+        spaces=None
         for deg_group in self.degenerate_spaces:
+            # self.logger.log_print('loading {g} coupled states...', g=deg_group.indices)
             if len(deg_group) > 1 and self.allow_sakurai_degs:
                 # raise Exception(len(deg_group), deg_group, deg_group.indices)
                 second_deg = self._use_second_deg_PT(deg_group)
                 deg_space = deg_group
-                extra_spaces = self.get_coupled_space(None, deg_space, second_deg, allow_PT_degs=True)
-                total_state_spaces.append(extra_spaces)
+                spaces = self.get_coupled_space(None, deg_space, second_deg,
+                                                      allow_PT_degs=True, spaces=spaces)
+                total_state_spaces.append(spaces)
             else:
                 deg_space = None if self.allow_sakurai_degs else deg_group
                 second_deg = False
                 for n in deg_group.indices:
-                    extra_spaces = self.get_coupled_space(deg_group.take_states([n]), deg_space, second_deg, allow_PT_degs=self.allow_sakurai_degs)
-                    total_state_spaces.append(extra_spaces)
+                    # self.logger.log_print("wahhh? {n}", n=n)
+                    spaces = self.get_coupled_space(
+                        deg_group.take_states(np.array([n]).flatten()), deg_space, second_deg,
+                                                allow_PT_degs=self.allow_sakurai_degs,
+                                                spaces=spaces
+                        )
+                    total_state_spaces.append(spaces)
+
+        coupled_states = [spaces[h][1] if spaces[h] is not None else None for h in self.perts]
 
         # then reduce that set ot only the unique pairs
-        coupled_states = []
-        for h in self.perts:
-            states = total_state_spaces[0][h]
-            for extra in total_state_spaces[1:]:
-                extra = extra[h]
-                if states is None:
-                    states = extra
-                elif extra is not None:
-                    states = states.union(extra)
-            coupled_states.append(states)
+        # coupled_states = []
+        # for h in self.perts:
+        #     states = total_state_spaces[0][h]
+        #     for extra in total_state_spaces[1:]:
+        #         extra = extra[h]
+        #         if states is None:
+        #             states = extra
+        #         elif extra is not None:
+        #             states = states.union(extra)
+        #     coupled_states.append(states)
 
         # bleeeh = coupled_states[1][:1].get_representation_indices().T
         # raise Exception(
@@ -1198,7 +1201,7 @@ class PerturbationTheorySolver:
         # )
         return coupled_states[1:]
 
-    def _use_second_deg_PT(self, deg_group, degeneracy_cutoff=.00001): # within a few wavenumbers or so
+    def _use_second_deg_PT(self, deg_group, degeneracy_cutoff=1e-8): # within a few wavenumbers or so
         """
         Diagonalizes the perturbations in the degenerate subspace to
         get a cleaner basis in which to do the perturbation theory.
@@ -1214,7 +1217,10 @@ class PerturbationTheorySolver:
 
         small_space = deg_group.get_representation_brakets()
         N_D = len(deg_group)
-        subham = self.perts[1][small_space].reshape((N_D, N_D))
+        # raise Exception(deg_group.excitations, deg_group.indices)
+        subham = self.perts[1][small_space]
+        # raise Exception(subham)
+        subham = subham.reshape((N_D, N_D))
 
         new_eng1, deg_transf = np.linalg.eigh(subham)
 
@@ -1425,32 +1431,34 @@ class PerturbationTheorySolver:
                             input_state_space,
                             degenerate_space,
                             use_second_deg,
-                            allow_PT_degs=True
+                            allow_PT_degs=True,
+                            spaces=None
                             ):
         """
         Applies the VPT equations semi-symbolically, dispatching based on how many
         degeneracies we need to handle
 
-
         :return:
         :rtype:
         """
         if not allow_PT_degs:
-            spaces = self.get_nondeg_coupled_space(input_state_space, degenerate_space)
+            spaces = self.get_nondeg_coupled_space(input_state_space, degenerate_space,
+                                                   spaces=spaces)
         else:
             if degenerate_space is None:
-                spaces = self.get_nondeg_coupled_space(input_state_space)
+                spaces = self.get_nondeg_coupled_space(input_state_space, spaces=spaces)
             elif not use_second_deg:
-                spaces = self.get_deg_coupled_space(degenerate_space)
+                spaces = self.get_deg_coupled_space(degenerate_space, spaces=spaces)
             else:
-                spaces = self.get_second_deg_coupled_space(degenerate_space)
+                spaces = self.get_second_deg_coupled_space(degenerate_space, spaces=spaces)
 
         # raise Exception(spaces)
-        return {k:(v[1] if v is not None else v) for k,v in spaces.items()}
+        return spaces
 
     def get_nondeg_coupled_space(self,
                                  input_state_space,
-                                 degenerate_space=None
+                                 degenerate_space=None,
+                                 spaces=None
                                  ):
         """
         Applies the non-degenerate equations in semi-symbolic form to determine
@@ -1461,7 +1469,7 @@ class PerturbationTheorySolver:
         """
 
         # holder for perts to map to their stored states
-        spaces = {h:None for h in self.perts}
+        spaces = {h:None for h in self.perts} if spaces is None else spaces
         # final state spaces for each energy, corr, overlap, etc.
         input_wrapper = self.StateSpaceWrapper(input_state_space)
         order = self.order+1
@@ -1474,7 +1482,7 @@ class PerturbationTheorySolver:
         if D is None:
             D = input_state_space
         pi = self.ProjectionOperatorWrapper(D, complement=True)
-        piD = self.ProjectionOperatorWrapper(D, complement=False)
+        # piD = self.ProjectionOperatorWrapper(D, complement=False)
         dot = lambda *terms, spaces=spaces: self._reduce_new_coupled_space(*terms, spaces=spaces)
 
         H = self.PastIndexableTuple(self.perts)
@@ -1513,7 +1521,7 @@ class PerturbationTheorySolver:
 
         return spaces
 
-    def get_deg_coupled_space(self, degenerate_space):
+    def get_deg_coupled_space(self, degenerate_space, spaces=None):
         """
         Applies the degenerate equations in semi-symbolic form to determine
         which states needs to be calculated at which orders of correction
@@ -1522,16 +1530,16 @@ class PerturbationTheorySolver:
         :rtype:
         """
 
-        raise NotImplementedError("haven't checked this yet...")
+        # raise NotImplementedError("haven't checked this yet...")
 
         D = degenerate_space
 
         # holder for perts to map to their stored states
-        spaces = {h:None for h in self.perts}
+        spaces = {h:None for h in self.perts} if spaces is None else spaces
         # final state spaces for each energy, corr, overlap, etc.
         input_wrapper = self.StateSpaceWrapper(D)
         order = self.order + 1
-        E = [None] * order
+        E = [None] * (order + 1)
         E[0] = input_wrapper
         corrs = [None] * order
         corrs[0] = input_wrapper
@@ -1545,24 +1553,32 @@ class PerturbationTheorySolver:
         for k in range(1, order):
             # Pu |n^(k)>
             corrs[k] = sum(
-                dot(piU, corrs[i]) - dot(piU, H[k - i], corrs[i])
-                for i in range(1, k)  # goes up to k-1
-            ) - dot(piU, H[k], corrs[0])
-            # E^(k+1)
-            E[k + 1] = (
-                    dot(corrs[0], H[k + 1], corrs[0])
-                    + dot(corrs[0], dot(H[1], corrs[k]))
-                    + sum(dot(corrs[0], H[k - i], corrs[i]) for i in range(1, k))
+                (
+                   dot(piU, corrs[i]) + dot(piU, H[k - i], corrs[i])
+                    for i in range(0, k)
+                ),
+                corrs[0]
             )
+
+            corrs[k] = (
+                    sum(dot(piU, corrs[i]) for i in range(0, k))
+                    + sum(dot(piD, H[k - i], corrs[i]) for i in range(0, k))
+            )
+
+            # E^(k+1)
+            E[k+1] = sum(dot(piD, H[k+1-i], corrs[i]) for i in range(0, k+1))
             # PD|n^(k)>
-            corrs[k] = sum(
-                dot(piD, corrs[i]) - dot(piD, H[k + 1 - i], corrs[i])
-                for i in range(0, k)
-            ) - dot(piD, H[1], corrs[k])
+            corrs[k] += sum(
+                (
+                   dot(piU, corrs[i]) + dot(piU, H[k+1-i], corrs[i])
+                    for i in range(0, k+1)
+                ),
+                corrs[0]
+            )
 
         return spaces
 
-    def get_second_deg_coupled_space(self, degenerate_space):
+    def get_second_deg_coupled_space(self, degenerate_space, spaces=None):
         """
         Does the dirty work of doing the VPT iterative equations.
         Needs to be adapted to include the two types of degeneracies that can
@@ -1575,7 +1591,7 @@ class PerturbationTheorySolver:
         D = degenerate_space
 
         # holder for perts to map to their stored states
-        spaces = {h:None for h in self.perts}
+        spaces = {h:None for h in self.perts} if spaces is None else spaces
         # final state spaces for each energy, corr, overlap, etc.
         input_wrapper = self.StateSpaceWrapper(D)
         order = self.order + 1
@@ -1665,14 +1681,18 @@ class PerturbationTheorySolver:
         all_overlaps = np.zeros((len(states), order + 1))
         all_corrs = np.zeros((len(states), order + 1, N))
 
-        with logger.block(tag="applying non-degenerate PT"):
+        with logger.block(tag="applying PT"):
             logger.log_print(
                 [
                     "order: {o}",
-                    "states: {n}"
+                    "states: {n}",
+                    "deg. spaces: {d}",
+                    'deg. handling: {dm}'
                 ],
                 o=order,
-                n=len(states.indices)
+                n=len(states.indices),
+                d=len([1 for x in degenerate_states if len(x) > 1]),
+                dm='Sakurai' if self.allow_sakurai_degs else 'standard'
             )
             start = time.time()
 
@@ -1685,11 +1705,15 @@ class PerturbationTheorySolver:
                     deg_group = deg_group.indices
 
                 if len(deg_group) > 1:
-                    deg_engs, zero_order_states, subspaces = self._get_deg_eq_inputs(deg_inds)
+                    if self.allow_sakurai_degs:
+                        deg_engs, zero_order_states, main_zero_states, subspaces = self._get_deg_eq_inputs(deg_inds)
+                        main_subspace = (np.array([d[0] for d in deg_engs]), main_zero_states)
+                    else:
+                        deg_engs = zero_order_states = subspaces = main_subspace = [None]*len(deg_group)
                 else:
-                    deg_engs = zero_order_states = subspaces = [None]
+                    deg_engs = zero_order_states = subspaces = main_subspace = [None]
                 for n, de, zo, s in zip(deg_group, deg_engs, zero_order_states, subspaces):
-                    energies, overlaps, corrs = self.apply_VPT_equations(n, deg_inds, de, zo, s,
+                    energies, overlaps, corrs = self.apply_VPT_equations(n, deg_inds, de, zo, main_subspace, s,
                                                                          allow_PT_degs=self.allow_sakurai_degs,
                                                                          non_zero_cutoff=non_zero_cutoff)
 
@@ -1803,6 +1827,7 @@ class PerturbationTheorySolver:
                             degenerate_space_indices,
                             degenerate_energies,
                             zero_order_state,
+                            degenerate_subspace,
                             degenerate_subsubspace,
                             allow_PT_degs=True,
                             non_zero_cutoff=1.0e-14
@@ -1832,10 +1857,10 @@ class PerturbationTheorySolver:
             return self.apply_VPT_nondeg_equations(state_index, None, non_zero_cutoff=non_zero_cutoff)
         elif len(degenerate_subsubspace[0]) == 1:
             return self.apply_VPT_deg_equations(state_index, degenerate_space_indices, degenerate_energies[0],
-                                                zero_order_state, non_zero_cutoff=non_zero_cutoff)
+                                                zero_order_state, degenerate_subspace, non_zero_cutoff=non_zero_cutoff)
         else:
             return self.apply_VPT_second_deg_equations(state_index, degenerate_space_indices, degenerate_energies,
-                                                zero_order_state, degenerate_subsubspace, non_zero_cutoff=non_zero_cutoff)
+                                                zero_order_state, degenerate_subspace, degenerate_subsubspace, non_zero_cutoff=non_zero_cutoff)
     def apply_VPT_nondeg_equations(self,
                                    state_index,
                                    degenerate_space_indices,
@@ -1869,9 +1894,12 @@ class PerturbationTheorySolver:
         E0 = e_vec_full[n_ind]
         pi = self._get_Pi0(D, non_zero_cutoff=non_zero_cutoff)
         energies[0] = E0
+        # self.logger.log_print("{n}: E0={E}", n=n_ind, E=E0)
         overlaps[0] = 1
         corrs[0, n_ind] = 1
         H = self.representations
+
+        # raise Exception([np.max(np.abs(x.asarray())) for x in H])
         dot = self._safe_dot
         takeDiag = lambda h, n_ind: h[n_ind, n_ind] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
         take = lambda h, el: h[el] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
@@ -1910,6 +1938,7 @@ class PerturbationTheorySolver:
                                 degenerate_space_indices,
                                 degenerate_energy,
                                 zero_order_state,
+                                degenerate_subspace,
                                 non_zero_cutoff=1.0e-14,
                                 check_overlap=True
                                 ):
@@ -1921,6 +1950,8 @@ class PerturbationTheorySolver:
         :return:
         :rtype:
         """
+
+        # raise NotImplementedError("need to check this...")
 
         n = state_index
         e_vec_full = self.zero_order_energies
@@ -1939,11 +1970,13 @@ class PerturbationTheorySolver:
 
         D = degenerate_space_indices
         piU = self._get_Pi0(D, E0=E0, non_zero_cutoff=non_zero_cutoff)
-        piDn = self._get_Pi1(D, zero_order_state[np.newaxis, :], E1)
+        piDn = self._get_Pi1(degenerate_subspace, E1)
 
         energies[0] = E0
         energies[1] = E1
         corrs[0, D] = zero_order_state
+
+        overlaps[0] = 1
 
         H = self.representations
         dot = self._safe_dot
@@ -1954,15 +1987,15 @@ class PerturbationTheorySolver:
                 for i in range(1, k) # goes up to k-1
             ) - dot(piU, dot(H[k], corrs[0]))
             # E^(k+1)
-            Ekp1 = (
+            #
+            energies[k+1] = (
                     dot(corrs[0], dot(H[k+1], corrs[0]))
                     + dot(corrs[0], dot(H[1], corrs[k]))
                     + sum(
-                          dot(corrs[0], dot(H[k - i], corrs[i])) - energies[k - i] * overlaps[i]
+                          dot(corrs[0], dot(H[k+1 - i], corrs[i])) - energies[k+1 - i] * overlaps[i]
                           for i in range(1, k)
                           )
             )
-            energies[k+1] = Ekp1
             # PDn|n^(k)>
             dHDnk = sum(
                 energies[k + 1 - i] * corrs[i] - dot(H[k + 1 - i], corrs[i])
@@ -1970,25 +2003,49 @@ class PerturbationTheorySolver:
             ) - dot(H[1], corrs[k])
             corrs[k][D] = dot(piDn, dHDnk[D])
 
-            # #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
+            cur_ov = dot(corrs[0][D], corrs[k][D])
+            if cur_ov > .005:
+                raise ValueError(
+                    "overlap of zero-order state {} with rest of D should be zero after applying PiD (currently={}; order={})".format(
+                        state_index,
+                        cur_ov,
+                        k
+                    ))
+
+            # <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
             ok = -1 / 2 * sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
-            overlaps[k] = ok
-            corrs[k][D] += zero_order_state * ok
+            overlaps[k] = ok  # dot(corrs[0], corrs[k])
+            corrs[k][D] += corrs[0][D] * ok  # - corrs[0][D]*dot(corrs[0][D], corrs[k][D])
+
+            check_overlap = True
+            if check_overlap:
+                true_ov = dot(corrs[0], corrs[k])
+                overlaps[k] = true_ov
+                if abs(true_ov - ok) > .005:
+                    raise ValueError(
+                        "state {} fails overlap relationship at order {} (contrib {}, expected {})".format(
+                            state_index, order, true_ov, ok
+                        ))
 
         if check_overlap:
-            full_wfn = np.sum(corrs, axis=0)
-            ov = np.dot(full_wfn, full_wfn)
-            if abs(ov - 1) > .2:
-                raise ValueError("state {} isn't normalized (overlap = {})".format(state_index, ov))
+            # full_wfn = np.sum(corrs, axis=0)
+            # ov = np.dot(full_wfn, full_wfn)
+            ov_parts = [[dot(corrs[k - i], corrs[i]) for i in range(k + 1)] for k in range(order + 1)]
+            ov = sum(np.sum(v) for v in ov_parts)
+            if abs(ov - 1) > .005:
+                raise ValueError(
+                    "state {} isn't normalized (overlap = {}, bits {})".format(
+                        state_index, ov, ov_parts
+                    ))
 
-
-        return energies, overlaps, corrs
+        return energies[:order+1], overlaps, corrs
 
     def apply_VPT_second_deg_equations(self,
                                        state_index,
                                        degenerate_space_indices,
                                        degenerate_energies,
                                        zero_order_state,
+                                       degenerate_subspace,
                                        degenerate_subsubspace,
                                        non_zero_cutoff=1.0e-14,
                                        check_overlap=True
@@ -2009,7 +2066,7 @@ class PerturbationTheorySolver:
 
         energies = np.zeros((order + 3,), dtype=float)
         overlaps = np.zeros((order + 1,), dtype=float)
-        corrs = np.zeros((order + 2, len(total_state_space)), dtype=float)  # can I make this less expensive in general?
+        corrs = np.zeros((order + 1, len(total_state_space)), dtype=float)  # can I make this less expensive in general?
 
         # find the state index in the coupled subspace
         n_ind = total_state_space.find(n)
@@ -2023,7 +2080,7 @@ class PerturbationTheorySolver:
 
         D = degenerate_space_indices
         piU = self._get_Pi0(D, E0=E0, non_zero_cutoff=non_zero_cutoff)
-        piV = self._get_Pi1(D, degenerate_subsubspace[1], E1)
+        piV = self._get_Pi1(degenerate_subspace, E1, G=degenerate_subsubspace)
 
         piG = self._get_Pi2(D, degenerate_subsubspace, zero_order_state, E2)
         H1PiU = dot(H[1], piU)
@@ -2087,18 +2144,6 @@ class PerturbationTheorySolver:
             )
             energies[k + 2] = Ekp2
 
-            # PDn|n^(k)>
-            # dHG1_bits = [
-            #     energies[k+2 - i] * corrs[i] - dot(H[k+2 - i], corrs[i])
-            #     for i in range(0, k)
-            # ]
-            # dHG1 = sum(dHG1_bits)
-            #
-            # dHG2 = sum(
-            #     dot(H[j], corrs[k + 2 - j])
-            #     for j in range(1, 3)
-            # )
-
             dH = sum(
                 energies[k+2 - i] * corrs[i] -
                     dot(H[k+2 - i], corrs[i])
@@ -2138,15 +2183,6 @@ class PerturbationTheorySolver:
                 true_ov = dot(corrs[0], corrs[k])
                 overlaps[k] = true_ov
                 if abs(true_ov - ok) > .005:
-                    # raise ValueError(
-                    #     dot(corrs[0][D], ketG1),
-                    #     dot(corrs[0][D], ketG2),
-                    #     [dot(corrs[0][D], x[D]) for x in dHG1_bits],
-                    #     [dot(corrs[0][D], b) for b in ketG1_bits],
-                    #     # dot(projV, corrs[k ])[D],
-                    #     # dot(projV, corrs[k + 1])[D],
-                    #     ok
-                    # )
                     raise ValueError(
                         "state {} fails overlap relationship at order {} (contrib {}, expected {})".format(
                             state_index, order, true_ov, ok
@@ -2215,12 +2251,14 @@ class PerturbationTheorySolver:
                 deg_rows, deg_cols = np.array([p for p in itertools.product(deg_inds, deg_inds)]).T
                 rotation_row_inds.append(deg_rows)
                 rotation_col_inds.append(deg_cols)
-            else:
+            elif len(deg_inds):
                 # we'll be a little bit inefficient for now and speed up later
                 energies[deg_inds[0]] = base_energies[deg_inds[0]]
                 rotation_vals.append([1.])
                 rotation_row_inds.append(deg_inds)
                 rotation_col_inds.append(deg_inds)
+            else:
+                self.logger.log_print("WARNING: got degeneracy spec that is not in total space")
 
         rotation_vals = np.concatenate(rotation_vals)
         rotation_row_inds = np.concatenate(rotation_row_inds)

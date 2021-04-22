@@ -53,7 +53,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     These things are fed the first and second order corrections
     """
 
-    def __init__(self, mol, basis, corrections, logger=None):
+    def __init__(self, mol, basis, corrections, modes=None, mode_selection=None, logger=None):
         """
         :param mol: the molecule the wavefunction is for
         :type mol: Molecule
@@ -64,6 +64,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
         self.mol = mol
         self.corrs = corrections
+        self.modes = modes
+        self.mode_selection = mode_selection
         self.rep_basis = basis  # temporary hack until I decided how to merge the idea of
         # AnalyticWavefunctions with a RepresentationBasis
         self._tm_dat = None
@@ -339,7 +341,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 if isinstance(lower_states, (int, np.integer)):
                     lower_states = (lower_states,)
                 low_spec = lower_states
-            lower_states = space[low_spec]
+            lower_states = space[(low_spec,)]
 
             if excited_states is None:
                 up_spec = tuple(range(space.nstates))
@@ -348,7 +350,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 if isinstance(excited_states, (int, np.integer)):
                     excited_states = (excited_states,)
                 up_spec = excited_states
-                excited_states = space[up_spec]
+                excited_states = space[(up_spec,)]
 
             bra_space = lower_states if isinstance(lower_states, BasisStateSpace) else lower_states.to_single()
             ket_space = excited_states if isinstance(excited_states, BasisStateSpace) else excited_states.to_single()
@@ -472,10 +474,14 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
         return [tmom, transition_moment_components, mu_reps]
 
+    class TermHolder(tuple):
+        """symbolic wrapper on Tuple so we can know that we've canonicalized some term"""
     @property
     def dipole_terms(self):
         if self._dipole_terms is None:
-            self._dipole_terms = DipoleTerms(self.mol).get_terms()
+            self._dipole_terms = self.TermHolder(DipoleTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection).get_terms())
+        elif not isinstance(self._dipole_terms, self.TermHolder):
+            self._dipole_terms = self.TermHolder(DipoleTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection, derivatives=self._dipole_terms).get_terms())
         return self._dipole_terms
 
     @dipole_terms.setter

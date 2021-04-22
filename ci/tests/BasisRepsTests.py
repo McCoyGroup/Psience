@@ -1,4 +1,5 @@
 from Peeves import Timer, BlockProfiler
+from McUtils.Scaffolding import *
 from Peeves.TestUtils import *
 from unittest import TestCase
 from Psience.BasisReps import *
@@ -6,20 +7,11 @@ import sys, os, numpy as np
 
 class BasisSetTests(TestCase):
 
-
-    def get_states(self, n_quanta, n_modes, max_quanta = None):
-        import itertools as ip
-
-        if max_quanta is None:
-            max_quanta = n_quanta
-        return tuple(sorted(
-            [p for p in ip.product(*(range(n_quanta+1) for i in range(n_modes))) if all(x<=max_quanta for x in p) and sum(p) <= n_quanta],
-            key=lambda p: (
-                    sum(p)
-                    + sum(1 for v in p if v != 0) * n_quanta ** (-1)
-                    + sum(v * n_quanta ** (-i - 2) for i, v in enumerate(p))
-            )
-        ))
+    def get_states(self, n_quanta, n_modes, max_quanta=None):
+        return [np.flip(x) for x in BasisStateSpace.from_quanta(
+            HarmonicOscillatorProductBasis(n_modes),
+            range(n_quanta)
+        ).excitations]
 
     #region 1D Basis Tests
     @validationTest
@@ -358,6 +350,115 @@ class BasisSetTests(TestCase):
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 
     @validationTest
+    def test_HOBasis3DXXX(self):
+
+        n = 15
+        m = 5
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+        oppo2 = SimpleProductBasis(HarmonicOscillatorBasis, (n,) * m)
+
+        term = ['x', 'x', 'x']
+        iphase = (-1) ** (term.count("p") // 2)
+
+        xxpp1 = oppo.representation(*term)
+        xxpp2 = oppo2.representation(*term)
+
+        usr = os.path.expanduser('~')
+        job_is_dumb = [
+            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
+            os.path.join(usr, "Documents/UW/Research/Development")
+        ]
+
+        quant_states = self.get_states(4, m)
+        states = oppo.ravel_state_inds(quant_states)
+        # print(quant_states)
+        import itertools as ip
+        wat = np.array(list(ip.product(states, states))).T
+        # with Timer("New style"):
+        vals1 = xxpp1[wat[0], wat[1]]
+
+        # with Timer("Old style"):
+        vals2 = xxpp2[wat[0], wat[1]]
+
+        v1 = vals1.asarray()
+        v2 = iphase * vals2.asarray()
+
+        # with JSONCheckpointer(os.path.expanduser("~/Desktop/test_terms.json")) as chk:
+        #     chk['XXX_3D_new'] = v1
+        #     chk['XXX_3D_old'] = v2
+
+        self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
+
+    @validationTest
+    def test_HOBasis3DXXX2D(self):
+
+        n = 15
+        m = 2
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+        oppo2 = SimpleProductBasis(HarmonicOscillatorBasis, (n,) * m)
+
+        term = ['x', 'x', 'x']
+        iphase = (-1) ** (term.count("p") // 2)
+
+        xxpp1 = oppo.representation(*term)
+        xxpp2 = oppo2.representation(*term)
+
+        # usr = os.path.expanduser('~')
+        # job_is_dumb = [
+        #     os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
+        #     os.path.join(usr, "Documents/UW/Research/Development")
+        # ]
+
+        states = BasisStateSpace.from_quanta(oppo, range(10))
+        brakets = states.get_representation_brakets()
+        vals1 = xxpp1[brakets]
+        vals2 = xxpp2[brakets]
+
+        v1 = vals1.asarray()
+        v2 = iphase * vals2.asarray()
+
+        # with JSONCheckpointer(os.path.expanduser("~/Desktop/test_terms.json")) as chk:
+        #     chk['XXX_exc'] = states.excitations
+        #     chk['XXX_3D_new'] = v1
+        #     chk['XXX_3D_old'] = v2
+
+        self.assertLess(np.max(np.abs(v1 - v2)), 2.0e-14)
+
+    @validationTest
+    def test_HOBasis3DXXX2DContracted(self):
+        n = 15
+        m = 2
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+        oppo2 = SimpleProductBasis(HarmonicOscillatorBasis, (n,) * m)
+
+        term = ['x', 'x', 'x']
+        iphase = (-1) ** (term.count("p") // 2)
+
+        xxpp1 = oppo.representation(*term, coeffs=np.ones((m, m, m)))
+        xxpp2 = oppo2.representation(*term, coeffs=np.ones((m, m, m)))
+
+        # usr = os.path.expanduser('~')
+        # job_is_dumb = [
+        #     os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
+        #     os.path.join(usr, "Documents/UW/Research/Development")
+        # ]
+
+        states = BasisStateSpace.from_quanta(oppo, range(10))
+        brakets = states.get_representation_brakets()
+        vals1 = xxpp1[brakets]
+        vals2 = xxpp2[brakets]
+
+        v1 = vals1
+        v2 = iphase * vals2
+
+        with JSONCheckpointer(os.path.expanduser("~/Desktop/test_terms.json")) as chk:
+            chk['XXX_exc'] = states.excitations
+            chk['XXX_3D_new'] = v1
+            chk['XXX_3D_old'] = v2
+
+        self.assertLess(np.max(np.abs(v1 - v2)), 2.0e-14)
+
+    @validationTest
     def test_HOBasis4DPXXP(self):
         from Peeves import Timer, BlockProfiler
 
@@ -433,7 +534,7 @@ class BasisSetTests(TestCase):
                 1
             )
 
-    @debugTest
+    @validationTest
     def test_GenerateSelectionRuleSpace(self):
         """
         Tests (and profiles) the generation of a state
@@ -455,7 +556,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(h2_space.nstates, 120)
 
-    @debugTest
+    @validationTest
     def test_StateIndexing(self):
         """
         Tests indexing state specs through a more
@@ -495,7 +596,7 @@ class BasisSetTests(TestCase):
     #     new_rep = new_basis.representation('p', 'x', 'p')
     #     old_rep = old_basis.representation('p', 'x', 'p')
 
-    @debugTest
+    @validationTest
     def test_FindIndices(self):
         ndim = 6
         states = BasisStateSpace.from_quanta(HarmonicOscillatorProductBasis(ndim), range(5))
@@ -599,7 +700,7 @@ class BasisSetTests(TestCase):
         # import networkx
         # graph = networkx.from_scipy_sparse_matrix(adj_dat)
 
-    @debugTest
+    @inactiveTest
     def test_PermIndexingChange(self):
         import json
         ndim = 5
@@ -618,6 +719,41 @@ class BasisSetTests(TestCase):
             print(h2_space)
 
             print(states.indices.tolist(), np.sort(h2_space.indices).tolist())
+
+    @debugTest
+    def test_NewOrthogonalityCalcs(self):
+
+        n = 15
+        m = 4
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+
+        states = BasisStateSpace.from_quanta(oppo, range(10))
+        brakets = states.get_representation_brakets()
+        orthog_1 = brakets.get_non_orthog([0, 0, 1])
+
+        brakets2 = states.get_representation_brakets()
+        brakets2.preindex_trie_enabled=False
+        brakets2.aggressive_caching_enabled = False
+        orthog_2 = brakets2.get_non_orthog([0, 0, 1])
+
+        self.assertTrue( (orthog_1==orthog_2).all() )
+
+        m = 2
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+
+        states = BasisStateSpace.from_quanta(oppo, range(10))
+
+        brakets = states.get_representation_brakets()
+        orthog_1 = brakets.get_non_orthog([0, 0, 1])
+
+        brakets2 = states.get_representation_brakets()
+        brakets2.preindex_trie_enabled = False
+        brakets2.aggressive_caching_enabled = False
+        orthog_2 = brakets2.get_non_orthog([0, 0, 1])
+
+        # raise Exception(orthog_1, orthog_2)
+
+        self.assertTrue((orthog_1 == orthog_2).all())
 
 
 

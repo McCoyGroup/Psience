@@ -39,6 +39,7 @@ class PerturbationTheoryHamiltonian:
                  mode_selection=None,
                  potential_derivatives=None,
                  coriolis_coupling=True,
+                 watson_term=True,
                  parallelizer=None,
                  log=None,
                  checkpoint=None,
@@ -102,9 +103,10 @@ class PerturbationTheoryHamiltonian:
         mode_n = modes.basis.matrix.shape[1] if mode_selection is None else len(mode_selection)
         self.mode_n = mode_n
         if n_quanta is None:
-            n_quanta = 10 # dunno yet how I want to handle this since it should really be defined by the order of state requested...
+            n_quanta = 15 # dunno yet how I want to handle this since it should really be defined by the order of state requested...
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
         self.modes = modes
+        self.mode_selection = mode_selection
         self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection,
                                       potential_derivatives=potential_derivatives,
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
@@ -115,8 +117,12 @@ class PerturbationTheoryHamiltonian:
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
         else:
             self.coriolis_terms = None
-        self.watson_term = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
-                                      logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
+
+        if watson_term:
+            self.watson_term = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
+                                          logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
+        else:
+            self.watson_term = None
 
         self._h0 = self._h1 = self._h2 = None
 
@@ -228,14 +234,15 @@ class PerturbationTheoryHamiltonian:
                                                                coeffs=total_cor,
                                                                **self.operator_settings
                                                                )
-            else:
-                self._h2 += 0 * self.basis.representation(coeffs=0,
-                                                          **self.operator_settings
-                                                          )
+            # else:
+            #     self._h2 += 0 * self.basis.representation(coeffs=0,
+            #                                               **self.operator_settings
+            #                                               )
 
-            self._h2 += 1 / 8 * self.basis.representation(coeffs=self.watson_term[0],
-                                                          **self.operator_settings
-                                                          )
+            if self.watson_term is not None:
+                self._h2 += 1 / 8 * self.basis.representation(coeffs=self.watson_term[0],
+                                                              **self.operator_settings
+                                                              )
 
         return self._h2
 
@@ -573,6 +580,8 @@ class PerturbationTheoryHamiltonian:
                           states,
                           coupled_states=None,
                           degeneracies=None,
+                          allow_sakurai_degs=True,
+                          allow_post_PT_calc=True,
                           order=2
                           ):
         """
@@ -626,12 +635,12 @@ class PerturbationTheoryHamiltonian:
                                                   degenerate_states=degeneracies,
                                                   logger=self.logger,
                                                   checkpointer=self.checkpointer,
-                                                  allow_sakurai_degs=True,
-                                                  allow_post_PT_calc=True
+                                                  allow_sakurai_degs=allow_sakurai_degs,
+                                                  allow_post_PT_calc=allow_post_PT_calc
                                                   )
                 corrs = solver.apply_VPT()
 
-        return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, logger=self.logger)
+        return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, modes=self.modes, mode_selection=self.mode_selection, logger=self.logger)
 
     @classmethod
     def _invert_action_expansion_tensors(cls,
@@ -792,7 +801,7 @@ class PerturbationTheoryHamiltonian:
                 logger=self.logger
             )
 
-            wfns = PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, logger=self.logger)
+            wfns = PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, modes=self.modes, mode_selection=self.mode_selection, logger=self.logger)
             specs[k] = wfns
 
         return specs

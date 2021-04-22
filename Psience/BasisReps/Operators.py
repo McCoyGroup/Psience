@@ -277,6 +277,8 @@ class Operator:
         if sel_rules is not None:
             sel_rules = states.get_sel_rules_from1d(inds, sel_rules)
             states, all_sels = states.apply_sel_rules(sel_rules)
+        else:
+            all_sels = None
 
         if len(states) == 0:
             return None, None
@@ -341,8 +343,6 @@ class Operator:
         # the issue here is that _this_ operation is not necessarily cheap...
         # the subdimension states still can be quite expensive to get indices from
         states = states.take_subdimensions(uinds)
-        # we also probably want to enable some kind of caching so we can maintain orthog
-        # relationships?
 
         gen = func(inds)
         try:
@@ -354,9 +354,13 @@ class Operator:
             sel_rules = None
         else:
             gen = g
-            states, sel_rules = states.apply_sel_rules(sel_rules)
-            if len(states) == 0:
-                return None, None
+            sel_rules = None
+            # og_rules = sel_rules
+            # states, sel_rules = states.apply_sel_rules(sel_rules)
+            # if len(states) == 0:
+            #     # if len(inds) == 3:
+            #     #     raise Exception(inds, og_rules)
+            #     return None, None
 
         # bras, kets = states.state_pairs
         # states = [bk for i, bk in enumerate(zip(bras, kets)) if i in inds]
@@ -388,8 +392,12 @@ class Operator:
         # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
         nstates = len(states)
-        # raise Exception(len(self.fdim))
+        # TODO: selection rules are actually _cheaper_ to apply than this in general, esp. if we focus
+        #       only on the number of quanta that can change within the set of indices
+        #       so we should support applying them first & then only doing this for the rest
         states, non_orthog = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
+        # non_orthog = np.arange(len(states))
+
 
         # if none of the states are non-orthogonal...just don't calculate anything
         if len(non_orthog) == 0:
