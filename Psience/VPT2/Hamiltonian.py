@@ -580,7 +580,7 @@ class PerturbationTheoryHamiltonian:
                           states,
                           coupled_states=None,
                           degeneracies=None,
-                          allow_sakurai_degs=True,
+                          allow_sakurai_degs=False,
                           allow_post_PT_calc=True,
                           order=2
                           ):
@@ -596,6 +596,9 @@ class PerturbationTheoryHamiltonian:
         :return: generated wave functions
         :rtype: PerturbationTheoryWavefunctions
         """
+
+        if allow_sakurai_degs:
+            raise NotImplementedError("true degeneracy handling needs to be reworked to be fully general")
 
         with self.checkpointer:
 

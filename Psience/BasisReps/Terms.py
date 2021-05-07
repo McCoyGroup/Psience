@@ -13,17 +13,16 @@ from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
 
 from .Operators import Operator
-from .StateSpaces import BraKetSpace
+from .StateSpaces import BraKetSpace, StateSpaceMatrix
 
+# for interactive work
 __reload_hook__ = [ '.StateSpaces', ".Operators" ]
 
 class Representation:
     """
     A `Representation` provides a simple interface to build matrix representations of operators expressed
     in high-dimensional spaces.
-    It maintains a `BasisStateSpace` to know which states it has computed and a `SparseArray` to track associated values
-    The `BasisStateSpace` may be extended, but it is worth noting the potential expense associated with this operation
-    as it requires the `SparseArray` to be rebuilt as well.
+
     """
 
     def __init__(self, compute, basis, logger=None):
@@ -41,14 +40,27 @@ class Representation:
         else:
             operator = None
         self.operator = operator
-        self.compute = compute
+        self._compute = compute
         self.basis = basis
         self.dims = basis.dimensions
         self._diminds = None
         if logger is None:
             logger = NullLogger()
-        self.logger=logger
-        self.array=SparseArray.empty((len(self.basis), len(self.basis)))
+        self.logger = logger
+        self.array = StateSpaceMatrix(basis)
+
+    def compute(self, inds):
+        if isinstance(inds, BraKetSpace):
+            # allows us to use cached stuff
+            return self.array.compute_values(self._compute, inds)
+        else:
+            return self._compute(inds)
+    def compute_cached(self, inds):
+        if isinstance(inds, BraKetSpace):
+            # allows us to use cached stuff
+            self.array._compute_uncached_values(self._compute, inds)
+        else:
+            raise ValueError("Can only compute cached values when given explicit BraKets")
 
     def clear_cache(self):
         # print(">>>>>>>>>>>>> wat", self.compute, self.operator)
@@ -113,20 +125,7 @@ class Representation:
             states=states
         )
 
-        states = self._get_uncached_states(states)
-        self._compute_cached(states)
-
-        return self.get_states(states)
-
-    def _get_uncached_states(self, space):
-        if space.basis is not self.basis:
-            self._expand_if_needed(space.basis)
-
-        row_inds = self.basis.as_indices(space.bras)
-        col_inds = self.basis.as_indices(space.kets)
-
-        stored_inds = self.array.indices
-
+        return self.compute(states)
 
     def get_element(self, n, m):
         """
@@ -317,6 +316,27 @@ class Representation:
             return self.operator.get_transformed_space(space)
         else:
             raise ValueError("can't get a transformed space without a held operator")
+
+
+    def apply(self, other):
+
+        if self.operator is None:
+            raise ValueError("")
+
+        if not isinstance(other, (Representation, StateSpaceMatrix)):
+            raise TypeError("{} doesn't support application to objects that don't provide a state space".format(
+                type(self).__name__
+            ))
+
+        if isinstance(other, Representation):
+            other = other.array
+
+        other_states = other.states
+        new_states = self.operator.get_transformed_space(other_states)
+
+        self.compute_cached(new_states.get_representation_brakets())
+
+        return self.array.dot(other)
 
 
 class ExpansionRepresentation(Representation):

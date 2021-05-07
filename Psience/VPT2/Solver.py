@@ -1445,6 +1445,7 @@ class PerturbationTheorySolver:
             spaces = self.get_nondeg_coupled_space(input_state_space, degenerate_space,
                                                    spaces=spaces)
         else:
+            raise NotImplementedError("True degeneracy handling is getting a rewrite")
             if degenerate_space is None:
                 spaces = self.get_nondeg_coupled_space(input_state_space, spaces=spaces)
             elif not use_second_deg:
@@ -1462,7 +1463,11 @@ class PerturbationTheorySolver:
                                  ):
         """
         Applies the non-degenerate equations in semi-symbolic form to determine
-        which states needs to be calculated
+        which states needs to be calculated.
+        This will always be the initial input to a calculation and then
+        certain additional states may be calculated on the fly if they are needed to handle
+        truly degenerate stuff.
+        The only difference there will be to add on
 
         :return:
         :rtype:

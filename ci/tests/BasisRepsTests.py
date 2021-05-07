@@ -720,7 +720,7 @@ class BasisSetTests(TestCase):
 
             print(states.indices.tolist(), np.sort(h2_space.indices).tolist())
 
-    @debugTest
+    @validationTest
     def test_NewOrthogonalityCalcs(self):
 
         n = 15
@@ -754,6 +754,39 @@ class BasisSetTests(TestCase):
         # raise Exception(orthog_1, orthog_2)
 
         self.assertTrue((orthog_1 == orthog_2).all())
+
+    @debugTest
+    def test_BasisRepMatrixOps(self):
+
+        n = 15 # totally meaningless these days
+        m = 4
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        mat = StateSpaceMatrix(basis)
+
+        self.assertEquals(mat.array.shape[0], 0)
+
+        states = BasisStateSpace.from_quanta(basis, range(10))
+        brakets = BraKetSpace(states, states)
+        vals = np.ones(len(brakets))
+        mat_2 = StateSpaceMatrix(brakets, vals)
+
+        def wat(state_space):
+            return np.ones(len(state_space))
+        sub_brakets = BasisStateSpace.from_quanta(basis, range(4)).get_representation_brakets()
+        mat2_vals = mat_2.compute_values(wat, sub_brakets)
+
+        self.assertEquals(mat2_vals.tolist(), mat_2[sub_brakets].tolist())
+
+    @debugTest
+    def test_ImprovedRepresentations(self):
+
+        ...
+
+        # raise Exception(mat_2.array.asarray())
+
+
+
 
 
 
