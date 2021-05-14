@@ -538,7 +538,7 @@ class PerturbationTheorySolver:
                  coupled_states=None,
                  order=2, total_space=None,
                  flat_total_space=None,
-                 allow_sakurai_degs=True,
+                 allow_sakurai_degs=False,
                  allow_post_PT_calc=True,
                  degenerate_states=None,
                  logger=None,

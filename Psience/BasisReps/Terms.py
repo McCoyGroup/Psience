@@ -50,11 +50,11 @@ class Representation:
         self.array = StateSpaceMatrix(basis)
 
     def compute(self, inds):
-        if isinstance(inds, BraKetSpace):
-            # allows us to use cached stuff
-            return self.array.compute_values(self._compute, inds)
-        else:
-            return self._compute(inds)
+        # if isinstance(inds, BraKetSpace):
+        #     # allows us to use cached stuff
+        #     return self.array.compute_values(self._compute, inds)
+        # else:
+        return self._compute(inds)
     def compute_cached(self, inds):
         if isinstance(inds, BraKetSpace):
             # allows us to use cached stuff

@@ -342,6 +342,7 @@ class PerturbationTheoryHamiltonian:
         x_mat = cls._get_Nielsen_xmat(freqs, v3, v4, zeta, Be)
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        raise Exception(np.sum(x_mat, axis=0) * h2w)
         raise Exception(x_mat * h2w)
 
         states = np.array(states) + 1/2 # n+1/2 for harmonic vibrations

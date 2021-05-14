@@ -164,7 +164,7 @@ class VPT2Tests(TestCase):
                       get_breakdown=False,
                       chunk_size=None,
                       order=2
-                      , allow_sakurai_degs = True
+                      , allow_sakurai_degs = False
                       , allow_post_PT_calc = True
                       ):
         return self.get_VPT2_wfns_and_ham(
@@ -1844,7 +1844,7 @@ class VPT2Tests(TestCase):
             .01 # within .01 wavenumbers
         ))
 
-    @inactiveTest
+    @debugTest
     def test_HOHNielsenEnergies(self):
         # need to figure out the units on this shit if I want it to work...
         states = (
@@ -1935,7 +1935,7 @@ class VPT2Tests(TestCase):
 
     #region Analytic Models
 
-    @debugTest
+    @inactiveTest
     def test_TwoMorseCartesiansDegenerate(self):
 
         from Psience.Molecools import Molecule
@@ -2038,7 +2038,7 @@ class VPT2Tests(TestCase):
                 ([3, 0], [2, 1], [1, 2], [0, 3]),
                 ([4, 0], [3, 1], [2, 2], [1, 3], [0, 4])
             )
-            , allow_sakurai_degs=True
+            , allow_sakurai_degs=False
             , allow_post_PT_calc=True
             , order=2
             , coupled_states = [self.get_states(11, 2), self.get_states(11, 2)]
@@ -2256,7 +2256,7 @@ class VPT2Tests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
-    @validationTest
+    @debugTest
     def test_HOHVPTInternals(self):
 
         internals = [
