@@ -1,5 +1,6 @@
 from Peeves import Timer, BlockProfiler
 from McUtils.Scaffolding import *
+import McUtils.Plots as plt
 from Peeves.TestUtils import *
 from unittest import TestCase
 from Psience.BasisReps import *
@@ -217,7 +218,6 @@ class BasisSetTests(TestCase):
         v1 = vals1
         v2 = iphase * vals2
 
-        # import McUtils.Plots as plt
         # n = len(quant_states)
         # plt.ArrayPlot(v1.reshape((n, n)))
         # plt.ArrayPlot(v2.reshape((n, n))).show()
@@ -294,7 +294,6 @@ class BasisSetTests(TestCase):
         )
         inds = quant_states.get_representation_brakets()
 
-        # import McUtils.Plots as plt
         #
         # # raise Exception(inds.bras.indices)
         #
@@ -325,8 +324,6 @@ class BasisSetTests(TestCase):
         v1 = vals1
         v2 = iphase * vals2
 
-
-        # import McUtils.Plots as plt
         # n = len(quant_states)
         # plt.ArrayPlot(v1.reshape((n, n)))
         # plt.ArrayPlot(v2.reshape((n, n)))
@@ -691,7 +688,6 @@ class BasisSetTests(TestCase):
 
         adj_arr = bk.adjacency_matrix(total_space=flat_total_space).toarray()
 
-        # import McUtils.Plots as plt
         # plt.ArrayPlot(adj_arr).show()
 
         # np.savetxt(os.path.expanduser("~/Desktop/bleh.dat"), adj_arr)
@@ -780,9 +776,26 @@ class BasisSetTests(TestCase):
 
     @debugTest
     def test_ImprovedRepresentations(self):
+        n = 15  # totally meaningless these days
+        m = 4
+        basis = HarmonicOscillatorProductBasis((n,) * m)
 
-        ...
+        x_rep = basis.representation('x', coeffs=np.ones((m,)))
+        initial_space = basis.get_state_space(range(4))
+        initial_states = StateSpaceMatrix.identity_from_space(initial_space)
 
+        x = x_rep.apply(initial_states)
+        x2 = x_rep.apply(x)
+        # plt.ArrayPlot(x.array.asarray(), aspect_ratio=x.shape[0]/x.shape[1], image_size=300)
+        # plt.ArrayPlot(x2.array.asarray(), aspect_ratio=x2.shape[0]/x2.shape[1], image_size=300).show()
+
+        x2_rep = basis.representation('x', 'x', coeffs=np.ones((m, m)))
+        x22 = x2_rep.apply(initial_states)
+
+        plt.ArrayPlot(x2.array.asarray(), aspect_ratio=x2.shape[0]/x2.shape[1], image_size=200)
+        plt.ArrayPlot(x22.array.asarray(), aspect_ratio=x22.shape[0]/x22.shape[1], image_size=200).show()
+
+        self.assertTrue(np.allclose(x2.array.asarray(), x22.array.asarray()))
         # raise Exception(mat_2.array.asarray())
 
 

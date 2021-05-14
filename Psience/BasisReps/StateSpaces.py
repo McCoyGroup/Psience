@@ -542,10 +542,9 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
-        # print("oops")
+
         states = self._init_states
         states_type = self.infer_state_inds_type()
-        # print("???", states_type)
         if states_type is self.StateSpaceSpec.Excitations:
             return self.basis.ravel_state_inds(np.reshape(states, (-1, self.ndim)))
         elif states_type is self.StateSpaceSpec.Indices:
@@ -714,11 +713,13 @@ class BasisStateSpace(AbstractStateSpace):
                                                )
 
         if len(inds) > 0:
-            bras = self.to_single().take_states(inds[0])
+            row_space = BasisStateSpace(self.basis, inds[0], mode=self.StateSpaceSpec.Indices)
+            col_space = BasisStateSpace(self.basis, inds[1], mode=self.StateSpaceSpec.Indices)
+            bras = self.to_single().take_states(row_space)
             if other is not None:
-                kets = other.to_single().take_states(inds[1])
+                kets = other.to_single().take_states(col_space)
             else:
-                kets = self.to_single().take_states(inds[1])
+                kets = self.to_single().take_states(col_space)
         else:
             bras = BasisStateSpace(self.basis, [])
             kets = BasisStateSpace(self.basis, [])
@@ -874,17 +875,17 @@ class BasisStateSpace(AbstractStateSpace):
                 other.basis
             ))
 
-        if self._indices is not None:
+        if sort or self._indices is not None:
             # create merge based on indices and then
             # secondarily based on excitations if possible
             self_inds = self.indices
             other_inds = other.indices
 
             if len(self_inds) == 0:
-                return other.take_unique()
+                return other.take_unique(sort=sort)
                 # new_inds = other_inds
             elif len(other_inds) == 0:
-                return self.take_unique()
+                return self.take_unique(sort=sort)
                 # new_inds = self_inds
             else:
                 new_inds = np.concatenate([self_inds, other_inds], axis=0)
@@ -892,9 +893,9 @@ class BasisStateSpace(AbstractStateSpace):
             # if the number of unique states hasn't increased,
             # one of the spaces is contained in the other
             if len(uinds) == len(self.unique_indices):
-                return self.take_unique()
+                return self.take_unique(sort=sort)
             elif len(uinds) == len(other.unique_indices):
-                return other.take_unique()
+                return other.take_unique(sort=sort)
             else:
                 if not sort:
                     sorting = np.argsort(uinds)
@@ -920,10 +921,10 @@ class BasisStateSpace(AbstractStateSpace):
             self_exc = self.excitations
             other_exc = other.excitations
             if len(self_exc) == 0:
-                return other.take_unique()
+                return other.take_unique(sort=sort)
                 # new_exc = other_exc
             elif len(other_exc) == 0:
-                return self.take_unique()
+                return self.take_unique(sort=sort)
                 # new_exc = self_exc
             else:
                 new_exc = np.concatenate([self_exc, other_exc], axis=0)
@@ -935,9 +936,9 @@ class BasisStateSpace(AbstractStateSpace):
             # if the number of unique states hasn't increased,
             # one of the spaces is contained in the other
             if len(uinds) == len(self.unique_excitations):
-                new = self.take_unique()
+                new = self.take_unique(sort=sort)
             elif len(uinds) == len(other.unique_excitations):
-                new = other.take_unique()
+                new = other.take_unique(sort=sort)
             else:
 
                 sorting = np.argsort(uinds)
@@ -1050,8 +1051,8 @@ class BasisStateSpace(AbstractStateSpace):
                 other.basis
             ))
         return (
-            len(self) == len(other),
-            (self.indices == other.indices).all()
+            len(self) == len(other)
+            and (self.indices == other.indices).all()
         )
 
 class BasisMultiStateSpace(AbstractStateSpace):
@@ -1349,6 +1350,22 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             selection_rules=serializer.deserialize(data['selection_rules'])
             )
 
+    def as_indices(self):
+        """
+        Pulls the full set indices out of all of the
+        held spaces and returns them as a flat vector
+        :return:
+        :rtype:
+        """
+        return np.concatenate([self._base_space.as_indices(), super().as_indices()])
+    def as_excitations(self):
+        """
+        Pulls the full set excitations out of all of the
+        held spaces and returns them as a flat vector
+        :return:
+        :rtype:
+        """
+        return np.concatenate([self._base_space.as_excitations(), super().as_excitations()], axis=0)
 
     @property
     def representative_space(self):
@@ -1508,8 +1525,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         inds_l = np.concatenate(inds_l)
         inds_r = np.concatenate(inds_r)
-
-        # print(inds_base, self.spaces)
 
         pairs = np.array([inds_l, inds_r]).T
         _, upos = np.unique(pairs, axis=0, return_index=True)
@@ -2085,7 +2100,6 @@ class BraKetSpace:
                             if j not in cache:
                                 cache[j] = {}
                             cache = cache[j]
-                        # print(item)
                         if self.trie is None:
                             cache['vals'] = self._pull_nonorthog(item)
                         else:
@@ -2467,7 +2481,7 @@ class StateSpaceMatrix:
           We'll need to test to see how slow
     """
 
-    def __init__(self, initial_basis, initial_vals=None, symmetric=True):
+    def __init__(self, initial_basis, initial_vals=None, column_space=None, symmetric=True):
         """
 
         :param initial_basis:
@@ -2478,10 +2492,14 @@ class StateSpaceMatrix:
             if initial_vals is not None:
                 bras = initial_basis.bras
                 kets = initial_basis.kets
-                initial_basis = bras.union(kets)
+                initial_basis = bras.union(kets).take_unique(sort=True)
                 row_inds = initial_basis.find(bras)
                 col_inds = initial_basis.find(kets)
                 if symmetric:
+                    # this is all done over the total state space rather than the column
+                    # space to start so that the symmetry can be made manifest
+                    # but then it needs to be reduced over the column space at the end
+                    # a basic dupe of this appears later
                     upper_triangle = np.where(row_inds <= col_inds)[0]
                     initial_vals = initial_vals[upper_triangle]
                     col_inds = col_inds[upper_triangle]
@@ -2492,32 +2510,42 @@ class StateSpaceMatrix:
                     new_col_inds = np.concatenate([col_inds, row_inds[flippers]])
                     row_inds = new_row_inds
                     col_inds = new_col_inds
+                if column_space is not None:
+                    column_space = column_space.take_unique(sort=True)
+                    col_inds = column_space.find(initial_basis.take_subspace(col_inds))
                 initial_vals = (initial_vals, (row_inds, col_inds))
             else:
-                initial_basis = initial_basis.bras.union(initial_basis.kets)
+                initial_basis = initial_basis.bras.union(initial_basis.kets).take_unique(sort=True)
+                if column_space is not None:
+                    column_space = column_space.take_unique(sort=True)
         else:
-            if initial_vals is not None:
+            if initial_vals is not None and not isinstance(initial_vals, SparseArray):
                 raise ValueError("can only initialize a {} with values if a {} is passed too".format(
                     type(self).__name__,
                     BraKetSpace.__name__
                 ))
             if not isinstance(initial_basis, BasisStateSpace):
                 initial_basis = BasisStateSpace(initial_basis, [], mode=BasisStateSpace.StateSpaceSpec.Indices)
-        # elif not isinstance(initial_basis, BasisStateSpace):
-        #     raise TypeError("'initial_basis' for {} must be a {} or {}".format(
-        #         type(self).__name__,
-        #         BasisStateSpace.__name__,
-        #         RepresentationBasis.__name__
-        #     ))
 
         self.symmetric = symmetric
-        self.states = initial_basis.take_unique(sort=True) # just in case
+        self.states = initial_basis
+        self.column_space = column_space
+        if column_space is not None and len(column_space) > len(initial_basis):
+            raise ValueError("can't have column space {} be larger than total space {}".format(column_space, initial_basis))
         self._brakets = None
         if initial_vals is None:
-            self.array = SparseArray.empty((len(self.states), len(self.states)))
+            self.array = SparseArray.empty(self.shape)
+        elif isinstance(initial_vals, SparseArray):
+            self.array = initial_vals
         else:
-            self.array = SparseArray.from_data(initial_vals, shape=(len(self.states), len(self.states)))
+            self.array = SparseArray.from_data(initial_vals, shape=self.shape)
 
+    @property
+    def shape(self):
+        if self.column_space is None:
+            return (len(self.states), len(self.states))
+        else:
+            return (len(self.states), len(self.column_space))
     @property
     def basis(self):
         """
@@ -2539,12 +2567,36 @@ class StateSpaceMatrix:
             self._brakets = self._get_brakets()
         return self._brakets
 
+    @classmethod
+    def identity_from_space(cls, space, column_space=None):
+        """
+        Returns a StateSpaceMatrix where the diagonal is filled with 1s
+        :param space:
+        :type space:
+        :param column_space:
+        :type column_space:
+        :return:
+        :rtype:
+        """
+        if column_space is not None:
+            vals = np.ones(len(column_space))
+            brakets = BraKetSpace(space, column_space)
+        else:
+            vals = np.ones(len(space))
+            brakets = BraKetSpace(space, space)
+        return cls(brakets, initial_vals=vals, column_space=column_space)
+
     def _get_brakets(self):
         """
         Builds a BraKet space for the current indices
         :return:
         :rtype:
         """
+        if len(self.states) == 0:
+            return BraKetSpace(
+                BasisStateSpace(self.basis, [], mode=BasisStateSpace.StateSpaceSpec.Indices),
+                BasisStateSpace(self.basis, [], mode=BasisStateSpace.StateSpaceSpec.Indices)
+            )
         arr = self.array #type: SparseArray
         inds = arr.block_inds[1]
         row_inds, col_inds = inds
@@ -2553,7 +2605,7 @@ class StateSpaceMatrix:
 
         return BraKetSpace(bras, kets)
 
-    def extend_basis(self, states):
+    def extend_basis(self, states, extend_columns=True):
         """
         Extends the held state space and resizes the held array if need be
 
@@ -2563,27 +2615,34 @@ class StateSpaceMatrix:
         :rtype:
         """
 
+        # we maintain sorting of the states so that
+        # later operations do not require any sorts
         new_states = self.states.union(states, sort=True)
         if new_states is not self.states:
-            # we maintain sorting of the states so that
-            # later operations do not require any sorts
-            cur_vals, cur_inds = self.array.block_data
-            resorting = new_states.find(self.states)
+            # this requires us to first find the proper
+            cur_vals, _ = self.array.block_data
+            row_inds = new_states.find(self.brakets.bras)
+            if self.column_space is not None:
+                col_inds = self.column_space.find(self.brakets.kets)
+            elif extend_columns:
+                col_inds = new_states.find(self.brakets.kets)
+            else:
+                self.column_space = self.states
+                col_inds = self.column_space.find(self.brakets.kets)
+            self.states = new_states
 
             new_array = SparseArray.from_data(
                 (
                     cur_vals,
                     (
-                        cur_inds[0][resorting],
-                        cur_inds[1][resorting]
+                        row_inds,
+                        col_inds
                     )
                 ),
-                shape=(len(new_states), len(new_states))
+                shape=self.shape
                 # layout=self.array.fmt,
                 # dtype=self.array.dtype
             )
-
-            self.states = new_states
             self.array = new_array
 
     def _compute_uncached_values(self, func, brakets):
@@ -2598,10 +2657,12 @@ class StateSpaceMatrix:
         """
 
         new_terms = self._get_uncached_states(brakets)
+
         if len(new_terms) > 0:
             # we then calculate values for the new_pos
             row_inds = self.states.find(new_terms.bras)
             col_inds = self.states.find(new_terms.kets)
+            # raise Exception(row_inds[:5], col_inds[:5], new_terms.bras.excitations[:5], new_terms.kets.excitations[:5])
             if self.symmetric:
                 upper_triangle = np.where(row_inds <= col_inds)[0]
                 new_terms = new_terms.take_subspace(upper_triangle)
@@ -2609,6 +2670,10 @@ class StateSpaceMatrix:
                 col_inds = col_inds[upper_triangle]
             new_vals = func(new_terms)
             if self.symmetric:
+                # this is all done over the total state space rather than the column
+                # space to start so that the symmetry can be made manifest
+                # but then it needs to be reduced over the column space at the end
+                # a basic dupe of this appears later
                 flippers = np.where(col_inds != row_inds)[0]
                 new_vals = np.concatenate([new_vals, new_vals[flippers]])
                 new_row_inds = np.concatenate([row_inds, col_inds[flippers]])
@@ -2616,7 +2681,12 @@ class StateSpaceMatrix:
                 row_inds = new_row_inds
                 col_inds = new_col_inds
 
+            if self.column_space is not None:
+                col_inds = self.column_space.find(self.states.take_subspace(col_inds))
+
             self.array[row_inds, col_inds] = new_vals
+
+            self._brakets = None # easier than a merge at this point in time...
 
     def compute_values(self, func, brakets):
         """
@@ -2680,6 +2750,7 @@ class StateSpaceMatrix:
         :return:
         :rtype:
         """
+        import copy
 
         # First check for basic compatibility
         if other.basis is not self.basis:
@@ -2689,13 +2760,21 @@ class StateSpaceMatrix:
                 self.basis
             ))
 
-        raise NotImplementedError("woops")
         # we assume the state spaces remain sorted
-        if self.states.take_unique() != other.states.take_unique():
+        if self.states != other.states:
             # like this step might be quite slow...
-            new_states = other.states.difference(self.states).union(self.states.difference(other.states))
+            new_states_other = self.states.difference(other.states)
+            new_states_self = other.states.difference(self.states)
+            if len(new_states_self) > 0:
+                self.extend_basis(new_states_self)
 
+            if len(new_states_other) > 0:
+                other = copy.copy(other)
+                other.extend_basis(new_states_other, extend_columns=False)
 
+        new_array = self.array.dot(other.array)
+
+        return type(self)(self.states, initial_vals=new_array, column_space=other.column_space, symmetric=False)
 
     def __getitem__(self, item):
         if not isinstance(item, BraKetSpace):

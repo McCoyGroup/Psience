@@ -331,10 +331,15 @@ class Representation:
         if isinstance(other, Representation):
             other = other.array
 
-        other_states = other.states
+        other_states = other.brakets.bras
         new_states = self.operator.get_transformed_space(other_states)
+        # try:
+        brakets = new_states.get_representation_brakets()
+        # raise Exception(brakets.bras.excitations[:5], brakets.kets.excitations[:5])
+        # except:
+        #     raise Exception(other_states, other)
 
-        self.compute_cached(new_states.get_representation_brakets())
+        self.compute_cached(brakets)
 
         return self.array.dot(other)
 
