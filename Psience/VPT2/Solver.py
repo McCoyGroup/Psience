@@ -1111,24 +1111,45 @@ class PerturbationTheorySolver:
                 for cs in self._coupled_states
             ]
 
+
+        with logger.block(tag="precomputing coupled space indices"):
+            # otherwise they get calculated twice
+            start = time.time()
+            for s in self._coupled_states:
+                logger.log_print('generating indices for {s}', s=s)
+                new = s.indices
+
+            # inds = [s.indices for s in self._coupled_states]
+            end = time.time()
+            logger.log_print(
+                [
+                    "took {t:.3f}s"
+                ],
+                t=end - start
+            )
+
         if self._total_space is None:
             with logger.block(tag="generating total space"):
+
                 start = time.time()
 
                 space_list = [self.states] + list(self._coupled_states)
                 self._total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
-                self._flat_space = self._total_space.to_single().take_unique()
+                flat_space = self._total_space.to_single()
+                self._flat_space = flat_space.take_unique()
                 self._total_dim = len(self.flat_total_space)
 
                 end = time.time()
                 logger.log_print(
                     [
-                        "total coupled space dimensions: {d}",
+                        "total coupled space dimension: {d} (contracted from {f})",
                         "took {t:.3f}s"
                     ],
                     d=self.total_space_dim,
+                    f=len(flat_space),
                     t=end - start
                 )
+                # raise Exception("break")
         else:
             if self._flat_space is None:
                 with logger.block(tag="generating total space"):
@@ -1139,7 +1160,7 @@ class PerturbationTheorySolver:
                     end = time.time()
                     logger.log_print(
                         [
-                            "total coupled space dimensions: {d}",
+                            "total coupled space dimension: {d}",
                             "took {t:.3f}s"
                         ],
                         d=self.total_space_dim,
@@ -1174,10 +1195,12 @@ class PerturbationTheorySolver:
                 second_deg = False
                 for n in deg_group.indices:
                     # self.logger.log_print("wahhh? {n}", n=n)
+                    target_states = deg_group.take_states(np.array([n]).flatten())
                     spaces = self.get_coupled_space(
-                        deg_group.take_states(np.array([n]).flatten()), deg_space, second_deg,
-                                                allow_PT_degs=self.allow_sakurai_degs,
-                                                spaces=spaces
+                        target_states,
+                        deg_space, second_deg,
+                        allow_PT_degs=self.allow_sakurai_degs,
+                        spaces=spaces
                         )
                     total_state_spaces.append(spaces)
 
@@ -1338,7 +1361,7 @@ class PerturbationTheorySolver:
             return 0
 
         if isinstance(a, cls.StateSpaceWrapper):
-            raise ValueError("...")
+            raise NotImplementedError("we shouldn't be here")
             new = a * b
         elif isinstance(a, cls.ProjectionOperatorWrapper):
             new = a.get_transformed_space(b)
@@ -1383,7 +1406,7 @@ class PerturbationTheorySolver:
                 else:
                     # means we've potentially calculated some of this already,
                     # so we figure out what parts we've already calculated in this
-                    # projected space
+                    # projected space (rep_space is the current space of the representations)
                     diffs = b.difference(rep_space)
                     if len(diffs) > 0:
                         # raise Exception(projections, rep_space, diffs)
@@ -1395,6 +1418,7 @@ class PerturbationTheorySolver:
                         new_new = a.get_transformed_space(diffs)
                         # next we add the new stuff to the cache
                         cur = cur.union(new_new)
+                        # print(">>", a.coeffs.shape, len(cur._base_space.unique_indices))
                         projections[proj] = rep_space.union(diffs)
                         spaces[op] = (projections, cur)
 
@@ -1441,6 +1465,7 @@ class PerturbationTheorySolver:
         :return:
         :rtype:
         """
+
         if not allow_PT_degs:
             spaces = self.get_nondeg_coupled_space(input_state_space, degenerate_space,
                                                    spaces=spaces)
@@ -1512,8 +1537,11 @@ class PerturbationTheorySolver:
             # but we drop the energy and overlap parts of this because they don't affect the overall state space
             corrs[k] = sum(
                 (
-                   dot(pi, corrs[i]) +
-                        dot(pi, H[k - i], corrs[i])
+                    # just because it's faster to take a union than a difference using numpy
+                    # we don't project out anything
+                    corrs[i] + dot(H[k - i], corrs[i])
+                   # dot(pi, corrs[i]) +
+                   #      dot(pi, H[k - i], corrs[i])
                     for i in range(0, k)
                 ),
                 corrs[0]

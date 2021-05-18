@@ -204,9 +204,9 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
         return type(self)([qq[d] for d in dims])
 
     def __repr__(self):
-        return "HOBasis({})".format(
-            ",".join(str(x) for x in self.dimensions)
-        )
+        return "HOBasis(dim={})".format(len(self.dimensions))
+        #     ",".join(str(x) for x in self.dimensions)
+        # )
 
 default_cache_size = 128
 class HarmonicProductOperatorTermEvaluator:

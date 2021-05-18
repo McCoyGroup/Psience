@@ -296,13 +296,16 @@ class PerturbationTheoryHamiltonian:
                       )
         )
         xst_cor = sum((
-                                  Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s] + w[t] / w[s])
+                                  Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s] + w[s] / w[t])
                           ) for a in range(3))
 
         return [xst_3, xst_4, xst_cor]
 
     @classmethod
     def _get_Nielsen_xmat(cls, freqs, v3, v4, zeta, Be):
+
+        # raise Exception(UnitsData.convert("Hartrees", "Wavenumbers") * Be, np.round(zeta, 5))
+
         ndim = len(freqs)
         x_mat_linear = np.array([
             cls._Nielsen_xss(s, freqs, v3, v4, zeta, Be, ndim) if s == t else
@@ -315,49 +318,82 @@ class PerturbationTheoryHamiltonian:
         x_mat[:, ci, ri] = x_mat_linear
         return x_mat
 
+    # @classmethod
+    # def _get_Nielsen_energies(cls, states, freqs, v3, v4, zeta, Be):
+    #     """
+    #     Returns energies using Harald Nielsen's formulae up to second order. Assumes no degeneracies.
+    #     If implemented smarter, would be much, much faster than doing full-out perturbation theory, but less flexible.
+    #     Good for validation, too.
+    #
+    #
+    #     :param states: states to get energies for as lists of quanta in degrees of freedom
+    #     :type states: Iterable[Iterable[int]]
+    #     :param freqs: Harmonic frequencies
+    #     :type freqs: np.ndarray
+    #     :param v3: Cubic force constants
+    #     :type v3: np.ndarray
+    #     :param v4: Quartic force constants
+    #     :type v4: np.ndarray
+    #     :param zeta: Coriolis couplings
+    #     :type zeta: np.ndarray
+    #     :param Be: Moments of inertia
+    #     :type Be: np.ndarray
+    #     :return:
+    #     :rtype:
+    #     """
+    #
+    #     x_mat = cls._get_Nielsen_xmat(freqs, v3, v4, zeta, Be)
+
+
     @classmethod
-    def _get_Nielsen_energies(cls, states, freqs, v3, v4, zeta, Be):
+    def _get_Nielsen_energies_from_x(cls, states, freqs, x_mat, return_split=False):
         """
-        Returns energies using Harald Nielsen's formulae up to second order. Assumes no degeneracies.
-        If implemented smarter, would be much, much faster than doing full-out perturbation theory, but less flexible.
-        Good for validation, too.
+       Returns energies using Harald Nielsen's formulae up to second order. Assumes no degeneracies.
+       If implemented smarter, would be much, much faster than doing full-out perturbation theory, but less flexible.
+       Good for validation, too.
 
 
-        :param states: states to get energies for as lists of quanta in degrees of freedom
-        :type states: Iterable[Iterable[int]]
-        :param freqs: Harmonic frequencies
-        :type freqs: np.ndarray
-        :param v3: Cubic force constants
-        :type v3: np.ndarray
-        :param v4: Quartic force constants
-        :type v4: np.ndarray
-        :param zeta: Coriolis couplings
-        :type zeta: np.ndarray
-        :param Be: Moments of inertia
-        :type Be: np.ndarray
-        :return:
-        :rtype:
-        """
+       :param states: states to get energies for as lists of quanta in degrees of freedom
+       :type states: Iterable[Iterable[int]]
+       :param freqs: Harmonic frequencies
+       :type freqs: np.ndarray
+       :param v3: Cubic force constants
+       :type v3: np.ndarray
+       :param v4: Quartic force constants
+       :type v4: np.ndarray
+       :param zeta: Coriolis couplings
+       :type zeta: np.ndarray
+       :param Be: Moments of inertia
+       :type Be: np.ndarray
+       :return:
+       :rtype:
+       """
 
-        x_mat = cls._get_Nielsen_xmat(freqs, v3, v4, zeta, Be)
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        raise Exception(np.sum(x_mat, axis=0) * h2w)
-        raise Exception(x_mat * h2w)
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        # raise Exception(np.sum(x_mat, axis=0) * h2w)
+        # raise Exception(x_mat * h2w)
 
         states = np.array(states) + 1/2 # n+1/2 for harmonic vibrations
 
-        x_mat = np.sum(x_mat, axis=0)
         e_harm = np.tensordot(freqs, states, axes=[0, 1])
+
         outer_states = vec_outer(states, states)
-        # raise Exception(states, outer_states)
-        e_anharm = np.tensordot(x_mat, outer_states, axes=[[0, 1], [1, 2]])
+
+        weights = np.full(x_mat[0].shape, 1/2)
+        np.fill_diagonal(weights, 1)
+        x_mat = [x * weights for x in x_mat]
+
+        if return_split:
+            e_anharm = np.array([np.tensordot(x, outer_states, axes=[[0, 1], [1, 2]]) for x in x_mat])
+        else:
+            x_mat = np.sum(x_mat, axis=0)
+            e_anharm = np.tensordot(x_mat, outer_states, axes=[[0, 1], [1, 2]])
 
         return e_harm, e_anharm
 
     def get_Nielsen_xmatrix(self):
 
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
         # TODO: figure out WTF the units on this have to be...
 
@@ -373,7 +409,7 @@ class PerturbationTheoryHamiltonian:
 
         return x
 
-    def get_Nielsen_energies(self, states):
+    def get_Nielsen_energies(self, states, return_split=False):
         """
 
         :param states:
@@ -382,24 +418,22 @@ class PerturbationTheoryHamiltonian:
         :rtype:
         """
 
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
         # TODO: figure out WTF the units on this have to be...
 
+        x_mat = self.get_Nielsen_xmatrix()
         freqs = self.modes.freqs
-        v3 = self.V_terms[1]
-        v4 = self.V_terms[2]
 
-        # raise Exception(np.round( 6 * v3 * h2w))
-
-        zeta, Be = self.coriolis_terms.get_zetas_and_momi()
-
-        harm, anharm = self._get_Nielsen_energies(states, freqs, v3, v4, zeta, Be)
+        harm, anharm = self._get_Nielsen_energies_from_x(states, freqs, x_mat, return_split=return_split)
 
         # harm = harm / h2w
         anharm = anharm
 
-        return harm, anharm
+        if return_split:
+            return harm, anharm, x_mat
+        else:
+            return harm, anharm
 
     #endregion Nielsen energies
 
@@ -671,18 +705,22 @@ class PerturbationTheoryHamiltonian:
 
         c_mat = np.zeros((len(states), len(states)), dtype=float)  # to invert
 
+        #TODO: add a check that makes sure that the number of states is sufficient to fully invert the tensor
+        #       i.e. make sure that there are as many states as there are upper-triangle indices
+        #       then probably want to check that the states are properly independent, too...
         col = 0
         blocks = []  # to more easily recompose the tensors later
         nterms = 1 + order // 2 # second order should be [2, 1], 4th order should be [3, 2, 1], 6th should be [4, 3, 2, 1]
         for k in range(nterms, 0, -1):
             ninds = []
             # generate the index tensors to loop over
+            # we later pull only the upper triangle indices
             inds = np.indices((nmodes,) * k)
             inds = inds.transpose(tuple(range(1, k + 1)) + (0,))
             inds = np.reshape(inds, (-1, k))
             for perm in inds:
                 if (np.sort(perm) != perm).any():
-                    continue # only want the _unique_ permutations
+                    continue # only want the upper triangle
                 # generate the action coefficients
                 coeffs = np.prod(exc[:, perm] + 1 / 2, axis=1)
                 c_mat[:, col] = coeffs
@@ -726,7 +764,8 @@ class PerturbationTheoryHamiltonian:
         ndim = len(self.n_quanta)
         nterms = 1 + order // 2
 
-        states = BasisStateSpace.from_quanta(HarmonicOscillatorProductBasis(ndim), range(nterms)).excitations
+        states = BasisStateSpace.from_quanta(HarmonicOscillatorProductBasis(ndim), range(nterms + 1))
+        # raise Exception(states)
 
         wfns = self.get_wavefunctions(states)
 

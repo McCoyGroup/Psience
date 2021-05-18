@@ -54,6 +54,23 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         self._excitations = exc
 
     @property
+    def mode(self):
+        return self.get_mode()
+    @abc.abstractmethod
+    def get_mode(self):
+        """
+        Returns the mode (indices or excitations) for the held states
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("abstract base class")
+    def has_indices(self):
+        return self._indices is not None
+    def has_excitations(self):
+        return self._excitations is not None
+
+    @property
     def indices(self):
         if self._indices is None:
             self._indices = self.as_indices()
@@ -498,6 +515,9 @@ class BasisStateSpace(AbstractStateSpace):
 
         return cls(basis, states, mode=cls.StateSpaceSpec.Excitations)
 
+    def get_mode(self):
+        return self.StateSpaceSpec.Indices if self.has_indices() else self.StateSpaceSpec.Excitations
+
     def infer_state_inds_type(self):
         if self._init_state_types is not None:
             return self._init_state_types
@@ -544,6 +564,7 @@ class BasisStateSpace(AbstractStateSpace):
         """
 
         states = self._init_states
+
         states_type = self.infer_state_inds_type()
         if states_type is self.StateSpaceSpec.Excitations:
             return self.basis.ravel_state_inds(np.reshape(states, (-1, self.ndim)))
@@ -568,7 +589,7 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
-        if self._indices is not None:
+        if self.mode == self.StateSpaceSpec.Indices:
             return len(self.unique_indices) == len(self.indices)
         else:
             return len(self.unique_excitations) == len(self.excitations)
@@ -596,7 +617,7 @@ class BasisStateSpace(AbstractStateSpace):
             elif self.is_sorted():
                 return self
 
-        if sort or self._indices is not None:
+        if sort or (self.mode == self.StateSpaceSpec.Indices):
             states = self.as_unique_indices(sort=sort)
             spec = self.StateSpaceSpec.Indices
             new = type(self)(self.basis, states, mode=spec)
@@ -606,7 +627,7 @@ class BasisStateSpace(AbstractStateSpace):
             states = self.unique_excitations
             spec = self.StateSpaceSpec.Excitations
             new = type(self)(self.basis, states, mode=spec)
-            if self._indices is not None:
+            if (self.mode == self.StateSpaceSpec.Indices):
                 new.indices = self.unique_indices
         return new
 
@@ -739,13 +760,13 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype:
         """
 
-        if self._excitations is not None:
+        if self.mode == self.StateSpaceSpec.Excitations:
             subspace = type(self)(
                 self.basis,
                 self.excitations[sel,],
                 mode=self.StateSpaceSpec.Excitations
             )
-            if self._indices is not None:
+            if self.mode == self.StateSpaceSpec.Indices:
                 subspace.indices = self.indices[sel,]
         else:
             subspace = type(self)(
@@ -875,7 +896,7 @@ class BasisStateSpace(AbstractStateSpace):
                 other.basis
             ))
 
-        if sort or self._indices is not None:
+        if sort or (self.has_indices() and not (self.has_excitations() and other.has_excitations())): # no need to be wasteful and recalc stuff, right?
             # create merge based on indices and then
             # secondarily based on excitations if possible
             self_inds = self.indices
@@ -914,7 +935,6 @@ class BasisStateSpace(AbstractStateSpace):
                     else:
                         new_exc = np.concatenate([self_exc, other_exc], axis=0)
                     new._excitations = new_exc[uinds,]
-
         else:
             # create merge based on excitations and then
             # secondarily based on indices if possible
@@ -971,20 +991,60 @@ class BasisStateSpace(AbstractStateSpace):
                 other.basis
             ))
 
+
+
         # create intersection based on indices and then
         # make use of this subselection to resample the basis
-        # unfortunately no way to only use Excitation data here...
-        self_inds = self.unique_indices
-        other_inds = other.unique_indices
-        new_inds = np.intersect1d(self_inds, other_inds)
-        # now check to make sure we're not being wasteful and destroying an object
-        # that doesn't need to be destroyed
-        if len(new_inds) == len(self_inds):
-            return self.take_unique()
-        elif len(new_inds) == len(other_inds):
-            return other.take_unique()
+
+        if self.has_indices() and not (self.has_excitations() and other.has_excitations()): # no need to be wasteful and recalc stuff, right?
+            # unfortunately no way to only use Excitation data here...
+            self_inds = self.unique_indices
+            other_inds = other.unique_indices
+            new_inds = np.intersect1d(self_inds, other_inds)
+            # now check to make sure we're not being wasteful and destroying an object
+            # that doesn't need to be destroyed
+            if len(new_inds) == len(self_inds):
+                if self.is_unique:
+                    return self
+                else:
+                    return self.take_unique()
+            elif len(new_inds) == len(other_inds):
+                if other.is_unique:
+                    return other
+                else:
+                    return other.take_unique()
+            else:
+                return self.take_states(new_inds)
         else:
-            return self.take_states(new_inds)
+            # we take the idea from here to trick numpy into letting us use intersect1d is this case too
+            # https://stackoverflow.com/a/8317403/5720002
+            self_exc = self.unique_excitations
+            other_exc = other.unique_excitations
+
+            # trick a 2D array into a 1D-like dtype
+            nrows, ncols = self_exc.shape
+            dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
+                     'formats': ncols * [self_exc.dtype]}
+
+            self_inds = self_exc.view(dtype)
+            other_inds = other_exc.view(dtype)
+            _, new_inds, _ = np.intersect1d(self_inds, other_inds, return_indices=True)
+            # now check to make sure we're not being wasteful and destroying an object
+            # that doesn't need to be destroyed
+            if len(new_inds) == len(self_inds):
+                if self.is_unique:
+                    return self
+                else:
+                    return self.take_unique()
+            elif len(new_inds) == len(other_inds):
+                if other.is_unique:
+                    return other
+                else:
+                    return other.take_unique()
+            else:
+                return self.take_subspace(new_inds)
+
+
     def difference(self, other):
         """
         Returns an diff'ed self and other
@@ -1003,19 +1063,44 @@ class BasisStateSpace(AbstractStateSpace):
 
         # create intersection difference on indices and then
         # make use of this subselection to resample the basis
-        # unfortunately no way to only use Excitation data here...
-        self_inds = self.unique_indices
-        other_inds = other.unique_indices
-        new_inds = np.setdiff1d(self_inds, other_inds)
-        # now we check that we're not destroying an object that can be
-        # reused
-        if len(new_inds) == len(self_inds):
-            if self.is_unique:
-                return self
+        if self.has_indices() and not (
+                self.has_excitations() and other.has_excitations()):  # no need to be wasteful and recalc stuff, right?
+            self_inds = self.unique_indices
+            other_inds = other.unique_indices
+            new_inds = np.setdiff1d(self_inds, other_inds)
+            # now we check that we're not destroying an object that can be
+            # reused
+            if len(new_inds) == len(self_inds):
+                if self.is_unique:
+                    return self
+                else:
+                    return self.take_unique()
             else:
-                return self.take_unique()
+                return self.take_states(new_inds)
         else:
-            return self.take_states(new_inds)
+            # we take the idea from here to trick numpy into letting us use intersect1d is this case too
+            # https://stackoverflow.com/a/8317403/5720002
+            self_exc = self.unique_excitations
+            other_exc = other.unique_excitations
+
+            # trick a 2D array into a 1D-like dtype
+            nrows, ncols = self_exc.shape
+            dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
+                     'formats': ncols * [self_exc.dtype]}
+
+            self_inds = self_exc.view(dtype)
+            other_inds = other_exc.view(dtype)
+            new_inds = np.setdiff1d(self_inds, other_inds)
+            # now check to make sure we're not being wasteful and destroying an object
+            # that doesn't need to be destroyed
+            if len(new_inds) == len(self_inds):
+                if self.is_unique:
+                    return self
+                else:
+                    return self.take_unique()
+            else:
+                _, found_inds, _ = np.intersect1d(self_inds, new_inds, return_indices=True)
+                return self.take_subspace(found_inds)
 
     def __repr__(self):
         return "{}(nstates={}, basis={})".format(
@@ -1107,9 +1192,17 @@ class BasisMultiStateSpace(AbstractStateSpace):
     def flat(self):
         return self.spaces.flat
 
+    def get_mode(self):
+        if all(s.has_indices() for s in self.spaces.flat):
+            return self.StateSpaceSpec.Indices
+        elif all(s.has_excitations() for s in self.spaces.flat):
+            return self.StateSpaceSpec.Excitations
+        else:
+            raise ValueError("not sure what to do with mixed-mode state spaces...")
+
     def as_indices(self):
         """
-        Pulls the full set indices out of all of the
+        Pulls the full set of indices out of all of the
         held spaces and returns them as a flat vector
         :return:
         :rtype:
@@ -1214,12 +1307,20 @@ class BasisMultiStateSpace(AbstractStateSpace):
         :rtype:
         """
 
-        states = BasisStateSpace(
-            self.basis,
-            self.indices,
-            mode=BasisStateSpace.StateSpaceSpec.Indices
-        )
-        states.excitations = self.excitations
+        if self.mode == self.StateSpaceSpec.Indices:
+            states = BasisStateSpace(
+                self.basis,
+                self.indices,
+                mode=BasisStateSpace.StateSpaceSpec.Indices
+            )
+            if self.spaces[0]._excitations is not None:
+                states.excitations = self.excitations
+        else:
+            states = BasisStateSpace(
+                self.basis,
+                self.excitations,
+                mode=BasisStateSpace.StateSpaceSpec.Excitations
+            )
         return states
 
     def take_states(self, states):

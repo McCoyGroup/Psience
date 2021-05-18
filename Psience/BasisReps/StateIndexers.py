@@ -57,6 +57,8 @@ class ArrayStateIndexer(BaseStateIndexer):
 
     def to_indices(self, states):
         idx = np.asarray(states, dtype=int)
+        if len(states) == 0:
+            return idx
         if idx.ndim == 1:
             idx = idx[np.newaxis]
         return np.ravel_multi_index(idx.T, self.dims)
@@ -77,6 +79,8 @@ class SpaceStateIndexer(BaseStateIndexer):
         if self.og_states.ndim != 2:
             raise ValueError("can't index anything other than vectors of excitations")
     def to_indices(self, states):
+        if len(states) == 0:
+            return np.array([], dtype=int)
         return np.searchsorted(self.og_states, states, indexer=self.indexer)
     def from_indices(self, indices):
         return self.og_states[indices,]
@@ -251,7 +255,8 @@ class PermutationStateIndexer(BaseStateIndexer):
             for sn,state in enumerate(states):
                 if sn > 0:
                     # we reuse as much work as we can by only popping a few elements off of the class/counts stacks
-                    num_diff = ndim - np.where(diffs[sn-1] != 0)[0][0] # number of differing states
+                    agree_pos = np.where(diffs[sn-1] != 0)[0][0] # where the first disagreement occurs
+                    num_diff = ndim - agree_pos # number of differing states
                     if num_diff == 0: # same state so just reuse the previous value
                         if inds[sn - 1] == -1:
                             raise ValueError("state {} tried to reused bad value from state {}".format(
@@ -260,8 +265,18 @@ class PermutationStateIndexer(BaseStateIndexer):
                         inds[sn] = inds[sn - 1]
                         continue
                     # we pop until we know the states agree once more
-                    for n in range(num_diff):
+                    # which correc
+                    stack_depth = len(stack)
+                    for n in range(stack_depth - agree_pos):
+                        # try:
                         num_before, cur_total, cur_classes, cur_counts = stack.pop()
+                        # except IndexError:
+                        #     raise ValueError("{} doesn't follow {} {} (initial states were not sorted)".format(
+                        #         state,
+                        #         states[sn-1],
+                        #         og_stack,
+                        #         num_diff
+                        #     ))
                     cur_dim = num_diff
                     # print("  ::>", "{:>2}".format(sn), len(stack), state)
                     state = state[-num_diff:]
@@ -374,15 +389,8 @@ class PermutationStateIndexer(BaseStateIndexer):
 
     def _get_inds_by_quanta(self, states, quanta, assume_sorted=False):
         """
-        Currently pretty clumsy.
-        We just search and sum for each state.
-
-        We're going to move to a more intelligent process
-        where we initially sort and group the states by their associated integer partition
-        and then reverse lexicographically so that we can do blocks of states at once.
-        This especially allows us to be faster inside the actual permutation indexer, since
-        there when we descend the indexing tree we usually don't need to go all the way back
-        up for every successive state
+        Pre-sorts states so that they're grouped by quanta and then searches
+        for the appropriate int based on the integer partitions at that number of quanta
 
         :param states:
         :type states:
@@ -423,10 +431,15 @@ class PermutationStateIndexer(BaseStateIndexer):
                 # we do an initial sorting of the states and the data
                 # so that we can be sure we have a good ordering for
                 # later
-                # max_part = max(len(x.classes) for x in partitions)
+                # the sorting is done so that things are first sorted by number of terms in the
+                # integer partition, then next by the integer partition itself, and then
+                # finally by the actual permutation
+                # where the sort by integer partition is done so that a smaller initial value is prioritized (I think)
+                # and the sort by actual state is done so a larger initial value is prioritized
+                sort_states = np.sort(states, axis=-1)
                 sort_classes = np.array([
                     np.concatenate([-np.flip(s), np.flip(z), [c[0]]])
-                    for c, s, z in zip(state_dat, states, np.sort(states, axis=-1))
+                    for c, s, z in zip(state_dat, states, sort_states)
                 ], dtype='int8')
                 lexxy = np.lexsort(sort_classes.T)
                 state_dat = state_dat[lexxy]
@@ -454,7 +467,16 @@ class PermutationStateIndexer(BaseStateIndexer):
                     i_end = i_start + len(idxer_block)
                     if len(idxer_block) > 0:
                         # print(idxer, idx, idxer_block)
+                        # try:
                         block_inds = idxer.get_perm_indices(idxer_block)
+                        # except:
+                        #
+                        #     raise Exception(
+                        #         idxer_block,
+                        #         np.array(
+                        #             [x for i,x in enumerate(sort_classes[lexxy]) if sum(states[i]) == 10]
+                        #         )
+                        #         )
                         # print(" >", block_inds)
                         inds[i_start:i_end] = idx + block_inds
                     n += 1
@@ -495,6 +517,9 @@ class PermutationStateIndexer(BaseStateIndexer):
         """
         # group states by number of quanta
         states = np.asarray(states, dtype=int)
+        if len(states) == 0:
+            return states
+
         if states.ndim == 1:
             smol = True
             states = states[np.newaxis]
@@ -571,6 +596,9 @@ class PermutationStateIndexer(BaseStateIndexer):
         :return:
         :rtype:
         """
+
+        if len(indices) == 0:
+            return np.array([], dtype='int8')
 
         # we'll pre-sort this so that we can be
         # more efficient in how we apply the algorithm

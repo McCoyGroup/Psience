@@ -553,7 +553,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(h2_space.nstates, 120)
 
-    @validationTest
+    @debugTest
     def test_StateIndexing(self):
         """
         Tests indexing state specs through a more
@@ -751,7 +751,7 @@ class BasisSetTests(TestCase):
 
         self.assertTrue((orthog_1 == orthog_2).all())
 
-    @debugTest
+    @inactiveTest
     def test_BasisRepMatrixOps(self):
 
         n = 15 # totally meaningless these days
@@ -774,7 +774,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(mat2_vals.tolist(), mat_2[sub_brakets].tolist())
 
-    @debugTest
+    @inactiveTest
     def test_ImprovedRepresentations(self):
         n = 15  # totally meaningless these days
         m = 4

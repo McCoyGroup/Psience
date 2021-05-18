@@ -1289,17 +1289,19 @@ class CoriolisTerm(ExpansionTerms):
 
         # then rotate into the inertial frame
         B_e, eigs = self.inertial_frame
-        J = np.tensordot(J, eigs, axes=1)
+        J = np.tensordot(J, eigs, axes=[2, 0])
 
         # coriolis terms are given by zeta = sum(JeJ^T, n)
         ce = -levi_cevita3
         zeta = sum(
             np.tensordot(
-                np.tensordot(J[n], ce, axes=[1, 0]),
+                np.tensordot(ce, J[n], axes=[0, 1]),
                 J[n],
-                axes=[2, 1]).transpose(1, 0, 2)
+                axes=[1, 1])
             for n in range(J.shape[0])
         )
+
+        # raise Exception(np.round(zeta, 3))
 
         return zeta, B_e
 
@@ -1313,7 +1315,7 @@ class CoriolisTerm(ExpansionTerms):
 
         zeta_inert, B_e = self.get_zetas_and_momi()
 
-        # new we include the frequency dimensioning that comes from the q and p terms in Pi = Zeta*qipj
+        # now we include the frequency dimensioning that comes from the q and p terms in Pi = Zeta*qipj
         freqs = self.freqs
         freq_term = np.sqrt(freqs[np.newaxis, :] / freqs[:, np.newaxis])
         zeta_inert = zeta_inert * freq_term[np.newaxis]
