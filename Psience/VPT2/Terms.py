@@ -1050,8 +1050,6 @@ class DipoleTerms(ExpansionTerms):
         Makes sure all of the dipole moments are clean and ready to rotate
         """
 
-        # TODO: this will need major clean up now that I've improved
-        #       dipole handling in Molecule
         try:
             mom, grad, seconds, thirds = derivs['analytic']
         except (IndexError, TypeError):
@@ -1158,29 +1156,61 @@ class DipoleTerms(ExpansionTerms):
 
         # amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         m_conv = np.sqrt(self._tripmass(masses))
-        f_conv = np.sqrt(freqs)#*amu_conv)
+        f_conv = np.sqrt(freqs)
 
-        grad = grad / m_conv[:, np.newaxis]
-        seconds = seconds / (
-            f_conv[:, np.newaxis, np.newaxis]
-            * m_conv[np.newaxis, :, np.newaxis]
-        )
-        thirds = thirds / (
-                f_conv[:, np.newaxis, np.newaxis, np.newaxis]
-                * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
-                * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
-        )
+        if grad.shape == (coord_n, 3):
+            grad = grad / m_conv[:, np.newaxis]
+        elif grad.shape == (modes_n,):
+            grad = grad / f_conv[:, np.newaxis]
 
-        # undimension_2 = np.outer(m_conv, m_conv)
-        # fcs = fcs / undimension_2
-        #
-        # undimension_3 = np.outer(m_conv, m_conv)[np.newaxis, :, :] * f_conv[:, np.newaxis, np.newaxis]
-        # thirds = thirds * (1 / undimension_3 / np.sqrt(amu_conv))
-        #
-        # wat = np.outer(m_conv, m_conv)[np.newaxis, :, :] * (f_conv ** 2)[:, np.newaxis, np.newaxis]
-        # undimension_4 = SparseArray.from_diag(1 / wat / amu_conv)
-        # fourths = fourths
-        # fourths = fourths * undimension_4
+        if seconds.shape == (modes_n, coord_n, 3):
+            if self.mixed_derivs is None:
+                self.mixed_derivs = True
+            undimension_2 = (
+                    f_conv[:, np.newaxis, np.newaxis]
+                    * m_conv[np.newaxis, :, np.newaxis]
+            )
+        elif seconds.shape == (coord_n, coord_n, 3):
+            if self.mixed_derivs is None:
+                self.mixed_derivs = False
+            undimension_2 = (
+                    m_conv[:, np.newaxis, np.newaxis]
+                    * m_conv[np.newaxis, :, np.newaxis]
+                    * m_conv[np.newaxis, np.newaxis, :]
+            )
+        else:
+            undimension_2 = 1
+        seconds = seconds / undimension_2
+
+        if thirds.shape == (modes_n, modes_n, coord_n, 3):
+            if self.mixed_derivs is None:
+                self.mixed_derivs = True
+            undimension_3 = (
+                    f_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                    * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                    * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
+            )
+        elif thirds.shape == (coord_n, coord_n, coord_n, 3):
+            if self.mixed_derivs is None:
+                self.mixed_derivs = False
+            undimension_3 = (
+                    m_conv[:, np.newaxis, np.newaxis]
+                    * m_conv[np.newaxis, :, np.newaxis]
+                    * m_conv[np.newaxis, np.newaxis, :]
+            )
+        elif thirds.shape == (modes_n, modes_n, modes_n, 3):
+            if self.mixed_derivs is None:
+                self.mixed_derivs = False
+            undimension_3 = (
+                    f_conv[:, np.newaxis, np.newaxis]
+                    * f_conv[np.newaxis, :, np.newaxis]
+                    * f_conv[np.newaxis, np.newaxis, :]
+            )
+        else:
+            if self.mixed_derivs is None:
+                self.mixed_derivs = False
+            undimension_3 = 1
+        thirds = thirds / undimension_3
 
         return mom, grad, seconds, thirds
 
@@ -1207,6 +1237,7 @@ class DipoleTerms(ExpansionTerms):
         mu = [None]*3
         for coord in range(3):
             u_derivs = (grad[..., coord], seconds[..., coord], thirds[..., coord])
+            # raise Exception(intcds, self.mixed_derivs)
             if intcds is not None and self.mixed_derivs:
                 xQ, xQQ, xQQQ, xQQQQ = [DumbTensor(x) for x in x_derivs]
                 u1, u2, u3 = [DumbTensor(u) for u in u_derivs]
@@ -1230,33 +1261,6 @@ class DipoleTerms(ExpansionTerms):
                 #     v3_3[p] = 0.
                 v3 = v3_1 + v3_2 + v3_3
 
-                # raise Exception([
-                #     np.max(np.abs(v3_2.t)),
-                #     np.max(np.abs(v3_3)),
-                #     np.max(np.abs(v2)),
-                #     np.max(np.abs(v1))
-                # ])
-
-                # ds = dict(plot_style={'vmin':-1.0e-5, 'vmax':1.0e-5})
-                # import McUtils.Plots as plt
-                # plt.TensorPlot(v3_21.t).show()
-                # raise Exception("...")
-                # plt.TensorPlot(u_derivs[2]).show()
-                # # plt.ArrayPlot(u2.t)
-                # # plt.ArrayPlot(v2.t)
-                # # plt.TensorPlot(u_derivs[2])
-                # v3_3 = v3_2.t
-                # plt.TensorPlot(v3_3 - v3_3.transpose(1, 0, 2), **ds)
-                # plt.TensorPlot(v3_3 - v3_3.transpose(0, 2, 1), **ds)
-                # plt.TensorPlot(v3_3 - v3_3.transpose(2, 0, 1), **ds)
-                # plt.TensorPlot(v3_3 - v3_3.transpose(2, 1, 0), **ds)
-                # plt.TensorPlot(v3_3 - v3_3.transpose(1, 2, 0), **ds).show()
-                #
-                # raise Exception("...?")
-
-                # for i in range(v3.shape[0]):
-                #     v3[i, :, i] = v3[:, i, i] = v3[i, i, :]
-
             else:
                 u1, u2, u3 = u_derivs
                 v1 = np.tensordot(xQ, u1, axes=[1, 0])
@@ -1264,6 +1268,8 @@ class DipoleTerms(ExpansionTerms):
                 v3 = np.tensordot(xQ, u3, axes=[1, 2])
 
             # print(">>>>>", v2)
+
+            # raise Exception(v1, v2, v3)
 
             mu[coord] = (v0[coord], v1, v2, v3)#(v1, v2, 0)#(v1, 0, 0)
 

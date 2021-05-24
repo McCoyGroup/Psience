@@ -3063,7 +3063,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @debugTest
+    @validationTest
     def test_OCHTVPTCartesians(self):
 
         tag = 'OCHT Cartesians'
@@ -3096,7 +3096,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
             , log=True
-            , print_profile=True
+            # , print_profile=True
         )
 
     #endregion Formaldehyde Analogs
@@ -3155,11 +3155,11 @@ class VPT2Tests(TestCase):
              [2756.408, 2698.844],
              [2675.530, 2618.649],
              [2494.205, 2435.125],
+             [2404.565, 2356.088],
              [2541.487, 2483.423],
              [2360.163, 2319.432],
              [2270.522, 2230.076],
              [2279.285, 2236.240],
-             [2404.565, 2356.088],
              [2189.644, 2143.874],
              [2008.320, 1973.845]
         ])
@@ -4694,14 +4694,14 @@ class VPT2Tests(TestCase):
             (0, 0, 2), (0, 2, 0), (2, 0, 0),
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
-        coupled_states = self.get_states(5, 3, max_quanta=5)
+        # coupled_states = self.get_states(5, 3, max_quanta=5)
 
         wfns = self.get_VPT2_wfns(
             "HOD_freq.fchk",
             internals,
             states,
             regenerate=True,
-            coupled_states=coupled_states,
+            # coupled_states=coupled_states,
             log=True
         )
 
@@ -5043,6 +5043,419 @@ class VPT2Tests(TestCase):
             )
         )
 
+    @inactiveTest
+    def test_HOHIntensitiesCartesian4thOrder(self):
+
+        internals = None
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        # coupled_states = self.get_states(5, 3, max_quanta=5)
+
+        wfns = self.get_VPT2_wfns(
+            "HOH_freq.fchk",
+            internals,
+            states,
+            regenerate=True
+            # coupled_states=coupled_states,
+            , log=True
+            , order=2
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+        engs = h2w * wfns.energies
+        freqs = engs - engs[0]
+        ints = wfns.intensities
+
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freqs = harm_engs - harm_engs[0]
+        harm_ints = wfns.zero_order_intensities
+
+        breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+
+        import json
+        raise Exception(
+            json.dumps(
+                [
+                    (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+                    breakdown['breakdowns']['Full']['intensities'].tolist(),
+                    breakdown['breakdowns']['Linear']['intensities'].tolist(),
+                    breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Constant']['intensities'].tolist()
+                ]
+            )
+        )
+
+        plot_specs = False
+        if plot_specs:
+            import McUtils.Plots as plt
+            s = plt.StickPlot(freqs, ints,
+                              aspect_ratio=.5,
+                              plot_legend=("Anharmonic", "Harmonic"),
+                              image_size=500
+                              )
+            plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                          aspect_ratio=.5,
+                          axes_labels=["Frequency (cm$^{-1}$)", "Intensity (km mol$^{-1}$)"],
+                          plot_legend=("Anharmonic", "Harmonic")
+                          )
+            s.show()
+
+        # plt.TensorPlot(np.array(tms)).show()
+        # print(tms[0])
+        gaussian_harm_freqs = [
+            0.,
+            3937.525,
+            3803.300,
+            1622.303
+        ]
+        gaussian_harm_ints = [
+            0.,
+            67.02031831,
+            4.14281519,
+            67.45606550
+        ]
+        gaussian_freqs = [
+            0.,
+            3744.734,
+            3621.994,
+            1572.707,
+            7391.391,
+            7155.881,
+            3117.366,
+            7200.364,
+            5294.379,
+            5174.665
+        ]
+        gaussian_ints = [
+            0.,
+            64.17034278,
+            3.11359907,
+            68.32307006,
+            0.01482583,
+            0.31497697,
+            0.55501343,
+            2.20970792,
+            3.76327875,
+            0.06230526
+        ]
+
+        print_specs = True
+        if print_specs:
+            report = "Harmonic:   State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, harm_freqs, harm_ints, gaussian_harm_freqs, gaussian_harm_ints)
+            )
+            print(report)
+            report = "Anharmonic: State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, freqs, ints, gaussian_freqs, gaussian_ints)
+            )
+            print(report)
+
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_harm_ints[1:]],
+            list(np.round(harm_ints[1:4], 2))
+        )
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_ints[1:]],
+            list(np.round(ints[1:10], 2))
+        )
+
+    @inactiveTest
+    def test_HOHIntensities(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        # coupled_states = self.get_states(5, 3, max_quanta=5)
+
+        # internals=None
+        with BlockProfiler("HOH Intenstities", print_res=False):
+            wfns = self.get_VPT2_wfns(
+                "HOH_freq.fchk",
+                internals,
+                states,
+                regenerate=True
+                # coupled_states=coupled_states,
+                , log=True
+                , order=2
+            )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+
+        wfns.dipole_partitioning = 'standard'#'intuitive'
+        engs = h2w * wfns.energies
+        freqs = engs - engs[0]
+        ints = wfns.intensities
+
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freqs = harm_engs - harm_engs[0]
+        harm_ints = wfns.zero_order_intensities
+
+        # breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+
+        # import json
+        # raise Exception(
+        #     json.dumps(
+        #         [
+        #             (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+        #             breakdown['breakdowns']['Full']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Linear']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Constant']['intensities'].tolist()
+        #             ]
+        #     )
+        # )
+
+        plot_specs = False
+        if plot_specs:
+            import McUtils.Plots as plt
+            s = plt.StickPlot(freqs, ints,
+                              aspect_ratio=.5,
+                              plot_legend=("Anharmonic", "Harmonic"),
+                              image_size=500
+                              )
+            plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                          aspect_ratio=.5,
+                          axes_labels=["Frequency (cm$^{-1}$)", "Intensity (km mol$^{-1}$)"],
+                          plot_legend=("Anharmonic", "Harmonic")
+                          )
+            s.show()
+
+        # plt.TensorPlot(np.array(tms)).show()
+        # print(tms[0])
+        gaussian_harm_freqs = [
+            0.,
+            3937.525,
+            3803.300,
+            1622.303
+        ]
+        gaussian_harm_ints = [
+            0.,
+            67.02031831,
+             4.14281519,
+            67.45606550
+        ]
+        gaussian_freqs = [
+            0.,
+            3744.734,
+            3621.994,
+            1572.707,
+            7391.391,
+            7155.881,
+            3117.366,
+            7200.364,
+            5294.379,
+            5174.665
+        ]
+        gaussian_ints = [
+            0.,
+            64.17034278,
+            3.11359907,
+            68.32307006,
+            0.01482583,
+            0.31497697,
+            0.55501343,
+            2.20970792,
+            3.76327875,
+            0.06230526
+        ]
+
+        print_specs = True
+        if print_specs:
+            report = "Harmonic:   State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, harm_freqs, harm_ints, gaussian_harm_freqs, gaussian_harm_ints)
+            )
+            print(report)
+            report = "Anharmonic: State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, freqs, ints, gaussian_freqs, gaussian_ints)
+            )
+            print(report)
+
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_harm_ints[1:]],
+            list(np.round(harm_ints[1:4], 2))
+        )
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_ints[1:]],
+            list(np.round(ints[1:10], 2))
+        )
+
+    # Add test to check that internal/cartesian intensities
+    # should be the same
+    @inactiveTest
+    def test_HOHIntensitiesSandbox(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        # coupled_states = self.get_states(5, 3, max_quanta=5)
+
+        internals=None
+        with BlockProfiler("HOH Intenstities", print_res=False):
+            wfns, ham = self.get_VPT2_wfns_and_ham(
+                "HOH_freq.fchk",
+                internals,
+                states,
+                regenerate=True
+                # coupled_states=coupled_states,
+                , log=True
+                , order=6
+            )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+
+        # wfns.dipole_partitioning = 'intuitive'
+        engs = h2w * wfns.energies
+        freqs = engs - engs[0]
+        ints = wfns.intensities
+
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freqs = harm_engs - harm_engs[0]
+        harm_ints = wfns.zero_order_intensities
+
+        # breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+
+        # import json
+        # raise Exception(
+        #     json.dumps(
+        #         [
+        #             (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+        #             breakdown['breakdowns']['Full']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Linear']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Constant']['intensities'].tolist()
+        #             ]
+        #     )
+        # )
+
+        plot_specs = False
+        if plot_specs:
+            import McUtils.Plots as plt
+            s = plt.StickPlot(freqs, ints,
+                              aspect_ratio=.5,
+                              plot_legend=("Anharmonic", "Harmonic"),
+                              image_size=500
+                              )
+            plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                          aspect_ratio=.5,
+                          axes_labels=["Frequency (cm$^{-1}$)", "Intensity (km mol$^{-1}$)"],
+                          plot_legend=("Anharmonic", "Harmonic")
+                          )
+            s.show()
+
+        # plt.TensorPlot(np.array(tms)).show()
+        # print(tms[0])
+
+        print_specs = True
+        if print_specs:
+            report = "Harmonic:   State     Freq.   Int.  \n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}       ".format(s, f, i)
+                for s, f, i in zip(states, harm_freqs, harm_ints)
+            )
+            print(report)
+            report = "Anharmonic: State     Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}  ".format(s, f, i)
+                for s, f, i in zip(states, freqs, ints)
+            )
+            print(report)
+
+    @debugTest
+    def test_OCHHIntensitiesCartesians(self):
+
+        tag = "OCHH Intenstities"
+        file_name = "OCHH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        with BlockProfiler(tag, print_res=True):
+            wfns = self.get_VPT2_wfns(
+                file_name,
+                internals,
+                states,
+                regenerate=True
+                # coupled_states=coupled_states,
+                , log=True
+                , order=4
+            )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+        engs = h2w * wfns.energies
+        freqs = engs - engs[0]
+
+        with BlockProfiler("Intensities", print_res=True):
+            ints = wfns.intensities
+
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freqs = harm_engs - harm_engs[0]
+        harm_ints = wfns.zero_order_intensities
+
+        print_specs = True
+        if print_specs:
+            report = "Harmonic:   State     Freq.   Int.  \n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}       ".format(s, f, i)
+                for s, f, i in zip(states, harm_freqs, harm_ints)
+            )
+            print(report)
+            report = "Anharmonic: State     Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}  ".format(s, f, i)
+                for s, f, i in zip(states, freqs, ints)
+            )
+            print(report)
+
+
     @validationTest
     def test_WaterDimerIntensitiesCartesian(self):
 
@@ -5155,7 +5568,7 @@ class VPT2Tests(TestCase):
         )
 
         plot_spec = False
-        with open('/Users/Mark/Desktop/HOD_freq_carts.csv', "w+") as s:
+        with open(os.path.expanduser('~/Desktop/HOD_freq_carts.csv'), "w+") as s:
             # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
@@ -5183,7 +5596,7 @@ class VPT2Tests(TestCase):
         )
 
         plot_spec = False
-        with open('/Users/Mark/Desktop/HOH_freq.csv', "w+") as s:
+        with open(os.path.expanduser('~/Desktop/HOH_freq.csv'), "w+") as s:
             # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
@@ -5207,7 +5620,7 @@ class VPT2Tests(TestCase):
         )
 
         plot_spec=False
-        with open('/Users/Mark/Desktop/HOH_freq_carts.csv', "w+") as s:
+        with open(os.path.expanduser('~/Desktop/HOH_freq_carts.csv'), "w+") as s:
         # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 

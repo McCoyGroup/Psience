@@ -1097,7 +1097,14 @@ class PerturbationTheorySolver:
                 start = time.time()
                 self._coupled_states = self.load_coupled_spaces()
                 end = time.time()
-                self.logger.log_print("took {t}s...", t=round(end - start, 3))
+
+                self.logger.log_print(
+                    ['H({i}): {s}'.format(i=i, s=s) for i,s in enumerate([self.states] + list(self._coupled_states))]
+                    + ["took {t}s..."],
+                    t=round(end - start, 3)
+                )
+                raise Exception('break')
+
         elif len(self._coupled_states) != len(self.perts) - 1:
             raise ValueError("coupled states must be specified for all perturbations (got {}, expected {})".format(
                 len(self._coupled_states),
@@ -1110,7 +1117,6 @@ class PerturbationTheorySolver:
                 else cs
                 for cs in self._coupled_states
             ]
-
 
         with logger.block(tag="precomputing coupled space indices"):
             # otherwise they get calculated twice
@@ -1181,9 +1187,11 @@ class PerturbationTheorySolver:
         # loop over the degenerate sets and build a full
         # set of connected states
         spaces=None
+        simple_spaces = []
         for deg_group in self.degenerate_spaces:
             # self.logger.log_print('loading {g} coupled states...', g=deg_group.indices)
             if len(deg_group) > 1 and self.allow_sakurai_degs:
+                raise NotImplementedError("True degeneracy handling needs some patches")
                 # raise Exception(len(deg_group), deg_group, deg_group.indices)
                 second_deg = self._use_second_deg_PT(deg_group)
                 deg_space = deg_group
@@ -1192,17 +1200,34 @@ class PerturbationTheorySolver:
                 total_state_spaces.append(spaces)
             else:
                 deg_space = None if self.allow_sakurai_degs else deg_group
-                second_deg = False
-                for n in deg_group.indices:
-                    # self.logger.log_print("wahhh? {n}", n=n)
-                    target_states = deg_group.take_states(np.array([n]).flatten())
-                    spaces = self.get_coupled_space(
-                        target_states,
-                        deg_space, second_deg,
-                        allow_PT_degs=self.allow_sakurai_degs,
-                        spaces=spaces
-                        )
-                    total_state_spaces.append(spaces)
+                simple_spaces.append(deg_space)
+                # second_deg = False
+                # for n in deg_group.indices:
+                #     # self.logger.log_print("wahhh? {n}", n=n)
+                #     target_states = deg_group.take_states(np.array([n]).flatten())
+                #     spaces = self.get_coupled_space(
+                #         target_states,
+                #         deg_space, second_deg,
+                #         allow_PT_degs=self.allow_sakurai_degs,
+                #         spaces=spaces
+                #     )
+                #     total_state_spaces.append(spaces)
+
+        if len(simple_spaces) > 0:
+            space = simple_spaces[0]
+            for s in simple_spaces[1:]:
+                space = space.union(s)
+                # self.logger.log_print("wahhh? {n} {s}", n=n, s=target_states.excitations)
+
+            spaces = self.get_coupled_space(
+                space,
+                None, False,
+                allow_PT_degs=self.allow_sakurai_degs,
+                spaces=spaces
+                )
+            total_state_spaces.append(spaces)
+
+        # raise Exception('break')
 
         coupled_states = [spaces[h][1] if spaces[h] is not None else None for h in self.perts]
 
@@ -1395,7 +1420,7 @@ class PerturbationTheorySolver:
 
                 if rep_space is None:
                     # means we can't determine which parts we have and have not calculated
-                    # so we calculate everything and assign it to proj
+                    # so we calculate everything and associate it to proj
                     new = a.get_transformed_space(b)
                     cur = cur.union(new)
                     projections[proj] = b
@@ -1408,6 +1433,8 @@ class PerturbationTheorySolver:
                     # so we figure out what parts we've already calculated in this
                     # projected space (rep_space is the current space of the representations)
                     diffs = b.difference(rep_space)
+                    # print('-'*10, a.coeffs.shape, '-'*10)
+                    # print("????>>>>????", len(diffs), b)
                     if len(diffs) > 0:
                         # raise Exception(projections, rep_space, diffs)
                         # we have an initial space we've already transformed, so we
@@ -1427,7 +1454,9 @@ class PerturbationTheorySolver:
                         # means we already calculated everything
                         # so we don't need to worry about this
                         b_sels = SelectionRuleStateSpace(b, []) # just some type fuckery
-                        new = cur.intersection(b_sels, handle_subspaces=False).to_single().take_unique()
+                        new = cur.intersection(b_sels, handle_subspaces=False)
+                        new = new.to_single().take_unique()
+                    # print(" ::|>>", new)
         else:
             raise TypeError("don't know what to do with {} and {}".format(a, b))
 
@@ -1535,16 +1564,26 @@ class PerturbationTheorySolver:
             #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
             #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
             # but we drop the energy and overlap parts of this because they don't affect the overall state space
+
+
+            curr = sum(corrs[i] for i in range(0, k))
+            self.logger.log_print(
+                'getting states for ' +
+                    '+'.join('H({})|n({})>'.format(k-i, i)
+                             for i in range(0, k)
+                             if not isinstance(H[k - i], (int, np.integer))
+                             )
+                )
             corrs[k] = sum(
                 (
                     # just because it's faster to take a union than a difference using numpy
                     # we don't project out anything
-                    corrs[i] + dot(H[k - i], corrs[i])
+                    dot(H[k - i], corrs[i])
                    # dot(pi, corrs[i]) +
                    #      dot(pi, H[k - i], corrs[i])
                     for i in range(0, k)
                 ),
-                corrs[0]
+                curr
             )
 
         # raise Exception(

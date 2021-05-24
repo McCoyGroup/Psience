@@ -554,6 +554,39 @@ class BasisSetTests(TestCase):
         self.assertEquals(h2_space.nstates, 120)
 
     @debugTest
+    def test_GenerateFilteredSelectionRuleSpace(self):
+        """
+        Tests (and profiles) the generation of a state
+        space from a set of selection rules and initial states.
+        Mostly here to more easily speed up state space generation
+        for use in VPT2.
+
+        :return:
+        :rtype:
+        """
+
+        basis = HarmonicOscillatorProductBasis(8)
+        rules = basis.selection_rules("x", "x", "x", "x")
+
+        states = BasisStateSpace.from_quanta(basis, 3)
+
+        h2_space = states.apply_selection_rules(rules, iterations=1)
+
+        sub_h2_space = h2_space.spaces[0].take_subspace(np.arange(10))
+
+        h2_space2 = states.apply_selection_rules(rules,
+                                                 filter_space=sub_h2_space,
+                                                 iterations=1
+                                                 )
+
+        uinds, counts = np.unique(h2_space2.indices, return_counts=True)
+        sorting = np.argsort(h2_space2.indices)
+        ind_tag = (hash(tuple(uinds)), hash(tuple(counts)), hash(tuple(sorting)))
+        # raise Exception(ind_tag)
+        self.assertEquals(ind_tag, (320425735722628681, 4044592283957769633))#, 1029650262075525554))
+        # raise Exception(ind_tag)
+
+    @debugTest
     def test_StateIndexing(self):
         """
         Tests indexing state specs through a more
@@ -797,9 +830,4 @@ class BasisSetTests(TestCase):
 
         self.assertTrue(np.allclose(x2.array.asarray(), x22.array.asarray()))
         # raise Exception(mat_2.array.asarray())
-
-
-
-
-
 
