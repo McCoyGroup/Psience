@@ -5323,7 +5323,12 @@ class VPT2Tests(TestCase):
             (0, 0, 2), (0, 2, 0), (2, 0, 0),
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
-        # coupled_states = self.get_states(5, 3, max_quanta=5)
+        # coupled_states = [
+        #             BasisStateSpace.from_quanta(
+        #                 HarmonicOscillatorProductBasis(3),
+        #                 range(12)
+        #             )
+        #                  ]*2
 
         # internals=None
         with BlockProfiler("HOH Intenstities", print_res=False):
@@ -5332,7 +5337,7 @@ class VPT2Tests(TestCase):
                 internals,
                 states,
                 regenerate=True
-                # coupled_states=coupled_states,
+                # , coupled_states=coupled_states
                 , log=True
                 , order=2
             )
@@ -5353,21 +5358,20 @@ class VPT2Tests(TestCase):
         harm_freqs = harm_engs - harm_engs[0]
         harm_ints = wfns.zero_order_intensities
 
-        breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
-
-        import json
-        raise Exception(
-            json.dumps(
-                [
-                    (np.array(breakdown['frequencies']) * self.h2w).tolist(),
-                    breakdown['breakdowns']['Full']['intensities'].tolist(),
-                    breakdown['breakdowns']['Linear']['intensities'].tolist(),
-                    breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
-                    breakdown['breakdowns']['Cubic']['intensities'].tolist(),
-                    breakdown['breakdowns']['Constant']['intensities'].tolist()
-                    ]
-            )
-        )
+        # import json
+        # breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+        # raise Exception(
+        #     json.dumps(
+        #         [
+        #             (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+        #             breakdown['breakdowns']['Full']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Linear']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Constant']['intensities'].tolist()
+        #             ]
+        #     )
+        # )
 
         plot_specs = False
         if plot_specs:

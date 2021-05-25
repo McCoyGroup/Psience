@@ -1160,10 +1160,11 @@ class DipoleTerms(ExpansionTerms):
 
         if grad.shape == (coord_n, 3):
             grad = grad / m_conv[:, np.newaxis]
-        elif grad.shape == (modes_n,):
+        elif grad.shape == (modes_n, 3):
             grad = grad / f_conv[:, np.newaxis]
 
         if seconds.shape == (modes_n, coord_n, 3):
+            # raise Exception('wat')
             if self.mixed_derivs is None:
                 self.mixed_derivs = True
             undimension_2 = (
