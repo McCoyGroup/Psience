@@ -5309,7 +5309,7 @@ class VPT2Tests(TestCase):
 
     # Add test to check that internal/cartesian intensities
     # should be the same
-    @inactiveTest
+    @debugTest
     def test_HOHIntensitiesSandbox(self):
 
         internals = [
@@ -5325,7 +5325,7 @@ class VPT2Tests(TestCase):
         )
         # coupled_states = self.get_states(5, 3, max_quanta=5)
 
-        internals=None
+        # internals=None
         with BlockProfiler("HOH Intenstities", print_res=False):
             wfns, ham = self.get_VPT2_wfns_and_ham(
                 "HOH_freq.fchk",
@@ -5334,7 +5334,7 @@ class VPT2Tests(TestCase):
                 regenerate=True
                 # coupled_states=coupled_states,
                 , log=True
-                , order=6
+                , order=2
             )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -5353,21 +5353,21 @@ class VPT2Tests(TestCase):
         harm_freqs = harm_engs - harm_engs[0]
         harm_ints = wfns.zero_order_intensities
 
-        # breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+        breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
 
-        # import json
-        # raise Exception(
-        #     json.dumps(
-        #         [
-        #             (np.array(breakdown['frequencies']) * self.h2w).tolist(),
-        #             breakdown['breakdowns']['Full']['intensities'].tolist(),
-        #             breakdown['breakdowns']['Linear']['intensities'].tolist(),
-        #             breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
-        #             breakdown['breakdowns']['Cubic']['intensities'].tolist(),
-        #             breakdown['breakdowns']['Constant']['intensities'].tolist()
-        #             ]
-        #     )
-        # )
+        import json
+        raise Exception(
+            json.dumps(
+                [
+                    (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+                    breakdown['breakdowns']['Full']['intensities'].tolist(),
+                    breakdown['breakdowns']['Linear']['intensities'].tolist(),
+                    breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Constant']['intensities'].tolist()
+                    ]
+            )
+        )
 
         plot_specs = False
         if plot_specs:
@@ -5400,7 +5400,7 @@ class VPT2Tests(TestCase):
             )
             print(report)
 
-    @debugTest
+    @inactiveTest
     def test_OCHHIntensitiesCartesians(self):
 
         tag = "OCHH Intenstities"

@@ -1103,7 +1103,7 @@ class PerturbationTheorySolver:
                     + ["took {t}s..."],
                     t=round(end - start, 3)
                 )
-                raise Exception('break')
+                # raise Exception('break')
 
         elif len(self._coupled_states) != len(self.perts) - 1:
             raise ValueError("coupled states must be specified for all perturbations (got {}, expected {})".format(

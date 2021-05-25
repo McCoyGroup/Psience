@@ -378,7 +378,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         return list(sorted(list(perm_unique_helper(listunique, [0] * u, u - 1)), reverse=True))
 
     @staticmethod
-    def _accel_asc(n, return_permutation=False):
+    def _accel_asc(n):
         """
         Pulled directly from http://jeromekelleher.net/author/jerome-kelleher.html
         Could easily be translated to C++ if speed is crucial (but this will never be a bottleneck)
@@ -388,11 +388,9 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         :rtype:
         """
 
-        # sets up storage that we can fill in reverse order
         a = [0 for i in range(n + 1)]
         k = 1
         y = n - 1
-
         while k != 0:
             x = a[k - 1] + 1
             k -= 1
@@ -1857,6 +1855,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         """
 
         og = space.excitations.astype(cls.excitations_dtype)
+
+
         excitations = np.full((len(og),), None, dtype=object)
 
         use_sparse = isinstance(permutations, SparseArray)
@@ -1982,8 +1982,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         permutations = cls._generate_selection_rule_permutations(space, selection_rules)
         if filter_space is None:
-            # we
-            new = cls._apply_rules_recursive()
             new = cls._apply_rules_recursive(space, permutations, filter_space, selection_rules, iterations=iterations)
         else:
             # TODO: add a check to see if it's faster to do a quadratic-ish time filter
