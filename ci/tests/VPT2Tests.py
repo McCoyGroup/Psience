@@ -77,6 +77,7 @@ class VPT2Tests(TestCase):
                               order=2
                               , allow_sakurai_degs = False
                               , allow_post_PT_calc = True
+                              , intermediate_normalization=False
                               ):
         if parallelized:
             parallelizer = MultiprocessingParallelizer()#verbose=True, processes=2)
@@ -124,6 +125,9 @@ class VPT2Tests(TestCase):
                     hammer.H1.computers[1].operator.coeffs = v3
                 if t4 is not None:
                     hammer.H2.computers[0].operator.coeffs = t4
+                    if internals is None and isinstance(t4, (int, float)) and t4 == 0:
+                        if coriolis is None:
+                            coriolis = 0
                 if v4 is not None:
                     hammer.H2.computers[1].operator.coeffs = v4
                 if coriolis is not None:
@@ -136,6 +140,7 @@ class VPT2Tests(TestCase):
                 wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order
                                                 , allow_sakurai_degs=allow_sakurai_degs
                                                 , allow_post_PT_calc=allow_post_PT_calc
+                                                , intermediate_normalization=intermediate_normalization
                                                 )
                 if save_wfns:
                     self.save_wfns(wfn_file, wfns)
@@ -166,8 +171,9 @@ class VPT2Tests(TestCase):
                       get_breakdown=False,
                       chunk_size=None,
                       order=2
-                      , allow_sakurai_degs = False
-                      , allow_post_PT_calc = True
+                      , allow_sakurai_degs=False
+                      , allow_post_PT_calc=True
+                      , intermediate_normalization=False
                       ):
         return self.get_VPT2_wfns_and_ham(
             fchk,
@@ -194,6 +200,7 @@ class VPT2Tests(TestCase):
             order=order
             , allow_sakurai_degs=allow_sakurai_degs
             , allow_post_PT_calc=allow_post_PT_calc
+            , intermediate_normalization=intermediate_normalization
         )[0]
 
     def get_states(self, n_quanta, n_modes, max_quanta = None):
@@ -236,10 +243,11 @@ class VPT2Tests(TestCase):
                     print_report=False,
                     print_diffs=True,
                     log=False,
+                    energy_order=None,
                     nielsen_tolerance=1,
                     gaussian_tolerance=1,
                     print_profile=False,
-                    *opts
+                    **opts
                     ):
         with BlockProfiler(tag, print_res=print_profile):
             wfns, hammer = self.get_VPT2_wfns_and_ham(
@@ -249,12 +257,17 @@ class VPT2Tests(TestCase):
                 regenerate=True,
                 mode_selection=mode_selection
                 , log=log,
-                *opts
+                **opts
             )
 
         # Pure PT energies
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
+        if energy_order is None:
+            engs = h2w * wfns.energies
+        else:
+            engs = h2w * wfns.energies_to_order(energy_order)
+
+        # raise Exception(h2w*wfns.corrs.energy_corrs)
         freqs = engs[1:] - engs[0]
         harm_engs = h2w * wfns.zero_order_energies
         harm_freq = harm_engs[1:] - harm_engs[0]
@@ -265,7 +278,7 @@ class VPT2Tests(TestCase):
         if print_report:
             self.print_energy_block("State Energies:", states, my_energies, my_freqs)
 
-        if internals is None:
+        if internals is None and nielsen_tolerance is not None:
             # Energies from Nielsen expressions
             e_harm, e_corr, x = hammer.get_Nielsen_energies(states, return_split=True)
             e_corr = np.sum(e_corr, axis=0)
@@ -2369,8 +2382,8 @@ class VPT2Tests(TestCase):
 
         internals = [
             [0, -1, -1, -1],
-            [1, 0, -1, -1],
-            [2, 0, 1, -1]
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
         ]
 
         n_atoms = 3
@@ -2425,6 +2438,121 @@ class VPT2Tests(TestCase):
             gaussian_energies,
             gaussian_freqs,
             print_report=print_report
+        )
+
+    @debugTest
+    def test_HOHVPTCartesians4thOrder(self):
+
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        internals = None
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+
+        basis = HarmonicOscillatorProductBasis(n_modes)
+        coupled_states =  [
+            BasisStateSpace(basis, self.get_states(20, n_modes)).apply_selection_rules(
+                basis.selection_rules("x", "x", "x")
+            ),
+            BasisStateSpace(basis, self.get_states(20, n_modes)).apply_selection_rules(
+                basis.selection_rules("x", "x", "x", "x")
+            )
+        ]
+        # coupled_states=None
+
+        print_report = False
+        log = True
+        nielsen_tolerance = None
+        order = 4
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            order=order,
+            nielsen_tolerance=nielsen_tolerance,
+            log=log,
+            print_report=print_report
+            # , energy_order=2
+            , coupled_states=coupled_states
+            , intermediate_normalization=True
+        )
+
+    @debugTest
+    def test_HOTVPTCartesians4thOrder(self):
+
+        tag = 'HOT Cartesians'
+        file_name = "HOT_freq.fchk"
+
+        internals = None
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        basis = HarmonicOscillatorProductBasis(n_modes)
+        coupled_states = [
+            # BasisStateSpace(basis, self.get_states(20, n_modes)).apply_selection_rules(
+            #     basis.selection_rules("x", "x", "x")
+            # ),
+            self.get_states(15, n_modes),
+            self.get_states(15, n_modes)
+            # BasisStateSpace(basis, self.get_states(20, n_modes)).apply_selection_rules(
+            #     basis.selection_rules("x", "x", "x", "x")
+            # )
+        ]
+        # coupled_states=None
+
+        print_report = False
+        log = True
+        nielsen_tolerance = None
+        order = 4
+
+        gaussian_energies = self.gaussian_data['HOT']['zpe']
+        gaussian_freqs = self.gaussian_data['HOT']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            order=order,
+            nielsen_tolerance=nielsen_tolerance,
+            log=log,
+            print_report=print_report
+            # , energy_order=2
+            , coupled_states=coupled_states
+            , intermediate_normalization=True
         )
 
     @inactiveTest
@@ -2883,6 +3011,88 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
+    @inactiveTest
+    def test_OCHHVPTCartesiansDegenerate(self):
+
+        tag = 'OCHH Cartesians'
+        file_name = "OCHH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        # nt_spec = np.array([
+        #     [0, 0, 0, 0, 0, 1],
+        #     [0, 1, 0, 1, 0, 0]
+        # ])
+        # degeneracies = []
+        # for s in states:
+        #     if np.dot(nt_spec[0], s) > 0:
+        #         degeneracies.append([
+        #             s,
+        #             s - nt_spec[0] + nt_spec[1]
+        #         ])
+        # # raise Exception(degeneracies)
+
+        degeneracies = (
+            [
+                [0, 0, 0, 0, 0, 1],
+                [0, 1, 0, 1, 0, 0]
+            ],
+            # [
+            #     [0, 0, 0, 0, 1, 1],
+            #     [0, 1, 0, 1, 1, 0]
+            # ],
+            # [
+            #     [1, 0, 0, 0, 0, 1],
+            #     [1, 1, 0, 1, 0, 0]
+            # ],
+            # [
+            #     [0, 0, 0, 1, 0, 1],
+            #     [0, 1, 0, 2, 0, 0]
+            # ],
+            # [
+            #     [0, 0, 0, 0, 0, 2],
+            #     [0, 1, 0, 1, 0, 1],
+            #     [0, 2, 0, 2, 0, 0]
+            # ]
+        )
+
+        degeneracies = [np.array(x).tolist() for x in degeneracies]
+        states = np.array(states).tolist()
+        for pair in degeneracies:
+            for p in pair:
+                if p not in states:
+                    states.append(p)
+
+        # degeneracies = None
+
+        gaussian_energies = self.gaussian_data['OCHH']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHH']['freqs']
+
+        print_report = False
+        nielsen_tolerance = None
+        gaussian_tolerance = 1
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            log=True,
+            gaussian_tolerance=gaussian_tolerance,
+            degeneracies=degeneracies
+        )
+
     gaussian_data['OCHD'] = {
         'zpe': [5235.162,  5171.477],
         'freqs': np.array([
@@ -3096,6 +3306,44 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
             , log=True
+            # , print_profile=True
+        )
+
+
+    @inactiveTest
+    def test_OCHTVPTCartesiansDegenerate(self):
+
+        tag = 'OCHT Cartesians'
+        file_name = "OCHT_freq.fchk"
+
+        internals = None
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['OCHT']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHT']['freqs']
+
+        print_report = False
+        nielsen_tolerance=1
+        gaussian_tolerance=50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+            , log=True
+            , degeneracies=degeneracies
             # , print_profile=True
         )
 
@@ -5307,10 +5555,10 @@ class VPT2Tests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
-    # Add test to check that internal/cartesian intensities
-    # should be the same
-    @debugTest
-    def test_HOHIntensitiesSandbox(self):
+    @validationTest
+    def test_HOHIntensitiesInternalCartesianEquality(self):
+        # Add test to check that internal/cartesian intensities
+        # should be the same
 
         internals = [
             [0, -1, -1, -1],
@@ -5330,7 +5578,66 @@ class VPT2Tests(TestCase):
         #             )
         #                  ]*2
 
-        # internals=None
+        with BlockProfiler("HOH Intenstities", print_res=False):
+            wfns_internal, ham = self.get_VPT2_wfns_and_ham(
+                "HOH_freq.fchk",
+                internals,
+                states,
+                regenerate=True
+                # , coupled_states=coupled_states
+                , log=False
+                , order=2
+                # , v3 = 0
+                # , v4 = 0
+                # , t3 = 0
+                # , t4 = 0
+            )
+
+        internals = None
+        with BlockProfiler("HOH Intenstities", print_res=False):
+            wfns_cartesian, ham = self.get_VPT2_wfns_and_ham(
+                "HOH_freq.fchk",
+                internals,
+                states,
+                regenerate=True
+                # , coupled_states=coupled_states
+                , log=False
+                , order=2
+                # , v3 = 0
+                # , v4 = 0
+                # , t3 = 0
+                # , t4 = 0
+            )
+
+
+        int_internal = wfns_internal.intensities
+        int_cartesin = wfns_cartesian.intensities
+
+        self.assertEquals(int_internal, int_cartesin)
+
+
+    @inactiveTest
+    def test_HOHIntensitiesSandbox(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        # coupled_states = [
+        #             BasisStateSpace.from_quanta(
+        #                 HarmonicOscillatorProductBasis(3),
+        #                 range(12)
+        #             )
+        #                  ]*2
+
+        internals=None
         with BlockProfiler("HOH Intenstities", print_res=False):
             wfns, ham = self.get_VPT2_wfns_and_ham(
                 "HOH_freq.fchk",
@@ -5338,8 +5645,12 @@ class VPT2Tests(TestCase):
                 states,
                 regenerate=True
                 # , coupled_states=coupled_states
-                , log=True
-                , order=2
+                , log=False
+                , order=6
+                # , v3 = 0
+                # , v4 = 0
+                # , t3 = 0
+                # , t4 = 0
             )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -5358,20 +5669,23 @@ class VPT2Tests(TestCase):
         harm_freqs = harm_engs - harm_engs[0]
         harm_ints = wfns.zero_order_intensities
 
-        # import json
-        # breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
-        # raise Exception(
-        #     json.dumps(
-        #         [
-        #             (np.array(breakdown['frequencies']) * self.h2w).tolist(),
-        #             breakdown['breakdowns']['Full']['intensities'].tolist(),
-        #             breakdown['breakdowns']['Linear']['intensities'].tolist(),
-        #             breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
-        #             breakdown['breakdowns']['Cubic']['intensities'].tolist(),
-        #             breakdown['breakdowns']['Constant']['intensities'].tolist()
-        #             ]
-        #     )
-        # )
+        import json
+        breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+        raise Exception(
+            json.dumps(
+                [
+                    (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+                    # ints.tolist(),
+                    breakdown['breakdowns']['Full']['intensities'].tolist(),
+                    breakdown['breakdowns']['Linear']['intensities'].tolist(),
+                    breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Constant']['intensities'].tolist(),
+                    breakdown['breakdowns']['Order0']['intensities'].tolist(),
+                    breakdown['breakdowns']['Order1']['intensities'].tolist()
+                    ]
+            )
+        )
 
         plot_specs = False
         if plot_specs:
@@ -5404,13 +5718,20 @@ class VPT2Tests(TestCase):
             )
             print(report)
 
-    @inactiveTest
-    def test_OCHHIntensitiesCartesians(self):
+    @validationTest
+    def test_OCHHIntensitiesSanbox(self):
 
         tag = "OCHH Intenstities"
         file_name = "OCHH_freq.fchk"
 
-        internals = None
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  1,  0, -1],
+            [3,  1,  0,  2]
+        ]
+
+        # internals = None
 
         n_atoms = 4
         n_modes = 3 * n_atoms - 6
@@ -5419,18 +5740,48 @@ class VPT2Tests(TestCase):
             n_modes = len(mode_selection)
         states = self.get_states(3, n_modes)
 
-        with BlockProfiler(tag, print_res=True):
-            wfns = self.get_VPT2_wfns(
-                file_name,
-                internals,
-                states,
-                regenerate=True
-                # coupled_states=coupled_states,
-                , log=True
-                , order=4
-            )
+        degeneracies = (
+            [
+                [0, 0, 0, 0, 0, 1],
+                [0, 1, 0, 1, 0, 0]
+            ],
+        )
+        degeneracies = None
+
+        # with BlockProfiler(tag, print_res=False):
+        wfns = self.get_VPT2_wfns(
+            file_name,
+            internals,
+            states,
+            regenerate=True
+            # coupled_states=coupled_states,
+            , log=True
+            , order=4
+            , degeneracies=degeneracies
+            # , v3 = 0
+            # , t3 = 0
+            # , v4 = 0
+            # , t4 = 0
+        )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        import json
+        breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+        raise Exception(
+            json.dumps(
+                [
+                    (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+                    breakdown['breakdowns']['Full']['intensities'].tolist(),
+                    breakdown['breakdowns']['Linear']['intensities'].tolist(),
+                    breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Constant']['intensities'].tolist(),
+                    breakdown['breakdowns']['Order0']['intensities'].tolist(),
+                    breakdown['breakdowns']['Order1']['intensities'].tolist()
+                ]
+            )
+        )
 
         # trying to turn off the orthogonality condition
         # states = wfns.corrs.states

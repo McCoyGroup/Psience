@@ -781,7 +781,8 @@ class ContractedOperator(Operator):
 
         chunks = [self._get_element_block(idx) for idx in idx_splits]
         if all(isinstance(x, np.ndarray) for x in chunks):
-            contracted = np.concatenate(chunks, axis=0)
+            subchunks = [np.array([y]) if y.shape == () else y for y in chunks]
+            contracted = np.concatenate(subchunks, axis=0)
         else:
             from functools import reduce
             contracted = reduce(lambda a,b: a.concatenate(b), chunks[1:], chunks[0])

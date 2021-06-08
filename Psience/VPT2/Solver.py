@@ -136,8 +136,9 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                             raise NotImplementedError("can't deal with non-BasisStateSpace specs for degeneracies")
 
                 logger.log_print(
-                    "degenerate state sets found {n}",
-                    n=len([x for x in degenerate_states if len(x) > 1])
+                    "{n} degenerate state sets found: {s}",
+                    n=len([x for x in degenerate_states if len(x) > 1]),
+                    s=[x for x in degenerate_states if len(x) > 1]
                 )
 
                 # if martin_test:
@@ -540,6 +541,8 @@ class PerturbationTheorySolver:
                  flat_total_space=None,
                  allow_sakurai_degs=False,
                  allow_post_PT_calc=True,
+                 ignore_odd_order_energies=False,
+                 intermediate_normalization=False,
                  degenerate_states=None,
                  logger=None,
                  parallelizer=None,
@@ -580,6 +583,8 @@ class PerturbationTheorySolver:
         # self.degeneracy_mode = degeneracy_mode
         self.allow_sakurai_degs = allow_sakurai_degs
         self.allow_post_PT_calc = allow_post_PT_calc
+        self.ignore_odd_orders = ignore_odd_order_energies
+        self.intermediate_normalization = intermediate_normalization
 
         self._coupled_states = coupled_states
         self._total_space = total_space
@@ -694,7 +699,9 @@ class PerturbationTheorySolver:
             diag_inds = BraKetSpace(self.flat_total_space, self.flat_total_space)
             # N = len(self.flat_total_space)
 
-            H = [np.zeros(1)] * len(self.perts)
+            n_spaces = len(self.total_state_space.spaces)
+            # raise Exception(len(self.total_state_space.spaces))
+            H = [np.zeros(1)] * min(len(self.perts), n_spaces)
             with logger.block(tag="getting H0"):
                 start = time.time()
                 logger.log_print(["calculating diagonal elements"])
@@ -708,14 +715,28 @@ class PerturbationTheorySolver:
             # print(flat_total_space.indices)
             for i, h in enumerate(self.perts[1:]):
                 # calculate matrix elements in the coupled subspace
-                cs = self.total_state_space[i + 1]
-                with logger.block(tag="getting H" + str(i + 1)):
-                    start = time.time()
-                    H[i + 1] = self._build_representation_matrix(h, cs)
-                    h.clear_cache()
-                    # cs.clear_cache()
-                    end = time.time()
-                    logger.log_print("took {t:.3f}s", t=end - start)
+                if n_spaces > i + 1:
+                    cs = self.total_state_space[i + 1]
+                    with logger.block(tag="getting H" + str(i + 1)):
+                        start = time.time()
+                        H[i + 1] = self._build_representation_matrix(h, cs)
+                        h.clear_cache()
+                        # cs.clear_cache()
+                        end = time.time()
+                        logger.log_print("took {t:.3f}s", t=end - start)
+
+            # import McUtils.Plots as plt
+            #
+            # for h in H:
+            #     if isinstance(h, SparseArray):
+            #         h = h.asarray()
+            #     woof = plt.ArrayPlot(h, plot_style={
+            #         "cmap":'PRGn',
+            #         'vmin':-np.max(np.abs(h)),
+            #         'vmax':np.max(np.abs(h))
+            #     })
+            # woof.show()
+            # raise Exception('wat')
 
             return H
 
@@ -1122,8 +1143,9 @@ class PerturbationTheorySolver:
             # otherwise they get calculated twice
             start = time.time()
             for s in self._coupled_states:
-                logger.log_print('generating indices for {s}', s=s)
-                new = s.indices
+                if s is not None:
+                    logger.log_print('generating indices for {s}', s=s)
+                    new = s.indices
 
             # inds = [s.indices for s in self._coupled_states]
             end = time.time()
@@ -1139,7 +1161,7 @@ class PerturbationTheorySolver:
 
                 start = time.time()
 
-                space_list = [self.states] + list(self._coupled_states)
+                space_list = [self.states] + [s for s in self._coupled_states if s is not None]
                 self._total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
                 flat_space = self._total_space.to_single()
                 self._flat_space = flat_space.take_unique()
@@ -1901,7 +1923,9 @@ class PerturbationTheorySolver:
                             zero_order_state,
                             degenerate_subspace,
                             degenerate_subsubspace,
-                            allow_PT_degs=True,
+                            allow_PT_degs=None,
+                            ignore_odd_orders=None,
+                            intermediate_normalization=None,
                             non_zero_cutoff=1.0e-14
                             ):
         """
@@ -1923,8 +1947,17 @@ class PerturbationTheorySolver:
         :return:
         :rtype:
         """
+        if ignore_odd_orders is None:
+            ignore_odd_orders=self.ignore_odd_orders
+        if allow_PT_degs is None:
+            allow_PT_degs = self.allow_sakurai_degs
+        if intermediate_normalization is None:
+            intermediate_normalization = self.intermediate_normalization
         if not allow_PT_degs:
-            return self.apply_VPT_nondeg_equations(state_index, degenerate_space_indices, non_zero_cutoff=non_zero_cutoff)
+            return self.apply_VPT_nondeg_equations(state_index, degenerate_space_indices, non_zero_cutoff=non_zero_cutoff,
+                                                   ignore_odd_orders=ignore_odd_orders,
+                                                   intermediate_normalization=intermediate_normalization
+                                                   )
         if len(degenerate_space_indices) == 1:
             return self.apply_VPT_nondeg_equations(state_index, None, non_zero_cutoff=non_zero_cutoff)
         elif len(degenerate_subsubspace[0]) == 1:
@@ -1937,7 +1970,9 @@ class PerturbationTheorySolver:
                                    state_index,
                                    degenerate_space_indices,
                                    non_zero_cutoff=1.0e-14,
-                                   check_overlap=True
+                                   check_overlap=True,
+                                   intermediate_normalization=False,
+                                   ignore_odd_orders=False
                                    ):
         """
         Does the dirty work of doing the VPT iterative equations.
@@ -1947,6 +1982,9 @@ class PerturbationTheorySolver:
         :return:
         :rtype:
         """
+
+        if intermediate_normalization:
+            check_overlap=False
 
         n = state_index
         e_vec_full = self.zero_order_energies
@@ -1975,23 +2013,38 @@ class PerturbationTheorySolver:
         dot = self._safe_dot
         takeDiag = lambda h, n_ind: h[n_ind, n_ind] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
         take = lambda h, el: h[el] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
-        for k in range(1, order + 1):  # to actually go up to k
+        for k in range(1, order + 1):  # to actually go up to target order
             #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
-            Ek = (
-                    takeDiag(H[k], n_ind)
-                    + sum(dot(take(H[k - i], n_ind), corrs[i]) - energies[k - i] * overlaps[i]
-                for i in range(1, k)
-            ))
+            if ignore_odd_orders and k % 2 == 1:
+                Ek = 0
+            # elif ignore_odd_orders: # Tried to get the 2n + 1 trick working but...it doesn't work?
+            #     Ek = (
+            #             takeDiag(H[k], n_ind)
+            #             + sum(dot(take(H[k - i], n_ind), corrs[i]) - energies[k - i] * overlaps[i]
+            #                   for i in range(1, (k + 1) // 2))
+            #     )
+            else:
+                Ek = (
+                        takeDiag(H[k], n_ind)
+                        + sum(dot(take(H[k - i], n_ind), corrs[i]) - energies[k - i] * overlaps[i]
+                              for i in range(1, k)
+                              )
+                )
             energies[k] = Ek
             #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
             #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
             corrs[k] = sum(
                 dot(pi, energies[k - i] * corrs[i] - dot(H[k - i], corrs[i]))
+                    if abs(energies[k - i]) > non_zero_cutoff else
+                 -dot(pi, dot(H[k - i], corrs[i])) # just cut out a potentially unnecessary dense cast
                 for i in range(0, k)
             )
-            ok = -1 / 2 * np.sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
+            if intermediate_normalization:
+                ok = 0.0
+            else:
+                ok = -1 / 2 * np.sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
             overlaps[k] = ok
-            corrs[k][n_ind] = ok  # pi (the perturbation operator) e nsures it's zero before this
+            corrs[k][n_ind] = ok  # pi (the perturbation operator) ensures it's zero before this
 
         if check_overlap:
             # full_wfn = np.sum(corrs, axis=0)

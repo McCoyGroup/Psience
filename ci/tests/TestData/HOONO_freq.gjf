@@ -1,0 +1,89 @@
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!                                                                            !!
+!!      Job Header:                                                           !!
+!!        Specifies the options for the calculation and internal setup        !!
+!!                                                                            !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+!!			Link 0 Commands:
+!!				Locate and name scratch files
+!!        Not blank line terminated
+!!        All Link 0 commands start with %
+!!        http://gaussian.com/link0/
+
+! Example:
+
+%Chk=HOONO_freq.chk      ! set the checkpoint file
+! %NProc=28                ! use 28 cores
+! %Mem=1000MB              ! requisition 1GB of memory
+
+!!			Options Section:
+!!        Specify desired calculation type, model chemistry, and other options
+!!        Blank line terminated
+!!        All options start with #
+!!        Option usage should be commented
+!!        Multiple options can be specified per line -- but don't
+!!        http://gaussian.com/keywords/
+
+#MP2/aug-cc-pvtz     ! Level of theory
+#Density=current     ! Use the density from the specified level of theory
+!#Scan                ! PES Scan
+#Opt=VeryTight
+#Frequency=Anharmonic
+!
+!!      Description:
+!!        Attach a description to the job
+!!        Will be echoed in output but nothing more
+!!        Blank line terminated
+
+HOONO freq
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!                                                                            !!
+!!      Molecule Specification:                                               !!
+!!        Specifies the system of interest                                    !!
+!!        http://gaussian.com/molspec/                                        !!
+!!        Blank lines should be escaped                                       !!
+!!                                                                            !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!!      Charge and Spin Line:
+!!          The first line of the molecule specification section specifies the
+!!        net electric charge (a signed integer) and the spin multiplicity
+!!        (usually a positive integer).
+!!          Thus, for a neutral molecule in a singlet state, the entry 0 1 is
+!!        appropriate.
+!!        For a radical anion, -1 2 would be used.
+!!        Multiple charge/spin pairs may/must be included for some calculation types.
+!!        Doesn't strictly need a comment but it's not a bad idea
+!
+0 1 ! no charge, no spin state
+!
+!!      Atom Block:
+!!        Classic ZMatrix format
+!!        Blank line terminated
+!!        All lines should have a comment after them with the atom number
+!!        If done by hand, lines should have an explanation in the comment
+!!        https://en.wikipedia.org/wiki/Z-matrix_(chemistry)
+!
+ H
+ O   1  ROH
+ O   2  ROO  1 AOOH
+ N   3  RON  2 ANOO  1 THOON
+ O   4  RNO  3 AONO  3 TOONO
+!
+!!      Variables Block:
+!!        Collection of variables for the run
+!!        Blank line terminated
+!
+!
+  Variables:
+    ROH     0.9823
+    ROO     1.4332
+    RON     1.3845
+    RNO     1.1917
+    AHOO   99.804
+    AOON  112.983
+    AONO  114.400
+    THOON   0.000
+    TOONO   0.000

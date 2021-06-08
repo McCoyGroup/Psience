@@ -145,7 +145,9 @@ class ExpansionTerms:
                  undimensionalize=True,
                  logger=None,
                  parallelizer=None,
-                 checkpointer=None
+                 checkpointer=None,
+                 numerical_jacobians=True,
+                 eckart_embed=True
                  ):
         """
         :param molecule: the molecule we're doing the expansion for
@@ -175,6 +177,9 @@ class ExpansionTerms:
         self.mode_sel = mode_selection
         self.freqs = self.modes.freqs
         self._inert_frame = None
+
+        self.reembed=eckart_embed
+        self.all_numerical=numerical_jacobians
 
         if logger is None:
             logger = NullLogger()
@@ -232,6 +237,8 @@ class ExpansionTerms:
             # print(weights, weighted.array)
         return weighted
 
+
+
     def get_int_jacobs(self, jacs):
         intcds = self.internal_coordinates
         ccoords = self.coords
@@ -247,8 +254,8 @@ class ExpansionTerms:
         if max_jac > len(exist_jacs):
             need_jacs = [x+1 for x in range(0, max_jac)]
             new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs, mesh_spacing=1.0e-2,
-                                                             all_numerical=True,
-                                                             converter_options=dict(reembed=False)
+                                                             all_numerical=self.all_numerical,
+                                                             converter_options=dict(reembed=self.reembed)
                                                              )]
             self._cached_jacobians[self.molecule]['int'] = new_jacs
             exist_jacs = new_jacs
@@ -270,7 +277,11 @@ class ExpansionTerms:
         if max_jac > len(exist_jacs):
             need_jacs = [x + 1 for x in range(0, max_jac)]
             new_jacs = [
-                x.squeeze() for x in ccoords.jacobian(internals, need_jacs, mesh_spacing=1.0e-5, analytic_deriv_order=1)
+                x.squeeze() for x in ccoords.jacobian(internals, need_jacs,
+                                                      mesh_spacing=1.0e-5,
+                                                      # all_numerical=True,
+                                                      analytic_deriv_order=1
+                                                      )
                 ]
             self._cached_jacobians[self.molecule]['cart'] = new_jacs
             exist_jacs = new_jacs

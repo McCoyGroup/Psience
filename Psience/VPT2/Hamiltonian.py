@@ -617,6 +617,8 @@ class PerturbationTheoryHamiltonian:
                           degeneracies=None,
                           allow_sakurai_degs=False,
                           allow_post_PT_calc=True,
+                          intermediate_normalization=False,
+                          ignore_odd_order_energies=True,
                           order=2
                           ):
         """
@@ -674,7 +676,9 @@ class PerturbationTheoryHamiltonian:
                                                   logger=self.logger,
                                                   checkpointer=self.checkpointer,
                                                   allow_sakurai_degs=allow_sakurai_degs,
-                                                  allow_post_PT_calc=allow_post_PT_calc
+                                                  allow_post_PT_calc=allow_post_PT_calc,
+                                                  ignore_odd_order_energies=ignore_odd_order_energies,
+                                                  intermediate_normalization=intermediate_normalization
                                                   )
                 corrs = solver.apply_VPT()
 

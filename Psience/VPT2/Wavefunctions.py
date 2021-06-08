@@ -79,6 +79,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             None
         )
 
+    def energies_to_order(self, order):
+        return np.sum(self.corrs.energy_corrs[:, :order+1], axis=1)
+
     @property
     def order(self):
         if self._order is None:
@@ -110,6 +113,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         if len(m_pairs) > 0:
             logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
             sub = h[m_pairs]
+            # TODO: WTF is this?
             if isinstance(sub, SparseArray):
                 sub = sub.asarray()
             SparseArray.clear_cache()
@@ -477,11 +481,12 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                                             c_upper = corr_terms[j][up_spec, :]
                                             num = c_lower.dot(m)
                                             new = num.dot(c_upper.T)
+                                        # HOLY FUCK I"M SO DUMB WHAT AM I DOING HERE!!!!
                                         if isinstance(new, SparseArray):
                                             new = new.asarray()
-                                    terms.append(
+                                    terms.append( # what is this...?
                                         new.reshape((len(low_spec), len(up_spec))
-                                                    ))
+                                        ))
                                     # raise Exception(new.toarray())
                             # print(q, a)
                             transition_moment_components[q][a] = terms
@@ -499,7 +504,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     sum(ip.chain(transition_moment_components[i][j]))
                     if not isinstance(transition_moment_components[i][j], (float, int, np.floating, np.integer))
                     else transition_moment_components[i][j]
-                    for i in range(3)  # correction order
+                    for i in range(order)  # correction order
                 ) for j in range(3)  # xyz
             ]
 
@@ -584,6 +589,17 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         tms = self.transition_moments
         return self._oscillator_strengths(tms)
 
+    def oscillator_strengths_to_order(self, order):
+        """
+
+        :param tms:
+        :type tms:
+        :return:
+        :rtype:
+        """
+
+        return self._oscillator_strengths(self.transition_moments_to_order(order))
+
     def _oscillator_strengths(self, tms):
 
         gs_tms = np.array([tms[i][0] for i in range(3)]).T
@@ -600,8 +616,20 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
         return self._intensities(self.oscillator_strengths)
 
-    def _intensities(self, oscs):
-        eng = self.energies
+    def intensities_to_order(self, order):
+        """
+        Computes the intensities for transitions from the ground state to the other states
+
+        :return:
+        :rtype:
+        """
+        return self._intensities(self.oscillator_strengths_to_order(order), energy_order=order)
+
+    def _intensities(self, oscs, energy_order=None):
+        if energy_order is None:
+            eng = self.energies
+        else:
+            eng = self.energies_to_order(energy_order)
         units = 3.554206329390961e6
         return units * (eng - eng[0]) * oscs
 
@@ -655,7 +683,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             ("Constant",  (True, False, False, False)),
             ("Linear",    (False, True, False, False)),
             ("Quadratic", (False, False, True, False)),
-            ("Cubic",     (False, False, False, True))
+            ("Cubic",     (False, False, False, True)),
+            ("Order0",    (True, True, False, False)),
+            ("Order1",    (True, True, True, False))
+            # ("Order2",  (True, True, True, True)),
         ))
 
         # wfn_terms.append(freqs.tolist())
