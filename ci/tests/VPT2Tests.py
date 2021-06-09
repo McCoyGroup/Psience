@@ -2443,15 +2443,20 @@ class VPT2Tests(TestCase):
     @debugTest
     def test_HOHVPTCartesians4thOrder(self):
 
+
+        import warnings
+        np.seterr(all='raise')
+        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
+
         tag = 'HOH Cartesians'
         file_name = "HOH_freq.fchk"
 
-        internals = None
         internals = [
             [0, -1, -1, -1],
             [1,  0, -1, -1],
             [2,  0,  1, -1]
         ]
+        internals = None
 
         n_atoms = 3
         n_modes = 3 * n_atoms - 6
@@ -2459,7 +2464,6 @@ class VPT2Tests(TestCase):
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
         states = self.get_states(3, n_modes)
-
 
         basis = HarmonicOscillatorProductBasis(n_modes)
         coupled_states =  [
@@ -2470,7 +2474,7 @@ class VPT2Tests(TestCase):
                 basis.selection_rules("x", "x", "x", "x")
             )
         ]
-        # coupled_states=None
+        coupled_states=None
 
         print_report = False
         log = True
@@ -2494,21 +2498,21 @@ class VPT2Tests(TestCase):
             print_report=print_report
             # , energy_order=2
             , coupled_states=coupled_states
-            , intermediate_normalization=True
+            , intermediate_normalization=False
         )
 
-    @debugTest
+    @inactiveTest
     def test_HOTVPTCartesians4thOrder(self):
 
         tag = 'HOT Cartesians'
         file_name = "HOT_freq.fchk"
 
-        internals = None
         internals = [
             [0, -1, -1, -1],
             [1, 0, -1, -1],
             [2, 0, 1, -1]
         ]
+        internals = None
 
         n_atoms = 3
         n_modes = 3 * n_atoms - 6
@@ -5748,21 +5752,21 @@ class VPT2Tests(TestCase):
         )
         degeneracies = None
 
-        # with BlockProfiler(tag, print_res=False):
-        wfns = self.get_VPT2_wfns(
-            file_name,
-            internals,
-            states,
-            regenerate=True
-            # coupled_states=coupled_states,
-            , log=True
-            , order=4
-            , degeneracies=degeneracies
-            # , v3 = 0
-            # , t3 = 0
-            # , v4 = 0
-            # , t4 = 0
-        )
+        with BlockProfiler(tag, print_res=True):
+            wfns = self.get_VPT2_wfns(
+                file_name,
+                internals,
+                states,
+                regenerate=True
+                # coupled_states=coupled_states,
+                , log=True
+                , order=4
+                , degeneracies=degeneracies
+                # , v3 = 0
+                # , t3 = 0
+                # , v4 = 0
+                # , t4 = 0
+            )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 

@@ -1117,6 +1117,7 @@ class PerturbationTheorySolver:
             with self.logger.block(tag='getting coupled states'):
                 start = time.time()
                 self._coupled_states = self.load_coupled_spaces()
+                # _ = [len(s) for s in [self.states] + list(self._coupled_states)]
                 end = time.time()
 
                 self.logger.log_print(
@@ -1587,8 +1588,6 @@ class PerturbationTheorySolver:
             #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
             # but we drop the energy and overlap parts of this because they don't affect the overall state space
 
-
-            curr = sum(corrs[i] for i in range(0, k))
             self.logger.log_print(
                 'getting states for ' +
                     '+'.join('H({})|n({})>'.format(k-i, i)
@@ -1596,17 +1595,12 @@ class PerturbationTheorySolver:
                              if not isinstance(H[k - i], (int, np.integer))
                              )
                 )
-            corrs[k] = sum(
-                (
-                    # just because it's faster to take a union than a difference using numpy
-                    # we don't project out anything
-                    dot(H[k - i], corrs[i])
-                   # dot(pi, corrs[i]) +
-                   #      dot(pi, H[k - i], corrs[i])
-                    for i in range(0, k)
-                ),
-                curr
-            )
+            with self.logger.block(tag='getting states for order {k}'.format(k=k)):
+                corrs[k] = sum(corrs[i] for i in range(0, k))
+                for i in range(0, k):
+                    if not isinstance(H[k - i], (int, np.integer)):
+                        self.logger.log_print('H({a})|n({b})>', a=k - i, b=i)
+                        corrs[k] += dot(H[k - i], corrs[i])
 
         # raise Exception(
         #     [x[1] for x in spaces.values() if x is not None][0].get_representation_indices().T
