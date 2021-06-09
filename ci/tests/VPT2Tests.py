@@ -2470,7 +2470,7 @@ class VPT2Tests(TestCase):
                 basis.selection_rules("x", "x", "x", "x")
             )
         ]
-        # coupled_states=None
+        coupled_states=None
 
         print_report = False
         log = True
