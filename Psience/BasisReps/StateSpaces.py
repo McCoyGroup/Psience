@@ -118,6 +118,48 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
     def exc_indexer(self, idxer):
         self._exc_indexer = idxer
 
+
+
+    def find(self, to_search, check=True):
+        """
+        Finds the indices of a set of indices inside the space
+
+        :param to_search: array of ints
+        :type to_search: np.ndarray | AbstractStateSpace
+        :return:
+        :rtype:
+        """
+        if not isinstance(to_search, np.ndarray):
+            if isinstance(to_search, AbstractStateSpace) or hasattr(to_search, 'indices'):
+                to_search = to_search.indices
+            else:
+                to_search = np.array(to_search)
+        if to_search.ndim > 1:
+            raise ValueError("currently only accept subspaces as indices or AbstractStateSpaces")
+        vals = np.searchsorted(self.indices, to_search, sorter=self.indexer)
+        if isinstance(vals, (np.integer, int)):
+            vals = np.array([vals])
+        # we have the ordering according to the _sorted_ version of `indices`
+        # so now we need to invert that back to the unsorted version
+        if len(self.indexer) > 0:
+            big_vals = vals == len(self.indexer)
+            vals[big_vals] = -1
+            vals = self.indexer[vals]
+            # now because of how searchsorted works, we need to check if the found values
+            # truly agree with what we asked for...although I could maybe be smarter on this...
+            bad_vals = self.indices[vals] != to_search
+            if vals.shape == ():
+                if bad_vals:
+                    vals = -1
+            else:
+                vals[bad_vals] = -1
+        else:
+            bad_vals = np.full_like(to_search, True)
+            vals = np.full_like(vals, -1)
+        if check and bad_vals.any():
+            raise IndexError("{} not in {}".format(to_search[bad_vals], self))
+        return vals
+
     def find(self, to_search, check=True):
         """
         Finds the indices of a set of indices inside the space
@@ -135,8 +177,10 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         # if to_search.ndim > 1:
         #     raise ValueError("currently only accept subspaces as indices or AbstractStateSpaces")
 
+        if to_search.ndim == 0:
+            to_search = np.array([to_search], dtype=to_search.dtype)
         if to_search.ndim == 1:
-            vals, self._indexer = nput.find(self.indices, to_search, sorting=self._indexer, check=check)
+            vals, _ = nput.find(self.indices, to_search, sorting=self.indexer, check=check)
         else:
             vals, self._exc_indexer = nput.find(self.excitations, to_search, sorting=self._exc_indexer, check=check)
 
