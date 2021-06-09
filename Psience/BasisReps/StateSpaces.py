@@ -952,23 +952,8 @@ class BasisStateSpace(AbstractStateSpace):
         ): # no need to be wasteful and recalc stuff, right?
             # create merge based on indices and then
             # secondarily based on excitations if possible
-
-        #     if len(other) > 1000:
-        #         raise Exception(
-        #             sort,
-        #             self.has_indices,
-        #             self.has_excitations,
-        #             other.has_excitations,
-        #             other.has_indices,
-        #             (self.has_indices and other.has_indices),(
-        #         self.has_indices
-        #         and not (self.has_excitations and other.has_excitations)
-        # )
-        #         )
-        #         raise Exception('no!')
-
-            self_inds = self.indices
-            other_inds = other.indices
+            self_inds = self.unique_indices
+            other_inds = other.unique_indices
 
             if len(self_inds) == 0:
                 return other.take_unique(sort=sort)
@@ -978,7 +963,7 @@ class BasisStateSpace(AbstractStateSpace):
                 # new_inds = self_inds
             else:
                 new_inds = np.concatenate([self_inds, other_inds], axis=0)
-            _, uinds = np.unique(new_inds, axis=0, return_index=True)
+            _, _, uinds = nput.unique(new_inds, return_index=True)
             # if the number of unique states hasn't increased,
             # one of the spaces is contained in the other
             if len(uinds) == len(self.unique_indices):
@@ -987,15 +972,19 @@ class BasisStateSpace(AbstractStateSpace):
                 return other.take_unique(sort=sort)
             else:
                 if not sort:
-                    sorting = np.argsort(uinds)
+                    sorting = nput.argsort(uinds)
+                    indexer = nput.argsort(sorting)
                     uinds = uinds[sorting]
+                else:
+                    indexer = np.arange(len(uinds))
+
                 new_inds = new_inds[uinds,]
                 new = BasisStateSpace(self.basis, new_inds, mode=self.StateSpaceSpec.Indices)
-                # new._indexer = sorting
+                new._indexer = indexer
 
                 if self._excitations is not None or other._excitations is not None:
-                    self_exc = self.excitations
-                    other_exc = other.excitations
+                    self_exc = self.unique_excitations
+                    other_exc = other.unique_excitations
                     if len(self_exc) == 0:
                         new_exc = other_exc
                     elif len(other_exc) == 0:
@@ -1006,8 +995,8 @@ class BasisStateSpace(AbstractStateSpace):
         else:
             # create merge based on excitations and then
             # secondarily based on indices if possible
-            self_exc = self.excitations
-            other_exc = other.excitations
+            self_exc = self.unique_excitations
+            other_exc = other.unique_excitations
             if len(self_exc) == 0:
                 return other.take_unique(sort=sort)
                 # new_exc = other_exc
@@ -1018,8 +1007,6 @@ class BasisStateSpace(AbstractStateSpace):
                 new_exc = np.concatenate([self_exc, other_exc], axis=0)
 
             _, uinds = np.unique(new_exc, axis=0, return_index=True)
-            # I should do a check at this point to make sure that neither self nor other is wholly
-            # contained in the other one...no reason to break an object if it can be reused
 
             # if the number of unique states hasn't increased,
             # one of the spaces is contained in the other
@@ -1028,13 +1015,12 @@ class BasisStateSpace(AbstractStateSpace):
             elif len(uinds) == len(other.unique_excitations):
                 new = other.take_unique(sort=sort)
             else:
-
                 sorting = np.argsort(uinds)
                 uinds = uinds[sorting]
                 new_exc = new_exc[uinds,]
 
                 new = BasisStateSpace(self.basis, new_exc, mode=self.StateSpaceSpec.Excitations)
-                # new._indexer = sorting
+                new._exc_indexer = nput.argsort(sorting)
 
                 if other._indices is not None:
                     self_inds = self.indices
