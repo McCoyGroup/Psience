@@ -2497,7 +2497,7 @@ class VPT2Tests(TestCase):
             , intermediate_normalization=True
         )
 
-    @debugTest
+    @inactiveTest
     def test_HOTVPTCartesians4thOrder(self):
 
         tag = 'HOT Cartesians'
@@ -2977,7 +2977,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @validationTest
+    @debugTest
     def test_OCHHVPTCartesians(self):
 
         tag = 'OCHH Cartesians'
@@ -3006,6 +3006,7 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
+            log=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
