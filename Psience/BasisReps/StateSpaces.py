@@ -535,6 +535,7 @@ class BasisStateSpace(AbstractStateSpace):
         if states_type is self.StateSpaceSpec.Excitations:
             return np.reshape(states, (-1, self.ndim))
         elif states_type is self.StateSpaceSpec.Indices:
+            #TODO: I don't think I need to lose all this info...?
             states, uinds, inv = np.unique(states, return_index=True, return_inverse=True)
             self._uinds = np.sort(uinds)
             raw_exc = self.basis.unravel_state_inds(states.flatten())
@@ -1084,7 +1085,7 @@ class BasisStateSpace(AbstractStateSpace):
                 new_inds = np.sort(new_inds)
                 return self.take_subspace(new_inds)
 
-    def difference(self, other, sort=False, use_indices=True):
+    def difference(self, other, sort=False, use_indices=False):
         """
         Returns an diff'ed self and other
 
@@ -1163,38 +1164,6 @@ class BasisStateSpace(AbstractStateSpace):
                 )
                 found_inds = np.sort(found_inds)
                 return self.take_subspace(found_inds)
-
-    # def difference(self, other):
-    #     """
-    #     Returns an diff'ed self and other
-    #
-    #     :param other:
-    #     :type other: BasisStateSpace
-    #     :return:
-    #     :rtype:
-    #     """
-    #
-    #     if self.basis is not other.basis:
-    #         raise ValueError("can't take a difference of state spaces over different bases ({} and {})".format(
-    #             self.basis,
-    #             other.basis
-    #         ))
-    #
-    #     # create difference on indices and then
-    #     # make use of this subselection to resample the basis
-    #     # unfortunately no way to only use Excitation data here...
-    #     self_inds = self.unique_indices
-    #     other_inds = other.unique_indices
-    #     new_inds = np.setdiff1d(self_inds, other_inds)
-    #     # now we check that we're not destroying an object that can be
-    #     # reused
-    #     if len(new_inds) == len(self_inds):
-    #         if self.is_unique:
-    #             return self
-    #         else:
-    #             return self.take_unique()
-    #     else:
-    #         return self.take_states(new_inds)
 
     def __repr__(self):
         return "{}(nstates={}, basis={})".format(
