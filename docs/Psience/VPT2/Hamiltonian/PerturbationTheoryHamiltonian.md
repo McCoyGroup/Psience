@@ -10,7 +10,7 @@ from_fchk: method
 ```
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, coriolis_coupling=True, parallelizer=None, log=None, checkpoint=None, operator_chunk_size=None): 
+__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, coriolis_coupling=True, watson_term=True, parallelizer=None, log=None, checkpoint=None, operator_chunk_size=None, selection_rules=None): 
 ```
 
 - `molecule`: `Molecule`
@@ -64,7 +64,7 @@ get_Nielsen_xmatrix(self):
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_Nielsen_energies" class="docs-object-method">&nbsp;</a>
 ```python
-get_Nielsen_energies(self, states): 
+get_Nielsen_energies(self, states, return_split=False): 
 ```
 
 - `states`: `Any`
@@ -102,7 +102,7 @@ Returns the representations of the perturbations in the basis of coupled states
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_input_state_spaces" class="docs-object-method">&nbsp;</a>
 ```python
-get_input_state_spaces(self, states, coupled_states=None, degeneracies=None, order=2): 
+get_input_state_spaces(self, states, coupled_states=None, degeneracies=None, order=2, deg_extra_order=2): 
 ```
 Converts the input state specs into proper `BasisStateSpace` specs that
         will directly feed into the code
@@ -117,7 +117,7 @@ Converts the input state specs into proper `BasisStateSpace` specs that
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_wavefunctions" class="docs-object-method">&nbsp;</a>
 ```python
-get_wavefunctions(self, states, coupled_states=None, degeneracies=None, order=2): 
+get_wavefunctions(self, states, coupled_states=None, degeneracies=None, allow_sakurai_degs=False, allow_post_PT_calc=True, intermediate_normalization=False, ignore_odd_order_energies=True, zero_element_warning=True, state_space_iterations=None, order=2): 
 ```
 Gets a set of `PerturbationTheoryWavefunctions` from the perturbations defined by the Hamiltonian
 - `states`: `BasisStateSpace | Iterable[int] | Iterable[Iterable[int]]`

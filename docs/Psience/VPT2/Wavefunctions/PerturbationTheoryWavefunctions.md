@@ -3,12 +3,13 @@ These things are fed the first and second order corrections
 
 ### Properties and Methods
 ```python
+TermHolder: type
 DipolePartitioningMethod: EnumMeta
 write_CSV_breakdown: method
 ```
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, mol, basis, corrections, logger=None): 
+__init__(self, mol, basis, corrections, modes=None, mode_selection=None, logger=None): 
 ```
 
 - `mol`: `Molecule`
@@ -17,6 +18,11 @@ __init__(self, mol, basis, corrections, logger=None):
     >the basis the expansion is being done in
 - `corrections`: `PerturbationTheoryCorrections`
     >the corrections to the terms
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.energies_to_order" class="docs-object-method">&nbsp;</a>
+```python
+energies_to_order(self, order): 
+```
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.order" class="docs-object-method">&nbsp;</a>
 ```python
@@ -74,10 +80,28 @@ Computes the oscillator strengths for transitions from the ground state to the o
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.oscillator_strengths_to_order" class="docs-object-method">&nbsp;</a>
+```python
+oscillator_strengths_to_order(self, order): 
+```
+
+- `tms`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.intensities" class="docs-object-method">&nbsp;</a>
 ```python
 @property
 intensities(self): 
+```
+Computes the intensities for transitions from the ground state to the other states
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.intensities_to_order" class="docs-object-method">&nbsp;</a>
+```python
+intensities_to_order(self, order): 
 ```
 Computes the intensities for transitions from the ground state to the other states
 - `:returns`: `_`

@@ -44,6 +44,17 @@ get_brakets(self, states):
 get_element(self, n, m): 
 ```
 
+<a id="Psience.BasisReps.Terms.ExpansionRepresentation.get_transformed_space" class="docs-object-method">&nbsp;</a>
+```python
+get_transformed_space(self, space): 
+```
+Returns the state space obtained by using the
+        held operators to transform `space`
+- `space`: `BasisStateSpace`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.BasisReps.Terms.ExpansionRepresentation.__repr__" class="docs-object-method">&nbsp;</a>
 ```python
 __repr__(self): 

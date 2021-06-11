@@ -1,20 +1,29 @@
 ## <a id="Psience.BasisReps.Terms.Representation">Representation</a>
-A `Representation` provides a simple interface to compute only some elements of high-dimensional tensors.
-It takes a tensor shape and a function to compute tensor elements.
-The `compute` function should be able to take a block of indices and return all the matrix elements.
+A `Representation` provides a simple interface to build matrix representations of operators expressed
+in high-dimensional spaces.
 
 ### Properties and Methods
 <a id="Psience.BasisReps.Terms.Representation.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, compute, basis, logger=None): 
+__init__(self, compute, basis, logger=None, selection_rules=None): 
 ```
 
 - `compute`: `callable | Operator`
     >the function that turns indices into values
-- `n_quanta`: `RepresentationBasis`
-    >the basis quanta used in the representations (necessary for shape reasons)
+- `basis`: `RepresentationBasis`
+    >the basis quanta used in the representations
 - `logger`: `None | Logger`
     >logger for printing out debug info
+
+<a id="Psience.BasisReps.Terms.Representation.compute" class="docs-object-method">&nbsp;</a>
+```python
+compute(self, inds): 
+```
+
+<a id="Psience.BasisReps.Terms.Representation.compute_cached" class="docs-object-method">&nbsp;</a>
+```python
+compute_cached(self, inds): 
+```
 
 <a id="Psience.BasisReps.Terms.Representation.clear_cache" class="docs-object-method">&nbsp;</a>
 ```python
@@ -46,7 +55,7 @@ get_brakets(self, states):
 Computes term elements based on getting a BraKetSpace.
         Can directly pass element specs through, since the shape management shit
         is managed by the BraKetSpace
-- `states`: `Any`
+- `states`: `BraKetSpace | Tuple[np.ndarray, np.ndarray]`
     >No description...
 - `:returns`: `_`
     >No description...
@@ -87,6 +96,31 @@ __add__(self, other):
 <a id="Psience.BasisReps.Terms.Representation.__repr__" class="docs-object-method">&nbsp;</a>
 ```python
 __repr__(self): 
+```
+
+<a id="Psience.BasisReps.Terms.Representation.selection_rules" class="docs-object-method">&nbsp;</a>
+```python
+@property
+selection_rules(self): 
+```
+
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.Terms.Representation.get_transformed_space" class="docs-object-method">&nbsp;</a>
+```python
+get_transformed_space(self, space): 
+```
+Returns the state space obtained by using the
+        held operator to transform `space`
+- `space`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.Terms.Representation.apply" class="docs-object-method">&nbsp;</a>
+```python
+apply(self, other): 
 ```
 
 ### Examples

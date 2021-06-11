@@ -25,6 +25,33 @@ __init__(self, basis, states, mode=None):
 to_state(self, serializer=None): 
 ```
 
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.indices" class="docs-object-method">&nbsp;</a>
+```python
+@property
+indices(self): 
+```
+Returns held indices
+- `inds`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.excitations" class="docs-object-method">&nbsp;</a>
+```python
+@property
+excitations(self): 
+```
+Returns held excitations
+- `inds`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.get_mode" class="docs-object-method">&nbsp;</a>
+```python
+get_mode(self): 
+```
+
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.infer_state_inds_type" class="docs-object-method">&nbsp;</a>
 ```python
 infer_state_inds_type(self): 
@@ -60,12 +87,37 @@ Basically a no-op
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.is_unique" class="docs-object-method">&nbsp;</a>
+```python
+is_unique(self): 
+```
+Returns `True` if the number of states is equal to number of unique states
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.is_sorted" class="docs-object-method">&nbsp;</a>
+```python
+is_sorted(self, allow_indeterminate=True): 
+```
+Checks and then sets a flag
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_unique" class="docs-object-method">&nbsp;</a>
 ```python
-take_unique(self): 
+take_unique(self, sort=False, use_indices=False): 
 ```
 Returns only the unique states, but preserves
-        ordering and all of that
+        ordering and all of that unless explicitly allowed not to
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.as_sorted" class="docs-object-method">&nbsp;</a>
+```python
+as_sorted(self): 
+```
+Returns only the unique states, but preserves
+        ordering and all of that unless explicitly allowed not to
 - `:returns`: `_`
     >No description...
 
@@ -105,19 +157,20 @@ Generates a set of indices that can be fed into a `Representation` to provide a 
 get_representation_brakets(self, other=None, selection_rules=None, freqs=None, freq_threshold=None): 
 ```
 Generates a `BraKetSpace` that can be fed into a `Representation`
-        Basically just takes all pairs of indices.
-        Only returns the upper-triangle indices
+        Only returns the upper-triangle pairs because we assume symmetry
 - `:returns`: `_`
     >No description...
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_subspace" class="docs-object-method">&nbsp;</a>
 ```python
-take_subspace(self, sel): 
+take_subspace(self, sel, assume_sorted=False): 
 ```
 Returns a subsample of the space.
         Intended to be a cheap operation, so samples
         along either the indices or the excitations, depending
         on which we have
+        If we know the subsample is sorted then we can actually reuse more information
+        and so we make use of that
 - `sel`: `Any`
     >No description...
 - `:returns`: `_`
@@ -136,7 +189,7 @@ Returns a subsample of the space with some dimensions
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_states" class="docs-object-method">&nbsp;</a>
 ```python
-take_states(self, states): 
+take_states(self, states, sort=False, assume_sorted=False): 
 ```
 Takes the set of specified states from the space.
         A lot like take_subspace, but operates on states, not indices
@@ -145,10 +198,40 @@ Takes the set of specified states from the space.
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.__repr__" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.drop_subspace" class="docs-object-method">&nbsp;</a>
 ```python
-__repr__(self): 
+drop_subspace(self, sel): 
 ```
+Returns a subsample of the space.
+        Intended to be a cheap operation, so samples
+        along either the indices or the excitations, depending
+        on which we have
+- `sel`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.drop_subdimensions" class="docs-object-method">&nbsp;</a>
+```python
+drop_subdimensions(self, inds): 
+```
+Returns a subsample of the space with some dimensions
+        dropped
+- `inds`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.drop_states" class="docs-object-method">&nbsp;</a>
+```python
+drop_states(self, states): 
+```
+Takes the set of specified states from the space.
+        A lot like take_subspace, but operates on states, not indices
+- `states`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.split" class="docs-object-method">&nbsp;</a>
 ```python
@@ -158,6 +241,52 @@ Splits the space up into chunks of at max chunksize
 - `chunksize`: `int`
     >No description...
 - `:returns`: `Iterable[BasisStateSpace]`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.union" class="docs-object-method">&nbsp;</a>
+```python
+union(self, other, sort=False, use_indices=True): 
+```
+Returns a merged version of self and other, making
+        use of as much of the information inherent in both as is possible
+- `other`: `BasisStateSpace`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.intersection" class="docs-object-method">&nbsp;</a>
+```python
+intersection(self, other, sort=False, use_indices=False): 
+```
+Returns an intersected self and other
+- `other`: `BasisStateSpace`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.difference" class="docs-object-method">&nbsp;</a>
+```python
+difference(self, other, sort=False, use_indices=False): 
+```
+Returns an diff'ed self and other
+- `other`: `BasisStateSpace`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.__repr__" class="docs-object-method">&nbsp;</a>
+```python
+__repr__(self): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.__eq__" class="docs-object-method">&nbsp;</a>
+```python
+__eq__(self, other): 
+```
+
+- `other`: `Any`
+    >No description...
+- `:returns`: `_`
     >No description...
 
 ### Examples

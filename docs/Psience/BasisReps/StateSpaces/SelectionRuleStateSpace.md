@@ -23,6 +23,24 @@ __init__(self, init_space, excitations, selection_rules=None):
 to_state(self, serializer=None): 
 ```
 
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.as_indices" class="docs-object-method">&nbsp;</a>
+```python
+as_indices(self): 
+```
+Pulls the full set indices out of all of the
+        held spaces and returns them as a flat vector
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.as_excitations" class="docs-object-method">&nbsp;</a>
+```python
+as_excitations(self): 
+```
+Pulls the full set excitations out of all of the
+        held spaces and returns them as a flat vector
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.representative_space" class="docs-object-method">&nbsp;</a>
 ```python
 @property
@@ -39,9 +57,49 @@ Takes the intersection of each held space and the specified states
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.take_subspace" class="docs-object-method">&nbsp;</a>
+```python
+take_subspace(self, states): 
+```
+Takes the intersection of each held space and the specified states
+- `states`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.take_subdimensions" class="docs-object-method">&nbsp;</a>
 ```python
 take_subdimensions(self, inds): 
+```
+Takes the subdimensions from each space
+- `inds`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.drop_states" class="docs-object-method">&nbsp;</a>
+```python
+drop_states(self, states): 
+```
+Takes the intersection of each held space and the specified states
+- `states`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.drop_subspace" class="docs-object-method">&nbsp;</a>
+```python
+drop_subspace(self, inds): 
+```
+Takes the intersection of each held space and the specified states
+- `states`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.drop_subdimensions" class="docs-object-method">&nbsp;</a>
+```python
+drop_subdimensions(self, inds): 
 ```
 Takes the subdimensions from each space
 - `inds`: `Any`
@@ -71,9 +129,55 @@ Filters representation indices by the allowed #quantum changes.
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.union" class="docs-object-method">&nbsp;</a>
+```python
+union(self, other, handle_subspaces=True): 
+```
+Returns a merged version of self and other, adding
+        any states in other to self and merging where they intersect
+- `other`: `SelectionRuleStateSpace`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.intersection" class="docs-object-method">&nbsp;</a>
+```python
+intersection(self, other, handle_subspaces=True, use_indices=False): 
+```
+Returns an intersected self and other
+- `other`: `SelectionRuleStateSpace`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.difference" class="docs-object-method">&nbsp;</a>
+```python
+difference(self, other, handle_subspaces=True): 
+```
+Returns an diff'ed self and other.
+        We get fundamentally different behaviour for `handle_subspaces` than without it.
+        If we have it _on_ then differences are computed for each states in the intersection of
+          the primary (key) states.
+        If we have it off then the difference in the key states is computed and nothing more is
+        done.
+- `other`: `SelectionRuleStateSpace`
+    >No description...
+- `:returns`: `SelectionRuleStateSpace`
+    >No description...
+
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.__getitem__" class="docs-object-method">&nbsp;</a>
 ```python
 __getitem__(self, item): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.__setitem__" class="docs-object-method">&nbsp;</a>
+```python
+__setitem__(self, item, vals): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.__repr__" class="docs-object-method">&nbsp;</a>
+```python
+__repr__(self): 
 ```
 
 ### Examples

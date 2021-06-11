@@ -10,8 +10,6 @@ systems.
 ### Properties and Methods
 ```python
 from_state: method
-PartitionPermutationIndexer: type
-max_quants: int
 ```
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.__init__" class="docs-object-method">&nbsp;</a>
 ```python
@@ -22,18 +20,6 @@ __init__(self, ndim):
 ```python
 to_state(self, serializer=None): 
 ```
-
-<a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.integer_partitions" class="docs-object-method">&nbsp;</a>
-```python
-integer_partitions(self, num): 
-```
-Gives basically the second sort criterion by calculating integer partitions
-        (i.e. number of way to split up num quanta across modes)
-        Sorted by default, which is our saving grace
-- `num`: `Any`
-    >No description...
-- `:returns`: `Tuple[int, int, Iterable[PermutationStateIndexer.PartitionPermutationIndexer]]`
-    >No description...
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.to_indices" class="docs-object-method">&nbsp;</a>
 ```python

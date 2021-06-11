@@ -16,10 +16,12 @@ BasisReps manages useful functions for generating & working with basis-set repre
   - [AnalyticWavefunction](BasisReps/Wavefunctions/AnalyticWavefunction.md)
   - [ExpansionWavefunctions](BasisReps/Wavefunctions/ExpansionWavefunctions.md)
   - [ExpansionWavefunction](BasisReps/Wavefunctions/ExpansionWavefunction.md)
+  - [AbstractStateSpace](BasisReps/StateSpaces/AbstractStateSpace.md)
   - [BasisStateSpace](BasisReps/StateSpaces/BasisStateSpace.md)
   - [BasisMultiStateSpace](BasisReps/StateSpaces/BasisMultiStateSpace.md)
   - [SelectionRuleStateSpace](BasisReps/StateSpaces/SelectionRuleStateSpace.md)
   - [BraKetSpace](BasisReps/StateSpaces/BraKetSpace.md)
+  - [StateSpaceMatrix](BasisReps/StateSpaces/StateSpaceMatrix.md)
   - [BaseStateIndexer](BasisReps/StateIndexers/BaseStateIndexer.md)
   - [ArrayStateIndexer](BasisReps/StateIndexers/ArrayStateIndexer.md)
   - [SpaceStateIndexer](BasisReps/StateIndexers/SpaceStateIndexer.md)
@@ -31,6 +33,8 @@ BasisReps manages useful functions for generating & working with basis-set repre
 
 ```python
 from Peeves import Timer, BlockProfiler
+from McUtils.Scaffolding import *
+import McUtils.Plots as plt
 from Peeves.TestUtils import *
 from unittest import TestCase
 from Psience.BasisReps import *
@@ -38,20 +42,11 @@ import sys, os, numpy as np
 
 class BasisSetTests(TestCase):
 
-
-    def get_states(self, n_quanta, n_modes, max_quanta = None):
-        import itertools as ip
-
-        if max_quanta is None:
-            max_quanta = n_quanta
-        return tuple(sorted(
-            [p for p in ip.product(*(range(n_quanta+1) for i in range(n_modes))) if all(x<=max_quanta for x in p) and sum(p) <= n_quanta],
-            key=lambda p: (
-                    sum(p)
-                    + sum(1 for v in p if v != 0) * n_quanta ** (-1)
-                    + sum(v * n_quanta ** (-i - 2) for i, v in enumerate(p))
-            )
-        ))
+    def get_states(self, n_quanta, n_modes, max_quanta=None):
+        return [np.flip(x) for x in BasisStateSpace.from_quanta(
+            HarmonicOscillatorProductBasis(n_modes),
+            range(n_quanta)
+        ).excitations]
 
     #region 1D Basis Tests
     @validationTest
@@ -257,7 +252,6 @@ class BasisSetTests(TestCase):
         v1 = vals1
         v2 = iphase * vals2
 
-        # import McUtils.Plots as plt
         # n = len(quant_states)
         # plt.ArrayPlot(v1.reshape((n, n)))
         # plt.ArrayPlot(v2.reshape((n, n))).show()
@@ -334,7 +328,6 @@ class BasisSetTests(TestCase):
         )
         inds = quant_states.get_representation_brakets()
 
-        # import McUtils.Plots as plt
         #
         # # raise Exception(inds.bras.indices)
         #
@@ -365,8 +358,6 @@ class BasisSetTests(TestCase):
         v1 = vals1
         v2 = iphase * vals2
 
-
-        # import McUtils.Plots as plt
         # n = len(quant_states)
         # plt.ArrayPlot(v1.reshape((n, n)))
         # plt.ArrayPlot(v2.reshape((n, n)))
@@ -388,6 +379,115 @@ class BasisSetTests(TestCase):
             ))
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
+
+    @validationTest
+    def test_HOBasis3DXXX(self):
+
+        n = 15
+        m = 5
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+        oppo2 = SimpleProductBasis(HarmonicOscillatorBasis, (n,) * m)
+
+        term = ['x', 'x', 'x']
+        iphase = (-1) ** (term.count("p") // 2)
+
+        xxpp1 = oppo.representation(*term)
+        xxpp2 = oppo2.representation(*term)
+
+        usr = os.path.expanduser('~')
+        job_is_dumb = [
+            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
+            os.path.join(usr, "Documents/UW/Research/Development")
+        ]
+
+        quant_states = self.get_states(4, m)
+        states = oppo.ravel_state_inds(quant_states)
+        # print(quant_states)
+        import itertools as ip
+        wat = np.array(list(ip.product(states, states))).T
+        # with Timer("New style"):
+        vals1 = xxpp1[wat[0], wat[1]]
+
+        # with Timer("Old style"):
+        vals2 = xxpp2[wat[0], wat[1]]
+
+        v1 = vals1.asarray()
+        v2 = iphase * vals2.asarray()
+
+        # with JSONCheckpointer(os.path.expanduser("~/Desktop/test_terms.json")) as chk:
+        #     chk['XXX_3D_new'] = v1
+        #     chk['XXX_3D_old'] = v2
+
+        self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
+
+    @validationTest
+    def test_HOBasis3DXXX2D(self):
+
+        n = 15
+        m = 2
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+        oppo2 = SimpleProductBasis(HarmonicOscillatorBasis, (n,) * m)
+
+        term = ['x', 'x', 'x']
+        iphase = (-1) ** (term.count("p") // 2)
+
+        xxpp1 = oppo.representation(*term)
+        xxpp2 = oppo2.representation(*term)
+
+        # usr = os.path.expanduser('~')
+        # job_is_dumb = [
+        #     os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
+        #     os.path.join(usr, "Documents/UW/Research/Development")
+        # ]
+
+        states = BasisStateSpace.from_quanta(oppo, range(10))
+        brakets = states.get_representation_brakets()
+        vals1 = xxpp1[brakets]
+        vals2 = xxpp2[brakets]
+
+        v1 = vals1.asarray()
+        v2 = iphase * vals2.asarray()
+
+        # with JSONCheckpointer(os.path.expanduser("~/Desktop/test_terms.json")) as chk:
+        #     chk['XXX_exc'] = states.excitations
+        #     chk['XXX_3D_new'] = v1
+        #     chk['XXX_3D_old'] = v2
+
+        self.assertLess(np.max(np.abs(v1 - v2)), 2.0e-14)
+
+    @validationTest
+    def test_HOBasis3DXXX2DContracted(self):
+        n = 15
+        m = 2
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+        oppo2 = SimpleProductBasis(HarmonicOscillatorBasis, (n,) * m)
+
+        term = ['x', 'x', 'x']
+        iphase = (-1) ** (term.count("p") // 2)
+
+        xxpp1 = oppo.representation(*term, coeffs=np.ones((m, m, m)))
+        xxpp2 = oppo2.representation(*term, coeffs=np.ones((m, m, m)))
+
+        # usr = os.path.expanduser('~')
+        # job_is_dumb = [
+        #     os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
+        #     os.path.join(usr, "Documents/UW/Research/Development")
+        # ]
+
+        states = BasisStateSpace.from_quanta(oppo, range(10))
+        brakets = states.get_representation_brakets()
+        vals1 = xxpp1[brakets]
+        vals2 = xxpp2[brakets]
+
+        v1 = vals1
+        v2 = iphase * vals2
+
+        with JSONCheckpointer(os.path.expanduser("~/Desktop/test_terms.json")) as chk:
+            chk['XXX_exc'] = states.excitations
+            chk['XXX_3D_new'] = v1
+            chk['XXX_3D_old'] = v2
+
+        self.assertLess(np.max(np.abs(v1 - v2)), 2.0e-14)
 
     @validationTest
     def test_HOBasis4DPXXP(self):
@@ -465,7 +565,7 @@ class BasisSetTests(TestCase):
                 1
             )
 
-    @debugTest
+    @validationTest
     def test_GenerateSelectionRuleSpace(self):
         """
         Tests (and profiles) the generation of a state
@@ -486,6 +586,39 @@ class BasisSetTests(TestCase):
         h2_space = states.apply_selection_rules(rules, iterations=1)
 
         self.assertEquals(h2_space.nstates, 120)
+
+    @debugTest
+    def test_GenerateFilteredSelectionRuleSpace(self):
+        """
+        Tests (and profiles) the generation of a state
+        space from a set of selection rules and initial states.
+        Mostly here to more easily speed up state space generation
+        for use in VPT2.
+
+        :return:
+        :rtype:
+        """
+
+        basis = HarmonicOscillatorProductBasis(8)
+        rules = basis.selection_rules("x", "x", "x", "x")
+
+        states = BasisStateSpace.from_quanta(basis, 3)
+
+        h2_space = states.apply_selection_rules(rules, iterations=1)
+
+        sub_h2_space = h2_space.spaces[0].take_subspace(np.arange(10))
+
+        h2_space2 = states.apply_selection_rules(rules,
+                                                 filter_space=sub_h2_space,
+                                                 iterations=1
+                                                 )
+
+        uinds, counts = np.unique(h2_space2.indices, return_counts=True)
+        sorting = np.argsort(h2_space2.indices)
+        ind_tag = (hash(tuple(uinds)), hash(tuple(counts)), hash(tuple(sorting)))
+        # raise Exception(ind_tag)
+        self.assertEquals(ind_tag, (320425735722628681, 4044592283957769633))#, 1029650262075525554))
+        # raise Exception(ind_tag)
 
     @debugTest
     def test_StateIndexing(self):
@@ -527,7 +660,7 @@ class BasisSetTests(TestCase):
     #     new_rep = new_basis.representation('p', 'x', 'p')
     #     old_rep = old_basis.representation('p', 'x', 'p')
 
-    @debugTest
+    @validationTest
     def test_FindIndices(self):
         ndim = 6
         states = BasisStateSpace.from_quanta(HarmonicOscillatorProductBasis(ndim), range(5))
@@ -622,7 +755,6 @@ class BasisSetTests(TestCase):
 
         adj_arr = bk.adjacency_matrix(total_space=flat_total_space).toarray()
 
-        # import McUtils.Plots as plt
         # plt.ArrayPlot(adj_arr).show()
 
         # np.savetxt(os.path.expanduser("~/Desktop/bleh.dat"), adj_arr)
@@ -631,7 +763,7 @@ class BasisSetTests(TestCase):
         # import networkx
         # graph = networkx.from_scipy_sparse_matrix(adj_dat)
 
-    @debugTest
+    @inactiveTest
     def test_PermIndexingChange(self):
         import json
         ndim = 5
@@ -651,7 +783,87 @@ class BasisSetTests(TestCase):
 
             print(states.indices.tolist(), np.sort(h2_space.indices).tolist())
 
+    @validationTest
+    def test_NewOrthogonalityCalcs(self):
 
+        n = 15
+        m = 4
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+
+        states = BasisStateSpace.from_quanta(oppo, range(10))
+        brakets = states.get_representation_brakets()
+        orthog_1 = brakets.get_non_orthog([0, 0, 1])
+
+        brakets2 = states.get_representation_brakets()
+        brakets2.preindex_trie_enabled=False
+        brakets2.aggressive_caching_enabled = False
+        orthog_2 = brakets2.get_non_orthog([0, 0, 1])
+
+        self.assertTrue( (orthog_1==orthog_2).all() )
+
+        m = 2
+        oppo = HarmonicOscillatorProductBasis((n,) * m)
+
+        states = BasisStateSpace.from_quanta(oppo, range(10))
+
+        brakets = states.get_representation_brakets()
+        orthog_1 = brakets.get_non_orthog([0, 0, 1])
+
+        brakets2 = states.get_representation_brakets()
+        brakets2.preindex_trie_enabled = False
+        brakets2.aggressive_caching_enabled = False
+        orthog_2 = brakets2.get_non_orthog([0, 0, 1])
+
+        # raise Exception(orthog_1, orthog_2)
+
+        self.assertTrue((orthog_1 == orthog_2).all())
+
+    @inactiveTest
+    def test_BasisRepMatrixOps(self):
+
+        n = 15 # totally meaningless these days
+        m = 4
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        mat = StateSpaceMatrix(basis)
+
+        self.assertEquals(mat.array.shape[0], 0)
+
+        states = BasisStateSpace.from_quanta(basis, range(10))
+        brakets = BraKetSpace(states, states)
+        vals = np.ones(len(brakets))
+        mat_2 = StateSpaceMatrix(brakets, vals)
+
+        def wat(state_space):
+            return np.ones(len(state_space))
+        sub_brakets = BasisStateSpace.from_quanta(basis, range(4)).get_representation_brakets()
+        mat2_vals = mat_2.compute_values(wat, sub_brakets)
+
+        self.assertEquals(mat2_vals.tolist(), mat_2[sub_brakets].tolist())
+
+    @inactiveTest
+    def test_ImprovedRepresentations(self):
+        n = 15  # totally meaningless these days
+        m = 4
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        x_rep = basis.representation('x', coeffs=np.ones((m,)))
+        initial_space = basis.get_state_space(range(4))
+        initial_states = StateSpaceMatrix.identity_from_space(initial_space)
+
+        x = x_rep.apply(initial_states)
+        x2 = x_rep.apply(x)
+        # plt.ArrayPlot(x.array.asarray(), aspect_ratio=x.shape[0]/x.shape[1], image_size=300)
+        # plt.ArrayPlot(x2.array.asarray(), aspect_ratio=x2.shape[0]/x2.shape[1], image_size=300).show()
+
+        x2_rep = basis.representation('x', 'x', coeffs=np.ones((m, m)))
+        x22 = x2_rep.apply(initial_states)
+
+        plt.ArrayPlot(x2.array.asarray(), aspect_ratio=x2.shape[0]/x2.shape[1], image_size=200)
+        plt.ArrayPlot(x22.array.asarray(), aspect_ratio=x22.shape[0]/x22.shape[1], image_size=200).show()
+
+        self.assertTrue(np.allclose(x2.array.asarray(), x22.array.asarray()))
+        # raise Exception(mat_2.array.asarray())
 
 
 ```

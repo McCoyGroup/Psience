@@ -11,15 +11,17 @@ OrthogoIndexerTrie: type
 CachingOrthogonalIndexCalculator: type
 OrthogonalIndexSparseCalculator: type
 OrthogonalIndexCalculator: type
+aggressive_caching_enabled: bool
+preindex_trie_enabled: bool
 ```
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, bra_space, ket_space): 
 ```
 
-- `bra_space`: `AbstractStateSpace`
+- `bra_space`: `BasisStateSpace`
     >No description...
-- `ket_space`: `AbstractStateSpace`
+- `ket_space`: `BasisStateSpace`
     >No description...
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.__len__" class="docs-object-method">&nbsp;</a>
@@ -74,7 +76,7 @@ take_subdimensions(self, inds):
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.apply_non_orthogonality" class="docs-object-method">&nbsp;</a>
 ```python
-apply_non_orthogonality(self, inds, use_aggressive_caching=True, use_preindex_trie=True, preindex_trie_depth=None, assume_unique=False): 
+apply_non_orthogonality(self, inds, use_aggressive_caching=None, use_preindex_trie=None, preindex_trie_depth=None, assume_unique=False): 
 ```
 Takes the bra-ket pairs that are non-orthogonal under the indices `inds`
 - `inds`: `Any`

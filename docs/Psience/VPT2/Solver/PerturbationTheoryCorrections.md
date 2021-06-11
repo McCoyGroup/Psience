@@ -6,6 +6,7 @@ Can be used to correct other operators in the basis of the original calculation.
 ```python
 from_dicts: method
 loadz: method
+from_state: method
 ```
 <a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.__init__" class="docs-object-method">&nbsp;</a>
 ```python
@@ -73,9 +74,23 @@ Generates the representation of the operator in the basis of stored states
 - `:returns`: `Iterable[np.ndarray]`
     >the set of representation matrices for this operator
 
+<a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.get_overlap_matrices" class="docs-object-method">&nbsp;</a>
+```python
+get_overlap_matrices(self): 
+```
+Returns the overlap matrices for the set of corrections
+        at each order of correction
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.savez" class="docs-object-method">&nbsp;</a>
 ```python
 savez(self, file): 
+```
+
+<a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
 ```
 
 ### Examples

@@ -101,6 +101,17 @@ Calculates a subset of elements
 __repr__(self): 
 ```
 
+<a id="Psience.BasisReps.Operators.Operator.get_transformed_space" class="docs-object-method">&nbsp;</a>
+```python
+get_transformed_space(self, base_space, rules=None): 
+```
+Returns the space one would get from applying
+        the selection rules from this operator
+- `base_space`: `BasisStateSpace`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 ### Examples
 
 

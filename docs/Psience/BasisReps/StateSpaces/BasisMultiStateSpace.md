@@ -58,11 +58,16 @@ __iter__(self):
 flat(self): 
 ```
 
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_mode" class="docs-object-method">&nbsp;</a>
+```python
+get_mode(self): 
+```
+
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.as_indices" class="docs-object-method">&nbsp;</a>
 ```python
 as_indices(self): 
 ```
-Pulls the full set indices out of all of the
+Pulls the full set of indices out of all of the
         held spaces and returns them as a flat vector
 - `:returns`: `_`
     >No description...
@@ -129,6 +134,37 @@ Takes the specified states, making sure each held space
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.take_subdimensions" class="docs-object-method">&nbsp;</a>
 ```python
 take_subdimensions(self, inds): 
+```
+Takes the subdimensions from each space
+- `inds`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.drop_states" class="docs-object-method">&nbsp;</a>
+```python
+drop_states(self, states): 
+```
+Take the difference of each held space and the specified states
+- `states`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.drop_subspace" class="docs-object-method">&nbsp;</a>
+```python
+drop_subspace(self, sel): 
+```
+Takes the specified states, making sure each held space
+        only contains states in `sel`
+- `sel`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.drop_subdimensions" class="docs-object-method">&nbsp;</a>
+```python
+drop_subdimensions(self, inds): 
 ```
 Takes the subdimensions from each space
 - `inds`: `Any`
