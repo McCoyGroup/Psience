@@ -2479,7 +2479,7 @@ class VPT2Tests(TestCase):
         print_report = False
         log = True
         nielsen_tolerance = None
-        order = 4
+        order = 2
 
         gaussian_energies = self.gaussian_data['HOH']['zpe']
         gaussian_freqs = self.gaussian_data['HOH']['freqs']
