@@ -419,6 +419,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 m=partitioning.value
             )
 
+            corr_terms_lower = [corr_terms[i][low_spec, :] for i in range(order)]
+            corr_terms_upper = [corr_terms[i][up_spec, :] for i in range(order)]
+
             for a in range(3):  # x, y, and z
                 with logger.block(tag="Getting M representations for axis {}:".format(a)):
                     start = time.time()
@@ -463,6 +466,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     with logger.block(tag="calculating corrections..."):
                         start = time.time()
                         for q in range(order):  # total quanta
+                            logger.log_print("calculating corrections at order {q}...", q=q)
                             terms = []
                             # should do this smarter
                             for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
@@ -477,11 +481,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                                             # to make it easy to zero stuff out
                                             new = np.zeros((len(low_spec), len(up_spec)))
                                         else:
-                                            c_lower = corr_terms[i][low_spec, :]
-                                            c_upper = corr_terms[j][up_spec, :]
+                                            c_lower = corr_terms_lower[i]
+                                            c_upper = corr_terms_upper[j]
                                             num = c_lower.dot(m)
                                             new = num.dot(c_upper.T)
-                                        # HOLY FUCK I"M SO DUMB WHAT AM I DOING HERE!!!!
                                         if isinstance(new, SparseArray):
                                             new = new.asarray()
                                     terms.append( # what is this...?

@@ -69,6 +69,7 @@ class VPT2Tests(TestCase):
                               coriolis=None,
                               watson=None,
                               degeneracies=None,
+                              selection_rules=None,
                               log=False,
                               get_breakdown=False,
                               parallelized=False,
@@ -78,6 +79,7 @@ class VPT2Tests(TestCase):
                               , allow_sakurai_degs = False
                               , allow_post_PT_calc = True
                               , intermediate_normalization=False
+                              , state_space_iterations=None
                               ):
         if parallelized:
             parallelizer = MultiprocessingParallelizer()#verbose=True, processes=2)
@@ -92,7 +94,8 @@ class VPT2Tests(TestCase):
                 log=log,
                 parallelizer=parallelizer,
                 checkpoint=checkpoint,
-                operator_chunk_size=chunk_size
+                operator_chunk_size=chunk_size,
+                selection_rules=selection_rules
             )
 
             if get_breakdown:
@@ -141,6 +144,7 @@ class VPT2Tests(TestCase):
                                                 , allow_sakurai_degs=allow_sakurai_degs
                                                 , allow_post_PT_calc=allow_post_PT_calc
                                                 , intermediate_normalization=intermediate_normalization
+                                                , state_space_iterations=state_space_iterations
                                                 )
                 if save_wfns:
                     self.save_wfns(wfn_file, wfns)
@@ -165,6 +169,7 @@ class VPT2Tests(TestCase):
                       coriolis=None,
                       watson=None,
                       degeneracies=None,
+                      selection_rules=None,
                       log=False,
                       parallelized=False,
                       checkpoint=None,
@@ -174,6 +179,7 @@ class VPT2Tests(TestCase):
                       , allow_sakurai_degs=False
                       , allow_post_PT_calc=True
                       , intermediate_normalization=False
+                      , state_space_iterations=None
                       ):
         return self.get_VPT2_wfns_and_ham(
             fchk,
@@ -192,6 +198,7 @@ class VPT2Tests(TestCase):
             coriolis=coriolis,
             watson=watson,
             degeneracies=degeneracies,
+            selection_rules=selection_rules,
             log=log,
             parallelized=parallelized,
             checkpoint=checkpoint,
@@ -201,6 +208,7 @@ class VPT2Tests(TestCase):
             , allow_sakurai_degs=allow_sakurai_degs
             , allow_post_PT_calc=allow_post_PT_calc
             , intermediate_normalization=intermediate_normalization
+            , state_space_iterations=state_space_iterations
         )[0]
 
     def get_states(self, n_quanta, n_modes, max_quanta = None):
@@ -2440,18 +2448,23 @@ class VPT2Tests(TestCase):
             print_report=print_report
         )
 
-    @debugTest
+    @inactiveTest
     def test_HOHVPTCartesians4thOrder(self):
+
+
+        import warnings
+        np.seterr(all='raise')
+        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
         tag = 'HOH Cartesians'
         file_name = "HOH_freq.fchk"
 
-        internals = None
         internals = [
             [0, -1, -1, -1],
             [1,  0, -1, -1],
             [2,  0,  1, -1]
         ]
+        internals = None
 
         n_atoms = 3
         n_modes = 3 * n_atoms - 6
@@ -2459,7 +2472,6 @@ class VPT2Tests(TestCase):
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
         states = self.get_states(3, n_modes)
-
 
         basis = HarmonicOscillatorProductBasis(n_modes)
         coupled_states =  [
@@ -2494,7 +2506,11 @@ class VPT2Tests(TestCase):
             print_report=print_report
             # , energy_order=2
             , coupled_states=coupled_states
-            , intermediate_normalization=True
+            , intermediate_normalization=False
+            , selection_rules=[
+                [r for r in basis.selection_rules("x", "x", "x") if len(r) <= 2],
+                [r for r in basis.selection_rules("x", "x", "x", "x") if len(r) <= 3]
+            ]
         )
 
     @inactiveTest
@@ -2503,12 +2519,12 @@ class VPT2Tests(TestCase):
         tag = 'HOT Cartesians'
         file_name = "HOT_freq.fchk"
 
-        internals = None
         internals = [
             [0, -1, -1, -1],
             [1, 0, -1, -1],
             [2, 0, 1, -1]
         ]
+        internals = None
 
         n_atoms = 3
         n_modes = 3 * n_atoms - 6
@@ -5719,7 +5735,7 @@ class VPT2Tests(TestCase):
             )
             print(report)
 
-    @validationTest
+    @debugTest
     def test_OCHHIntensitiesSanbox(self):
 
         tag = "OCHH Intenstities"
@@ -5732,7 +5748,7 @@ class VPT2Tests(TestCase):
             [3,  1,  0,  2]
         ]
 
-        # internals = None
+        internals = None
 
         n_atoms = 4
         n_modes = 3 * n_atoms - 6
@@ -5749,26 +5765,38 @@ class VPT2Tests(TestCase):
         )
         degeneracies = None
 
-        # with BlockProfiler(tag, print_res=False):
-        wfns = self.get_VPT2_wfns(
-            file_name,
-            internals,
-            states,
-            regenerate=True
-            # coupled_states=coupled_states,
-            , log=True
-            , order=4
-            , degeneracies=degeneracies
-            # , v3 = 0
-            # , t3 = 0
-            # , v4 = 0
-            # , t4 = 0
-        )
+        basis = HarmonicOscillatorProductBasis(n_modes)
+
+        with BlockProfiler(tag, print_res=True):
+            wfns = self.get_VPT2_wfns(
+                file_name,
+                internals,
+                states,
+                regenerate=True
+                # coupled_states=coupled_states,
+                , log=True
+                , order=4
+                , degeneracies=degeneracies
+                # , v3 = 0
+                # , t3 = 0
+                # , v4 = 0
+                # , t4 = 0
+                , selection_rules=[
+                    [r for r in basis.selection_rules("x", "x", "x") if len(r) <= 2],
+                    [r for r in basis.selection_rules("x", "x", "x", "x") if len(r) <= 3]
+                ]
+                , state_space_iterations=2
+            )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
+
+        with BlockProfiler(tag, print_res=True):
+            raise Exception(wfns.intensities)
+
         import json
-        breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+        with BlockProfiler(tag, print_res=True):
+            breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
         raise Exception(
             json.dumps(
                 [

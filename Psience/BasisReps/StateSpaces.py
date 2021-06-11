@@ -7,7 +7,9 @@ import numpy as np, itertools as ip, enum, scipy.sparse as sp
 import abc
 
 from McUtils.Numputils import SparseArray
+import McUtils.Numputils as nput
 from McUtils.Scaffolding import MaxSizeCache
+from McUtils.Combinatorics import SymmetricGroupGenerator, UniquePermutations
 
 __all__ = [
     "AbstractStateSpace",
@@ -43,6 +45,9 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         self._indices = None
         self._excitations = None
         self._indexer = None
+        self._uindexer = None
+        self._exc_indexer = None
+        self._uexc_indexer = None
         self._uinds = None
         self._sort_uinds = None
 
@@ -94,11 +99,26 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
     @property
     def indexer(self):
         if self._indexer is None:
-            self._indexer = np.argsort(self.indices)
+            self._indexer = nput.argsort(self.indices)
         return self._indexer
     @indexer.setter
     def indexer(self, idxer):
         self._indexer = idxer
+
+    @indexer.setter
+    def indexer(self, idxer):
+        self._indexer = idxer
+
+    @property
+    def exc_indexer(self):
+        if self._exc_indexer is None:
+            self._exc_indexer = nput.argsort(self.excitations)
+        return self._exc_indexer
+    @exc_indexer.setter
+    def exc_indexer(self, idxer):
+        self._exc_indexer = idxer
+
+
 
     def find(self, to_search, check=True):
         """
@@ -126,7 +146,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
             vals[big_vals] = -1
             vals = self.indexer[vals]
             # now because of how searchsorted works, we need to check if the found values
-            # truly agree with what we asked for
+            # truly agree with what we asked for...although I could maybe be smarter on this...
             bad_vals = self.indices[vals] != to_search
             if vals.shape == ():
                 if bad_vals:
@@ -138,6 +158,32 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
             vals = np.full_like(vals, -1)
         if check and bad_vals.any():
             raise IndexError("{} not in {}".format(to_search[bad_vals], self))
+        return vals
+
+    def find(self, to_search, check=True):
+        """
+        Finds the indices of a set of indices inside the space
+
+        :param to_search: array of ints
+        :type to_search: np.ndarray | AbstractStateSpace
+        :return:
+        :rtype:
+        """
+        if not isinstance(to_search, np.ndarray):
+            if isinstance(to_search, AbstractStateSpace) or hasattr(to_search, 'indices'):
+                to_search = to_search.indices
+            else:
+                to_search = np.asanyarray(to_search)
+        # if to_search.ndim > 1:
+        #     raise ValueError("currently only accept subspaces as indices or AbstractStateSpaces")
+
+        if to_search.ndim == 0:
+            to_search = np.array([to_search], dtype=to_search.dtype)
+        if to_search.ndim == 1:
+            vals, _ = nput.find(self.indices, to_search, sorting=self.indexer, check=check)
+        else:
+            vals, self._exc_indexer = nput.find(self.excitations, to_search, sorting=self._exc_indexer, check=check)
+
         return vals
 
     def __len__(self):
@@ -191,11 +237,11 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
             return self.indices
         inds = self.indices
         if sort and self._sort_uinds is None:
-            _, sort_uinds = np.unique(inds, return_index=True)
+            _, self._indexer, sort_uinds = nput.unique(inds, sorting=self._indexer, return_index=True)
             self._sort_uinds = sort_uinds
             self._uinds = np.sort(sort_uinds)
         elif not sort and self._uinds is None:
-            _, sort_uinds = np.unique(inds, return_index=True)
+            _, self._indexer, sort_uinds = nput.unique(inds, sorting=self._indexer, return_index=True)
             self._sort_uinds = sort_uinds
             self._uinds = np.sort(sort_uinds)
 
@@ -225,7 +271,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         if sort and self._sort_uinds is None:
             inds = self.as_unique_indices(sort=sort)
         elif not sort and self._uinds is None:
-            _, uinds = np.unique(exc, axis=0, return_index=True)
+            _, self._exc_indexer, uinds = nput.unique(exc, axis=0, sorting=self._exc_indexer, return_index=True)
             self._uinds = np.sort(uinds)
 
         if sort:
@@ -345,70 +391,6 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError("abstract base class")
 
-    @staticmethod
-    def _unique_permutations(elements):
-        """
-        From StackOverflow, an efficient enough
-        method to get unique permutations
-        :param perms:
-        :type perms:
-        :return:
-        :rtype:
-        """
-
-        class unique_element:
-            def __init__(self, value, occurrences):
-                self.value = value
-                self.occurrences = occurrences
-        def perm_unique_helper(listunique, result_list, d):
-            if d < 0:
-                yield tuple(result_list)
-            else:
-                for i in listunique:
-                    if i.occurrences > 0:
-                        result_list[d] = i.value
-                        i.occurrences -= 1
-                        for g in perm_unique_helper(listunique, result_list, d - 1):
-                            yield g
-                        i.occurrences += 1
-
-        eset = set(elements)
-        listunique = [unique_element(i, elements.count(i)) for i in eset]
-        u = len(elements)
-        return list(sorted(list(perm_unique_helper(listunique, [0] * u, u - 1)), reverse=True))
-
-    @staticmethod
-    def _accel_asc(n):
-        """
-        Pulled directly from http://jeromekelleher.net/author/jerome-kelleher.html
-        Could easily be translated to C++ if speed is crucial (but this will never be a bottleneck)
-        :param n:
-        :type n:
-        :return:
-        :rtype:
-        """
-
-        a = [0 for i in range(n + 1)]
-        k = 1
-        y = n - 1
-        while k != 0:
-            x = a[k - 1] + 1
-            k -= 1
-            while 2 * x <= y:
-                a[k] = x
-                y -= x
-                k += 1
-            l = k + 1
-            while x <= y:
-                a[k] = x
-                a[l] = y
-                yield a[:k + 2]
-                x += 1
-                y -= 1
-            a[k] = x + y
-            y = x + y - 1
-            yield a[:k + 1]
-
     @classmethod
     def get_states_with_quanta(cls, n, ndim):
         """
@@ -421,14 +403,11 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         """
 
         # generate basic padded partitions of `n`
-        partitions = np.array(
-            [list(reversed(x)) + [0] * (ndim - len(x)) for x in cls._accel_asc(n) if len(x) <= ndim]
-        )
-        sorting = np.lexsort(partitions.T)
+        partitions = SymmetricGroupGenerator(ndim).get_terms(n, flatten=True)
 
         # then concatenate unique permutations for each and cast to numpy
         return np.array(
-            sum((cls._unique_permutations(list(x)) for x in partitions[sorting,]), []),
+            partitions,
             dtype=cls.excitations_dtype
         )
 
@@ -600,7 +579,8 @@ class BasisStateSpace(AbstractStateSpace):
         if states_type is self.StateSpaceSpec.Excitations:
             return np.reshape(states, (-1, self.ndim))
         elif states_type is self.StateSpaceSpec.Indices:
-            states, uinds, inv = np.unique(states, return_index=True, return_inverse=True)
+            states, self._indexer, uinds, inv = nput.unique(states, sorting=self._indexer, return_index=True, return_inverse=True)
+            self._sort_uinds = uinds
             self._uinds = np.sort(uinds)
             raw_exc = self.basis.unravel_state_inds(states.flatten())
             return raw_exc[inv]
@@ -623,7 +603,12 @@ class BasisStateSpace(AbstractStateSpace):
         states = self._init_states
         states_type = self.infer_state_inds_type()
         if states_type is self.StateSpaceSpec.Excitations:
-            states, uinds, inv = np.unique(states, axis=0, return_index=True, return_inverse=True)
+            states, self._exc_indexer, uinds, inv = nput.unique(states,
+                                                                sorting=self._exc_indexer,
+                                                                return_index=True,
+                                                                axis=0,
+                                                                return_inverse=True
+                                                                )
             self._uinds = np.sort(uinds)
             # if len(states) > 1000:
             #     raise Exception('why')
@@ -655,17 +640,20 @@ class BasisStateSpace(AbstractStateSpace):
         else:
             return len(self.unique_excitations) == len(self.excitations)
 
-    def is_sorted(self):
+    def is_sorted(self, allow_indeterminate=True):
         """
         Checks and then sets a flag
         :return:
         :rtype:
         """
         if self._sorted is None:
-            self._sorted = (self.indexer == np.arange(len(self.indexer))).all()
+            if allow_indeterminate and self._indexer is None:
+                return None
+            else:
+                self._sorted = (self.indexer == np.arange(len(self.indexer))).all()
         return self._sorted
 
-    def take_unique(self, sort=False):
+    def take_unique(self, sort=False, use_indices=False):
         """
         Returns only the unique states, but preserves
         ordering and all of that unless explicitly allowed not to
@@ -678,18 +666,56 @@ class BasisStateSpace(AbstractStateSpace):
             elif self.is_sorted():
                 return self
 
-        if sort or (self.mode == self.StateSpaceSpec.Indices):
+        if use_indices or sort or (self.mode == self.StateSpaceSpec.Indices):
             states = self.as_unique_indices(sort=sort)
             spec = self.StateSpaceSpec.Indices
             new = type(self)(self.basis, states, mode=spec)
             if self._excitations is not None:
                 new.excitations = self.as_unique_excitations(sort=sort)
+            if sort or self.is_sorted(allow_indeterminate=True):
+                # we have strict ordering relationships we can use since we know the
+                # new states are also sorted
+                new._indexer = np.arange(len(states))
+                new._sorted = True
         else:
             states = self.unique_excitations
             spec = self.StateSpaceSpec.Excitations
             new = type(self)(self.basis, states, mode=spec)
             if (self.mode == self.StateSpaceSpec.Indices):
                 new.indices = self.unique_indices
+        return new
+
+    def as_sorted(self):
+        """
+        Returns only the unique states, but preserves
+        ordering and all of that unless explicitly allowed not to
+        :return:
+        :rtype:
+        """
+
+        indexer = self.indexer
+        spec = self.StateSpaceSpec.Indices
+        states = self.indices[indexer]
+        new = type(self)(self.basis, states, mode=spec)
+        new._sorted = True
+        new._indexer = np.arange(len(states))
+
+        if self._uinds is not None:
+            # we relate the old positions where the unique elements happened to the
+            # new ones by argsorting the current indexer so we can know "where" something
+            # went and then pulling the uinds from that
+            where_map = np.argsort(indexer)
+            if self._sort_uinds is not None:
+                new._uinds = where_map[new._uinds]
+
+        if self.has_excitations():
+            new.excitations = self.excitations[indexer,]
+            if self._exc_indexer is not None:
+                # we relate the old sorting to the new sorting by
+                # converting reordering the old sorting and then
+                # sorting that
+                new._exc_indexer = np.argsort(self._exc_indexer[indexer])
+
         return new
 
     def apply_selection_rules(self, selection_rules, filter_space=None, iterations=1):
@@ -816,18 +842,23 @@ class BasisStateSpace(AbstractStateSpace):
 
         return BraKetSpace(bras, kets)
 
-    def take_subspace(self, sel):
+    def take_subspace(self, sel, assume_sorted=False):
         """
         Returns a subsample of the space.
         Intended to be a cheap operation, so samples
         along either the indices or the excitations, depending
         on which we have
+        If we know the subsample is sorted then we can actually reuse more information
+        and so we make use of that
 
         :param sel:
         :type sel:
         :return:
         :rtype:
         """
+
+        if assume_sorted and not self.is_sorted():
+            return self.as_sorted().take_subspace(sel, assume_sorted=True)
 
         if self.has_excitations:
             subspace = type(self)(
@@ -837,14 +868,15 @@ class BasisStateSpace(AbstractStateSpace):
             )
             if self.has_indices:
                 subspace.indices = self.indices[sel,]
+            if assume_sorted: #from earlier directly implies `is_sorted`
+                ...
         else:
             subspace = type(self)(
                 self.basis,
                 self.indices[sel,],
                 mode=self.StateSpaceSpec.Indices
             )
-            # if self.has_excitations:
-            #     subspace.excitations = self.excitations[sel,]
+
         return subspace
     def take_subdimensions(self, inds):
         """
@@ -860,7 +892,7 @@ class BasisStateSpace(AbstractStateSpace):
             self._excitations[:, inds],
             mode=self.StateSpaceSpec.Excitations
         )
-    def take_states(self, states):
+    def take_states(self, states, sort=False, assume_sorted=False):
         """
         Takes the set of specified states from the space.
         A lot like take_subspace, but operates on states, not indices
@@ -871,7 +903,10 @@ class BasisStateSpace(AbstractStateSpace):
         """
         found = self.find(states, check=False)
         sel = found[found >= 0]
-        return self.take_subspace(sel)
+        if sort and not assume_sorted:
+            sel = np.sort(sel)
+            assume_sorted = True
+        return self.take_subspace(sel, assume_sorted=assume_sorted)
 
     def drop_subspace(self, sel):
         """
@@ -885,7 +920,6 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
-
 
         if self._excitations is not None:
             diff = np.setdiff1d(np.arange(len(self.excitations)), sel)
@@ -948,7 +982,7 @@ class BasisStateSpace(AbstractStateSpace):
             spaces.append(new)
         return spaces
 
-    def union(self, other, sort=False):
+    def union(self, other, sort=False, use_indices=True):
         """
         Returns a merged version of self and other, making
         use of as much of the information inherent in both as is possible
@@ -965,30 +999,15 @@ class BasisStateSpace(AbstractStateSpace):
                 other.basis
             ))
 
-        if sort or (self.has_indices and other.has_indices) or(
+        if use_indices or sort or (self.has_indices and other.has_indices) or(
                 self.has_indices
                 and not (self.has_excitations and other.has_excitations)
                 and len(self) > len(other)
         ): # no need to be wasteful and recalc stuff, right?
             # create merge based on indices and then
             # secondarily based on excitations if possible
-
-        #     if len(other) > 1000:
-        #         raise Exception(
-        #             sort,
-        #             self.has_indices,
-        #             self.has_excitations,
-        #             other.has_excitations,
-        #             other.has_indices,
-        #             (self.has_indices and other.has_indices),(
-        #         self.has_indices
-        #         and not (self.has_excitations and other.has_excitations)
-        # )
-        #         )
-        #         raise Exception('no!')
-
-            self_inds = self.indices
-            other_inds = other.indices
+            self_inds = self.unique_indices
+            other_inds = other.unique_indices
 
             if len(self_inds) == 0:
                 return other.take_unique(sort=sort)
@@ -998,7 +1017,7 @@ class BasisStateSpace(AbstractStateSpace):
                 # new_inds = self_inds
             else:
                 new_inds = np.concatenate([self_inds, other_inds], axis=0)
-            _, uinds = np.unique(new_inds, axis=0, return_index=True)
+            _, _, uinds = nput.unique(new_inds, return_index=True)
             # if the number of unique states hasn't increased,
             # one of the spaces is contained in the other
             if len(uinds) == len(self.unique_indices):
@@ -1007,15 +1026,20 @@ class BasisStateSpace(AbstractStateSpace):
                 return other.take_unique(sort=sort)
             else:
                 if not sort:
-                    sorting = np.argsort(uinds)
+                    sorting = nput.argsort(uinds)
+                    indexer = nput.argsort(sorting)
                     uinds = uinds[sorting]
+                else:
+                    indexer = np.arange(len(uinds))
+
                 new_inds = new_inds[uinds,]
                 new = BasisStateSpace(self.basis, new_inds, mode=self.StateSpaceSpec.Indices)
-                # new._indexer = sorting
+                new._indexer = indexer
+                new._uinds = np.arange(len(uinds))
 
                 if self._excitations is not None or other._excitations is not None:
-                    self_exc = self.excitations
-                    other_exc = other.excitations
+                    self_exc = self.unique_excitations
+                    other_exc = other.unique_excitations
                     if len(self_exc) == 0:
                         new_exc = other_exc
                     elif len(other_exc) == 0:
@@ -1026,8 +1050,8 @@ class BasisStateSpace(AbstractStateSpace):
         else:
             # create merge based on excitations and then
             # secondarily based on indices if possible
-            self_exc = self.excitations
-            other_exc = other.excitations
+            self_exc = self.unique_excitations
+            other_exc = other.unique_excitations
             if len(self_exc) == 0:
                 return other.take_unique(sort=sort)
                 # new_exc = other_exc
@@ -1038,8 +1062,6 @@ class BasisStateSpace(AbstractStateSpace):
                 new_exc = np.concatenate([self_exc, other_exc], axis=0)
 
             _, uinds = np.unique(new_exc, axis=0, return_index=True)
-            # I should do a check at this point to make sure that neither self nor other is wholly
-            # contained in the other one...no reason to break an object if it can be reused
 
             # if the number of unique states hasn't increased,
             # one of the spaces is contained in the other
@@ -1048,13 +1070,13 @@ class BasisStateSpace(AbstractStateSpace):
             elif len(uinds) == len(other.unique_excitations):
                 new = other.take_unique(sort=sort)
             else:
-
                 sorting = np.argsort(uinds)
                 uinds = uinds[sorting]
                 new_exc = new_exc[uinds,]
 
                 new = BasisStateSpace(self.basis, new_exc, mode=self.StateSpaceSpec.Excitations)
-                # new._indexer = sorting
+                new._exc_indexer = nput.argsort(sorting)
+                new._uinds = np.arange(len(uinds))
 
                 if other._indices is not None:
                     self_inds = self.indices
@@ -1064,7 +1086,7 @@ class BasisStateSpace(AbstractStateSpace):
 
         return new
 
-    def intersection(self, other, sort=False):
+    def intersection(self, other, sort=False, use_indices=False):
         """
         Returns an intersected self and other
 
@@ -1083,7 +1105,7 @@ class BasisStateSpace(AbstractStateSpace):
         # create intersection based on indices and then
         # make use of this subselection to resample the basis
 
-        if sort or (self.has_indices and other.has_indices) or (
+        if use_indices or sort or (self.has_indices and other.has_indices) or (
                 self.has_indices
                 and not (self.has_excitations and other.has_excitations)
                 and len(self) > len(other)
@@ -1091,10 +1113,20 @@ class BasisStateSpace(AbstractStateSpace):
             # unfortunately no way to only use Excitation data here...
             self_inds = self.unique_indices
             other_inds = other.unique_indices
+
             if sort:
-                new_inds = np.intersect1d(self_inds, other_inds)
+                new_inds, sortings, _ = nput.intersection(
+                    self_inds, other_inds,
+                    sortings=(self._uindexer, other._uindexer),
+                    assume_unique=True
+                )
             else:
-                new_inds, x_inds, _ = np.intersect1d(self_inds, other_inds, return_indices=True)
+                new_inds, sortings, _,  x_inds, _ = nput.intersection(
+                    self_inds, other_inds,
+                    sortings=(self._uindexer, other._uindexer),
+                    assume_unique=True, return_indices=True
+                )
+            self._uindexer, other._uindexer = sortings
             # now check to make sure we're not being wasteful and destroying an object
             # that doesn't need to be destroyed
             if len(new_inds) == len(self_inds):
@@ -1109,40 +1141,45 @@ class BasisStateSpace(AbstractStateSpace):
                     return other.take_unique(sort=sort)
             else:
                 if sort:
-                    return self.take_states(new_inds)
+                    new = self.take_states(new_inds)
+                    new._indexer = np.arange(len(new_inds))
+                    new._uinds = np.arange(len(new_inds))
+                    new._sort_uinds = np.arange(len(new_inds))
+                    return new
                 else:
-                    return self.take_subspace(x_inds)
+                    new = self.take_subspace(x_inds)
+                    new._uinds = np.arange(len(new_inds))
+                    return new
         else:
-            # we take the idea from here to trick numpy into letting us use intersect1d is this case too
-            # https://stackoverflow.com/a/8317403/5720002
             self_exc = self.unique_excitations
             other_exc = other.unique_excitations
 
-            # trick a 2D array into a 1D-like dtype
-            nrows, ncols = self_exc.shape
-            dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
-                     'formats': ncols * [self_exc.dtype]}
+            _, sortings, _, new_inds, _ = nput.intersection(
+                self_exc, other_exc,
+                sortings=(self._uexc_indexer, other._uexc_indexer),
+                assume_unique=True, return_indices=True
+            )
+            self._uexc_indexer, other._uexc_indexer = sortings
 
-            self_inds = self_exc.view(dtype)
-            other_inds = other_exc.view(dtype)
-            _, new_inds, _ = np.intersect1d(self_inds, other_inds, return_indices=True)
             # now check to make sure we're not being wasteful and destroying an object
             # that doesn't need to be destroyed
-            if len(new_inds) == len(self_inds):
+            if len(new_inds) == len(self_exc):
                 if self.is_unique:
                     return self
                 else:
                     return self.take_unique()
-            elif len(new_inds) == len(other_inds):
+            elif len(new_inds) == len(other_exc):
                 if other.is_unique:
                     return other
                 else:
                     return other.take_unique()
             else:
                 new_inds = np.sort(new_inds)
-                return self.take_subspace(new_inds)
+                new = self.take_subspace(new_inds, assume_sorted=True)
+                new._uinds = np.arange(len(new_inds))
+                return new
 
-    def difference(self, other, sort=False):
+    def difference(self, other, sort=False, use_indices=False):
         """
         Returns an diff'ed self and other
 
@@ -1160,23 +1197,21 @@ class BasisStateSpace(AbstractStateSpace):
 
         # create intersection difference on indices and then
         # make use of this subselection to resample the basis
-        if sort or (self.has_indices and other.has_indices) or (
+        if use_indices or sort or (self.has_indices and other.has_indices) or (
                 self.has_indices and not (
                     self.has_excitations and other.has_excitations
                 ) and len(self) > len(other)
         ):  # no need to be wasteful and recalc stuff, right?
-
-            # if len(other) > 1000:
-            #     raise Exception(
-            #         self,
-            #         self.has_indices,
-            #         self.has_excitations,
-            #         other.has_excitations
-            #     )
-
             self_inds = self.unique_indices
             other_inds = other.unique_indices
-            new_inds = np.setdiff1d(self_inds, other_inds)
+
+            new_inds, sortings, merge_sorting = nput.difference(
+                self_inds, other_inds,
+                sortings=(self._uindexer, other._uindexer),
+                assume_unique=True
+            )
+            self._uindexer, other._uindexer = sortings
+
             # now we check that we're not destroying an object that can be
             # reused
             if len(new_inds) == len(self_inds):
@@ -1186,25 +1221,34 @@ class BasisStateSpace(AbstractStateSpace):
                     return self.take_unique(sort=sort)
             else:
                 if sort:
-                    return self.take_states(new_inds)
+                    new = self.take_states(new_inds)
+                    new._indexer = np.arange(len(new_inds))
+                    new._uinds = np.arange(len(new_inds))
+                    new._sort_uinds = np.arange(len(new_inds))
+                    return new
                 else:
-                    _, found_inds, _ = np.intersect1d(self_inds, new_inds, return_indices=True)
+                    _, _, _, found_inds, _ = nput.intersection(
+                        self_inds, new_inds,
+                        sortings=(self._uindexer, None),
+                        assume_unique=True, return_indices=True
+                    )
                     found_inds = np.sort(found_inds)
-                    return self.take_subspace(found_inds)
+                    new = self.take_subspace(found_inds)
+                    new._uinds = np.arange(len(found_inds))
+                    return new
         else:
-            # we take the idea from here to trick numpy into letting us use intersect1d is this case too
-            # https://stackoverflow.com/a/8317403/5720002
             self_exc = self.unique_excitations
             other_exc = other.unique_excitations
 
-            # trick a 2D array into a 1D-like dtype
-            nrows, ncols = self_exc.shape
-            dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
-                     'formats': ncols * [self_exc.dtype]}
+            self_inds, dtype, _, _ = nput.coerce_dtype(self_exc)
+            other_inds, _, _, _ = nput.coerce_dtype(other_exc, dtype=dtype)
 
-            self_inds = self_exc.view(dtype)
-            other_inds = other_exc.view(dtype)
-            new_inds = np.setdiff1d(self_inds, other_inds)
+            new_inds, sortings = nput.difference(
+                self_inds, other_inds,
+                sortings=(self._uexc_indexer, other._uexc_indexer),
+                assume_unique=True
+            )
+            self._uexc_indexer, other._uexc_indexer = sortings
             # now check to make sure we're not being wasteful and destroying an object
             # that doesn't need to be destroyed
             if len(new_inds) == len(self_inds):
@@ -1213,49 +1257,15 @@ class BasisStateSpace(AbstractStateSpace):
                 else:
                     return self.take_unique()
             else:
-
-                _, found_inds, _ = np.intersect1d(self_inds, new_inds, return_indices=True)
-
-                # self_inds = self.unique_indices
-                # other_inds = other.unique_indices
-                # new_inds = np.setdiff1d(self_inds, other_inds)
-                #
-                # return self.take_states(new_inds)
-
+                _, _, _, found_inds, _ = nput.intersection(
+                    self_inds, new_inds,
+                    sortings=(self._uexc_indexer, None),
+                    assume_unique=True, return_indices=True
+                )
                 found_inds = np.sort(found_inds)
-                return self.take_subspace(found_inds)
-
-    # def difference(self, other):
-    #     """
-    #     Returns an diff'ed self and other
-    #
-    #     :param other:
-    #     :type other: BasisStateSpace
-    #     :return:
-    #     :rtype:
-    #     """
-    #
-    #     if self.basis is not other.basis:
-    #         raise ValueError("can't take a difference of state spaces over different bases ({} and {})".format(
-    #             self.basis,
-    #             other.basis
-    #         ))
-    #
-    #     # create difference on indices and then
-    #     # make use of this subselection to resample the basis
-    #     # unfortunately no way to only use Excitation data here...
-    #     self_inds = self.unique_indices
-    #     other_inds = other.unique_indices
-    #     new_inds = np.setdiff1d(self_inds, other_inds)
-    #     # now we check that we're not destroying an object that can be
-    #     # reused
-    #     if len(new_inds) == len(self_inds):
-    #         if self.is_unique:
-    #             return self
-    #         else:
-    #             return self.take_unique()
-    #     else:
-    #         return self.take_states(new_inds)
+                new = self.take_subspace(found_inds)
+                new._uinds = np.arange(len(found_inds))
+                return new
 
     def __repr__(self):
         return "{}(nstates={}, basis={})".format(
@@ -1631,9 +1641,11 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
         sups = super().as_indices()
+        # print(self._base_space)
+        base_inds = self._base_space.as_indices()
         if len(sups) == 0:
-            return self._base_space.as_indices()
-        return np.concatenate([self._base_space.as_indices(), sups])
+            return base_inds
+        return np.concatenate([base_inds, sups])
     def as_excitations(self):
         """
         Pulls the full set excitations out of all of the
@@ -1798,7 +1810,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 inds_l.append(others[0])
                 inds_r.append(others[1])
             else:
-                j = s.indices
+                j = s.unique_indices
                 inds_l.append(np.full(len(j), i, dtype=int))
                 inds_r.append(j)
 
@@ -1806,11 +1818,11 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         inds_l = np.concatenate(inds_l)
         inds_r = np.concatenate(inds_r)
 
-        pairs = np.array([inds_l, inds_r]).T
-        _, upos = np.unique(pairs, axis=0, return_index=True)
-        upairs = pairs[np.sort(upos), ...]
+        upairs = np.array([inds_l, inds_r])
+        # _, upos = np.unique(pairs, axis=0, return_index=True)
+        # upairs = pairs[np.sort(upos), ...]
         # raise Exception(len(upos), len(pairs), len(inds_l), len(upairs))
-        return upairs.T
+        return upairs
 
     def filter_representation_inds(self, ind_pairs, q_changes):
         """
@@ -1824,6 +1836,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :return:
         :rtype:
         """
+
+        raise NotImplementedError("unoptimized code path")
 
         b1 = self.to_single().take_states(ind_pairs[0])
         b2 = self.to_single().take_states(ind_pairs[1])
@@ -1951,9 +1965,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             if n <= nmodes:
                 padding = [0] * (nmodes - n)
                 for p in v:
-                    p = list(p) + padding
-                    perms.extend(cls._unique_permutations(p))
-        permutations = np.array(perms, dtype=cls.excitations_dtype)
+                    p = np.array(list(p) + padding, dtype=cls.excitations_dtype)
+                    perms.append(UniquePermutations(p).permutations())
+        permutations = np.concatenate(perms)
 
         return permutations
 
@@ -1966,7 +1980,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         return new
 
     @classmethod
-    def from_rules(cls, space, selection_rules, filter_space=None, iterations=1):
+    def from_rules(cls, space, selection_rules, filter_space=None, iterations=1, method='new'):
         """
         :param space: initial space to which to apply the transformations
         :type space: BasisStateSpace | BasisMultiStateSpace
@@ -1980,14 +1994,44 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype: SelectionRuleStateSpace
         """
 
-        permutations = cls._generate_selection_rule_permutations(space, selection_rules)
+        if iterations > 1:
+            raise NotImplementedError(
+                "things have changed and higher iterations aren't currently supported but could be supported in the future by being smart with the selection rules"
+            )
+
         if filter_space is None:
-            new = cls._apply_rules_recursive(space, permutations, filter_space, selection_rules, iterations=iterations)
+            if method == 'legacy':
+                permutations = cls._generate_selection_rule_permutations(space, selection_rules)
+                new = cls._apply_rules_recursive(space, permutations, filter_space, selection_rules,
+                                                 iterations=iterations)
+            else:
+                exc = space.excitations
+                symmetric_group_inds = hasattr(space.basis.indexer, 'symmetric_group')
+                if symmetric_group_inds:
+                    symm_grp = space.basis.indexer.symmetric_group #type: SymmetricGroupGenerator
+                    new_exc = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules, return_indices=False, split_results=True)
+                    new = np.array([BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations).take_unique() for e in new_exc])
+
+                    # new_exc, new_inds = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
+                    #                                                               return_indices=True, split_results=True)
+                    # new = []
+                    # for e,i in zip(new_exc, new_inds):
+                    #     new_space = BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations)
+                    #     new_space.indices = i
+                    #     new.append(new_space)
+                    new = np.array(new, dtype=object)
+                    return cls(space, new, selection_rules)
+                else:
+                    symm_grp = SymmetricGroupGenerator(exc.shape[-1])
+                    new_exc = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules, return_indices=False, split_results=True)
+                    new = np.array([BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations) for e in new_exc])
         else:
             # TODO: add a check to see if it's faster to do a quadratic-ish time filter
             #       or a generate and intersect
             #       NOTE: this results in a different ordering than the other approach would...
             #             but that shouldn't be an explicit issue?
+
+            permutations = cls._generate_selection_rule_permutations(space, selection_rules)
             new = cls._find_space_intersections(space, filter_space, permutations, selection_rules)
             # raise Exception(new.excitations)
         return new
@@ -2169,7 +2213,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         return type(self)(new_rep, new_spaces)
 
-    def intersection(self, other, handle_subspaces=True):
+    def intersection(self, other, handle_subspaces=True, use_indices=False):
         """
         Returns an intersected self and other
 
@@ -2195,7 +2239,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         # make use of this subselection to resample the basis
 
 
-        if (
+        if not use_indices and (
                 self.representative_space.has_excitations
                 and other.representative_space.has_excitations
         ): # special case I guess?
@@ -2206,6 +2250,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
                      'formats': ncols * [self_exc.dtype]}
 
+            # print(self_exc.dtype, other_exc.dtype)
             self_inds = self_exc.view(dtype)
             other_inds = other_exc.view(dtype)
             _, where_inds, other_where = np.intersect1d(self_inds, other_inds, return_indices=True)

@@ -25,7 +25,7 @@ class Representation:
 
     """
 
-    def __init__(self, compute, basis, logger=None):
+    def __init__(self, compute, basis, logger=None, selection_rules=None):
         """
         :param compute: the function that turns indices into values
         :type compute: callable | Operator
@@ -48,6 +48,7 @@ class Representation:
             logger = NullLogger()
         self.logger = logger
         self.array = StateSpaceMatrix(basis)
+        self._selection_rules = selection_rules
 
     def compute(self, inds):
         # if isinstance(inds, BraKetSpace):
@@ -291,17 +292,20 @@ class Representation:
         :return:
         :rtype:
         """
-        if self.operator is not None:
-            return self.operator.selection_rules
-        else:
-            return None
+        if self._selection_rules is None:
+            if self.operator is not None:
+                return self.operator.selection_rules
 
-    @property
-    def selection_rule(self):
-        if self.operator is not None:
-            return self.operator.selection_rules
+            else:
+                return None
         else:
-            raise ValueError("can't get a selection rules without a held operator")
+            return self._selection_rules
+    @selection_rules.setter
+    def selection_rules(self, rules):
+        if isinstance(rules[0], (int, np.integer)):
+            raise ValueError('selection rules expected to be a list of lists')
+        self._selection_rules = rules
+
     def get_transformed_space(self, space):
         """
         Returns the state space obtained by using the
@@ -312,10 +316,13 @@ class Representation:
         :return:
         :rtype:
         """
+
         if self.operator is not None:
-            return self.operator.get_transformed_space(space)
+            return self.operator.get_transformed_space(space, rules=self.selection_rules)
+        elif self.selection_rules is not None:
+            return space.apply_selection_rules(self.selection_rules)
         else:
-            raise ValueError("can't get a transformed space without a held operator")
+            raise ValueError("can't get a transformed space without a held operator or selection rules")
 
 
     def apply(self, other):
@@ -478,8 +485,14 @@ class ExpansionRepresentation(Representation):
 
         # we take a union of all transformation rules and just apply that
         # if possible
-        if all(hasattr(x, 'selection_rules') for x in self.computers):
-            total_sel_rules = sum((list(x.selection_rules) for x in self.computers), [])
+        if self._selection_rules is not None:
+            ooooh_shiz = space.apply_selection_rules(self.selection_rules)
+        elif all(hasattr(x, 'selection_rules') for x in self.computers):
+            total_sel_rules = []
+            for x in self.computers:
+                for r in x.selection_rules:
+                    if r not in total_sel_rules:
+                        total_sel_rules.append(r)
             ooooh_shiz = space.apply_selection_rules(total_sel_rules)
         else:
             spaces = [r.get_transformed_space(space) for r in self.computers]

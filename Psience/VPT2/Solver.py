@@ -539,10 +539,12 @@ class PerturbationTheorySolver:
                  coupled_states=None,
                  order=2, total_space=None,
                  flat_total_space=None,
+                 state_space_iterations=None,
                  allow_sakurai_degs=False,
                  allow_post_PT_calc=True,
                  ignore_odd_order_energies=False,
                  intermediate_normalization=False,
+                 zero_element_warning=True,
                  degenerate_states=None,
                  logger=None,
                  parallelizer=None,
@@ -571,6 +573,7 @@ class PerturbationTheorySolver:
         self.perts = perturbations
         self._reps = None
         self.order = order
+        self.state_space_iterations=state_space_iterations
 
         self.logger = logger
         self.parallelizer = parallelizer
@@ -585,6 +588,7 @@ class PerturbationTheorySolver:
         self.allow_post_PT_calc = allow_post_PT_calc
         self.ignore_odd_orders = ignore_odd_order_energies
         self.intermediate_normalization = intermediate_normalization
+        self.zero_element_warning = zero_element_warning
 
         self._coupled_states = coupled_states
         self._total_space = total_space
@@ -719,7 +723,7 @@ class PerturbationTheorySolver:
                     cs = self.total_state_space[i + 1]
                     with logger.block(tag="getting H" + str(i + 1)):
                         start = time.time()
-                        H[i + 1] = self._build_representation_matrix(h, cs)
+                        H[i + 1] = self._build_representation_matrix(h, cs, i+1)
                         h.clear_cache()
                         # cs.clear_cache()
                         end = time.time()
@@ -740,7 +744,7 @@ class PerturbationTheorySolver:
 
             return H
 
-    def _build_representation_matrix(self, h, cs):
+    def _build_representation_matrix(self, h, cs, i):
         """
         Actively constructs a perturbation theory Hamiltonian representation
 
@@ -775,6 +779,17 @@ class PerturbationTheorySolver:
             # figure out the appropriate inds for this data in the sparse representation
             row_inds = self.flat_total_space.find(m_pairs.bras)
             col_inds = self.flat_total_space.find(m_pairs.kets)
+
+            if self.zero_element_warning:
+                zeros = np.where(sub == 0.)
+                if len(zeros) > 0 and len(zeros[0]) > 0:
+                    zeros = zeros[0]
+                    bad_pairs = (m_pairs.bras.take_subspace(zeros), m_pairs.kets.take_subspace(zeros))
+                    raise ValueError(
+                        ('got zero elements from H({}); if you expect zeros, set `zero_element_warning=False`.'
+                        'zero elements: {}').format(i, np.array([bad_pairs[0].excitations, bad_pairs[1].excitations]).T)
+                    )
+
 
             # upper triangle of indices
             up_tri = np.array([row_inds, col_inds]).T
@@ -1117,6 +1132,7 @@ class PerturbationTheorySolver:
             with self.logger.block(tag='getting coupled states'):
                 start = time.time()
                 self._coupled_states = self.load_coupled_spaces()
+                # _ = [len(s) for s in [self.states] + list(self._coupled_states)]
                 end = time.time()
 
                 self.logger.log_print(
@@ -1553,7 +1569,9 @@ class PerturbationTheorySolver:
         spaces = {h:None for h in self.perts} if spaces is None else spaces
         # final state spaces for each energy, corr, overlap, etc.
         input_wrapper = self.StateSpaceWrapper(input_state_space)
-        order = self.order+1
+
+        order = self.state_space_iterations if self.state_space_iterations is not None else self.order
+        order = order+1
         E = [None]*order
         E[0] = input_wrapper
         corrs = [None]*order
@@ -1587,8 +1605,6 @@ class PerturbationTheorySolver:
             #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
             # but we drop the energy and overlap parts of this because they don't affect the overall state space
 
-
-            curr = sum(corrs[i] for i in range(0, k))
             self.logger.log_print(
                 'getting states for ' +
                     '+'.join('H({})|n({})>'.format(k-i, i)
@@ -1596,17 +1612,12 @@ class PerturbationTheorySolver:
                              if not isinstance(H[k - i], (int, np.integer))
                              )
                 )
-            corrs[k] = sum(
-                (
-                    # just because it's faster to take a union than a difference using numpy
-                    # we don't project out anything
-                    dot(H[k - i], corrs[i])
-                   # dot(pi, corrs[i]) +
-                   #      dot(pi, H[k - i], corrs[i])
-                    for i in range(0, k)
-                ),
-                curr
-            )
+            with self.logger.block(tag='getting states for order {k}'.format(k=k)):
+                corrs[k] = sum(corrs[i] for i in range(0, k))
+                for i in range(0, k):
+                    if not isinstance(H[k - i], (int, np.integer)):
+                        self.logger.log_print('H({a})|n({b})>', a=k - i, b=i)
+                        corrs[k] += dot(H[k - i], corrs[i])
 
         # raise Exception(
         #     [x[1] for x in spaces.values() if x is not None][0].get_representation_indices().T

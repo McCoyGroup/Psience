@@ -662,7 +662,7 @@ class Operator:
             self.funcs
         )
 
-    def get_transformed_space(self, base_space):
+    def get_transformed_space(self, base_space, rules=None):
         """
         Returns the space one would get from applying
         the selection rules from this operator
@@ -672,7 +672,9 @@ class Operator:
         :return:
         :rtype:
         """
-        return base_space.apply_selection_rules(self.selection_rules)
+        if rules is None:
+            rules = self.selection_rules
+        return base_space.apply_selection_rules(rules)
 
 class ContractedOperator(Operator):
     """
