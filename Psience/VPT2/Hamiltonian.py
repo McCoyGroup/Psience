@@ -43,7 +43,8 @@ class PerturbationTheoryHamiltonian:
                  parallelizer=None,
                  log=None,
                  checkpoint=None,
-                 operator_chunk_size=None
+                 operator_chunk_size=None,
+                 selection_rules=None
                  ):
         """
         :param molecule: the molecule on which we're doing perturbation theory
@@ -125,6 +126,7 @@ class PerturbationTheoryHamiltonian:
             self.watson_term = None
 
         self._h0 = self._h1 = self._h2 = None
+        self._selection_rules = selection_rules
 
         self.basis = HarmonicOscillatorProductBasis(self.n_quanta)
 
@@ -205,6 +207,11 @@ class PerturbationTheoryHamiltonian:
                                                         **self.operator_settings
                                                         )
             )
+
+
+            if self._selection_rules is not None and len(self._selection_rules) > 0:
+                self._h1.selection_rules = self._selection_rules[0]
+
         return self._h1
 
     @property
@@ -243,6 +250,9 @@ class PerturbationTheoryHamiltonian:
                 self._h2 += 1 / 8 * self.basis.representation(coeffs=self.watson_term[0],
                                                               **self.operator_settings
                                                               )
+
+            if self._selection_rules is not None and len(self._selection_rules) > 1:
+                self._h2.selection_rules = self._selection_rules[1]
 
         return self._h2
 
@@ -619,6 +629,8 @@ class PerturbationTheoryHamiltonian:
                           allow_post_PT_calc=True,
                           intermediate_normalization=False,
                           ignore_odd_order_energies=True,
+                          zero_element_warning=True,
+                          state_space_iterations=None,
                           order=2
                           ):
         """
@@ -671,6 +683,7 @@ class PerturbationTheoryHamiltonian:
 
                 solver = PerturbationTheorySolver(h_reps, states,
                                                   order=order,
+                                                  state_space_iterations=state_space_iterations,
                                                   coupled_states=coupled_states,
                                                   degenerate_states=degeneracies,
                                                   logger=self.logger,
@@ -678,7 +691,8 @@ class PerturbationTheoryHamiltonian:
                                                   allow_sakurai_degs=allow_sakurai_degs,
                                                   allow_post_PT_calc=allow_post_PT_calc,
                                                   ignore_odd_order_energies=ignore_odd_order_energies,
-                                                  intermediate_normalization=intermediate_normalization
+                                                  intermediate_normalization=intermediate_normalization,
+                                                  zero_element_warning=zero_element_warning
                                                   )
                 corrs = solver.apply_VPT()
 

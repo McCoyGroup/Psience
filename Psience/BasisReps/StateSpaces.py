@@ -1641,9 +1641,11 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
         sups = super().as_indices()
+        # print(self._base_space)
+        base_inds = self._base_space.as_indices()
         if len(sups) == 0:
-            return self._base_space.as_indices()
-        return np.concatenate([self._base_space.as_indices(), sups])
+            return base_inds
+        return np.concatenate([base_inds, sups])
     def as_excitations(self):
         """
         Pulls the full set excitations out of all of the
