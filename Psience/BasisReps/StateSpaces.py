@@ -2008,7 +2008,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 if symmetric_group_inds:
                     symm_grp = space.basis.indexer.symmetric_group #type: SymmetricGroupGenerator
                     new_exc = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules, return_indices=False, split_results=True)
-                    new = np.array([BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations) for e in new_exc])
+                    new = np.array([BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations).take_unique() for e in new_exc])
 
                     # new_exc, new_inds = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
                     #                                                               return_indices=True, split_results=True)
