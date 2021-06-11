@@ -53,7 +53,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     These things are fed the first and second order corrections
     """
 
-    def __init__(self, mol, basis, corrections, logger=None):
+    def __init__(self, mol, basis, corrections, modes=None, mode_selection=None, logger=None):
         """
         :param mol: the molecule the wavefunction is for
         :type mol: Molecule
@@ -64,6 +64,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
         self.mol = mol
         self.corrs = corrections
+        self.modes = modes
+        self.mode_selection = mode_selection
         self.rep_basis = basis  # temporary hack until I decided how to merge the idea of
         # AnalyticWavefunctions with a RepresentationBasis
         self._tm_dat = None
@@ -76,6 +78,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             self.corrs.wfn_corrections,
             None
         )
+
+    def energies_to_order(self, order):
+        return np.sum(self.corrs.energy_corrs[:, :order+1], axis=1)
 
     @property
     def order(self):
@@ -108,6 +113,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         if len(m_pairs) > 0:
             logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
             sub = h[m_pairs]
+            # TODO: WTF is this?
             if isinstance(sub, SparseArray):
                 sub = sub.asarray()
             SparseArray.clear_cache()
@@ -239,13 +245,17 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 mu_3 = dts[3]
                 m3 = 1 / 6 * self.rep_basis.representation("x", "x", "x", coeffs=mu_3)
                 if rep_inds[3] is None:
-                    m3_inds = bra_space.get_representation_brakets(
-                        other=ket_space,
-                        selection_rules=bra_space.basis.selection_rules("x", "x", "x")
-                    )
-                    rep_inds[3] = m3_inds
-                with self.logger.block(tag="getting M^(3)"):
-                    rep_3 = self._build_representation_matrix(m3, rep_inds[3])
+                    with self.logger.block(tag="getting coupled states for M^(3)"):
+                        start = time.time()
+                        m3_inds = bra_space.get_representation_brakets(
+                            other=ket_space,
+                            selection_rules=bra_space.basis.selection_rules("x", "x", "x")
+                        )
+                        end = time.time()
+                        self.logger.log_print('took {t}s...', t=end-start)
+                    with self.logger.block(tag="getting M^(3)"):
+                        rep_inds[3] = m3_inds
+                        rep_3 = self._build_representation_matrix(m3, rep_inds[3])
                 mu_terms.append(rep_3)
                 # mu_terms = mu_terms + [rep_3]
         else:
@@ -253,24 +263,37 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
             m0 = self.rep_basis.representation(coeffs=mu_0)
             if rep_inds[0] is None:
-                m0_inds = bra_space.get_representation_brakets(other=ket_space,
-                                                               selection_rules=[[]])  # no selection rules here
+                with self.logger.block(tag="getting coupled states for M^(0)"):
+                    start = time.time()
+                    # raise Exception(ket_space.excitations.dtype)
+                    m0_inds = bra_space.get_representation_brakets(other=ket_space,
+                                                                   selection_rules=[[]])  # no selection rules here
+                    end = time.time()
+                    self.logger.log_print('took {t}s...', t=end - start)
                 rep_inds[0] = m0_inds
             m1 = (
                     self.rep_basis.representation("x", coeffs=mu_1)
                     + self.rep_basis.representation(coeffs=mu_0)
             )
             if rep_inds[1] is None:
-                m1_inds = bra_space.get_representation_brakets(
-                    other=ket_space,
-                    selection_rules=bra_space.basis.selection_rules("x")
-                )
+                with self.logger.block(tag="getting coupled states for M^(1)"):
+                    start = time.time()
+                    m1_inds = bra_space.get_representation_brakets(
+                            other=ket_space,
+                            selection_rules=bra_space.basis.selection_rules("x")
+                    )
+                    end = time.time()
+                    self.logger.log_print('took {t}s...', t= end - start)
                 rep_inds[1] = m1_inds
             m2 = 1 / 2 * self.rep_basis.representation("x", "x", coeffs=mu_2)
             if rep_inds[2] is None:
-                m2_inds = bra_space.get_representation_brakets(
-                    other=ket_space,
-                    selection_rules=bra_space.basis.selection_rules("x", "x"))
+                with self.logger.block(tag="getting coupled states for M^(2)"):
+                    start = time.time()
+                    m2_inds = bra_space.get_representation_brakets(
+                        other=ket_space,
+                        selection_rules=bra_space.basis.selection_rules("x", "x"))
+                    end = time.time()
+                    self.logger.log_print('took {t}s...', t=end - start)
                 rep_inds[2] = m2_inds
 
             if partitioning == self.DipolePartitioningMethod.Intuitive:
@@ -278,10 +301,14 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             elif partitioning == self.DipolePartitioningMethod.Standard:
                 m3 = 1 / 6 * self.rep_basis.representation("x", "x", "x", coeffs=mu_3)
                 if rep_inds[3] is None:
-                    m3_inds = bra_space.get_representation_brakets(
-                        other=ket_space,
-                        selection_rules=bra_space.basis.selection_rules("x", "x", "x")
-                    )
+                    with self.logger.block(tag="getting coupled states for M^(3)"):
+                        start = time.time()
+                        m3_inds = bra_space.get_representation_brakets(
+                            other=ket_space,
+                            selection_rules=bra_space.basis.selection_rules("x", "x", "x")
+                        )
+                        end = time.time()
+                        self.logger.log_print('took {t}s...', t=end - start)
                     rep_inds[3] = m3_inds
                 reps = [m0, m1, m2, m3]
             else:
@@ -339,7 +366,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 if isinstance(lower_states, (int, np.integer)):
                     lower_states = (lower_states,)
                 low_spec = lower_states
-            lower_states = space[low_spec]
+            lower_states = space[(low_spec,)]
 
             if excited_states is None:
                 up_spec = tuple(range(space.nstates))
@@ -348,10 +375,17 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 if isinstance(excited_states, (int, np.integer)):
                     excited_states = (excited_states,)
                 up_spec = excited_states
-                excited_states = space[up_spec]
+                excited_states = space[(up_spec,)]
 
             bra_space = lower_states if isinstance(lower_states, BasisStateSpace) else lower_states.to_single()
             ket_space = excited_states if isinstance(excited_states, BasisStateSpace) else excited_states.to_single()
+
+            # if not bra_space.has_indices:
+            #     raise Exception('wat')
+            # if not ket_space.has_indices:
+            #     raise Exception('wat')
+            # if not self.corrs.total_basis.has_indices:
+            #     raise Exception('wat')
 
             # M = len(space.indices)
             logger.log_print(
@@ -363,7 +397,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             )
 
             # corr_vecs = self.corrs.wfn_corrections#[..., M]
-            transition_moment_components = np.zeros((3, 3)).tolist()  # x, y, and z components of the 0th, 1st, and 2nd order stuff
+            transition_moment_components = np.zeros((order, 3)).tolist()  # x, y, and z components of the 0th, 1st, and 2nd order stuff
 
             mu = [mu_x, mu_y, mu_z]
             rep_inds = [None] * 4
@@ -385,18 +419,29 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 m=partitioning.value
             )
 
-            for a in range(3):  # x, y, and z
+            corr_terms_lower = [corr_terms[i][low_spec, :] for i in range(order)]
+            corr_terms_upper = [corr_terms[i][up_spec, :] for i in range(order)]
 
-                mu_terms = self._mu_representations(
-                    a,
-                    mu[a],
-                    M,
-                    total_space,
-                    bra_space,
-                    ket_space,
-                    partitioning,
-                    rep_inds
-                )
+            for a in range(3):  # x, y, and z
+                with logger.block(tag="Getting M representations for axis {}:".format(a)):
+                    start = time.time()
+                    mu_terms = self._mu_representations(
+                        a,
+                        mu[a],
+                        M,
+                        total_space,
+                        bra_space,
+                        ket_space,
+                        partitioning,
+                        rep_inds
+                    )
+                    end = time.time()
+                    logger.log_print(
+                        [
+                            "took {t:}s..."
+                        ],
+                        t=end-start
+                    )
 
                 # print(">>>>", mu_terms)
                 mu_reps.append(mu_terms)
@@ -420,8 +465,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
                     with logger.block(tag="calculating corrections..."):
                         start = time.time()
-                        for q in range(order+1):  # total quanta
+                        for q in range(order):  # total quanta
+                            logger.log_print("calculating corrections at order {q}...", q=q)
                             terms = []
+                            # should do this smarter
                             for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
                                 if i + j + k == q:
                                     if len(mu_terms) <= k:
@@ -434,16 +481,17 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                                             # to make it easy to zero stuff out
                                             new = np.zeros((len(low_spec), len(up_spec)))
                                         else:
-                                            c_lower = corr_terms[i][low_spec, :]
-                                            c_upper = corr_terms[j][up_spec, :]
+                                            c_lower = corr_terms_lower[i]
+                                            c_upper = corr_terms_upper[j]
                                             num = c_lower.dot(m)
                                             new = num.dot(c_upper.T)
                                         if isinstance(new, SparseArray):
                                             new = new.asarray()
-                                    terms.append(
+                                    terms.append( # what is this...?
                                         new.reshape((len(low_spec), len(up_spec))
-                                                    ))
+                                        ))
                                     # raise Exception(new.toarray())
+                            # print(q, a)
                             transition_moment_components[q][a] = terms
 
                         end = time.time()
@@ -459,7 +507,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     sum(ip.chain(transition_moment_components[i][j]))
                     if not isinstance(transition_moment_components[i][j], (float, int, np.floating, np.integer))
                     else transition_moment_components[i][j]
-                    for i in range(3)  # correction order
+                    for i in range(order)  # correction order
                 ) for j in range(3)  # xyz
             ]
 
@@ -471,10 +519,14 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
         return [tmom, transition_moment_components, mu_reps]
 
+    class TermHolder(tuple):
+        """symbolic wrapper on Tuple so we can know that we've canonicalized some term"""
     @property
     def dipole_terms(self):
         if self._dipole_terms is None:
-            self._dipole_terms = DipoleTerms(self.mol).get_terms()
+            self._dipole_terms = self.TermHolder(DipoleTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection).get_terms())
+        elif not isinstance(self._dipole_terms, self.TermHolder):
+            self._dipole_terms = self.TermHolder(DipoleTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection, derivatives=self._dipole_terms).get_terms())
         return self._dipole_terms
 
     @dipole_terms.setter
@@ -540,6 +592,17 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         tms = self.transition_moments
         return self._oscillator_strengths(tms)
 
+    def oscillator_strengths_to_order(self, order):
+        """
+
+        :param tms:
+        :type tms:
+        :return:
+        :rtype:
+        """
+
+        return self._oscillator_strengths(self.transition_moments_to_order(order))
+
     def _oscillator_strengths(self, tms):
 
         gs_tms = np.array([tms[i][0] for i in range(3)]).T
@@ -556,8 +619,20 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
         return self._intensities(self.oscillator_strengths)
 
-    def _intensities(self, oscs):
-        eng = self.energies
+    def intensities_to_order(self, order):
+        """
+        Computes the intensities for transitions from the ground state to the other states
+
+        :return:
+        :rtype:
+        """
+        return self._intensities(self.oscillator_strengths_to_order(order), energy_order=order)
+
+    def _intensities(self, oscs, energy_order=None):
+        if energy_order is None:
+            eng = self.energies
+        else:
+            eng = self.energies_to_order(energy_order)
         units = 3.554206329390961e6
         return units * (eng - eng[0]) * oscs
 
@@ -611,16 +686,19 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             ("Constant",  (True, False, False, False)),
             ("Linear",    (False, True, False, False)),
             ("Quadratic", (False, False, True, False)),
-            ("Cubic",     (False, False, False, True))
+            ("Cubic",     (False, False, False, True)),
+            ("Order0",    (True, True, False, False)),
+            ("Order1",    (True, True, True, False))
+            # ("Order2",  (True, True, True, True)),
         ))
 
         # wfn_terms.append(freqs.tolist())
         for key in dipole_breakdowns:
             if self.logger is not None:
                 self.logger.log_print(
-                    "-" * 50 + "{} {}" + "-" * 50,
-                    key,
-                    self.dipole_partitioning,
+                    "-" * 50 + "{k} {m}" + "-" * 50,
+                    k=key,
+                    m=self.dipole_partitioning.value,
                     padding="",
                     newline=" "
                 )
@@ -639,6 +717,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 ints = self._intensities(oscs)
 
             full_corrs = self.transition_moment_corrections
+            # raise Exception([np.array(x).shape for x in full_corrs])
             corrs_keys = [y for x in ip.chain(
                 [(i, j, k) for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)) if i + j + k == q]
                 for q in range(len(full_corrs))

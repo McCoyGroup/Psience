@@ -187,10 +187,12 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
             labels = [mapping[k] for k in ids]
 
             if coeffs is None:
-                op = Operator(computer, self.quanta, prod_dim=len(terms), symmetries=labels,
+                op = Operator(computer, self.quanta, prod_dim=len(terms),
+                              selection_rules=self.selection_rules(*terms), symmetries=labels,
                               logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)#, axes=axes)
             else:
-                op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms), symmetries=labels, axes=axes,
+                op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms),
+                                        selection_rules=self.selection_rules(*terms), symmetries=labels, axes=axes,
                                         logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)
             return op
         else:
@@ -202,9 +204,9 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
         return type(self)([qq[d] for d in dims])
 
     def __repr__(self):
-        return "HOBasis({})".format(
-            ",".join(str(x) for x in self.dimensions)
-        )
+        return "HOBasis(dim={})".format(len(self.dimensions))
+        #     ",".join(str(x) for x in self.dimensions)
+        # )
 
 default_cache_size = 128
 class HarmonicProductOperatorTermEvaluator:

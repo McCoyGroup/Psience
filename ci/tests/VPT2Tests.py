@@ -2,7 +2,11 @@ from Peeves.TestUtils import *
 from Peeves import Timer, BlockProfiler
 from unittest import TestCase
 from Psience.VPT2 import *
+from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
+
 from McUtils.Data import UnitsData
+import McUtils.Plots as plt
+from McUtils.Scaffolding import *
 from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
 import sys, os, numpy as np, itertools as ip
 import cProfile, pstats, io
@@ -10,6 +14,8 @@ import cProfile, pstats, io
 class VPT2Tests(TestCase):
 
     #region setup
+
+    gaussian_data = {} # storage to allow me to duplicate Gaussain data less often...
 
     def setUp(self):
         self.h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -63,12 +69,17 @@ class VPT2Tests(TestCase):
                               coriolis=None,
                               watson=None,
                               degeneracies=None,
+                              selection_rules=None,
                               log=False,
                               get_breakdown=False,
                               parallelized=False,
                               checkpoint=None,
                               chunk_size=None,
                               order=2
+                              , allow_sakurai_degs = False
+                              , allow_post_PT_calc = True
+                              , intermediate_normalization=False
+                              , state_space_iterations=None
                               ):
         if parallelized:
             parallelizer = MultiprocessingParallelizer()#verbose=True, processes=2)
@@ -83,7 +94,8 @@ class VPT2Tests(TestCase):
                 log=log,
                 parallelizer=parallelizer,
                 checkpoint=checkpoint,
-                operator_chunk_size=chunk_size
+                operator_chunk_size=chunk_size,
+                selection_rules=selection_rules
             )
 
             if get_breakdown:
@@ -116,6 +128,9 @@ class VPT2Tests(TestCase):
                     hammer.H1.computers[1].operator.coeffs = v3
                 if t4 is not None:
                     hammer.H2.computers[0].operator.coeffs = t4
+                    if internals is None and isinstance(t4, (int, float)) and t4 == 0:
+                        if coriolis is None:
+                            coriolis = 0
                 if v4 is not None:
                     hammer.H2.computers[1].operator.coeffs = v4
                 if coriolis is not None:
@@ -125,7 +140,12 @@ class VPT2Tests(TestCase):
                 if watson is not None:
                     hammer.H2.computers[3].operator.coeffs = watson
 
-                wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order)
+                wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order
+                                                , allow_sakurai_degs=allow_sakurai_degs
+                                                , allow_post_PT_calc=allow_post_PT_calc
+                                                , intermediate_normalization=intermediate_normalization
+                                                , state_space_iterations=state_space_iterations
+                                                )
                 if save_wfns:
                     self.save_wfns(wfn_file, wfns)
             else:
@@ -149,12 +169,17 @@ class VPT2Tests(TestCase):
                       coriolis=None,
                       watson=None,
                       degeneracies=None,
+                      selection_rules=None,
                       log=False,
                       parallelized=False,
                       checkpoint=None,
                       get_breakdown=False,
                       chunk_size=None,
                       order=2
+                      , allow_sakurai_degs=False
+                      , allow_post_PT_calc=True
+                      , intermediate_normalization=False
+                      , state_space_iterations=None
                       ):
         return self.get_VPT2_wfns_and_ham(
             fchk,
@@ -173,21 +198,123 @@ class VPT2Tests(TestCase):
             coriolis=coriolis,
             watson=watson,
             degeneracies=degeneracies,
+            selection_rules=selection_rules,
             log=log,
             parallelized=parallelized,
             checkpoint=checkpoint,
             get_breakdown=get_breakdown,
             chunk_size=chunk_size,
             order=order
+            , allow_sakurai_degs=allow_sakurai_degs
+            , allow_post_PT_calc=allow_post_PT_calc
+            , intermediate_normalization=intermediate_normalization
+            , state_space_iterations=state_space_iterations
         )[0]
 
     def get_states(self, n_quanta, n_modes, max_quanta = None):
-        from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
 
         return [np.flip(x) for x in BasisStateSpace.from_quanta(
             HarmonicOscillatorProductBasis(n_modes),
             range(n_quanta)
         ).excitations]
+
+    def print_energy_block(self, tag, states, zpe, freqs, real_fmt='{:>8.3f}', dash_fmt='{:>8}' ):
+        freqs = np.asanyarray(freqs)
+        states = np.asanyarray(states)
+        ncols = freqs.shape[1] if len(freqs.shape) > 0 else 1
+        n_modes = len(states[0])
+        states_fmt = '{:<1.0f} ' * n_modes
+        if zpe is not None:
+            zpe_fmt = (real_fmt + " ")*ncols + (dash_fmt + " ") * ncols
+            freq_fmt = (dash_fmt + " ") * ncols + (real_fmt + " ") * ncols
+            lines = [states_fmt.format(*[0] * n_modes) + zpe_fmt.format(*zpe, *["-"] * ncols)] + [
+                states_fmt.format(*s) + freq_fmt.format(*["-"] * ncols, *e)
+                for s, e in
+                zip(states[1:], freqs)
+            ]
+        else:
+            freq_fmt = ncols + (real_fmt + " ") * ncols
+            lines =[
+                states_fmt.format(*s) + freq_fmt.format(*e)
+                for s, e in
+                zip(states, freqs)
+            ]
+
+        print(tag,
+              *lines,
+              sep="\n  "
+              )
+
+    def run_PT_test(self,
+                    tag, file_name, internals, mode_selection,
+                    states, gaussian_energies, gaussian_freqs,
+                    print_report=False,
+                    print_diffs=True,
+                    log=False,
+                    energy_order=None,
+                    nielsen_tolerance=1,
+                    gaussian_tolerance=1,
+                    print_profile=False,
+                    **opts
+                    ):
+        with BlockProfiler(tag, print_res=print_profile):
+            wfns, hammer = self.get_VPT2_wfns_and_ham(
+                file_name,
+                internals,
+                states,
+                regenerate=True,
+                mode_selection=mode_selection
+                , log=log,
+                **opts
+            )
+
+        # Pure PT energies
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        if energy_order is None:
+            engs = h2w * wfns.energies
+        else:
+            engs = h2w * wfns.energies_to_order(energy_order)
+
+        # raise Exception(h2w*wfns.corrs.energy_corrs)
+        freqs = engs[1:] - engs[0]
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freq = harm_engs[1:] - harm_engs[0]
+
+        my_energies = np.array([harm_engs[0], engs[0]])
+        my_freqs = np.column_stack([harm_freq, freqs])
+
+        if print_report:
+            self.print_energy_block("State Energies:", states, my_energies, my_freqs)
+
+        if internals is None and nielsen_tolerance is not None:
+            # Energies from Nielsen expressions
+            e_harm, e_corr, x = hammer.get_Nielsen_energies(states, return_split=True)
+            e_corr = np.sum(e_corr, axis=0)
+            energies = h2w * (e_harm + e_corr)
+            zero_ord = h2w * e_harm
+
+            nielsen_engs = np.array([zero_ord[0], energies[0]])
+            nielsen_freqs = np.column_stack([zero_ord[1:] - zero_ord[0], energies[1:] - energies[0]])
+
+            if print_report:
+                self.print_energy_block("Nielsen Energies:", states, nielsen_engs, nielsen_freqs)
+
+            if print_diffs:
+                self.print_energy_block("Nielsen Difference Energies:", states, my_energies - nielsen_engs,
+                                        my_freqs - nielsen_freqs)
+
+            self.assertLess(np.max(np.abs(my_freqs - nielsen_freqs)), nielsen_tolerance)
+
+        if gaussian_freqs is not None:
+            ns = min(len(freqs), len(gaussian_freqs))
+            if print_report:
+                self.print_energy_block("Gaussian Energies:", states, gaussian_energies, gaussian_freqs[:ns])
+
+            if print_diffs:
+                self.print_energy_block("Gaussian Difference Energies:", states, my_energies - gaussian_energies,
+                                        my_freqs[:ns] - gaussian_freqs[:ns])
+
+            self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), gaussian_tolerance)
 
     def profile_block(self, block):
 
@@ -1701,25 +1828,94 @@ class VPT2Tests(TestCase):
             gaussian_z[i, j] = v
             gaussian_z[j, i] = -v
 
-        print_report = False
+        print_report = True
         if print_report:
             print("-" * 50, "x", "-" * 50)
-            for a, b in zip(x, gaussian_z):
+            for a, b in zip(x, gaussian_x):
                 print(
                     ("[" + "{:>8.3f}" * 3 + "]").format(*a)
                     + ("[" + "{:>8.3f}" * 3 + "]").format(*b)
                 )
             print("-" * 50, "y", "-" * 50)
-            for a, b in zip(y, gaussian_x):
+            for a, b in zip(y, gaussian_y):
                 print(
                     ("[" + "{:>8.3f}" * 3 + "]").format(*a)
                     + ("[" + "{:>8.3f}" * 3 + "]").format(*b)
                 )
             print("-" * 50, "z", "-" * 50)
-            for a, b in zip(z, gaussian_y):
+            for a, b in zip(z, gaussian_z):
                 print(
                     ("[" + "{:>8.3f}" * 3 + "]").format(*a)
                     + ("[" + "{:>8.3f}" * 3 + "]").format(*b)
+                )
+
+        sum_diff = np.abs(sum([x, y, z])) - np.abs(sum([gaussian_x, gaussian_y, gaussian_z]))
+        # print(np.round(sum_diff, 3))
+        self.assertLess(np.max(sum_diff), .001)
+
+    @validationTest
+    def test_HOHCoriolisCouplings(self):
+
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            TestManager.test_data("HOH_freq.fchk"),
+            internals=None
+        )
+
+        x, y, z = ham.coriolis_terms.get_zetas()
+
+        x_els, y_els, z_els = [
+            [
+
+            ],
+            [
+                [2, 1, -0.960228e-2],
+                [3, 1,  0.999954]
+            ],
+            [
+
+            ]
+        ]
+        mapping = [3, 2, 1]  # remap modes to go from highest to lowest frequency
+
+        gaussian_x = np.zeros((3, 3))
+        for i, j, v in x_els:
+            i = mapping[i - 1] - 1
+            j = mapping[j - 1] - 1
+            gaussian_x[i, j] = v
+            gaussian_x[j, i] = -v
+        gaussian_y = np.zeros((3, 3))
+        for i, j, v in y_els:
+            i = mapping[i - 1] - 1
+            j = mapping[j - 1] - 1
+            gaussian_y[i, j] = v
+            gaussian_y[j, i] = -v
+        gaussian_z = np.zeros((3, 3))
+        for i, j, v in z_els:
+            i = mapping[i - 1] - 1
+            j = mapping[j - 1] - 1
+            gaussian_z[i, j] = v
+            gaussian_z[j, i] = -v
+
+        print_report = True
+        if print_report:
+            print("-" * 50, "x", "-" * 50)
+            fmt = "{:>8.5f}"
+            for a, b in zip(x, gaussian_x):
+                print(
+                    ("[" +  fmt * 3 + "]").format(*a)
+                    + ("[" + fmt * 3 + "]").format(*b)
+                )
+            print("-" * 50, "y", "-" * 50)
+            for a, b in zip(y, gaussian_y):
+                print(
+                    ("[" + fmt * 3 + "]").format(*a)
+                    + ("[" + fmt * 3 + "]").format(*b)
+                )
+            print("-" * 50, "z", "-" * 50)
+            for a, b in zip(z, gaussian_z):
+                print(
+                    ("[" + fmt * 3 + "]").format(*a)
+                    + ("[" + fmt * 3 + "]").format(*b)
                 )
 
         sum_diff = np.abs(sum([x, y, z])) - np.abs(sum([gaussian_x, gaussian_y, gaussian_z]))
@@ -1832,9 +2028,8 @@ class VPT2Tests(TestCase):
             .01 # within .01 wavenumbers
         ))
 
-    @inactiveTest
+    @validationTest
     def test_HOHNielsenEnergies(self):
-        # need to figure out the units on this shit if I want it to work...
         states = (
             (0, 0, 0),
             (0, 0, 1), (0, 1, 0), (1, 0, 0),
@@ -1843,15 +2038,56 @@ class VPT2Tests(TestCase):
         )
 
         hammer = PerturbationTheoryHamiltonian.from_fchk(
-            TestManager.test_data("HOD_freq.fchk"),
-            internals=None
+            TestManager.test_data("HOH_freq.fchk"),
+            internals=None,
+            log=False
         )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
-        e_harm, e_corr = hammer.get_Nielsen_energies(states)
+        gaussian_x = np.array([
+            [
+                [-0.965669e+02, -0.357168e+03,  0.428508e+02],
+                [-0.357168e+03, -0.921241e+02,  0.553701e+02],
+                [ 0.428508e+02,  0.553701e+02, -0.122624e+02],
+            ],
+            [
+                [ 0.475281e+02,  0.190802e+03, -0.924902e+02],
+                [ 0.190802e+03,  0.480711e+02, -0.754058e+02],
+                [-0.924902e+02, -0.754058e+02, -0.176138e+01],
+            ],
+            [
+                [0.000000e+00, 0.172747e-02, 0.265776e+02],
+                [0.172747e-02, 0.000000e+00, 0.000000e+00],
+                [0.265776e+02, 0.000000e+00, 0.000000e+00],
+            ]
+        ])
+
+        gaussian_x = np.array([x[np.ix_((2, 1, 0), (2, 1, 0))] for x in gaussian_x])
+
+        e_harm, e_corr, x = hammer.get_Nielsen_energies(states, return_split=True)
+        e_harm, e_corr_gaussian = hammer._get_Nielsen_energies_from_x(states, hammer.modes.freqs, gaussian_x, return_split=True)
+
+        # raise Exception(np.round(gaussian_x[2], 4), np.round(x[2] * h2w, 4))
+
+        self.assertTrue(
+            np.allclose(e_corr*h2w, e_corr_gaussian, atol=1),
+            msg="diff: \n {}".format(
+                np.round(e_corr_gaussian - e_corr*h2w)
+            )
+        )
+
+        x = x * h2w
+        self.assertTrue(
+            np.allclose(gaussian_x, x, atol=5),
+            msg="wat \n {} \n {}".format(
+                gaussian_x, x
+            )
+        )
 
         # wfns = hammer.get_wavefunctions(states, coupled_states=None)
+
+        e_corr = np.sum(e_corr, axis=0)
         energies = h2w * (e_harm + e_corr)
         zero_ord = h2w * e_harm
 
@@ -1891,66 +2127,136 @@ class VPT2Tests(TestCase):
 
         print_report = False
         if print_report:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
+            self.print_energy_block("Gaussian Energies:", states, gaussian_energies, gaussian_freqs)
+            self.print_energy_block("Nielsen Energies:", states, my_energies, my_freqs)
 
         print_diffs = True
         if print_diffs:
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
-                  )
-                  )
+            self.print_energy_block("Difference Energies:", states, my_energies - gaussian_energies, my_freqs - gaussian_freqs[:len(my_freqs)])
+
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
 
     #endregion
 
     #region Test Systems
 
-    #region Water Analogs
+    #region Analytic Models
 
-    @validationTest
-    def test_DODVPTCartesians(self):
+    @inactiveTest
+    def test_TwoMorseCartesiansDegenerate(self):
 
-        internals = None
-        # [
-        #     [0, -1, -1, -1],
-        #     [1, 0, -1, -1],
-        #     [2, 0, 1, -1]
+        from Psience.Molecools import Molecule
+        import McUtils.Numputils as nput
+
+        # internals = [
+        #     [0, -1,  -1, -1],
+        #     [1,  0,  -1, -1],
+        #     [2,  0,   1, -1],
+        #     [3,  2,   1,  0]
         # ]
-        states = self.get_states(3, 2)
+        internals = None
 
-        with BlockProfiler("DOD Cartesians",
-                           print_res=False,
-                           strip_dirs=self.job_is_dumb,
-                           sort_by='ncalls'
-                           ):
-            wfns = self.get_VPT2_wfns(
-                "DOD_freq.fchk",
-                internals,
-                states,
-                # save_coeffs=True,
-                regenerate=True
-                # , coupled_states=self.get_states(5, 3)
-                # , log=True
-                # , watson=0.
-                # , v3=0
-                # , v4=0
+        re_1 = 1.0
+        re_2 = 1.0
+
+        mol0 = Molecule(
+            ["O", "H", "O", "H"],
+            np.array([
+                [0.000000, 0.000000, 0.000000],
+                [re_1,     0.000000, 0.000000],
+                [0.000000, 1.000000, 0.000000],
+                [re_2,     1.000000, 0.000000]
+                ]),
+            zmatrix=internals,
+            guess_bonds=False,
+        )
+
+        # masses = mol0.masses
+        # anchor_pos = np.average(mol0.coords[:2], weights=masses[:2]/np.sum(masses[:2]), axis=0)
+        # mol0.coords[2] += anchor_pos
+
+        # put in PAF
+        mol = mol0
+        # mol = mol0.principle_axis_frame()(mol0)
+        # raise Exception(mol.coords)
+
+        from McUtils.Zachary import FiniteDifferenceDerivative
+
+        masses = mol0.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+
+        w2h = UnitsData.convert("Wavenumbers", "Hartrees")
+        w1 = 3500*w2h; wx1 = 100*w2h
+        mu_1 = (1 / masses[0] + 1 / masses[1]) ** (-1)
+        De_1 = (w1 ** 2) / (4*wx1)
+        a_1 = np.sqrt(2 * mu_1 * wx1)
+
+        w2 = 3500*w2h; wx2 = 100*w2h
+        mu_2 = (1 / masses[2] + 1 / masses[3]) ** (-1)
+        De_2 = (w2 ** 2) / (4 * wx2)
+        a_2 = np.sqrt(2 * mu_2 * wx2)
+
+        # mass_weights = masses[:2] / np.sum(masses[:2])
+        def two_morse(carts, *,
+                      De_1 = De_1, a_1=a_1, re_1=re_1,
+                      De_2 = De_2, a_2=a_2, re_2=re_2
+                      ):
+
+            # anchor_pos = np.average(carts[..., :2, :], weights=mass_weights, axis=-2)
+            r1 = nput.vec_norms(carts[..., 1, :] - carts[..., 0, :]) - re_1
+            r2 = nput.vec_norms(carts[..., 3, :] - carts[..., 2, :]) - re_2
+
+            return (
+                De_1 * (1 - np.exp(-a_1 * r1))**2
+                + De_2 * (1 - np.exp(-a_2 * r2))**2
             )
+
+        deriv_gen = FiniteDifferenceDerivative(two_morse,
+                                               function_shape=((None, None), 0),
+                                               mesh_spacing=1e-3,
+                                               stencil=5
+                                               ).derivatives(mol.coords)
+
+        # v1, v2 = deriv_gen.derivative_tensor([1, 2])
+        v1, v2, v3, v4 = deriv_gen.derivative_tensor([1, 2, 3, 4])
+
+        mol.potential_derivatives = [v1, v2, v3, v4]
+
+        modes = mol.normal_modes[-1, -2]
+        stretches = modes.basis.matrix.T
+        symm = (stretches[1] + stretches[0])*np.sqrt(1/2)
+        asym = (stretches[1] - stretches[0])*np.sqrt(1/2)
+        new_mat = np.array([symm, asym]).T
+        modes.basis.matrix = new_mat
+        modes.basis.inverse = new_mat.T
+        ham = PerturbationTheoryHamiltonian(mol, modes=modes, n_quanta=50, coriolis_coupling=False, watson_term=False)
+
+        # mode_selection=[-1, -2]
+        # ham = PerturbationTheoryHamiltonian(mol, mode_selection=mode_selection, n_quanta=50)
+
+        # import json
+        # raise Exception(json.dumps(ham.V_terms[1].tolist()))
+
+        states = ham.basis.get_state_space(range(5))
+        wfns = ham.get_wavefunctions(
+            states
+            , degeneracies=(
+                ([1, 0], [0, 1]),
+                ([2, 0], [1, 1], [0, 2]),
+                ([3, 0], [2, 1], [1, 2], [0, 3]),
+                ([4, 0], [3, 1], [2, 2], [1, 3], [0, 4])
+            )
+            , allow_sakurai_degs=False
+            , allow_post_PT_calc=True
+            , order=2
+            , coupled_states = [self.get_states(11, 2), self.get_states(11, 2)]
+        )
+
+        with JSONCheckpointer(os.path.expanduser('~/Desktop/test_dat.json')) as woof:
+            woof['h1'] = wfns.corrs.hams[1].asarray()
+            woof['h2'] = wfns.corrs.hams[2].asarray()
+            woof['states'] = wfns.corrs.total_basis.excitations
+        # raise Exception(np.diag(wfns.corrs.hams[0].asarray()))
+        states = states.excitations
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
@@ -1958,21 +2264,29 @@ class VPT2Tests(TestCase):
         energies = h2w * wfns.energies
         zero_ord = h2w * wfns.zero_order_energies
 
-        # print(wfns.corrs.coupled_states)
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
+        print_report = True
+        n_modes = len(states[0])
+        harm_engs = zero_ord
+        engs = energies
+        harm_freq = zero_ord[1:] - zero_ord[0]
+        freqs = energies[1:] - energies[0]
+        if print_report:
+            print("State Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                      s, e1, e2 in
+                      zip(states[1:], harm_freq, freqs)
+                  )
+                  )
 
-        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
-                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
-                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
-        gaussian_energies = np.array([3406.854, 3366.588])
-        gaussian_freqs = np.array([
+    #endregion
+
+    #region Water Analogs
+
+    gaussian_data['DOD'] = {
+        'zpe': np.array([3406.854, 3366.588]),
+        'freqs': np.array([
             [2884.314, 2779.931],
             [2742.310, 2648.051],
             [1187.085, 1160.758],
@@ -1985,332 +2299,286 @@ class VPT2Tests(TestCase):
             [4071.399, 3928.727],
             [3929.395, 3798.041]
         ])
+    }
+    @validationTest
+    def test_DODVPTCartesians(self):
 
-        my_energies = np.array([zero_ord[0], energies[0]])
-        my_freqs = np.column_stack([
-            zero_ord[1:] - zero_ord[0],
-            energies[1:] - energies[0]
-        ])
+        tag = 'DOD Internals'
+        file_name = "DOD_freq.fchk"
+
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
         print_report = False
-        if print_report:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
 
-        print_diffs = True
-        if print_diffs:
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
-                  )
-                  )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
+        gaussian_energies = self.gaussian_data['DOD']['zpe']
+        gaussian_freqs = self.gaussian_data['DOD']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report
+        )
 
     @validationTest
     def test_DODVPTInternals(self):
 
+        tag = 'DOD Internals'
+        file_name = "DOD_freq.fchk"
+
         internals = [
             [0, -1, -1, -1],
-            [1,  0, -1, -1],
-            [2,  0,  1, -1]
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
         ]
-        states = (
-            (0, 0, 0),
-            (0, 0, 1), (0, 1, 0), (1, 0, 0),
-            (0, 0, 2), (0, 2, 0), (2, 0, 0),
-            (0, 1, 1), (1, 0, 1), (1, 1, 0)
-        )
 
-        wfns = self.get_VPT2_wfns(
-            "DOD_freq.fchk",
-            internals,
-            states,
-            # save_coeffs=True,
-            regenerate=True
-            , coupled_states=self.get_states(5, 3)
-            # , watson=0.
-            # , v3=0
-            # , v4=0
-        )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
-        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
-        energies = h2w * wfns.energies
-        zero_ord = h2w * wfns.zero_order_energies
-
-        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
-                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
-                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
-        gaussian_energies = np.array([3406.854, 3366.588])
-        gaussian_freqs = np.array([
-            [2884.314, 2779.931],
-            [2742.310, 2648.051],
-            [1187.085, 1160.758],
-
-            [5768.628, 5504.706],
-            [5484.619, 5250.472],
-            [2374.171, 2306.554],
-
-            [5626.624, 5341.492],
-            [4071.399, 3928.727],
-            [3929.395, 3798.041]
-        ])
-
-        my_energies = np.array([zero_ord[0], energies[0]])
-        my_freqs = np.column_stack([zero_ord[1:] - zero_ord[0], energies[1:] - energies[0]])
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
         print_report = False
-        if print_report:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
 
-        print_diffs = True
-        if print_diffs:
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
-                  )
-                  )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
+        gaussian_energies = self.gaussian_data['DOD']['zpe']
+        gaussian_freqs = self.gaussian_data['DOD']['freqs']
 
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report
+        )
+
+    gaussian_data['HOH'] = {
+        'zpe': np.array([4681.564, 4605.953]),
+        'freqs': np.array([
+        [3937.525, 3744.734],
+        [3803.300, 3621.994],
+        [1622.303, 1572.707],
+
+        [7875.049, 7391.391],
+        [7606.599, 7155.881],
+        [3244.606, 3117.366],
+
+        [7740.824, 7200.364],
+        [5559.828, 5294.379],
+        [5425.603, 5174.665]
+    ])
+    }
     @validationTest
     def test_HOHVPTInternals(self):
 
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
         internals = [
             [0, -1, -1, -1],
             [1,  0, -1, -1],
             [2,  0,  1, -1]
         ]
 
-        states = self.get_states(3, 3)
-        chk = os.path.expanduser("~/Desktop/HOH_internal_data.json")
-
-        try:
-            os.remove(chk)
-        except:
-            pass
-
-
-        wfns = self.get_VPT2_wfns(
-            "HOH_freq.fchk",
-            internals,
-            states,
-            # save_coeffs=True,
-            checkpoint=chk,
-            regenerate=True
-            # , coupled_states = self.get_states(5, 3)
-            # , watson=0.
-            # , v3 = 0
-            # , t4 = 0
-            # , v4=0
-        )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
-        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
-        energies = h2w * wfns.energies
-        zero_ord = h2w * wfns.zero_order_energies
-
-        # print(wfns.corrs.coupled_states)
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
-
-        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
-                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
-                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
-        gaussian_energies = np.array([4681.564, 4605.953])
-        gaussian_freqs = np.array([
-            [3937.525, 3744.734],
-            [3803.300, 3621.994],
-            [1622.303, 1572.707],
-
-            [7875.049, 7391.391],
-            [7606.599, 7155.881],
-            [3244.606, 3117.366],
-
-            [7740.824, 7200.364],
-            [5559.828, 5294.379],
-            [5425.603, 5174.665]
-        ])
-
-        my_energies = np.array([zero_ord[0], energies[0]])
-        my_freqs = np.column_stack([
-            zero_ord[1:] - zero_ord[0],
-            energies[1:] - energies[0]
-        ])
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
         print_report = False
-        if print_report:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
 
-        print_diffs = True
-        if print_diffs:
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
-                  )
-                  )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1.5)
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report
+        )
 
     @validationTest
     def test_HOHVPTCartesians(self):
 
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
         internals = None
-        # [
-        #     [0, -1, -1, -1],
-        #     [1, 0, -1, -1],
-        #     [2, 0, 1, -1]
-        # ]
-        states = self.get_states(3, 3)
-        # chk = os.path.expanduser("~/Desktop/HOH_data.json")
 
-        # try:
-        #     os.remove(chk)
-        # except:
-        #     pass
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
-        wfns = self.get_VPT2_wfns(
-            "HOH_freq.fchk",
+        print_report = False
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
             internals,
+            mode_selection,
             states,
-            regenerate=True,
-            # checkpoint=chk
-            # , coupled_states = self.get_states(5, 3)
-            # , v3=0
-            # , v4=0
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report
         )
 
-        # from McUtils.Scaffolding import Checkpointer
-        #
-        # wat = Checkpointer.from_file(chk)
-        # with wat:
-        #     raise Exception(wat['indices'].indices)
+    @inactiveTest
+    def test_HOHVPTCartesians4thOrder(self):
 
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
-        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
-        energies = h2w * wfns.energies
-        zero_ord = h2w * wfns.zero_order_energies
+        import warnings
+        np.seterr(all='raise')
+        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
-        # print(len(self.get_states(5, 3)), len(wfns.corrs.coupled_states))
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
 
-        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
-                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
-                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
-        gaussian_energies = np.array([4681.564, 4605.953])
-        gaussian_freqs = np.array([
-            [3937.525, 3744.734],
-            [3803.300, 3621.994],
-            [1622.303, 1572.707],
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+        internals = None
 
-            [7875.049, 7391.391],
-            [7606.599, 7155.881],
-            [3244.606, 3117.366],
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
-            [7740.824, 7200.364],
-            [5559.828, 5294.379],
-            [5425.603, 5174.665]
-        ])
+        basis = HarmonicOscillatorProductBasis(n_modes)
+        coupled_states =  [
+            BasisStateSpace(basis, self.get_states(20, n_modes)).apply_selection_rules(
+                basis.selection_rules("x", "x", "x")
+            ),
+            BasisStateSpace(basis, self.get_states(20, n_modes)).apply_selection_rules(
+                basis.selection_rules("x", "x", "x", "x")
+            )
+        ]
+        coupled_states=None
 
-        my_energies = np.array([zero_ord[0], energies[0]])
-        my_freqs = np.column_stack([
-            zero_ord[1:] - zero_ord[0],
-            energies[1:] - energies[0]
-        ])
+        print_report = False
+        log = True
+        nielsen_tolerance = None
+        order = 4
 
-        print_report = True
-        if print_report:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
 
-        sigh = min(len(my_freqs), len(gaussian_freqs))
-        print_diffs = True
-        if print_diffs:
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs[:sigh] - gaussian_freqs[:sigh])
-                  )
-                  )
-        self.assertLess(np.max(np.abs(my_freqs[:sigh] - gaussian_freqs[:sigh])), 1.5)
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            order=order,
+            nielsen_tolerance=nielsen_tolerance,
+            log=log,
+            print_report=print_report
+            # , energy_order=2
+            , coupled_states=coupled_states
+            , intermediate_normalization=False
+            , selection_rules=[
+                [r for r in basis.selection_rules("x", "x", "x") if len(r) <= 2],
+                [r for r in basis.selection_rules("x", "x", "x", "x") if len(r) <= 3]
+            ]
+        )
+
+    @inactiveTest
+    def test_HOTVPTCartesians4thOrder(self):
+
+        tag = 'HOT Cartesians'
+        file_name = "HOT_freq.fchk"
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        basis = HarmonicOscillatorProductBasis(n_modes)
+        coupled_states = [
+            # BasisStateSpace(basis, self.get_states(20, n_modes)).apply_selection_rules(
+            #     basis.selection_rules("x", "x", "x")
+            # ),
+            self.get_states(15, n_modes),
+            self.get_states(15, n_modes)
+            # BasisStateSpace(basis, self.get_states(20, n_modes)).apply_selection_rules(
+            #     basis.selection_rules("x", "x", "x", "x")
+            # )
+        ]
+        # coupled_states=None
+
+        print_report = False
+        log = True
+        nielsen_tolerance = None
+        order = 4
+
+        gaussian_energies = self.gaussian_data['HOT']['zpe']
+        gaussian_freqs = self.gaussian_data['HOT']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            order=order,
+            nielsen_tolerance=nielsen_tolerance,
+            log=log,
+            print_report=print_report
+            # , energy_order=2
+            , coupled_states=coupled_states
+            , intermediate_normalization=True
+        )
 
     @inactiveTest
     def test_HOHVPTCartesiansDegenerate(self):
 
         internals = None
 
-        states = self.get_states(3, 3)
+        basis = HarmonicOscillatorProductBasis(3)
+
+        states = self.get_states(6, 3)
 
         wfns = self.get_VPT2_wfns(
             "HOH_freq.fchk",
@@ -2322,12 +2590,28 @@ class VPT2Tests(TestCase):
             #     'NT':(1, 2, 2),
             #     'MartinTest': False
             # }
-            # , degeneracies=1 # anything within 1 Hartree (i.e. everything)
+            # , degeneracies=.0005 # anything within 1 Hartree (i.e. everything)
             # , degeneracies=(1, 2, 2) # use N_T = 1 bend + 2 stretch
-            # , apply_variational
-            , degeneracies=([[0, 0, 2], [0, 2, 0], [0, 1, 1]],)
+            , degeneracies=(
+                # [[0, 0, 1], [0, 1, 0], [2, 0, 0]],
+                [[0, 0, 2], [0, 2, 0], [0, 1, 1]],
+            )
+            , allow_sakurai_degs=True
+            , allow_post_PT_calc=True
+            # , order=4
             # degeneracies=100/self.h2w # any pair of states within 100 wavenumbers can be treated as degenerate
-            # , coupled_states = self.get_states(5, 3)
+            # , coupled_states = [
+            #     BasisStateSpace(basis, self.get_states(12, 3)).apply_selection_rules(
+            #         basis.selection_rules("x", "x", "x")
+            #     ),
+            #     BasisStateSpace(basis, self.get_states(12, 3)).apply_selection_rules(
+            #         basis.selection_rules("x", "x", "x", "x")
+            #     )
+            # ]
+            # , coupled_states=[
+            #     BasisStateSpace(basis, self.get_states(12, 3)),
+            #     BasisStateSpace(basis, self.get_states(12, 3))
+            # ]
             # , v3=0
             # , v4=0
         )
@@ -2337,16 +2621,6 @@ class VPT2Tests(TestCase):
         # wfns = hammer.get_wavefunctions(states, coupled_states=None)
         energies = h2w * wfns.energies
         zero_ord = h2w * wfns.zero_order_energies
-
-        # print(len(self.get_states(5, 3)), len(wfns.corrs.coupled_states))
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
 
         gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
                            (0, 0, 2), (0, 2, 0), (2, 0, 0),
@@ -2372,36 +2646,20 @@ class VPT2Tests(TestCase):
             energies[1:] - energies[0]
         ])
 
-        print_report = True
+        ns = min(len(my_freqs), len(gaussian_freqs))
+        print_report = False
         if print_report:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
+            self.print_energy_block("Gaussian Energies:", states, gaussian_energies, gaussian_freqs[:ns])
+            self.print_energy_block("State Energies:", states, my_energies, my_freqs[:ns])
 
-        sigh = min(len(my_freqs), len(gaussian_freqs))
         print_diffs = True
         if print_diffs:
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs[:sigh] - gaussian_freqs[:sigh])
-                  )
-                  )
-        self.assertLess(np.max(np.abs(my_freqs[:sigh] - gaussian_freqs[:sigh])), 100)
+            self.print_energy_block("Difference Energies:", states, my_energies - gaussian_energies,
+                                    my_freqs[:ns] - gaussian_freqs[:ns])
 
-    @validationTest
+        self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), 1.5)
+
+    @inactiveTest
     def test_HOHVPTInternalsDegenerate(self):
 
         internals = [
@@ -2498,227 +2756,89 @@ class VPT2Tests(TestCase):
                   )
         self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 100)
 
+    gaussian_data['HOD'] = {
+        'zpe': np.array([4052.912, 3994.844]),
+        'freqs': np.array([
+        [3873.846, 3685.815],
+        [2810.031, 2706.132],
+        [1421.946, 1383.391],
+        [7747.692, 7202.835],
+        [5620.062, 5323.917],
+        [2843.893, 2749.027],
+        [6683.877, 6377.958],
+        [5295.792, 5044.721],
+        [4231.977, 4072.407]
+    ])
+    }
     @validationTest
     def test_HODVPTInternals(self):
+
+        tag = 'HOD Internals'
+        file_name = "HOD_freq.fchk"
 
         internals = [
             [0, -1, -1, -1],
             [1,  0, -1, -1],
             [2,  0,  1, -1]
         ]
-        states = (
-            (0, 0, 0),
-            (0, 0, 1), (0, 1, 0), (1, 0, 0),
-            (0, 0, 2), (0, 2, 0), (2, 0, 0),
-            (0, 1, 1), (1, 0, 1), (1, 1, 0)
-        )
 
-        # coupled_states = self.get_states(5, 3)
-        wfns = self.get_VPT2_wfns(
-            "HOD_freq.fchk",
-            internals,
-            states,
-            # save_coeffs=True,
-            regenerate=True
-            # , log=True
-            # coupled_states=coupled_states
-            # , v3=legit/self.h2w
-            # , v4=0
-        )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
-        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
-        energies = h2w * wfns.energies
-        zero_ord = h2w * wfns.zero_order_energies
-        # raise Exception([energies, zero_ord])
-
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
-
-        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
-                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
-                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
-        gaussian_energies = np.array([4052.912, 3994.844])
-        gaussian_freqs = np.array([
-            [3873.846, 3685.815],
-            [2810.031, 2706.132],
-            [1421.946, 1383.391],
-            [7747.692, 7202.835],
-            [5620.062, 5323.917],
-            [2843.893, 2749.027],
-            [6683.877, 6377.958],
-            [5295.792, 5044.721],
-            [4231.977, 4072.407]
-        ])
-
-        my_energies = np.array([zero_ord[0], energies[0]])
-        my_freqs = np.column_stack([
-            zero_ord[1:] - zero_ord[0],
-            energies[1:] - energies[0]
-        ])
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
         print_report = False
-        if print_report:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
 
-        print_diffs = True
-        if print_diffs:
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies-gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
-                  )
-                  )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
+        gaussian_energies = self.gaussian_data['HOD']['zpe']
+        gaussian_freqs = self.gaussian_data['HOD']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report
+        )
 
     @validationTest
     def test_HODVPTCartesians(self):
 
+        tag = 'HOD Cartesians'
+        file_name = "HOD_freq.fchk"
+
         internals = None
 
-        states = (
-            (0, 0, 0),
-            (0, 0, 1), (0, 1, 0), (1, 0, 0),
-            (0, 0, 2), (0, 2, 0), (2, 0, 0),
-            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        print_report = False
+
+        gaussian_energies = self.gaussian_data['HOD']['zpe']
+        gaussian_freqs = self.gaussian_data['HOD']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report
         )
 
-        # coupled_states = self.get_states(5, 3)
-        with BlockProfiler("HOD", print_res=False):
-            wfns = self.get_VPT2_wfns(
-                "HOD_freq.fchk",
-                internals,
-                states,
-                regenerate=True
-                , log=True
-                # , v3=0
-                # , v4=0
-            )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
-        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
-        energies = h2w * wfns.energies
-        zero_ord = h2w * wfns.zero_order_energies
-        # raise Exception([energies, zero_ord])
-
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
-
-        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
-                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
-                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
-        gaussian_energies = np.array([4052.912, 3994.844])
-        gaussian_freqs = np.array([
-            [3873.846, 3685.815],
-            [2810.031, 2706.132],
-            [1421.946, 1383.391],
-            [7747.692, 7202.835],
-            [5620.062, 5323.917],
-            [2843.893, 2749.027],
-            [6683.877, 6377.958],
-            [5295.792, 5044.721],
-            [4231.977, 4072.407]
-        ])
-
-        my_energies = np.array([zero_ord[0], energies[0]])
-        my_freqs = np.column_stack([
-            zero_ord[1:] - zero_ord[0],
-            energies[1:] - energies[0]
-        ])
-
-        print_report = True
-        if print_report:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
-
-        print_diffs = True
-        if print_diffs:
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
-                  )
-                  )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
-
-    @validationTest
-    def test_HOTVPTInternals(self):
-
-        internals = [
-            [0, -1, -1, -1],
-            [1,  0, -1, -1],
-            [2,  0,  1, -1]
-        ]
-        states = (
-            (0, 0, 0),
-            (0, 0, 1), (0, 1, 0), (1, 0, 0),
-            (0, 0, 2), (0, 2, 0), (2, 0, 0),
-            (0, 1, 1), (1, 0, 1), (1, 1, 0)
-        )
-        n_modes = 3
-        coupled_states = self.get_states(5, n_modes, max_quanta=5)
-        with BlockProfiler("HOT", print_res=False):
-            wfns = self.get_VPT2_wfns(
-                "HOT_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                coupled_states=coupled_states
-            )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
-        energies = h2w * wfns.energies
-        zero_ord = h2w * wfns.zero_order_energies
-        # raise Exception([energies, zero_ord])
-
-        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
-                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
-                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
-        gaussian_energies = np.array([3789.117, 3736.855])
-        gaussian_freqs = np.array([
+    gaussian_data['HOT'] = {
+        'zpe': np.array([3789.117, 3736.855]),
+        'freqs': np.array([
             [3872.325, 3692.047],
             [2357.491, 2285.849],
             [1348.418, 1313.165],
@@ -2729,139 +2849,117 @@ class VPT2Tests(TestCase):
             [5220.743, 4987.363],
             [3705.909, 3584.756]
         ])
+    }
+    @validationTest
+    def test_HOTVPTInternals(self):
 
-        my_energies = np.array([zero_ord[0], energies[0]])
-        my_freqs = np.column_stack([
-            zero_ord[1:] - zero_ord[0],
-            energies[1:] - energies[0]
-        ])
+        tag = 'HOT Cartesians'
+        file_name = "HOT_freq.fchk"
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
         print_report = False
-        if print_report:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
-        print_diffs = True
-        if print_diffs:
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
-                  )
-                  )
 
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
+        gaussian_energies = self.gaussian_data['HOT']['zpe']
+        gaussian_freqs = self.gaussian_data['HOT']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report
+        )
 
     @validationTest
     def test_HOTVPTCartesians(self):
 
+        tag = 'HOT Cartesians'
+        file_name = "HOT_freq.fchk"
+
         internals = None
-        states = (
-            (0, 0, 0),
-            (0, 0, 1), (0, 1, 0), (1, 0, 0),
-            (0, 0, 2), (0, 2, 0), (2, 0, 0),
-            (0, 1, 1), (1, 0, 1), (1, 1, 0)
-        )
-        n_modes = 3
-        coupled_states = self.get_states(5, n_modes, max_quanta=5)
 
-        def block(self=self, internals=internals, states=states, coupled_states=coupled_states):
-            return self.get_VPT2_wfns(
-                "HOT_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                coupled_states=coupled_states
-                # , coriolis=0
-            )
-
-        # wfns = block()
-        exc, stat_block, wfns = self.profile_block(block)
-
-        do_profile = False
-        if exc is not None:
-            try:
-                raise exc
-            except:
-                raise Exception(stat_block)
-        elif do_profile:
-            raise Exception(stat_block)
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
-        energies = h2w * wfns.energies
-        zero_ord = h2w * wfns.zero_order_energies
-        # raise Exception([energies, zero_ord])
-
-        gaussian_states = [(0, 0, 1), (0, 1, 0), (1, 0, 0),
-                           (0, 0, 2), (0, 2, 0), (2, 0, 0),
-                           (0, 1, 1), (1, 0, 1), (1, 1, 0)]
-        gaussian_energies = np.array([3789.117, 3736.855])
-        gaussian_freqs = np.array([
-            [3872.325, 3692.047],
-            [2357.491, 2285.849],
-            [1348.418, 1313.165],
-            [7744.651, 7214.810],
-            [4714.982, 4509.256],
-            [2696.835, 2607.130],
-            [6229.816, 5973.755],
-            [5220.743, 4987.363],
-            [3705.909, 3584.756]
-        ])
-
-        my_energies = np.array([zero_ord[0], energies[0]])
-        my_freqs = np.column_stack([
-            zero_ord[1:] - zero_ord[0],
-            energies[1:] - energies[0]
-        ])
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
         print_report = False
-        if print_report:
-            print("Gaussian:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*gaussian_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(gaussian_states, gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*my_energies, "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs)
-                  )
-                  )
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  "0 0 0 {:>8.3f} {:>8.3f} {:>8} {:>8}\n".format(*(my_energies - gaussian_energies), "-", "-"),
-                  *(
-                      "{:<1.0f} {:<1.0f} {:<1.0f} {:>8} {:>8} {:>8.3f} {:>8.3f}\n".format(*s, "-", "-", *e) for s, e in
-                      zip(states[1:], my_freqs - gaussian_freqs[:len(my_freqs)])
-                  )
-                  )
-        self.assertLess(np.max(np.abs(my_freqs - gaussian_freqs[:len(my_freqs)])), 1)
+
+        gaussian_energies = self.gaussian_data['HOT']['zpe']
+        gaussian_freqs = self.gaussian_data['HOT']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report
+        )
 
     #endregion Water Analogs
 
     #region Formaldehyde Analogs
 
-    @inactiveTest
+    gaussian_data['OCHH'] = {
+        'zpe': [5866.872, 5785.953],
+        'freqs': np.array([
+            [3061.701, 2849.454],
+            [2977.640, 2820.563],
+            [1727.083, 1695.163],
+            [1527.041, 1493.139],
+            [1252.164, 1231.359],
+            [1188.114, 1166.697],
+            # 2 quanta
+            [6123.403, 5719.555],
+            [5955.281, 5578.213],
+            [3454.165, 3372.197],
+            [3054.082, 2988.763],
+            [2504.328, 2459.646],
+            [2376.227, 2327.621],
+            # mixed states
+            [6039.342, 5586.305],
+            [4788.784, 4589.165],
+            [4588.742, 4374.903],
+            [4313.865, 4114.701],
+            [4249.815, 4043.462],
+            [4704.723, 4510.744],
+            [4504.681, 4278.834],
+            [4229.804, 4043.264],
+            [4165.754, 3978.440],
+            [3254.123, 3181.610],
+            [2979.247, 2967.726],
+            [2915.196, 2854.766],
+            [2779.205, 2710.416],
+            [2715.155, 2657.682],
+            [2440.278, 2404.805]
+        ])
+    }
+    @validationTest
     def test_OCHHVPTInternals(self):
 
+        tag = 'OCHH Internals'
+        file_name = "OCHH_freq.fchk"
+
         internals = [
             [0, -1, -1, -1],
             [1,  0, -1, -1],
@@ -2869,539 +2967,259 @@ class VPT2Tests(TestCase):
             [3,  1,  0,  2]
         ]
 
-        n_modes = 3 * 4 - 6
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
-        states = self.get_states(2, n_modes)
-        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
-
-        def block(self=self,
-                  internals=internals,
-                  states=states,
-                  coupled_states=None,#coupled_states,
-                  mode_selection=mode_selection
-                  ):
-            return self.get_VPT2_wfns(
-                "OCHH_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                coupled_states=coupled_states,
-                mode_selection=mode_selection
-            )
-
-        # block()
-        exc, stat_block, wfns = self.profile_block(block)
-
-        do_profile = False
-        if do_profile:
-            if exc is not None:
-                try:
-                    raise exc
-                except:
-                    raise Exception(stat_block)
-            else:
-                raise Exception(stat_block)
-        elif exc is not None:
-            raise exc
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        gaussian_engs = [5866.872, 5785.953]
-        gaussian_freqs = np.array([
-            [3061.701,    2849.454],
-            [2977.640,    2820.563],
-            [1727.083,    1695.163],
-            [1527.041,    1493.139],
-            [1252.164,    1231.359],
-            [1188.114,    1166.697],
-            # 2 quanta
-            [6123.403,    5719.555],
-            [5955.281,    5578.213],
-            [3454.165,    3372.197],
-            [3054.082,    2988.763],
-            [2504.328,    2459.646],
-            [2376.227,    2327.621],
-            # mixed states
-            [6039.342,    5586.305],
-            [4788.784,    4589.165],
-            [4704.723,    4510.744],
-            [4588.742,    4374.903],
-            [4504.681,    4278.834],
-            [3254.123,    3181.610],
-            [4313.865,    4114.701],
-            [4229.804,    4043.264],
-            [2979.247,    2967.726],
-            [2779.205,    2710.416],
-            [4249.815,    4043.462],
-            [4165.754,    3978.440],
-            [2915.196,    2854.766],
-            [2715.155,    2657.682],
-            [2440.278,    2404.805]
-        ])
+        gaussian_energies = self.gaussian_data['OCHH']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHH']['freqs']
 
         print_report = False
-        if print_report:
-            if n_modes == 6:
-                print("Gaussian Energies:\n",
-                      ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-                      *(
-                          ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-                      in
-                          zip(states[1:], gaussian_freqs)
-                      )
-                      )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                  s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
-        ns = len(states) - 1
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
-                                                                              engs[0] - gaussian_engs[1], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
-                  )
-                  )
+        nielsen_tolerance = 1
+        gaussian_tolerance = 100
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
 
-        self.assertLess(
-            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
-            1)
-
-    @inactiveTest
+    @debugTest
     def test_OCHHVPTCartesians(self):
 
+        tag = 'OCHH Cartesians'
+        file_name = "OCHH_freq.fchk"
+
         internals = None
 
-        n_modes = 3 * 4 - 6
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
-        states = self.get_states(2, n_modes)
-        coupled_states = self.get_states(5, n_modes, max_quanta=5)
-
-        def block(self=self,
-                  internals=internals,
-                  states=states,
-                  coupled_states=coupled_states,
-                  mode_selection=mode_selection
-                  ):
-            return self.get_VPT2_wfns(
-                "OCHH_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                coupled_states=coupled_states,
-                mode_selection=mode_selection
-                # , degeneracies=(
-                #     coupled_states.index((0, 0, 0, 0, 0, 1)),
-                #     coupled_states.index((0, 0, 2, 0, 0, 0))
-                # )
-            )
-
-        # block()
-        exc, stat_block, wfns = self.profile_block(block)
-
-        do_profile = False
-        if do_profile:
-            if exc is not None:
-                try:
-                    raise exc
-                except:
-                    raise Exception(stat_block)
-            else:
-                raise Exception(stat_block)
-        elif exc is not None:
-            raise exc
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        gaussian_engs = [5866.872, 5785.953]
-        gaussian_freqs = np.array([
-            [3061.701,    2849.454],
-            [2977.640,    2820.563],
-            [1727.083,    1695.163],
-            [1527.041,    1493.139],
-            [1252.164,    1231.359],
-            [1188.114,    1166.697],
-            # 2 quanta
-            [6123.403,    5719.555],
-            [5955.281,    5578.213],
-            [3454.165,    3372.197],
-            [3054.082,    2988.763],
-            [2504.328,    2459.646],
-            [2376.227,    2327.621],
-            # mixed states
-            [6039.342,    5586.305],
-            [4788.784,    4589.165],
-            [4704.723,    4510.744],
-            [4588.742,    4374.903],
-            [4504.681,    4278.834],
-            [3254.123,    3181.610],
-            [4313.865,    4114.701],
-            [4229.804,    4043.264],
-            [2979.247,    2967.726],
-            [2779.205,    2710.416],
-            [4249.815,    4043.462],
-            [4165.754,    3978.440],
-            [2915.196,    2854.766],
-            [2715.155,    2657.682],
-            [2440.278,    2404.805]
-        ])
+        gaussian_energies = self.gaussian_data['OCHH']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHH']['freqs']
 
         print_report = False
-        if print_report:
-            if n_modes == 6:
-                print("Gaussian Energies:\n",
-                      ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-                      *(
-                          ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-                          in
-                          zip(states[1:], gaussian_freqs)
-                      )
-                      )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
-        ns = len(states) - 1
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
-                                                                              engs[0] - gaussian_engs[1], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
-                  )
-                  )
-
-        self.assertLess(
-            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
-            1)
+        nielsen_tolerance = 1
+        gaussian_tolerance = 100
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
 
     @inactiveTest
+    def test_OCHHVPTCartesiansDegenerate(self):
+
+        tag = 'OCHH Cartesians'
+        file_name = "OCHH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        # nt_spec = np.array([
+        #     [0, 0, 0, 0, 0, 1],
+        #     [0, 1, 0, 1, 0, 0]
+        # ])
+        # degeneracies = []
+        # for s in states:
+        #     if np.dot(nt_spec[0], s) > 0:
+        #         degeneracies.append([
+        #             s,
+        #             s - nt_spec[0] + nt_spec[1]
+        #         ])
+        # # raise Exception(degeneracies)
+
+        degeneracies = (
+            [
+                [0, 0, 0, 0, 0, 1],
+                [0, 1, 0, 1, 0, 0]
+            ],
+            # [
+            #     [0, 0, 0, 0, 1, 1],
+            #     [0, 1, 0, 1, 1, 0]
+            # ],
+            # [
+            #     [1, 0, 0, 0, 0, 1],
+            #     [1, 1, 0, 1, 0, 0]
+            # ],
+            # [
+            #     [0, 0, 0, 1, 0, 1],
+            #     [0, 1, 0, 2, 0, 0]
+            # ],
+            # [
+            #     [0, 0, 0, 0, 0, 2],
+            #     [0, 1, 0, 1, 0, 1],
+            #     [0, 2, 0, 2, 0, 0]
+            # ]
+        )
+
+        degeneracies = [np.array(x).tolist() for x in degeneracies]
+        states = np.array(states).tolist()
+        for pair in degeneracies:
+            for p in pair:
+                if p not in states:
+                    states.append(p)
+
+        # degeneracies = None
+
+        gaussian_energies = self.gaussian_data['OCHH']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHH']['freqs']
+
+        print_report = False
+        nielsen_tolerance = None
+        gaussian_tolerance = 1
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            log=True,
+            gaussian_tolerance=gaussian_tolerance,
+            degeneracies=degeneracies
+        )
+
+    gaussian_data['OCHD'] = {
+        'zpe': [5235.162,  5171.477],
+        'freqs': np.array([
+            [3022.813, 2881.940],
+            [2221.268, 2152.210],
+            [1701.548, 1673.311],
+            [1417.539, 1388.280],
+            [1076.474, 1058.211],
+            [1030.681, 1015.305],
+            # 2 quanta
+            [6045.626, 5574.482],
+            [4442.536, 4203.337],
+            [3403.097, 3327.254],
+            [2835.078, 2744.748],
+            [2152.949, 2098.305],
+            [2061.363, 2022.956],
+            # mixed states
+            [5244.081, 4990.144],
+            [4724.361, 4529.189],
+            [4440.352, 4192.841],
+            [4099.287, 3896.226],
+            [4053.494, 3866.190],
+            [3922.817, 3809.397],
+            [3638.807, 3518.724],
+            [3297.743, 3183.261],
+            [3251.950, 3146.116],
+            [3119.087, 3060.953],
+            [2778.023, 2725.597],
+            [2732.230, 2681.778],
+            [2494.013, 2448.626],
+            [2448.220, 2403.196],
+            [2107.156, 2074.925]
+        ])
+    }
+    @validationTest
     def test_OCHDVPTInternals(self):
 
+        tag = 'OCHD Internals'
+        file_name = "OCHD_freq.fchk"
+
         internals = [
             [0, -1, -1, -1],
-            [1,  0, -1, -1],
-            [2,  1,  0, -1],
-            [3,  1,  0,  2]
+            [1, 0, -1, -1],
+            [2, 1, 0, -1],
+            [3, 1, 0, 2]
         ]
 
-        n_modes = 3*4 - 6
-        mode_selection = None#[5, 4, 3]
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
-        states = self.get_states(2, n_modes)
-        coupled_states = self.get_states(5, n_modes)
-        def block(self=self,
-                  internals=internals,
-                  states=states,
-                  coupled_states=coupled_states,
-                  mode_selection=mode_selection
-                  ):
-            return self.get_VPT2_wfns(
-                "OCHD_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                coupled_states=coupled_states,
-                mode_selection=mode_selection
-                # , degeneracies=(
-                #     coupled_states.index((0, 0, 0, 0, 0, 1)),
-                #     coupled_states.index((0, 0, 2, 0, 0, 0))
-                # )
-            )
-
-        # block()
-        exc, stat_block, wfns = self.profile_block(block)
-
-        do_profile = False
-        if do_profile:
-            if exc is not None:
-                try:
-                    raise exc
-                except:
-                    raise Exception(stat_block)
-            else:
-                raise Exception(stat_block)
-        elif exc is not None:
-            raise exc
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        gaussian_engs = [5235.162,    5171.477]
-        gaussian_freqs = np.array([
-            [3022.813, 2881.940],
-            [2221.268, 2152.210],
-            [1701.548, 1673.311],
-            [1417.539, 1388.280],
-            [1076.474, 1058.211],
-            [1030.681, 1015.305],
-            # 2 quanta
-            [6045.626, 5574.482],
-            [4442.536, 4203.337],
-            [3403.097, 3327.254],
-            [2835.078, 2744.748],
-            [2152.949, 2098.305],
-            [2061.363, 2022.956],
-            # mixed states
-            [5244.081, 4990.144],
-            [4724.361, 4529.189],
-            [3922.817, 3809.397],
-            [4440.352, 4192.841],
-            [3638.807, 3518.724],
-            [3119.087, 3060.953],
-            [4099.287, 3896.226],
-            [3297.743, 3183.261],
-            [2778.023, 2725.597],
-            [2494.013, 2448.626],
-            [4053.494, 3866.190],
-            [3251.950, 3146.116],
-            [2732.230, 2681.778],
-            [2448.220, 2403.196],
-            [2107.156, 2074.925]
-        ])
+        gaussian_energies = self.gaussian_data['OCHD']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHD']['freqs']
 
         print_report = False
-        if print_report:
-            if n_modes == 6:
-                print("Gaussian Energies:\n",
-                      ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-                      *(
-                          ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e in
-                            zip(states[1:], gaussian_freqs)
-                          )
-                      )
-            print("State Energies:\n",
-                  ('0 '*n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} '*n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for s, e1, e2 in
-                        zip(states[1:], harm_freq, freqs)
-                  )
-            )
-        ns = len(states) - 1
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
-                                                                              engs[0] - gaussian_engs[1], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
-                  )
-                  )
+        nielsen_tolerance = 1
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
 
-        self.assertLess(
-            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
-            1)
-
-    @inactiveTest
+    @validationTest
     def test_OCHDVPTCartesians(self):
+
+        tag = 'OCHD Cartesians'
+        file_name = "OCHD_freq.fchk"
 
         internals = None
 
-        n_modes = 3 * 4 - 6
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
-        states = self.get_states(2, n_modes)
-        coupled_states = None#self.get_states(5, n_modes)
-
-        # def block(self=self,
-        #           internals=internals,
-        #           states=states,
-        #           coupled_states=coupled_states,
-        #           mode_selection=mode_selection
-        #           ):
-        #     return
-
-        with BlockProfiler("OCHD Cartesians",
-                           print_res=False,#'raise',
-                           strip_dirs=self.job_is_dumb,
-                           sort_by='cumtime'
-                           ):
-            wfns = self.get_VPT2_wfns(
-                "OCHD_freq_16.fchk",
-                internals,
-                states,
-                regenerate=True,
-                coupled_states=coupled_states,
-                mode_selection=mode_selection,
-                log=True
-            )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        gaussian_engs = [5235.162, 5171.477]
-        gaussian_freqs = np.array([
-            [3022.813, 2881.940],
-            [2221.268, 2152.210],
-            [1701.548, 1673.311],
-            [1417.539, 1388.280],
-            [1076.474, 1058.211],
-            [1030.681, 1015.305],
-            # 2 quanta
-            [6045.626, 5574.482],
-            [4442.536, 4203.337],
-            [3403.097, 3327.254],
-            [2835.078, 2744.748],
-            [2152.949, 2098.305],
-            [2061.363, 2022.956],
-            # mixed states
-            [5244.081, 4990.144],
-            [4724.361, 4529.189],
-            [3922.817, 3809.397],
-            [4440.352, 4192.841],
-            [3638.807, 3518.724],
-            [3119.087, 3060.953],
-            [4099.287, 3896.226],
-            [3297.743, 3183.261],
-            [2778.023, 2725.597],
-            [2494.013, 2448.626],
-            [4053.494, 3866.190],
-            [3251.950, 3146.116],
-            [2732.230, 2681.778],
-            [2448.220, 2403.196],
-            [2107.156, 2074.925]
-        ])
-
+        gaussian_energies = self.gaussian_data['OCHD']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHD']['freqs']
 
         print_report = False
-        if print_report:
-            if n_modes == 6:
-                print("Gaussian Energies:\n",
-                      ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-                      *(
-                          ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-                      in zip(states[1:], gaussian_freqs)
-                      )
-                      )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                  s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
-        ns = len(states) - 1
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
-                                                                              engs[0] - gaussian_engs[1], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
-                  )
-                  )
+        nielsen_tolerance = 1
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
 
-        self.assertLess(
-            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
-            1)
-
-    @inactiveTest
-    def test_OCHTVPTInternals(self):
-
-        internals = [
-            [0, -1, -1, -1],
-            [1,  0, -1, -1],
-            [2,  1,  0, -1],
-            [3,  1,  0,  2]
-        ]
-
-        n_modes = 3 * 4 - 6
-        mode_selection = None  # [5, 4, 3]
-        if mode_selection is not None and len(mode_selection) < n_modes:
-            n_modes = len(mode_selection)
-
-        states = self.get_states(2, n_modes)
-        coupled_states = self.get_states(5, n_modes, max_quanta=5)
-
-        def block(self=self,
-                  internals=internals,
-                  states=states,
-                  coupled_states=coupled_states,
-                  mode_selection=mode_selection
-                  ):
-            return self.get_VPT2_wfns(
-                "OCHT_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                coupled_states=coupled_states,
-                mode_selection=mode_selection
-                # , t2=0
-                # , watson=0
-                # , degeneracies=1/self.h2w
-                # , degeneracies=(
-                #     coupled_states.index((0, 0, 0, 0, 0, 1)),
-                #     coupled_states.index((0, 0, 2, 0, 0, 0))
-                # )
-            )
-
-        # block()
-        exc, stat_block, wfns = self.profile_block(block)
-
-        do_profile = False
-        if do_profile:
-            if exc is not None:
-                try:
-                    raise exc
-                except:
-                    raise Exception(stat_block)
-            else:
-                raise Exception(stat_block)
-        elif exc is not None:
-            raise exc
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        gaussian_engs = [4970.730, 4912.805]
-        gaussian_freqs = np.array([
+    gaussian_data['OCHT'] = {
+        'zpe': [4970.730, 4912.805],
+        'freqs': np.array([
             [3022.143,  2864.375],
             [1918.480,  1859.357],
             [1660.249,  1630.227],
@@ -3418,213 +3236,141 @@ class VPT2Tests(TestCase):
 
             [4940.623,  4725.335],
             [4682.392,  4497.932],
-            [3578.729,  3474.240],
             [4421.438,  4220.692],
-            [3317.774,  3227.798],
-            [3059.543,  3000.454],
             [4058.812,  3870.413],
-            [2955.148,  2867.701],
-            [2696.917,  2644.455],
-            [2435.962,  2393.534],
             [3926.768,  3756.997],
+            [3578.729,  3474.240],
+            [3317.774,  3227.798],
+            [2955.148,  2867.701],
             [2823.105,  2746.008],
+            [3059.543,  3000.454],
+            [2696.917,  2644.455],
             [2564.874,  2515.823],
+            [2435.962,  2393.534],
             [2303.919,  2263.695],
             [1941.293,  1911.106]
         ])
+    }
+    @validationTest
+    def test_OCHTVPTInternals(self):
 
-        print_report = False
-        if print_report:
-            if n_modes == 6:
-                print("Gaussian Energies:\n",
-                      ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-                      *(
-                          ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-                      in
-                          zip(states[1:], gaussian_freqs)
-                      )
-                      )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
+        tag = 'OCHT Internals'
+        file_name = "OCHT_freq.fchk"
 
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
-                                                                              engs[0] - gaussian_engs[1], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq - gaussian_freqs[:, 0], freqs - gaussian_freqs[:, 1])
-                  )
-                  )
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  1,  0, -1],
+            [3,  1,  0,  2]
+        ]
 
-        self.assertLess(
-            np.max(np.abs(freqs-gaussian_freqs[:, 1])[:len(states)-1]),
-            1)
-
-    @inactiveTest
-    def test_OCHTVPTCartesians(self):
-
-        internals = None
-
-        n_modes = 3 * 4 - 6
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
-        states = self.get_states(2, n_modes)
-        with BlockProfiler("OCHT", print_res=False):
-            wfns = self.get_VPT2_wfns(
-                "OCHT_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                # coupled_states=self.get_states(9, n_modes),
-                # freq_threshold=10000/self.h2w, #only couple stuff within 5000 wavenumbers
-                # coupled_states=coupled_states,
-                mode_selection=mode_selection
-                # , degeneracies = (
-                #     (
-                #         (0, 0, 0, 0, 0, 1),
-                #     ),
-                #     (
-                #         (0, 0, 1, 1, 0, 0),
-                #     )
-                # )
-                # , degeneracies=50/self.h2w
-                , log=True
-                # , parallelized=True
-            )
+        gaussian_energies = self.gaussian_data['OCHT']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHT']['freqs']
 
-        # print(len(coupled_states), len(wfns.corrs.coupled_states))
-        # print(wfns.corrs.degenerate_states)
+        print_report = False
+        nielsen_tolerance = 1
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
 
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 1]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        #     ])
-        # print([
-        #     np.max(np.abs(wfns.corrs.wfn_corrections[i, 2]))
-        #     for i in range(len(wfns.corrs.wfn_corrections))
-        # ])
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
+    @validationTest
+    def test_OCHTVPTCartesians(self):
 
-        gaussian_engs = [4970.730, 4912.805]
-        gaussian_freqs = np.array([
-            [3022.143, 2864.375],
-            [1918.480, 1859.357],
-            [1660.249, 1630.227],
-            [1399.294, 1370.966],
-            [1036.668, 1019.245],
-            [ 904.625,  892.062],
+        tag = 'OCHT Cartesians'
+        file_name = "OCHT_freq.fchk"
 
-            [6044.287, 5601.333],
-            [3836.959, 3677.621],
-            [3320.498, 3246.038],
-            [2798.588, 2724.050],
-            [2073.336, 2035.811],
-            [1809.250, 1778.733],
+        internals = None
 
-            [4940.623, 4725.335],
-            [4682.392, 4497.932],
-            [3578.729, 3474.240],
-            [4421.438, 4220.692],
-            [3317.774, 3227.798],
-            [3059.543, 3000.454],
-            [4058.812, 3870.413],
-            [2955.148, 2867.701],
-            [2696.917, 2644.455],
-            [2435.962, 2393.534],
-            [3926.768, 3756.997],
-            [2823.105, 2746.008],
-            [2564.874, 2515.823],
-            [2303.919, 2263.695],
-            [1941.293, 1911.106]
-        ])
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
-        ns = len(states)-1
-        print_report = True
-        if print_report:
-            if n_modes == 6:
-                print("Gaussian Energies:\n",
-                      ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-                      *(
-                          ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-                          in
-                          zip(states[1:], gaussian_freqs[:ns])
-                      )
-                      )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq[:ns], freqs[:ns])
-                  )
-                  )
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
-                                                                              engs[0] - gaussian_engs[1], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
-                  )
-                  )
+        gaussian_energies = self.gaussian_data['OCHT']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHT']['freqs']
 
-        self.assertLess(
-            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
-            1)
+        print_report = False
+        nielsen_tolerance=1
+        gaussian_tolerance=50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+            , log=True
+            # , print_profile=True
+        )
+
+
+    @inactiveTest
+    def test_OCHTVPTCartesiansDegenerate(self):
+
+        tag = 'OCHT Cartesians'
+        file_name = "OCHT_freq.fchk"
+
+        internals = None
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['OCHT']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHT']['freqs']
+
+        print_report = False
+        nielsen_tolerance=1
+        gaussian_tolerance=50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+            , log=True
+            , degeneracies=degeneracies
+            # , print_profile=True
+        )
 
     #endregion Formaldehyde Analogs
 
     #region Methane
 
-    @inactiveTest
-    def test_CH2DTVPTCartesians(self):
-
-        internals = None
-
-        n_modes = 5 * 3 - 6
-        mode_selection = None
-        if mode_selection is not None and len(mode_selection) < n_modes:
-            n_modes = len(mode_selection)
-
-        states = self.get_states(2, n_modes)[:5]
-        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
-        #
-
-        with BlockProfiler("CH2DT", print_res=False):
-            wfns = self.get_VPT2_wfns(
-                "CH2DT_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                mode_selection=mode_selection,
-                log=True
-            )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        gaussian_engs = [8311.227, 8205.865]
-        gaussian_freqs = np.array([
+    gaussian_data['CH2DT'] = {
+        'zpe': [8311.227, 8205.865],
+        'freqs': np.array([
              [3206.212, 3056.426],
              [3141.846, 3001.995],
              [2328.234, 2246.906],
@@ -3647,569 +3393,287 @@ class VPT2Tests(TestCase):
 
              [6348.058, 5946.349],
              [5534.446, 5304.546],
-             [5470.079, 5252.170],
              [5157.343, 4946.234],
-             [5092.977, 4895.552],
-             [4279.364, 4131.666],
              [4651.438, 4449.136],
-             [4587.071, 4407.847],
-             [3773.459, 3657.329],
-             [3396.356, 3302.019],
              [4517.395, 4325.685],
-             [4453.028, 4280.602],
-             [3639.416, 3518.558],
-             [3262.313, 3175.698],
-             [2756.408, 2698.844],
              [4436.517, 4250.290],
-             [4372.150, 4204.590],
-             [3558.538, 3448.813],
-             [3181.436, 3094.860],
-             [2675.530, 2618.649],
-             [2541.487, 2483.423],
              [4255.193, 4077.953],
-             [4190.826, 4027.168],
-             [3377.214, 3269.456],
-             [3000.111, 2904.013],
-             [2494.205, 2435.125],
-             [2360.163, 2319.432],
-             [2279.285, 2236.240],
              [4165.552, 3999.186],
+             [5470.079, 5252.170],
+             [5092.977, 4895.552],
+             [4587.071, 4407.847],
+             [4453.028, 4280.602],
+             [4372.150, 4204.590],
+             [4190.826, 4027.168],
              [4101.185, 3948.975],
+             [4279.364, 4131.666],
+             [3773.459, 3657.329],
+             [3639.416, 3518.558],
+             [3558.538, 3448.813],
+             [3377.214, 3269.456],
              [3287.573, 3183.220],
+             [3396.356, 3302.019],
+             [3262.313, 3175.698],
+             [3181.436, 3094.860],
+             [3000.111, 2904.013],
              [2910.471, 2822.890],
+             [2756.408, 2698.844],
+             [2675.530, 2618.649],
+             [2494.205, 2435.125],
              [2404.565, 2356.088],
+             [2541.487, 2483.423],
+             [2360.163, 2319.432],
              [2270.522, 2230.076],
+             [2279.285, 2236.240],
              [2189.644, 2143.874],
              [2008.320, 1973.845]
         ])
+    }
+    @validationTest
+    def test_CH2DTVPTCartesians(self):
 
-        print_report = False
-        if print_report:
-            print("Gaussian Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-                      in
-                      zip(states[1:], gaussian_freqs)
-                  )
-                )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
-        ns = len(states) - 1
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
-                                                                              engs[0] - gaussian_engs[1], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
-                  )
-                  )
+        tag = 'CH2DT Cartesians'
+        file_name = "CH2DT_freq.fchk"
 
-        self.assertLess(
-            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
-            1)
+        internals = None
+
+        n_atoms = 5
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['CH2DT']['zpe']
+        gaussian_freqs = self.gaussian_data['CH2DT']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 1
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+            , log=True
+        )
 
     #endregion Methane
 
     #region Water Clusters
-    @debugTest
+
+    gaussian_data['WaterDimer'] = {
+        'zpe': [10133.860, 9909.756],
+        'freqs': np.array([
+        [3935.490, 3742.918],
+        [3914.939, 3752.151],
+        [3814.079, 3652.414],
+        [3718.192, 3584.139],
+        [1650.023, 1592.653],
+        [1629.210, 1585.962],
+        [631.340, 505.605],
+        [362.703, 295.834],
+        [183.777, 141.372],
+        [154.306, 110.995],
+        [146.544, 150.517],
+        [127.117, 69.163],
+
+        [7870.980, 7393.560],
+        [7829.879, 7368.493],
+        [7628.159, 7224.882],
+        [7436.384, 7016.025],
+        [3300.045, 3152.473],
+        [3258.421, 3144.157],
+        [1262.679, 921.053],
+        [725.405, 488.907],
+        [367.554, 268.882],
+        [308.612, 207.465],
+        [293.089, 299.766],
+        [254.234, 114.677],
+
+        [7850.429, 7494.650],
+        [7749.569, 7239.308],
+        [7729.019, 7402.976],
+        [7653.682, 7322.974],
+        [7633.131, 7271.264],
+        [7532.271, 7230.663],
+        [5585.513, 5334.869],
+        [5564.962, 5328.224],
+        [5464.102, 5244.056],
+        [5368.215, 5164.597],
+        [5564.700, 5314.396],
+        [5544.150, 5337.031],
+        [5443.290, 5222.111],
+        [5347.402, 5168.407],
+        [3279.233, 3172.374],
+        [4566.830, 4249.695],
+        [4546.279, 4261.388],
+        [4445.419, 4159.774],
+        [4349.531, 4139.077],
+        [2281.362, 2107.393],
+        [2260.550, 2094.511],
+        [4298.193, 4016.063],
+        [4277.642, 4024.523],
+        [4176.782, 3928.515],
+        [4080.894, 3889.457],
+        [2012.725, 1852.952],
+        [1991.913, 1862.320],
+        [994.042, 745.791],
+        [4119.267, 3875.578],
+        [4098.716, 3895.805],
+        [3997.856, 3794.279],
+        [3901.969, 3739.502],
+        [1833.800, 1732.294],
+        [1812.987, 1729.354],
+        [815.116, 620.620],
+        [546.479, 389.065],
+        [4089.796, 3839.370],
+        [4069.245, 3864.621],
+        [3968.385, 3763.445],
+        [3872.498, 3704.835],
+        [1804.329, 1699.128],
+        [1783.516, 1700.178],
+        [785.646, 595.362],
+        [517.009, 374.506],
+        [338.083, 235.655],
+        [4082.035, 3892.356],
+        [4061.484, 3903.055],
+        [3960.624, 3844.234],
+        [3864.736, 3750.792],
+        [1796.567, 1745.999],
+        [1775.755, 1736.874],
+        [777.884, 646.479],
+        [509.247, 405.832],
+        [330.321, 287.882],
+        [300.850, 261.693],
+        [4062.607, 3810.202],
+        [4042.056, 3844.889],
+        [3941.197, 3692.207],
+        [3845.309, 3657.100],
+        [1777.140, 1656.439],
+        [1756.328, 1651.982],
+        [758.457, 525.680],
+        [489.820, 336.402],
+        [310.894, 207.357],
+        [281.423, 169.590],
+        [273.662, 201.333]
+    ])
+    }
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
+        tag = 'Water Dimer Cartesians'
+        file_name = "water_dimer_freq.fchk"
+
         internals = None
 
-        n_modes = 6 * 3 - 6
-        mode_selection = None
+        n_atoms = 6
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
-        states = self.get_states(2, n_modes)
+        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
-        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
-
-        with BlockProfiler("WaterDimer", print_res=False):
-            wfns = self.get_VPT2_wfns(
-                "water_dimer_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                mode_selection=mode_selection,
-                log=True
-                # , parallelized=True
-            )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        gaussian_engs = [10133.860, 9909.756]
-        gaussian_freqs = np.array([
-            [3935.490, 3742.918],
-            [3914.939, 3752.151],
-            [3814.079, 3652.414],
-            [3718.192, 3584.139],
-            [1650.023, 1592.653],
-            [1629.210, 1585.962],
-            [631.340, 505.605],
-            [362.703, 295.834],
-            [183.777, 141.372],
-            [154.306, 110.995],
-            [146.544, 150.517],
-            [127.117, 69.163],
-
-            [7870.980, 7393.560],
-            [7829.879, 7368.493],
-            [7628.159, 7224.882],
-            [7436.384, 7016.025],
-            [3300.045, 3152.473],
-            [3258.421, 3144.157],
-            [1262.679, 921.053],
-            [725.405, 488.907],
-            [367.554, 268.882],
-            [308.612, 207.465],
-            [293.089, 299.766],
-            [254.234, 114.677],
-
-            [7850.429, 7494.650],
-            [7749.569, 7239.308],
-            [7729.019, 7402.976],
-            [7653.682, 7322.974],
-            [7633.131, 7271.264],
-            [7532.271, 7230.663],
-            [5585.513, 5334.869],
-            [5564.962, 5328.224],
-            [5464.102, 5244.056],
-            [5368.215, 5164.597],
-            [5564.700, 5314.396],
-            [5544.150, 5337.031],
-            [5443.290, 5222.111],
-            [5347.402, 5168.407],
-            [3279.233, 3172.374],
-            [4566.830, 4249.695],
-            [4546.279, 4261.388],
-            [4445.419, 4159.774],
-            [4349.531, 4139.077],
-            [2281.362, 2107.393],
-            [2260.550, 2094.511],
-            [4298.193, 4016.063],
-            [4277.642, 4024.523],
-            [4176.782, 3928.515],
-            [4080.894, 3889.457],
-            [2012.725, 1852.952],
-            [1991.913, 1862.320],
-            [994.042, 745.791],
-            [4119.267, 3875.578],
-            [4098.716, 3895.805],
-            [3997.856, 3794.279],
-            [3901.969, 3739.502],
-            [1833.800, 1732.294],
-            [1812.987, 1729.354],
-            [815.116, 620.620],
-            [546.479, 389.065],
-            [4089.796, 3839.370],
-            [4069.245, 3864.621],
-            [3968.385, 3763.445],
-            [3872.498, 3704.835],
-            [1804.329, 1699.128],
-            [1783.516, 1700.178],
-            [785.646, 595.362],
-            [517.009, 374.506],
-            [338.083, 235.655],
-            [4082.035, 3892.356],
-            [4061.484, 3903.055],
-            [3960.624, 3844.234],
-            [3864.736, 3750.792],
-            [1796.567, 1745.999],
-            [1775.755, 1736.874],
-            [777.884, 646.479],
-            [509.247, 405.832],
-            [330.321, 287.882],
-            [300.850, 261.693],
-            [4062.607, 3810.202],
-            [4042.056, 3844.889],
-            [3941.197, 3692.207],
-            [3845.309, 3657.100],
-            [1777.140, 1656.439],
-            [1756.328, 1651.982],
-            [758.457, 525.680],
-            [489.820, 336.402],
-            [310.894, 207.357],
-            [281.423, 169.590],
-            [273.662, 201.333]
-        ])
-
-        print_report = True
-        if print_report:
-            print("Gaussian Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-                      in
-                      zip(states[1:], gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
-        ns = len(states) - 1
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
-                                                                              engs[0] - gaussian_engs[1], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
-                  )
-                  )
-
-        self.assertLess(
-            np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
-            1)
+        print_report = False
+        nielsen_tolerance = 1
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
 
     @validationTest
     def test_WaterDimerVPTCartesiansParallel(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
+        tag = 'Water Dimer Cartesians'
+        file_name = "water_dimer_freq.fchk"
+
         internals = None
 
-        n_modes = 6 * 3 - 6
-        mode_selection = None
+        n_atoms = 6
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
-        states = self.get_states(2, n_modes)
+        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
-        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
+        print_report = False
+        nielsen_tolerance = 1
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+            , parallelized=True
+            # , chunk_size=int(2e4)
+        )
 
-        with BlockProfiler("WaterDimer", print_res=False):
-            wfns = self.get_VPT2_wfns(
-                "water_dimer_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                mode_selection=mode_selection,
-                log=True
-                , parallelized=True
-            )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        gaussian_engs = [10133.860, 9909.756]
-        gaussian_freqs = np.array([
-            [3935.490, 3742.918],
-            [3914.939, 3752.151],
-            [3814.079, 3652.414],
-            [3718.192, 3584.139],
-            [1650.023, 1592.653],
-            [1629.210, 1585.962],
-            [631.340, 505.605],
-            [362.703, 295.834],
-            [183.777, 141.372],
-            [154.306, 110.995],
-            [146.544, 150.517],
-            [127.117, 69.163],
-
-            [7870.980, 7393.560],
-            [7829.879, 7368.493],
-            [7628.159, 7224.882],
-            [7436.384, 7016.025],
-            [3300.045, 3152.473],
-            [3258.421, 3144.157],
-            [1262.679, 921.053],
-            [725.405, 488.907],
-            [367.554, 268.882],
-            [308.612, 207.465],
-            [293.089, 299.766],
-            [254.234, 114.677],
-
-            [7850.429, 7494.650],
-            [7749.569, 7239.308],
-            [7729.019, 7402.976],
-            [7653.682, 7322.974],
-            [7633.131, 7271.264],
-            [7532.271, 7230.663],
-            [5585.513, 5334.869],
-            [5564.962, 5328.224],
-            [5464.102, 5244.056],
-            [5368.215, 5164.597],
-            [5564.700, 5314.396],
-            [5544.150, 5337.031],
-            [5443.290, 5222.111],
-            [5347.402, 5168.407],
-            [3279.233, 3172.374],
-            [4566.830, 4249.695],
-            [4546.279, 4261.388],
-            [4445.419, 4159.774],
-            [4349.531, 4139.077],
-            [2281.362, 2107.393],
-            [2260.550, 2094.511],
-            [4298.193, 4016.063],
-            [4277.642, 4024.523],
-            [4176.782, 3928.515],
-            [4080.894, 3889.457],
-            [2012.725, 1852.952],
-            [1991.913, 1862.320],
-            [994.042, 745.791],
-            [4119.267, 3875.578],
-            [4098.716, 3895.805],
-            [3997.856, 3794.279],
-            [3901.969, 3739.502],
-            [1833.800, 1732.294],
-            [1812.987, 1729.354],
-            [815.116, 620.620],
-            [546.479, 389.065],
-            [4089.796, 3839.370],
-            [4069.245, 3864.621],
-            [3968.385, 3763.445],
-            [3872.498, 3704.835],
-            [1804.329, 1699.128],
-            [1783.516, 1700.178],
-            [785.646, 595.362],
-            [517.009, 374.506],
-            [338.083, 235.655],
-            [4082.035, 3892.356],
-            [4061.484, 3903.055],
-            [3960.624, 3844.234],
-            [3864.736, 3750.792],
-            [1796.567, 1745.999],
-            [1775.755, 1736.874],
-            [777.884, 646.479],
-            [509.247, 405.832],
-            [330.321, 287.882],
-            [300.850, 261.693],
-            [4062.607, 3810.202],
-            [4042.056, 3844.889],
-            [3941.197, 3692.207],
-            [3845.309, 3657.100],
-            [1777.140, 1656.439],
-            [1756.328, 1651.982],
-            [758.457, 525.680],
-            [489.820, 336.402],
-            [310.894, 207.357],
-            [281.423, 169.590],
-            [273.662, 201.333]
-        ])
-
-        print_report = True
-        if print_report:
-            print("Gaussian Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-                      in
-                      zip(states[1:], gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
-        ns = len(states) - 1
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
-                                                                              engs[0] - gaussian_engs[1], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
-                  )
-                  )
-
-        # self.assertLess(
-        #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
-        #     1)
 
     @validationTest
     def test_WaterDimerVPTCartesiansPararalelMemConstrained(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
+        tag = 'Water Dimer Cartesians'
+        file_name = "water_dimer_freq.fchk"
+
         internals = None
 
-        n_modes = 6 * 3 - 6
-        mode_selection = None
+        n_atoms = 6
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
 
-        states = self.get_states(2, n_modes)
+        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
-        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
-
-        with BlockProfiler("WaterDimer", print_res=False):
-            wfns = self.get_VPT2_wfns(
-                "water_dimer_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                mode_selection=mode_selection,
-                log=True
-                , parallelized=True
-                , chunk_size=int(2e4)
-            )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        gaussian_engs = [10133.860, 9909.756]
-        gaussian_freqs = np.array([
-            [3935.490, 3742.918],
-            [3914.939, 3752.151],
-            [3814.079, 3652.414],
-            [3718.192, 3584.139],
-            [1650.023, 1592.653],
-            [1629.210, 1585.962],
-            [631.340, 505.605],
-            [362.703, 295.834],
-            [183.777, 141.372],
-            [154.306, 110.995],
-            [146.544, 150.517],
-            [127.117, 69.163],
-
-            [7870.980, 7393.560],
-            [7829.879, 7368.493],
-            [7628.159, 7224.882],
-            [7436.384, 7016.025],
-            [3300.045, 3152.473],
-            [3258.421, 3144.157],
-            [1262.679, 921.053],
-            [725.405, 488.907],
-            [367.554, 268.882],
-            [308.612, 207.465],
-            [293.089, 299.766],
-            [254.234, 114.677],
-
-            [7850.429, 7494.650],
-            [7749.569, 7239.308],
-            [7729.019, 7402.976],
-            [7653.682, 7322.974],
-            [7633.131, 7271.264],
-            [7532.271, 7230.663],
-            [5585.513, 5334.869],
-            [5564.962, 5328.224],
-            [5464.102, 5244.056],
-            [5368.215, 5164.597],
-            [5564.700, 5314.396],
-            [5544.150, 5337.031],
-            [5443.290, 5222.111],
-            [5347.402, 5168.407],
-            [3279.233, 3172.374],
-            [4566.830, 4249.695],
-            [4546.279, 4261.388],
-            [4445.419, 4159.774],
-            [4349.531, 4139.077],
-            [2281.362, 2107.393],
-            [2260.550, 2094.511],
-            [4298.193, 4016.063],
-            [4277.642, 4024.523],
-            [4176.782, 3928.515],
-            [4080.894, 3889.457],
-            [2012.725, 1852.952],
-            [1991.913, 1862.320],
-            [994.042, 745.791],
-            [4119.267, 3875.578],
-            [4098.716, 3895.805],
-            [3997.856, 3794.279],
-            [3901.969, 3739.502],
-            [1833.800, 1732.294],
-            [1812.987, 1729.354],
-            [815.116, 620.620],
-            [546.479, 389.065],
-            [4089.796, 3839.370],
-            [4069.245, 3864.621],
-            [3968.385, 3763.445],
-            [3872.498, 3704.835],
-            [1804.329, 1699.128],
-            [1783.516, 1700.178],
-            [785.646, 595.362],
-            [517.009, 374.506],
-            [338.083, 235.655],
-            [4082.035, 3892.356],
-            [4061.484, 3903.055],
-            [3960.624, 3844.234],
-            [3864.736, 3750.792],
-            [1796.567, 1745.999],
-            [1775.755, 1736.874],
-            [777.884, 646.479],
-            [509.247, 405.832],
-            [330.321, 287.882],
-            [300.850, 261.693],
-            [4062.607, 3810.202],
-            [4042.056, 3844.889],
-            [3941.197, 3692.207],
-            [3845.309, 3657.100],
-            [1777.140, 1656.439],
-            [1756.328, 1651.982],
-            [758.457, 525.680],
-            [489.820, 336.402],
-            [310.894, 207.357],
-            [281.423, 169.590],
-            [273.662, 201.333]
-        ])
-
-        print_report = True
-        if print_report:
-            print("Gaussian Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-                      in
-                      zip(states[1:], gaussian_freqs)
-                  )
-                  )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
-        ns = len(states) - 1
-        print_difference = True
-        if print_difference:
-            print("Difference Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0] - gaussian_engs[0],
-                                                                              engs[0] - gaussian_engs[1], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq[:ns] - gaussian_freqs[:ns, 0], freqs[:ns] - gaussian_freqs[:ns, 1])
-                  )
-                  )
-
-        # self.assertLess(
-        #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
-        #     1)
+        print_report = False
+        nielsen_tolerance = 1
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+            , parallelized=True
+            , chunk_size=int(2e4)
+        )
 
     @validationTest
     def test_WaterDimerVPTCartesiansSubspace(self):
@@ -4819,14 +4283,15 @@ class VPT2Tests(TestCase):
 
     #region Test Action Expansions
 
-    @inactiveTest
+    @validationTest
     def test_HOHCartesianActionExpansion(self):
 
         internals = None
 
         ham = PerturbationTheoryHamiltonian.from_fchk(
             TestManager.test_data("HOH_freq.fchk"),
-            internals=internals
+            internals=internals,
+            log=False
         )
 
         expansion, wfns = ham.get_action_expansion()
@@ -5494,14 +4959,14 @@ class VPT2Tests(TestCase):
             (0, 0, 2), (0, 2, 0), (2, 0, 0),
             (0, 1, 1), (1, 0, 1), (1, 1, 0)
         )
-        coupled_states = self.get_states(5, 3, max_quanta=5)
+        # coupled_states = self.get_states(5, 3, max_quanta=5)
 
         wfns = self.get_VPT2_wfns(
             "HOD_freq.fchk",
             internals,
             states,
             regenerate=True,
-            coupled_states=coupled_states,
+            # coupled_states=coupled_states,
             log=True
         )
 
@@ -5843,6 +5308,538 @@ class VPT2Tests(TestCase):
             )
         )
 
+    @inactiveTest
+    def test_HOHIntensitiesCartesian4thOrder(self):
+
+        internals = None
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        # coupled_states = self.get_states(5, 3, max_quanta=5)
+
+        wfns = self.get_VPT2_wfns(
+            "HOH_freq.fchk",
+            internals,
+            states,
+            regenerate=True
+            # coupled_states=coupled_states,
+            , log=True
+            , order=2
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+        engs = h2w * wfns.energies
+        freqs = engs - engs[0]
+        ints = wfns.intensities
+
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freqs = harm_engs - harm_engs[0]
+        harm_ints = wfns.zero_order_intensities
+
+        breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+
+        import json
+        raise Exception(
+            json.dumps(
+                [
+                    (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+                    breakdown['breakdowns']['Full']['intensities'].tolist(),
+                    breakdown['breakdowns']['Linear']['intensities'].tolist(),
+                    breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Constant']['intensities'].tolist()
+                ]
+            )
+        )
+
+        plot_specs = False
+        if plot_specs:
+            import McUtils.Plots as plt
+            s = plt.StickPlot(freqs, ints,
+                              aspect_ratio=.5,
+                              plot_legend=("Anharmonic", "Harmonic"),
+                              image_size=500
+                              )
+            plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                          aspect_ratio=.5,
+                          axes_labels=["Frequency (cm$^{-1}$)", "Intensity (km mol$^{-1}$)"],
+                          plot_legend=("Anharmonic", "Harmonic")
+                          )
+            s.show()
+
+        # plt.TensorPlot(np.array(tms)).show()
+        # print(tms[0])
+        gaussian_harm_freqs = [
+            0.,
+            3937.525,
+            3803.300,
+            1622.303
+        ]
+        gaussian_harm_ints = [
+            0.,
+            67.02031831,
+            4.14281519,
+            67.45606550
+        ]
+        gaussian_freqs = [
+            0.,
+            3744.734,
+            3621.994,
+            1572.707,
+            7391.391,
+            7155.881,
+            3117.366,
+            7200.364,
+            5294.379,
+            5174.665
+        ]
+        gaussian_ints = [
+            0.,
+            64.17034278,
+            3.11359907,
+            68.32307006,
+            0.01482583,
+            0.31497697,
+            0.55501343,
+            2.20970792,
+            3.76327875,
+            0.06230526
+        ]
+
+        print_specs = True
+        if print_specs:
+            report = "Harmonic:   State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, harm_freqs, harm_ints, gaussian_harm_freqs, gaussian_harm_ints)
+            )
+            print(report)
+            report = "Anharmonic: State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, freqs, ints, gaussian_freqs, gaussian_ints)
+            )
+            print(report)
+
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_harm_ints[1:]],
+            list(np.round(harm_ints[1:4], 2))
+        )
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_ints[1:]],
+            list(np.round(ints[1:10], 2))
+        )
+
+    @inactiveTest
+    def test_HOHIntensities(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        # coupled_states = self.get_states(5, 3, max_quanta=5)
+
+        # internals=None
+        with BlockProfiler("HOH Intenstities", print_res=False):
+            wfns = self.get_VPT2_wfns(
+                "HOH_freq.fchk",
+                internals,
+                states,
+                regenerate=True
+                # coupled_states=coupled_states,
+                , log=True
+                , order=2
+            )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+
+        wfns.dipole_partitioning = 'standard'#'intuitive'
+        engs = h2w * wfns.energies
+        freqs = engs - engs[0]
+        ints = wfns.intensities
+
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freqs = harm_engs - harm_engs[0]
+        harm_ints = wfns.zero_order_intensities
+
+        # breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+
+        # import json
+        # raise Exception(
+        #     json.dumps(
+        #         [
+        #             (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+        #             breakdown['breakdowns']['Full']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Linear']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Constant']['intensities'].tolist()
+        #             ]
+        #     )
+        # )
+
+        plot_specs = False
+        if plot_specs:
+            import McUtils.Plots as plt
+            s = plt.StickPlot(freqs, ints,
+                              aspect_ratio=.5,
+                              plot_legend=("Anharmonic", "Harmonic"),
+                              image_size=500
+                              )
+            plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                          aspect_ratio=.5,
+                          axes_labels=["Frequency (cm$^{-1}$)", "Intensity (km mol$^{-1}$)"],
+                          plot_legend=("Anharmonic", "Harmonic")
+                          )
+            s.show()
+
+        # plt.TensorPlot(np.array(tms)).show()
+        # print(tms[0])
+        gaussian_harm_freqs = [
+            0.,
+            3937.525,
+            3803.300,
+            1622.303
+        ]
+        gaussian_harm_ints = [
+            0.,
+            67.02031831,
+             4.14281519,
+            67.45606550
+        ]
+        gaussian_freqs = [
+            0.,
+            3744.734,
+            3621.994,
+            1572.707,
+            7391.391,
+            7155.881,
+            3117.366,
+            7200.364,
+            5294.379,
+            5174.665
+        ]
+        gaussian_ints = [
+            0.,
+            64.17034278,
+            3.11359907,
+            68.32307006,
+            0.01482583,
+            0.31497697,
+            0.55501343,
+            2.20970792,
+            3.76327875,
+            0.06230526
+        ]
+
+        print_specs = True
+        if print_specs:
+            report = "Harmonic:   State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, harm_freqs, harm_ints, gaussian_harm_freqs, gaussian_harm_ints)
+            )
+            print(report)
+            report = "Anharmonic: State     Freq.   Int.    Gaussian: Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}           {:>7.2f} {:>7.4f}".format(s, f, i, gf, g)
+                for s, f, i, gf, g in zip(states, freqs, ints, gaussian_freqs, gaussian_ints)
+            )
+            print(report)
+
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_harm_ints[1:]],
+            list(np.round(harm_ints[1:4], 2))
+        )
+        self.assertEquals(
+            [round(x, 2) for x in gaussian_ints[1:]],
+            list(np.round(ints[1:10], 2))
+        )
+
+    @validationTest
+    def test_HOHIntensitiesInternalCartesianEquality(self):
+        # Add test to check that internal/cartesian intensities
+        # should be the same
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        # coupled_states = [
+        #             BasisStateSpace.from_quanta(
+        #                 HarmonicOscillatorProductBasis(3),
+        #                 range(12)
+        #             )
+        #                  ]*2
+
+        with BlockProfiler("HOH Intenstities", print_res=False):
+            wfns_internal, ham = self.get_VPT2_wfns_and_ham(
+                "HOH_freq.fchk",
+                internals,
+                states,
+                regenerate=True
+                # , coupled_states=coupled_states
+                , log=False
+                , order=2
+                # , v3 = 0
+                # , v4 = 0
+                # , t3 = 0
+                # , t4 = 0
+            )
+
+        internals = None
+        with BlockProfiler("HOH Intenstities", print_res=False):
+            wfns_cartesian, ham = self.get_VPT2_wfns_and_ham(
+                "HOH_freq.fchk",
+                internals,
+                states,
+                regenerate=True
+                # , coupled_states=coupled_states
+                , log=False
+                , order=2
+                # , v3 = 0
+                # , v4 = 0
+                # , t3 = 0
+                # , t4 = 0
+            )
+
+
+        int_internal = wfns_internal.intensities
+        int_cartesin = wfns_cartesian.intensities
+
+        self.assertEquals(int_internal, int_cartesin)
+
+
+    @inactiveTest
+    def test_HOHIntensitiesSandbox(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+        states = (
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0), (1, 0, 0),
+            (0, 0, 2), (0, 2, 0), (2, 0, 0),
+            (0, 1, 1), (1, 0, 1), (1, 1, 0)
+        )
+        # coupled_states = [
+        #             BasisStateSpace.from_quanta(
+        #                 HarmonicOscillatorProductBasis(3),
+        #                 range(12)
+        #             )
+        #                  ]*2
+
+        internals=None
+        with BlockProfiler("HOH Intenstities", print_res=False):
+            wfns, ham = self.get_VPT2_wfns_and_ham(
+                "HOH_freq.fchk",
+                internals,
+                states,
+                regenerate=True
+                # , coupled_states=coupled_states
+                , log=False
+                , order=6
+                # , v3 = 0
+                # , v4 = 0
+                # , t3 = 0
+                # , t4 = 0
+            )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+
+        # wfns.dipole_partitioning = 'intuitive'
+        engs = h2w * wfns.energies
+        freqs = engs - engs[0]
+        ints = wfns.intensities
+
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freqs = harm_engs - harm_engs[0]
+        harm_ints = wfns.zero_order_intensities
+
+        import json
+        breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+        raise Exception(
+            json.dumps(
+                [
+                    (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+                    # ints.tolist(),
+                    breakdown['breakdowns']['Full']['intensities'].tolist(),
+                    breakdown['breakdowns']['Linear']['intensities'].tolist(),
+                    breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Constant']['intensities'].tolist(),
+                    breakdown['breakdowns']['Order0']['intensities'].tolist(),
+                    breakdown['breakdowns']['Order1']['intensities'].tolist()
+                    ]
+            )
+        )
+
+        plot_specs = False
+        if plot_specs:
+            import McUtils.Plots as plt
+            s = plt.StickPlot(freqs, ints,
+                              aspect_ratio=.5,
+                              plot_legend=("Anharmonic", "Harmonic"),
+                              image_size=500
+                              )
+            plt.StickPlot(harm_freqs, harm_ints, figure=s, plot_style=dict(linefmt='red'),
+                          aspect_ratio=.5,
+                          axes_labels=["Frequency (cm$^{-1}$)", "Intensity (km mol$^{-1}$)"],
+                          plot_legend=("Anharmonic", "Harmonic")
+                          )
+            s.show()
+
+        # plt.TensorPlot(np.array(tms)).show()
+        # print(tms[0])
+
+        print_specs = True
+        if print_specs:
+            report = "Harmonic:   State     Freq.   Int.  \n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}       ".format(s, f, i)
+                for s, f, i in zip(states, harm_freqs, harm_ints)
+            )
+            print(report)
+            report = "Anharmonic: State     Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}  ".format(s, f, i)
+                for s, f, i in zip(states, freqs, ints)
+            )
+            print(report)
+
+    @debugTest
+    def test_OCHHIntensitiesSanbox(self):
+
+        tag = "OCHH Intenstities"
+        file_name = "OCHH_freq.fchk"
+
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  1,  0, -1],
+            [3,  1,  0,  2]
+        ]
+
+        internals = None
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        degeneracies = (
+            [
+                [0, 0, 0, 0, 0, 1],
+                [0, 1, 0, 1, 0, 0]
+            ],
+        )
+        degeneracies = None
+
+        basis = HarmonicOscillatorProductBasis(n_modes)
+
+        with BlockProfiler(tag, print_res=True):
+            wfns = self.get_VPT2_wfns(
+                file_name,
+                internals,
+                states,
+                regenerate=True
+                # coupled_states=coupled_states,
+                , log=True
+                , order=4
+                , degeneracies=degeneracies
+                # , v3 = 0
+                # , t3 = 0
+                # , v4 = 0
+                # , t4 = 0
+                , selection_rules=[
+                    [r for r in basis.selection_rules("x", "x", "x") if len(r) <= 2],
+                    [r for r in basis.selection_rules("x", "x", "x", "x") if len(r) <= 3]
+                ]
+                , state_space_iterations=2
+            )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+
+        with BlockProfiler(tag, print_res=True):
+            raise Exception(wfns.intensities)
+
+        import json
+        with BlockProfiler(tag, print_res=True):
+            breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+        raise Exception(
+            json.dumps(
+                [
+                    (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+                    breakdown['breakdowns']['Full']['intensities'].tolist(),
+                    breakdown['breakdowns']['Linear']['intensities'].tolist(),
+                    breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+                    breakdown['breakdowns']['Constant']['intensities'].tolist(),
+                    breakdown['breakdowns']['Order0']['intensities'].tolist(),
+                    breakdown['breakdowns']['Order1']['intensities'].tolist()
+                ]
+            )
+        )
+
+        # trying to turn off the orthogonality condition
+        # states = wfns.corrs.states
+        # for i,s in enumerate(states):
+        #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
+        engs = h2w * wfns.energies
+        freqs = engs - engs[0]
+
+        with BlockProfiler("Intensities", print_res=True):
+            ints = wfns.intensities
+
+        harm_engs = h2w * wfns.zero_order_energies
+        harm_freqs = harm_engs - harm_engs[0]
+        harm_ints = wfns.zero_order_intensities
+
+        print_specs = True
+        if print_specs:
+            report = "Harmonic:   State     Freq.   Int.  \n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}       ".format(s, f, i)
+                for s, f, i in zip(states, harm_freqs, harm_ints)
+            )
+            print(report)
+            report = "Anharmonic: State     Freq.   Int.\n" + "\n".join(
+                " " * 12 + "{} {:>7.2f} {:>7.4f}  ".format(s, f, i)
+                for s, f, i in zip(states, freqs, ints)
+            )
+            print(report)
+
+
     @validationTest
     def test_WaterDimerIntensitiesCartesian(self):
 
@@ -5955,7 +5952,7 @@ class VPT2Tests(TestCase):
         )
 
         plot_spec = False
-        with open('/Users/Mark/Desktop/HOD_freq_carts.csv', "w+") as s:
+        with open(os.path.expanduser('~/Desktop/HOD_freq_carts.csv'), "w+") as s:
             # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
@@ -5983,7 +5980,7 @@ class VPT2Tests(TestCase):
         )
 
         plot_spec = False
-        with open('/Users/Mark/Desktop/HOH_freq.csv', "w+") as s:
+        with open(os.path.expanduser('~/Desktop/HOH_freq.csv'), "w+") as s:
             # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
@@ -6007,7 +6004,7 @@ class VPT2Tests(TestCase):
         )
 
         plot_spec=False
-        with open('/Users/Mark/Desktop/HOH_freq_carts.csv', "w+") as s:
+        with open(os.path.expanduser('~/Desktop/HOH_freq_carts.csv'), "w+") as s:
         # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 

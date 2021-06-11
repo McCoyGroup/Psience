@@ -23,6 +23,7 @@ __all__ = [
 
 __reload_hook__ = [ "..BasisReps" , '.Terms', ".Solver", "..Molecools", ]
 
+
 class PerturbationTheoryHamiltonian:
     """
     Represents the main Hamiltonian used in the perturbation theory calculation.
@@ -38,10 +39,12 @@ class PerturbationTheoryHamiltonian:
                  mode_selection=None,
                  potential_derivatives=None,
                  coriolis_coupling=True,
+                 watson_term=True,
                  parallelizer=None,
                  log=None,
                  checkpoint=None,
-                 operator_chunk_size=None
+                 operator_chunk_size=None,
+                 selection_rules=None
                  ):
         """
         :param molecule: the molecule on which we're doing perturbation theory
@@ -101,9 +104,10 @@ class PerturbationTheoryHamiltonian:
         mode_n = modes.basis.matrix.shape[1] if mode_selection is None else len(mode_selection)
         self.mode_n = mode_n
         if n_quanta is None:
-            n_quanta = 10 # dunno yet how I want to handle this since it should really be defined by the order of state requested...
+            n_quanta = 15 # dunno yet how I want to handle this since it should really be defined by the order of state requested...
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
         self.modes = modes
+        self.mode_selection = mode_selection
         self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection,
                                       potential_derivatives=potential_derivatives,
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
@@ -114,10 +118,15 @@ class PerturbationTheoryHamiltonian:
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
         else:
             self.coriolis_terms = None
-        self.watson_term = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
-                                      logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
+
+        if watson_term:
+            self.watson_term = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
+                                          logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
+        else:
+            self.watson_term = None
 
         self._h0 = self._h1 = self._h2 = None
+        self._selection_rules = selection_rules
 
         self.basis = HarmonicOscillatorProductBasis(self.n_quanta)
 
@@ -198,6 +207,11 @@ class PerturbationTheoryHamiltonian:
                                                         **self.operator_settings
                                                         )
             )
+
+
+            if self._selection_rules is not None and len(self._selection_rules) > 0:
+                self._h1.selection_rules = self._selection_rules[0]
+
         return self._h1
 
     @property
@@ -227,14 +241,18 @@ class PerturbationTheoryHamiltonian:
                                                                coeffs=total_cor,
                                                                **self.operator_settings
                                                                )
-            else:
-                self._h2 += 0 * self.basis.representation(coeffs=0,
-                                                          **self.operator_settings
-                                                          )
+            # else:
+            #     self._h2 += 0 * self.basis.representation(coeffs=0,
+            #                                               **self.operator_settings
+            #                                               )
 
-            self._h2 += 1 / 8 * self.basis.representation(coeffs=self.watson_term[0],
-                                                          **self.operator_settings
-                                                          )
+            if self.watson_term is not None:
+                self._h2 += 1 / 8 * self.basis.representation(coeffs=self.watson_term[0],
+                                                              **self.operator_settings
+                                                              )
+
+            if self._selection_rules is not None and len(self._selection_rules) > 1:
+                self._h2.selection_rules = self._selection_rules[1]
 
         return self._h2
 
@@ -288,13 +306,16 @@ class PerturbationTheoryHamiltonian:
                       )
         )
         xst_cor = sum((
-                                  Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s] + w[t] / w[s])
+                                  Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s] + w[s] / w[t])
                           ) for a in range(3))
 
         return [xst_3, xst_4, xst_cor]
 
     @classmethod
     def _get_Nielsen_xmat(cls, freqs, v3, v4, zeta, Be):
+
+        # raise Exception(UnitsData.convert("Hartrees", "Wavenumbers") * Be, np.round(zeta, 5))
+
         ndim = len(freqs)
         x_mat_linear = np.array([
             cls._Nielsen_xss(s, freqs, v3, v4, zeta, Be, ndim) if s == t else
@@ -307,48 +328,82 @@ class PerturbationTheoryHamiltonian:
         x_mat[:, ci, ri] = x_mat_linear
         return x_mat
 
+    # @classmethod
+    # def _get_Nielsen_energies(cls, states, freqs, v3, v4, zeta, Be):
+    #     """
+    #     Returns energies using Harald Nielsen's formulae up to second order. Assumes no degeneracies.
+    #     If implemented smarter, would be much, much faster than doing full-out perturbation theory, but less flexible.
+    #     Good for validation, too.
+    #
+    #
+    #     :param states: states to get energies for as lists of quanta in degrees of freedom
+    #     :type states: Iterable[Iterable[int]]
+    #     :param freqs: Harmonic frequencies
+    #     :type freqs: np.ndarray
+    #     :param v3: Cubic force constants
+    #     :type v3: np.ndarray
+    #     :param v4: Quartic force constants
+    #     :type v4: np.ndarray
+    #     :param zeta: Coriolis couplings
+    #     :type zeta: np.ndarray
+    #     :param Be: Moments of inertia
+    #     :type Be: np.ndarray
+    #     :return:
+    #     :rtype:
+    #     """
+    #
+    #     x_mat = cls._get_Nielsen_xmat(freqs, v3, v4, zeta, Be)
+
+
     @classmethod
-    def _get_Nielsen_energies(cls, states, freqs, v3, v4, zeta, Be):
+    def _get_Nielsen_energies_from_x(cls, states, freqs, x_mat, return_split=False):
         """
-        Returns energies using Harald Nielsen's formulae up to second order. Assumes no degeneracies.
-        If implemented smarter, would be much, much faster than doing full-out perturbation theory, but less flexible.
-        Good for validation, too.
+       Returns energies using Harald Nielsen's formulae up to second order. Assumes no degeneracies.
+       If implemented smarter, would be much, much faster than doing full-out perturbation theory, but less flexible.
+       Good for validation, too.
 
 
-        :param states: states to get energies for as lists of quanta in degrees of freedom
-        :type states: Iterable[Iterable[int]]
-        :param freqs: Harmonic frequencies
-        :type freqs: np.ndarray
-        :param v3: Cubic force constants
-        :type v3: np.ndarray
-        :param v4: Quartic force constants
-        :type v4: np.ndarray
-        :param zeta: Coriolis couplings
-        :type zeta: np.ndarray
-        :param Be: Moments of inertia
-        :type Be: np.ndarray
-        :return:
-        :rtype:
-        """
+       :param states: states to get energies for as lists of quanta in degrees of freedom
+       :type states: Iterable[Iterable[int]]
+       :param freqs: Harmonic frequencies
+       :type freqs: np.ndarray
+       :param v3: Cubic force constants
+       :type v3: np.ndarray
+       :param v4: Quartic force constants
+       :type v4: np.ndarray
+       :param zeta: Coriolis couplings
+       :type zeta: np.ndarray
+       :param Be: Moments of inertia
+       :type Be: np.ndarray
+       :return:
+       :rtype:
+       """
 
-        x_mat = cls._get_Nielsen_xmat(freqs, v3, v4, zeta, Be)
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        raise Exception(x_mat * h2w)
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        # raise Exception(np.sum(x_mat, axis=0) * h2w)
+        # raise Exception(x_mat * h2w)
 
         states = np.array(states) + 1/2 # n+1/2 for harmonic vibrations
 
-        x_mat = np.sum(x_mat, axis=0)
         e_harm = np.tensordot(freqs, states, axes=[0, 1])
+
         outer_states = vec_outer(states, states)
-        # raise Exception(states, outer_states)
-        e_anharm = np.tensordot(x_mat, outer_states, axes=[[0, 1], [1, 2]])
+
+        weights = np.full(x_mat[0].shape, 1/2)
+        np.fill_diagonal(weights, 1)
+        x_mat = [x * weights for x in x_mat]
+
+        if return_split:
+            e_anharm = np.array([np.tensordot(x, outer_states, axes=[[0, 1], [1, 2]]) for x in x_mat])
+        else:
+            x_mat = np.sum(x_mat, axis=0)
+            e_anharm = np.tensordot(x_mat, outer_states, axes=[[0, 1], [1, 2]])
 
         return e_harm, e_anharm
 
     def get_Nielsen_xmatrix(self):
 
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
         # TODO: figure out WTF the units on this have to be...
 
@@ -364,7 +419,7 @@ class PerturbationTheoryHamiltonian:
 
         return x
 
-    def get_Nielsen_energies(self, states):
+    def get_Nielsen_energies(self, states, return_split=False):
         """
 
         :param states:
@@ -373,24 +428,22 @@ class PerturbationTheoryHamiltonian:
         :rtype:
         """
 
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
         # TODO: figure out WTF the units on this have to be...
 
+        x_mat = self.get_Nielsen_xmatrix()
         freqs = self.modes.freqs
-        v3 = self.V_terms[1]
-        v4 = self.V_terms[2]
 
-        # raise Exception(np.round( 6 * v3 * h2w))
-
-        zeta, Be = self.coriolis_terms.get_zetas_and_momi()
-
-        harm, anharm = self._get_Nielsen_energies(states, freqs, v3, v4, zeta, Be)
+        harm, anharm = self._get_Nielsen_energies_from_x(states, freqs, x_mat, return_split=return_split)
 
         # harm = harm / h2w
         anharm = anharm
 
-        return harm, anharm
+        if return_split:
+            return harm, anharm, x_mat
+        else:
+            return harm, anharm
 
     #endregion Nielsen energies
 
@@ -414,9 +467,12 @@ class PerturbationTheoryHamiltonian:
 
         nits = order - 1
         if nits >= 0:
+
+            transitions_h1 = self.basis.selection_rules("x", "x", "x")
+            transitions_h2 = self.basis.selection_rules("x", "x", "x", "x")
+
             # the states that can be coupled through H1
             self.logger.log_print('getting states coupled through H^(1)')
-            transitions_h1 = self.basis.selection_rules("x", "x", "x")
             h1_space = states.apply_selection_rules(
                 transitions_h1,
                 iterations=(order - 1)
@@ -424,11 +480,12 @@ class PerturbationTheoryHamiltonian:
 
             # from second order corrections
             self.logger.log_print('getting states coupled through H^(2)')
-            transitions_h2 = self.basis.selection_rules("x", "x", "x", "x")
             h2_space = states.apply_selection_rules(
                 transitions_h2,
                 iterations=(order - 1)
             )
+
+
         else:
             h1_space = states.take_states([])
             h2_space = states.take_states([])
@@ -449,6 +506,8 @@ class PerturbationTheoryHamiltonian:
         :return:
         :rtype:
         """
+
+        raise NotImplementedError("gotta fix this...")
 
         with self.logger.block(tag='Computing PT corrections:'):
             with self.logger.block(tag='getting coupled states'):
@@ -472,7 +531,8 @@ class PerturbationTheoryHamiltonian:
                                states,
                                coupled_states=None,
                                degeneracies=None,
-                               order=2
+                               order=2,
+                               deg_extra_order=2
                                ):
         """
         Converts the input state specs into proper `BasisStateSpace` specs that
@@ -493,11 +553,32 @@ class PerturbationTheoryHamiltonian:
         if not isinstance(states, BasisStateSpace):
             states = BasisStateSpace(self.basis, states)
 
+        no_states_to_start = coupled_states is None
+
         coupled_states = self._prep_coupled_states(states, coupled_states, order)
 
-        # degeneracies = self._prep_degeneracies_spec(degeneracies)
+        # raise Exception(coupled_states)
 
-        return states, coupled_states, degeneracies
+        space_list = [states] + list(coupled_states)
+        total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
+        flat_total_space = total_space.to_single().take_unique()
+
+        degeneracies = DegenerateMultiStateSpace.from_spec(self, states, flat_total_space, degeneracies)
+
+        if no_states_to_start and degeneracies is not None:
+            for g in degeneracies:
+                if len(g) > 1: # these states can now couple to many more states through indirect couplings
+                    extra_states = self.get_coupled_space(g, order+2) # we
+                    g_inds = tuple(states.find(g))
+                    for c, e in zip(coupled_states, extra_states):
+                        for i, s in zip(g_inds, e):
+                            c[i] = s
+
+        space_list = [states] + list(coupled_states)
+        total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
+        flat_total_space = total_space.to_single().take_unique()
+
+        return states, coupled_states, total_space, flat_total_space, degeneracies
 
     def _prep_coupled_states(self, states, coupled_states, order):
         """
@@ -514,7 +595,7 @@ class PerturbationTheoryHamiltonian:
         """
         if coupled_states is None or isinstance(coupled_states, (int, np.integer, float, np.floating)):
             # pull the states that we really want to couple
-            coupled_states = self.get_coupled_space(states, order
+            coupled_states = self.get_coupled_space(states, order,
                                                     # freqs=self.modes.freqs,
                                                     # freq_threshold=coupled_states
                                                     )
@@ -544,6 +625,12 @@ class PerturbationTheoryHamiltonian:
                           states,
                           coupled_states=None,
                           degeneracies=None,
+                          allow_sakurai_degs=False,
+                          allow_post_PT_calc=True,
+                          intermediate_normalization=False,
+                          ignore_odd_order_energies=True,
+                          zero_element_warning=True,
+                          state_space_iterations=None,
                           order=2
                           ):
         """
@@ -558,6 +645,9 @@ class PerturbationTheoryHamiltonian:
         :return: generated wave functions
         :rtype: PerturbationTheoryWavefunctions
         """
+
+        if allow_sakurai_degs:
+            raise NotImplementedError("true degeneracy handling needs to be reworked to be fully general")
 
         with self.checkpointer:
 
@@ -580,33 +670,33 @@ class PerturbationTheoryHamiltonian:
                     pert_num=len(h_reps) - 1,
                 )
 
-                with self.logger.block(tag='getting coupled states'):
-                    start = time.time()
-                    states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies,
-                                                                                       order=order)
-                    end = time.time()
-                    self.logger.log_print("took {t}s...", t=round(end - start, 3))
+                # with self.logger.block(tag='getting coupled states'):
+                #     start = time.time()
+                #     states, coupled_states, total_space, flat_space, degeneracies = self.get_input_state_spaces(states,
+                #                                                                        coupled_states,
+                #                                                                        degeneracies,
+                #                                                                        order=order)
+                #     end = time.time()
+                #     self.logger.log_print("took {t}s...", t=round(end - start, 3))
+                if not isinstance(states, BasisStateSpace):
+                    states = BasisStateSpace(self.basis, states)
 
-                bs = []
-                for b in coupled_states:
-                    bs.append(b.unique_len)
-                self.logger.log_print(
-                    [
-                        "basis sizes {basis_size}"
-                    ],
-                    basis_size=bs
-                )
-
-                solver = PerturbationTheorySolver(h_reps, states, coupled_states, order,
-                                                 degeneracy_spec=degeneracies,
-                                                 logger=self.logger,
-                                                 checkpointer=self.checkpointer,
-                                                 allow_sakurai_degs=True,
-                                                 allow_post_PT_calc=True
-                                                 )
+                solver = PerturbationTheorySolver(h_reps, states,
+                                                  order=order,
+                                                  state_space_iterations=state_space_iterations,
+                                                  coupled_states=coupled_states,
+                                                  degenerate_states=degeneracies,
+                                                  logger=self.logger,
+                                                  checkpointer=self.checkpointer,
+                                                  allow_sakurai_degs=allow_sakurai_degs,
+                                                  allow_post_PT_calc=allow_post_PT_calc,
+                                                  ignore_odd_order_energies=ignore_odd_order_energies,
+                                                  intermediate_normalization=intermediate_normalization,
+                                                  zero_element_warning=zero_element_warning
+                                                  )
                 corrs = solver.apply_VPT()
 
-        return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, logger=self.logger)
+        return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, modes=self.modes, mode_selection=self.mode_selection, logger=self.logger)
 
     @classmethod
     def _invert_action_expansion_tensors(cls,
@@ -633,18 +723,22 @@ class PerturbationTheoryHamiltonian:
 
         c_mat = np.zeros((len(states), len(states)), dtype=float)  # to invert
 
+        #TODO: add a check that makes sure that the number of states is sufficient to fully invert the tensor
+        #       i.e. make sure that there are as many states as there are upper-triangle indices
+        #       then probably want to check that the states are properly independent, too...
         col = 0
         blocks = []  # to more easily recompose the tensors later
         nterms = 1 + order // 2 # second order should be [2, 1], 4th order should be [3, 2, 1], 6th should be [4, 3, 2, 1]
         for k in range(nterms, 0, -1):
             ninds = []
             # generate the index tensors to loop over
+            # we later pull only the upper triangle indices
             inds = np.indices((nmodes,) * k)
             inds = inds.transpose(tuple(range(1, k + 1)) + (0,))
             inds = np.reshape(inds, (-1, k))
             for perm in inds:
                 if (np.sort(perm) != perm).any():
-                    continue # only want the _unique_ permutations
+                    continue # only want the upper triangle
                 # generate the action coefficients
                 coeffs = np.prod(exc[:, perm] + 1 / 2, axis=1)
                 c_mat[:, col] = coeffs
@@ -688,7 +782,8 @@ class PerturbationTheoryHamiltonian:
         ndim = len(self.n_quanta)
         nterms = 1 + order // 2
 
-        states = BasisStateSpace.from_quanta(HarmonicOscillatorProductBasis(ndim), range(nterms)).excitations
+        states = BasisStateSpace.from_quanta(HarmonicOscillatorProductBasis(ndim), range(nterms + 1))
+        # raise Exception(states)
 
         wfns = self.get_wavefunctions(states)
 
@@ -767,7 +862,7 @@ class PerturbationTheoryHamiltonian:
                 logger=self.logger
             )
 
-            wfns = PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, logger=self.logger)
+            wfns = PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, modes=self.modes, mode_selection=self.mode_selection, logger=self.logger)
             specs[k] = wfns
 
         return specs

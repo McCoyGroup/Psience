@@ -13,23 +13,24 @@ from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
 
 from .Operators import Operator
-from .StateSpaces import BraKetSpace
+from .StateSpaces import BraKetSpace, StateSpaceMatrix
 
+# for interactive work
 __reload_hook__ = [ '.StateSpaces', ".Operators" ]
 
 class Representation:
     """
-    A `Representation` provides a simple interface to compute only some elements of high-dimensional tensors.
-    It takes a tensor shape and a function to compute tensor elements.
-    The `compute` function should be able to take a block of indices and return all the matrix elements.
+    A `Representation` provides a simple interface to build matrix representations of operators expressed
+    in high-dimensional spaces.
+
     """
 
-    def __init__(self, compute, basis, logger=None):
+    def __init__(self, compute, basis, logger=None, selection_rules=None):
         """
         :param compute: the function that turns indices into values
         :type compute: callable | Operator
-        :param n_quanta: the basis quanta used in the representations (necessary for shape reasons)
-        :type n_quanta: RepresentationBasis
+        :param basis: the basis quanta used in the representations
+        :type basis: RepresentationBasis
         :param logger: logger for printing out debug info
         :type logger: None | Logger
         """
@@ -39,13 +40,28 @@ class Representation:
         else:
             operator = None
         self.operator = operator
-        self.compute = compute
+        self._compute = compute
         self.basis = basis
         self.dims = basis.dimensions
         self._diminds = None
         if logger is None:
             logger = NullLogger()
-        self.logger=logger
+        self.logger = logger
+        self.array = StateSpaceMatrix(basis)
+        self._selection_rules = selection_rules
+
+    def compute(self, inds):
+        # if isinstance(inds, BraKetSpace):
+        #     # allows us to use cached stuff
+        #     return self.array.compute_values(self._compute, inds)
+        # else:
+        return self._compute(inds)
+    def compute_cached(self, inds):
+        if isinstance(inds, BraKetSpace):
+            # allows us to use cached stuff
+            self.array._compute_uncached_values(self._compute, inds)
+        else:
+            raise ValueError("Can only compute cached values when given explicit BraKets")
 
     def clear_cache(self):
         # print(">>>>>>>>>>>>> wat", self.compute, self.operator)
@@ -98,7 +114,7 @@ class Representation:
         is managed by the BraKetSpace
 
         :param states:
-        :type states:
+        :type states: BraKetSpace | Tuple[np.ndarray, np.ndarray]
         :return:
         :rtype:
         """
@@ -170,12 +186,10 @@ class Representation:
             m = [m]
 
         if pull_elements:
-            raise NotImplementedError("we shouldn't be here...")
             # If we're just pulling elements we need only unravel those indices
             n = np.unravel_index(n, dims)
             m = np.unravel_index(m, dims)
         else:
-            raise NotImplementedError("we shouldn't be here...")
             # If we're pulling blocks we need to compute the product of the row
             #  and column indices to get the total index spec
             blocks = np.array(list(ip.product(n, m)))
@@ -270,6 +284,72 @@ class Representation:
             self._get_dim_string(self.dims) if hasattr(self, 'dims') else '???',
             self.operator if self.operator is not None else self.compute
         )
+
+    @property
+    def selection_rules(self):
+        """
+
+        :return:
+        :rtype:
+        """
+        if self._selection_rules is None:
+            if self.operator is not None:
+                return self.operator.selection_rules
+
+            else:
+                return None
+        else:
+            return self._selection_rules
+    @selection_rules.setter
+    def selection_rules(self, rules):
+        if isinstance(rules[0], (int, np.integer)):
+            raise ValueError('selection rules expected to be a list of lists')
+        self._selection_rules = rules
+
+    def get_transformed_space(self, space):
+        """
+        Returns the state space obtained by using the
+        held operator to transform `space`
+
+        :param space:
+        :type space:
+        :return:
+        :rtype:
+        """
+
+        if self.operator is not None:
+            return self.operator.get_transformed_space(space, rules=self.selection_rules)
+        elif self.selection_rules is not None:
+            return space.apply_selection_rules(self.selection_rules)
+        else:
+            raise ValueError("can't get a transformed space without a held operator or selection rules")
+
+
+    def apply(self, other):
+
+        if self.operator is None:
+            raise ValueError("")
+
+        if not isinstance(other, (Representation, StateSpaceMatrix)):
+            raise TypeError("{} doesn't support application to objects that don't provide a state space".format(
+                type(self).__name__
+            ))
+
+        if isinstance(other, Representation):
+            other = other.array
+
+        other_states = other.brakets.bras
+        new_states = self.operator.get_transformed_space(other_states)
+        # try:
+        brakets = new_states.get_representation_brakets()
+        # raise Exception(brakets.bras.excitations[:5], brakets.kets.excitations[:5])
+        # except:
+        #     raise Exception(other_states, other)
+
+        self.compute_cached(brakets)
+
+        return self.array.dot(other)
+
 
 class ExpansionRepresentation(Representation):
     """
@@ -390,6 +470,35 @@ class ExpansionRepresentation(Representation):
 
     def get_element(self, n, m):
         return self._dispatch_over_expansion('get_element', n, m)
+
+    def get_transformed_space(self, space):
+        """
+        Returns the state space obtained by using the
+        held operators to transform `space`
+
+        :param space:
+        :type space: BasisStateSpace
+        :return:
+        :rtype:
+        """
+        import functools
+
+        # we take a union of all transformation rules and just apply that
+        # if possible
+        if self._selection_rules is not None:
+            ooooh_shiz = space.apply_selection_rules(self.selection_rules)
+        elif all(hasattr(x, 'selection_rules') for x in self.computers):
+            total_sel_rules = []
+            for x in self.computers:
+                for r in x.selection_rules:
+                    if r not in total_sel_rules:
+                        total_sel_rules.append(r)
+            ooooh_shiz = space.apply_selection_rules(total_sel_rules)
+        else:
+            spaces = [r.get_transformed_space(space) for r in self.computers]
+            ooooh_shiz = functools.reduce(lambda s1,s2: s1.union(s2), spaces[1:], spaces[0])
+
+        return ooooh_shiz
 
     def __repr__(self):
         return "{}(<{}>, ({}), ({}))".format(
