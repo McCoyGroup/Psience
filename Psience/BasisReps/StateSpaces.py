@@ -575,6 +575,8 @@ class BasisStateSpace(AbstractStateSpace):
 
         states = self._init_states
         states_type = self.infer_state_inds_type()
+        if len(states) == 0:
+            return np.array([], dtype=self.excitations_dtype)
 
         if states_type is self.StateSpaceSpec.Excitations:
             return np.reshape(states, (-1, self.ndim))
@@ -744,7 +746,9 @@ class BasisStateSpace(AbstractStateSpace):
                                    other=None,
                                    selection_rules=None,
                                    freqs=None,
-                                   freq_threshold=None
+                                   freq_threshold=None,
+                                   filter=None,
+                                   return_filter=False
                                    ):
         """
         Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
@@ -756,11 +760,13 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype:
         """
 
-        if other is None:
-            other = self
+        # if other is None:
+        #     other = self
 
+        filter = None
         if freq_threshold is None:
             if selection_rules is None:
+                # TODO: not sure I want to be happening here
                 l_inds = self.indices
                 r_inds = other.indices
                 # TODO: make this less slow... ip.product can be brutal
@@ -771,9 +777,13 @@ class BasisStateSpace(AbstractStateSpace):
                 # Get the representation indices that can be coupled under the supplied set of selection rules
                 # Currently this is clumsy.
                 # We do this by computing transformed states finding where this intersects with the other space
-
-                transf = self.apply_selection_rules(selection_rules, filter_space=other)
+                if filter is None:
+                    filter = other
+                transf = self.apply_selection_rules(selection_rules, filter_space=filter)
+                if not isinstance(transf, AbstractStateSpace):
+                    transf, filter = transf
                 m_pairs = transf.get_representation_indices()
+
         else:
             raise NotImplementedError("Changed up how comb will apply, but haven't finished the implementation")
             exc = self.excitations
@@ -798,13 +808,18 @@ class BasisStateSpace(AbstractStateSpace):
                 h1_terms = h1_terms[h1_sel]
                 h1_couplings[i] = (s, h1_terms)
 
-        return m_pairs
+        if return_filter:
+            return m_pairs, filter
+        else:
+            return m_pairs
 
     def get_representation_brakets(self,
                                    other=None,
                                    selection_rules=None,
                                    freqs=None,
-                                   freq_threshold=None
+                                   freq_threshold=None,
+                                   filter=None,
+                                   return_filter=False
                                    ):
         """
         Generates a `BraKetSpace` that can be fed into a `Representation`
@@ -825,8 +840,15 @@ class BasisStateSpace(AbstractStateSpace):
         inds = self.get_representation_indices(other=other,
                                                selection_rules=selection_rules,
                                                freqs=freqs,
-                                               freq_threshold=freq_threshold
+                                               freq_threshold=freq_threshold,
+                                               filter=filter,
+                                               return_filter=return_filter
                                                )
+
+        if return_filter:
+            inds, filter = inds
+        else:
+            filter = None
 
         if len(inds) > 0:
             row_space = BasisStateSpace(self.basis, inds[0], mode=self.StateSpaceSpec.Indices)
@@ -840,7 +862,20 @@ class BasisStateSpace(AbstractStateSpace):
             bras = BasisStateSpace(self.basis, [])
             kets = BasisStateSpace(self.basis, [])
 
-        return BraKetSpace(bras, kets)
+        if return_filter:
+            # try:
+            return BraKetSpace(bras, kets), filter
+            # except:
+            #     coops = nput.contained(col_space.indices, other.indices, invert=True)[0]
+            #     meh = inds[0][coops]
+            #     raise Exception(
+            #         nput.difference(kets.excitations, other.excitations)[0],
+            #         meh,
+            #         self.basis.indexer.symmetric_group.from_indices(meh[:20]),
+            #         other.indices[:20]
+            #     )
+        else:
+            return BraKetSpace(bras, kets)
 
     def take_subspace(self, sel, assume_sorted=False):
         """
@@ -869,7 +904,7 @@ class BasisStateSpace(AbstractStateSpace):
             if self.has_indices:
                 subspace.indices = self.indices[sel,]
             if assume_sorted: #from earlier directly implies `is_sorted`
-                ...
+                raise NotImplementedError('need to account for the implications of this...')
         else:
             subspace = type(self)(
                 self.basis,
@@ -1434,7 +1469,8 @@ class BasisMultiStateSpace(AbstractStateSpace):
                                    freqs=None,
                                    freq_threshold=None,
                                    other=None,
-                                   selection_rules=None
+                                   selection_rules=None,
+                                   return_filter=False
                                    ):
         """
         Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
@@ -1444,6 +1480,8 @@ class BasisMultiStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+
+        raise NotImplementedError('unoptimized code path')
 
         if other is not None:
             raise ValueError("haven't implemented getting indices to a set of 'other' states...")
@@ -1476,9 +1514,18 @@ class BasisMultiStateSpace(AbstractStateSpace):
                                    freqs=None,
                                    freq_threshold=None,
                                    other=None,
-                                   selection_rules=None
+                                   selection_rules=None,
+                                   filter=None,
+                                   return_filter=False
                                    ):
-        return BasisStateSpace.get_representation_brakets(self, freqs=freqs, freq_threshold=freq_threshold)
+
+        return BasisStateSpace.get_representation_brakets(self,
+                                                          other=other,
+                                                          freqs=freqs,
+                                                          freq_threshold=freq_threshold,
+                                                          filter=filter,
+                                                          return_filter=return_filter
+                                                          )
 
     def to_single(self):
         """
@@ -1641,7 +1688,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
         sups = super().as_indices()
-        # print(self._base_space)
         base_inds = self._base_space.as_indices()
         if len(sups) == 0:
             return base_inds
@@ -1779,7 +1825,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                    other=None,
                                    freqs=None,
                                    freq_threshold=None,
-                                   selection_rules=None
+                                   selection_rules=None,
+                                   filter=None,
+                                   return_filter=False
                                    ):
         """
         This is where this pays dividends, as we know that only the init_space and the held excitations can couple
@@ -1798,22 +1846,36 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         inds_base = self.representative_space.indices
         inds_l = []
         inds_r = []
+        if filter is None:
+            if other is not None:
+                filter = other
+            else:
+                filter = None
         for i, s in zip(inds_base, self.flat):
             if isinstance(s, SelectionRuleStateSpace):
                 j = s.representative_space.indices
                 inds_l.append(np.full(len(j), i, dtype=int))
                 inds_r.append(j)
-                others = s.get_representation_indices(
-                    freqs=freqs, freq_threshold=freq_threshold, other=other,
-                    selection_rules=selection_rules
-                )
+                if other is not None:
+                    others, filter = s.get_representation_indices(
+                        freqs=freqs, freq_threshold=freq_threshold, other=other,
+                        selection_rules=selection_rules,
+                        filter=filter,
+                        return_filter=True
+                    )
+                else:
+                    others = s.get_representation_indices(
+                        freqs=freqs, freq_threshold=freq_threshold, other=other,
+                        selection_rules=selection_rules,
+                        filter=filter,
+                        return_filter=False
+                    )
                 inds_l.append(others[0])
                 inds_r.append(others[1])
             else:
                 j = s.unique_indices
                 inds_l.append(np.full(len(j), i, dtype=int))
                 inds_r.append(j)
-
 
         inds_l = np.concatenate(inds_l)
         inds_r = np.concatenate(inds_r)
@@ -1822,7 +1884,11 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         # _, upos = np.unique(pairs, axis=0, return_index=True)
         # upairs = pairs[np.sort(upos), ...]
         # raise Exception(len(upos), len(pairs), len(inds_l), len(upairs))
-        return upairs
+
+        if return_filter:
+            return upairs, filter
+        else:
+            return upairs
 
     def filter_representation_inds(self, ind_pairs, q_changes):
         """
@@ -1999,42 +2065,63 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 "things have changed and higher iterations aren't currently supported but could be supported in the future by being smart with the selection rules"
             )
 
-        if filter_space is None:
-            if method == 'legacy':
+        if method == 'legacy':
+            if filter_space is None:
                 permutations = cls._generate_selection_rule_permutations(space, selection_rules)
                 new = cls._apply_rules_recursive(space, permutations, filter_space, selection_rules,
                                                  iterations=iterations)
             else:
-                exc = space.excitations
-                symmetric_group_inds = hasattr(space.basis.indexer, 'symmetric_group')
-                if symmetric_group_inds:
-                    symm_grp = space.basis.indexer.symmetric_group #type: SymmetricGroupGenerator
-                    new_exc = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules, return_indices=False, split_results=True)
-                    new = np.array([BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations).take_unique() for e in new_exc])
+                # TODO: add a check to see if it's faster to do a quadratic-ish time filter
+                #       or a generate and intersect
+                #       NOTE: this results in a different ordering than the other approach would...
+                #             but that shouldn't be an explicit issue?
 
-                    # new_exc, new_inds = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
-                    #                                                               return_indices=True, split_results=True)
-                    # new = []
-                    # for e,i in zip(new_exc, new_inds):
-                    #     new_space = BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations)
-                    #     new_space.indices = i
-                    #     new.append(new_space)
-                    new = np.array(new, dtype=object)
-                    return cls(space, new, selection_rules)
-                else:
-                    symm_grp = SymmetricGroupGenerator(exc.shape[-1])
-                    new_exc = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules, return_indices=False, split_results=True)
-                    new = np.array([BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations) for e in new_exc])
+                permutations = cls._generate_selection_rule_permutations(space, selection_rules)
+                new = cls._find_space_intersections(space, filter_space, permutations, selection_rules)
+                # raise Exception(new.excitations)
+            return new
         else:
-            # TODO: add a check to see if it's faster to do a quadratic-ish time filter
-            #       or a generate and intersect
-            #       NOTE: this results in a different ordering than the other approach would...
-            #             but that shouldn't be an explicit issue?
+            exc = space.excitations
+            symmetric_group_inds = hasattr(space.basis.indexer, 'symmetric_group')
+            if symmetric_group_inds:
+                symm_grp = space.basis.indexer.symmetric_group #type: SymmetricGroupGenerator
+            else:
+                symm_grp = SymmetricGroupGenerator(exc.shape[-1])
+            if filter_space is None:
+                new_exc, new_inds = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
+                                                                              return_indices=True, split_results=True)
+            else:
+                if isinstance(filter_space, BasisStateSpace):
+                    filter_space = (filter_space.excitations, None, filter_space.indices)
 
-            permutations = cls._generate_selection_rule_permutations(space, selection_rules)
-            new = cls._find_space_intersections(space, filter_space, permutations, selection_rules)
-            # raise Exception(new.excitations)
-        return new
+                new_exc, new_inds, filter = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules, filter_perms=filter_space,
+                                                                              return_filter=True,
+                                                                              return_indices=True, split_results=True)
+
+
+                # print("?"*100)
+                # print(len(new_inds), len(new_exc))
+                # assert len(new_inds) == len(new_exc)
+                # assert [len(x) for x in new_inds] == [len(x) for x in new_exc]
+                # assert symm_grp.to_indices(np.concatenate(new_exc, axis=0)).tolist() == np.concatenate(new_inds).tolist()
+                # print(
+                #     [(i, j, exc[i]) for i,es in enumerate(new_exc) for j,e in enumerate(es) if len(es) > 0 and sum(e) == 5 and max(e) == 1 ],
+                #     symm_grp.to_indices(np.concatenate(new_exc, axis=0)).tolist() == np.concatenate(new_inds).tolist()
+                # )
+                # # print(exc[:20], selection_rules, (filter_space[0][:10], filter_space[2][:10]))
+                # print("="*100)
+
+            new = []
+            for e,i in zip(new_exc, new_inds):
+                new_space = BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations)
+                new_space.indices = i
+                new.append(new_space)
+            new = np.array(new, dtype=object)
+
+            if filter_space is None:
+                return cls(space, new, selection_rules)
+            else:
+                return cls(space, new, selection_rules), filter
 
     @classmethod
     def _find_space_intersections(cls, space, filter_space, perms, selection_rules):
@@ -2067,15 +2154,12 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         nq_changes = np.sum(perms, axis=1)
         excitations = np.full((len(exc_1),), None, dtype=object)
         for i, state in enumerate(exc_1):
-            # print('doing {i}'.format(i=i))
             # start=time.time()
             diffs = exc_2 - state[np.newaxis, :]
             quanta_diffs = np.sum(np.abs(diffs), axis=1)
             mask = np.full(len(quanta_diffs), False)
             for nq in nq_changes:
                 where_q = np.where(quanta_diffs == nq)
-                # if len(where_q) > 0:
-                #     print('For nq={}: got {} candidates'.format(nq, len(where_q[0])))
                 mask[where_q] = True
 
             proper_inds = np.where(mask)
@@ -2093,7 +2177,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 excitations[i] = filter_space.take_subspace(clean_inds)
             else:
                 excitations[i] = BasisStateSpace(filter_space.basis, [], mode=filter_space.StateSpaceSpec.Indices)
-            # print('took {s}s'.format(s=time.time() - start))
 
         return cls(space, excitations, selection_rules)
 
@@ -2250,7 +2333,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
                      'formats': ncols * [self_exc.dtype]}
 
-            # print(self_exc.dtype, other_exc.dtype)
             self_inds = self_exc.view(dtype)
             other_inds = other_exc.view(dtype)
             _, where_inds, other_where = np.intersect1d(self_inds, other_inds, return_indices=True)
@@ -2722,12 +2804,7 @@ class BraKetSpace:
                 cur_inds, rest_inds = self.trie.get_idx_terms(rest_inds)
 
             for e in rest_inds:
-                # if len(item) > 3:
-                #     wat = np.where(self.tests[e, cur_inds])[0]
-                #     print("   ?", e, len(wat))
                 cur_inds = cur_inds[self.tests[e, cur_inds]]
-            # if len(item) > 3:
-            #     print("   >", cur_inds.shape)
             return cur_inds
 
     aggressive_caching_enabled=True
