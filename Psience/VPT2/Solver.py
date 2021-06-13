@@ -786,10 +786,9 @@ class PerturbationTheorySolver:
                     zeros = zeros[0]
                     bad_pairs = (m_pairs.bras.take_subspace(zeros), m_pairs.kets.take_subspace(zeros))
                     raise ValueError(
-                        ('got zero elements from H({}); if you expect zeros, set `zero_element_warning=False`.'
-                        'zero elements: {}').format(i, np.array([bad_pairs[0].excitations, bad_pairs[1].excitations]).T)
+                        ('got zero elements from H({}); if you expect zeros, set `zero_element_warning=False`. '
+                        'First zero element: <|{}|H|{}>').format(i, bad_pairs[0].excitations[0], bad_pairs[1].excitations[0])
                     )
-
 
             # upper triangle of indices
             up_tri = np.array([row_inds, col_inds]).T
@@ -1534,8 +1533,7 @@ class PerturbationTheorySolver:
         """
 
         if not allow_PT_degs:
-            spaces = self.get_nondeg_coupled_space(input_state_space, degenerate_space,
-                                                   spaces=spaces)
+            spaces = self.get_nondeg_coupled_space(input_state_space, degenerate_space, spaces=spaces)
         else:
             raise NotImplementedError("True degeneracy handling is getting a rewrite")
             if degenerate_space is None:

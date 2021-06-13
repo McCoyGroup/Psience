@@ -234,6 +234,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             partitioning = self.DipolePartitioningMethod(partitioning)
 
         logger = self.logger
+        filter = ket_space.to_single()
         if all(
                     isinstance(m, (np.ndarray, SparseArray)) and m.shape == (M, M)
                     or isinstance(m, (int, float, np.integer, np.floating)) and m == 0
@@ -247,8 +248,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 if rep_inds[3] is None:
                     with self.logger.block(tag="getting coupled states for M^(3)"):
                         start = time.time()
-                        m3_inds = bra_space.get_representation_brakets(
-                            other=ket_space,
+                        m3_inds, filter = bra_space.get_representation_brakets(
+                            other=ket_space, filter=filter, return_filter=True,
                             selection_rules=bra_space.basis.selection_rules("x", "x", "x")
                         )
                         end = time.time()
@@ -266,8 +267,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 with self.logger.block(tag="getting coupled states for M^(0)"):
                     start = time.time()
                     # raise Exception(ket_space.excitations.dtype)
-                    m0_inds = bra_space.get_representation_brakets(other=ket_space,
-                                                                   selection_rules=[[]])  # no selection rules here
+                    m0_inds, filter = bra_space.get_representation_brakets(
+                            other=ket_space, filter=filter, return_filter=True,
+                            selection_rules=[[]]
+                    )  # no selection rules here
                     end = time.time()
                     self.logger.log_print('took {t}s...', t=end - start)
                 rep_inds[0] = m0_inds
@@ -278,8 +281,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             if rep_inds[1] is None:
                 with self.logger.block(tag="getting coupled states for M^(1)"):
                     start = time.time()
-                    m1_inds = bra_space.get_representation_brakets(
-                            other=ket_space,
+                    m1_inds, filter = bra_space.get_representation_brakets(
+                            other=ket_space, filter=filter, return_filter=True,
                             selection_rules=bra_space.basis.selection_rules("x")
                     )
                     end = time.time()
@@ -289,8 +292,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             if rep_inds[2] is None:
                 with self.logger.block(tag="getting coupled states for M^(2)"):
                     start = time.time()
-                    m2_inds = bra_space.get_representation_brakets(
-                        other=ket_space,
+                    m2_inds, filter = bra_space.get_representation_brakets(
+                            other=ket_space, filter=filter, return_filter=True,
                         selection_rules=bra_space.basis.selection_rules("x", "x"))
                     end = time.time()
                     self.logger.log_print('took {t}s...', t=end - start)
@@ -303,8 +306,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 if rep_inds[3] is None:
                     with self.logger.block(tag="getting coupled states for M^(3)"):
                         start = time.time()
-                        m3_inds = bra_space.get_representation_brakets(
-                            other=ket_space,
+                        m3_inds, filter = bra_space.get_representation_brakets(
+                            other=ket_space, filter=filter, return_filter=True,
                             selection_rules=bra_space.basis.selection_rules("x", "x", "x")
                         )
                         end = time.time()

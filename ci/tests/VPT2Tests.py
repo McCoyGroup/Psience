@@ -2993,7 +2993,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesians(self):
 
         tag = 'OCHH Cartesians'
@@ -5767,7 +5767,7 @@ class VPT2Tests(TestCase):
 
         basis = HarmonicOscillatorProductBasis(n_modes)
 
-        with BlockProfiler(tag, print_res=True):
+        with BlockProfiler(tag, print_res=False):
             wfns = self.get_VPT2_wfns(
                 file_name,
                 internals,
@@ -5789,7 +5789,6 @@ class VPT2Tests(TestCase):
             )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
 
         with BlockProfiler(tag, print_res=True):
             raise Exception(wfns.intensities)
