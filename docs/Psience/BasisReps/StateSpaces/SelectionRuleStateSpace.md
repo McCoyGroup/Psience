@@ -109,7 +109,7 @@ Takes the subdimensions from each space
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a>
 ```python
-get_representation_indices(self, other=None, freqs=None, freq_threshold=None, selection_rules=None): 
+get_representation_indices(self, other=None, freqs=None, freq_threshold=None, selection_rules=None, filter=None, return_filter=False): 
 ```
 This is where this pays dividends, as we know that only the init_space and the held excitations can couple
         which reduces the combinatoric work by a factor of like 2.

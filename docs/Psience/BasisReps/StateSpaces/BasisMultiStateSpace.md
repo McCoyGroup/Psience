@@ -88,7 +88,7 @@ __getitem__(self, item):
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a>
 ```python
-get_representation_indices(self, freqs=None, freq_threshold=None, other=None, selection_rules=None): 
+get_representation_indices(self, freqs=None, freq_threshold=None, other=None, selection_rules=None, return_filter=False): 
 ```
 Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
         in this state space.
@@ -98,7 +98,7 @@ Generates a set of indices that can be fed into a `Representation` to provide a 
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_representation_brakets" class="docs-object-method">&nbsp;</a>
 ```python
-get_representation_brakets(self, freqs=None, freq_threshold=None, other=None, selection_rules=None): 
+get_representation_brakets(self, freqs=None, freq_threshold=None, other=None, selection_rules=None, filter=None, return_filter=False): 
 ```
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.to_single" class="docs-object-method">&nbsp;</a>

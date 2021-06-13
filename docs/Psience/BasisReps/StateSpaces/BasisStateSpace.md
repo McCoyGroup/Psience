@@ -143,7 +143,7 @@ Generates a new state space from the application of `selection_rules` to the sta
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a>
 ```python
-get_representation_indices(self, other=None, selection_rules=None, freqs=None, freq_threshold=None): 
+get_representation_indices(self, other=None, selection_rules=None, freqs=None, freq_threshold=None, filter=None, return_filter=False): 
 ```
 Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
         in this state space.
@@ -154,7 +154,7 @@ Generates a set of indices that can be fed into a `Representation` to provide a 
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.get_representation_brakets" class="docs-object-method">&nbsp;</a>
 ```python
-get_representation_brakets(self, other=None, selection_rules=None, freqs=None, freq_threshold=None): 
+get_representation_brakets(self, other=None, selection_rules=None, freqs=None, freq_threshold=None, filter=None, return_filter=False): 
 ```
 Generates a `BraKetSpace` that can be fed into a `Representation`
         Only returns the upper-triangle pairs because we assume symmetry
