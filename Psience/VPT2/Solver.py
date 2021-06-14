@@ -3,7 +3,7 @@ import numpy as np, itertools, time
 
 from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
-from McUtils.Parallelizers import Parallelizer
+from McUtils.Parallelizers import Parallelizer, SerialNonParallelizer
 from McUtils.Data import UnitsData
 
 from ..BasisReps import Representation, BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace
@@ -1129,16 +1129,24 @@ class PerturbationTheorySolver:
 
         if self._coupled_states is None:
             with self.logger.block(tag='getting coupled states'):
-                start = time.time()
-                self._coupled_states = self.load_coupled_spaces()
-                # _ = [len(s) for s in [self.states] + list(self._coupled_states)]
-                end = time.time()
+                parallelizer = Parallelizer.lookup(self.parallelizer)
+                if parallelizer.nprocs > 1:
+                    parallelizer.printer = self.logger.log_print
+                    self.logger.log_print('parallelizing over {nproc} processors',
+                                          nproc=parallelizer.nprocs
+                                          )
+                with parallelizer:  # we put an outermost block here to just make sure everything is clean
 
-                self.logger.log_print(
-                    ['H({i}): {s}'.format(i=i, s=s) for i,s in enumerate([self.states] + list(self._coupled_states))]
-                    + ["took {t}s..."],
-                    t=round(end - start, 3)
-                )
+                    start = time.time()
+                    self._coupled_states = self.load_coupled_spaces()
+                    # _ = [len(s) for s in [self.states] + list(self._coupled_states)]
+                    end = time.time()
+
+                    self.logger.log_print(
+                        ['H({i}): {s}'.format(i=i, s=s) for i,s in enumerate([self.states] + list(self._coupled_states))]
+                        + ["took {t}s..."],
+                        t=round(end - start, 3)
+                    )
                 # raise Exception('break')
 
         elif len(self._coupled_states) != len(self.perts) - 1:
@@ -1389,8 +1397,7 @@ class PerturbationTheorySolver:
             # print("    ...", contracted)
             return contracted
 
-    @classmethod
-    def _get_new_coupled_space(cls, a, b, spaces=None):
+    def _get_new_coupled_space(self, a, b, spaces=None):
         """
         A symbolic version of the dot product appropriate for getting
         transformed state spaces under the operation of a on b
@@ -1407,10 +1414,10 @@ class PerturbationTheorySolver:
         if spaces is None:
             raise ValueError("...spaces shouldn't be None")
 
-        if isinstance(b, cls.StateSpaceWrapper):
+        if isinstance(b, self.StateSpaceWrapper):
             b = b.space
 
-        if isinstance(a, cls.ProjectedOperator):
+        if isinstance(a, self.ProjectedOperator):
             op = a.op
         else:
             op = a
@@ -1422,16 +1429,16 @@ class PerturbationTheorySolver:
         ):
             return 0
 
-        if isinstance(a, cls.StateSpaceWrapper):
+        if isinstance(a, self.StateSpaceWrapper):
             raise NotImplementedError("we shouldn't be here")
             new = a * b
-        elif isinstance(a, cls.ProjectionOperatorWrapper):
-            new = a.get_transformed_space(b)
-        elif isinstance(a, (cls.ProjectedOperator, Representation)):
+        elif isinstance(a, self.ProjectionOperatorWrapper):
+            new = a.get_transformed_space(b, parallelizer=self.parallelizer)
+        elif isinstance(a, (self.ProjectedOperator, Representation)):
             cur = spaces[op] #type: SelectionRuleStateSpace
-            proj = None if not isinstance(a, cls.ProjectedOperator) else a.proj
+            proj = None if not isinstance(a, self.ProjectedOperator) else a.proj
             if cur is None:
-                new = a.get_transformed_space(b)
+                new = a.get_transformed_space(b, parallelizer=self.parallelizer)
                 # we track not only the output SelectionRuleStateSpace
                 # but also which projection operators have been applied
                 # so that we can make sure we calculate any pieces that
@@ -1458,7 +1465,7 @@ class PerturbationTheorySolver:
                 if rep_space is None:
                     # means we can't determine which parts we have and have not calculated
                     # so we calculate everything and associate it to proj
-                    new = a.get_transformed_space(b)
+                    new = a.get_transformed_space(b, parallelizer=self.parallelizer)
                     cur = cur.union(new)
                     projections[proj] = b
                     spaces[op] = (projections, cur)
@@ -1479,7 +1486,7 @@ class PerturbationTheorySolver:
                         b_sels = SelectionRuleStateSpace(b, [])  # just some type fuckery
                         existing = cur.intersection(b_sels, handle_subspaces=False)
                         # and now we do extra transformations where we need to
-                        new_new = a.get_transformed_space(diffs)
+                        new_new = a.get_transformed_space(diffs, parallelizer=self.parallelizer)
                         # next we add the new stuff to the cache
                         cur = cur.union(new_new)
                         # print(">>", a.coeffs.shape, len(cur._base_space.unique_indices))
@@ -1497,10 +1504,9 @@ class PerturbationTheorySolver:
         else:
             raise TypeError("don't know what to do with {} and {}".format(a, b))
 
-        return cls.StateSpaceWrapper(new)
+        return self.StateSpaceWrapper(new)
 
-    @classmethod
-    def _reduce_new_coupled_space(cls, *terms, spaces=None):
+    def _reduce_new_coupled_space(self, *terms, spaces=None):
         """
         Reduces through `_get_new_coupled_space` from right to left
         :param terms:
@@ -1512,7 +1518,7 @@ class PerturbationTheorySolver:
         """
         import functools
         return functools.reduce(
-            lambda a, b:cls._get_new_coupled_space(b, a, spaces),
+            lambda a, b:self._get_new_coupled_space(b, a, spaces),
             reversed(terms[:-1]),
             terms[-1]
         )

@@ -50,6 +50,13 @@ class Representation:
         self.array = StateSpaceMatrix(basis)
         self._selection_rules = selection_rules
 
+    @property
+    def parallelizer(self):
+        if self.operator is not None:
+            return self.operator.parallelizer
+        else:
+            return None
+
     def compute(self, inds):
         # if isinstance(inds, BraKetSpace):
         #     # allows us to use cached stuff
@@ -306,7 +313,7 @@ class Representation:
             raise ValueError('selection rules expected to be a list of lists')
         self._selection_rules = rules
 
-    def get_transformed_space(self, space):
+    def get_transformed_space(self, space, parallelizer=None):
         """
         Returns the state space obtained by using the
         held operator to transform `space`
@@ -317,15 +324,19 @@ class Representation:
         :rtype:
         """
 
+        if parallelizer is None:
+            parallelizer = self.parallelizer
+
         if self.operator is not None:
-            return self.operator.get_transformed_space(space, rules=self.selection_rules)
+            return self.operator.get_transformed_space(space, rules=self.selection_rules, parallelizer=parallelizer)
         elif self.selection_rules is not None:
-            return space.apply_selection_rules(self.selection_rules)
+            return space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer)
         else:
             raise ValueError("can't get a transformed space without a held operator or selection rules")
 
 
     def apply(self, other):
+        raise NotImplementedError("This code path is temporarily abandoned")
 
         if self.operator is None:
             raise ValueError("")
@@ -471,7 +482,7 @@ class ExpansionRepresentation(Representation):
     def get_element(self, n, m):
         return self._dispatch_over_expansion('get_element', n, m)
 
-    def get_transformed_space(self, space):
+    def get_transformed_space(self, space, parallelizer=None):
         """
         Returns the state space obtained by using the
         held operators to transform `space`
@@ -483,19 +494,22 @@ class ExpansionRepresentation(Representation):
         """
         import functools
 
+        if parallelizer is None:
+            parallelizer = self.parallelizer
+
         # we take a union of all transformation rules and just apply that
         # if possible
         if self._selection_rules is not None:
-            ooooh_shiz = space.apply_selection_rules(self.selection_rules)
+            ooooh_shiz = space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer)
         elif all(hasattr(x, 'selection_rules') for x in self.computers):
             total_sel_rules = []
             for x in self.computers:
                 for r in x.selection_rules:
                     if r not in total_sel_rules:
                         total_sel_rules.append(r)
-            ooooh_shiz = space.apply_selection_rules(total_sel_rules)
+            ooooh_shiz = space.apply_selection_rules(total_sel_rules, parallelizer=parallelizer)
         else:
-            spaces = [r.get_transformed_space(space) for r in self.computers]
+            spaces = [r.get_transformed_space(space, parallelizer) for r in self.computers]
             ooooh_shiz = functools.reduce(lambda s1,s2: s1.union(s2), spaces[1:], spaces[0])
 
         return ooooh_shiz

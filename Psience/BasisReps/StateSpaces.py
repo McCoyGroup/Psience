@@ -8,7 +8,7 @@ import abc
 
 from McUtils.Numputils import SparseArray
 import McUtils.Numputils as nput
-from McUtils.Scaffolding import MaxSizeCache
+from McUtils.Parallelizers import Parallelizer
 from McUtils.Combinatorics import SymmetricGroupGenerator, UniquePermutations
 
 __all__ = [
@@ -50,6 +50,32 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         self._uexc_indexer = None
         self._uinds = None
         self._sort_uinds = None
+
+    @abc.abstractmethod
+    def to_state(self, serializer=None):
+        """
+        Provides just the state that is needed to
+        serialize the object
+        :param serializer:
+        :type serializer:
+        :return:
+        :rtype:
+        """
+
+        raise NotImplementedError('abstract method')
+
+    @classmethod
+    @abc.abstractmethod
+    def from_state(cls, state, serializer=None):
+        """
+        Loads from the stored state
+        :param serializer:
+        :type serializer:
+        :return:
+        :rtype:
+        """
+
+        raise NotImplementedError('abstract method')
 
     @property
     def ndim(self):
@@ -117,48 +143,6 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
     @exc_indexer.setter
     def exc_indexer(self, idxer):
         self._exc_indexer = idxer
-
-
-
-    def find(self, to_search, check=True):
-        """
-        Finds the indices of a set of indices inside the space
-
-        :param to_search: array of ints
-        :type to_search: np.ndarray | AbstractStateSpace
-        :return:
-        :rtype:
-        """
-        if not isinstance(to_search, np.ndarray):
-            if isinstance(to_search, AbstractStateSpace) or hasattr(to_search, 'indices'):
-                to_search = to_search.indices
-            else:
-                to_search = np.array(to_search)
-        if to_search.ndim > 1:
-            raise ValueError("currently only accept subspaces as indices or AbstractStateSpaces")
-        vals = np.searchsorted(self.indices, to_search, sorter=self.indexer)
-        if isinstance(vals, (np.integer, int)):
-            vals = np.array([vals])
-        # we have the ordering according to the _sorted_ version of `indices`
-        # so now we need to invert that back to the unsorted version
-        if len(self.indexer) > 0:
-            big_vals = vals == len(self.indexer)
-            vals[big_vals] = -1
-            vals = self.indexer[vals]
-            # now because of how searchsorted works, we need to check if the found values
-            # truly agree with what we asked for...although I could maybe be smarter on this...
-            bad_vals = self.indices[vals] != to_search
-            if vals.shape == ():
-                if bad_vals:
-                    vals = -1
-            else:
-                vals[bad_vals] = -1
-        else:
-            bad_vals = np.full_like(to_search, True)
-            vals = np.full_like(vals, -1)
-        if check and bad_vals.any():
-            raise IndexError("{} not in {}".format(to_search[bad_vals], self))
-        return vals
 
     def find(self, to_search, check=True):
         """
@@ -473,14 +457,20 @@ class BasisStateSpace(AbstractStateSpace):
     def to_state(self, serializer=None):
         return {
             'basis':self.basis,
-            'indices':self.indices
+            'excitations':self._excitations,
+            'indices':self._indices
         }
     @classmethod
     def from_state(cls, data, serializer=None):
-        return cls(
-            serializer.deserialize(data['basis']),
-            serializer.deserialize(data['indices']),
-            mode=cls.StateSpaceSpec.Indices)
+        basis = serializer.deserialize(data['basis'])
+        exc = serializer.deserialize(data['excitations'])
+        inds = serializer.deserialize(data['indices'])
+        if inds is not None:
+            new = cls(basis, inds, mode=cls.StateSpaceSpec.Indices)
+            new._excitations = exc
+        else:
+            new = cls(basis, exc, mode=cls.StateSpaceSpec.Excitations)
+        return new
 
     @property
     def indices(self):
@@ -720,7 +710,7 @@ class BasisStateSpace(AbstractStateSpace):
 
         return new
 
-    def apply_selection_rules(self, selection_rules, filter_space=None, iterations=1):
+    def apply_selection_rules(self, selection_rules, filter_space=None, parallelizer=None, iterations=1):
         """
         Generates a new state space from the application of `selection_rules` to the state space.
         Returns a `BasisMultiStateSpace` where each state tracks the effect of the application of the selection rules
@@ -740,7 +730,9 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype: SelectionRuleStateSpace
         """
 
-        return SelectionRuleStateSpace.from_rules(self, selection_rules, filter_space=filter_space, iterations=iterations)
+        return SelectionRuleStateSpace.from_rules(self, selection_rules, filter_space=filter_space, iterations=iterations,
+                                                  parallelizer=parallelizer
+                                                  )
 
     def get_representation_indices(self,
                                    other=None,
@@ -748,7 +740,8 @@ class BasisStateSpace(AbstractStateSpace):
                                    freqs=None,
                                    freq_threshold=None,
                                    filter=None,
-                                   return_filter=False
+                                   return_filter=False,
+                                   parallelizer=None
                                    ):
         """
         Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
@@ -779,7 +772,7 @@ class BasisStateSpace(AbstractStateSpace):
                 # We do this by computing transformed states finding where this intersects with the other space
                 if filter is None:
                     filter = other
-                transf = self.apply_selection_rules(selection_rules, filter_space=filter)
+                transf = self.apply_selection_rules(selection_rules, filter_space=filter, parallelizer=parallelizer)
                 if not isinstance(transf, AbstractStateSpace):
                     transf, filter = transf
                 m_pairs = transf.get_representation_indices()
@@ -2046,7 +2039,38 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         return new
 
     @classmethod
-    def from_rules(cls, space, selection_rules, filter_space=None, iterations=1, method='new'):
+    def _get_direct_product_spaces(cls, exc, selection_rules, symm_grp, filter_space, parallelizer=None):
+
+        selection_rules, symm_grp, filter_space = parallelizer.broadcast([selection_rules, symm_grp, filter_space])
+        exc = parallelizer.scatter(exc)
+
+        # parallelizer.print('block size: {s} {p}'.format(
+        #     s=exc.shape, p=parallelizer
+        # ))
+
+        if filter_space is None:
+            new_exc, new_inds = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
+                                                                          return_indices=True, split_results=True)
+            filter = None
+        else:
+            if isinstance(filter_space, BasisStateSpace):
+                filter_space = (filter_space.excitations, filter_space.indices)
+
+            new_exc, new_inds, filter = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
+                                                                                  filter_perms=filter_space,
+                                                                                  return_filter=True,
+                                                                                  return_indices=True,
+                                                                                  split_results=True)
+
+        new_exc = parallelizer.gather(new_exc)
+        new_inds = parallelizer.gather(new_inds)
+
+        if parallelizer.on_main:
+            return new_exc, new_inds, filter
+
+
+    @classmethod
+    def from_rules(cls, space, selection_rules, filter_space=None, iterations=1, method='new', parallelizer=None):
         """
         :param space: initial space to which to apply the transformations
         :type space: BasisStateSpace | BasisMultiStateSpace
@@ -2066,6 +2090,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             )
 
         if method == 'legacy':
+
             if filter_space is None:
                 permutations = cls._generate_selection_rule_permutations(space, selection_rules)
                 new = cls._apply_rules_recursive(space, permutations, filter_space, selection_rules,
@@ -2081,35 +2106,23 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 # raise Exception(new.excitations)
             return new
         else:
+
+            par = Parallelizer.lookup(parallelizer)
+
             exc = space.excitations
             symmetric_group_inds = hasattr(space.basis.indexer, 'symmetric_group')
             if symmetric_group_inds:
                 symm_grp = space.basis.indexer.symmetric_group #type: SymmetricGroupGenerator
             else:
                 symm_grp = SymmetricGroupGenerator(exc.shape[-1])
-            if filter_space is None:
-                new_exc, new_inds = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
-                                                                              return_indices=True, split_results=True)
-            else:
-                if isinstance(filter_space, BasisStateSpace):
-                    filter_space = (filter_space.excitations, filter_space.indices)
 
-                new_exc, new_inds, filter = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules, filter_perms=filter_space,
-                                                                              return_filter=True,
-                                                                              return_indices=True, split_results=True)
-
-
-                # print("?"*100)
-                # print(len(new_inds), len(new_exc))
-                # assert len(new_inds) == len(new_exc)
-                # assert [len(x) for x in new_inds] == [len(x) for x in new_exc]
-                # assert symm_grp.to_indices(np.concatenate(new_exc, axis=0)).tolist() == np.concatenate(new_inds).tolist()
-                # print(
-                #     [(i, j, exc[i]) for i,es in enumerate(new_exc) for j,e in enumerate(es) if len(es) > 0 and sum(e) == 5 and max(e) == 1 ],
-                #     symm_grp.to_indices(np.concatenate(new_exc, axis=0)).tolist() == np.concatenate(new_inds).tolist()
-                # )
-                # # print(exc[:20], selection_rules, (filter_space[0][:10], filter_space[2][:10]))
-                # print("="*100)
+            with par:
+                new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces, exc,
+                                                    selection_rules, symm_grp, filter_space)
+                if not isinstance(new_exc[0], np.ndarray):
+                    # means we got too blocky of a shape out of the parallelizer
+                    new_exc = sum(new_exc, [])
+                    new_inds = sum(new_inds, [])
 
             new = []
             for e,i in zip(new_exc, new_inds):

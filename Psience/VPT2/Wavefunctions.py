@@ -404,35 +404,25 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
 
                 with logger.block(tag='taking correction subspaces:'):
-                    logger.log_print('getting ground space...')
                     start = time.time()
+                    logger.log_print('getting ground space...')
                     corr_terms_lower = [corr_terms[i][low_spec, :] for i in range(order)]
-                    end = time.time()
                     logger.log_print(
                         [
                             "highest-order space: {s}",
-                            "took {t:}s..."
                         ],
-                        s=corr_terms_lower[-1],
-                        t=end - start
+                        s=corr_terms_lower[-1]
                     )
 
                     logger.log_print('getting excited space...')
-                    start = time.time()
-                    corr_terms_upper = [corr_terms[i][up_spec, :] for i in range(order)]
-                    end = time.time()
+                    corr_terms_upper = [corr_terms[i][up_spec, :].T for i in range(order)]
                     logger.log_print(
                         [
                             "highest-order space: {s}",
-                            "took {t:}s..."
                         ],
-                        s = corr_terms_upper[-1],
-                        t=end - start
+                        s = corr_terms_upper[-1]
                     )
 
-                    logger.log_print('transposing upper spaces...')
-                    start = time.time()
-                    corr_terms_upper = [u.T for u in corr_terms_upper]
                     end = time.time()
                     logger.log_print(
                         [
