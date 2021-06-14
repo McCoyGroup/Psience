@@ -2092,7 +2092,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                                                               return_indices=True, split_results=True)
             else:
                 if isinstance(filter_space, BasisStateSpace):
-                    filter_space = (filter_space.excitations, None, filter_space.indices)
+                    filter_space = (filter_space.excitations, filter_space.indices)
 
                 new_exc, new_inds, filter = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules, filter_perms=filter_space,
                                                                               return_filter=True,

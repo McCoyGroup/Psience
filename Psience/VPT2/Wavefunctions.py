@@ -333,6 +333,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
     def _transition_moments(self,
                             mu_x, mu_y, mu_z,
+                            correction_terms=None,
                             lower_states=None,
                             excited_states=None,
                             partitioning=None,
@@ -363,51 +364,95 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
             space = self.corrs.coupled_states
 
-            if lower_states is None:
-                low_spec = (0,)
-            else:
-                if isinstance(lower_states, (int, np.integer)):
-                    lower_states = (lower_states,)
-                low_spec = lower_states
-            lower_states = space[(low_spec,)]
-
-            if excited_states is None:
-                up_spec = tuple(range(space.nstates))
-                excited_states = space
-            else:
-                if isinstance(excited_states, (int, np.integer)):
-                    excited_states = (excited_states,)
-                up_spec = excited_states
-                excited_states = space[(up_spec,)]
-
-            bra_space = lower_states if isinstance(lower_states, BasisStateSpace) else lower_states.to_single()
-            ket_space = excited_states if isinstance(excited_states, BasisStateSpace) else excited_states.to_single()
-
-            # if not bra_space.has_indices:
-            #     raise Exception('wat')
-            # if not ket_space.has_indices:
-            #     raise Exception('wat')
-            # if not self.corrs.total_basis.has_indices:
-            #     raise Exception('wat')
-
-            # M = len(space.indices)
-            logger.log_print(
-                [
-                    "lower/upper states: {l}/{u}"
-                ],
-                l=len(low_spec),
-                u=len(up_spec)
-            )
-
-            # corr_vecs = self.corrs.wfn_corrections#[..., M]
-            transition_moment_components = np.zeros((order, 3)).tolist()  # x, y, and z components of the 0th, 1st, and 2nd order stuff
-
-            mu = [mu_x, mu_y, mu_z]
-            rep_inds = [None] * 4
             corr_terms = self.corrs.wfn_corrections
+            if correction_terms is None:
+                if lower_states is None:
+                    low_spec = (0,)
+                else:
+                    if isinstance(lower_states, (int, np.integer)):
+                        lower_states = (lower_states,)
+                    low_spec = lower_states
+                lower_states = space[(low_spec,)]
+
+                if excited_states is None:
+                    up_spec = tuple(range(space.nstates))
+                    excited_states = space
+                else:
+                    if isinstance(excited_states, (int, np.integer)):
+                        excited_states = (excited_states,)
+                    up_spec = excited_states
+                    excited_states = space[(up_spec,)]
+
+                bra_space = lower_states if isinstance(lower_states, BasisStateSpace) else lower_states.to_single()
+                ket_space = excited_states if isinstance(excited_states, BasisStateSpace) else excited_states.to_single()
+
+                # if not bra_space.has_indices:
+                #     raise Exception('wat')
+                # if not ket_space.has_indices:
+                #     raise Exception('wat')
+                # if not self.corrs.total_basis.has_indices:
+                #     raise Exception('wat')
+
+                # M = len(space.indices)
+                logger.log_print(
+                    [
+                        "lower/upper states: {l}/{u}"
+                    ],
+                    l=len(low_spec),
+                    u=len(up_spec)
+                )
+
+
+                with logger.block(tag='taking correction subspaces:'):
+                    logger.log_print('getting ground space...')
+                    start = time.time()
+                    corr_terms_lower = [corr_terms[i][low_spec, :] for i in range(order)]
+                    end = time.time()
+                    logger.log_print(
+                        [
+                            "highest-order space: {s}",
+                            "took {t:}s..."
+                        ],
+                        s=corr_terms_lower[-1],
+                        t=end - start
+                    )
+
+                    logger.log_print('getting excited space...')
+                    start = time.time()
+                    corr_terms_upper = [corr_terms[i][up_spec, :] for i in range(order)]
+                    end = time.time()
+                    logger.log_print(
+                        [
+                            "highest-order space: {s}",
+                            "took {t:}s..."
+                        ],
+                        s = corr_terms_upper[-1],
+                        t=end - start
+                    )
+
+                    logger.log_print('transposing upper spaces...')
+                    start = time.time()
+                    corr_terms_upper = [u.T for u in corr_terms_upper]
+                    end = time.time()
+                    logger.log_print(
+                        [
+                            "took {t:}s..."
+                        ],
+
+                        t=end - start
+                    )
+            else:
+                corr_terms_lower, corr_terms_upper = correction_terms
+
+            rep_inds = [None] * 4
             M = corr_terms[0].shape[1]
             mu_reps = []
             total_space = self.corrs.total_basis
+            # corr_vecs = self.corrs.wfn_corrections#[..., M]
+            transition_moment_components = np.zeros(
+                (order, 3)).tolist()  # x, y, and z components of the 0th, 1st, and 2nd order stuff
+
+            mu = [mu_x, mu_y, mu_z]
 
             # define out reps based on partitioning style
             if partitioning is None:
@@ -422,8 +467,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 m=partitioning.value
             )
 
-            corr_terms_lower = [corr_terms[i][low_spec, :] for i in range(order)]
-            corr_terms_upper = [corr_terms[i][up_spec, :] for i in range(order)]
+            # raise Exception(corr_terms[1], corr_terms_lower[1], corr_terms_upper[1], low_spec, len(low_spec), len(up_spec))
 
             for a in range(3):  # x, y, and z
                 with logger.block(tag="Getting M representations for axis {}:".format(a)):
@@ -469,7 +513,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     with logger.block(tag="calculating corrections..."):
                         start = time.time()
                         for q in range(order):  # total quanta
-                            logger.log_print("calculating corrections at order {q}...", q=q)
+                            # logger.log_print("calculating corrections at order {q}...", q=q)
                             terms = []
                             # should do this smarter
                             for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
@@ -487,7 +531,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                                             c_lower = corr_terms_lower[i]
                                             c_upper = corr_terms_upper[j]
                                             num = c_lower.dot(m)
-                                            new = num.dot(c_upper.T)
+                                            new = num.dot(c_upper)
                                         if isinstance(new, SparseArray):
                                             new = new.asarray()
                                     terms.append( # what is this...?
@@ -520,7 +564,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             #     for a in range(3)
             # ]
 
-        return [tmom, transition_moment_components, mu_reps]
+        return [tmom, transition_moment_components, mu_reps, (corr_terms_lower, corr_terms_upper)]
 
     class TermHolder(tuple):
         """symbolic wrapper on Tuple so we can know that we've canonicalized some term"""
@@ -557,7 +601,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         if self._tm_dat is None:
             self._tm_dat = self._transition_moments(*self.dipole_terms)
         elif self._tm_dat[0] is None:
-            self._tm_dat = self._transition_moments(*self._tm_dat[2])
+            self._tm_dat = self._transition_moments(*self._tm_dat[2], correction_terms=self._tm_dat[3])
 
     @property
     def transition_moments(self):

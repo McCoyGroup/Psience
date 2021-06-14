@@ -5436,7 +5436,7 @@ class VPT2Tests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
-    @inactiveTest
+    @validationTest
     def test_HOHIntensities(self):
 
         internals = [
@@ -5630,7 +5630,9 @@ class VPT2Tests(TestCase):
         int_internal = wfns_internal.intensities
         int_cartesin = wfns_cartesian.intensities
 
-        self.assertEquals(int_internal, int_cartesin)
+        self.assertTrue(np.allclose(int_internal, int_cartesin, atol=.3),
+            msg='internals and cartesians differ; difference: {}'.format(int_internal-int_cartesin)
+        )
 
 
     @inactiveTest
@@ -5748,7 +5750,7 @@ class VPT2Tests(TestCase):
             [3,  1,  0,  2]
         ]
 
-        internals = None
+        # internals = None
 
         n_atoms = 4
         n_modes = 3 * n_atoms - 6
@@ -5767,7 +5769,7 @@ class VPT2Tests(TestCase):
 
         basis = HarmonicOscillatorProductBasis(n_modes)
 
-        with BlockProfiler(tag, print_res=False):
+        with BlockProfiler(tag, print_res=True):
             wfns = self.get_VPT2_wfns(
                 file_name,
                 internals,
@@ -5775,23 +5777,23 @@ class VPT2Tests(TestCase):
                 regenerate=True
                 # coupled_states=coupled_states,
                 , log=True
-                , order=4
+                , order=6
                 , degeneracies=degeneracies
                 # , v3 = 0
                 # , t3 = 0
                 # , v4 = 0
                 # , t4 = 0
-                , selection_rules=[
-                    [r for r in basis.selection_rules("x", "x", "x") if len(r) <= 2],
-                    [r for r in basis.selection_rules("x", "x", "x", "x") if len(r) <= 3]
-                ]
-                , state_space_iterations=2
+                # , selection_rules=[
+                #     [r for r in basis.selection_rules("x", "x", "x") if len(r) <= 2],
+                #     [r for r in basis.selection_rules("x", "x", "x", "x") if len(r) <= 3]
+                # ]
+                # , state_space_iterations=5
             )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
-        with BlockProfiler(tag, print_res=True):
-            raise Exception(wfns.intensities)
+        # with BlockProfiler(tag, print_res=True):
+        #     raise Exception(wfns.intensities)
 
         import json
         with BlockProfiler(tag, print_res=True):
