@@ -5750,7 +5750,7 @@ class VPT2Tests(TestCase):
             [3,  1,  0,  2]
         ]
 
-        # internals = None
+        internals = None
 
         n_atoms = 4
         n_modes = 3 * n_atoms - 6
@@ -5777,7 +5777,7 @@ class VPT2Tests(TestCase):
                 regenerate=True
                 # coupled_states=coupled_states,
                 , log=True
-                , order=6
+                , order=2
                 , degeneracies=degeneracies
                 # , v3 = 0
                 # , t3 = 0
@@ -5841,7 +5841,7 @@ class VPT2Tests(TestCase):
             print(report)
 
 
-    @validationTest
+    @debugTest
     def test_WaterDimerIntensitiesCartesian(self):
 
         internals = None
@@ -5851,15 +5851,18 @@ class VPT2Tests(TestCase):
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
 
-        states = self.get_states(2, n_modes)
+        states = self.get_states(3, n_modes)
 
-        wfns = self.get_VPT2_wfns(
-            "water_dimer_freq.fchk",
-            internals,
-            states,
-            regenerate=True,
-            log=True
-        )
+
+        with BlockProfiler('Water dimer wfns', print_res=True):
+            wfns = self.get_VPT2_wfns(
+                "water_dimer_freq.fchk",
+                internals,
+                states,
+                regenerate=True,
+                log=True,
+                parallelized=True
+            )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
@@ -5869,13 +5872,16 @@ class VPT2Tests(TestCase):
         #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
         engs = h2w * wfns.energies
         freqs = engs - engs[0]
-        ints = wfns.intensities
+
+
+        with BlockProfiler('Water dimer intensities', print_res=True):
+            ints = wfns.intensities
 
         harm_engs = h2w * wfns.zero_order_energies
         harm_freqs = harm_engs - harm_engs[0]
         harm_ints = wfns.zero_order_intensities
 
-        plot_specs = True
+        plot_specs = False
         if plot_specs:
             import McUtils.Plots as plt
             s = plt.StickPlot(freqs, ints,

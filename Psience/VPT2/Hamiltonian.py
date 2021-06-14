@@ -688,6 +688,7 @@ class PerturbationTheoryHamiltonian:
                                                   degenerate_states=degeneracies,
                                                   logger=self.logger,
                                                   checkpointer=self.checkpointer,
+                                                  parallelizer=self.parallelizer,
                                                   allow_sakurai_degs=allow_sakurai_degs,
                                                   allow_post_PT_calc=allow_post_PT_calc,
                                                   ignore_odd_order_energies=ignore_odd_order_energies,

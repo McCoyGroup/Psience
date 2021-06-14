@@ -662,7 +662,7 @@ class Operator:
             self.funcs
         )
 
-    def get_transformed_space(self, base_space, rules=None):
+    def get_transformed_space(self, base_space, rules=None, parallelizer=None):
         """
         Returns the space one would get from applying
         the selection rules from this operator
@@ -674,7 +674,9 @@ class Operator:
         """
         if rules is None:
             rules = self.selection_rules
-        return base_space.apply_selection_rules(rules)
+        if parallelizer is None:
+            parallelizer = self.parallelizer
+        return base_space.apply_selection_rules(rules, parallelizer=parallelizer)
 
 class ContractedOperator(Operator):
     """
