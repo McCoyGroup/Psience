@@ -7,6 +7,7 @@ methods to index into a basis and generate representations
 StateSpaceSpec: EnumMeta
 excitations_dtype: dtype[int8]
 indices_dtype: dtype[int64]
+from_state: method
 get_states_with_quanta: method
 ```
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.__init__" class="docs-object-method">&nbsp;</a>
@@ -15,6 +16,17 @@ __init__(self, basis):
 ```
 
 - `basis`: `RepresentationBasis`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
+```
+Provides just the state that is needed to
+        serialize the object
+- `serializer`: `Any`
+    >No description...
+- `:returns`: `_`
     >No description...
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.ndim" class="docs-object-method">&nbsp;</a>

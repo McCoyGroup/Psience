@@ -123,7 +123,7 @@ Returns only the unique states, but preserves
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.apply_selection_rules" class="docs-object-method">&nbsp;</a>
 ```python
-apply_selection_rules(self, selection_rules, filter_space=None, iterations=1): 
+apply_selection_rules(self, selection_rules, filter_space=None, parallelizer=None, iterations=1): 
 ```
 Generates a new state space from the application of `selection_rules` to the state space.
         Returns a `BasisMultiStateSpace` where each state tracks the effect of the application of the selection rules
@@ -143,7 +143,7 @@ Generates a new state space from the application of `selection_rules` to the sta
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a>
 ```python
-get_representation_indices(self, other=None, selection_rules=None, freqs=None, freq_threshold=None, filter=None, return_filter=False): 
+get_representation_indices(self, other=None, selection_rules=None, freqs=None, freq_threshold=None, filter=None, return_filter=False, parallelizer=None): 
 ```
 Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
         in this state space.

@@ -15,6 +15,12 @@ __init__(self, compute, basis, logger=None, selection_rules=None):
 - `logger`: `None | Logger`
     >logger for printing out debug info
 
+<a id="Psience.BasisReps.Terms.Representation.parallelizer" class="docs-object-method">&nbsp;</a>
+```python
+@property
+parallelizer(self): 
+```
+
 <a id="Psience.BasisReps.Terms.Representation.compute" class="docs-object-method">&nbsp;</a>
 ```python
 compute(self, inds): 
@@ -109,7 +115,7 @@ selection_rules(self):
 
 <a id="Psience.BasisReps.Terms.Representation.get_transformed_space" class="docs-object-method">&nbsp;</a>
 ```python
-get_transformed_space(self, space): 
+get_transformed_space(self, space, parallelizer=None): 
 ```
 Returns the state space obtained by using the
         held operator to transform `space`

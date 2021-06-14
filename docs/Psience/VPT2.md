@@ -5454,7 +5454,7 @@ class VPT2Tests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
-    @inactiveTest
+    @validationTest
     def test_HOHIntensities(self):
 
         internals = [
@@ -5648,7 +5648,9 @@ class VPT2Tests(TestCase):
         int_internal = wfns_internal.intensities
         int_cartesin = wfns_cartesian.intensities
 
-        self.assertEquals(int_internal, int_cartesin)
+        self.assertTrue(np.allclose(int_internal, int_cartesin, atol=.3),
+            msg='internals and cartesians differ; difference: {}'.format(int_internal-int_cartesin)
+        )
 
 
     @inactiveTest
@@ -5785,7 +5787,7 @@ class VPT2Tests(TestCase):
 
         basis = HarmonicOscillatorProductBasis(n_modes)
 
-        with BlockProfiler(tag, print_res=False):
+        with BlockProfiler(tag, print_res=True):
             wfns = self.get_VPT2_wfns(
                 file_name,
                 internals,
@@ -5793,23 +5795,23 @@ class VPT2Tests(TestCase):
                 regenerate=True
                 # coupled_states=coupled_states,
                 , log=True
-                , order=4
+                , order=2
                 , degeneracies=degeneracies
                 # , v3 = 0
                 # , t3 = 0
                 # , v4 = 0
                 # , t4 = 0
-                , selection_rules=[
-                    [r for r in basis.selection_rules("x", "x", "x") if len(r) <= 2],
-                    [r for r in basis.selection_rules("x", "x", "x", "x") if len(r) <= 3]
-                ]
-                , state_space_iterations=2
+                # , selection_rules=[
+                #     [r for r in basis.selection_rules("x", "x", "x") if len(r) <= 2],
+                #     [r for r in basis.selection_rules("x", "x", "x", "x") if len(r) <= 3]
+                # ]
+                # , state_space_iterations=5
             )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
-        with BlockProfiler(tag, print_res=True):
-            raise Exception(wfns.intensities)
+        # with BlockProfiler(tag, print_res=True):
+        #     raise Exception(wfns.intensities)
 
         import json
         with BlockProfiler(tag, print_res=True):
@@ -5857,7 +5859,7 @@ class VPT2Tests(TestCase):
             print(report)
 
 
-    @validationTest
+    @debugTest
     def test_WaterDimerIntensitiesCartesian(self):
 
         internals = None
@@ -5867,15 +5869,18 @@ class VPT2Tests(TestCase):
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
 
-        states = self.get_states(2, n_modes)
+        states = self.get_states(3, n_modes)
 
-        wfns = self.get_VPT2_wfns(
-            "water_dimer_freq.fchk",
-            internals,
-            states,
-            regenerate=True,
-            log=True
-        )
+
+        with BlockProfiler('Water dimer wfns', print_res=True):
+            wfns = self.get_VPT2_wfns(
+                "water_dimer_freq.fchk",
+                internals,
+                states,
+                regenerate=True,
+                log=True,
+                parallelized=True
+            )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
@@ -5885,13 +5890,16 @@ class VPT2Tests(TestCase):
         #     wfns.corrs.wfn_corrections[i, 2, s] = 0 # turn off second correction
         engs = h2w * wfns.energies
         freqs = engs - engs[0]
-        ints = wfns.intensities
+
+
+        with BlockProfiler('Water dimer intensities', print_res=True):
+            ints = wfns.intensities
 
         harm_engs = h2w * wfns.zero_order_energies
         harm_freqs = harm_engs - harm_engs[0]
         harm_ints = wfns.zero_order_intensities
 
-        plot_specs = True
+        plot_specs = False
         if plot_specs:
             import McUtils.Plots as plt
             s = plt.StickPlot(freqs, ints,
