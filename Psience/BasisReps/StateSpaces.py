@@ -388,6 +388,8 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
 
         # generate basic padded partitions of `n`
         partitions = SymmetricGroupGenerator(ndim).get_terms(n, flatten=True)
+        if ndim == 1:
+            partitions = partitions.reshape(-1, 1)
 
         # then concatenate unique permutations for each and cast to numpy
         return np.array(
@@ -2051,6 +2053,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         if filter_space is None:
             new_exc, new_inds = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
                                                                           return_indices=True, split_results=True)
+
+            # raise Exception(new_exc, selection_rules)
             filter = None
         else:
             if isinstance(filter_space, BasisStateSpace):
@@ -2068,9 +2072,12 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         if parallelizer.on_main:
             return new_exc, new_inds, filter
 
-
+    parallel_chunk_size = int(1e6) # so I can mess with this as I debug
     @classmethod
-    def from_rules(cls, space, selection_rules, filter_space=None, iterations=1, method='new', parallelizer=None):
+    def from_rules(cls, space, selection_rules, filter_space=None, iterations=1, method='new',
+                   parallelizer=None,
+                   parallel_chunk_size=None
+                   ):
         """
         :param space: initial space to which to apply the transformations
         :type space: BasisStateSpace | BasisMultiStateSpace
@@ -2106,7 +2113,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 # raise Exception(new.excitations)
             return new
         else:
-
             par = Parallelizer.lookup(parallelizer)
 
             exc = space.excitations
@@ -2117,12 +2123,32 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 symm_grp = SymmetricGroupGenerator(exc.shape[-1])
 
             with par:
-                new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces, exc,
+                if parallel_chunk_size is None:
+                    parallel_chunk_size = cls.parallel_chunk_size
+                if len(exc) > parallel_chunk_size:
+                    new_exc = []
+                    new_inds = []
+                    filter = filter_space
+                    num_chunks = len(exc) // parallel_chunk_size
+                    chunks = np.array_split(exc, num_chunks, axis=0)
+                    for chunk in chunks:
+                        new_exc_chunk, new_inds_chunk, filter = par.run(cls._get_direct_product_spaces, chunk,
+                                                            selection_rules, symm_grp, filter)
+                        if not isinstance(new_exc_chunk[0], np.ndarray):
+                            # means we got too blocky of a shape out of the parallelizer
+                            new_exc_chunk = sum(new_exc_chunk, [])
+                            new_inds_chunk = sum(new_inds_chunk, [])
+                        new_exc.extend(new_exc_chunk)
+                        new_inds.extend(new_inds_chunk)
+
+                else:
+                    new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces, exc,
                                                     selection_rules, symm_grp, filter_space)
-                if not isinstance(new_exc[0], np.ndarray):
-                    # means we got too blocky of a shape out of the parallelizer
-                    new_exc = sum(new_exc, [])
-                    new_inds = sum(new_inds, [])
+
+                    if not isinstance(new_exc[0], np.ndarray):
+                        # means we got too blocky of a shape out of the parallelizer
+                        new_exc = sum(new_exc, [])
+                        new_inds = sum(new_inds, [])
 
             new = []
             for e,i in zip(new_exc, new_inds):
