@@ -68,9 +68,9 @@ HOONO freq
 !
  H
  O   1  ROH
- O   2  ROO  1 AOOH
- N   3  RON  2 ANOO  1 THOON
- O   4  RNO  3 AONO  3 TOONO
+ O   2  ROO  1 AHOO
+ N   3  RON  2 AOON  1 THOON
+ O   4  RNO  3 AONO  2 TOONO
 !
 !!      Variables Block:
 !!        Collection of variables for the run

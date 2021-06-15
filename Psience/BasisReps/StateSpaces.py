@@ -456,6 +456,16 @@ class BasisStateSpace(AbstractStateSpace):
         self._sorted = None
         self._indexer = None
 
+    def check_indices(self):
+        test = self.indices
+        real_inds = type(self)(
+            self.basis,
+            self.excitations,
+            mode=self.StateSpaceSpec.Excitations
+        ).indices
+        if np.any(test != real_inds):
+            raise ValueError("indices don't align for {}; have {}, expect {}.".format(self, test, real_inds))
+
     def to_state(self, serializer=None):
         return {
             'basis':self.basis,
@@ -900,6 +910,13 @@ class BasisStateSpace(AbstractStateSpace):
                 subspace.indices = self.indices[sel,]
             if assume_sorted: #from earlier directly implies `is_sorted`
                 raise NotImplementedError('need to account for the implications of this...')
+
+            # try:
+            #     subspace.check_indices()
+            # except:
+            #     self.check_indices()
+            #     raise
+
         else:
             subspace = type(self)(
                 self.basis,
@@ -1012,7 +1029,7 @@ class BasisStateSpace(AbstractStateSpace):
             spaces.append(new)
         return spaces
 
-    def union(self, other, sort=False, use_indices=True):
+    def union(self, other, sort=False, use_indices=False):
         """
         Returns a merged version of self and other, making
         use of as much of the information inherent in both as is possible
@@ -1047,7 +1064,9 @@ class BasisStateSpace(AbstractStateSpace):
                 # new_inds = self_inds
             else:
                 new_inds = np.concatenate([self_inds, other_inds], axis=0)
+
             _, _, uinds = nput.unique(new_inds, return_index=True)
+
             # if the number of unique states hasn't increased,
             # one of the spaces is contained in the other
             if len(uinds) == len(self.unique_indices):
@@ -1077,11 +1096,13 @@ class BasisStateSpace(AbstractStateSpace):
                     else:
                         new_exc = np.concatenate([self_exc, other_exc], axis=0)
                     new._excitations = new_exc[uinds,]
+
         else:
             # create merge based on excitations and then
             # secondarily based on indices if possible
             self_exc = self.unique_excitations
             other_exc = other.unique_excitations
+
             if len(self_exc) == 0:
                 return other.take_unique(sort=sort)
                 # new_exc = other_exc
@@ -1100,7 +1121,7 @@ class BasisStateSpace(AbstractStateSpace):
             elif len(uinds) == len(other.unique_excitations):
                 new = other.take_unique(sort=sort)
             else:
-                sorting = np.argsort(uinds)
+                sorting = nput.argsort(uinds)
                 uinds = uinds[sorting]
                 new_exc = new_exc[uinds,]
 
@@ -1109,8 +1130,8 @@ class BasisStateSpace(AbstractStateSpace):
                 new._uinds = np.arange(len(uinds))
 
                 if other._indices is not None:
-                    self_inds = self.indices
-                    other_inds = other.indices
+                    self_inds = self.unique_indices
+                    other_inds = other.unique_indices
                     new_inds = np.concatenate([self_inds, other_inds], axis=0)
                     new._indices = new_inds[uinds,]
 
@@ -1259,7 +1280,7 @@ class BasisStateSpace(AbstractStateSpace):
                 else:
                     _, _, _, found_inds, _ = nput.intersection(
                         self_inds, new_inds,
-                        sortings=(self._uindexer, None),
+                        sortings=(self._uindexer, np.arange(len(new_inds))),
                         assume_unique=True, return_indices=True
                     )
                     found_inds = np.sort(found_inds)
@@ -1270,25 +1291,22 @@ class BasisStateSpace(AbstractStateSpace):
             self_exc = self.unique_excitations
             other_exc = other.unique_excitations
 
-            self_inds, dtype, _, _ = nput.coerce_dtype(self_exc)
-            other_inds, _, _, _ = nput.coerce_dtype(other_exc, dtype=dtype)
-
-            new_inds, sortings = nput.difference(
-                self_inds, other_inds,
+            new_inds, sortings, _ = nput.difference(
+                self_exc, other_exc,
                 sortings=(self._uexc_indexer, other._uexc_indexer),
                 assume_unique=True
             )
             self._uexc_indexer, other._uexc_indexer = sortings
             # now check to make sure we're not being wasteful and destroying an object
             # that doesn't need to be destroyed
-            if len(new_inds) == len(self_inds):
+            if len(new_inds) == len(self_exc):
                 if self.is_unique:
                     return self
                 else:
                     return self.take_unique()
             else:
                 _, _, _, found_inds, _ = nput.intersection(
-                    self_inds, new_inds,
+                    self_exc, new_inds,
                     sortings=(self._uexc_indexer, None),
                     assume_unique=True, return_indices=True
                 )
@@ -1416,6 +1434,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
                 space.indices = full_inds[s:s+l]
                 s += l
 
+
         ind_arrays = [space.indices for space in self.spaces.flat if len(space) > 0]
         if len(ind_arrays) == 0:
             inds = np.array([], dtype=int)
@@ -1435,8 +1454,10 @@ class BasisMultiStateSpace(AbstractStateSpace):
         needs_exc = [x for x in self.spaces.flat if (not x.has_excitations and len(x) > 0)]
         if len(needs_exc) > 0:
             # then we join these up into one big space and use that to efficiently calculate excitations
-            single_space = BasisStateSpace(self.basis, np.concatenate([x.indices for x in needs_exc], axis=0),
-                                           mode=self.StateSpaceSpec.Indices)
+            single_space = BasisStateSpace(self.basis,
+                                           np.concatenate([x.indices for x in needs_exc], axis=0),
+                                           mode=self.StateSpaceSpec.Indices
+                                           )
             full_exc = single_space.excitations # TODO: think about how to also capture the unique pos. calc'd inside...
             # and finally we reassociate these with the appropriate OG spaces
             s = 0
@@ -1453,74 +1474,10 @@ class BasisMultiStateSpace(AbstractStateSpace):
 
         return exc
 
-    def __getitem__(self, item):
-        it = self.spaces[item]
-        if isinstance(it, np.ndarray):
-            # multispace
-            it = type(self)(it)
-        return it
+    def check_indices(self):
 
-    def get_representation_indices(self,
-                                   freqs=None,
-                                   freq_threshold=None,
-                                   other=None,
-                                   selection_rules=None,
-                                   return_filter=False
-                                   ):
-        """
-        Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
-        in this state space.
-        Basically just takes all pairs of indices.
-
-        :return:
-        :rtype:
-        """
-
-        raise NotImplementedError('unoptimized code path')
-
-        if other is not None:
-            raise ValueError("haven't implemented getting indices to a set of 'other' states...")
-        if selection_rules is not None:
-            raise ValueError("applying selection_rules in the index generation isn't well defined...")
-
-        m_pairs = None
-        for space in self.spaces.flat:
-            m = space.get_representation_indices(
-                freqs=None,
-                freq_threshold=None
-            ).T
-            # if self.selection_rules is not None:
-            #     q_changes = np.unique([sum(np.abs(x)) for x in self.selection_rules])
-            #     m = self.filter_representation_inds(m, q_changes).T
-            # else:
-            #     m = m.T
-            if m_pairs is None:
-                m_pairs = m
-            else:
-                m_pairs = np.concatenate([m_pairs, m], axis=0)
-                _, upos = np.unique(m_pairs, return_index=True, axis=0)
-                m_pairs = m_pairs[np.sort(upos)]
-
-        m_pairs = m_pairs.T
-
-        return m_pairs
-
-    def get_representation_brakets(self,
-                                   freqs=None,
-                                   freq_threshold=None,
-                                   other=None,
-                                   selection_rules=None,
-                                   filter=None,
-                                   return_filter=False
-                                   ):
-
-        return BasisStateSpace.get_representation_brakets(self,
-                                                          other=other,
-                                                          freqs=freqs,
-                                                          freq_threshold=freq_threshold,
-                                                          filter=filter,
-                                                          return_filter=return_filter
-                                                          )
+        for x in self.spaces.flat:
+            x.check_indices()
 
     def to_single(self):
         """
@@ -1539,6 +1496,10 @@ class BasisMultiStateSpace(AbstractStateSpace):
             )
             if self.spaces[0]._excitations is not None:
                 states.excitations = self.excitations
+            # try:
+            #     states.check_indices()
+            # except:
+            #     raise Exception(self, self.representative_space.excitations, self.indices, self.excitations)
         else:
             states = BasisStateSpace(
                 self.basis,
@@ -1641,11 +1602,80 @@ class BasisMultiStateSpace(AbstractStateSpace):
             self.basis
         )
 
+    def __getitem__(self, item):
+        it = self.spaces[item]
+        if isinstance(it, np.ndarray):
+            # multispace
+            it = type(self)(it)
+        return it
+
+    def get_representation_indices(self,
+                                   freqs=None,
+                                   freq_threshold=None,
+                                   other=None,
+                                   selection_rules=None,
+                                   return_filter=False
+                                   ):
+        """
+        Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
+        in this state space.
+        Basically just takes all pairs of indices.
+
+        :return:
+        :rtype:
+        """
+
+        raise NotImplementedError('unoptimized code path')
+
+        if other is not None:
+            raise ValueError("haven't implemented getting indices to a set of 'other' states...")
+        if selection_rules is not None:
+            raise ValueError("applying selection_rules in the index generation isn't well defined...")
+
+        m_pairs = None
+        for space in self.spaces.flat:
+            m = space.get_representation_indices(
+                freqs=None,
+                freq_threshold=None
+            ).T
+            # if self.selection_rules is not None:
+            #     q_changes = np.unique([sum(np.abs(x)) for x in self.selection_rules])
+            #     m = self.filter_representation_inds(m, q_changes).T
+            # else:
+            #     m = m.T
+            if m_pairs is None:
+                m_pairs = m
+            else:
+                m_pairs = np.concatenate([m_pairs, m], axis=0)
+                _, upos = np.unique(m_pairs, return_index=True, axis=0)
+                m_pairs = m_pairs[np.sort(upos)]
+
+        m_pairs = m_pairs.T
+
+        return m_pairs
+
+    def get_representation_brakets(self,
+                                   freqs=None,
+                                   freq_threshold=None,
+                                   other=None,
+                                   selection_rules=None,
+                                   filter=None,
+                                   return_filter=False
+                                   ):
+
+        return BasisStateSpace.get_representation_brakets(self,
+                                                          other=other,
+                                                          freqs=freqs,
+                                                          freq_threshold=freq_threshold,
+                                                          filter=filter,
+                                                          return_filter=return_filter
+                                                          )
+
 class SelectionRuleStateSpace(BasisMultiStateSpace):
     """
     A `BasisMultiStateSpace` subclass that is only built from applying selection rules to an initial space
     """
-    def __init__(self, init_space, excitations, selection_rules=None):
+    def __init__(self, init_space, excitations, selection_rules=None, ignore_shapes=False):
         """
         :param init_space:
         :type init_space:
@@ -1657,6 +1687,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         if isinstance(excitations, np.ndarray) and excitations.dtype == int:
             excitations = [BasisStateSpace(init_space.basis, x) for x in excitations]
+        if not ignore_shapes and len(init_space) != len(excitations):
+            raise ValueError("index space {} doesn't work with excitations {}".format(init_space, excitations))
+        if not init_space.is_unique():
+            raise ValueError("index space {} contains duplicate elements")
         self._base_space = init_space
         self.sel_rules = selection_rules
         super().__init__(excitations)
@@ -1696,13 +1730,18 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         """
         sups = super().as_excitations()
         if len(sups) == 0:
-            return self._base_space.as_excitations()
+            return self._base_space.excitations
         else:
-            return np.concatenate([self._base_space.as_excitations(), sups], axis=0)
+            wat = self._base_space.excitations
+            return np.concatenate([wat, sups], axis=0)
 
     @property
     def representative_space(self):
         return self._base_space
+
+    def check_indices(self):
+        self._base_space.check_indices()
+        super().check_indices()
 
     def take_states(self, states):
         """
@@ -2279,27 +2318,33 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             self_exc = self.representative_space.excitations
             other_exc = other.representative_space.excitations
 
-            nrows, ncols = self_exc.shape
-            dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
-                     'formats': ncols * [self_exc.dtype]}
-
-            self_inds = self_exc.view(dtype)
-            other_inds = other_exc.view(dtype)
-            other_exclusions = np.setdiff1d(other_inds, self_inds)
-
-            _, where_inds, _ = np.intersect1d(other_inds, other_exclusions, return_indices=True)
+            other_exclusions, sortings, union_sorting = nput.difference(
+                other_exc, self_exc
+                # sortings=(other.representative_space._exc_indexer, self.representative_space._exc_indexer)
+            )
+            other.representative_space._exc_indexer, self.representative_space._exc_indexer = sortings
+            where_inds, _ = nput.find(other_exc, other_exclusions,
+                                   sorting=other.representative_space._exc_indexer
+                                   )
             where_inds = np.sort(where_inds)
+
+            # print(">>>", self_exc, other.representative_space.excitations )
 
         else:
             self_inds = self.representative_space.indices
             other_inds = other.representative_space.indices
-            other_exclusions = np.setdiff1d(other_inds, self_inds)
 
-            _, where_inds, _ = np.intersect1d(other_inds, other_exclusions, return_indices=True)
+            other_exclusions, sortings, union_sorting = nput.difference(
+                other_inds, self_inds,
+                sortings=(other.representative_space._indexer, self.representative_space._indexer)
+            )
+            other.representative_space._indexer, self.representative_space._indexer = sortings
+            where_inds, _ = nput.find(other_inds, other_exclusions,
+                                      sorting=other.representative_space._indexer
+                                      )
             where_inds = np.sort(where_inds)
 
-        new_rep = self.representative_space.union(other.representative_space)
-
+        new_rep = self.representative_space.union(other.representative_space)#, union_sorting=union_sorting)
         new_spaces = np.concatenate(
             [
                 self.spaces,
@@ -2307,30 +2352,27 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             ],
             axis=0
         )
+        if len(new_rep) != len(new_spaces):
+            raise ValueError("Mismatch between union of {} and {} (rep space. len={} and subspaces len={})".format(
+                self, other, len(new_rep), len(new_spaces)
+            ))
 
         if handle_subspaces:
             if excitation_mode:
-                new_inds = new_rep.excitations.view(dtype)
+                _, _, _, other_inc_inds, self_inc_inds = nput.intersection(
+                    other_exc, self_exc,
+                    sortings=(other.representative_space._exc_indexer, self.representative_space._exc_indexer),
+                    return_indices=True,
+                    union_sorting=union_sorting
+                )
             else:
-                new_inds = new_rep.indices
-            inter_inds = np.intersect1d(self_inds, other_inds)
-            # try:
-            _, where_new, _ = np.intersect1d(new_inds, inter_inds, return_indices=True)
-            # except:
-            #     raise Exception(new_inds, inter_inds)
-            _, where_old, _ = np.intersect1d(other_inds, inter_inds, return_indices=True)
-            # try:
-            #     deb = self.debug_flag
-            # except AttributeError:
-            #     pass
-            # else:
-            #     if deb:
-            #         raise Exception(
-            #             inter,
-            #             new_inds[where_new],
-            #             other_inds[where_old]
-            #         )
-            for i_new, i_old in zip(where_new, where_old):
+                _, _, _, other_inc_inds, self_inc_inds = nput.intersection(
+                    other_inds, self_inds,
+                    sortings=(other.representative_space._indexer, self.representative_space._indexer),
+                    return_indices=True,
+                    union_sorting=union_sorting
+                )
+            for i_new, i_old in zip(self_inc_inds, other_inc_inds):
                 new_spaces[i_new] = new_spaces[i_new].union(other[i_old])
 
         return type(self)(new_rep, new_spaces)
@@ -2368,23 +2410,39 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             self_exc = self.representative_space.excitations
             other_exc = other.representative_space.excitations
 
-            nrows, ncols = self_exc.shape
-            dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
-                     'formats': ncols * [self_exc.dtype]}
+            inter_ind, sortings, _, where_inds, other_where = nput.intersection(
+                self_exc, other_exc,
+                sortings=(self.representative_space._exc_indexer, other.representative_space._exc_indexer),
+                return_indices=True
+            )
 
-            self_inds = self_exc.view(dtype)
-            other_inds = other_exc.view(dtype)
-            _, where_inds, other_where = np.intersect1d(self_inds, other_inds, return_indices=True)
-
+            self.representative_space._exc_indexer, other.representative_space._exc_indexer = sortings
             where_inds = np.sort(where_inds)
+
+            # nrows, ncols = self_exc.shape
+            # dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
+            #          'formats': ncols * [self_exc.dtype]}
+            #
+            # self_inds = self_exc.view(dtype)
+            # other_inds = other_exc.view(dtype)
+            # _, where_inds, other_where = np.intersect1d(self_inds, other_inds, return_indices=True)
+            #
+            # where_inds = np.sort(where_inds)
 
         else:
             self_inds = self.representative_space.indices
             other_inds = other.representative_space.indices
 
-            _, where_inds, other_where = np.intersect1d(self_inds, other_inds, return_indices=True)
+            inter_ind, _, _, where_inds, other_where = nput.intersection(
+                self_inds, other_inds,
+                sortings=(self.representative_space.indexer, other.representative_space.indexer),
+                return_indices=True
+            )
             where_inds = np.sort(where_inds)
 
+            # _, where_inds, other_where = np.intersect1d(self_inds, other_inds, return_indices=True)
+
+        # print(where_inds, len(self.spaces), len(self.representative_space))
         new_spaces = self.spaces[where_inds,]
         if handle_subspaces:
             for n,i in enumerate(other_where):
@@ -2407,6 +2465,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :return:
         :rtype: SelectionRuleStateSpace
         """
+
+        raise NotImplementedError("Unoptimized code path")
 
         if not isinstance(other, SelectionRuleStateSpace):
             raise TypeError("difference with {} only defined over subclasses of {} (not {})".format(

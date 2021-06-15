@@ -819,6 +819,8 @@ class PotentialTerms(ExpansionTerms):
             undimension_3 = 1
         thirds = thirds * (1 / undimension_3)
 
+        # raise Exception("????", self.mixed_derivs)
+
         if fourths.shape == (modes_n, modes_n, coord_n, coord_n):
             undimension_4 = (
                     f_conv[:, np.newaxis, np.newaxis, np.newaxis]
@@ -877,6 +879,9 @@ class PotentialTerms(ExpansionTerms):
 
         return v2, v3, v4
 
+    hessian_tolerance=1.0e-4
+    grad_tolerance=1.0e-4
+    freq_tolerance=2e-3
     def old_get_terms(self):
 
         self.logger.log_print('calculating potential derivatives')
@@ -908,13 +913,14 @@ class PotentialTerms(ExpansionTerms):
 
             xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
 
-            if np.linalg.norm(grad) > 1.0e-4:
-                # add some logger stuff...
-                if self.logger is not None:
-                    self.logger.log_print("WARNING: gradient norm is {}".format(
-                        np.linalg.norm(grad)
-                    ))
-                grad = np.zeros(grad.shape)
+            if self.grad_tolerance is not None:
+                if np.linalg.norm(grad) > self.grad_tolerance:
+                    # add some logger stuff...
+                    if self.logger is not None:
+                        self.logger.log_print("WARNING: gradient norm is {}".format(
+                            np.linalg.norm(grad)
+                        ))
+                    grad = np.zeros(grad.shape)
 
             x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
             V_derivs = (grad, hess, thirds, fourths)
@@ -924,14 +930,15 @@ class PotentialTerms(ExpansionTerms):
             xQ2 = self.modes.inverse
             _, v2x,  = self._get_tensor_derivs((xQ2, 0, 0, 0), V_derivs, order=2, mixed_XQ=self.mixed_derivs)
 
-            v2_diff = v2 - v2x
+            if self.hessian_tolerance is not None:
+                v2_diff = v2 - v2x
 
-            if np.max(np.abs(v2_diff)) > 1.0e-4:
-                raise PerturbationTheoryException(
-                    "Internal normal mode Hessian differs from Cartesian normal mode Hessian;"
-                    " this likely indicates issues with the second derivatives"
-                    " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)".format(np.min(xQQ), np.max(xQQ))
-                )
+                if np.max(np.abs(v2_diff)) > self.hessian_tolerance:
+                    raise PerturbationTheoryException(
+                        "Internal normal mode Hessian differs from Cartesian normal mode Hessian;"
+                        " this likely indicates issues with the second derivatives"
+                        " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)".format(np.min(xQQ), np.max(xQQ))
+                    )
 
         if self.mixed_derivs:# and intcds is None:
             # we assume we only got second derivs in Q_i Q_i
@@ -946,12 +953,13 @@ class PotentialTerms(ExpansionTerms):
         new_freqs = np.diag(v2)
         old_freqs = self.modes.freqs
         # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
-        if np.max(np.abs(new_freqs - old_freqs)) > 2e-3:
-            raise PerturbationTheoryException(
-                "Force constants in normal modes don't return frequencies along diagonal;"
-                " this likely indicates issues with the mass-weighting"
-                " got {} but expected {}".format(new_freqs, old_freqs)
-            )
+        if self.freq_tolerance is not None:
+            if np.max(np.abs(new_freqs - old_freqs)) > self.freq_tolerance:
+                raise PerturbationTheoryException(
+                    "Force constants in normal modes don't return frequencies along diagonal;"
+                    " this likely indicates issues with the mass-weighting"
+                    " got {} but expected {}".format(new_freqs, old_freqs)
+                )
 
         return v2, v3, v4
 
