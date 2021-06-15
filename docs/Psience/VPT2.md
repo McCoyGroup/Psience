@@ -2298,6 +2298,154 @@ class VPT2Tests(TestCase):
                   )
                   )
 
+    @debugTest
+    def test_TwoMorseCartesiansNonDeg(self):
+
+        from Psience.Molecools import Molecule
+        import McUtils.Numputils as nput
+
+        # internals = [
+        #     [0, -1,  -1, -1],
+        #     [1,  0,  -1, -1],
+        #     [2,  0,   1, -1],
+        #     [3,  2,   1,  0]
+        # ]
+        internals = None
+
+        re_1 = 1.0
+        re_2 = 1.0
+
+        # mol0 = Molecule(
+        #     ["O", "H", "O", "H"],
+        #     np.array([
+        #         [0.000000, 0.000000, 0.000000],
+        #         [re_1, 0.000000, 0.000000],
+        #         [0.000000, 1.000000, 0.000000],
+        #         [re_2, 1.000000, 0.000000]
+        #     ]),
+        #     zmatrix=internals,
+        #     guess_bonds=False,
+        # )
+
+        mol0 = Molecule(
+            ["O", "H", "H"],
+            np.array([
+                [0.000000, 0.000000, 0.000000],
+                [re_1, 0.000000, 0.000000],
+                [0.000000, re_2, 0.000000],
+            ]),
+            zmatrix=internals,
+            guess_bonds=False,
+        )
+
+        # masses = mol0.masses
+        # anchor_pos = np.average(mol0.coords[:2], weights=masses[:2]/np.sum(masses[:2]), axis=0)
+        # mol0.coords[2] += anchor_pos
+
+        # put in PAF
+        mol = mol0
+        # mol = mol0.principle_axis_frame()(mol0)
+        # raise Exception(mol.coords)
+
+        from McUtils.Zachary import FiniteDifferenceDerivative
+
+        masses = mol0.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+
+        w2h = UnitsData.convert("Wavenumbers", "Hartrees")
+        w1 = 3500 * w2h; wx1 = 50 * w2h
+        mu_1 = (1 / masses[0] + 1 / masses[1]) ** (-1)
+        De_1 = (w1 ** 2) / (4 * wx1)
+        a_1 = np.sqrt(2 * mu_1 * wx1)
+
+        w2 = 3000 * w2h; wx2 = 100 * w2h
+        mu_2 = (1 / masses[0] + 1 / masses[2]) ** (-1)
+        De_2 = (w2 ** 2) / (4 * wx2)
+        a_2 = np.sqrt(2 * mu_2 * wx2)
+
+        # mass_weights = masses[:2] / np.sum(masses[:2])
+        def two_morse(carts, *,
+                      De_1=De_1, a_1=a_1, re_1=re_1,
+                      De_2=De_2, a_2=a_2, re_2=re_2,
+                      k_b = 500  * w2h
+                      ):
+            # anchor_pos = np.average(carts[..., :2, :], weights=mass_weights, axis=-2)
+            r1_vecs = carts[..., 1, :] - carts[..., 0, :]
+            r2_vecs = carts[..., 2, :] - carts[..., 0, :]
+            r1 = nput.vec_norms(r1_vecs) - re_1
+            r2 = nput.vec_norms(r2_vecs) - re_2
+            b, _ = nput.vec_angles(r1_vecs, r2_vecs)
+
+            return (
+                    De_1 * (1 - np.exp(-a_1 * r1)) ** 2
+                    + De_2 * (1 - np.exp(-a_2 * r2)) ** 2
+                    # + k_b * (b**2)
+            )
+
+        deriv_gen = FiniteDifferenceDerivative(two_morse,
+                                               function_shape=((None, None), 0),
+                                               mesh_spacing=1e-3,
+                                               stencil=5
+                                               ).derivatives(mol.coords)
+
+        # v1, v2 = deriv_gen.derivative_tensor([1, 2])
+        v1, v2, v3, v4 = deriv_gen.derivative_tensor([1, 2, 3, 4])
+
+        mol.potential_derivatives = [v1, v2, v3, v4]
+
+        modes = mol.normal_modes[-1,]
+        # stretches = modes.basis.matrix.T
+        # symm = (stretches[1] + stretches[0]) * np.sqrt(1 / 2)
+        # asym = (stretches[1] - stretches[0]) * np.sqrt(1 / 2)
+        # new_mat = np.array([symm, asym]).T
+        # modes.basis.matrix = new_mat
+        # modes.basis.inverse = new_mat.T
+        ham = PerturbationTheoryHamiltonian(mol, modes=modes,
+                                            n_quanta=50,
+                                            coriolis_coupling=False, watson_term=False
+                                            )
+
+        # mode_selection=[-1, -2]
+        # ham = PerturbationTheoryHamiltonian(mol, mode_selection=mode_selection, n_quanta=50)
+
+        # import json
+        # raise Exception(json.dumps(ham.V_terms[1].tolist()))
+
+        states = ham.basis.get_state_space(range(5))
+        wfns = ham.get_wavefunctions(
+            states
+            , order=2
+            , zero_element_warning=False
+        )
+
+        # with JSONCheckpointer(os.path.expanduser('~/Desktop/test_dat.json')) as woof:
+        #     woof['h1'] = wfns.corrs.hams[1].asarray()
+        #     woof['h2'] = wfns.corrs.hams[2].asarray()
+        #     woof['states'] = wfns.corrs.total_basis.excitations
+        # raise Exception(np.diag(wfns.corrs.hams[0].asarray()))
+        states = states.excitations
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
+        energies = h2w * wfns.energies
+        zero_ord = h2w * wfns.zero_order_energies
+
+        print_report = True
+        n_modes = len(states[0])
+        harm_engs = zero_ord
+        engs = energies
+        harm_freq = zero_ord[1:] - zero_ord[0]
+        freqs = energies[1:] - energies[0]
+        if print_report:
+            print("State Energies:\n",
+                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
+                  *(
+                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
+                      s, e1, e2 in
+                      zip(states[1:], harm_freq, freqs)
+                  )
+                  )
+
     #endregion
 
     #region Water Analogs
@@ -5326,7 +5474,7 @@ class VPT2Tests(TestCase):
             )
         )
 
-    @inactiveTest
+    @validationTest
     def test_HOHIntensitiesCartesian4thOrder(self):
 
         internals = None
@@ -5345,7 +5493,7 @@ class VPT2Tests(TestCase):
             regenerate=True
             # coupled_states=coupled_states,
             , log=True
-            , order=2
+            , order=4
         )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -5362,21 +5510,21 @@ class VPT2Tests(TestCase):
         harm_freqs = harm_engs - harm_engs[0]
         harm_ints = wfns.zero_order_intensities
 
-        breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
-
-        import json
-        raise Exception(
-            json.dumps(
-                [
-                    (np.array(breakdown['frequencies']) * self.h2w).tolist(),
-                    breakdown['breakdowns']['Full']['intensities'].tolist(),
-                    breakdown['breakdowns']['Linear']['intensities'].tolist(),
-                    breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
-                    breakdown['breakdowns']['Cubic']['intensities'].tolist(),
-                    breakdown['breakdowns']['Constant']['intensities'].tolist()
-                ]
-            )
-        )
+        # breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+        #
+        # import json
+        # raise Exception(
+        #     json.dumps(
+        #         [
+        #             (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+        #             breakdown['breakdowns']['Full']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Linear']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Constant']['intensities'].tolist()
+        #         ]
+        #     )
+        # )
 
         plot_specs = False
         if plot_specs:
@@ -5445,14 +5593,14 @@ class VPT2Tests(TestCase):
             )
             print(report)
 
-        self.assertEquals(
-            [round(x, 2) for x in gaussian_harm_ints[1:]],
-            list(np.round(harm_ints[1:4], 2))
-        )
-        self.assertEquals(
-            [round(x, 2) for x in gaussian_ints[1:]],
-            list(np.round(ints[1:10], 2))
-        )
+        # self.assertEquals(
+        #     [round(x, 2) for x in gaussian_harm_ints[1:]],
+        #     list(np.round(harm_ints[1:4], 2))
+        # )
+        # self.assertEquals(
+        #     [round(x, 2) for x in gaussian_ints[1:]],
+        #     list(np.round(ints[1:10], 2))
+        # )
 
     @validationTest
     def test_HOHIntensities(self):
@@ -5755,7 +5903,7 @@ class VPT2Tests(TestCase):
             )
             print(report)
 
-    @debugTest
+    @validationTest
     def test_OCHHIntensitiesSanbox(self):
 
         tag = "OCHH Intenstities"

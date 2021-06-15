@@ -4,6 +4,7 @@ A `BasisMultiStateSpace` subclass that is only built from applying selection rul
 ### Properties and Methods
 ```python
 from_state: method
+parallel_chunk_size: int
 from_rules: method
 ```
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.__init__" class="docs-object-method">&nbsp;</a>
