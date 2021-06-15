@@ -817,7 +817,16 @@ class PerturbationTheoryHamiltonian:
         # raise Exception(states)
 
         wfns = self.get_wavefunctions(states,
-                                      degeneracies=degeneracies
+                                      coupled_states=coupled_states,
+                                      degeneracies=degeneracies,
+                                      allow_sakurai_degs=allow_sakurai_degs,
+                                      allow_post_PT_calc=allow_post_PT_calc,
+                                      modify_degenerate_perturbations=modify_degenerate_perturbations,
+                                      intermediate_normalization=intermediate_normalization,
+                                      ignore_odd_order_energies=ignore_odd_order_energies,
+                                      zero_element_warning=zero_element_warning,
+                                      state_space_iterations=state_space_iterations,
+                                      verbose=verbose
                                       )
 
         expansion = self._invert_action_expansion_tensors(wfns.corrs.states, wfns.energies, order)

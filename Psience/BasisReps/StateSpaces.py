@@ -722,7 +722,7 @@ class BasisStateSpace(AbstractStateSpace):
 
         return new
 
-    def apply_selection_rules(self, selection_rules, filter_space=None, parallelizer=None, iterations=1):
+    def apply_selection_rules(self, selection_rules, filter_space=None, parallelizer=None, logger=None, iterations=1):
         """
         Generates a new state space from the application of `selection_rules` to the state space.
         Returns a `BasisMultiStateSpace` where each state tracks the effect of the application of the selection rules
@@ -743,7 +743,7 @@ class BasisStateSpace(AbstractStateSpace):
         """
 
         return SelectionRuleStateSpace.from_rules(self, selection_rules, filter_space=filter_space, iterations=iterations,
-                                                  parallelizer=parallelizer
+                                                  parallelizer=parallelizer, logger=logger
                                                   )
 
     def get_representation_indices(self,
@@ -2080,7 +2080,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         return new
 
     @classmethod
-    def _get_direct_product_spaces(cls, exc, selection_rules, symm_grp, filter_space, parallelizer=None):
+    def _get_direct_product_spaces(cls, exc, selection_rules, symm_grp, filter_space, logger, parallelizer=None):
 
         selection_rules, symm_grp, filter_space = parallelizer.broadcast([selection_rules, symm_grp, filter_space])
         exc = parallelizer.scatter(exc)
@@ -2091,7 +2091,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         if filter_space is None:
             new_exc, new_inds = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
-                                                                          return_indices=True, split_results=True)
+                                                                          return_indices=True, split_results=True,
+                                                                          logger=logger
+                                                                          )
 
             # raise Exception(new_exc, selection_rules)
             filter = None
@@ -2103,7 +2105,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                                                                   filter_perms=filter_space,
                                                                                   return_filter=True,
                                                                                   return_indices=True,
-                                                                                  split_results=True)
+                                                                                  split_results=True,
+                                                                                  logger=logger
+                                                                                  )
 
         new_exc = parallelizer.gather(new_exc)
         new_inds = parallelizer.gather(new_inds)
@@ -2114,8 +2118,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
     parallel_chunk_size = int(1e6) # so I can mess with this as I debug
     @classmethod
     def from_rules(cls, space, selection_rules, filter_space=None, iterations=1, method='new',
-                   parallelizer=None,
-                   parallel_chunk_size=None
+                   parallelizer=None, parallel_chunk_size=None,
+                   logger=None
                    ):
         """
         :param space: initial space to which to apply the transformations
@@ -2172,7 +2176,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                     chunks = np.array_split(exc, num_chunks, axis=0)
                     for chunk in chunks:
                         new_exc_chunk, new_inds_chunk, filter = par.run(cls._get_direct_product_spaces, chunk,
-                                                            selection_rules, symm_grp, filter)
+                                                                        selection_rules, symm_grp, filter, logger)
                         if not isinstance(new_exc_chunk[0], np.ndarray):
                             # means we got too blocky of a shape out of the parallelizer
                             new_exc_chunk = sum(new_exc_chunk, [])
@@ -2182,8 +2186,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
                 else:
                     new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces, exc,
-                                                    selection_rules, symm_grp, filter_space)
-
+                                                        selection_rules, symm_grp, filter_space, logger)
                     if not isinstance(new_exc[0], np.ndarray):
                         # means we got too blocky of a shape out of the parallelizer
                         new_exc = sum(new_exc, [])

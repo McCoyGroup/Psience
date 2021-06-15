@@ -1438,16 +1438,17 @@ class PerturbationTheorySolver:
         ):
             return 0
 
+        logger = self.logger if self.verbose else None
         if isinstance(a, self.StateSpaceWrapper):
             raise NotImplementedError("we shouldn't be here")
             new = a * b
         elif isinstance(a, self.ProjectionOperatorWrapper):
-            new = a.get_transformed_space(b, parallelizer=self.parallelizer)
+            new = a.get_transformed_space(b, parallelizer=self.parallelizer, logger=logger)
         elif isinstance(a, (self.ProjectedOperator, Representation)):
             cur = spaces[op] #type: SelectionRuleStateSpace
             proj = None if not isinstance(a, self.ProjectedOperator) else a.proj
             if cur is None:
-                new = a.get_transformed_space(b, parallelizer=self.parallelizer)
+                new = a.get_transformed_space(b, parallelizer=self.parallelizer, logger=logger)
                 # b.check_indices()
                 # new.check_indices()
                 # we track not only the output SelectionRuleStateSpace
@@ -1476,7 +1477,7 @@ class PerturbationTheorySolver:
                 if rep_space is None:
                     # means we can't determine which parts we have and have not calculated
                     # so we calculate everything and associate it to proj
-                    new = a.get_transformed_space(b, parallelizer=self.parallelizer)
+                    new = a.get_transformed_space(b, parallelizer=self.parallelizer, logger=logger)
                     cur = cur.union(new)
                     projections[proj] = b
                     spaces[op] = (projections, cur)
@@ -1497,7 +1498,7 @@ class PerturbationTheorySolver:
                         b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True)  # just some type fuckery
                         existing = cur.intersection(b_sels, handle_subspaces=False)
                         # and now we do extra transformations where we need to
-                        new_new = a.get_transformed_space(diffs, parallelizer=self.parallelizer)
+                        new_new = a.get_transformed_space(diffs, parallelizer=self.parallelizer, logger=logger)
                         # next we add the new stuff to the cache
                         cur = cur.union(new_new)
                         # print(">>", a.coeffs.shape, len(cur._base_space.unique_indices))
