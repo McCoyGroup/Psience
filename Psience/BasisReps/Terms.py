@@ -313,7 +313,7 @@ class Representation:
             raise ValueError('selection rules expected to be a list of lists')
         self._selection_rules = rules
 
-    def get_transformed_space(self, space, parallelizer=None):
+    def get_transformed_space(self, space, parallelizer=None, logger=None):
         """
         Returns the state space obtained by using the
         held operator to transform `space`
@@ -328,9 +328,9 @@ class Representation:
             parallelizer = self.parallelizer
 
         if self.operator is not None:
-            return self.operator.get_transformed_space(space, rules=self.selection_rules, parallelizer=parallelizer)
+            return self.operator.get_transformed_space(space, rules=self.selection_rules, parallelizer=parallelizer, logger=logger)
         elif self.selection_rules is not None:
-            return space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer)
+            return space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger)
         else:
             raise ValueError("can't get a transformed space without a held operator or selection rules")
 
@@ -482,7 +482,7 @@ class ExpansionRepresentation(Representation):
     def get_element(self, n, m):
         return self._dispatch_over_expansion('get_element', n, m)
 
-    def get_transformed_space(self, space, parallelizer=None):
+    def get_transformed_space(self, space, parallelizer=None, logger=None):
         """
         Returns the state space obtained by using the
         held operators to transform `space`
@@ -500,16 +500,16 @@ class ExpansionRepresentation(Representation):
         # we take a union of all transformation rules and just apply that
         # if possible
         if self._selection_rules is not None:
-            ooooh_shiz = space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer)
+            ooooh_shiz = space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger)
         elif all(hasattr(x, 'selection_rules') for x in self.computers):
             total_sel_rules = []
             for x in self.computers:
                 for r in x.selection_rules:
                     if r not in total_sel_rules:
                         total_sel_rules.append(r)
-            ooooh_shiz = space.apply_selection_rules(total_sel_rules, parallelizer=parallelizer)
+            ooooh_shiz = space.apply_selection_rules(total_sel_rules, parallelizer=parallelizer, logger=logger)
         else:
-            spaces = [r.get_transformed_space(space, parallelizer) for r in self.computers]
+            spaces = [r.get_transformed_space(space, parallelizer=parallelizer, logger=logger) for r in self.computers]
             ooooh_shiz = functools.reduce(lambda s1,s2: s1.union(s2), spaces[1:], spaces[0])
 
         return ooooh_shiz

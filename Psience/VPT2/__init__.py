@@ -6,9 +6,12 @@ and pertubation theory computations
 
 from .Hamiltonian import *
 from .Wavefunctions import *
+from .Terms import *
 
 __all__ = []
 from .Hamiltonian import __all__ as exposed
 __all__ += exposed
 from .Wavefunctions import __all__ as exposed
+__all__ += exposed
+from .Terms import __all__ as exposed
 __all__ += exposed

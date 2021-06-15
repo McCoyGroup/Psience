@@ -229,6 +229,9 @@ class MolecularVibrations:
                           freqs=self._freqs,
                           init=self._coords
                           )
+
+    def __repr__(self):
+        return "{}({}, {})".format(type(self).__name__, self.basis, self.molecule)
 class MolecularNormalModes(CoordinateSystem):
     """
     A Coordinerds CoordinateSystem object that manages all of the data needed to

@@ -162,7 +162,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
         # build groups of degenerate states for use later
         if degenerate_states is None:
-            groups = [[x] for x in states.indices]  # we're gonna loop through this later so why not destructure now...
+            groups = states.split(1) #[[x] for x in states.indices]  # we're gonna loop through this later so why not destructure now...
         else:
             groups = [[]] * len(degenerate_states)
             deg_sets = [set(d.indices) for d in degenerate_states]
@@ -180,7 +180,9 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         ugh = np.full(len(groups), None)
         for i,g in enumerate(groups):
             # g = np.sort(np.array(g))
-            ugh[i] = BasisStateSpace(states.basis, np.array(g), mode=BasisStateSpace.StateSpaceSpec.Indices)
+            if not isinstance(g, BasisStateSpace):
+                g =  BasisStateSpace(states.basis, np.array(g), mode=BasisStateSpace.StateSpaceSpec.Indices)
+            ugh[i] = g
             # if len(g) > 1:
             #     raise Exception(ugh[i].indices, g, ugh[i].excitations,
             #             states.basis.unravel_state_inds(np.arange(10)))
@@ -542,13 +544,16 @@ class PerturbationTheorySolver:
                  state_space_iterations=None,
                  allow_sakurai_degs=False,
                  allow_post_PT_calc=True,
+                 modify_degenerate_perturbations=False,
                  ignore_odd_order_energies=False,
                  intermediate_normalization=False,
                  zero_element_warning=True,
                  degenerate_states=None,
                  logger=None,
+                 verbose=False,
                  parallelizer=None,
-                 checkpointer=None):
+                 checkpointer=None
+                 ):
         """
 
         :param perturbations:
@@ -576,6 +581,7 @@ class PerturbationTheorySolver:
         self.state_space_iterations=state_space_iterations
 
         self.logger = logger
+        self.verbose = verbose
         self.parallelizer = parallelizer
         self.checkpointer = checkpointer
 
@@ -587,6 +593,7 @@ class PerturbationTheorySolver:
         self.allow_sakurai_degs = allow_sakurai_degs
         self.allow_post_PT_calc = allow_post_PT_calc
         self.ignore_odd_orders = ignore_odd_order_energies
+        self.drop_perturbation_degs = modify_degenerate_perturbations
         self.intermediate_normalization = intermediate_normalization
         self.zero_element_warning = zero_element_warning
 
@@ -619,7 +626,7 @@ class PerturbationTheorySolver:
 
     class PastIndexableTuple(tuple):
         def __getitem__(self, item):
-            if item >= len(self):
+            if isinstance(item, (int, np.integer)) and item >= len(self):
                 return 0
             else:
                 return super().__getitem__(item)
@@ -1262,6 +1269,8 @@ class PerturbationTheorySolver:
             space = simple_spaces[0]
             for s in simple_spaces[1:]:
                 space = space.union(s)
+                # s.check_indices()
+                # space.check_indices()
                 # self.logger.log_print("wahhh? {n} {s}", n=n, s=target_states.excitations)
 
             spaces = self.get_coupled_space(
@@ -1429,16 +1438,19 @@ class PerturbationTheorySolver:
         ):
             return 0
 
+        logger = self.logger if self.verbose else None
         if isinstance(a, self.StateSpaceWrapper):
             raise NotImplementedError("we shouldn't be here")
             new = a * b
         elif isinstance(a, self.ProjectionOperatorWrapper):
-            new = a.get_transformed_space(b, parallelizer=self.parallelizer)
+            new = a.get_transformed_space(b, parallelizer=self.parallelizer, logger=logger)
         elif isinstance(a, (self.ProjectedOperator, Representation)):
             cur = spaces[op] #type: SelectionRuleStateSpace
             proj = None if not isinstance(a, self.ProjectedOperator) else a.proj
             if cur is None:
-                new = a.get_transformed_space(b, parallelizer=self.parallelizer)
+                new = a.get_transformed_space(b, parallelizer=self.parallelizer, logger=logger)
+                # b.check_indices()
+                # new.check_indices()
                 # we track not only the output SelectionRuleStateSpace
                 # but also which projection operators have been applied
                 # so that we can make sure we calculate any pieces that
@@ -1465,7 +1477,7 @@ class PerturbationTheorySolver:
                 if rep_space is None:
                     # means we can't determine which parts we have and have not calculated
                     # so we calculate everything and associate it to proj
-                    new = a.get_transformed_space(b, parallelizer=self.parallelizer)
+                    new = a.get_transformed_space(b, parallelizer=self.parallelizer, logger=logger)
                     cur = cur.union(new)
                     projections[proj] = b
                     spaces[op] = (projections, cur)
@@ -1483,10 +1495,10 @@ class PerturbationTheorySolver:
                         # raise Exception(projections, rep_space, diffs)
                         # we have an initial space we've already transformed, so we
                         # make sure not to recompute that
-                        b_sels = SelectionRuleStateSpace(b, [])  # just some type fuckery
+                        b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True)  # just some type fuckery
                         existing = cur.intersection(b_sels, handle_subspaces=False)
                         # and now we do extra transformations where we need to
-                        new_new = a.get_transformed_space(diffs, parallelizer=self.parallelizer)
+                        new_new = a.get_transformed_space(diffs, parallelizer=self.parallelizer, logger=logger)
                         # next we add the new stuff to the cache
                         cur = cur.union(new_new)
                         # print(">>", a.coeffs.shape, len(cur._base_space.unique_indices))
@@ -1497,7 +1509,7 @@ class PerturbationTheorySolver:
                     else:
                         # means we already calculated everything
                         # so we don't need to worry about this
-                        b_sels = SelectionRuleStateSpace(b, []) # just some type fuckery
+                        b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True) # just some type fuckery
                         new = cur.intersection(b_sels, handle_subspaces=False)
                         new = new.to_single().take_unique()
                     # print(" ::|>>", new)
@@ -1786,6 +1798,11 @@ class PerturbationTheorySolver:
         checkpointer['indices'] = self.total_state_space
         checkpointer['representations'] = perturbations
 
+        # import McUtils.Plots as plt
+        # for r in perturbations:
+        #     wat = plt.ArrayPlot(r.asarray())
+        # wat.show()
+
         all_energies = np.zeros((len(states), order + 1))
         all_overlaps = np.zeros((len(states), order + 1))
         all_corrs = np.zeros((len(states), order + 1, N))
@@ -1796,40 +1813,70 @@ class PerturbationTheorySolver:
                     "order: {o}",
                     "states: {n}",
                     "deg. spaces: {d}",
-                    'deg. handling: {dm}'
+                    'deg. handling: {dm}',
                 ],
                 o=order,
                 n=len(states.indices),
                 d=len([1 for x in degenerate_states if len(x) > 1]),
-                dm='Sakurai' if self.allow_sakurai_degs else 'standard'
+                dm=(
+                    'Sakurai' if self.allow_sakurai_degs else
+                    'mod. H' if self.drop_perturbation_degs else
+                    'standard'
+                )
             )
             start = time.time()
 
-            # loop over the degenerate sets
+            _ = []
             for deg_group in degenerate_states:
-                # we use this to build a pertubation operator that removes
-                # then entire set of degenerate states
-                deg_inds = flat_total_space.find(deg_group)
-                if hasattr(deg_group, 'indices'):
-                    deg_group = deg_group.indices
+                if not hasattr(deg_group, 'indices'):
+                    deg_group = BasisStateSpace(self.flat_total_space.basis, deg_group)
+                deg_group.deg_find_inds = None
+                _.append(deg_group)
+            degenerate_states = _
 
-                if len(deg_group) > 1:
-                    if self.allow_sakurai_degs:
-                        deg_engs, zero_order_states, main_zero_states, subspaces = self._get_deg_eq_inputs(deg_inds)
-                        main_subspace = (np.array([d[0] for d in deg_engs]), main_zero_states)
+            if self.drop_perturbation_degs:
+                dropped_els, perturbations = self.drop_deg_pert_els(perturbations, degenerate_states)
+                for deg_group in degenerate_states:
+                    for n in deg_group.indices:
+                        d2 = deg_group.take_states([n])
+                        d2.deg_find_inds = None
+                        energies, overlaps, corrs = self.apply_VPT_equations(n, deg_group,
+                                                                             None, None, None, None,
+                                                                             allow_PT_degs=False,
+                                                                             non_zero_cutoff=non_zero_cutoff,
+                                                                             perturbations=perturbations
+                                                                             )
+
+                        res_index = states.find(n)
+                        all_energies[res_index] = energies
+                        all_corrs[res_index] = corrs
+                        all_overlaps[res_index] = overlaps
+            else:
+                # loop over the degenerate sets
+                for deg_group in degenerate_states:
+                    # we use this to build a pertubation operator that removes
+                    # then entire set of degenerate states
+                    deg_inds = flat_total_space.find(deg_group)
+                    if len(deg_group) > 1:
+                        if self.allow_sakurai_degs:
+                            deg_engs, zero_order_states, main_zero_states, subspaces = self._get_deg_eq_inputs(deg_inds)
+                            main_subspace = (np.array([d[0] for d in deg_engs]), main_zero_states)
+                        else:
+                            deg_engs = zero_order_states = subspaces = main_subspace = [None]*len(deg_group)
                     else:
-                        deg_engs = zero_order_states = subspaces = main_subspace = [None]*len(deg_group)
-                else:
-                    deg_engs = zero_order_states = subspaces = main_subspace = [None]
-                for n, de, zo, s in zip(deg_group, deg_engs, zero_order_states, subspaces):
-                    energies, overlaps, corrs = self.apply_VPT_equations(n, deg_inds, de, zo, main_subspace, s,
-                                                                         allow_PT_degs=self.allow_sakurai_degs,
-                                                                         non_zero_cutoff=non_zero_cutoff)
+                        deg_engs = zero_order_states = subspaces = main_subspace = [None]
 
-                    res_index = states.find(n)
-                    all_energies[res_index] = energies
-                    all_corrs[res_index] = corrs
-                    all_overlaps[res_index] = overlaps
+                    for n, de, zo, s in zip(deg_group.indices, deg_engs, zero_order_states, subspaces):
+                        energies, overlaps, corrs = self.apply_VPT_equations(n, deg_group, de, zo, main_subspace, s,
+                                                                             allow_PT_degs=self.allow_sakurai_degs,
+                                                                             non_zero_cutoff=non_zero_cutoff,
+                                                                             perturbations=perturbations
+                                                                             )
+
+                        res_index = states.find(n)
+                        all_energies[res_index] = energies
+                        all_corrs[res_index] = corrs
+                        all_overlaps[res_index] = overlaps
 
             end = time.time()
             logger.log_print(
@@ -1938,6 +1985,7 @@ class PerturbationTheorySolver:
                             zero_order_state,
                             degenerate_subspace,
                             degenerate_subsubspace,
+                            perturbations=None,
                             allow_PT_degs=None,
                             ignore_odd_orders=None,
                             intermediate_normalization=None,
@@ -1971,7 +2019,8 @@ class PerturbationTheorySolver:
         if not allow_PT_degs:
             return self.apply_VPT_nondeg_equations(state_index, degenerate_space_indices, non_zero_cutoff=non_zero_cutoff,
                                                    ignore_odd_orders=ignore_odd_orders,
-                                                   intermediate_normalization=intermediate_normalization
+                                                   intermediate_normalization=intermediate_normalization,
+                                                   perturbations=perturbations
                                                    )
         if len(degenerate_space_indices) == 1:
             return self.apply_VPT_nondeg_equations(state_index, None, non_zero_cutoff=non_zero_cutoff)
@@ -1983,7 +2032,8 @@ class PerturbationTheorySolver:
                                                 zero_order_state, degenerate_subspace, degenerate_subsubspace, non_zero_cutoff=non_zero_cutoff)
     def apply_VPT_nondeg_equations(self,
                                    state_index,
-                                   degenerate_space_indices,
+                                   deg_group,
+                                   perturbations=None,
                                    non_zero_cutoff=1.0e-14,
                                    check_overlap=True,
                                    intermediate_normalization=False,
@@ -1998,6 +2048,7 @@ class PerturbationTheorySolver:
         :rtype:
         """
 
+        verbose = self.verbose
         if intermediate_normalization:
             check_overlap=False
 
@@ -2013,64 +2064,113 @@ class PerturbationTheorySolver:
 
         # find the state index in the coupled subspace
         n_ind = total_state_space.find(n)
-        D = degenerate_space_indices
-        if D is None:
-            D = (n_ind,)
-        E0 = e_vec_full[n_ind]
-        pi = self._get_Pi0(D, non_zero_cutoff=non_zero_cutoff)
-        energies[0] = E0
-        # self.logger.log_print("{n}: E0={E}", n=n_ind, E=E0)
-        overlaps[0] = 1
-        corrs[0, n_ind] = 1
-        H = self.representations
+        if verbose:
+            block_logger = self.logger
+            n_exc = total_state_space.take_subspace([n_ind]).excitations[0]
+        else:
+            n_exc = None
+            block_logger = NullLogger()
 
-        # raise Exception([np.max(np.abs(x.asarray())) for x in H])
-        dot = self._safe_dot
-        takeDiag = lambda h, n_ind: h[n_ind, n_ind] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
-        take = lambda h, el: h[el] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
-        for k in range(1, order + 1):  # to actually go up to target order
-            #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
-            if ignore_odd_orders and k % 2 == 1:
-                Ek = 0
-            # elif ignore_odd_orders: # Tried to get the 2n + 1 trick working but...it doesn't work?
-            #     Ek = (
-            #             takeDiag(H[k], n_ind)
-            #             + sum(dot(take(H[k - i], n_ind), corrs[i]) - energies[k - i] * overlaps[i]
-            #                   for i in range(1, (k + 1) // 2))
-            #     )
-            else:
-                Ek = (
-                        takeDiag(H[k], n_ind)
-                        + sum(dot(take(H[k - i], n_ind), corrs[i]) - energies[k - i] * overlaps[i]
-                              for i in range(1, k)
-                              )
+        with block_logger.block(tag='getting corrections for state {}/{}'.format(n, n_exc)):
+
+            D = deg_group
+            deg_inds = (n_ind,)
+            if D is not None:
+                if D.deg_find_inds is None:
+                    D.deg_find_inds = total_state_space.find(D)
+                deg_inds = D.deg_find_inds
+                if verbose and len(D) > 1:
+                    self.logger.log_print('Degenerate space: {D}', D=D.indices)
+            E0 = e_vec_full[n_ind]
+            pi = self._get_Pi0(deg_inds, E0=E0, non_zero_cutoff=non_zero_cutoff)
+
+            energies[0] = E0
+            if verbose:
+                self.logger.log_print('Zero-order energy: {e}', e=E0[0] * UnitsData.convert("Hartrees", "Wavenumbers"))
+            # self.logger.log_print("{n}: E0={E}", n=n_ind, E=E0)
+            overlaps[0] = 1
+            corrs[0, n_ind] = 1
+            H = self.representations if perturbations is None else perturbations
+
+            dot = self._safe_dot
+            takeDiag = lambda h, n_ind: h[n_ind, n_ind] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
+            take = lambda h, el: h[el] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
+            for k in range(1, order + 1):  # to actually go up to target order
+                #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
+                if ignore_odd_orders and k % 2 == 1:
+                    if verbose:
+                        self.logger.log_print('Skipping order {k} for the energy (assumed to be 0)', k=k)
+                    Ek = 0
+                # elif ignore_odd_orders: # Tried to get the 2n + 1 trick working but...it doesn't work?
+                #     Ek = (
+                #             takeDiag(H[k], n_ind)
+                #             + sum(dot(take(H[k - i], n_ind), corrs[i]) - energies[k - i] * overlaps[i]
+                #                   for i in range(1, (k + 1) // 2))
+                #     )
+                else:
+                    energy_terms = [takeDiag(H[k], n_ind)] + [
+                            dot(take(H[k - i], n_ind), corrs[i]) - energies[k - i] * overlaps[i]
+                            for i in range(1, k)
+                        ]
+                    energy_terms = np.array([
+                        x.flatten()[0] if not isinstance(x, (int, float, np.integer, np.floating)) else x
+                        for x in energy_terms
+                    ])
+                    if verbose:
+                        self.logger.log_print(
+                            ['Energy terms at order {k} in cm^-1:'] + [
+                                '{} = {}'.format(s, e) for s, e in
+                                zip(
+                                    ["<n(0)|H({})|n(0)>".format(k)] + [
+                                        "<n(0)|H({0})-E({0})|n({1})>".format(
+                                            k - i, i
+                                        ) for i in range(1, k)
+                                    ],
+                                    energy_terms * UnitsData.convert("Hartrees", "Wavenumbers")
+                                )
+                            ],
+                            k=k
+                        )
+                    Ek = np.sum(energy_terms)
+                energies[k] = Ek
+                #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
+                #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
+                corrs[k] = sum(
+                    dot(pi, energies[k - i] * corrs[i] - dot(H[k - i], corrs[i]))
+                        if abs(energies[k - i]) > non_zero_cutoff else
+                     -dot(pi, dot(H[k - i], corrs[i])) # just cut out a potentially unnecessary dense cast
+                    for i in range(0, k)
                 )
-            energies[k] = Ek
-            #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
-            #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
-            corrs[k] = sum(
-                dot(pi, energies[k - i] * corrs[i] - dot(H[k - i], corrs[i]))
-                    if abs(energies[k - i]) > non_zero_cutoff else
-                 -dot(pi, dot(H[k - i], corrs[i])) # just cut out a potentially unnecessary dense cast
-                for i in range(0, k)
-            )
-            if intermediate_normalization:
-                ok = 0.0
-            else:
-                ok = -1 / 2 * np.sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
-            overlaps[k] = ok
-            corrs[k][n_ind] = ok  # pi (the perturbation operator) ensures it's zero before this
 
-        if check_overlap:
-            # full_wfn = np.sum(corrs, axis=0)
-            # ov = np.dot(full_wfn, full_wfn)
-            ov_parts = [ [dot(corrs[k-i], corrs[i]) for i in range(k+1)] for k in range(order+1)]
-            ov = sum(np.sum(v) for v in ov_parts)
-            if abs(ov - 1) > .005:
-                raise ValueError(
-                    "state {} isn't normalized (overlap = {}, bits {})".format(
-                        state_index, ov, ov_parts
-                    ))
+                if check_overlap:
+                    should_be_zero = corrs[k][deg_inds]
+                    if (should_be_zero > 0).any():
+                        raise ValueError("Perturbation operator should have made overlap of state {} with {} zero...got {} instead".format(
+                            n, D, should_be_zero
+                        ))
+
+                if intermediate_normalization:
+                    ok = 0.0
+                else:
+                    ok = -1 / 2 * np.sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
+                    if verbose:
+                        self.logger.log_print([
+                            'Overlap at order {k}:'
+                            '<n(0)|n({k})> = {ok}'
+                            ], k=k, ok=ok)
+                overlaps[k] = ok
+                corrs[k][n_ind] = ok  # pi (the perturbation operator) ensures it's zero before this
+
+            if check_overlap:
+                # full_wfn = np.sum(corrs, axis=0)
+                # ov = np.dot(full_wfn, full_wfn)
+                ov_parts = [ [dot(corrs[k-i], corrs[i]) for i in range(k+1)] for k in range(order+1)]
+                ov = sum(np.sum(v) for v in ov_parts)
+                if abs(ov - 1) > .005:
+                    raise ValueError(
+                        "state {} isn't normalized (overlap = {}, bits {})".format(
+                            state_index, ov, ov_parts
+                        ))
 
         return energies, overlaps, corrs
     def apply_VPT_deg_equations(self,
@@ -2374,6 +2474,12 @@ class PerturbationTheorySolver:
         energies = np.zeros(len(total_state_space))
         base_energies = corrs.energies  # for when we're not rotating
 
+        if self.verbose:
+            self.logger.log_print("Deperturbed States/Energies: {e}", e=np.column_stack([
+                total_state_space.excitations,
+                np.round(UnitsData.convert("Hartrees", "Wavenumbers") * base_energies).astype(int)
+            ]))
+
         # this will be built from a series of block-diagonal matrices
         # so we store the relevant values and indices to compose the SparseArray
         rotation_vals = []
@@ -2391,7 +2497,7 @@ class PerturbationTheorySolver:
                 deg_rows, deg_cols = np.array([p for p in itertools.product(deg_inds, deg_inds)]).T
                 rotation_row_inds.append(deg_rows)
                 rotation_col_inds.append(deg_cols)
-            elif len(deg_inds):
+            elif len(deg_inds) == 1:
                 # we'll be a little bit inefficient for now and speed up later
                 energies[deg_inds[0]] = base_energies[deg_inds[0]]
                 rotation_vals.append([1.])
@@ -2416,6 +2522,51 @@ class PerturbationTheorySolver:
         )
 
         return energies, rotations
+    def drop_deg_pert_els(self, perts, deg_groups):
+        deg_grop_inds = []
+        for g in deg_groups:
+            if g.deg_find_inds is None:
+                g.deg_find_inds = self.flat_total_space.find(g)
+            deg_grop_inds.append(g.deg_find_inds)
+        pert_blocks = []
+        perts = self.PastIndexableTuple([perts[0]] + [p.copy() for p in perts[1:]])
+
+        if self.verbose:
+            block_logger = self.logger
+        else:
+            block_logger = NullLogger()
+        with block_logger.block(tag='modifying perturbations'):
+            for d,g in zip(deg_grop_inds, deg_groups):
+                if len(d) > 1:
+                    if self.verbose:
+                        self.logger.log_print(
+                            ["dropping elements coupling degenerate space:"] + str(g.excitations).splitlines()
+                        )
+                    idx = tuple(np.array([x for x in itertools.product(d, d) if x[0] != x[1]]).T)
+                    els = []
+                    for p in perts[1:]:
+                        els.append(p[idx].flatten())
+                        p[idx] = 0.
+                        # print(p[idx].flatten())
+                    pert_blocks.append([idx, els])
+                    if self.verbose:
+                        triu = np.where(idx[0] > idx[1])
+                        def pad_els(el, triu=triu):
+                            e = np.zeros((len(d), len(d)))
+                            e[np.triu_indices_from(e, k=1)] = el[triu]
+                            e = np.round(e * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
+                            e[np.tril_indices_from(e, k=-1)] = e[np.triu_indices_from(e, k=1)]
+                            return e
+
+                        self.logger.log_print(
+                            ["zeroed out coupling elements:"] +
+                            sum(
+                                (str(pad_els(e)).splitlines() for e in els),
+                                []
+                            )
+                        )
+
+        return pert_blocks, perts
     def get_transformed_Hamiltonians(self, corrs, deg_group=None):
         if deg_group is not None:
             subcorrs = corrs.take_subspace(deg_group)
@@ -2455,14 +2606,19 @@ class PerturbationTheorySolver:
         # with open(os.path.expanduser("~/Desktop/wat6.json"), "w+") as woof:
         #     JSONSerializer().serialize(woof, subdegs)
 
+        # H_nd = self.get_transformed_Hamiltonians(corrs, deg_group)
+        # for h in H_nd[1:]:
+        #     np.fill_diagonal(h, 0.)
         H_nd = self.get_transformed_Hamiltonians(subdegs, None)
-        # H_nd = self.get_transformed_Hamiltonian(corrs, deg_group)
+        # import McUtils.Plots as plt
+        # plt.TensorPlot(np.array(H_nd)).show()
         H_nd = np.sum(H_nd, axis=0)
+
 
         with logger.block(tag="non-degenerate Hamiltonian"):
             logger.log_print(
                 str(
-                    np.round(H_nd * UnitsData.convert("Hartrees", "Wavenumbers"))
+                    np.round(H_nd * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
                 ).splitlines()
             )
 

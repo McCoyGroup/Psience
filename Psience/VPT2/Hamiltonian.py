@@ -37,6 +37,7 @@ class PerturbationTheoryHamiltonian:
                  n_quanta=None,
                  modes=None,
                  mode_selection=None,
+                 mixed_derivs=None,
                  potential_derivatives=None,
                  coriolis_coupling=True,
                  watson_term=True,
@@ -109,7 +110,7 @@ class PerturbationTheoryHamiltonian:
         self.modes = modes
         self.mode_selection = mode_selection
         self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection,
-                                      potential_derivatives=potential_derivatives,
+                                      potential_derivatives=potential_derivatives, mixed_derivs=mixed_derivs,
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
         self.G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection,
                                     logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
@@ -389,14 +390,20 @@ class PerturbationTheoryHamiltonian:
 
         outer_states = vec_outer(states, states)
 
-        weights = np.full(x_mat[0].shape, 1/2)
-        np.fill_diagonal(weights, 1)
-        x_mat = [x * weights for x in x_mat]
+        if x_mat.ndim > 2:
+            weights = np.full(x_mat[0].shape, 1/2)
+            np.fill_diagonal(weights, 1)
+            x_mat = [x * weights for x in x_mat]
 
-        if return_split:
-            e_anharm = np.array([np.tensordot(x, outer_states, axes=[[0, 1], [1, 2]]) for x in x_mat])
+            if return_split:
+                e_anharm = np.array([np.tensordot(x, outer_states, axes=[[0, 1], [1, 2]]) for x in x_mat])
+            else:
+                x_mat = np.sum(x_mat, axis=0)
+                e_anharm = np.tensordot(x_mat, outer_states, axes=[[0, 1], [1, 2]])
         else:
-            x_mat = np.sum(x_mat, axis=0)
+            weights = np.full(x_mat.shape, 1 / 2)
+            np.fill_diagonal(weights, 1)
+            x_mat = x_mat * weights
             e_anharm = np.tensordot(x_mat, outer_states, axes=[[0, 1], [1, 2]])
 
         return e_harm, e_anharm
@@ -408,6 +415,8 @@ class PerturbationTheoryHamiltonian:
         # TODO: figure out WTF the units on this have to be...
 
         freqs = self.modes.freqs
+        if self.mode_selection is not None:
+            freqs = freqs[self.mode_selection,]
         v3 = self.V_terms[1]
         v4 = self.V_terms[2]
 
@@ -419,7 +428,7 @@ class PerturbationTheoryHamiltonian:
 
         return x
 
-    def get_Nielsen_energies(self, states, return_split=False):
+    def get_Nielsen_energies(self, states, x_mat=None, return_split=False):
         """
 
         :param states:
@@ -432,13 +441,18 @@ class PerturbationTheoryHamiltonian:
 
         # TODO: figure out WTF the units on this have to be...
 
-        x_mat = self.get_Nielsen_xmatrix()
         freqs = self.modes.freqs
+        if self.mode_selection is not None:
+            freqs = freqs[self.mode_selection,]
+        if x_mat is None:
+            x_mat = self.get_Nielsen_xmatrix()
+        else:
+            x_mat = np.asanyarray(x_mat)
 
         harm, anharm = self._get_Nielsen_energies_from_x(states, freqs, x_mat, return_split=return_split)
 
         # harm = harm / h2w
-        anharm = anharm
+        # anharm = anharm
 
         if return_split:
             return harm, anharm, x_mat
@@ -627,10 +641,12 @@ class PerturbationTheoryHamiltonian:
                           degeneracies=None,
                           allow_sakurai_degs=False,
                           allow_post_PT_calc=True,
+                          modify_degenerate_perturbations=False,
                           intermediate_normalization=False,
                           ignore_odd_order_energies=True,
                           zero_element_warning=True,
                           state_space_iterations=None,
+                          verbose=False,
                           order=2
                           ):
         """
@@ -691,9 +707,11 @@ class PerturbationTheoryHamiltonian:
                                                   parallelizer=self.parallelizer,
                                                   allow_sakurai_degs=allow_sakurai_degs,
                                                   allow_post_PT_calc=allow_post_PT_calc,
+                                                  modify_degenerate_perturbations=modify_degenerate_perturbations,
                                                   ignore_odd_order_energies=ignore_odd_order_energies,
                                                   intermediate_normalization=intermediate_normalization,
-                                                  zero_element_warning=zero_element_warning
+                                                  zero_element_warning=zero_element_warning,
+                                                  verbose=verbose
                                                   )
                 corrs = solver.apply_VPT()
 
@@ -769,7 +787,19 @@ class PerturbationTheoryHamiltonian:
         tens[0] = tensor_terms[-1]
 
         return tens
-    def get_action_expansion(self, order=2):
+    def get_action_expansion(self,
+                             coupled_states=None,
+                             degeneracies=None,
+                             allow_sakurai_degs=False,
+                             allow_post_PT_calc=True,
+                             modify_degenerate_perturbations=False,
+                             intermediate_normalization=False,
+                             ignore_odd_order_energies=True,
+                             zero_element_warning=True,
+                             state_space_iterations=None,
+                             verbose=False,
+                             order=2
+                             ):
         """
         Gets the expansion of the energies in terms of Miller's "classical actions" by
         doing just enough PT to invert the matrix
@@ -786,7 +816,18 @@ class PerturbationTheoryHamiltonian:
         states = BasisStateSpace.from_quanta(HarmonicOscillatorProductBasis(ndim), range(nterms + 1))
         # raise Exception(states)
 
-        wfns = self.get_wavefunctions(states)
+        wfns = self.get_wavefunctions(states,
+                                      coupled_states=coupled_states,
+                                      degeneracies=degeneracies,
+                                      allow_sakurai_degs=allow_sakurai_degs,
+                                      allow_post_PT_calc=allow_post_PT_calc,
+                                      modify_degenerate_perturbations=modify_degenerate_perturbations,
+                                      intermediate_normalization=intermediate_normalization,
+                                      ignore_odd_order_energies=ignore_odd_order_energies,
+                                      zero_element_warning=zero_element_warning,
+                                      state_space_iterations=state_space_iterations,
+                                      verbose=verbose
+                                      )
 
         expansion = self._invert_action_expansion_tensors(wfns.corrs.states, wfns.energies, order)
 
