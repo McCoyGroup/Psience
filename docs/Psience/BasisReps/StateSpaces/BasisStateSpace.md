@@ -20,6 +20,11 @@ __init__(self, basis, states, mode=None):
 - `mode`: `None | str | StateSpaceSpec`
     >whether the states were supplied as indices or as excitations
 
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.check_indices" class="docs-object-method">&nbsp;</a>
+```python
+check_indices(self): 
+```
+
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.to_state" class="docs-object-method">&nbsp;</a>
 ```python
 to_state(self, serializer=None): 
@@ -123,7 +128,7 @@ Returns only the unique states, but preserves
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.apply_selection_rules" class="docs-object-method">&nbsp;</a>
 ```python
-apply_selection_rules(self, selection_rules, filter_space=None, parallelizer=None, iterations=1): 
+apply_selection_rules(self, selection_rules, filter_space=None, parallelizer=None, logger=None, iterations=1): 
 ```
 Generates a new state space from the application of `selection_rules` to the state space.
         Returns a `BasisMultiStateSpace` where each state tracks the effect of the application of the selection rules
@@ -245,7 +250,7 @@ Splits the space up into chunks of at max chunksize
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.union" class="docs-object-method">&nbsp;</a>
 ```python
-union(self, other, sort=False, use_indices=True): 
+union(self, other, sort=False, use_indices=False): 
 ```
 Returns a merged version of self and other, making
         use of as much of the information inherent in both as is possible

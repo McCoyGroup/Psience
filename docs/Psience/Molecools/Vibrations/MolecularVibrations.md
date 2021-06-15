@@ -112,6 +112,11 @@ Multiplies each mode by some scaling factor
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.Molecools.Vibrations.MolecularVibrations.__repr__" class="docs-object-method">&nbsp;</a>
+```python
+__repr__(self): 
+```
+
 ### Examples
 
 

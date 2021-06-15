@@ -10,6 +10,12 @@ and pertubation theory computations
   - [PerturbationTheoryCorrections](VPT2/Solver/PerturbationTheoryCorrections.md)
   - [PerturbationTheoryWavefunction](VPT2/Wavefunctions/PerturbationTheoryWavefunction.md)
   - [PerturbationTheoryWavefunctions](VPT2/Wavefunctions/PerturbationTheoryWavefunctions.md)
+  - [ExpansionTerms](VPT2/Terms/ExpansionTerms.md)
+  - [KineticTerms](VPT2/Terms/KineticTerms.md)
+  - [PotentialTerms](VPT2/Terms/PotentialTerms.md)
+  - [DipoleTerms](VPT2/Terms/DipoleTerms.md)
+  - [CoriolisTerm](VPT2/Terms/CoriolisTerm.md)
+  - [PotentialLikeTerm](VPT2/Terms/PotentialLikeTerm.md)
 
 ### Examples:
 
@@ -34,6 +40,7 @@ class VPT2Tests(TestCase):
     #region setup
 
     gaussian_data = {} # storage to allow me to duplicate Gaussain data less often...
+    analytic_data = {} # same idea
 
     def setUp(self):
         self.h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -70,7 +77,7 @@ class VPT2Tests(TestCase):
     ]
 
     def get_VPT2_wfns_and_ham(self,
-                              fchk,
+                              mol_spec,
                               internals,
                               states,
                               save_coeffs=False,
@@ -89,13 +96,17 @@ class VPT2Tests(TestCase):
                               degeneracies=None,
                               selection_rules=None,
                               log=False,
+                              verbose=False,
+                              pre_run_script=None,
                               get_breakdown=False,
                               parallelized=False,
                               checkpoint=None,
                               chunk_size=None,
                               order=2
-                              , allow_sakurai_degs = False
-                              , allow_post_PT_calc = True
+                              , allow_sakurai_degs=False
+                              , allow_post_PT_calc=True
+                              , modify_degenerate_perturbations=False
+                              , ignore_odd_order=True
                               , intermediate_normalization=False
                               , state_space_iterations=None
                               ):
@@ -105,73 +116,87 @@ class VPT2Tests(TestCase):
             parallelizer = SerialNonParallelizer()
 
         with parallelizer:
-            hammer = PerturbationTheoryHamiltonian.from_fchk(
-                TestManager.test_data(fchk),
-                internals=internals,
-                mode_selection=mode_selection,
-                log=log,
-                parallelizer=parallelizer,
-                checkpoint=checkpoint,
-                operator_chunk_size=chunk_size,
-                selection_rules=selection_rules
-            )
+            if isinstance(mol_spec, str):
+                hammer = PerturbationTheoryHamiltonian.from_fchk(
+                    TestManager.test_data(mol_spec),
+                    internals=internals,
+                    mode_selection=mode_selection,
+                    log=log,
+                    parallelizer=parallelizer,
+                    checkpoint=checkpoint,
+                    operator_chunk_size=chunk_size,
+                    selection_rules=selection_rules
+                )
+            else:
+                hammer = PerturbationTheoryHamiltonian(
+                    mol_spec,
+                    mode_selection=mode_selection,
+                    log=log,
+                    parallelizer=parallelizer,
+                    checkpoint=checkpoint,
+                    operator_chunk_size=chunk_size,
+                    selection_rules=selection_rules
+                )
+
+            if pre_run_script is not None:
+                pre_run_script(hammer, states)
 
             if get_breakdown:
                 bd = hammer.get_breakdown(states=states, degeneracies=degeneracies, coupled_states=coupled_states)
                 return bd, hammer
 
-            wfn_file = os.path.join(self.wfn_file_dir, fchk.replace("fchk", "npz"))
-            if regenerate or not os.path.exists(wfn_file):
+            # wfn_file = os.path.join(self.wfn_file_dir, fchk.replace("fchk", "npz"))
+            # if regenerate or not os.path.exists(wfn_file):
 
-                if save_coeffs:
-                    coeffs_file = os.path.join(self.wfn_file_dir, fchk.replace(".fchk", "_coeffs.npz"))
-                    np.savez(coeffs_file,
-                             G=hammer.H0.computers[0].operator.coeffs,
-                             F=hammer.H0.computers[1].operator.coeffs,
-                             dGdQ=hammer.H1.computers[0].operator.coeffs,
-                             dFdQ=hammer.H1.computers[1].operator.coeffs,
-                             dGdQQ=hammer.H2.computers[0].operator.coeffs,
-                             dFdQQ=hammer.H2.computers[1].operator.coeffs,
-                             coriolis=hammer.H2.computers[2].operator.coeffs,
-                             watson=hammer.H2.computers[3].operator.coeffs
-                             )
+                # if save_coeffs:
+                #     coeffs_file = os.path.join(self.wfn_file_dir, fchk.replace(".fchk", "_coeffs.npz"))
+                #     np.savez(coeffs_file,
+                #              G=hammer.H0.computers[0].operator.coeffs,
+                #              F=hammer.H0.computers[1].operator.coeffs,
+                #              dGdQ=hammer.H1.computers[0].operator.coeffs,
+                #              dFdQ=hammer.H1.computers[1].operator.coeffs,
+                #              dGdQQ=hammer.H2.computers[0].operator.coeffs,
+                #              dFdQQ=hammer.H2.computers[1].operator.coeffs,
+                #              coriolis=hammer.H2.computers[2].operator.coeffs,
+                #              watson=hammer.H2.computers[3].operator.coeffs
+                #              )
 
-                if t2 is not None:
-                    hammer.H0.computers[0].operator.coeffs = t2
-                if v2 is not None:
-                    hammer.H0.computers[1].operator.coeffs = v2
-                if t3 is not None:
-                    hammer.H1.computers[0].operator.coeffs = t3
-                if v3 is not None:
-                    hammer.H1.computers[1].operator.coeffs = v3
-                if t4 is not None:
-                    hammer.H2.computers[0].operator.coeffs = t4
-                    if internals is None and isinstance(t4, (int, float)) and t4 == 0:
-                        if coriolis is None:
-                            coriolis = 0
-                if v4 is not None:
-                    hammer.H2.computers[1].operator.coeffs = v4
-                if coriolis is not None:
-                    hammer.H2.computers[2].operator.coeffs = coriolis
-                    if watson is None and isinstance(coriolis, (int, float)) and coriolis == 0:
-                        watson = 0
-                if watson is not None:
-                    hammer.H2.computers[3].operator.coeffs = watson
+            if t2 is not None:
+                hammer.H0.computers[0].operator.coeffs = t2
+            if v2 is not None:
+                hammer.H0.computers[1].operator.coeffs = v2
+            if t3 is not None:
+                hammer.H1.computers[0].operator.coeffs = t3
+            if v3 is not None:
+                hammer.H1.computers[1].operator.coeffs = v3
+            if t4 is not None:
+                hammer.H2.computers[0].operator.coeffs = t4
+                if internals is None and isinstance(t4, (int, float)) and t4 == 0:
+                    if coriolis is None:
+                        coriolis = 0
+            if v4 is not None:
+                hammer.H2.computers[1].operator.coeffs = v4
+            if coriolis is not None:
+                hammer.H2.computers[2].operator.coeffs = coriolis
+                if watson is None and isinstance(coriolis, (int, float)) and coriolis == 0:
+                    watson = 0
+            if watson is not None:
+                hammer.H2.computers[3].operator.coeffs = watson
 
-                wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order
-                                                , allow_sakurai_degs=allow_sakurai_degs
-                                                , allow_post_PT_calc=allow_post_PT_calc
-                                                , intermediate_normalization=intermediate_normalization
-                                                , state_space_iterations=state_space_iterations
-                                                )
-                if save_wfns:
-                    self.save_wfns(wfn_file, wfns)
-            else:
-                wfns = self.load_wfns(hammer.molecule, hammer.basis, wfn_file)
+            wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order
+                                            , allow_sakurai_degs=allow_sakurai_degs
+                                            , allow_post_PT_calc=allow_post_PT_calc
+                                            , modify_degenerate_perturbations=modify_degenerate_perturbations
+                                            , ignore_odd_order_energies=ignore_odd_order
+                                            , intermediate_normalization=intermediate_normalization
+                                            , state_space_iterations=state_space_iterations
+                                            , verbose=verbose
+                                            )
 
         return wfns, hammer
 
-    def get_VPT2_wfns(self, fchk,
+    def get_VPT2_wfns(self,
+                      mol_spec,
                       internals,
                       states,
                       save_coeffs=False,
@@ -189,6 +214,8 @@ class VPT2Tests(TestCase):
                       degeneracies=None,
                       selection_rules=None,
                       log=False,
+                      verbose=False,
+                      pre_run_script=None,
                       parallelized=False,
                       checkpoint=None,
                       get_breakdown=False,
@@ -196,11 +223,13 @@ class VPT2Tests(TestCase):
                       order=2
                       , allow_sakurai_degs=False
                       , allow_post_PT_calc=True
+                      , ignore_odd_order=True
+                      , modify_degenerate_perturbations=False
                       , intermediate_normalization=False
                       , state_space_iterations=None
                       ):
         return self.get_VPT2_wfns_and_ham(
-            fchk,
+            mol_spec,
             internals,
             states,
             regenerate=regenerate,
@@ -218,13 +247,17 @@ class VPT2Tests(TestCase):
             degeneracies=degeneracies,
             selection_rules=selection_rules,
             log=log,
+            verbose=verbose,
             parallelized=parallelized,
+            pre_run_script=pre_run_script,
             checkpoint=checkpoint,
             get_breakdown=get_breakdown,
             chunk_size=chunk_size,
             order=order
             , allow_sakurai_degs=allow_sakurai_degs
             , allow_post_PT_calc=allow_post_PT_calc
+            , ignore_odd_order=ignore_odd_order
+            , modify_degenerate_perturbations=modify_degenerate_perturbations
             , intermediate_normalization=intermediate_normalization
             , state_space_iterations=state_space_iterations
         )[0]
@@ -264,7 +297,7 @@ class VPT2Tests(TestCase):
               )
 
     def run_PT_test(self,
-                    tag, file_name, internals, mode_selection,
+                    tag, mol_spec, internals, mode_selection,
                     states, gaussian_energies, gaussian_freqs,
                     print_report=False,
                     print_diffs=True,
@@ -273,18 +306,24 @@ class VPT2Tests(TestCase):
                     nielsen_tolerance=1,
                     gaussian_tolerance=1,
                     print_profile=False,
+                    pre_wfns_script=None,
+                    post_wfns_script=None,
+                    invert_x=False,
                     **opts
                     ):
         with BlockProfiler(tag, print_res=print_profile):
             wfns, hammer = self.get_VPT2_wfns_and_ham(
-                file_name,
+                mol_spec,
                 internals,
                 states,
                 regenerate=True,
+                pre_run_script=pre_wfns_script,
                 mode_selection=mode_selection
                 , log=log,
                 **opts
             )
+        if post_wfns_script is not None:
+           post_wfns_script(wfns, hammer)
 
         # Pure PT energies
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -321,18 +360,26 @@ class VPT2Tests(TestCase):
                 self.print_energy_block("Nielsen Difference Energies:", states, my_energies - nielsen_engs,
                                         my_freqs - nielsen_freqs)
 
-            self.assertLess(np.max(np.abs(my_freqs - nielsen_freqs)), nielsen_tolerance)
-
         if gaussian_freqs is not None:
             ns = min(len(freqs), len(gaussian_freqs))
             if print_report:
-                self.print_energy_block("Gaussian Energies:", states, gaussian_energies, gaussian_freqs[:ns])
+                self.print_energy_block("Reference Energies:", states, gaussian_energies, gaussian_freqs[:ns])
 
             if print_diffs:
-                self.print_energy_block("Gaussian Difference Energies:", states, my_energies - gaussian_energies,
+                self.print_energy_block("Reference Difference Energies:", states, my_energies - gaussian_energies,
                                         my_freqs[:ns] - gaussian_freqs[:ns])
 
+        # if invert_x:
+        #
+        #     hammer.get_
+
+        if internals is None and nielsen_tolerance is not None:
+            self.assertLess(np.max(np.abs(my_freqs - nielsen_freqs)), nielsen_tolerance)
+
+        if gaussian_freqs is not None:
             self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), gaussian_tolerance)
+
+
 
     def profile_block(self, block):
 
@@ -2298,36 +2345,36 @@ class VPT2Tests(TestCase):
                   )
                   )
 
-    @debugTest
-    def test_TwoMorseCartesiansNonDeg(self):
+    analytic_data['Morse3500/50'] = {
+        'zpe': np.array([1750.000, 1737.5000000]),
+        'freqs': np.array([
+            [ 3500.000, 3400.0000000],
+            [ 7000.000, 6700.0000000],
+            [10500.000, 9900.0000000],
 
+            [14000.000, 13000.000000],
+            [17500.000, 16000.000000]
+        ])
+    }
+    @validationTest
+    def test_OneMorseCartesiansNonDeg(self):
         from Psience.Molecools import Molecule
         import McUtils.Numputils as nput
+        from McUtils.Zachary import FiniteDifferenceDerivative
 
-        # internals = [
-        #     [0, -1,  -1, -1],
-        #     [1,  0,  -1, -1],
-        #     [2,  0,   1, -1],
-        #     [3,  2,   1,  0]
-        # ]
-        internals = None
+        tag="TwoMorseCartesiansNonDeg"
+
+        # Set up system
 
         re_1 = 1.0
         re_2 = 1.0
-
-        # mol0 = Molecule(
-        #     ["O", "H", "O", "H"],
-        #     np.array([
-        #         [0.000000, 0.000000, 0.000000],
-        #         [re_1, 0.000000, 0.000000],
-        #         [0.000000, 1.000000, 0.000000],
-        #         [re_2, 1.000000, 0.000000]
-        #     ]),
-        #     zmatrix=internals,
-        #     guess_bonds=False,
-        # )
-
-        mol0 = Molecule(
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+        # internals = None
+        mol = Molecule(
             ["O", "H", "H"],
             np.array([
                 [0.000000, 0.000000, 0.000000],
@@ -2338,18 +2385,7 @@ class VPT2Tests(TestCase):
             guess_bonds=False,
         )
 
-        # masses = mol0.masses
-        # anchor_pos = np.average(mol0.coords[:2], weights=masses[:2]/np.sum(masses[:2]), axis=0)
-        # mol0.coords[2] += anchor_pos
-
-        # put in PAF
-        mol = mol0
-        # mol = mol0.principle_axis_frame()(mol0)
-        # raise Exception(mol.coords)
-
-        from McUtils.Zachary import FiniteDifferenceDerivative
-
-        masses = mol0.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        masses = mol.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
 
         w2h = UnitsData.convert("Wavenumbers", "Hartrees")
         w1 = 3500 * w2h; wx1 = 50 * w2h
@@ -2366,7 +2402,7 @@ class VPT2Tests(TestCase):
         def two_morse(carts, *,
                       De_1=De_1, a_1=a_1, re_1=re_1,
                       De_2=De_2, a_2=a_2, re_2=re_2,
-                      k_b = 500  * w2h
+                      k_b = 500 * w2h
                       ):
             # anchor_pos = np.average(carts[..., :2, :], weights=mass_weights, axis=-2)
             r1_vecs = carts[..., 1, :] - carts[..., 0, :]
@@ -2377,7 +2413,7 @@ class VPT2Tests(TestCase):
 
             return (
                     De_1 * (1 - np.exp(-a_1 * r1)) ** 2
-                    + De_2 * (1 - np.exp(-a_2 * r2)) ** 2
+                    # + De_2 * (1 - np.exp(-a_2 * r2)) ** 2
                     # + k_b * (b**2)
             )
 
@@ -2386,65 +2422,42 @@ class VPT2Tests(TestCase):
                                                mesh_spacing=1e-3,
                                                stencil=5
                                                ).derivatives(mol.coords)
-
-        # v1, v2 = deriv_gen.derivative_tensor([1, 2])
         v1, v2, v3, v4 = deriv_gen.derivative_tensor([1, 2, 3, 4])
-
         mol.potential_derivatives = [v1, v2, v3, v4]
 
-        modes = mol.normal_modes[-1,]
-        # stretches = modes.basis.matrix.T
-        # symm = (stretches[1] + stretches[0]) * np.sqrt(1 / 2)
-        # asym = (stretches[1] - stretches[0]) * np.sqrt(1 / 2)
-        # new_mat = np.array([symm, asym]).T
-        # modes.basis.matrix = new_mat
-        # modes.basis.inverse = new_mat.T
-        ham = PerturbationTheoryHamiltonian(mol, modes=modes,
-                                            n_quanta=50,
-                                            coriolis_coupling=False, watson_term=False
-                                            )
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = [-1]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(5, n_modes)
 
-        # mode_selection=[-1, -2]
-        # ham = PerturbationTheoryHamiltonian(mol, mode_selection=mode_selection, n_quanta=50)
+        print_report = False
+        reference_energies = self.analytic_data['Morse3500/50']['zpe']
+        reference_freqs = self.analytic_data['Morse3500/50']['freqs']
 
-        # import json
-        # raise Exception(json.dumps(ham.V_terms[1].tolist()))
+        # def post_wfns_script(wfns, ham):
+        #     plt.ArrayPlot(wfns.corrs.hams[2].asarray()).show()
+        #     raise Exception(wfns.corrs.hams[2].asarray())
 
-        states = ham.basis.get_state_space(range(5))
-        wfns = ham.get_wavefunctions(
-            states
-            , order=2
-            , zero_element_warning=False
+        post_wfns_script = None
+
+        self.run_PT_test(
+            tag,
+            mol,
+            internals,
+            mode_selection,
+            states,
+            reference_energies,
+            reference_freqs,
+            log=True,
+            verbose=True,
+            post_wfns_script=post_wfns_script,
+            print_report=print_report,
+            # ignore_odd_order=False,
+            intermediate_normalization=False,
+            order=2
         )
-
-        # with JSONCheckpointer(os.path.expanduser('~/Desktop/test_dat.json')) as woof:
-        #     woof['h1'] = wfns.corrs.hams[1].asarray()
-        #     woof['h2'] = wfns.corrs.hams[2].asarray()
-        #     woof['states'] = wfns.corrs.total_basis.excitations
-        # raise Exception(np.diag(wfns.corrs.hams[0].asarray()))
-        states = states.excitations
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
-        # wfns = hammer.get_wavefunctions(states, coupled_states=None)
-        energies = h2w * wfns.energies
-        zero_ord = h2w * wfns.zero_order_energies
-
-        print_report = True
-        n_modes = len(states[0])
-        harm_engs = zero_ord
-        engs = energies
-        harm_freq = zero_ord[1:] - zero_ord[0]
-        freqs = energies[1:] - energies[0]
-        if print_report:
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
 
     #endregion
 
@@ -2616,7 +2629,6 @@ class VPT2Tests(TestCase):
 
     @inactiveTest
     def test_HOHVPTCartesians4thOrder(self):
-
 
         import warnings
         np.seterr(all='raise')
@@ -3194,7 +3206,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @inactiveTest
+    @debugTest
     def test_OCHHVPTCartesiansDegenerate(self):
 
         tag = 'OCHH Cartesians'
@@ -3222,11 +3234,72 @@ class VPT2Tests(TestCase):
         #         ])
         # # raise Exception(degeneracies)
 
+        from McUtils.GaussianInterface import GaussianLogReader
+        with GaussianLogReader(TestManager.test_data('OCHH_freq_16.log')) as reader:
+            sort_spec = np.flip([4, 0, 1, 2, 5, 3])
+            x = reader.parse("XMatrix")["XMatrix"][np.ix_(sort_spec, sort_spec)]
+            # raise Exception(x)
+        def pre_wfns_script(hammer, states):
+            harm, corrs = hammer.get_Nielsen_energies(states, x_mat=x)
+            harm = harm * self.h2w
+            anharms = harm + corrs
+            # print(states)
+            print(np.column_stack([
+                harm[1:] - harm[0],
+                anharms[1:] - anharms[0]
+            ]))
+        pre_wfns_script = None
+
         degeneracies = (
             [
                 [0, 0, 0, 0, 0, 1],
-                [0, 1, 0, 1, 0, 0]
+                [0, 1, 0, 1, 0, 0],
             ],
+            [
+                [0, 0, 0, 0, 0, 2],
+                [0, 1, 0, 1, 0, 1],
+            ],
+            [
+                [0, 0, 0, 0, 1, 1],
+                [0, 1, 0, 1, 1, 0],
+            ],
+            [
+                [0, 0, 0, 1, 0, 1],
+                [0, 1, 0, 2, 0, 0],
+            ],
+            [
+                [0, 0, 1, 0, 0, 1],
+                [0, 1, 1, 1, 0, 0],
+            ],
+            [
+                [0, 1, 0, 0, 0, 1],
+                [0, 2, 0, 1, 0, 0],
+            ],
+            [
+                [1, 0, 0, 0, 0, 1],
+                [1, 1, 0, 1, 0, 0],
+            ]
+
+                #
+                # [0, 0, 0, 0, 1, 1],
+                # [0, 1, 0, 1, 1, 0],
+                #
+                # [0, 0, 0, 1, 0, 1],
+                # [0, 1, 0, 2, 0, 0],
+                #
+                # [0, 0, 1, 0, 0, 1],
+                # [0, 1, 1, 1, 0, 0],
+                #
+                # [0, 1, 0, 0, 0, 1],
+                # [0, 2, 0, 1, 0, 0],
+                #
+                # [1, 0, 0, 0, 0, 1],
+                # [1, 1, 0, 1, 0, 0]
+            # [
+            #     [0, 0, 0, 0, 0, 2],
+            #     [0, 1, 0, 0, 0, 1],
+            #     [0, 1, 0, 1, 0, 1],
+            # ]
             # [
             #     [0, 0, 0, 0, 1, 1],
             #     [0, 1, 0, 1, 1, 0]
@@ -3271,9 +3344,14 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
+            pre_wfns_script=pre_wfns_script,
             log=True,
+            verbose=True,
             gaussian_tolerance=gaussian_tolerance,
             degeneracies=degeneracies
+            , allow_post_PT_calc=False
+            # , invert_x=True
+            # , modify_degenerate_perturbations=True
         )
 
     gaussian_data['OCHD'] = {
@@ -3492,7 +3570,6 @@ class VPT2Tests(TestCase):
             # , print_profile=True
         )
 
-
     @inactiveTest
     def test_OCHTVPTCartesiansDegenerate(self):
 
@@ -3531,6 +3608,150 @@ class VPT2Tests(TestCase):
         )
 
     #endregion Formaldehyde Analogs
+
+    #region HOONO
+
+    gaussian_data['HOONO'] = {
+        'zpe': [5144.56105, 5052.05930],
+        'freqs': np.array([
+            [3486.855,  3299.146],
+            [1568.502,  1558.272],
+            [1433.609,  1395.836],
+            [ 970.877,   947.362],
+            [ 836.395,   814.545],
+            [ 715.883,   799.170],
+            [ 524.099,   482.999],
+            [ 397.168,   371.575],
+            [ 355.733,   270.102],
+            # 2 quanta
+            [6973.711,  6378.861],
+            [3137.004,  3097.108],
+            [2867.219,  2783.602],
+            [1941.754,  1889.021],
+            [1672.790,  1622.255],
+            [1431.767,  1543.473],
+            [1048.199,   949.341],
+            [ 794.335,   736.075],
+            [ 711.467,   309.620],
+            # mixed states
+            [5055.357,  4854.609],
+            [4920.465,  4656.617],
+            [4457.732,  4250.173],
+            [4323.250,  4118.829],
+            [4202.739,  4110.476],
+            [4010.955,  3804.739],
+            [3884.023,  3672.896],
+            [3842.589,  3629.964],
+            [3002.112,  2946.860],
+            [2539.379,  2502.223],
+            [2404.897,  2371.654],
+            [2284.385,  2386.161],
+            [2092.601,  2042.056],
+            [1965.670,  1930.208],
+            [1924.236,  1833.376],
+            [2404.486,  2340.072],
+            [2270.004,  2203.572],
+            [2149.493,  2194.956],
+            [1957.709,  1884.793],
+            [1830.777,  1768.335],
+            [1789.343,  1680.838],
+            [1807.272,  1752.785],
+            [1686.760,  1737.147],
+            [1494.976,  1428.035],
+            [1368.044,  1314.186],
+            [1326.610,  1212.119],
+            [1552.278,  1609.052],
+            [1360.494,  1292.706],
+            [1233.562,  1182.927],
+            [1192.128,  1081.094],
+            [1239.983,  1265.933],
+            [1113.051,  1161.080],
+            [1071.617,  1350.184],
+            [ 921.267,   848.123],
+            [ 879.833,   706.552],
+            [ 752.901,   627.196],
+        ])
+    }
+    #Paper
+    @validationTest
+    def test_HOONOVPTInternals(self):
+
+        tag = 'HOONO Internals'
+        file_name = "HOONO_freq.fchk"
+
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  1,  0, -1],
+            [3,  2,  1,  0],
+            [4,  3,  2,  1],
+        ]
+        n_atoms = 5
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['HOONO']['zpe']
+        gaussian_freqs = self.gaussian_data['HOONO']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 10
+        gaussian_tolerance = 10
+        # from Psience.VPT2 import PotentialTerms
+        # PotentialTerms.hessian_tolerance = None
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
+    @validationTest
+    def test_HOONOVPTCartesians(self):
+
+        tag = 'HOONO Cartesians'
+        file_name = "HOONO_freq.fchk"
+
+        internals = None
+
+        n_atoms = 5
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['HOONO']['zpe']
+        gaussian_freqs = self.gaussian_data['HOONO']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 10
+        gaussian_tolerance = 10
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
+
+    #endregion
 
     #region Methane
 
@@ -3731,6 +3952,7 @@ class VPT2Tests(TestCase):
         [273.662, 201.333]
     ])
     }
+    #Paper
     @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
@@ -3751,7 +3973,7 @@ class VPT2Tests(TestCase):
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
         print_report = False
-        nielsen_tolerance = 1
+        nielsen_tolerance = 50
         gaussian_tolerance = 50
         self.run_PT_test(
             tag,
@@ -3761,6 +3983,8 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
+            log=True,
+            verbose=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
@@ -3786,7 +4010,7 @@ class VPT2Tests(TestCase):
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
         print_report = False
-        nielsen_tolerance = 1
+        nielsen_tolerance = 50
         gaussian_tolerance = 50
         self.run_PT_test(
             tag,
@@ -3796,11 +4020,12 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
+            log=True,
+            verbose=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
             , parallelized=True
-            # , chunk_size=int(2e4)
         )
 
 
@@ -5607,8 +5832,8 @@ class VPT2Tests(TestCase):
 
         internals = [
             [0, -1, -1, -1],
-            [1, 0, -1, -1],
-            [2, 0, 1, -1]
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
         ]
         states = (
             (0, 0, 0),
@@ -6007,7 +6232,7 @@ class VPT2Tests(TestCase):
             print(report)
 
 
-    @debugTest
+    @validationTest
     def test_WaterDimerIntensitiesCartesian(self):
 
         internals = None

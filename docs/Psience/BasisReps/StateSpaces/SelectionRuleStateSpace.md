@@ -9,7 +9,7 @@ from_rules: method
 ```
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, init_space, excitations, selection_rules=None): 
+__init__(self, init_space, excitations, selection_rules=None, ignore_shapes=False): 
 ```
 
 - `init_space`: `Any`
@@ -46,6 +46,11 @@ Pulls the full set excitations out of all of the
 ```python
 @property
 representative_space(self): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.check_indices" class="docs-object-method">&nbsp;</a>
+```python
+check_indices(self): 
 ```
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.take_states" class="docs-object-method">&nbsp;</a>

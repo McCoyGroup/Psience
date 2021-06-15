@@ -81,24 +81,9 @@ Pulls the full set excitations out of all of the
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__getitem__" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.check_indices" class="docs-object-method">&nbsp;</a>
 ```python
-__getitem__(self, item): 
-```
-
-<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a>
-```python
-get_representation_indices(self, freqs=None, freq_threshold=None, other=None, selection_rules=None, return_filter=False): 
-```
-Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
-        in this state space.
-        Basically just takes all pairs of indices.
-- `:returns`: `_`
-    >No description...
-
-<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_representation_brakets" class="docs-object-method">&nbsp;</a>
-```python
-get_representation_brakets(self, freqs=None, freq_threshold=None, other=None, selection_rules=None, filter=None, return_filter=False): 
+check_indices(self): 
 ```
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.to_single" class="docs-object-method">&nbsp;</a>
@@ -175,6 +160,26 @@ Takes the subdimensions from each space
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__repr__" class="docs-object-method">&nbsp;</a>
 ```python
 __repr__(self): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__getitem__" class="docs-object-method">&nbsp;</a>
+```python
+__getitem__(self, item): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a>
+```python
+get_representation_indices(self, freqs=None, freq_threshold=None, other=None, selection_rules=None, return_filter=False): 
+```
+Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
+        in this state space.
+        Basically just takes all pairs of indices.
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_representation_brakets" class="docs-object-method">&nbsp;</a>
+```python
+get_representation_brakets(self, freqs=None, freq_threshold=None, other=None, selection_rules=None, filter=None, return_filter=False): 
 ```
 
 ### Examples
