@@ -782,6 +782,15 @@ class BasisStateSpace(AbstractStateSpace):
                 # Get the representation indices that can be coupled under the supplied set of selection rules
                 # Currently this is clumsy.
                 # We do this by computing transformed states finding where this intersects with the other space
+                if len(selection_rules) == 0:
+                    # No changes so diagonal?
+                    inds = self.unique_indices
+                    upairs = np.array([inds, inds])
+                    if return_filter:
+                        return upairs, filter
+                    else:
+                        return upairs
+
                 if filter is None:
                     filter = other
                 transf = self.apply_selection_rules(selection_rules, filter_space=filter, parallelizer=parallelizer)
@@ -1876,6 +1885,15 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             raise ValueError("applying selection_rules in the index generation isn't well defined...")
         if freq_threshold is not None:
             raise ValueError("Haven't implemented freq. threshold yet...")
+
+        if selection_rules is not None and len(selection_rules) == 0:
+            # No changes so diagonal?
+            inds = self.unique_indices
+            upairs = np.array([inds, inds])
+            if return_filter:
+                return upairs, filter
+            else:
+                return upairs
 
         inds_base = self.representative_space.indices
         inds_l = []

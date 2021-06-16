@@ -25,7 +25,7 @@ class Representation:
 
     """
 
-    def __init__(self, compute, basis, logger=None, selection_rules=None):
+    def __init__(self, compute, basis, name=None, logger=None, selection_rules=None):
         """
         :param compute: the function that turns indices into values
         :type compute: callable | Operator
@@ -49,6 +49,7 @@ class Representation:
         self.logger = logger
         self.array = StateSpaceMatrix(basis)
         self._selection_rules = selection_rules
+        self.name=name
 
     @property
     def parallelizer(self):
@@ -244,7 +245,9 @@ class Representation:
 
     def __rmul__(self, other):
         if isinstance(other, (int, float, np.integer, np.floating)):
-            return ExpansionRepresentation([other], [self], self.basis, logger=self.logger)
+            return ExpansionRepresentation([other], [self], self.basis,
+                                           name=self.name,
+                                           logger=self.logger)
         else:
             raise TypeError("operator * not defined for objects of type {0} and {1} (only numbers are supported with {0})".format(
                 type(self).__name__,
@@ -252,7 +255,10 @@ class Representation:
             ))
     def __mul__(self, other):
         if isinstance(other, (int, float, np.integer, np.floating)):
-            return ExpansionRepresentation([other], [self], self.basis, logger=self.logger)
+            return ExpansionRepresentation([other], [self],
+                                           self.basis,
+                                           name=self.name,
+                                           logger=self.logger)
         else:
             raise TypeError("operator * not defined for objects of type {0} and {1} (only numbers are supported with {0})".format(
                 type(self).__name__,
@@ -267,9 +273,14 @@ class Representation:
                     self.dims,
                     other.dims
                 ))
-            return ExpansionRepresentation([1, 1], [self, other], self.basis, logger=self.logger)
+            return ExpansionRepresentation([1, 1],
+                                           [self, other],
+                                           self.basis,
+                                           name=self.name + other.name if self.name is not None and other.name is not None else None,
+                                           logger=self.logger
+            )
         else:
-            raise TypeError("operator * not defined for objects of type {0} and {1} (only subclasses of TermComputer are supported with {0})".format(
+            raise TypeError("operator + not defined for objects of type {0} and {1} (only subclasses of TermComputer are supported with {0})".format(
                 type(self).__name__,
                 type(other).__name__
             ))
@@ -286,11 +297,16 @@ class Representation:
             )
 
     def __repr__(self):
-        return "{}(<{}>, {})".format(
-            type(self).__name__,
-            self._get_dim_string(self.dims) if hasattr(self, 'dims') else '???',
-            self.operator if self.operator is not None else self.compute
-        )
+        if self.name is None:
+            return "{}(<{}>, {})".format(
+                type(self).__name__,
+                self._get_dim_string(self.dims) if hasattr(self, 'dims') else '???',
+                self.operator if self.operator is not None else self.compute
+            )
+        else:
+            return "{}<{}>".format(
+                type(self).__name__, self.name
+            )
 
     @property
     def selection_rules(self):
@@ -361,12 +377,174 @@ class Representation:
 
         return self.array.dot(other)
 
+    def get_representation_matrix(self,
+                                  coupled_space,
+                                  total_space,
+                                  filter_space=None,
+                                  diagonal=False,
+                                  logger=None,
+                                  zero_element_warning=True,
+                                  clear_sparse_caches=True
+                                  ):
+        """
+        Actively constructs a perturbation theory Hamiltonian representation
+
+        :param h:
+        :type h:
+        :param cs:
+        :type cs:
+        :return:
+        :rtype:
+        """
+
+        if logger is None:
+            logger = self.logger
+
+        if not isinstance(coupled_space, BraKetSpace):
+            if diagonal:
+                m_pairs = BraKetSpace(coupled_space, coupled_space)
+            else:
+                m_pairs = coupled_space.get_representation_brakets(other=filter_space)
+        else:
+            m_pairs = coupled_space
+
+        if len(m_pairs) > 0:
+            # logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
+            sub = self[m_pairs]
+            if isinstance(sub, SparseArray):
+                sub = sub.asarray()
+            if clear_sparse_caches:
+                SparseArray.clear_cache()
+        else:
+            logger.log_print('no states to couple!')
+            sub = 0
+
+        logger.log_print("constructing sparse representation...")
+
+        N = len(total_space)
+        if isinstance(sub, (int, np.integer, np.floating, float)):
+            if sub == 0:
+                sub = SparseArray.empty((N, N), dtype=float)
+            else:
+                raise ValueError("Using a constant shift of {} will force representation to be dense...".format(sub))
+                sub = np.full((N, N), sub)
+        else:
+            if zero_element_warning:
+                zeros = np.where(sub == 0.)
+                if len(zeros) > 0 and len(zeros[0]) > 0:
+                    zeros = zeros[0]
+                    bad_pairs = (m_pairs.bras.take_subspace(zeros), m_pairs.kets.take_subspace(zeros))
+                    raise ValueError(
+                        ('got {0} zero elements from {1}; if you expect zeros, set `zero_element_warning=False`. '
+                         'First zero element: <|{2}|{1}|{3}>').format(len(zeros), self,
+                                                                      bad_pairs[0].excitations[0],
+                                                                      bad_pairs[1].excitations[0]
+                                                                      )
+                    )
+            if diagonal and coupled_space is total_space: # fast shortcut
+                sub = SparseArray.from_diag(sub)
+            else:
+                # figure out the appropriate inds for this data in the sparse representation
+                row_inds = total_space.find(m_pairs.bras)
+                col_inds = total_space.find(m_pairs.kets)
+
+                # upper triangle of indices
+                up_tri = np.array([row_inds, col_inds]).T
+                # lower triangle is made by transposition
+                low_tri = np.array([col_inds, row_inds]).T
+                # but now we need to remove the duplicates, because many sparse matrix implementations
+                # will sum up any repeated elements
+                full_inds = np.concatenate([up_tri, low_tri])
+                full_dat = np.concatenate([sub, sub])
+
+                _, idx = np.unique(full_inds, axis=0, return_index=True)
+                sidx = np.sort(idx)
+                full_inds = full_inds[sidx]
+                full_dat = full_dat[sidx]
+                sub = SparseArray.from_data((full_dat, full_inds.T), shape=(N, N))
+
+        return sub
+
+    def get_diagonal_representation(self,
+                                  coupled_space,
+                                  total_space,
+                                  logger=None,
+                                  zero_element_warning=True,
+                                  clear_sparse_caches=True
+                                  ):
+        """
+        Actively constructs a perturbation theory Hamiltonian representation
+
+        :param h:
+        :type h:
+        :param cs:
+        :type cs:
+        :return:
+        :rtype:
+        """
+
+        if logger is None:
+            logger = self.logger
+        m_pairs = coupled_space.get_representation_brakets()
+
+        if len(m_pairs) > 0:
+            logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
+            sub = self[m_pairs]
+            if clear_sparse_caches:
+                SparseArray.clear_cache()
+        else:
+            logger.log_print('no states to couple!')
+            sub = 0
+
+        logger.log_print("constructing sparse representation...")
+
+        N = len(total_space)
+        if isinstance(sub, (int, np.integer, np.floating, float)):
+            if sub == 0:
+                sub = SparseArray.empty((N, N), dtype=float)
+            else:
+                raise ValueError("Using a constant shift of {} will force representation to be dense...".format(sub))
+                sub = np.full((N, N), sub)
+        else:
+            # figure out the appropriate inds for this data in the sparse representation
+            row_inds = total_space.find(m_pairs.bras)
+            col_inds = total_space.find(m_pairs.kets)
+
+            if zero_element_warning:
+                zeros = np.where(sub == 0.)
+                if len(zeros) > 0 and len(zeros[0]) > 0:
+                    zeros = zeros[0]
+                    bad_pairs = (m_pairs.bras.take_subspace(zeros), m_pairs.kets.take_subspace(zeros))
+                    raise ValueError(
+                        ('got zero elements from {0}; if you expect zeros, set `zero_element_warning=False`. '
+                         'First zero element: <|{1}|{0}|{2}>').format(self,
+                                                                      bad_pairs[0].excitations[0],
+                                                                      bad_pairs[1].excitations[0]
+                                                                      )
+                    )
+
+            # upper triangle of indices
+            up_tri = np.array([row_inds, col_inds]).T
+            # lower triangle is made by transposition
+            low_tri = np.array([col_inds, row_inds]).T
+            # but now we need to remove the duplicates, because many sparse matrix implementations
+            # will sum up any repeated elements
+            full_inds = np.concatenate([up_tri, low_tri])
+            full_dat = np.concatenate([sub, sub])
+
+            _, idx = np.unique(full_inds, axis=0, return_index=True)
+            sidx = np.sort(idx)
+            full_inds = full_inds[sidx]
+            full_dat = full_dat[sidx]
+            sub = SparseArray.from_data((full_dat, full_inds.T), shape=(N, N))
+
+        return sub
 
 class ExpansionRepresentation(Representation):
     """
     Provides support for terms that look like `1/2 pGp + 1/2 dV/dQdQ QQ` by computing each term on its own
     """
-    def __init__(self, coeffs, computers, basis, logger=None):
+    def __init__(self, coeffs, computers, basis, name=None, logger=None):
         """
         :param coeffs: The expansion coefficients
         :type coeffs: Iterable[float]
@@ -377,7 +555,7 @@ class ExpansionRepresentation(Representation):
         """
         self.coeffs = np.array(coeffs)
         self.computers = [Representation(c, basis) if not isinstance(c, Representation) else c for c in computers]
-        super().__init__(None, basis, logger=logger)
+        super().__init__(None, basis, name=name, logger=logger)
 
     def clear_cache(self):
         for c in self.computers:
@@ -397,6 +575,7 @@ class ExpansionRepresentation(Representation):
     def __mul__(self, other):
         if isinstance(other, (int, float, np.integer, np.floating)):
             return type(self)(self.coeffs*other, self.computers, self.basis,
+                              name=self.name,
                               logger=self.logger
                               )
         else:
@@ -417,18 +596,27 @@ class ExpansionRepresentation(Representation):
                     np.concatenate([self.coeffs, other.coeffs]),
                     self.computers + other.computers,
                     self.basis,
+                    name=self.name + other.name if (self.name is not None and other.name is not None) else None,
                     logger=self.logger
                 )
-            else:
+            elif isinstance(other, Representation):
                 return type(self)(
                     np.concatenate([self.coeffs, [1]]),
                     self.computers + [other],
                     self.basis,
+                    name=self.name + other.name if (self.name is not None and other.name is not None) else None,
                     logger=self.logger
                 )
+            else:
+                raise TypeError(
+                    "operator + not defined for objects of type {0} and {1} (only subclasses of TermComputer are supported with {0})".format(
+                        type(self).__name__,
+                        type(other).__name__
+                    ))
+
         else:
             raise TypeError(
-                "operator * not defined for objects of type {0} and {1} (only subclasses of TermComputer are supported with {0})".format(
+                "operator + not defined for objects of type {0} and {1} (only subclasses of TermComputer are supported with {0})".format(
                     type(self).__name__,
                     type(other).__name__
                 ))
@@ -482,6 +670,23 @@ class ExpansionRepresentation(Representation):
     def get_element(self, n, m):
         return self._dispatch_over_expansion('get_element', n, m)
 
+    @property
+    def selection_rules(self):
+        """
+
+        :return:
+        :rtype:
+        """
+        if self._selection_rules is None:
+            if all(hasattr(x, 'selection_rules') for x in self.computers):
+                _ = []
+                for x in self.computers:
+                    for r in x.selection_rules:
+                        if r not in _:
+                            _.append(r)
+                self._selection_rules = _
+        return self._selection_rules
+
     def get_transformed_space(self, space, parallelizer=None, logger=None):
         """
         Returns the state space obtained by using the
@@ -499,15 +704,8 @@ class ExpansionRepresentation(Representation):
 
         # we take a union of all transformation rules and just apply that
         # if possible
-        if self._selection_rules is not None:
+        if self.selection_rules is not None:
             ooooh_shiz = space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger)
-        elif all(hasattr(x, 'selection_rules') for x in self.computers):
-            total_sel_rules = []
-            for x in self.computers:
-                for r in x.selection_rules:
-                    if r not in total_sel_rules:
-                        total_sel_rules.append(r)
-            ooooh_shiz = space.apply_selection_rules(total_sel_rules, parallelizer=parallelizer, logger=logger)
         else:
             spaces = [r.get_transformed_space(space, parallelizer=parallelizer, logger=logger) for r in self.computers]
             ooooh_shiz = functools.reduce(lambda s1,s2: s1.union(s2), spaces[1:], spaces[0])
@@ -515,9 +713,14 @@ class ExpansionRepresentation(Representation):
         return ooooh_shiz
 
     def __repr__(self):
-        return "{}(<{}>, ({}), ({}))".format(
-            type(self).__name__,
-            self._get_dim_string(self.dims) if hasattr(self, 'dims') else '???',
-            self.coeffs,
-            self.computers
-        )
+        if self.name is None:
+            return "{}(<{}>, ({}), ({}))".format(
+                type(self).__name__,
+                self._get_dim_string(self.dims) if hasattr(self, 'dims') else '???',
+                self.coeffs,
+                self.computers
+            )
+        else:
+            return "{}<{}>".format(
+                type(self).__name__, self.name
+            )

@@ -713,12 +713,12 @@ class PerturbationTheorySolver:
             n_spaces = len(self.total_state_space.spaces)
             # raise Exception(len(self.total_state_space.spaces))
             H = [np.zeros(1)] * min(len(self.perts), n_spaces)
-            with logger.block(tag="getting H0"):
+            with logger.block(tag="getting {}".format(self.perts[0])):
                 start = time.time()
-                logger.log_print(["calculating diagonal elements"])
-                diag = self.perts[0][diag_inds]
-                logger.log_print(["constructing sparse representation"])
-                H[0] = SparseArray.from_diag(diag)
+                H[0] = self.perts[0].get_representation_matrix(self.flat_total_space, self.flat_total_space,
+                                                               zero_element_warning=self.zero_element_warning,
+                                                               diagonal=True
+                                                               )
                 end = time.time()
                 logger.log_print("took {t:.3f}s", t=end - start)
                 self.perts[0].clear_cache()
@@ -728,9 +728,12 @@ class PerturbationTheorySolver:
                 # calculate matrix elements in the coupled subspace
                 if n_spaces > i + 1:
                     cs = self.total_state_space[i + 1]
-                    with logger.block(tag="getting H" + str(i + 1)):
+                    with logger.block(tag="getting {}".format(h)):
                         start = time.time()
-                        H[i + 1] = self._build_representation_matrix(h, cs, i+1)
+                        H[i + 1] = h.get_representation_matrix(cs, self.flat_total_space,
+                                                               zero_element_warning=self.zero_element_warning,
+                                                               diagonal=False
+                                                               )
                         h.clear_cache()
                         # cs.clear_cache()
                         end = time.time()
@@ -750,69 +753,6 @@ class PerturbationTheorySolver:
             # raise Exception('wat')
 
             return H
-
-    def _build_representation_matrix(self, h, cs, i):
-        """
-        Actively constructs a perturbation theory Hamiltonian representation
-
-        :param h:
-        :type h:
-        :param cs:
-        :type cs:
-        :return:
-        :rtype:
-        """
-        logger = self.logger
-        m_pairs = cs.get_representation_brakets()# something for the future... freq_threshold=self.freq_threshold
-
-        if len(m_pairs) > 0:
-            logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
-            sub = h[m_pairs]
-            SparseArray.clear_cache()
-        else:
-            logger.log_print('no states to couple!')
-            sub = 0
-
-        logger.log_print("constructing sparse representation...")
-
-        N = self.total_space_dim
-        if isinstance(sub, (int, np.integer, np.floating, float)):
-            if sub == 0:
-                sub = SparseArray.empty((N, N), dtype=float)
-            else:
-                raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
-                sub = np.full((N, N), sub)
-        else:
-            # figure out the appropriate inds for this data in the sparse representation
-            row_inds = self.flat_total_space.find(m_pairs.bras)
-            col_inds = self.flat_total_space.find(m_pairs.kets)
-
-            if self.zero_element_warning:
-                zeros = np.where(sub == 0.)
-                if len(zeros) > 0 and len(zeros[0]) > 0:
-                    zeros = zeros[0]
-                    bad_pairs = (m_pairs.bras.take_subspace(zeros), m_pairs.kets.take_subspace(zeros))
-                    raise ValueError(
-                        ('got zero elements from H({}); if you expect zeros, set `zero_element_warning=False`. '
-                        'First zero element: <|{}|H|{}>').format(i, bad_pairs[0].excitations[0], bad_pairs[1].excitations[0])
-                    )
-
-            # upper triangle of indices
-            up_tri = np.array([row_inds, col_inds]).T
-            # lower triangle is made by transposition
-            low_tri = np.array([col_inds, row_inds]).T
-            # but now we need to remove the duplicates, because many sparse matrix implementations
-            # will sum up any repeated elements
-            full_inds = np.concatenate([up_tri, low_tri])
-            full_dat = np.concatenate([sub, sub])
-
-            _, idx = np.unique(full_inds, axis=0, return_index=True)
-            sidx = np.sort(idx)
-            full_inds = full_inds[sidx]
-            full_dat = full_dat[sidx]
-            sub = SparseArray.from_data((full_dat, full_inds.T), shape=(N, N))
-
-        return sub
 
     def _take_subham(self, rep, inds):
         """

@@ -137,7 +137,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         q = (self.quanta,)
         op = Operator(funcs, q, logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)
         return op
-    def representation(self, *terms, logger=None, parallelizer=None, chunk_size=None):
+    def representation(self, *terms, logger=None, name=None, parallelizer=None, chunk_size=None):
         """
         Provides a representation of a product operator specified by 'terms'
         :param terms:
@@ -149,7 +149,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         q=self.quanta
         return Representation(self.operator(*terms,
                                             logger=logger, parallelizer=parallelizer, chunk_size=chunk_size),
-                              self
+                              self, name=name
                               )
 
     @classmethod
@@ -417,7 +417,8 @@ class SimpleProductBasis(RepresentationBasis):
             op = Operator(funcs, q, symmetries=labels, selection_rules=sel_rules,
                           parallelizer=parallelizer, logger=logger, chunk_size=chunk_size)
         return op
-    def representation(self, *terms, coeffs=None, axes=None, logger=None, parallelizer=None, chunk_size=None):
+    def representation(self, *terms, coeffs=None, name=None, axes=None,
+                       logger=None, parallelizer=None, chunk_size=None):
         """
         Provides a representation of a product operator specified by _terms_.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -431,7 +432,7 @@ class SimpleProductBasis(RepresentationBasis):
         return Representation(
             self.operator(*terms, coeffs=coeffs, axes=axes,
                           parallelizer=parallelizer, logger=logger, chunk_size=chunk_size),
-            self, logger=logger
+            self, logger=logger, name=name
         )
     def x(self, n):
         """

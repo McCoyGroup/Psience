@@ -177,13 +177,16 @@ class PerturbationTheoryHamiltonian:
             self._h0 = (
                     (iphase * 1 / 2) * self.basis.representation('p', 'p',
                                                                  coeffs=self.G_terms[0],
+                                                                 name='T(0)',
                                                                  **self.operator_settings
                                                                  )
                     + 1 / 2 * self.basis.representation('x', 'x',
                                                         coeffs=self.V_terms[0],
+                                                        name='V(0)',
                                                         **self.operator_settings
                                                         )
             )
+            self._h0.name = "H(0)"
 
         return self._h0
 
@@ -200,11 +203,13 @@ class PerturbationTheoryHamiltonian:
             self._h1 = (
                     (iphase * 1 / 2) * self.basis.representation('p', 'x', 'p',
                                                                  coeffs=self.G_terms[1],
+                                                                 name='T(1)',
                                                                  axes=[[0, 1, 2], [1, 0, 2]],
                                                                  **self.operator_settings
                                                                  )
                     + 1 / 6 * self.basis.representation('x', 'x', 'x',
                                                         coeffs=self.V_terms[1],
+                                                        name='V(1)',
                                                         **self.operator_settings
                                                         )
             )
@@ -212,6 +217,8 @@ class PerturbationTheoryHamiltonian:
 
             if self._selection_rules is not None and len(self._selection_rules) > 0:
                 self._h1.selection_rules = self._selection_rules[0]
+
+            self._h1.name = "H(1)"
 
         return self._h1
 
@@ -228,11 +235,13 @@ class PerturbationTheoryHamiltonian:
             self._h2 = (
                     (iphase * 1 / 4) * self.basis.representation('p', 'x', 'x', 'p',
                                                                  coeffs=self.G_terms[2],
+                                                                 name='T(2)',
                                                                  axes=[[0, 1, 2, 3], [2, 0, 1, 3]],
                                                                  **self.operator_settings
                                                                  )
                     + 1 / 24 * self.basis.representation('x', 'x', 'x', 'x',
                                                          coeffs=self.V_terms[2],
+                                                         name='V(2)',
                                                          **self.operator_settings
                                                          )
             )
@@ -240,6 +249,7 @@ class PerturbationTheoryHamiltonian:
                 total_cor = self.coriolis_terms[0] + self.coriolis_terms[1] + self.coriolis_terms[2]
                 self._h2 += iphase * self.basis.representation('x', 'p', 'x', 'p',
                                                                coeffs=total_cor,
+                                                              name='Coriolis',
                                                                **self.operator_settings
                                                                )
             # else:
@@ -249,11 +259,14 @@ class PerturbationTheoryHamiltonian:
 
             if self.watson_term is not None:
                 self._h2 += 1 / 8 * self.basis.representation(coeffs=self.watson_term[0],
+                                                              name='WatsonTerm',
                                                               **self.operator_settings
                                                               )
 
             if self._selection_rules is not None and len(self._selection_rules) > 1:
                 self._h2.selection_rules = self._selection_rules[1]
+
+            self._h2.name = "H(2)"
 
         return self._h2
 
