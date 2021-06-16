@@ -41,6 +41,26 @@ expectation(self, operator, other):
 zero_order_energies(self): 
 ```
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.get_M0" class="docs-object-method">&nbsp;</a>
+```python
+get_M0(self, mu_0): 
+```
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.get_M1" class="docs-object-method">&nbsp;</a>
+```python
+get_M1(self, mu_1): 
+```
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.get_M2" class="docs-object-method">&nbsp;</a>
+```python
+get_M2(self, mu_2): 
+```
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.get_M3" class="docs-object-method">&nbsp;</a>
+```python
+get_M3(self, mu_3): 
+```
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.dipole_terms" class="docs-object-method">&nbsp;</a>
 ```python
 @property

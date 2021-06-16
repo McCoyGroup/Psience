@@ -5,7 +5,7 @@ in high-dimensional spaces.
 ### Properties and Methods
 <a id="Psience.BasisReps.Terms.Representation.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, compute, basis, logger=None, selection_rules=None): 
+__init__(self, compute, basis, name=None, logger=None, selection_rules=None): 
 ```
 
 - `compute`: `callable | Operator`
@@ -128,6 +128,30 @@ Returns the state space obtained by using the
 ```python
 apply(self, other): 
 ```
+
+<a id="Psience.BasisReps.Terms.Representation.get_representation_matrix" class="docs-object-method">&nbsp;</a>
+```python
+get_representation_matrix(self, coupled_space, total_space, filter_space=None, diagonal=False, logger=None, zero_element_warning=True, clear_sparse_caches=True): 
+```
+Actively constructs a perturbation theory Hamiltonian representation
+- `h`: `Any`
+    >No description...
+- `cs`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.Terms.Representation.get_diagonal_representation" class="docs-object-method">&nbsp;</a>
+```python
+get_diagonal_representation(self, coupled_space, total_space, logger=None, zero_element_warning=True, clear_sparse_caches=True): 
+```
+Actively constructs a perturbation theory Hamiltonian representation
+- `h`: `Any`
+    >No description...
+- `cs`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 ### Examples
 
