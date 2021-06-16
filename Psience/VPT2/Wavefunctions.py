@@ -130,7 +130,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     selection_rules=m.selection_rules
                 )  # no selection rules here
                 end = time.time()
-                self.logger.log_print('took {t}s...', t=end - start)
+                self.logger.log_print('took {t:.3f}s...', t=end - start)
             return inds, filter
 
         filter = ket_space.to_single()
@@ -189,7 +189,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     start = time.time()
                     sub = h.get_representation_matrix(m_pairs, self.corrs.total_basis, zero_element_warning=False) # expect zeros in M(3)?
                     end = time.time()
-                    self.logger.log_print('took {t}s...', t=end - start)
+                    self.logger.log_print('took {t:.3f}s...', t=end - start)
                 # sub = generate_rep(h, m_pairs)
                 mu_terms[i] = sub
 
@@ -250,13 +250,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 bra_space = lower_states if isinstance(lower_states, BasisStateSpace) else lower_states.to_single().take_unique()
                 ket_space = excited_states if isinstance(excited_states, BasisStateSpace) else excited_states.to_single().take_unique()
 
-                # if not bra_space.has_indices:
-                #     raise Exception('wat')
-                # if not ket_space.has_indices:
-                #     raise Exception('wat')
-                # if not self.corrs.total_basis.has_indices:
-                #     raise Exception('wat')
-
                 # M = len(space.indices)
                 logger.log_print(
                     [
@@ -265,7 +258,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     l=len(low_spec),
                     u=len(up_spec)
                 )
-
 
                 with logger.block(tag='taking correction subspaces:'):
                     start = time.time()
@@ -290,7 +282,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     end = time.time()
                     logger.log_print(
                         [
-                            "took {t:}s..."
+                            "took {t:.3f}s..."
                         ],
 
                         t=end - start
@@ -339,7 +331,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     end = time.time()
                     logger.log_print(
                         [
-                            "took {t:}s..."
+                            "took {t:.3f}s..."
                         ],
                         t=end-start
                     )
@@ -395,8 +387,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
                         end = time.time()
                         logger.log_print(
-                            "took {t}s",
-                            t=round(end - start, 3)
+                            "took {t:.3f}s",
+                            t=end - start
                         )
 
             # we calculate it explicitly like this up front in case we want to use it later since the shape

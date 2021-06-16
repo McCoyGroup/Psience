@@ -5694,6 +5694,7 @@ class VPT2Tests(TestCase):
             regenerate=True
             # coupled_states=coupled_states,
             , log=True
+            , verbose=True
             , order=2
         )
 
