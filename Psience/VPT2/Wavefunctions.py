@@ -96,125 +96,14 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     def zero_order_energies(self):
         return self.corrs.energy_corrs[:, 0]
 
-    def _build_representation_matrix(self, h, m_pairs):
-        """
-        Constructs a representation of an operator in a coupled
-        space...
-
-        :param h:
-        :type h:
-        :param cs:
-        :type cs:
-        :return:
-        :rtype:
-        """
-        logger = self.logger
-
-        if len(m_pairs) > 0:
-            logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
-            sub = h[m_pairs]
-            # TODO: WTF is this?
-            if isinstance(sub, SparseArray):
-                sub = sub.asarray()
-            SparseArray.clear_cache()
-        else:
-            logger.log_print('no states to couple!')
-            sub = 0
-
-        logger.log_print("constructing sparse representation...")
-
-        N = len(self.corrs.total_basis)
-        if isinstance(sub, (int, np.integer, np.floating, float)):
-            if sub == 0:
-                sub = SparseArray.empty((N, N), dtype=float)
-            else:
-                raise ValueError("Using a constant shift of {} will force Hamiltonians to be dense...".format(sub))
-                sub = np.full((N, N), sub)
-        else:
-            # figure out the appropriate inds for this data in the sparse representation
-            row_inds = self.corrs.total_basis.find(m_pairs.bras)
-            col_inds = self.corrs.total_basis.find(m_pairs.kets)
-
-            # upper triangle of indices
-            up_tri = np.array([row_inds, col_inds]).T
-            # lower triangle is made by transposition
-            low_tri = np.array([col_inds, row_inds]).T
-            # but now we need to remove the duplicates, because many sparse matrix implementations
-            # will sum up any repeated elements
-            full_inds = np.concatenate([up_tri, low_tri])
-            full_dat = np.concatenate([sub, sub])
-
-            _, idx = np.unique(full_inds, axis=0, return_index=True)
-            sidx = np.sort(idx)
-            full_inds = full_inds[sidx]
-            full_dat = full_dat[sidx]
-            sub = SparseArray.from_data((full_dat, full_inds.T), shape=(N, N))
-
-        return sub
-
-    @staticmethod
-    def _generate_rep(h, m_pairs, logger, i, M, space):
-            # m_pairs = rep_inds[i]
-
-            # print(">", len(m_pairs[0]))
-            if logger is not None:
-                start = time.time()
-                logger.log_print(
-                    [
-                        "calculating M^({})...",
-                        "(coupled space size {})"
-                    ],
-                    i,
-                    len(m_pairs[0])
-                )
-            # print(m_pairs)
-            sub = h[m_pairs[0], m_pairs[1]]
-            if isinstance(sub, SparseArray):
-                sub = sub.asarray()  #
-            SparseArray.clear_ravel_caches()
-            if logger is not None:
-                end = time.time()
-                logger.log_print(
-                    [
-                        "took {}s"
-                    ],
-                    round(end - start, 3)
-                )
-            if logger is not None:
-                logger.log_print(
-                    "constructing sparse representation..."
-                )
-
-            if isinstance(sub, (int, np.integer, np.floating, float)):
-                if sub == 0:
-                    sub = SparseArray.empty((M, M), dtype=float)
-                else:
-                    raise ValueError(
-                        "Using a constant shift of {} will force representations to be dense...".format(sub))
-                    sub = np.full((N, N), sub)
-            elif len(sub) == ():
-                sub = SparseArray.empty((M, M), dtype=float)
-            else:
-                # figure out the appropriate inds for this data in the sparse representation
-                row_inds = space.find(m_pairs[0])
-                col_inds = space.find(m_pairs[1])
-
-                # upper triangle of indices
-                up_tri = np.array([row_inds, col_inds]).T
-                # lower triangle is made by transposition
-                low_tri = np.array([col_inds, row_inds]).T
-                # but now we need to remove the duplicates, because many sparse matrix implementations
-                # will sum up any repeated elements
-                full_inds = np.concatenate([up_tri, low_tri])
-                full_dat = np.concatenate([sub, sub])
-
-                _, idx = np.unique(full_inds, axis=0, return_index=True)
-                sidx = np.sort(idx)
-                full_inds = full_dat[sidx]
-                full_dat = full_dat[sidx]
-                sub = SparseArray((full_dat, full_inds.T), shape=(M, M))
-
-            return sub
+    def get_M0(self, mu_0):
+        return self.rep_basis.representation(name='M(0)', coeffs=mu_0)
+    def get_M1(self, mu_1):
+        return self.rep_basis.representation("x", name='M(1)', coeffs=mu_1)
+    def get_M2(self, mu_2):
+        return 1 / 2 * self.rep_basis.representation("x", "x", name="M(2)", coeffs=mu_2)
+    def get_M3(self, mu_3):
+        return 1 / 6 * self.rep_basis.representation("x", "x", "x", name="M(3)", coeffs=mu_3)
 
     def _mu_representations(self,
                             a,
@@ -233,7 +122,17 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         elif not isinstance(partitioning, self.DipolePartitioningMethod):
             partitioning = self.DipolePartitioningMethod(partitioning)
 
-        logger = self.logger
+        def get_states(m, filter):
+            with self.logger.block(tag="getting coupled states for {}".format(m)):
+                start = time.time()
+                inds, filter = bra_space.get_representation_brakets(
+                    other=ket_space, filter=filter, return_filter=True,
+                    selection_rules=m.selection_rules
+                )  # no selection rules here
+                end = time.time()
+                self.logger.log_print('took {t:.3f}s...', t=end - start)
+            return inds, filter
+
         filter = ket_space.to_single()
         if all(
                     isinstance(m, (np.ndarray, SparseArray)) and m.shape == (M, M)
@@ -244,74 +143,36 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             if partitioning == self.DipolePartitioningMethod.Standard and len(mu_terms) < 4:
                 dts = self.dipole_terms[a]
                 mu_3 = dts[3]
-                m3 = 1 / 6 * self.rep_basis.representation("x", "x", "x", coeffs=mu_3)
+                m3 = self.get_M3(mu_3)
                 if rep_inds[3] is None:
-                    with self.logger.block(tag="getting coupled states for M^(3)"):
-                        start = time.time()
-                        m3_inds, filter = bra_space.get_representation_brakets(
-                            other=ket_space, filter=filter, return_filter=True,
-                            selection_rules=bra_space.basis.selection_rules("x", "x", "x")
-                        )
-                        end = time.time()
-                        self.logger.log_print('took {t}s...', t=end-start)
-                    with self.logger.block(tag="getting M^(3)"):
+                    m3_inds, filter = get_states(m3, filter)
+                    with self.logger.block(tag="getting {h}".format(h=m3)):
                         rep_inds[3] = m3_inds
-                        rep_3 = self._build_representation_matrix(m3, rep_inds[3])
+                        rep_3 = m3.get_representation_matrix(rep_inds[3], self.corrs.total_basis)
                 mu_terms.append(rep_3)
                 # mu_terms = mu_terms + [rep_3]
         else:
             mu_0, mu_1, mu_2, mu_3 = mu
 
-            m0 = self.rep_basis.representation(coeffs=mu_0)
+            m0 = self.get_M0(mu_0)
             if rep_inds[0] is None:
-                with self.logger.block(tag="getting coupled states for M^(0)"):
-                    start = time.time()
-                    # raise Exception(ket_space.excitations.dtype)
-                    m0_inds, filter = bra_space.get_representation_brakets(
-                            other=ket_space, filter=filter, return_filter=True,
-                            selection_rules=[[]]
-                    )  # no selection rules here
-                    end = time.time()
-                    self.logger.log_print('took {t}s...', t=end - start)
+                m0_inds, filter = get_states(m0, filter)
                 rep_inds[0] = m0_inds
-            m1 = (
-                    self.rep_basis.representation("x", coeffs=mu_1)
-                    + self.rep_basis.representation(coeffs=mu_0)
-            )
+            m1 = self.get_M1(mu_1)
             if rep_inds[1] is None:
-                with self.logger.block(tag="getting coupled states for M^(1)"):
-                    start = time.time()
-                    m1_inds, filter = bra_space.get_representation_brakets(
-                            other=ket_space, filter=filter, return_filter=True,
-                            selection_rules=bra_space.basis.selection_rules("x")
-                    )
-                    end = time.time()
-                    self.logger.log_print('took {t}s...', t= end - start)
+                m1_inds, filter = get_states(m1, filter)
                 rep_inds[1] = m1_inds
-            m2 = 1 / 2 * self.rep_basis.representation("x", "x", coeffs=mu_2)
+            m2 = self.get_M2(mu_2)
             if rep_inds[2] is None:
-                with self.logger.block(tag="getting coupled states for M^(2)"):
-                    start = time.time()
-                    m2_inds, filter = bra_space.get_representation_brakets(
-                            other=ket_space, filter=filter, return_filter=True,
-                        selection_rules=bra_space.basis.selection_rules("x", "x"))
-                    end = time.time()
-                    self.logger.log_print('took {t}s...', t=end - start)
+                m2_inds, filter = get_states(m2, filter)
                 rep_inds[2] = m2_inds
 
             if partitioning == self.DipolePartitioningMethod.Intuitive:
                 reps = [m0, m1, m2]
             elif partitioning == self.DipolePartitioningMethod.Standard:
-                m3 = 1 / 6 * self.rep_basis.representation("x", "x", "x", coeffs=mu_3)
+                m3 = self.get_M3(mu_3)
                 if rep_inds[3] is None:
-                    with self.logger.block(tag="getting coupled states for M^(3)"):
-                        start = time.time()
-                        m3_inds, filter = bra_space.get_representation_brakets(
-                            other=ket_space, filter=filter, return_filter=True,
-                            selection_rules=bra_space.basis.selection_rules("x", "x", "x")
-                        )
-                        end = time.time()
-                        self.logger.log_print('took {t}s...', t=end - start)
+                    m3_inds, filter = get_states(m3, filter)
                     rep_inds[3] = m3_inds
                 reps = [m0, m1, m2, m3]
             else:
@@ -322,10 +183,13 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             for i, h in enumerate(reps):
                 m_pairs = rep_inds[i]
                 if m_pairs is None:
-                    raise ValueError("representation indices haven't filled enough to calculate {}".format(i))
+                    raise ValueError("representation indices haven't filled enough to calculate {}".format(h))
 
-                with self.logger.block(tag="getting M^({})".format(i)):
-                    sub = self._build_representation_matrix(h, m_pairs)
+                with self.logger.block(tag="getting {}".format(h)):
+                    start = time.time()
+                    sub = h.get_representation_matrix(m_pairs, self.corrs.total_basis, zero_element_warning=False) # expect zeros in M(3)?
+                    end = time.time()
+                    self.logger.log_print('took {t:.3f}s...', t=end - start)
                 # sub = generate_rep(h, m_pairs)
                 mu_terms[i] = sub
 
@@ -383,15 +247,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     up_spec = excited_states
                     excited_states = space[(up_spec,)]
 
-                bra_space = lower_states if isinstance(lower_states, BasisStateSpace) else lower_states.to_single()
-                ket_space = excited_states if isinstance(excited_states, BasisStateSpace) else excited_states.to_single()
-
-                # if not bra_space.has_indices:
-                #     raise Exception('wat')
-                # if not ket_space.has_indices:
-                #     raise Exception('wat')
-                # if not self.corrs.total_basis.has_indices:
-                #     raise Exception('wat')
+                bra_space = lower_states if isinstance(lower_states, BasisStateSpace) else lower_states.to_single().take_unique()
+                ket_space = excited_states if isinstance(excited_states, BasisStateSpace) else excited_states.to_single().take_unique()
 
                 # M = len(space.indices)
                 logger.log_print(
@@ -401,7 +258,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     l=len(low_spec),
                     u=len(up_spec)
                 )
-
 
                 with logger.block(tag='taking correction subspaces:'):
                     start = time.time()
@@ -426,7 +282,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     end = time.time()
                     logger.log_print(
                         [
-                            "took {t:}s..."
+                            "took {t:.3f}s..."
                         ],
 
                         t=end - start
@@ -475,7 +331,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     end = time.time()
                     logger.log_print(
                         [
-                            "took {t:}s..."
+                            "took {t:.3f}s..."
                         ],
                         t=end-start
                     )
@@ -508,9 +364,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                             # should do this smarter
                             for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
                                 if i + j + k == q:
-                                    if len(mu_terms) <= k:
-                                        new = np.zeros((len(low_spec), len(up_spec)))
-                                    elif len(corr_terms) <= i or len(corr_terms) <= j:
+                                    if len(mu_terms) <= k or len(corr_terms) <= i or len(corr_terms) <= j:
                                         new = np.zeros((len(low_spec), len(up_spec)))
                                     else:
                                         m = mu_terms[k]
@@ -533,8 +387,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
                         end = time.time()
                         logger.log_print(
-                            "took {t}s",
-                            t=round(end - start, 3)
+                            "took {t:.3f}s",
+                            t=end - start
                         )
 
             # we calculate it explicitly like this up front in case we want to use it later since the shape

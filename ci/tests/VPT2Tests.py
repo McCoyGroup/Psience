@@ -3182,7 +3182,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesiansDegenerate(self):
 
         tag = 'OCHH Cartesians'
@@ -5675,7 +5675,7 @@ class VPT2Tests(TestCase):
             )
         )
 
-    @validationTest
+    @debugTest
     def test_HOHIntensitiesCartesian4thOrder(self):
 
         internals = None
@@ -5694,7 +5694,8 @@ class VPT2Tests(TestCase):
             regenerate=True
             # coupled_states=coupled_states,
             , log=True
-            , order=4
+            , verbose=True
+            , order=2
         )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
