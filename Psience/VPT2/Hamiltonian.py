@@ -281,7 +281,6 @@ class PerturbationTheoryHamiltonian:
         # actually pulled from the Stanton VPT4 paper since they had
         # the same units as I do...
         # we split this up into 3rd derivative, 4th derivative, and coriolis terms
-
         xss_4 = 1 / 16 * v4[s, s, s, s]
         xss_3 = -(
                 5/48 * (v3[s, s, s] ** 2 / w[s])
@@ -331,6 +330,15 @@ class PerturbationTheoryHamiltonian:
         # raise Exception(UnitsData.convert("Hartrees", "Wavenumbers") * Be, np.round(zeta, 5))
 
         ndim = len(freqs)
+        if v3 is None or isinstance(v3, (int, np.integer, float, np.floating)) and v3==0:
+            v3 = np.zeros((ndim, ndim, ndim))
+        if v4 is None or isinstance(v4, (int, np.integer, float, np.floating)) and v4==0:
+            v4 = np.zeros((ndim, ndim, ndim, ndim))
+        if zeta is None or isinstance(zeta, (int, np.integer, float, np.floating)) and zeta==0:
+            zeta = np.zeros((ndim, ndim, ndim))
+        if Be is None or isinstance(Be, (int, np.integer, float, np.floating)) and Be==0:
+            Be = np.zeros((3,))
+
         x_mat_linear = np.array([
             cls._Nielsen_xss(s, freqs, v3, v4, zeta, Be, ndim) if s == t else
             cls._Nielsen_xst(s, t, freqs, v3, v4, zeta, Be, ndim)
@@ -341,32 +349,6 @@ class PerturbationTheoryHamiltonian:
         x_mat[:, ri, ci] = x_mat_linear
         x_mat[:, ci, ri] = x_mat_linear
         return x_mat
-
-    # @classmethod
-    # def _get_Nielsen_energies(cls, states, freqs, v3, v4, zeta, Be):
-    #     """
-    #     Returns energies using Harald Nielsen's formulae up to second order. Assumes no degeneracies.
-    #     If implemented smarter, would be much, much faster than doing full-out perturbation theory, but less flexible.
-    #     Good for validation, too.
-    #
-    #
-    #     :param states: states to get energies for as lists of quanta in degrees of freedom
-    #     :type states: Iterable[Iterable[int]]
-    #     :param freqs: Harmonic frequencies
-    #     :type freqs: np.ndarray
-    #     :param v3: Cubic force constants
-    #     :type v3: np.ndarray
-    #     :param v4: Quartic force constants
-    #     :type v4: np.ndarray
-    #     :param zeta: Coriolis couplings
-    #     :type zeta: np.ndarray
-    #     :param Be: Moments of inertia
-    #     :type Be: np.ndarray
-    #     :return:
-    #     :rtype:
-    #     """
-    #
-    #     x_mat = cls._get_Nielsen_xmat(freqs, v3, v4, zeta, Be)
 
 
     @classmethod
@@ -435,7 +417,10 @@ class PerturbationTheoryHamiltonian:
 
         # raise Exception(np.round( 6 * v3 * h2w))
 
-        zeta, Be = self.coriolis_terms.get_zetas_and_momi()
+        if self.coriolis_terms is not None:
+            zeta, Be = self.coriolis_terms.get_zetas_and_momi()
+        else:
+            zeta = Be = None
 
         x = self._get_Nielsen_xmat(freqs, v3, v4, zeta, Be)
 
@@ -655,6 +640,7 @@ class PerturbationTheoryHamiltonian:
                           allow_sakurai_degs=False,
                           allow_post_PT_calc=True,
                           modify_degenerate_perturbations=False,
+                          gaussian_resonance_handling=False,
                           intermediate_normalization=False,
                           ignore_odd_order_energies=True,
                           zero_element_warning=True,
@@ -721,6 +707,7 @@ class PerturbationTheoryHamiltonian:
                                                   allow_sakurai_degs=allow_sakurai_degs,
                                                   allow_post_PT_calc=allow_post_PT_calc,
                                                   modify_degenerate_perturbations=modify_degenerate_perturbations,
+                                                  gaussian_resonance_handling=gaussian_resonance_handling,
                                                   ignore_odd_order_energies=ignore_odd_order_energies,
                                                   intermediate_normalization=intermediate_normalization,
                                                   zero_element_warning=zero_element_warning,

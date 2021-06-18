@@ -2,12 +2,13 @@
 Stores all of the terms used inside the VPT2 representations
 """
 
-import numpy as np, functools as fp, itertools as ip, scipy, time
+import numpy as np, functools as fp, itertools as ip, time
 
 from McUtils.Numputils import SparseArray, levi_cevita3, vec_tensordot, vec_outer
 from McUtils.Data import UnitsData
 from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer
+from McUtils.Zachary import TensorDerivativeConverter
 
 from ..Molecools import MolecularVibrations, MolecularNormalModes
 
@@ -236,7 +237,6 @@ class ExpansionTerms:
             weighted = weighted * weights
             # print(weights, weighted.array)
         return weighted
-
 
 
     def get_int_jacobs(self, jacs):
@@ -477,167 +477,224 @@ class ExpansionTerms:
         return V_Q, V_QQ, V_QQQ, V_QQQQ
 
     _cached_transforms = {}
-    def get_coordinate_transforms(self):
+    internal_by_cartesian_order=3
+    cartesian_by_internal_order=4
+    def get_coordinate_transforms(self,
+                                  internal_by_cartesian_order=None,
+                                  cartesian_by_internal_order=None,
+                                  current_cache=None
+                                  ):
+
+        if internal_by_cartesian_order is None:
+            internal_by_cartesian_order = self.internal_by_cartesian_order
+        if cartesian_by_internal_order is None:
+            cartesian_by_internal_order = self.cartesian_by_internal_order
 
         if self.molecule in self._cached_transforms:
-            return self._cached_transforms[self.molecule]
-
-        # ncoords = self.molecule.coords.shape[0]
-        # gc = np.delete(
-        #     np.arange(ncoords*3),
-        #     [0, 1, 2, 4, 5, 8]
-        # )
-
-        # raise Exception(gc)
-
-        if self.logger is not None:
-            self.logger.log_print(
-                [
-                    "Getting coordinate transforms for {m}",
-                    "Embedding axes: {a}"
-                    ],
-                m=self.molecule,
-                a=self.internal_coordinates.system.converter_options["axes_labels"]
-            )
-
-        # For speed reasons we've introduced class-level caching of these terms
-        if self.logger is not None:
-            start = time.time()
-            self.logger.log_print(
-                "Getting d^nX/dR^n up to order {o}...",
-                o=3
-            )
-        XR, XRR, XRRR = self.get_int_jacobs([1, 2, 3])
-        XRRRR = 0
-        if self.logger is not None:
-            end = time.time()
-            self.logger.log_print(
-                "took {t}s",
-                t=round(end-start, 3)
-            )
-
-        # The finite difference preserves too much shape by default
-        _contract_dim = DumbTensor._contract_dim
-        if XR.ndim > 2:
-            XR = _contract_dim(XR, 2)
-            # XR = XR[gc]
-        if not isinstance(XRR, int):
-            if XRR.ndim > 3:
-                XRR = _contract_dim(XRR, 3)
-            # XRR = XRR[np.ix_(gc, gc)]
-        if not isinstance(XRRR, int):
-            if XRRR.ndim > 4:
-                XRRR = _contract_dim(XRRR, 4)
-            # XRRR = XRRR[np.ix_(gc, gc, gc)]
-        if not isinstance(XRRRR, int):
-            if XRRRR.ndim > 5:
-                XRRRR = _contract_dim(XRRRR, 5)
-            # XRRRR = XRRRR[np.ix_(gc, gc, gc, gc)]
-
-        if self.logger is not None:
-            start = time.time()
-            self.logger.log_print(
-                "Getting d^nR/dX^n up to order {o}...",
-                o=3
-            )
-        RX, RXX, RXXX = self.get_cart_jacobs([1, 2, 3])
-        if self.logger is not None:
-            end = time.time()
-            self.logger.log_print(
-                "took {t}s",
-                t=round(end-start, 3)
-            )
-        # print(self.molecule, self.molecule.internal_coordinates, np.round(RX, 3), np.round(RXX, 3))
-        # raise Exception(RXX.shape)
-
-        if RX.ndim > 2:
-            RX = _contract_dim(RX, 2)
-        # RX = RX[:, gc]
-        if RXX.ndim > 3:
-            RXX = _contract_dim(RXX, 3)
-        # RXX = RXX[:, :, gc]
-        if RXXX.ndim > 4:
-            RXXX = _contract_dim(RXXX, 4)
-        # RXXX = RXXX[:, :, :, gc]
-
-        # Need to then mass weight
-        masses = self.masses
-        mass_conv = np.sqrt(self._tripmass(masses))
-        YR = XR * mass_conv[np.newaxis, :]
-        if isinstance(XRR, int):
-            YRR = 0
+            current_cache = self._cached_transforms[self.molecule]
         else:
-            YRR = XRR * mass_conv[np.newaxis, np.newaxis, :]
-        if isinstance(XRRR, int):
-            YRRR = 0
-        else:
-            YRRR = XRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, :]
-        if isinstance(XRRRR, int):
-            YRRRR = 0
-        else:
-            YRRRR = XRRRR * mass_conv[np.newaxis, np.newaxis, np.newaxis, np.newaxis, :]
+            current_cache = None
 
-        # We need to compute all these terms then mass weight them
-        RY = RX / mass_conv[:, np.newaxis]
-        RYY = RXX / (mass_conv[:, np.newaxis, np.newaxis] * mass_conv[np.newaxis, :, np.newaxis])
-        RYYY = RXXX / (
-                mass_conv[:, np.newaxis, np.newaxis, np.newaxis]
-                * mass_conv[np.newaxis, :, np.newaxis, np.newaxis]
-                * mass_conv[np.newaxis, np.newaxis, :, np.newaxis]
-        )
+        if (
+                current_cache is None
+                or len(current_cache["CartesiansByInternals"]) < cartesian_by_internal_order
+                or len(current_cache["InternalsByCartesians"]) < internal_by_cartesian_order
+        ):
 
-        QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
-        YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
+            if current_cache is None:
+                current_cache = {}
 
-        RQ, = self._get_tensor_derivs((YQ,), (RY,), order=1, mixed_XQ=False)
-        QR = np.tensordot(YR, QY, axes=[-1, 0])
+            if self.logger is not None:
+                self.logger.log_print(
+                    [
+                        "Getting coordinate transforms for {m}",
+                        "Embedding axes: {a}"
+                        ],
+                    m=self.molecule,
+                    a=self.internal_coordinates.system.converter_options["axes_labels"]
+                )
 
-        x_derivs = (YR, YRR, YRRR, YRRRR)
-        Q_derivs = (RQ, 0, 0, 0)
-        YQ_derivs = self._get_tensor_derivs(Q_derivs, x_derivs, mixed_XQ=False)
-        YQ, YQQ, YQQQ, YQQQQ = YQ_derivs
+            if (
+                    "CartesiansByInternals" not in current_cache
+                    or len(current_cache["CartesiansByInternals"]) < cartesian_by_internal_order
+            ):
+                # For speed reasons we've introduced class-level caching of these terms
+                if self.logger is not None:
+                    start = time.time()
+                    self.logger.log_print(
+                        "Getting d^nX/dR^n up to order {o}...",
+                        o=cartesian_by_internal_order
+                    )
+                internal_jacobs = self.get_int_jacobs(list(range(1, cartesian_by_internal_order+1)))
+                if self.logger is not None:
+                    end = time.time()
+                    self.logger.log_print(
+                        "took {t}s",
+                        t=round(end-start, 3)
+                    )
 
-        QYY = np.tensordot(RYY, QR, axes=[-1, 0])
-        QYYY = np.tensordot(RYYY, QR, axes=[-1, 0])
+                # The finite difference preserves too much shape by default
+                _contract_dim = DumbTensor._contract_dim
+                _ = []
+                for i,x in enumerate(internal_jacobs):
+                    if isinstance(x, int):
+                        _.append(x)
+                    elif x.ndim > 2+i:
+                        _.append(_contract_dim(x, 2+i))
+                internal_jacobs = _
 
-        qQ, qQQ, qQQQ, qQQQQ = self._get_tensor_derivs(
-            YQ_derivs, (QY, 0, 0, 0),
-            mixed_XQ=False
-        )
+                # Need to then mass weight
+                masses = self.masses
+                mass_conv = np.sqrt(self._tripmass(masses))
+                # mass weight the derivs w.r.t internals
+                internal_weighting = mass_conv
+                _ = []
+                for i, x in enumerate(internal_jacobs):
+                    internal_weighting = internal_weighting[..., :]
+                    if isinstance(x, int):
+                        _.append(x)
+                    else:
+                        _.append(x * internal_weighting)
+                internal_jacobs = _
 
-        transf_data = {
-            "InternalsByModes": [RQ],
-            "CartesiansByModes": [YQ, YQQ, YQQQ, YQQQQ],
-            "ModesByCartesians": [QY, QYY, QYYY],
-            "CartesiansByInternals": [YR, YRR, YRRR, YRRRR],
-            "InternalsByCartesians": [RY, RYY, RYYY],
-            "CartesianModesByInternalModes": [qQ, qQQ, qQQQ, qQQQQ]
-        }
+                current_cache["CartesiansByInternals"] = internal_jacobs
+            else:
+                internal_jacobs = current_cache["CartesiansByInternals"]
 
-        self._cached_transforms[self.molecule] = transf_data
-        self.checkpointer['coordinate_transforms'] = transf_data
+            if (
+                    "InternalsByCartesians" not in current_cache
+                    or len(current_cache["InternalsByCartesians"]) < cartesian_by_internal_order
+            ):
+                if self.logger is not None:
+                    start = time.time()
+                    self.logger.log_print(
+                        "Getting d^nR/dX^n up to order {o}...",
+                        o=internal_by_cartesian_order
+                    )
+                cartesian_jacobs = self.get_cart_jacobs(list(range(1, internal_by_cartesian_order + 1)))
+                if self.logger is not None:
+                    end = time.time()
+                    self.logger.log_print(
+                        "took {t}s",
+                        t=round(end-start, 3)
+                    )
 
-        return self._cached_transforms[self.molecule]
+                _contract_dim = DumbTensor._contract_dim
+                _ = []
+                for i,x in enumerate(cartesian_jacobs):
+                    if isinstance(x, int):
+                        _.append(x)
+                    elif x.ndim > 2+i:
+                        _.append(_contract_dim(x, 2+i))
+                cartesian_jacobs = _
+
+                # Need to then mass weight
+                masses = self.masses
+                mass_conv = np.sqrt(self._tripmass(masses))
+                # mass weight the derivs w.r.t cartesians
+                cartesian_weighting = mass_conv
+                mc = mass_conv
+                _ = []
+                for i, x in enumerate(cartesian_jacobs):
+                    cartesian_weighting = cartesian_weighting[..., np.newaxis]
+                    if isinstance(x, int):
+                        _.append(x)
+                    else:
+                        _.append(x * cartesian_weighting)
+                    mc = np.expand_dims(mc, 0)
+                    cartesian_weighting = cartesian_weighting * mc
+                cartesian_jacobs = _
+
+                current_cache["InternalsByCartesians"] = cartesian_jacobs
+            else:
+                cartesian_jacobs = current_cache["InternalsByCartesians"]
+
+            QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
+            YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
+
+            if "InternalsByModes" not in current_cache:
+                RQ, = TensorDerivativeConverter([YQ], cartesian_jacobs).convert(order=1)
+                current_cache["InternalsByModes"] = [RQ]
+            else:
+                RQ, = current_cache["InternalsByModes"]
+
+            if "ModesByInternals" not in current_cache:
+                QR, = TensorDerivativeConverter(internal_jacobs, [QY]).convert(order=1)
+                current_cache["ModesByInternals"] = [QR]
+            else:
+                QR, = current_cache["ModesByInternals"]
+
+            if (
+                    "CartesiansByModes" not in current_cache
+                    or len(current_cache["CartesiansByModes"]) < len(internal_jacobs)
+            ):
+                x_derivs = internal_jacobs#(YR, YRR, YRRR, YRRRR)
+                Q_derivs = [RQ] + [0]*(len(internal_jacobs) - 1)
+                YQ_derivs = TensorDerivativeConverter(Q_derivs, x_derivs).convert(order=len(internal_jacobs))
+
+                qQ_derivs= TensorDerivativeConverter(YQ_derivs, [QY] + [0]*(len(internal_jacobs) - 1)).convert(order=len(internal_jacobs))
+                self._get_tensor_derivs(
+                    YQ_derivs, (QY, 0, 0, 0),
+                    mixed_XQ=False
+                )
+
+                current_cache["CartesiansByModes"] = YQ_derivs
+                current_cache["CartesianModesByInternalModes"] = qQ_derivs
+
+                # "CartesiansByModes": [YQ, YQQ, YQQQ, YQQQQ],
+                # "ModesByCartesians": [QY, QYY, QYYY],
+                # "CartesianModesByInternalModes": [qQ, qQQ, qQQQ, qQQQQ]
+
+            if (
+                    "ModesByCartesians" not in current_cache
+                    or len(current_cache["ModesByCartesians"]) < len(cartesian_jacobs)
+            ):
+                QY_derivs = TensorDerivativeConverter(cartesian_jacobs, [QR] + [0]*(len(cartesian_jacobs) - 1)).convert(order=len(cartesian_jacobs))
+                current_cache["ModesByCartesians"] = QY_derivs
+
+            # transf_data = {
+            #     "CartesiansByInternals": internal_jacobs,
+            #     "InternalsByCartesians": cartesian_jacobs,#[RY, RYY, RYYY],
+            #     "InternalsByModes": [RQ],
+            #     "CartesiansByModes": [YQ, YQQ, YQQQ, YQQQQ],
+            #     "ModesByCartesians": [QY, QYY, QYYY],
+            #     "CartesianModesByInternalModes": [qQ, qQQ, qQQQ, qQQQQ]
+            # }
+
+            self._cached_transforms[self.molecule] = current_cache
+            self.checkpointer['coordinate_transforms'] = current_cache
+
+        return current_cache#self._cached_transforms[self.molecule]
 
     @property
     def cartesians_by_modes(self):
         return self.get_coordinate_transforms()['CartesiansByModes']
+    def get_cartesians_by_modes(self, order=None):
+        return self.get_coordinate_transforms(cartesian_by_internal_order=order)['CartesiansByModes']
 
     @property
     def modes_by_cartesians(self):
         return self.get_coordinate_transforms()['ModesByCartesians']
+    def get_modes_by_cartesians(self, order=None):
+        return self.get_coordinate_transforms(internal_by_cartesian_order=order)['ModesByCartesians']
 
     @property
     def cartesians_by_internals(self):
         return self.get_coordinate_transforms()['CartesiansByInternals']
+    def get_cartesians_by_internals(self, order=None):
+        return self.get_coordinate_transforms(cartesian_by_internal_order=order)['CartesiansByInternals']
 
     @property
     def internals_by_cartesians(self):
         return self.get_coordinate_transforms()['InternalsByCartesians']
+    def get_internals_by_cartesians(self, order=None):
+        return self.get_coordinate_transforms(internal_by_cartesian_order=order)['InternalsByCartesians']
 
     @property
     def cartesian_modes_by_internal_modes(self):
         return self.get_coordinate_transforms()['CartesianModesByInternalModes']
+    def get_cartesian_modes_by_internal_modes(self, order=None):
+        return self.get_coordinate_transforms(internal_by_cartesian_order=order)['CartesianModesByInternalModes']
 
 class PotentialTerms(ExpansionTerms):
     """
@@ -882,36 +939,32 @@ class PotentialTerms(ExpansionTerms):
     hessian_tolerance=1.0e-4
     grad_tolerance=1.0e-4
     freq_tolerance=2e-3
-    def old_get_terms(self):
+    def old_get_terms(self, order=None):
 
         self.logger.log_print('calculating potential derivatives')
+
+        if order is None:
+            order = len(self.v_derivs)
+
+        if order < 2:
+            raise ValueError("minimal potential expansion order is 2")
         grad = self.v_derivs[0]
         hess = self.v_derivs[1]
-        thirds = self.v_derivs[2]
-        fourths = self.v_derivs[3]
 
         # Use the Molecule's coordinates which know about their embedding by default
         intcds = self.internal_coordinates
         if intcds is None:
-            # this is nice because it eliminates most of terms in the expansion
+            # this is nice because it eliminates most of the terms in the expansion
             xQ = self.modes.inverse
-            xQQ = 0
-            xQQQ = 0
-            xQQQQ = 0
 
-            x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
-            V_derivs = (grad, hess, thirds, fourths)
+            x_derivs = [xQ] + [0] * (order-1)
+            V_derivs = self.v_derivs
 
-            # try:
-            v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_XQ=self.mixed_derivs)
-            # except:
+            terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order)
 
-            # raise Exception(
-            #     np.max(np.abs(xQ)), np.max(np.abs(fourths)),
-            #     np.max(np.abs(thirds)), np.max(np.abs(v3)), np.max(np.abs(v4)))
         else:
 
-            xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
+            x_derivs = self.get_cartesians_by_modes(order=order)
 
             if self.grad_tolerance is not None:
                 if np.linalg.norm(grad) > self.grad_tolerance:
@@ -922,8 +975,7 @@ class PotentialTerms(ExpansionTerms):
                         ))
                     grad = np.zeros(grad.shape)
 
-            x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
-            V_derivs = (grad, hess, thirds, fourths)
+            V_derivs = self.v_derivs
 
             v1, v2, v3, v4 = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=True, mixed_XQ=self.mixed_derivs)
 
@@ -932,7 +984,6 @@ class PotentialTerms(ExpansionTerms):
 
             if self.hessian_tolerance is not None:
                 v2_diff = v2 - v2x
-
                 if np.max(np.abs(v2_diff)) > self.hessian_tolerance:
                     raise PerturbationTheoryException(
                         "Internal normal mode Hessian differs from Cartesian normal mode Hessian;"
@@ -940,17 +991,21 @@ class PotentialTerms(ExpansionTerms):
                         " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)".format(np.min(xQQ), np.max(xQQ))
                     )
 
-        if self.mixed_derivs:# and intcds is None:
-            # we assume we only got second derivs in Q_i Q_i
-            # at this point, then, we should be able to fill in the terms we know are missing
-            if not isinstance(v4, np.ndarray):
-                v4 = v4.asarray()
-            for i in range(v4.shape[0]):
-                v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+        terms = terms[1:]
 
-        self.checkpointer['potential_terms'] = (v2, v3, v4)
+        if order > 3:
+            v4 = terms[2]
+            if self.mixed_derivs:# and intcds is None:
+                # we assume we only got second derivs in Q_i Q_i
+                # at this point, then, we should be able to fill in the terms we know are missing
+                if not isinstance(v4, np.ndarray):
+                    v4 = v4.asarray()
+                for i in range(v4.shape[0]):
+                    v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
 
-        new_freqs = np.diag(v2)
+        self.checkpointer['potential_terms'] = terms
+
+        new_freqs = np.diag(terms[0])
         old_freqs = self.modes.freqs
         # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
         if self.freq_tolerance is not None:
@@ -961,7 +1016,7 @@ class PotentialTerms(ExpansionTerms):
                     " got {} but expected {}".format(new_freqs, old_freqs)
                 )
 
-        return v2, v3, v4
+        return terms
 
     get_terms = old_get_terms
 

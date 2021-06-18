@@ -136,9 +136,9 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                             raise NotImplementedError("can't deal with non-BasisStateSpace specs for degeneracies")
 
                 logger.log_print(
-                    "{n} degenerate state sets found: {s}",
+                    "{n} degenerate state sets found",
                     n=len([x for x in degenerate_states if len(x) > 1]),
-                    s=[x for x in degenerate_states if len(x) > 1]
+                    # s=[x for x in degenerate_states if len(x) > 1]
                 )
 
                 # if martin_test:
@@ -545,6 +545,7 @@ class PerturbationTheorySolver:
                  allow_sakurai_degs=False,
                  allow_post_PT_calc=True,
                  modify_degenerate_perturbations=False,
+                 gaussian_resonance_handling=False,
                  ignore_odd_order_energies=False,
                  intermediate_normalization=False,
                  zero_element_warning=True,
@@ -595,6 +596,7 @@ class PerturbationTheorySolver:
         self.ignore_odd_orders = ignore_odd_order_energies
         self.drop_perturbation_degs = modify_degenerate_perturbations
         self.intermediate_normalization = intermediate_normalization
+        self.gaussian_resonance_handling = gaussian_resonance_handling
         self.zero_element_warning = zero_element_warning
 
         self._coupled_states = coupled_states
@@ -685,6 +687,8 @@ class PerturbationTheorySolver:
                 and any(len(x) > 1 for x in degenerate_states)
         ):
             with self.logger.block(tag="Applying post-PT variational calc."):
+                if self.gaussian_resonance_handling:
+                    self.logger.log_print('WARNING: Doing Gaussian resonance handling and not doing variational calculation involving states with more than 2 quanta of excitation')
                 deg_engs, deg_transf = self.apply_post_PT_variational_calc(degenerate_states, corrs)
                 corrs.degenerate_energies = deg_engs
                 corrs.degenerate_transf = deg_transf
@@ -1429,8 +1433,6 @@ class PerturbationTheorySolver:
                     # so we figure out what parts we've already calculated in this
                     # projected space (rep_space is the current space of the representations)
                     diffs = b.difference(rep_space)
-                    # print('-'*10, a.coeffs.shape, '-'*10)
-                    # print("????>>>>????", len(diffs), b)
                     if len(diffs) > 0:
                         # raise Exception(projections, rep_space, diffs)
                         # we have an initial space we've already transformed, so we
@@ -1638,7 +1640,6 @@ class PerturbationTheorySolver:
             )
 
         return spaces
-
     def get_second_deg_coupled_space(self, degenerate_space, spaces=None):
         """
         Does the dirty work of doing the VPT iterative equations.
@@ -2415,10 +2416,13 @@ class PerturbationTheorySolver:
         base_energies = corrs.energies  # for when we're not rotating
 
         if self.verbose:
-            self.logger.log_print("Deperturbed States/Energies: {e}", e=np.column_stack([
-                total_state_space.excitations,
-                np.round(UnitsData.convert("Hartrees", "Wavenumbers") * base_energies).astype(int)
-            ]))
+            self.logger.log_print(["Deperturbed States/Energies:"] + str(
+                np.column_stack([
+                    total_state_space.excitations,
+                    np.round(UnitsData.convert("Hartrees", "Wavenumbers") * base_energies).astype(int)
+                    ])
+            ).splitlines()
+                                  )
 
         # this will be built from a series of block-diagonal matrices
         # so we store the relevant values and indices to compose the SparseArray
@@ -2430,19 +2434,20 @@ class PerturbationTheorySolver:
             # we apply the degenerate PT on a group-by-group basis
             # by transforming the H reps into the non-degenerate basis
             deg_inds = total_state_space.find(group)
-            if len(deg_inds) > 1:
+            if len(deg_inds) == 1 or (self.gaussian_resonance_handling and np.max(np.sum(group.excitations, axis=1)) > 2):
+                for i in deg_inds:
+                    # we'll be a little bit inefficient for now and speed up later
+                    energies[i] = base_energies[i]
+                    rotation_vals.append([1.])
+                    rotation_row_inds.append([i])
+                    rotation_col_inds.append([i])
+            elif len(deg_inds) > 1:
                 deg_engs, deg_rot = self.get_degenerate_rotation(group, corrs)
                 energies[deg_inds] = deg_engs
                 rotation_vals.append(deg_rot.flatten())
                 deg_rows, deg_cols = np.array([p for p in itertools.product(deg_inds, deg_inds)]).T
                 rotation_row_inds.append(deg_rows)
                 rotation_col_inds.append(deg_cols)
-            elif len(deg_inds) == 1:
-                # we'll be a little bit inefficient for now and speed up later
-                energies[deg_inds[0]] = base_energies[deg_inds[0]]
-                rotation_vals.append([1.])
-                rotation_row_inds.append(deg_inds)
-                rotation_col_inds.append(deg_inds)
             else:
                 self.logger.log_print("WARNING: got degeneracy spec that is not in total space")
 
