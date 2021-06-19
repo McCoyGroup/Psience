@@ -2100,9 +2100,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         return new
 
     @classmethod
-    def _get_direct_product_spaces(cls, exc, selection_rules, symm_grp, filter_space, logger, parallelizer=None):
+    def _get_direct_product_spaces(cls, selection_rules, symm_grp, filter_space, logger, exc=None, parallelizer=None):
 
-        selection_rules, symm_grp, filter_space = parallelizer.broadcast([selection_rules, symm_grp, filter_space])
+        # selection_rules, symm_grp, filter_space = parallelizer.broadcast([selection_rules, symm_grp, filter_space])
         exc = parallelizer.scatter(exc)
 
         # parallelizer.print('block size: {s} {p}'.format(
@@ -2207,8 +2207,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                         new_inds.extend(new_inds_chunk)
 
                 else:
-                    new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces, exc,
+                    new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces,
                                                         selection_rules, symm_grp, filter_space, logger,
+                                                        main_kwargs={'exc':exc},
                                                         comm=list(range(len(exc))) if len(exc) < (1 + par.nprocs) else None
                                                         )
                     if not isinstance(new_exc[0], np.ndarray):

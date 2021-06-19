@@ -40,12 +40,16 @@ class PerturbationTheoryHamiltonian:
                  mixed_derivs=None,
                  potential_derivatives=None,
                  coriolis_coupling=True,
-                 watson_term=True,
+                 include_pseudopotential=True,
                  parallelizer=None,
                  log=None,
                  checkpoint=None,
                  operator_chunk_size=None,
-                 selection_rules=None
+                 selection_rules=None,
+                 potential_terms=None,
+                 kinetic_terms=None,
+                 coriolis_terms=None,
+                 pseudopotential_terms=None
                  ):
         """
         :param molecule: the molecule on which we're doing perturbation theory
@@ -109,24 +113,33 @@ class PerturbationTheoryHamiltonian:
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
         self.modes = modes
         self.mode_selection = mode_selection
+
+        self._input_potential = potential_terms
         self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection,
                                       potential_derivatives=potential_derivatives, mixed_derivs=mixed_derivs,
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
+
+
+        self._input_kinetic = kinetic_terms
         self.G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection,
                                     logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
+
+        self._input_coriolis = coriolis_terms
         if coriolis_coupling and (self.molecule.internal_coordinates is None):
             self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection,
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
         else:
             self.coriolis_terms = None
 
-        if watson_term:
-            self.watson_term = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
+        self._input_pseudopotential = pseudopotential_terms
+        if include_pseudopotential:
+            self.pseudopotential_term = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
                                           logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
         else:
-            self.watson_term = None
+            self.pseudopotential_term = None
 
-        self._h0 = self._h1 = self._h2 = None
+        self._expansions = []
+        # self._h0 = self._h1 = self._h2 = None
         self._selection_rules = selection_rules
 
         self.basis = HarmonicOscillatorProductBasis(self.n_quanta)
@@ -169,46 +182,69 @@ class PerturbationTheoryHamiltonian:
         """
         Provides the representation for H0 in this basis
         """
-        if self._h0 is None:
+        o = 0
+        if len(self._expansions) < o+1:
+            self._expansions += [None] * (o+1 - len(self._expansions))
+
+        if self._expansions[0] is None:
             if isinstance(self.basis, HarmonicOscillatorProductBasis):
                 iphase = 1
             else:
                 iphase = -1
-            self._h0 = (
+
+            T0 = self._input_kinetic[0] if self._input_kinetic is not None and len(self._input_kinetic) > 0 else None
+            if T0 is None:
+                T0 = self.G_terms[0]
+            V0 = self._input_potential[0] if self._input_potential is not None and len(self._input_potential) > 0 else None
+            if V0 is None:
+                V0 = self.V_terms[0]
+            self._expansions[0] = (
                     (iphase * 1 / 2) * self.basis.representation('p', 'p',
-                                                                 coeffs=self.G_terms[0],
+                                                                 coeffs=T0,
                                                                  name='T(0)',
                                                                  **self.operator_settings
                                                                  )
                     + 1 / 2 * self.basis.representation('x', 'x',
-                                                        coeffs=self.V_terms[0],
+                                                        coeffs=V0,
                                                         name='V(0)',
                                                         **self.operator_settings
                                                         )
             )
-            self._h0.name = "H(0)"
+            self._expansions[0].name = "H(0)"
 
-        return self._h0
+        return self._expansions[0]
 
     @property
     def H1(self):
         """
         Provides the representation for H1 in this basis
         """
-        if self._h1 is None:
+
+        o = 1
+        if len(self._expansions) < o + 1:
+            self._expansions += [None] * (o + 1 - len(self._expansions))
+
+        if self._expansions[1] is None:
             if isinstance(self.basis, HarmonicOscillatorProductBasis):
                 iphase = 1
             else:
                 iphase = -1
-            self._h1 = (
+
+            T = self._input_kinetic[1] if self._input_kinetic is not None and len(self._input_kinetic) > 1 else None
+            if T is None:
+                T = self.G_terms[1]
+            V = self._input_potential[1] if self._input_potential is not None and len(self._input_potential) > 1 else None
+            if V is None:
+                V = self.V_terms[1]
+            self._expansions[1] = (
                     (iphase * 1 / 2) * self.basis.representation('p', 'x', 'p',
-                                                                 coeffs=self.G_terms[1],
+                                                                 coeffs=T,
                                                                  name='T(1)',
                                                                  axes=[[0, 1, 2], [1, 0, 2]],
                                                                  **self.operator_settings
                                                                  )
                     + 1 / 6 * self.basis.representation('x', 'x', 'x',
-                                                        coeffs=self.V_terms[1],
+                                                        coeffs=V,
                                                         name='V(1)',
                                                         **self.operator_settings
                                                         )
@@ -216,40 +252,54 @@ class PerturbationTheoryHamiltonian:
 
 
             if self._selection_rules is not None and len(self._selection_rules) > 0:
-                self._h1.selection_rules = self._selection_rules[0]
+                self._expansions[1].selection_rules = self._selection_rules[0]
 
-            self._h1.name = "H(1)"
+            self._expansions[1].name = "H(1)"
 
-        return self._h1
+        return self._expansions[1]
 
     @property
     def H2(self):
         """
         Provides the representation for H2 in this basis
         """
-        if self._h2 is None:
+
+        o = 2
+        if len(self._expansions) < o + 1:
+            self._expansions += [None] * (o + 1 - len(self._expansions))
+
+        if self._expansions[2] is None:
             if isinstance(self.basis, HarmonicOscillatorProductBasis):
                 iphase = 1
             else:
                 iphase = -1
-            self._h2 = (
+
+            T = self._input_kinetic[2] if self._input_kinetic is not None and len(self._input_kinetic) > 2 else None
+            if T is None:
+                T = self.G_terms[2]
+            V = self._input_potential[2] if self._input_potential is not None and len(self._input_potential) > 2 else None
+            if V is None:
+                V = self.V_terms[2]
+            self._expansions[2] = (
                     (iphase * 1 / 4) * self.basis.representation('p', 'x', 'x', 'p',
-                                                                 coeffs=self.G_terms[2],
+                                                                 coeffs=T,
                                                                  name='T(2)',
                                                                  axes=[[0, 1, 2, 3], [2, 0, 1, 3]],
                                                                  **self.operator_settings
                                                                  )
                     + 1 / 24 * self.basis.representation('x', 'x', 'x', 'x',
-                                                         coeffs=self.V_terms[2],
+                                                         coeffs=V,
                                                          name='V(2)',
                                                          **self.operator_settings
                                                          )
             )
-            if self.coriolis_terms is not None:
-                total_cor = self.coriolis_terms[0] + self.coriolis_terms[1] + self.coriolis_terms[2]
-                self._h2 += iphase * self.basis.representation('x', 'p', 'x', 'p',
-                                                               coeffs=total_cor,
-                                                              name='Coriolis',
+            if self.coriolis_terms is not None or self._input_coriolis is not None:
+                Z = self._input_coriolis[0] if self._input_coriolis is not None and len(self._input_coriolis) > 0 else None
+                if Z is None:
+                    Z = np.sum(self.coriolis_terms[0], axis=0)
+                self._expansions[2] += iphase * self.basis.representation('x', 'p', 'x', 'p',
+                                                               coeffs=Z,
+                                                               name='Coriolis(0)',
                                                                **self.operator_settings
                                                                )
             # else:
@@ -257,22 +307,101 @@ class PerturbationTheoryHamiltonian:
             #                                               **self.operator_settings
             #                                               )
 
-            if self.watson_term is not None:
-                self._h2 += 1 / 8 * self.basis.representation(coeffs=self.watson_term[0],
-                                                              name='WatsonTerm',
+            if self.pseudopotential_term is not None or self._input_pseudopotential is not None:
+                U = self._input_pseudopotential[0] if self._input_pseudopotential is not None and len(self._input_pseudopotential) > 0 else None
+                if U is None:
+                    U = self.pseudopotential_term[0]
+                self._expansions[2] += 1 / 8 * self.basis.representation(coeffs=U,
+                                                              name="V'(0)",
                                                               **self.operator_settings
                                                               )
 
             if self._selection_rules is not None and len(self._selection_rules) > 1:
-                self._h2.selection_rules = self._selection_rules[1]
+                self._expansions[2].selection_rules = self._selection_rules[1]
 
-            self._h2.name = "H(2)"
+            self._expansions[2].name = "H(2)"
 
-        return self._h2
+        return self._expansions[2]
+
+    def _get_H(self, o):
+        """
+        Provides the representation for H4 in this basis
+        """
+
+        if len(self._expansions) < o + 1:
+            self._expansions += [None] * (o + 1 - len(self._expansions))
+
+        if self._expansions[o] is None:
+            if isinstance(self.basis, HarmonicOscillatorProductBasis):
+                iphase = 1
+            else:
+                iphase = -1
+
+            T = self._input_kinetic[o] if self._input_kinetic is not None and len(self._input_kinetic) > o else None
+            if T is None:
+                T = self.G_terms[o]
+            V = self._input_potential[o] if self._input_potential is not None and len(
+                self._input_potential) > o else None
+            if V is None:
+                V = self.V_terms[o]
+
+            p_expansion = ['p'] + ['x'] * o + ['p']
+            v_expansion = ['x'] * (o + 2)
+            self._expansions[o] = (
+                    (iphase / (2*np.math.factorial(o))) * self.basis.representation(*p_expansion,
+                                                                                        coeffs=T,
+                                                                                        name='T({})'.format(o),
+                                                                                        axes=[
+                                                                                            list(range(o+2)),
+                                                                                            [o] + list(range(o)) + [o+1]
+                                                                                        ],
+                                                                                        **self.operator_settings
+                                                                                        )
+                    + 1 / np.math.factorial(o + 2) * self.basis.representation(*v_expansion,
+                                                                               coeffs=V,
+                                                                               name='V({})'.format(o),
+                                                                               **self.operator_settings
+                                                                               )
+            )
+            if o > 1:
+                if self.coriolis_terms is not None or self._input_coriolis is not None:
+                    Z = self._input_coriolis[o] if self._input_coriolis is not None and len(self._input_coriolis) > o else None
+                    if Z is None:
+                        Z = np.sum(self.coriolis_terms[2], axis=0)
+
+                    z_exp = ['x', 'p'] + ['x' for _ in range(o-2)] + ['x', 'p']
+                    self._expansions[o] += iphase * self.basis.representation(*z_exp,
+                                                                              coeffs=Z,
+                                                                              name='Coriolis({})'.format(o-2),
+                                                                              **self.operator_settings
+                                                                              )
+
+                if self.pseudopotential_term is not None or self._input_pseudopotential is not None:
+                    U = self._input_pseudopotential[2] if self._input_pseudopotential is not None and len(
+                        self._input_pseudopotential) > 2 else None
+                    if U is None:
+                        U = self.pseudopotential_term[2]
+                    u_exp = ['x' for _ in range(o-2)]
+                    self._expansions[o] += 1 / 8 * self.basis.representation(*u_exp,
+                                                                             coeffs=U,
+                                                                             name="V'({})".format(o-2),
+                                                                             **self.operator_settings
+                                                                             )
+
+            if self._selection_rules is not None and len(self._selection_rules) > o-1:
+                self._expansions[o].selection_rules = self._selection_rules[o-1]
+
+            self._expansions[o].name = "H({})".format(o)
+
+        return self._expansions[o]
+
+    def get_perturbations(self, order):
+        # we get a benefit from going high first
+        return tuple(reversed([self._get_H(i) for i in range(order, -1, -1)]))
 
     @property
     def perturbations(self):
-        return (self.H0, self.H1, self.H2)
+        return self.get_perturbations(2)
 
     #region Nielsen energies
 
@@ -646,7 +775,8 @@ class PerturbationTheoryHamiltonian:
                           zero_element_warning=True,
                           state_space_iterations=None,
                           verbose=False,
-                          order=2
+                          order=2,
+                          expansion_order=None
                           ):
         """
         Gets a set of `PerturbationTheoryWavefunctions` from the perturbations defined by the Hamiltonian
@@ -664,22 +794,29 @@ class PerturbationTheoryHamiltonian:
         if allow_sakurai_degs:
             raise NotImplementedError("true degeneracy handling needs to be reworked to be fully general")
 
+        # print([self.V_terms[i] for i in range(5)])
+
         with self.checkpointer:
 
             from .Wavefunctions import PerturbationTheoryWavefunctions
 
             with self.logger.block(tag='Computing PT corrections:'):
 
+
+                if expansion_order is None:
+                    expansion_order = order
                 self.logger.log_print(
                     [
                         "states: {state_num}",
                         "order: {ord}",
+                        "expansion order: {eord}"
                     ],
                     ord=order,
                     state_num=len(states),
+                    eord=expansion_order
                 )
 
-                h_reps = self.perturbations
+                h_reps = self.get_perturbations(expansion_order)
                 self.logger.log_print(
                         "perturbations: {pert_num}",
                     pert_num=len(h_reps) - 1,

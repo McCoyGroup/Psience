@@ -1,15 +1,23 @@
-from Peeves.TestUtils import *
-from Peeves import Timer, BlockProfiler
+
+try:
+    from Peeves.TestUtils import *
+    from Peeves import BlockProfiler
+except:
+    pass
 from unittest import TestCase
+
 from Psience.VPT2 import *
+from Psience.Molecools import Molecule
 from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
 
 from McUtils.Data import UnitsData
 import McUtils.Plots as plt
+import McUtils.Numputils as nput
 from McUtils.Scaffolding import *
 from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
+from McUtils.Zachary import FiniteDifferenceDerivative
+
 import sys, os, numpy as np, itertools as ip
-import cProfile, pstats, io
 
 class VPT2Tests(TestCase):
 
@@ -21,6 +29,11 @@ class VPT2Tests(TestCase):
     def setUp(self):
         self.h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
+    def __getstate__(self):
+        return {}
+    def __setstate__(self, state):
+        pass
+
     def save_wfns(self, file, wfns):
         """
         We save the corrections so that we can reload them later
@@ -30,7 +43,6 @@ class VPT2Tests(TestCase):
         """
         corrs = wfns.corrs
         corrs.savez(file)
-
     def load_wfns(self, mol, basis, file):
         """
         We save the corrections so that we can reload them later
@@ -61,6 +73,10 @@ class VPT2Tests(TestCase):
                               regenerate=True,
                               coupled_states=None,
                               mode_selection=None,
+                              potential_terms=None,
+                              kinetic_terms=None,
+                              coriolis_terms=None,
+                              pseudopotential_terms=None,
                               v2=None,
                               t2=None,
                               v3=None,
@@ -79,7 +95,8 @@ class VPT2Tests(TestCase):
                               processes=None,
                               checkpoint=None,
                               chunk_size=None,
-                              order=2
+                              order=2,
+                              expansion_order=None
                               , allow_sakurai_degs=False
                               , allow_post_PT_calc=True
                               , modify_degenerate_perturbations=False
@@ -105,7 +122,13 @@ class VPT2Tests(TestCase):
                     parallelizer=parallelizer,
                     checkpoint=checkpoint,
                     operator_chunk_size=chunk_size,
-                    selection_rules=selection_rules
+                    selection_rules=selection_rules,
+                    potential_terms=potential_terms,
+                    kinetic_terms=kinetic_terms,
+                    coriolis_terms=coriolis_terms,
+                    pseudopotential_terms=pseudopotential_terms,
+                    include_pseudopotential=False if watson is False else None,
+                    coriolis_coupling=False if coriolis is False else None
                 )
             else:
                 hammer = PerturbationTheoryHamiltonian(
@@ -115,7 +138,13 @@ class VPT2Tests(TestCase):
                     parallelizer=parallelizer,
                     checkpoint=checkpoint,
                     operator_chunk_size=chunk_size,
-                    selection_rules=selection_rules
+                    selection_rules=selection_rules,
+                    potential_terms=potential_terms,
+                    kinetic_terms=kinetic_terms,
+                    coriolis_terms=coriolis_terms,
+                    pseudopotential_terms=pseudopotential_terms,
+                    include_pseudopotential=False if watson is False else None,
+                    coriolis_coupling=False if coriolis is False else None
                 )
 
             if pre_run_script is not None:
@@ -160,10 +189,12 @@ class VPT2Tests(TestCase):
                 hammer.H2.computers[2].operator.coeffs = coriolis
                 if watson is None and isinstance(coriolis, (int, float)) and coriolis == 0:
                     watson = 0
-            if watson is not None:
+            if isinstance(watson, (int, float, np.integer, np.floating, np.ndarray)) and watson is not False and watson is not True:
                 hammer.H2.computers[3].operator.coeffs = watson
 
-            wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies, order=order
+            wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies,
+                                            order=order,
+                                            expansion_order=expansion_order
                                             , allow_sakurai_degs=allow_sakurai_degs
                                             , allow_post_PT_calc=allow_post_PT_calc
                                             , modify_degenerate_perturbations=modify_degenerate_perturbations
@@ -202,7 +233,8 @@ class VPT2Tests(TestCase):
                       checkpoint=None,
                       get_breakdown=False,
                       chunk_size=None,
-                      order=2
+                      order=2,
+                      expansion_order=None
                       , allow_sakurai_degs=False
                       , allow_post_PT_calc=True
                       , ignore_odd_order=True
@@ -2309,9 +2341,6 @@ class VPT2Tests(TestCase):
     @inactiveTest
     def test_TwoMorseCartesiansDegenerate(self):
 
-        from Psience.Molecools import Molecule
-        import McUtils.Numputils as nput
-
         # internals = [
         #     [0, -1,  -1, -1],
         #     [1,  0,  -1, -1],
@@ -2392,7 +2421,7 @@ class VPT2Tests(TestCase):
         new_mat = np.array([symm, asym]).T
         modes.basis.matrix = new_mat
         modes.basis.inverse = new_mat.T
-        ham = PerturbationTheoryHamiltonian(mol, modes=modes, n_quanta=50, coriolis_coupling=False, watson_term=False)
+        ham = PerturbationTheoryHamiltonian(mol, modes=modes, n_quanta=50, coriolis_coupling=False, include_pseudo_potential=False)
 
         # mode_selection=[-1, -2]
         # ham = PerturbationTheoryHamiltonian(mol, mode_selection=mode_selection, n_quanta=50)
@@ -2444,6 +2473,20 @@ class VPT2Tests(TestCase):
                   )
                   )
 
+
+    class single_morse:
+        # mass_weights = masses[:2] / np.sum(masses[:2])
+        def __init__(self, De_1, a_1, re_1):  # , De_2, a_2, re_2, kb):
+            self.De_1 = De_1
+            self.a_1 = a_1
+            self.re_1 = re_1
+
+        def __call__(self, carts):
+            # anchor_pos = np.average(carts[..., :2, :], weights=mass_weights, axis=-2)
+            r1_vecs = carts[..., 1, :] - carts[..., 0, :]
+            r1 = nput.vec_norms(r1_vecs) - self.re_1
+
+            return self.De_1 * (1 - np.exp(-self.a_1 * r1)) ** 2
     analytic_data['Morse3500/50'] = {
         'zpe': np.array([1750.000, 1737.5000000]),
         'freqs': np.array([
@@ -2455,11 +2498,12 @@ class VPT2Tests(TestCase):
             [17500.000, 16000.000000]
         ])
     }
-    @debugTest
+    @validationTest
     def test_OneMorseCartesiansNonDeg(self):
-        from Psience.Molecools import Molecule
-        import McUtils.Numputils as nput
-        from McUtils.Zachary import FiniteDifferenceDerivative
+
+        import warnings
+        np.seterr(all='raise')
+        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
         tag="TwoMorseCartesiansNonDeg"
 
@@ -2492,37 +2536,24 @@ class VPT2Tests(TestCase):
         De_1 = (w1 ** 2) / (4 * wx1)
         a_1 = np.sqrt(2 * mu_1 * wx1)
 
-        w2 = 3000 * w2h; wx2 = 100 * w2h
-        mu_2 = (1 / masses[0] + 1 / masses[2]) ** (-1)
-        De_2 = (w2 ** 2) / (4 * wx2)
-        a_2 = np.sqrt(2 * mu_2 * wx2)
+        morse = self.single_morse(De_1, a_1, re_1)
 
-        # mass_weights = masses[:2] / np.sum(masses[:2])
-        def two_morse(carts, *,
-                      De_1=De_1, a_1=a_1, re_1=re_1,
-                      De_2=De_2, a_2=a_2, re_2=re_2,
-                      k_b = 500 * w2h
-                      ):
-            # anchor_pos = np.average(carts[..., :2, :], weights=mass_weights, axis=-2)
-            r1_vecs = carts[..., 1, :] - carts[..., 0, :]
-            r2_vecs = carts[..., 2, :] - carts[..., 0, :]
-            r1 = nput.vec_norms(r1_vecs) - re_1
-            r2 = nput.vec_norms(r2_vecs) - re_2
-            b, _ = nput.vec_angles(r1_vecs, r2_vecs)
-
-            return (
-                    De_1 * (1 - np.exp(-a_1 * r1)) ** 2
-                    # + De_2 * (1 - np.exp(-a_2 * r2)) ** 2
-                    # + k_b * (b**2)
-            )
-
-        deriv_gen = FiniteDifferenceDerivative(two_morse,
+        deriv_gen = FiniteDifferenceDerivative(morse,
                                                function_shape=((None, None), 0),
                                                mesh_spacing=1e-3,
-                                               stencil=5
+                                               stencil=7,
+                                               parallelizer=MultiprocessingParallelizer()#verbose=True)
                                                ).derivatives(mol.coords)
-        v1, v2, v3, v4 = deriv_gen.derivative_tensor([1, 2, 3, 4])
-        mol.potential_derivatives = [v1, v2, v3, v4]
+        # v1, v2, v3, v4 = deriv_gen.derivative_tensor([1, 2, 3, 4, 5, 6])
+
+        # raise Exception()
+
+        import time
+        start = time.time()
+        mol.potential_derivatives = deriv_gen.derivative_tensor([1, 2, 3, 4, 5, 6])
+        end = time.time()
+        print('getting input derivs took {:.3f}s'.format(end-start))
+        # raise Exception([x.shape for x in mol.potential_derivatives])
 
         n_atoms = 3
         n_modes = 3 * n_atoms - 6
@@ -2555,7 +2586,519 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             # ignore_odd_order=False,
             intermediate_normalization=False,
-            order=2
+            order=4,
+            expansion_order=4
+            # , potential_terms=[
+            #     np.array([[0.01594717]]),
+            #     np.array([[[-0.00808669]]]), #np.array([[[0.]]]),
+            #     np.array([[[[0.00318943]]]]), #np.array([[[[0.]]]])
+            #     np.array([[[[[-0.00115532]]]]]),
+            #     np.array([[[[[[0.000403561]]]]]]),
+            #     np.array([[[[[[[-0.000138629]]]]]]]),
+            #     np.array([[[[[[[[0.0000472371]]]]]]]]) # for some reason my FD was giving me np.array([[[[[[0.00038929]]]]]])
+            # ]
+            # , kinetic_terms=[
+            #     np.array([[0.01594717]]),
+            #     0,
+            #     0,
+            #     0,
+            #     0,
+            #     0,
+            #     0
+            # ]
+            , watson=False
+            # pseudopotential_terms = [
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     None
+            # ]
+            # , parallelized=True
+        )
+
+    @validationTest
+    def test_OneMorseCartesiansNonDegMostlyNumerical(self):
+
+        import warnings
+        np.seterr(all='raise')
+        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
+
+        tag = "TwoMorseCartesiansNonDeg"
+
+        # Set up system
+
+        re_1 = 1.0
+        re_2 = 1.0
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+        # internals = None
+        mol = Molecule(
+            ["O", "H", "H"],
+            np.array([
+                [0.000000, 0.000000, 0.000000],
+                [re_1, 0.000000, 0.000000],
+                [0.000000, re_2, 0.000000],
+            ]),
+            zmatrix=internals,
+            guess_bonds=False,
+        )
+
+        masses = mol.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+
+        w2h = UnitsData.convert("Wavenumbers", "Hartrees")
+        w1 = 3500 * w2h;
+        wx1 = 50 * w2h
+        mu_1 = (1 / masses[0] + 1 / masses[1]) ** (-1)
+        De_1 = (w1 ** 2) / (4 * wx1)
+        a_1 = np.sqrt(2 * mu_1 * wx1)
+
+        morse = self.single_morse(De_1, a_1, re_1)
+
+        deriv_gen = FiniteDifferenceDerivative(morse,
+                                               function_shape=((None, None), 0),
+                                               mesh_spacing=1e-3,
+                                               stencil=7,
+                                               parallelizer=MultiprocessingParallelizer()  # verbose=True)
+                                               ).derivatives(mol.coords)
+        # v1, v2, v3, v4 = deriv_gen.derivative_tensor([1, 2, 3, 4, 5, 6])
+
+        # raise Exception()
+
+        import time
+        start = time.time()
+        mol.potential_derivatives = deriv_gen.derivative_tensor([1, 2, 3, 4, 5, 6])
+        end = time.time()
+        print('getting input derivs took {:.3f}s'.format(end - start))
+        # raise Exception([x.shape for x in mol.potential_derivatives])
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = [-1]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(5, n_modes)
+
+        print_report = False
+        reference_energies = self.analytic_data['Morse3500/50']['zpe']
+        reference_freqs = self.analytic_data['Morse3500/50']['freqs']
+
+        # def post_wfns_script(wfns, ham):
+        #     plt.ArrayPlot(wfns.corrs.hams[2].asarray()).show()
+        #     raise Exception(wfns.corrs.hams[2].asarray())
+
+        post_wfns_script = None
+
+        self.run_PT_test(
+            tag,
+            mol,
+            internals,
+            mode_selection,
+            states,
+            reference_energies,
+            reference_freqs,
+            log=True,
+            verbose=True,
+            post_wfns_script=post_wfns_script,
+            print_report=print_report,
+            gaussian_tolerance=2,
+            # ignore_odd_order=False,
+            intermediate_normalization=False,
+            order=4,
+            expansion_order=4
+            # , potential_terms=[
+            #     np.array([[0.01594717]]),
+            #     np.array([[[-0.00808669]]]), #np.array([[[0.]]]),
+            #     np.array([[[[0.00318943]]]]), #np.array([[[[0.]]]])
+            #     np.array([[[[[-0.00115532]]]]]),
+            #     np.array([[[[[[0.000403561]]]]]]),
+            #     np.array([[[[[[[-0.000138629]]]]]]]),
+            #     np.array([[[[[[[[0.0000472371]]]]]]]]) # for some reason my FD was giving me np.array([[[[[[0.00038929]]]]]])
+            # ]
+            , kinetic_terms=[
+                None,#np.array([[0.01594717]]),
+                None,
+                None,
+                0,
+                0,
+                0,
+                0
+            ]
+            , watson=False
+            # pseudopotential_terms = [
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     None
+            # ]
+            , parallelized=True
+        )
+
+    class harmonically_coupled_morse:
+        # mass_weights = masses[:2] / np.sum(masses[:2])
+        def __init__(self,
+                     De_1, a_1, re_1,
+                     De_2, a_2, re_2,
+                     kb, b_e
+                     ):
+            self.De_1 = De_1
+            self.a_1 = a_1
+            self.re_1 = re_1
+            self.De_2 = De_2
+            self.a_2 = a_2
+            self.re_2 = re_2
+            self.kb = kb
+            self.b_e = b_e
+
+        def __call__(self, carts):
+            v1 = carts[..., 1, :] - carts[..., 0, :]
+            v2 = carts[..., 2, :] - carts[..., 0, :]
+            r1 = nput.vec_norms(v1) - self.re_1
+            r2 = nput.vec_norms(v2) - self.re_2
+            bend, _ = nput.vec_angles(v1, v2)
+            bend = bend - self.b_e
+
+            return (
+                    self.De_1 * (1 - np.exp(-self.a_1 * r1)) ** 2
+                    + self.De_2 * (1 - np.exp(-self.a_2 * r2)) ** 2
+                    + self.kb * bend**2
+            )
+    analytic_data['Morse3500/50+3000/100'] = {
+        'zpe': np.array([1750 + 1500, 3212.500]),
+        'freqs': np.array([
+            [ 3500.000,  3400.000],
+            [ 3000.000,  2800.000],
+            [ 7000.000,  6700.000],
+            [ 6000.000,  5400.000],
+            [ 6500.000,  6200.000],
+            [10500.000,  9900.000],
+            [ 9000.000,  7800.000],
+            [10000.000,  9500.000],
+            [ 9500.000,  8800.000],
+            [14000.000, 13000.000],
+            [12000.000, 10000.000],
+            [13500.000, 12700.000],
+            [12500.000, 11200.000],
+            [13000.000, 12100.000]
+        ])
+    }
+    @validationTest
+    def test_TwoMorseCartesiansNonDeg(self):
+
+        import warnings
+        np.seterr(all='raise')
+        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
+
+        tag = "TwoMorseCartesiansNonDeg"
+
+        # Set up system
+
+        re_1 = 1.0
+        re_2 = 1.0
+        b_e = np.deg2rad(90.)#(104.5)
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+
+        # raise Exception(
+        #                 np.array([
+        #         [0.000000, 0.000000, 0.000000],
+        #         [re_1, 0.000000, 0.000000],
+        #         np.dot(
+        #             nput.rotation_matrix([0, 0, 1], b_e),
+        #             [re_2, 0.000000, 0.000000]
+        #         )
+        #     ])
+        # )
+
+        # internals = None
+        mol = Molecule(
+            ["O", "H", "H"],
+            np.array([
+                [0.000000, 0.000000, 0.000000],
+                [re_1, 0.000000, 0.000000],
+                np.dot(
+                    nput.rotation_matrix([0, 0, 1], b_e),
+                    [re_2, 0.000000, 0.000000]
+                )
+            ]),
+            zmatrix=internals,
+            guess_bonds=False,
+        )
+
+        masses = mol.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+
+        w2h = UnitsData.convert("Wavenumbers", "Hartrees")
+        w1 = 3500 * w2h; wx1 = 50 * w2h
+        mu_1 = (1 / masses[0] + 1 / masses[1]) ** (-1)
+        De_1 = (w1 ** 2) / (4 * wx1)
+        a_1 = np.sqrt(2 * mu_1 * wx1)
+
+        w2 = 3000 * w2h; wx2 = 100 * w2h
+        mu_2 = (1 / masses[0] + 1 / masses[2]) ** (-1)
+        De_2 = (w2 ** 2) / (4 * wx2)
+        a_2 = np.sqrt(2 * mu_2 * wx2)
+
+        kb = 0. #1500 * w2h
+
+        morse = self.harmonically_coupled_morse(
+            De_1, a_1, re_1,
+            De_2, a_2, re_2,
+            kb, b_e
+        )
+
+        deriv_gen = FiniteDifferenceDerivative(morse,
+                                               function_shape=((None, None), 0),
+                                               mesh_spacing=1e-3,
+                                               stencil=7,
+                                               parallelizer=MultiprocessingParallelizer()  # verbose=True)
+                                               ).derivatives(mol.coords)
+
+        # raise Exception()
+
+        import time
+        start = time.time()
+        mol.potential_derivatives = deriv_gen.derivative_tensor([1, 2, 3, 4])#, 5, 6])
+        end = time.time()
+        print('getting input derivs took {:.3f}s'.format(end - start))
+        # raise Exception([x.shape for x in mol.potential_derivatives])
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = [-2, -1]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(5, n_modes)
+
+        print_report = True
+        reference_energies = self.analytic_data['Morse3500/50+3000/100']['zpe']
+        reference_freqs = self.analytic_data['Morse3500/50+3000/100']['freqs']
+
+        # def post_wfns_script(wfns, ham):
+        #     plt.ArrayPlot(wfns.corrs.hams[2].asarray()).show()
+        #     raise Exception(wfns.corrs.hams[2].asarray())
+
+        post_wfns_script = None
+
+        self.run_PT_test(
+            tag,
+            mol,
+            internals,
+            mode_selection,
+            states,
+            reference_energies,
+            reference_freqs,
+            log=True,
+            verbose=True,
+            post_wfns_script=post_wfns_script,
+            print_report=print_report,
+            # ignore_odd_order=False,
+            intermediate_normalization=False,
+            order=2,
+            expansion_order=2
+            # , potential_terms=[
+            #     np.array([[0.01594717]]),
+            #     np.array([[[-0.00808669]]]), #np.array([[[0.]]]),
+            #     np.array([[[[0.00318943]]]]), #np.array([[[[0.]]]])
+            #     np.array([[[[[-0.00115532]]]]]),
+            #     np.array([[[[[[0.000403561]]]]]]),
+            #     np.array([[[[[[[-0.000138629]]]]]]]),
+            #     np.array([[[[[[[[0.0000472371]]]]]]]]) # for some reason my FD was giving me np.array([[[[[[0.00038929]]]]]])
+            # ]
+            # , kinetic_terms=[
+            #     np.array([[0.01594717]]),
+            #     0,
+            #     0,
+            #     0,
+            #     0,
+            #     0,
+            #     0
+            # ]
+            , watson=False
+            # pseudopotential_terms = [
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     None
+            # ]
+            # , parallelized=True
+        )
+
+    analytic_data['NedModel'] = {
+        'zpe': np.array([1750 + 1500, 3212.500]),
+        'freqs': np.array([
+            [3500.000, 3400.000],
+            [3000.000, 2800.000],
+            [7000.000, 6700.000],
+            [6000.000, 5400.000],
+            [6500.000, 6200.000],
+            [10500.000, 9900.000],
+            [9000.000, 7800.000],
+            [10000.000, 9500.000],
+            [9500.000, 8800.000],
+            [14000.000, 13000.000],
+            [12000.000, 10000.000],
+            [13500.000, 12700.000],
+            [12500.000, 11200.000],
+            [13000.000, 12100.000]
+        ])
+    }
+    @debugTest
+    def test_TwoMorseCartesiansAndBendNonDeg(self):
+
+        import warnings
+        np.seterr(all='raise')
+        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
+
+        tag = "TwoMorseCartesiansNed"
+
+        # Set up system
+
+        re_1 = 0.9575
+        re_2 = 0.9575
+        b_e = np.deg2rad(104.5)
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+        # internals = None
+        mol = Molecule(
+            ["O", "H", "H"],
+            np.array([
+                [0.000000, 0.000000, 0.000000],
+                [re_1, 0.000000, 0.000000],
+                np.dot(
+                    nput.rotation_matrix([0, 0, 1], b_e),
+                    [re_2, 0.000000, 0.000000]
+                )
+            ]),
+            zmatrix=internals,
+            guess_bonds=False,
+        )
+
+        masses = mol.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+
+        erg2h = UnitsData.convert("Ergs", "Hartrees")
+        cm2borh = UnitsData.convert("InverseAngstroms", "InverseBohrRadius")
+        De_1 = 8.84e-12 * erg2h
+        a_1 = 2.175 * cm2borh
+
+        De_2 = 8.84e-12 * erg2h
+        a_2 = 2.175 * cm2borh
+
+        hz2h = UnitsData.convert("Hertz", "Hartrees")
+        kb = 7.2916e14/(2 * np.pi) * hz2h
+
+        morse = self.harmonically_coupled_morse(
+            De_1, a_1, re_1,
+            De_2, a_2, re_2,
+            kb, b_e
+        )
+
+        deriv_gen = FiniteDifferenceDerivative(morse,
+                                               function_shape=((None, None), 0),
+                                               mesh_spacing=1e-3,
+                                               stencil=7,
+                                               parallelizer=MultiprocessingParallelizer()  # verbose=True)
+                                               ).derivatives(mol.coords)
+
+        # raise Exception()
+
+        import time
+        start = time.time()
+        mol.potential_derivatives = deriv_gen.derivative_tensor([1, 2 , 3, 4, 5, 6])
+        end = time.time()
+        print('getting input derivs took {:.3f}s'.format(end - start))
+        # raise Exception([x.shape for x in mol.potential_derivatives])
+
+        # we rigorously zero out small terms for
+        # numerical stability
+        mat = mol.normal_modes.basis.matrix
+        bad_spots = np.where(np.abs(mat) < 1e-14)
+        mat[bad_spots] = 0.
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = [-2, -1]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+
+        # states = self.get_states(5, n_modes)
+        states = [
+            [0, 0],
+            [0, 1],
+            [1, 0],
+            [0, 5],
+            [5, 0],
+            [1, 4],
+            [4, 1],
+            [2, 3],
+            [3, 2],
+        ]
+
+        print_report = True
+        # reference_energies = self.analytic_data['NedModel']['zpe']
+        # reference_freqs = self.analytic_data['NedModel']['freqs']
+
+        # def post_wfns_script(wfns, ham):
+        #     plt.ArrayPlot(wfns.corrs.hams[2].asarray()).show()
+        #     raise Exception(wfns.corrs.hams[2].asarray())
+
+        """
+        State Energies:
+  0 0 3869.908 3827.940        -        - 
+  0 1        -        - 3898.075 3727.463 
+  1 0        -        - 3841.741 3676.347 
+  0 5        -        - 19490.376 18406.154 
+  5 0        -        - 19208.703 16919.042 
+  1 4        -        - 19434.041 18548.837 
+  4 1        -        - 19265.037 16121.717 
+  2 3        -        - 19377.707 17704.042 
+  3 2        -        - 19321.372 16639.193 
+  """
+
+        post_wfns_script = None
+
+        self.run_PT_test(
+            tag,
+            mol,
+            internals,
+            mode_selection,
+            states,
+            None,
+            None,
+            log=True,
+            verbose=True,
+            post_wfns_script=post_wfns_script,
+            print_report=print_report,
+            # ignore_odd_order=False,
+            intermediate_normalization=False,
+            order=4,
+            expansion_order=4
+            , kinetic_terms=[
+                None,
+                None,
+                None,
+                0,
+                0
+            ]
+            , watson=False
+            # pseudopotential_terms = [
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     None
+            # ]
+            , parallelized=True
         )
 
     #endregion
