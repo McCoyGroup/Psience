@@ -2195,8 +2195,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                     num_chunks = len(exc) // parallel_chunk_size
                     chunks = np.array_split(exc, num_chunks, axis=0)
                     for chunk in chunks:
-                        new_exc_chunk, new_inds_chunk, filter = par.run(cls._get_direct_product_spaces, chunk,
+                        new_exc_chunk, new_inds_chunk, filter = par.run(cls._get_direct_product_spaces,
                                                                         selection_rules, symm_grp, filter, logger,
+                                                                        main_kwargs={'exc':chunk},
                                                                         comm = list(range(len(chunk))) if len(chunk) < (1 + par.nprocs) else None
                                                                         )
                         if not isinstance(new_exc_chunk[0], np.ndarray):
