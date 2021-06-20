@@ -269,7 +269,8 @@ class VPT2Tests(TestCase):
             checkpoint=checkpoint,
             get_breakdown=get_breakdown,
             chunk_size=chunk_size,
-            order=order
+            order=order,
+            expansion_order=expansion_order
             , allow_sakurai_degs=allow_sakurai_degs
             , allow_post_PT_calc=allow_post_PT_calc
             , gaussian_resonance_handling=gaussian_resonance_handling
@@ -4635,7 +4636,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -6382,7 +6383,7 @@ class VPT2Tests(TestCase):
             )
         )
 
-    @validationTest
+    @debugTest
     def test_HOHIntensitiesCartesian4thOrder(self):
 
         internals = None
@@ -6403,6 +6404,7 @@ class VPT2Tests(TestCase):
             , log=True
             , verbose=True
             , order=4
+            , expansion_order=2
         )
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
