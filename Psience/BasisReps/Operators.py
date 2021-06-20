@@ -9,7 +9,7 @@ from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
 from McUtils.Parallelizers import Parallelizer, SerialNonParallelizer
 
-from .StateSpaces import BraKetSpace
+from .StateSpaces import BasisStateSpace, SelectionRuleStateSpace, BraKetSpace
 
 __all__ = [
     "Operator",
@@ -368,7 +368,7 @@ class Operator:
 
         return chunk, sel_rules
 
-    def _calculate_single_pop_elements(self, inds, funcs, states, sel_rules):
+    def _calculate_single_pop_elements(self, inds, funcs, states, sel_rules, check_orthogonality=False):
         """
         Calculates terms for a single product operator.
         Assumes orthogonal product bases.
@@ -392,12 +392,13 @@ class Operator:
         # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
         nstates = len(states)
-        # TODO: selection rules are actually _cheaper_ to apply than this in general, esp. if we focus
-        #       only on the number of quanta that can change within the set of indices
-        #       so we should support applying them first & then only doing this for the rest
-        states, non_orthog = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
-        # non_orthog = np.arange(len(states))
-
+        if check_orthogonality:
+            # TODO: selection rules are actually _cheaper_ to apply than this in general, esp. if we focus
+            #       only on the number of quanta that can change within the set of indices
+            #       so we should support applying them first & then only doing this for the rest
+            states, non_orthog = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
+        else:
+            non_orthog = np.arange(nstates)
 
         # if none of the states are non-orthogonal...just don't calculate anything
         if len(non_orthog) == 0:
@@ -417,23 +418,26 @@ class Operator:
             if chunk is None:
                 return sp.csr_matrix((1, nstates), dtype='float')
 
-            # finally we make sure that everything we're working with is
-            # non-zero because it'll buy us time on dot products later
-            non_zero = np.where(np.abs(chunk) >= self.zero_threshold)[0]
+            if check_orthogonality:
+                # finally we make sure that everything we're working with is
+                # non-zero because it'll buy us time on dot products later
+                non_zero = np.where(np.abs(chunk) >= self.zero_threshold)[0]
+                if len(non_zero) == 0:
+                    return sp.csr_matrix((1, nstates), dtype='float')
+                chunk = chunk[non_zero,]
+                non_orthog = non_orthog[non_zero,]
 
-            if len(non_zero) == 0:
-                return sp.csr_matrix((1, nstates), dtype='float')
-            chunk = chunk[non_zero,]
-            non_orthog = non_orthog[non_zero,]
 
-            wat = sp.csr_matrix(
-                (
-                    chunk,
+                wat = sp.csr_matrix(
                     (
-                        np.zeros(len(non_zero)),
-                        non_orthog
-                    )
-                ), shape=(1, nstates))
+                        chunk,
+                        (
+                            np.zeros(len(non_zero)),
+                            non_orthog
+                        )
+                    ), shape=(1, nstates))
+            else:
+                wat = chunk
 
             return wat
 
@@ -675,13 +679,183 @@ class Operator:
         :param base_space:
         :type base_space: BasisStateSpace
         :return:
-        :rtype:
+        :rtype: SelectionRuleStateSpace
         """
         if rules is None:
             rules = self.selection_rules
         if parallelizer is None:
             parallelizer = self.parallelizer
         return base_space.apply_selection_rules(rules, parallelizer=parallelizer, logger=logger)
+
+    # A failed attempt to use symmetries to make evaluation faster
+    # the better bet is to introduce permutation equivalence to the basic operator
+    # and use that to generate different contractions
+    def _calculate_single_transf(self, inds, funcs, base_space, sel_rules):
+        """
+        Calculates terms for a single product operator.
+        Assumes orthogonal product bases.
+
+        :param inds: the index in the total operator tensor (i.e. which of the funcs to use)
+        :type inds:
+        :param funcs: the functions to use when generating representations, must return matrices
+        :type funcs:
+        :param states: the states to compute terms between stored like ((s_1l, s_1r), (s_2l, s_2r), ...)
+                        where `s_il` is the set of quanta for mode i for the bras and
+                        `s_ir` is the set of quanta for mode i for the kets
+        :type states: BraKetSpace
+        :param quants: the total quanta to use when building representations
+        :type quants:
+        :param sel_rules: the selection rules to use when building representations
+        :type sel_rules:
+        :return:
+        :rtype:
+        """
+
+        states = base_space.apply_selection_rules(sel_rules, target_dimensions=inds)
+        brakets = states.get_representation_brakets()
+        vals = self._calculate_single_pop_elements(inds, funcs, brakets, sel_rules, check_orthogonality=False)
+        return vals, brakets, states
+    def _get_transf_sequential(self, inds, base_space):#, save_to_disk=False):
+        """
+        Sequential method for getting elements of our product operator tensors
+
+        :param inds:
+        :type inds:
+        :param base_space:
+        :type base_space:
+        :param save_to_disk: whether to save to disk or not; used by the parallelizer
+        :type save_to_disk: bool
+        :return:
+        :rtype:
+        """
+
+        res = np.apply_along_axis(self._calculate_single_transf,
+                                  -1, inds, self.funcs, base_space, self.selection_rules
+                                  )
+
+
+        total_space = res[0][2]
+        total_brakets = res[0][1]
+        for s in res[1:]:
+            total_brakets = total_brakets.union(s[1]) # to preserve ordering since union will destroy that
+            total_space = total_space.union(s[2])
+        res = np.concatenate([r[1] for r in res])
+
+        # if save_to_disk:
+        #     flattened = [x for y in res.flatten() for x in y]
+        #     res = []
+        #     try:
+        #         for array in flattened:
+        #             with tf.NamedTemporaryFile() as tmp:
+        #                 dump = tmp.name + ".npz"
+        #             # print(res)
+        #             # os.remove(tmp.name)
+        #             sp.save_npz(dump, array, compressed=False)
+        #             res.append(dump)
+        #     except:
+        #         for file in res:
+        #             try:
+        #                 os.remove(file)
+        #             except:
+        #                 pass
+        #         raise
+
+        raise Exception(res, total_space)
+
+        return res, total_space
+    @Parallelizer.main_restricted
+    def _apply_transformations_sequential(self, inds, base_space, parallelizer=None):
+        """
+        Implementation of get_elements to be run on the main process...
+
+        :param idx:
+        :type idx:
+        :param parallelizer:
+        :type parallelizer:
+        :return:
+        :rtype:
+        """
+
+        if inds is None:  # just a number
+            self.logger.log_print("returning identity tensor")
+            new = self._get_eye_tensor(base_space)
+        else:
+            mapped_inds, inverse = self.filter_symmetric_indices(inds)
+            if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
+                raise NotImplementedError("still working up parallelism")
+                self.logger.log_print(
+                    "evaluating {nel} elements over {nind} unique indices using {cores} processes".format(
+                        nel=len(idx),
+                        nind=len(mapped_inds),
+                        cores=parallelizer.nproc
+                    ))
+                res = self._get_pop_parallel(mapped_inds, idx, parallelizer)
+            else:
+                self.logger.log_print("transforming space of size {nel} over {nind} unique indices sequentially".format(
+                    nel=len(base_space),
+                    nind=len(mapped_inds)
+                ))
+
+                res, spaces = self._get_transf_sequential(mapped_inds, base_space)
+
+            if inverse is not None:
+                res = res.flatten()[inverse]
+
+
+
+            # wat = [x for y in res for x in y]
+            # new = sp.vstack(wat)
+
+        shp = inds.shape if inds is not None else ()
+        res = SparseArray.from_data(new)
+        res = res.reshape(shp[:-1] + res.shape[-1:])
+
+        return res, spaces
+    def _transform_and_apply(self, base_space, parallelizer=None, logger=None):
+        """
+        Takes a base space as input and applies the held selection rules in semi-efficient
+        fashion only on the indices that can change and then uses this to compute all matrix
+        elements, returning then the final generated space
+
+        :param base_space:
+        :type base_space:
+        :return:
+        :rtype:
+        """
+
+        if self.chunk_size is not None and len(base_space) > self.chunk_size:
+            idx_splits = base_space.split(self.chunk_size)
+        else:
+            idx_splits = [base_space]
+
+        inds = self.get_inner_indices()
+        chunks = []
+        for idx in idx_splits:
+            if inds is None:
+                return self._apply_transformations_sequential(inds, idx) #...oh whoops this could have been an issue
+
+            if parallelizer is None:
+                parallelizer = self.parallelizer
+
+            if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
+                raise NotImplementedError("Don't have parallelism yet")
+                parallelizer.printer = self.logger.log_print
+                elem_chunk = parallelizer.run(self._get_elements, None, idx,
+                                              main_kwargs={'full_inds':inds},
+                                              comm=None if len(inds) >= parallelizer.nprocs else list(range(len(inds)))
+                                              )
+            else:
+                elem_chunk = self._apply_transformations_sequential(inds, idx, parallelizer=None)
+
+            chunks.append(elem_chunk)
+
+        # if all(isinstance(x, np.ndarray) for x in chunks):
+        #     elems = np.concatenate(chunks, axis=0)
+        # else:
+        #     from functools import reduce
+        #     elems = reduce(lambda a, b: a.concatenate(b), chunks[1:], chunks[0])
+
+        return chunks
 
 class ContractedOperator(Operator):
     """

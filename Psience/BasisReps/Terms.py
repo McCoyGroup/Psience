@@ -13,7 +13,7 @@ from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
 
 from .Operators import Operator
-from .StateSpaces import BraKetSpace, StateSpaceMatrix
+from .StateSpaces import BraKetSpace, SelectionRuleStateSpace, StateSpaceMatrix
 
 # for interactive work
 __reload_hook__ = [ '.StateSpaces', ".Operators" ]
@@ -336,8 +336,8 @@ class Representation:
 
         :param space:
         :type space:
-        :return:
-        :rtype:
+        :return: connected state spaces
+        :rtype: SelectionRuleStateSpace
         """
 
         if parallelizer is None:
@@ -695,7 +695,7 @@ class ExpansionRepresentation(Representation):
         :param space:
         :type space: BasisStateSpace
         :return:
-        :rtype:
+        :rtype: SelectionRuleStateSpace
         """
         import functools
 

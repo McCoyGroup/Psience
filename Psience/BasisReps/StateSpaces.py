@@ -9,7 +9,7 @@ import abc
 from McUtils.Numputils import SparseArray
 import McUtils.Numputils as nput
 from McUtils.Parallelizers import Parallelizer
-from McUtils.Combinatorics import SymmetricGroupGenerator, UniquePermutations
+from McUtils.Combinatorics import SymmetricGroupGenerator, IntegerPartitionPermutations, UniquePermutations
 
 __all__ = [
     "AbstractStateSpace",
@@ -722,7 +722,7 @@ class BasisStateSpace(AbstractStateSpace):
 
         return new
 
-    def apply_selection_rules(self, selection_rules, filter_space=None, parallelizer=None, logger=None, iterations=1):
+    def apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None, logger=None, iterations=1):
         """
         Generates a new state space from the application of `selection_rules` to the state space.
         Returns a `BasisMultiStateSpace` where each state tracks the effect of the application of the selection rules
@@ -742,9 +742,13 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype: SelectionRuleStateSpace
         """
 
-        return SelectionRuleStateSpace.from_rules(self, selection_rules, filter_space=filter_space, iterations=iterations,
+        return SelectionRuleStateSpace.from_rules(self, selection_rules, target_dimensions=target_dimensions,
+                                                  filter_space=filter_space, iterations=iterations,
                                                   parallelizer=parallelizer, logger=logger
                                                   )
+
+    def permutationally_reduce(self):
+        return PermutationallyReudcedStateSpace.from_space(self)
 
     def get_representation_indices(self,
                                    other=None,
@@ -1364,6 +1368,149 @@ class BasisStateSpace(AbstractStateSpace):
             and (self.indices == other.indices).all()
         )
 
+class PermutationallyReudcedStateSpace(BasisStateSpace):
+    """
+    Defines a basis state space where terms are reduced over their
+    permutationally equivalent operations, making many operations
+    dramatically faster
+    """
+
+    def __init__(self, basis, class_reps, perms):
+        """
+        :param original_space:
+        :type original_space: BasisStateSpace
+        """
+        super().__init__(basis, class_reps, mode=self.StateSpaceSpec.Excitations)
+        self.equivalence_classes = perms
+
+    @classmethod
+    def from_space(cls, original_space):
+        new_perms, equivalence_classes = cls.get_equivalent_permutations(original_space.excitations)
+        return cls(original_space.basis, new_perms, equivalence_classes)
+
+    @classmethod
+    def get_equivalent_permutations(cls, exc):
+        """
+        :param exc:
+        :type exc: np.ndarray
+        :return:
+        :rtype:
+        """
+        symm_grp = SymmetricGroupGenerator(exc.shape[-1])
+
+        main_sort, sub_sort, usums, classes, subsubsorts = symm_grp.get_equivalence_classes(exc)
+        # we really only care about the classes at the end of the day
+        new_perms = []
+        perm_classes = []
+        for i,sum_classes in enumerate(classes):
+            for c in sum_classes:
+                wat = UniquePermutations.get_standard_permutation(c[1], c[0])
+                new_perms.append(wat)
+                perm_classes.append(c[2])
+        new_perms = np.array(new_perms)
+
+        return new_perms, perm_classes
+
+    def permutation_direct_product(self, perms):
+        """
+        Creates a new space by taking permutation products
+        :param perms:
+        :type perms:
+        :return:
+        :rtype:
+        """
+        import copy
+        new = copy.copy(self)
+
+        new.equivalence_classes = [
+            np.apply_along_axis(
+                lambda y: y[perms],
+                -1,
+                x
+            ) for x in new.equivalence_classes
+        ]
+        return new
+
+    def apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None,
+                              logger=None, iterations=1):
+        if filter_space is not None:
+            raise NotImplementedError("I'm not sure how to do direct filtering on a permutationally reduced space...")
+        basic = super().apply_selection_rules(selection_rules, target_dimensions=target_dimensions,
+                                              filter_space=filter_space, parallelizer=parallelizer, iterations=iterations
+                                              )
+        # now for each generated space we reduce it and calculate the final permutation direct products
+        for i in range(len(self)):
+            basic_space = basic.get_space(i).permutationally_reduce()
+            basic_space = basic_space.permutation_direct_product(self.equivalence_classes[i])
+            basic.spaces[i] = basic_space
+
+        return basic
+
+    def permutationally_reduce(self):
+        return self
+    def representative_space(self):
+        return BasisStateSpace(self.basis, self.excitations, mode=self.StateSpaceSpec.Excitations)
+    def permutationally_expand(self):
+        """
+        :return:
+        :rtype: BasisStateSpace
+        """
+        full_perms = []
+        for c,p in zip(self.excitations, self.equivalence_classes):
+            p = p.reshape(-1, p.shape[-1])
+            full_perms.append(c[p])
+        return BasisStateSpace(self.basis, np.concatenate(full_perms, axis=0) , mode=self.StateSpaceSpec.Excitations)
+
+    def take_permutations(self, *p):
+        """
+        Takes subsets of the stored permutations.
+        This function is subject to change as the held structure of the permutations
+        changes.
+        Since permutation structure is stored like a direct product to maintain equivalence
+        class relations we index from the bottom out, i.e. asking for `take_permutations(i, j)`
+        will give you the states where the original state was `i` and the first product was in `j`
+        :param p:
+        :type p:
+        :return:
+        :rtype:
+        """
+        p_spec = (..., ) + tuple(reversed(p)) + (slice(None, None, None),)
+        return type(self)(self.basis, self.excitations, [x[p_spec] for x in self.equivalence_classes])
+
+    def take_subspace(self, sel, assume_sorted=False):
+        """
+        Returns a subsample of the space.
+        Intended to be a cheap operation, so samples
+        along either the indices or the excitations, depending
+        on which we have
+        If we know the subsample is sorted then we can actually reuse more information
+        and so we make use of that
+
+        :param sel:
+        :type sel:
+        :return:
+        :rtype:
+        """
+
+        main = self.representative_space().take_subspace(sel, assume_sorted=assume_sorted)
+        cls = [self.equivalence_classes[i] for i in sel]
+        return type(self)(main.basis, main.excitations, cls)
+
+    def take_subdimensions(self, inds):
+        """
+        Returns a subsample of the space with some dimensions
+        dropped
+        :param inds:
+        :type inds:
+        :return:
+        :rtype:
+        """
+        return type(self)(
+            self.basis.take_subdimensions(inds),
+            self._excitations[:, inds],
+            [x[:, inds] for x in self.equivalence_classes]
+        )
+
 class BasisMultiStateSpace(AbstractStateSpace):
     """
     Represents a collection of `BasisStateSpace` objects.
@@ -1381,6 +1528,16 @@ class BasisMultiStateSpace(AbstractStateSpace):
         """
         self.spaces = np.asanyarray(spaces, dtype=object)
         super().__init__(self.basis)
+
+    def get_space(self, item):
+        """
+        Just a way to index the space but with type checking
+        :param item:
+        :type item:
+        :return:
+        :rtype: BasisStateSpace
+        """
+        return self.spaces[item]
 
     def to_state(self, serializer=None):
         return {
@@ -1444,7 +1601,6 @@ class BasisMultiStateSpace(AbstractStateSpace):
                 l = len(space)
                 space.indices = full_inds[s:s+l]
                 s += l
-
 
         ind_arrays = [space.indices for space in self.spaces.flat if len(space) > 0]
         if len(ind_arrays) == 0:
@@ -1807,7 +1963,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         def take(space, inds=inds):
             return space.take_subdimensions(inds)
-        new_spaces = np.apply_along_axis(take, -1, self.spaces)
+        if self.spaces.ndim == 1: # something is going weird with apply_along_axis...
+            new_spaces = np.array([take(x) for x in self.spaces], dtype=object)
+        else:
+            new_spaces = np.apply_along_axis(take, -1, self.spaces)
         return type(self)(self._base_space.take_subdimensions(inds), new_spaces)
 
     def drop_states(self, states):
@@ -2137,7 +2296,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
     parallel_chunk_size = int(1e6) # so I can mess with this as I debug
     @classmethod
-    def from_rules(cls, space, selection_rules, filter_space=None, iterations=1, method='new',
+    def from_rules(cls, space, selection_rules, target_dimensions=None, filter_space=None, iterations=1, method='new',
                    parallelizer=None, parallel_chunk_size=None,
                    logger=None
                    ):
@@ -2154,12 +2313,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype: SelectionRuleStateSpace
         """
 
-        if iterations > 1:
-            raise NotImplementedError(
-                "things have changed and higher iterations aren't currently supported but could be supported in the future by being smart with the selection rules"
-            )
-
         if method == 'legacy':
+            if target_dimensions is not None:
+                raise ValueError("don't have support for target dimensions in legacy state space generation")
 
             if filter_space is None:
                 permutations = cls._generate_selection_rule_permutations(space, selection_rules)
@@ -2176,62 +2332,100 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 # raise Exception(new.excitations)
             return new
         else:
-            par = Parallelizer.lookup(parallelizer)
+            if iterations > 1:
+                raise NotImplementedError(
+                    "things have changed and higher iterations aren't currently supported but could be supported in the future by being smart with the selection rules"
+                )
 
-            exc = space.excitations
-            symmetric_group_inds = hasattr(space.basis.indexer, 'symmetric_group')
-            if symmetric_group_inds:
-                symm_grp = space.basis.indexer.symmetric_group #type: SymmetricGroupGenerator
-            else:
+            if target_dimensions is not None:
+                if filter_space is not None:
+                    raise NotImplementedError(
+                        "simultaneously filtering and using target_dimensions not currently supported"
+                    )
+
+                exc = space.excitations
+                exc = exc[:, target_dimensions]
+
                 symm_grp = SymmetricGroupGenerator(exc.shape[-1])
 
-            with par:
-                if parallel_chunk_size is None:
-                    parallel_chunk_size = cls.parallel_chunk_size
-                if len(exc) > parallel_chunk_size:
-                    new_exc = []
-                    new_inds = []
-                    filter = filter_space
-                    num_chunks = len(exc) // parallel_chunk_size
-                    chunks = np.array_split(exc, num_chunks, axis=0)
-                    for chunk in chunks:
-                        new_exc_chunk, new_inds_chunk, filter = par.run(cls._get_direct_product_spaces,
-                                                                        selection_rules, symm_grp, filter, logger,
-                                                                        main_kwargs={'exc':chunk},
-                                                                        comm = list(range(len(chunk))) if len(chunk) < (1 + par.nprocs) else None
-                                                                        )
-                        if not isinstance(new_exc_chunk[0], np.ndarray):
-                            # means we got too blocky of a shape out of the parallelizer
-                            new_exc_chunk = sum(new_exc_chunk, [])
-                            new_inds_chunk = sum(new_inds_chunk, [])
-                        new_exc.extend(new_exc_chunk)
-                        new_inds.extend(new_inds_chunk)
+                new_exc = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
+                                                                                      filter_perms=None,
+                                                                                      return_filter=False,
+                                                                                      return_indices=False,
+                                                                                      split_results=True,
+                                                                                      logger=logger
+                                                                                      )
 
+                new = np.full(len(space), None, dtype=object)
+                for n,e in enumerate(new_exc):  # same size as input permutations
+                    real_exc = np.broadcast_to(space.excitations[n], (len(e), space.excitations.shape[-1])).copy()
+                    real_exc[:, target_dimensions] = e
+                    new_space = BasisStateSpace(space.basis, real_exc, mode=BasisStateSpace.StateSpaceSpec.Excitations)
+
+                    new[n] = new_space
+                # new = np.array(new, dtype=object)
+
+                return cls(space, new, selection_rules)
+
+            else:
+
+                par = Parallelizer.lookup(parallelizer)
+
+                exc = space.excitations
+
+                symmetric_group_inds = hasattr(space.basis.indexer, 'symmetric_group')
+                if symmetric_group_inds:
+                    symm_grp = space.basis.indexer.symmetric_group #type: SymmetricGroupGenerator
                 else:
-                    new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces,
-                                                        selection_rules, symm_grp, filter_space, logger,
-                                                        main_kwargs={'exc':exc},
-                                                        comm=list(range(len(exc))) if len(exc) < (1 + par.nprocs) else None
-                                                        )
-                    if not isinstance(new_exc[0], np.ndarray):
-                        # means we got too blocky of a shape out of the parallelizer
-                        new_exc = sum(new_exc, [])
-                        new_inds = sum(new_inds, [])
+                    symm_grp = SymmetricGroupGenerator(exc.shape[-1])
 
-            new = []
-            for e,i in zip(new_exc, new_inds):
-                # make stuff unique...kinda just because?
-                i, _, inds = nput.unique(i, return_index=True)
-                e = e[inds,]
-                new_space = BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations)
-                new_space.indices = i
-                new_space.indexer = np.arange(len(i))
-                new_space._uindexer = new_space.indexer
-                new_space._uexc_indexer = new_space.indexer
-                new_space._uinds = new_space.indexer
+                with par:
+                    if parallel_chunk_size is None:
+                        parallel_chunk_size = cls.parallel_chunk_size
+                    if len(exc) > parallel_chunk_size:
+                        new_exc = []
+                        new_inds = []
+                        filter = filter_space
+                        num_chunks = len(exc) // parallel_chunk_size
+                        chunks = np.array_split(exc, num_chunks, axis=0)
+                        for chunk in chunks:
+                            new_exc_chunk, new_inds_chunk, filter = par.run(cls._get_direct_product_spaces,
+                                                                            selection_rules, symm_grp, filter, logger,
+                                                                            main_kwargs={'exc':chunk},
+                                                                            comm = list(range(len(chunk))) if len(chunk) < (1 + par.nprocs) else None
+                                                                            )
+                            if not isinstance(new_exc_chunk[0], np.ndarray):
+                                # means we got too blocky of a shape out of the parallelizer
+                                new_exc_chunk = sum(new_exc_chunk, [])
+                                new_inds_chunk = sum(new_inds_chunk, [])
+                            new_exc.extend(new_exc_chunk)
+                            new_inds.extend(new_inds_chunk)
 
-                new.append(new_space)
-            new = np.array(new, dtype=object)
+                    else:
+                        new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces,
+                                                            selection_rules, symm_grp, filter_space, logger,
+                                                            main_kwargs={'exc':exc},
+                                                            comm=list(range(len(exc))) if len(exc) < (1 + par.nprocs) else None
+                                                            )
+                        if not isinstance(new_exc[0], np.ndarray):
+                            # means we got too blocky of a shape out of the parallelizer
+                            new_exc = sum(new_exc, [])
+                            new_inds = sum(new_inds, [])
+
+                new = []
+                for e,i in zip(new_exc, new_inds): # looping over input excitations
+                    # make stuff unique...kinda just because?
+                    i, _, inds = nput.unique(i, return_index=True)
+                    e = e[inds,]
+                    new_space = BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations)
+                    new_space.indices = i
+                    new_space.indexer = np.arange(len(i))
+                    new_space._uindexer = new_space.indexer
+                    new_space._uexc_indexer = new_space.indexer
+                    new_space._uinds = new_space.indexer
+
+                    new.append(new_space)
+                new = np.array(new, dtype=object)
 
             if filter_space is None:
                 return cls(space, new, selection_rules)

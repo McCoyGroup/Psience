@@ -553,7 +553,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(h2_space.nstates, 120)
 
-    @debugTest
+    @validationTest
     def test_GenerateFilteredSelectionRuleSpace(self):
         """
         Tests (and profiles) the generation of a state
@@ -586,7 +586,7 @@ class BasisSetTests(TestCase):
         self.assertEquals(ind_tag, (320425735722628681, 4044592283957769633))#, 1029650262075525554))
         # raise Exception(ind_tag)
 
-    @debugTest
+    @validationTest
     def test_StateIndexing(self):
         """
         Tests indexing state specs through a more
@@ -830,4 +830,44 @@ class BasisSetTests(TestCase):
 
         self.assertTrue(np.allclose(x2.array.asarray(), x22.array.asarray()))
         # raise Exception(mat_2.array.asarray())
+
+    @debugTest
+    def test_PermutationallyReducedStateSpace(self):
+        n = 15  # totally meaningless these days
+        m = 4
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        x_rep = basis.representation('x', 'x', coeffs=np.ones((m,)))
+        init_space = basis.get_state_space(2)
+        tf = x_rep.get_transformed_space(init_space)
+
+        tf_1 = tf.to_single().take_unique()
+        reduced = tf_1.permutationally_reduce()
+        expanded = reduced.permutationally_expand()
+
+        self.assertEquals(
+            np.sort(tf_1.indices).tolist(),
+            np.sort(expanded.indices).tolist()
+        )
+
+        sub = reduced.take_subspace([1])
+        perms = np.array([[0, 2, 3, 1], [2, 3, 1, 0]])
+        direct_prod = sub.permutation_direct_product(perms)
+        # raise Exception(
+        #     sub.permutationally_expand().excitations,
+        #     direct_prod.permutationally_expand().excitations,
+        # )
+
+        tf_2 =  x_rep.get_transformed_space(reduced)
+        tf_22 = x_rep.get_transformed_space(tf_1)
+
+        new_rep = tf_2.get_space(1).take_permutations(0).permutationally_expand()
+        old_rep = tf_22.get_space(0)
+        self.assertEquals(
+            np.sort(new_rep.indices).tolist(),
+            np.sort(old_rep.indices).tolist()
+        )
+
+
+
 
