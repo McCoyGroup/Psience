@@ -1400,6 +1400,8 @@ class DipoleTerms(ExpansionTerms):
         return mom, grad, seconds, thirds
 
     def get_terms(self, order=None):
+        if order is None:
+            order = 2
         if order > 2:
             raise ValueError("only have this up order 2...")
         v0 = self.derivs[0]
