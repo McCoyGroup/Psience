@@ -584,7 +584,7 @@ class Operator:
         # and actually inherit most of their info from the parent process
         self._get_pop_parallel(None, idx, parallelizer)
 
-    def _get_elements(self, inds, idx, parallelizer=None):
+    def _get_elements(self, inds, idx, full_inds=None, parallelizer=None):
         """
         Runs the regular element getting algorithm in parallel
 
@@ -595,6 +595,8 @@ class Operator:
         :return:
         :rtype:
         """
+        if full_inds is not None:
+            inds = full_inds
         self._worker_get_elements(idx, parallelizer=parallelizer)
         return self._main_get_elements(inds, idx, parallelizer=parallelizer)
 
@@ -631,7 +633,10 @@ class Operator:
 
             if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
                 parallelizer.printer = self.logger.log_print
-                elem_chunk = parallelizer.run(self._get_elements, inds, idx)
+                elem_chunk = parallelizer.run(self._get_elements, None, idx,
+                                              main_kwargs={'full_inds':inds},
+                                              comm=None if len(inds) >= parallelizer.nprocs else list(range(len(inds)))
+                                              )
             else:
                 elem_chunk = self._main_get_elements(inds, idx, parallelizer=None)
 

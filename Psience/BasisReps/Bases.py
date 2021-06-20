@@ -6,6 +6,7 @@ used to define matrix representations
 import abc, numpy as np, scipy.sparse as sp, itertools as ip
 from .StateIndexers import BaseStateIndexer, ArrayStateIndexer, PermutationStateIndexer
 from McUtils.Scaffolding import MaxSizeCache
+from McUtils.Combinatorics import SymmetricGroupGenerator
 
 __all__ = [
     "RepresentationBasis",
@@ -153,7 +154,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
                               )
 
     @classmethod
-    def _sel_rules_from_rules(cls, rules):
+    def _sel_rules_from_rules(cls, rules, max_len=None):
         """
         We take the combo of the specified rules, where we take successive products of 1D rules with the
         current set of rules following the pattern that
@@ -170,67 +171,68 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         """
         from collections import OrderedDict
 
-        cur = set()
+        rules = [np.sort(x) for x in rules]
         ndim = len(rules)
-        # print([tuple(range(ndim)) for _ in range(ndim)])
-        for p in ip.product(*(tuple(range(ndim)) for _ in range(ndim))): # loop over different permutations of the operators
-            # figure out what inidces are touched by which bits of p
-            opgroups = OrderedDict()
-            for i in p:
-                if i in opgroups:
-                    opgroups[i].append(rules[i])
-                else:
-                    opgroups[i] = [rules[i]]
+        if max_len is None:
+            max_len = ndim
 
-            # now generate the set of 1D changes from each opgroup
-            ichng = []
-            for subrules in opgroups.values():
-                # print("oooo>", subrules)
-                base = np.array(subrules[0])
-                for new in subrules[1:]:
-                    base = np.unique(np.add.outer(new, base).flatten())
-                ichng.append(base)
+        cur_rules = {(0,) * max_len}
+        for r in rules:
+            new_rules = set()
+            for e in cur_rules:
+                for s in r:
+                    for i in range(max_len):
+                        shift = e[i] + s
+                        new = e[:i] + (shift,) + e[i+1:]
+                        new = tuple(sorted(new, key=lambda l: -abs(l)*10-(1 if l> 0 else 0)))
+                        new_rules.add(new)
+                        continue
 
-            # we do a check for the zero case before the product then drop all zeros
-            # for speed reasons
-            if all(0 in r for r in ichng):
-                cur.add(())
 
-            for i, r in enumerate(ichng):
-                ichng[i] = r[r != 0]
+                        # keep things sorted by absolute value
+                        # to cut down on the amount of sorting we have to do
+                        # later
+                        break_time = e[i] == 0
+                        abs_shift = abs(shift)
+                        if i > 0 and abs_shift > abs(e[i-1]): # shift this up
+                            j = i-1
+                            while j > 0 and abs_shift > abs(e[j]):
+                                j-=1
+                            while j > 0 and abs_shift == abs(e[j]) and shift < 0 and e[j] > 0:
+                                j -= 1
+                            new = e[:j] + (shift,) + e[j:i] + e[i+1:]
+                        elif i < max_len - 1 and abs_shift < abs(e[i+1]):
+                            j = i+1
+                            while j < max_len-1 and abs_shift < abs(e[j]):
+                                j+=1
+                            while j < max_len-1 and abs_shift == abs(e[j]) and shift > 0 and e[j] < 0:
+                                j += 1
+                            new = e[:i] + e[i+1:j] + (shift,) + e[j:]
+                        else: # doesn't need to move
+                            j = None
+                            new = e[:i] + (shift,) + e[i+1:]
+                        new_rules.add(new)
+                        if break_time:
+                            break
+            # print(cur_rules)
+            cur_rules = new_rules
 
-            # print(">>>>", ichng)
-            for t in ip.product(*ichng):
-                # print(p)
-                t = tuple(sorted(t))
-                cur.add(t)
+        cur_rules = np.array(list(cur_rules))
+        # print(np.where(cur_rules[:, -1] == -1))
+        new_rules = []
+        for r in cur_rules:
+            w = np.where(r==0)
+            if len(w) > 0:
+                w = w[0]
+            if len(w) == 0:
+                new_rules.append(tuple(r))
+            else:
+                new_rules.append(tuple(r[:w[0]]))
 
-        # for dim, rule_list in enumerate(rules[1:]):
-        #     new = set()
-        #     # loop over the indices that can be touched by the rule
-        #     for p in ip.permutations():
-        #         ...
-        #
-        #     # # loop over the ints held in the rule
-        #     # for r in rule_list:
-        #     #     # transform the existing rules
-        #     #     print(r, cur)
-        #     #     for x in cur:
-        #     #         for i in range(len(x)):
-        #     #             test = tuple(
-        #     #                 sorted(
-        #     #                     y + r if j == i else y for j, y in enumerate(x)
-        #     #                     if y + r != 0
-        #     #                 )
-        #     #             )
-        #     #             if len(test) > 0:
-        #     #                 new.add(test)
-        #     #         test = tuple(sorted(x + (r,)))
-        #     #         new.add(test)
-        #     cur = new
-        #     # cur.update(new)
+        new_rules = list(sorted(new_rules, key=lambda l:len(l)*100 + sum(l)))
+        # print(new_rules)
 
-        return list(sorted(cur, key=lambda l:len(l)*100 + sum(l)))
+        return new_rules
 
 
     def selection_rules(self, *terms):
@@ -253,6 +255,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
                     t
                 ))
 
+        # print(rules)
         return self._sel_rules_from_rules(rules)
         # TODO: add in to PerturbationTheory stuff + need to add initial_states & final_states for transition moment code... (otherwise _waaay_ too slow)
         # transitions_h1 = [

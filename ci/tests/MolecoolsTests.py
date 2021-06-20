@@ -2,7 +2,7 @@
 from Peeves.TestUtils import *
 from unittest import TestCase
 from Psience.Molecools import Molecule, MolecularNormalModes
-from Psience.Molecools.Transformations import MolecularTransformation
+# from Psience.Molecools.Transformations import MolecularTransformation
 from Psience.Data import DipoleSurface # this will be leaving Zachary very soon I think...
 from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
 from McUtils.Plots import *
@@ -12,11 +12,12 @@ import numpy as np
 
 class MolecoolsTests(TestCase):
 
-    test_log_water = TestManager.test_data("water_OH_scan.log")
-    test_log_freq = TestManager.test_data("water_freq.log")
-    test_HOD = TestManager.test_data("HOD_freq.fchk")
-    test_fchk = TestManager.test_data("water_freq.fchk")
-    test_log_h2 = TestManager.test_data("outer_H2_scan_new.log")
+    def setUp(self):
+        self.test_log_water = TestManager.test_data("water_OH_scan.log")
+        self.test_log_freq = TestManager.test_data("water_freq.log")
+        self.test_HOD = TestManager.test_data("HOD_freq.fchk")
+        self.test_fchk = TestManager.test_data("water_freq.fchk")
+        self.test_log_h2 = TestManager.test_data("outer_H2_scan_new.log")
 
     @debugTest
     def test_NormalModeRephasing(self):

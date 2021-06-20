@@ -773,6 +773,8 @@ class BasisStateSpace(AbstractStateSpace):
             if selection_rules is None:
                 # TODO: not sure I want to be happening here
                 l_inds = self.indices
+                if other is None:
+                    other = self
                 r_inds = other.indices
                 # TODO: make this less slow... ip.product can be brutal
                 pairs = np.array(list(ip.product(l_inds, r_inds)))
@@ -2098,9 +2100,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         return new
 
     @classmethod
-    def _get_direct_product_spaces(cls, exc, selection_rules, symm_grp, filter_space, logger, parallelizer=None):
+    def _get_direct_product_spaces(cls, selection_rules, symm_grp, filter_space, logger, exc=None, parallelizer=None):
 
-        selection_rules, symm_grp, filter_space = parallelizer.broadcast([selection_rules, symm_grp, filter_space])
+        # selection_rules, symm_grp, filter_space = parallelizer.broadcast([selection_rules, symm_grp, filter_space])
         exc = parallelizer.scatter(exc)
 
         # parallelizer.print('block size: {s} {p}'.format(
@@ -2194,7 +2196,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                     chunks = np.array_split(exc, num_chunks, axis=0)
                     for chunk in chunks:
                         new_exc_chunk, new_inds_chunk, filter = par.run(cls._get_direct_product_spaces, chunk,
-                                                                        selection_rules, symm_grp, filter, logger)
+                                                                        selection_rules, symm_grp, filter, logger,
+                                                                        comm = list(range(len(chunk))) if len(chunk) < (1 + par.nprocs) else None
+                                                                        )
                         if not isinstance(new_exc_chunk[0], np.ndarray):
                             # means we got too blocky of a shape out of the parallelizer
                             new_exc_chunk = sum(new_exc_chunk, [])
@@ -2203,8 +2207,11 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                         new_inds.extend(new_inds_chunk)
 
                 else:
-                    new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces, exc,
-                                                        selection_rules, symm_grp, filter_space, logger)
+                    new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces,
+                                                        selection_rules, symm_grp, filter_space, logger,
+                                                        main_kwargs={'exc':exc},
+                                                        comm=list(range(len(exc))) if len(exc) < (1 + par.nprocs) else None
+                                                        )
                     if not isinstance(new_exc[0], np.ndarray):
                         # means we got too blocky of a shape out of the parallelizer
                         new_exc = sum(new_exc, [])
@@ -2212,8 +2219,16 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
             new = []
             for e,i in zip(new_exc, new_inds):
+                # make stuff unique...kinda just because?
+                i, _, inds = nput.unique(i, return_index=True)
+                e = e[inds,]
                 new_space = BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations)
                 new_space.indices = i
+                new_space.indexer = np.arange(len(i))
+                new_space._uindexer = new_space.indexer
+                new_space._uexc_indexer = new_space.indexer
+                new_space._uinds = new_space.indexer
+
                 new.append(new_space)
             new = np.array(new, dtype=object)
 
