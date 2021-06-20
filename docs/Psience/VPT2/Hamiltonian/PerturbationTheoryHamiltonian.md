@@ -10,7 +10,7 @@ from_fchk: method
 ```
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, mixed_derivs=None, potential_derivatives=None, coriolis_coupling=True, watson_term=True, parallelizer=None, log=None, checkpoint=None, operator_chunk_size=None, selection_rules=None): 
+__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, mixed_derivs=None, potential_derivatives=None, coriolis_coupling=True, include_pseudopotential=True, parallelizer=None, log=None, checkpoint=None, operator_chunk_size=None, selection_rules=None, potential_terms=None, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None): 
 ```
 
 - `molecule`: `Molecule`
@@ -50,6 +50,11 @@ Provides the representation for H1 in this basis
 H2(self): 
 ```
 Provides the representation for H2 in this basis
+
+<a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_perturbations" class="docs-object-method">&nbsp;</a>
+```python
+get_perturbations(self, order): 
+```
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.perturbations" class="docs-object-method">&nbsp;</a>
 ```python
@@ -117,7 +122,7 @@ Converts the input state specs into proper `BasisStateSpace` specs that
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_wavefunctions" class="docs-object-method">&nbsp;</a>
 ```python
-get_wavefunctions(self, states, coupled_states=None, degeneracies=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, intermediate_normalization=False, ignore_odd_order_energies=True, zero_element_warning=True, state_space_iterations=None, verbose=False, order=2): 
+get_wavefunctions(self, states, coupled_states=None, degeneracies=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, gaussian_resonance_handling=False, intermediate_normalization=False, ignore_odd_order_energies=True, zero_element_warning=True, state_space_iterations=None, verbose=False, order=2, expansion_order=None): 
 ```
 Gets a set of `PerturbationTheoryWavefunctions` from the perturbations defined by the Hamiltonian
 - `states`: `BasisStateSpace | Iterable[int] | Iterable[Iterable[int]]`

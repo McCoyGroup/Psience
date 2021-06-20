@@ -2,6 +2,11 @@
 Base class for kinetic, potential, and dipole derivative terms
 
 ### Properties and Methods
+```python
+internal_by_cartesian_order: int
+cartesian_by_internal_order: int
+jacobian_warning_threshold: float
+```
 <a id="Psience.VPT2.Terms.ExpansionTerms.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, molecule, modes=None, mode_selection=None, undimensionalize=True, logger=None, parallelizer=None, checkpointer=None, numerical_jacobians=True, eckart_embed=True): 
@@ -23,7 +28,12 @@ undimensionalize(self, masses, modes):
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.get_terms" class="docs-object-method">&nbsp;</a>
 ```python
-get_terms(self): 
+get_terms(self, order=None): 
+```
+
+<a id="Psience.VPT2.Terms.ExpansionTerms.get_term" class="docs-object-method">&nbsp;</a>
+```python
+get_term(self, t): 
 ```
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.terms" class="docs-object-method">&nbsp;</a>
@@ -53,9 +63,14 @@ get_cart_jacobs(self, jacs):
 inertial_frame(self): 
 ```
 
+<a id="Psience.VPT2.Terms.ExpansionTerms.inertial_frame_derivatives" class="docs-object-method">&nbsp;</a>
+```python
+inertial_frame_derivatives(self): 
+```
+
 <a id="Psience.VPT2.Terms.ExpansionTerms.get_coordinate_transforms" class="docs-object-method">&nbsp;</a>
 ```python
-get_coordinate_transforms(self): 
+get_coordinate_transforms(self, internal_by_cartesian_order=None, cartesian_by_internal_order=None, current_cache=None): 
 ```
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.cartesians_by_modes" class="docs-object-method">&nbsp;</a>
@@ -64,10 +79,20 @@ get_coordinate_transforms(self):
 cartesians_by_modes(self): 
 ```
 
+<a id="Psience.VPT2.Terms.ExpansionTerms.get_cartesians_by_modes" class="docs-object-method">&nbsp;</a>
+```python
+get_cartesians_by_modes(self, order=None): 
+```
+
 <a id="Psience.VPT2.Terms.ExpansionTerms.modes_by_cartesians" class="docs-object-method">&nbsp;</a>
 ```python
 @property
 modes_by_cartesians(self): 
+```
+
+<a id="Psience.VPT2.Terms.ExpansionTerms.get_modes_by_cartesians" class="docs-object-method">&nbsp;</a>
+```python
+get_modes_by_cartesians(self, order=None): 
 ```
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.cartesians_by_internals" class="docs-object-method">&nbsp;</a>
@@ -76,16 +101,31 @@ modes_by_cartesians(self):
 cartesians_by_internals(self): 
 ```
 
+<a id="Psience.VPT2.Terms.ExpansionTerms.get_cartesians_by_internals" class="docs-object-method">&nbsp;</a>
+```python
+get_cartesians_by_internals(self, order=None): 
+```
+
 <a id="Psience.VPT2.Terms.ExpansionTerms.internals_by_cartesians" class="docs-object-method">&nbsp;</a>
 ```python
 @property
 internals_by_cartesians(self): 
 ```
 
+<a id="Psience.VPT2.Terms.ExpansionTerms.get_internals_by_cartesians" class="docs-object-method">&nbsp;</a>
+```python
+get_internals_by_cartesians(self, order=None): 
+```
+
 <a id="Psience.VPT2.Terms.ExpansionTerms.cartesian_modes_by_internal_modes" class="docs-object-method">&nbsp;</a>
 ```python
 @property
 cartesian_modes_by_internal_modes(self): 
+```
+
+<a id="Psience.VPT2.Terms.ExpansionTerms.get_cartesian_modes_by_internal_modes" class="docs-object-method">&nbsp;</a>
+```python
+get_cartesian_modes_by_internal_modes(self, order=None): 
 ```
 
 ### Examples

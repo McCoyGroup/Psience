@@ -18,7 +18,7 @@ __init__(self, molecule, derivatives=None, mixed_derivs=None, modes=None, mode_s
 
 <a id="Psience.VPT2.Terms.DipoleTerms.get_terms" class="docs-object-method">&nbsp;</a>
 ```python
-get_terms(self): 
+get_terms(self, order=None): 
 ```
 
 ### Examples
