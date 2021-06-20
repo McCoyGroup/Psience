@@ -1569,21 +1569,9 @@ class PotentialLikeTerm(KineticTerms):
 
             # we skip the gamma term from Pickett altogether because it never directly
             # enters, instead only ever being treated as detIdQ - detGdQ
-
-
             gamdQ = (detI.dQ()/detI + -1*detG.dQ()/detG).simplify(check_arrays=True)
             gamdQQ = gamdQ.dQ().simplify(check_arrays=True)
-            raise Exception(gamdQQ.array)
 
-            # v0_terms_1 = g_terms.QX(0).dot(gamdQQ, [1, 2], [1, 2])
-            # v0_term_2 = g_terms.QX(1).dot(gamdQ, 3, 1).tr()
-            # v0_term_3 = -3/4 * inv_gam * gamdQ.dot(gamdQ.dot(g_terms.QX(0), 1, 1), 1, 1)
-            # raise Exception(
-            #     inv_gam.array,
-            #     v0_terms_1.array,
-            #     v0_term_2.array,
-            #     v0_term_3.array
-            # )
             v0 = (
                     g_terms.QX(0).dot(gamdQQ, [1, 2], [1, 2])
                     + g_terms.QX(1).dot(gamdQ, 3, 1).tr()
@@ -1594,83 +1582,6 @@ class PotentialLikeTerm(KineticTerms):
             for i in range(1, order+1):
                 wat_terms.append(wat_terms[-1].dQ())
             wat_terms = [w.array for w in wat_terms]
-
-            G, GQ, GQQ = G_terms[:3]
-            I0, I0Q, I0QQ = I0_terms[:3]
-
-            detI = np.linalg.det(I0)
-            detG = np.linalg.det(G)
-            gam = detI / detG
-
-            invI = np.linalg.inv(I0)
-            invG = np.linalg.inv(G)
-
-            adjI = invI * detI
-            adjG = invG * detG
-
-            invIdQ = - np.tensordot(np.tensordot(invI, I0Q, axes=[-1, 1]), invI, axes=[-1, 0]).transpose(1, 0, 2)
-            invGdQ = - np.tensordot(np.tensordot(invG, GQ, axes=[-1, 1]), invG, axes=[-1, 0]).transpose(1, 0, 2)
-
-            # not quite enough terms to want to be clever here...
-            nQ = GQ.shape[0]
-            ## First derivatives of the determinant
-            detIdQ = np.array([
-                np.trace(np.dot(adjI, I0Q[i]))
-                for i in range(nQ)
-            ])
-            detGdQ = np.array([
-                np.trace(np.dot(adjG, GQ[i]))
-                for i in range(nQ)
-            ])
-
-            adjIdQ = detI * invIdQ + detIdQ[:, np.newaxis, np.newaxis] * invI[np.newaxis, :, :]
-            adjGdQ = detG * invGdQ + detGdQ[:, np.newaxis, np.newaxis] * invG[np.newaxis, :, :]
-
-            ## Second derivatives of the determinant
-            detIdQQ = np.array([
-                [
-                    np.tensordot(I0Q[i], adjIdQ[j], axes=2)
-                    + np.tensordot(adjI, I0QQ[i, j], axes=2)
-                    for i in range(nQ)
-                ]
-                for j in range(nQ)
-            ])
-            detGdQQ = np.array([
-                [
-                    np.tensordot(GQ[i], adjGdQ[j], axes=2)
-                    + np.tensordot(adjG, GQQ[i, j], axes=2)
-                    for i in range(nQ)
-                ]
-                for j in range(nQ)
-            ])
-
-            ## Derivatives of Gamma
-            gamdQ_I = 1 / detI * detIdQ
-            gamdQ_G = 1 / detG * detGdQ
-            gamdQ = gamdQ_I - gamdQ_G
-
-
-            gamdQQ_I = -1 / detI ** 2 * np.outer(detIdQ, detIdQ) + 1 / detI * detIdQQ
-            gamdQQ_G = -1 / detG ** 2 * np.outer(detGdQ, detGdQ) + 1 / detG * detGdQQ
-            gamdQQ = gamdQQ_I - gamdQQ_G
-
-            # raise Exception(detIdQQ, fack.array)
-
-            # Build out the proper Watson term
-            wat_diag = sum(
-                np.dot(GQ[i, i], gamdQ)
-                for i in range(nQ)
-            )
-            wat_QQ = np.tensordot(G, gamdQQ, axes=2)
-            wat_Q = np.tensordot(
-                np.tensordot(G, gamdQ, axes=[1, 0]),
-                gamdQ, axes=[0, 0]
-            )
-            old_wat = (wat_diag + wat_QQ + 1 / 4 * wat_Q)
-
-            raise Exception(old_wat, wat_terms)
-
-            wat_terms = [old_wat]
 
         self.checkpointer['psuedopotential_terms'] = wat_terms
 

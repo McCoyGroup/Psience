@@ -3203,7 +3203,7 @@ class VPT2Tests(TestCase):
         [5425.603, 5174.665]
     ])
     }
-    @debugTest
+    @validationTest
     def test_HOHVPTInternals(self):
 
         tag = 'HOH Cartesians'
@@ -4635,7 +4635,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4670,7 +4670,7 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
-            # , parallelized=True
+            , parallelized=True
         )
 
     @validationTest
