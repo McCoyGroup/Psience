@@ -8,7 +8,7 @@ from McUtils.Numputils import SparseArray, levi_cevita3, vec_tensordot, vec_oute
 from McUtils.Data import UnitsData
 from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer
-from McUtils.Zachary import TensorDerivativeConverter
+from McUtils.Zachary import TensorDerivativeConverter, TensorExpansionTerms
 
 from ..Molecools import MolecularVibrations, MolecularNormalModes
 
@@ -679,13 +679,13 @@ class ExpansionTerms:
             YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
 
             if "InternalsByModes" not in current_cache:
-                RQ, = TensorDerivativeConverter([YQ], cartesian_jacobs).convert(order=1)
+                RQ, = TensorDerivativeConverter([YQ], cartesian_jacobs).convert(order=1, check_arrays=True)
                 current_cache["InternalsByModes"] = [RQ]
             else:
                 RQ, = current_cache["InternalsByModes"]
 
             if "ModesByInternals" not in current_cache:
-                QR, = TensorDerivativeConverter(internal_jacobs, [QY]).convert(order=1)
+                QR, = TensorDerivativeConverter(internal_jacobs, [QY]).convert(order=1, check_arrays=True)
                 current_cache["ModesByInternals"] = [QR]
             else:
                 QR, = current_cache["ModesByInternals"]
@@ -696,9 +696,9 @@ class ExpansionTerms:
             ):
                 x_derivs = internal_jacobs#(YR, YRR, YRRR, YRRRR)
                 Q_derivs = [RQ] + [0]*(len(internal_jacobs) - 1)
-                YQ_derivs = TensorDerivativeConverter(Q_derivs, x_derivs).convert(order=len(internal_jacobs))
+                YQ_derivs = TensorDerivativeConverter(Q_derivs, x_derivs).convert(order=len(internal_jacobs), check_arrays=True)
 
-                qQ_derivs= TensorDerivativeConverter(YQ_derivs, [QY] + [0]*(len(internal_jacobs) - 1)).convert(order=len(internal_jacobs))
+                qQ_derivs= TensorDerivativeConverter(YQ_derivs, [QY] + [0]*(len(internal_jacobs) - 1)).convert(order=len(internal_jacobs), check_arrays=True)
                 # self._get_tensor_derivs(
                 #     YQ_derivs, (QY, 0, 0, 0),
                 #     mixed_XQ=False
@@ -715,7 +715,7 @@ class ExpansionTerms:
                     "ModesByCartesians" not in current_cache
                     or len(current_cache["ModesByCartesians"]) < len(cartesian_jacobs)
             ):
-                QY_derivs = TensorDerivativeConverter(cartesian_jacobs, [QR] + [0]*(len(cartesian_jacobs) - 1)).convert(order=len(cartesian_jacobs))
+                QY_derivs = TensorDerivativeConverter(cartesian_jacobs, [QR] + [0]*(len(cartesian_jacobs) - 1)).convert(order=len(cartesian_jacobs), check_arrays=True)
                 current_cache["ModesByCartesians"] = QY_derivs
 
             # transf_data = {
@@ -1076,7 +1076,15 @@ class PotentialTerms(ExpansionTerms):
             x_derivs = [xQ] + [0] * (order-1)
             V_derivs = self.v_derivs
 
-            terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order)
+            # terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=False, mixed_XQ=self.mixed_derivs)
+
+            if self.mixed_derivs:
+                terms = TensorDerivativeConverter(x_derivs, V_derivs, mixed_terms=[
+                    [None, self.v_derivs[2]], # dVdQXX
+                    [None, self.v_derivs[3]]  # dVdQQXX
+                ]).convert(order=order, check_arrays=True)
+            else:
+                terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order, check_arrays=True)
 
         else:
             x_derivs = self.get_cartesians_by_modes(order=order-1)
@@ -1098,10 +1106,10 @@ class PotentialTerms(ExpansionTerms):
                     raise ValueError("don't currently have things tested for expansions beyond 4th V derivatives with mixed derivatives")
                 terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=True, mixed_XQ=self.mixed_derivs)
             else:
-                terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)
+                terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order, check_arrays=True)
 
             xQ2 = self.modes.inverse
-            _, v2x,  =  TensorDerivativeConverter((xQ2, 0), V_derivs).convert(order=2)#self._get_tensor_derivs((xQ2, 0, 0, 0), V_derivs, order=2, mixed_XQ=False)
+            _, v2x,  =  TensorDerivativeConverter((xQ2, 0), V_derivs).convert(order=2, check_arrays=True)#self._get_tensor_derivs((xQ2, 0, 0, 0), V_derivs, order=2, mixed_XQ=False)
 
             if self.hessian_tolerance is not None:
                 v2 = terms[1]
@@ -1174,10 +1182,12 @@ class KineticTerms(ExpansionTerms):
             # RQ = dot(YQ, RY)
 
             term_getter = TensorDerivativeConverter(YQ_derivs, QY_derivs).terms
+            term_getter.v_name = 'Y'
             J = term_getter.XV(1)
             G_terms = [J.dot(J, 1, 1)]
             for i in range(1, order+1):
-                G_terms.append(G_terms[-1].dQ())
+                g_cur = G_terms[-1].dQ().simplify()
+                G_terms.append(g_cur)
             terms = [x.array for x in G_terms]
 
             for i,t in enumerate(terms):
@@ -1185,7 +1195,7 @@ class KineticTerms(ExpansionTerms):
                     continue
                 m = np.max(np.abs(t))
                 if m > self.g_derivative_threshold:
-                    print(G_terms[i])
+                    # print(G_terms[i])
                     self.logger.log_print("WARNING: max of d^{i}G/dQ^{i} is {m}", i=i, m=m)
 
             # QY, QYY, QYYY = QY_derivs[:3]
@@ -1515,7 +1525,7 @@ class CoriolisTerm(ExpansionTerms):
 
         self.checkpointer['coriolis_terms'] = (corr[0], corr[1], corr[2])
 
-        return corr[0], corr[1], corr[2]
+        return [[corr[0], corr[1], corr[2]]]
 
 class PotentialLikeTerm(KineticTerms):
     """
@@ -1526,48 +1536,67 @@ class PotentialLikeTerm(KineticTerms):
 
     def get_terms(self, order=None, logger=None):
 
-        if order > 0:
-            raise ValueError("currently only have Watson term up to 0 order")
-
         ics = self.internal_coordinates
         if ics is None:
 
+            if order > 0:
+                raise ValueError("currently only have Watson term up to 0 order")
             B_e, eigs = self.inertial_frame
             wat = -2*sum(B_e)
+            wat_terms = [wat]
 
         else:
-            # much more complicated, but we have
-            # wat = sum(dGdQ_ii . dgdq) + G . dgdQQ + 1/4 (G.dgdq)^T . dgdq
-            # where g = det(I_0) / get(G)
-            # import McUtils.Plots as plt
-            # plt.TensorPlot(
-            #     I0YY[:5, :5]
-            # ).show()
-
             ### transform inertia derivs into mode derivs
-            YQ, YQQ, YQQQ = self.get_cartesians_by_modes(order=3)
-            # YQQQQ
+            YQ_derivs = self.get_cartesians_by_modes(order=2+order)
 
-            I0Y, I0YY = self.inertial_frame_derivatives()
-
-
-            I0Q = np.tensordot(YQ, I0Y, axes=[-1, 0])
-            I0QQ = np.tensordot(YQQ, I0Y, axes=[-1, 0]) + np.tensordot(
-                YQ,
-                np.tensordot(
-                    YQ,
-                    I0YY,
-                    axes=[-1, 0]
-                ),
-                axes=[-1, 1]
-            )
+            I0_derivs = self.inertial_frame_derivatives() # only ever two of these
+            if order > 0:
+                I0_derivs = I0_derivs + [0]*order
+            I0Q_derivs = TensorDerivativeConverter(YQ_derivs, I0_derivs).convert(check_arrays=True)
 
             ### pull already computed G-matrix derivs
-            G, GQ, GQQ = super().get_terms(order=2, logger=NullLogger())
+            G_terms = super().get_terms(order=2+order, logger=NullLogger())
+
+            g_terms = TensorExpansionTerms(G_terms[1:], None, base_qx=G_terms[0], q_name='G')
+            detG = g_terms.QX(0).det()
 
             # oooh this is a dangerous thing to have here
             amu2me = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
             I0 = amu2me * self.molecule.inertia_tensor
+            I0_terms = [I0] + I0Q_derivs
+            I_terms = TensorExpansionTerms(I0_terms[1:], None, base_qx=I0_terms[0], q_name='I')
+            detI = I_terms.QX(0).det()
+
+            # we skip the gamma term from Pickett altogether because it never directly
+            # enters, instead only ever being treated as detIdQ - detGdQ
+
+
+            gamdQ = (detI.dQ()/detI + -1*detG.dQ()/detG).simplify(check_arrays=True)
+            gamdQQ = gamdQ.dQ().simplify(check_arrays=True)
+            raise Exception(gamdQQ.array)
+
+            # v0_terms_1 = g_terms.QX(0).dot(gamdQQ, [1, 2], [1, 2])
+            # v0_term_2 = g_terms.QX(1).dot(gamdQ, 3, 1).tr()
+            # v0_term_3 = -3/4 * inv_gam * gamdQ.dot(gamdQ.dot(g_terms.QX(0), 1, 1), 1, 1)
+            # raise Exception(
+            #     inv_gam.array,
+            #     v0_terms_1.array,
+            #     v0_term_2.array,
+            #     v0_term_3.array
+            # )
+            v0 = (
+                    g_terms.QX(0).dot(gamdQQ, [1, 2], [1, 2])
+                    + g_terms.QX(1).dot(gamdQ, 3, 1).tr()
+                    + 1/4 * gamdQ.dot(gamdQ.dot(g_terms.QX(0), 1, 1), 1, 1)
+            )
+
+            wat_terms = [v0]
+            for i in range(1, order+1):
+                wat_terms.append(wat_terms[-1].dQ())
+            wat_terms = [w.array for w in wat_terms]
+
+            G, GQ, GQQ = G_terms[:3]
+            I0, I0Q, I0QQ = I0_terms[:3]
 
             detI = np.linalg.det(I0)
             detG = np.linalg.det(G)
@@ -1576,8 +1605,8 @@ class PotentialLikeTerm(KineticTerms):
             invI = np.linalg.inv(I0)
             invG = np.linalg.inv(G)
 
-            adjI = invI*detI
-            adjG = invG*detG
+            adjI = invI * detI
+            adjG = invG * detG
 
             invIdQ = - np.tensordot(np.tensordot(invI, I0Q, axes=[-1, 1]), invI, axes=[-1, 0]).transpose(1, 0, 2)
             invGdQ = - np.tensordot(np.tensordot(invG, GQ, axes=[-1, 1]), invG, axes=[-1, 0]).transpose(1, 0, 2)
@@ -1616,26 +1645,33 @@ class PotentialLikeTerm(KineticTerms):
             ])
 
             ## Derivatives of Gamma
-            gamdQ_I = 1/detI * detIdQ
-            gamdQ_G = 1/detG * detGdQ
+            gamdQ_I = 1 / detI * detIdQ
+            gamdQ_G = 1 / detG * detGdQ
             gamdQ = gamdQ_I - gamdQ_G
 
-            gamdQQ_I = -1 / detI**2 * np.outer(detIdQ, detIdQ) + 1 / detI * detIdQQ
-            gamdQQ_G = -1 / detG**2 * np.outer(detGdQ, detGdQ) + 1 / detG * detGdQQ
+
+            gamdQQ_I = -1 / detI ** 2 * np.outer(detIdQ, detIdQ) + 1 / detI * detIdQQ
+            gamdQQ_G = -1 / detG ** 2 * np.outer(detGdQ, detGdQ) + 1 / detG * detGdQQ
             gamdQQ = gamdQQ_I - gamdQQ_G
+
+            # raise Exception(detIdQQ, fack.array)
 
             # Build out the proper Watson term
             wat_diag = sum(
-                    np.dot(GQ[i, i], gamdQ)
-                    for i in range(nQ)
-                )
+                np.dot(GQ[i, i], gamdQ)
+                for i in range(nQ)
+            )
             wat_QQ = np.tensordot(G, gamdQQ, axes=2)
             wat_Q = np.tensordot(
-                    np.tensordot(G, gamdQ, axes=[1, 0]),
-                    gamdQ, axes=[0, 0]
-                )
-            wat = (wat_diag + wat_QQ + 1/4 * wat_Q)
+                np.tensordot(G, gamdQ, axes=[1, 0]),
+                gamdQ, axes=[0, 0]
+            )
+            old_wat = (wat_diag + wat_QQ + 1 / 4 * wat_Q)
 
-        self.checkpointer['psuedopotential_terms'] = [wat]
+            raise Exception(old_wat, wat_terms)
 
-        return [wat]
+            wat_terms = [old_wat]
+
+        self.checkpointer['psuedopotential_terms'] = wat_terms
+
+        return wat_terms

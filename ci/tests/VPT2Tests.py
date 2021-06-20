@@ -127,8 +127,8 @@ class VPT2Tests(TestCase):
                     kinetic_terms=kinetic_terms,
                     coriolis_terms=coriolis_terms,
                     pseudopotential_terms=pseudopotential_terms,
-                    include_pseudopotential=False if watson is False else None,
-                    coriolis_coupling=False if coriolis is False else None
+                    include_pseudopotential=False if watson is False else True,
+                    coriolis_coupling=False if coriolis is False else True
                 )
             else:
                 hammer = PerturbationTheoryHamiltonian(
@@ -2950,7 +2950,7 @@ class VPT2Tests(TestCase):
             [13000.000, 12100.000]
         ])
     }
-    @debugTest
+    @validationTest
     def test_TwoMorseCartesiansAndBendNonDeg(self):
 
         import warnings
@@ -3203,7 +3203,7 @@ class VPT2Tests(TestCase):
         [5425.603, 5174.665]
     ])
     }
-    @validationTest
+    @debugTest
     def test_HOHVPTInternals(self):
 
         tag = 'HOH Cartesians'
@@ -3235,10 +3235,11 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            print_report=print_report
+            print_report=print_report,
+            watson=True
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         tag = 'HOH Cartesians'
@@ -3266,6 +3267,7 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
+            log=False,
             print_report=print_report
         )
 

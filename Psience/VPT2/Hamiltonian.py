@@ -364,27 +364,27 @@ class PerturbationTheoryHamiltonian:
                                                                                )
             )
             if o > 1:
+                oz = o - 2
                 if self.coriolis_terms is not None or self._input_coriolis is not None:
-                    Z = self._input_coriolis[o] if self._input_coriolis is not None and len(self._input_coriolis) > o else None
+                    Z = self._input_coriolis[oz] if self._input_coriolis is not None and len(self._input_coriolis) > oz else None
                     if Z is None:
-                        Z = np.sum(self.coriolis_terms[2], axis=0)
+                        Z = np.sum(self.coriolis_terms[oz], axis=0)
 
-                    z_exp = ['x', 'p'] + ['x' for _ in range(o-2)] + ['x', 'p']
+                    z_exp = ['x', 'p'] + ['x' for _ in range(oz)] + ['x', 'p']
                     self._expansions[o] += iphase * self.basis.representation(*z_exp,
                                                                               coeffs=Z,
-                                                                              name='Coriolis({})'.format(o-2),
+                                                                              name='Coriolis({})'.format(oz),
                                                                               **self.operator_settings
                                                                               )
 
                 if self.pseudopotential_term is not None or self._input_pseudopotential is not None:
-                    U = self._input_pseudopotential[2] if self._input_pseudopotential is not None and len(
-                        self._input_pseudopotential) > 2 else None
+                    U = self._input_pseudopotential[oz] if self._input_pseudopotential is not None and len(self._input_pseudopotential) > oz else None
                     if U is None:
-                        U = self.pseudopotential_term[2]
-                    u_exp = ['x' for _ in range(o-2)]
+                        U = self.pseudopotential_term[oz]
+                    u_exp = ['x' for _ in range(oz)]
                     self._expansions[o] += 1 / 8 * self.basis.representation(*u_exp,
                                                                              coeffs=U,
-                                                                             name="V'({})".format(o-2),
+                                                                             name="V'({})".format(oz),
                                                                              **self.operator_settings
                                                                              )
 
