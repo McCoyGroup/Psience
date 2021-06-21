@@ -61,7 +61,7 @@ Returns the state space obtained by using the
         held operators to transform `space`
 - `space`: `BasisStateSpace`
     >No description...
-- `:returns`: `_`
+- `:returns`: `SelectionRuleStateSpace`
     >No description...
 
 <a id="Psience.BasisReps.Terms.ExpansionRepresentation.__repr__" class="docs-object-method">&nbsp;</a>

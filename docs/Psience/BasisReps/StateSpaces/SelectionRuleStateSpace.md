@@ -1,5 +1,6 @@
 ## <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace">SelectionRuleStateSpace</a>
 A `BasisMultiStateSpace` subclass that is only built from applying selection rules to an initial space
+This really should have been called `TransformedStateSpace` but I am dumb
 
 ### Properties and Methods
 ```python

@@ -18,6 +18,16 @@ __init__(self, spaces):
 - `selection_rules`: `np.ndarray`
     >array of rules used to generate the subspace
 
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_space" class="docs-object-method">&nbsp;</a>
+```python
+get_space(self, item): 
+```
+Just a way to index the space but with type checking
+- `item`: `Any`
+    >No description...
+- `:returns`: `BasisStateSpace`
+    >No description...
+
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.to_state" class="docs-object-method">&nbsp;</a>
 ```python
 to_state(self, serializer=None): 

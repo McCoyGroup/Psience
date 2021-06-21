@@ -42,6 +42,11 @@ Computes the operator values over the specified indices
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.BasisReps.Operators.ContractedOperator.apply_reduced" class="docs-object-method">&nbsp;</a>
+```python
+apply_reduced(self, base_space, parallelizer=None, logger=None): 
+```
+
 <a id="Psience.BasisReps.Operators.ContractedOperator.__repr__" class="docs-object-method">&nbsp;</a>
 ```python
 __repr__(self): 

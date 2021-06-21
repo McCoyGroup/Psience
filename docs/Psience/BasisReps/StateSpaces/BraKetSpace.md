@@ -114,6 +114,11 @@ splits the brakets into blocks of at max chunksize
 - `:returns`: `Iterable[BraKetSpace]`
     >No description...
 
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.concatenate" class="docs-object-method">&nbsp;</a>
+```python
+concatenate(self, other): 
+```
+
 ### Examples
 
 

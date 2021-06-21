@@ -121,8 +121,8 @@ Returns the state space obtained by using the
         held operator to transform `space`
 - `space`: `Any`
     >No description...
-- `:returns`: `_`
-    >No description...
+- `:returns`: `SelectionRuleStateSpace`
+    >connected state spaces
 
 <a id="Psience.BasisReps.Terms.Representation.apply" class="docs-object-method">&nbsp;</a>
 ```python

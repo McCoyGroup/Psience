@@ -57,7 +57,7 @@ Loads a parallelizer that can be used to speed up various bits of the calculatio
 
 <a id="Psience.BasisReps.Operators.Operator.get_inner_indices" class="docs-object-method">&nbsp;</a>
 ```python
-get_inner_indices(self): 
+get_inner_indices(self, reduced_inds=False): 
 ```
 Gets the n-dimensional array of ijkl (e.g.) indices that functions will map over
         Basically returns the indices of the inner-most tensor
@@ -91,7 +91,7 @@ Determines which inds are symmetry unique.
 get_elements(self, idx, parallelizer=None): 
 ```
 Calculates a subset of elements
-- `idx`: `Iterable[(Iterable[int], Iterable[int])]`
+- `idx`: `BraKetSpace`
     >bra and ket states as tuples of elements
 - `:returns`: `_`
     >No description...
@@ -109,7 +109,19 @@ Returns the space one would get from applying
         the selection rules from this operator
 - `base_space`: `BasisStateSpace`
     >No description...
-- `:returns`: `_`
+- `:returns`: `SelectionRuleStateSpace`
+    >No description...
+
+<a id="Psience.BasisReps.Operators.Operator.apply_reduced" class="docs-object-method">&nbsp;</a>
+```python
+apply_reduced(self, base_space, parallelizer=None, logger=None): 
+```
+Takes a base space as input and applies the held selection rules in semi-efficient
+        fashion only on the indices that can change and then uses this to compute all matrix
+        elements, returning then the final generated space
+- `base_space`: `BasisStateSpace | PermutationallyReducedStateSpace`
+    >No description...
+- `:returns`: `tuple[SparseArray, BraKetSpace]`
     >No description...
 
 ### Examples

@@ -128,7 +128,7 @@ Returns only the unique states, but preserves
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.apply_selection_rules" class="docs-object-method">&nbsp;</a>
 ```python
-apply_selection_rules(self, selection_rules, filter_space=None, parallelizer=None, logger=None, iterations=1): 
+apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None, logger=None, iterations=1, new_state_space_class=None): 
 ```
 Generates a new state space from the application of `selection_rules` to the state space.
         Returns a `BasisMultiStateSpace` where each state tracks the effect of the application of the selection rules
@@ -145,6 +145,11 @@ Generates a new state space from the application of `selection_rules` to the sta
     >No description...
 - `:returns`: `SelectionRuleStateSpace`
     >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.permutationally_reduce" class="docs-object-method">&nbsp;</a>
+```python
+permutationally_reduce(self): 
+```
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a>
 ```python
@@ -246,6 +251,17 @@ Splits the space up into chunks of at max chunksize
 - `chunksize`: `int`
     >No description...
 - `:returns`: `Iterable[BasisStateSpace]`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.concatenate" class="docs-object-method">&nbsp;</a>
+```python
+concatenate(self, other): 
+```
+Just does a direct concatenation with no unions or any
+        of that
+- `other`: `Any`
+    >No description...
+- `:returns`: `_`
     >No description...
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.union" class="docs-object-method">&nbsp;</a>
