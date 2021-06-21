@@ -1216,7 +1216,6 @@ class KineticTerms(ExpansionTerms):
             # raise Exception([G, GQ, GQQ])
 
         G_terms = terms
-
         self.checkpointer['gmatrix_terms'] = G_terms
 
         return G_terms

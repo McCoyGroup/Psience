@@ -3240,8 +3240,12 @@ class VPT2Tests(TestCase):
             watson=True
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
+
+        import warnings
+        np.seterr(all='raise')
+        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
         tag = 'HOH Cartesians'
         file_name = "HOH_freq.fchk"
@@ -3260,6 +3264,7 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['HOH']['zpe']
         gaussian_freqs = self.gaussian_data['HOH']['freqs']
 
+        os.remove(os.path.expanduser('~/hoh.hdf5'))
         self.run_PT_test(
             tag,
             file_name,
@@ -3270,6 +3275,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=False,
             print_report=print_report
+            , checkpoint=os.path.expanduser('~/hoh.hdf5')
         )
 
     @inactiveTest
@@ -4636,7 +4642,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4650,7 +4656,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes)#[:3]
+        states = self.get_states(3, n_modes)#[:10]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -4671,7 +4677,7 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
-            , parallelized=True
+            # , parallelized=True
         )
 
     @validationTest
@@ -6383,7 +6389,7 @@ class VPT2Tests(TestCase):
             )
         )
 
-    @debugTest
+    @validationTest
     def test_HOHIntensitiesCartesian4thOrder(self):
 
         internals = None
