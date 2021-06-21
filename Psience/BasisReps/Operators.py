@@ -689,9 +689,6 @@ class Operator:
             parallelizer = self.parallelizer
         return base_space.apply_selection_rules(rules, parallelizer=parallelizer, logger=logger)
 
-    # A failed attempt to use symmetries to make evaluation faster
-    # the better bet is to introduce permutation equivalence to the basic operator
-    # and use that to generate different contractions
     def _calculate_single_transf(self, inds, funcs, base_space, sel_rules):
         """
         Calculates terms for a single product operator.
@@ -713,10 +710,17 @@ class Operator:
         :rtype:
         """
 
+        # once we're doing this over all possible indices I think I've lost any benefit
+
+        # TODO: edit direct sum generator to be a true generator where I can directly resume
+        #       the calculation over a different set of target dimensions if I need to or something
+        #       although I'm low-key not sure that's feasible
+        #       _Alternately_ allow for splitting by which indices were touched rather than what the
+        #       input state was
+
         # trying to not calculate anything unnecessary
         uinds = np.unique(inds)
         sr = [r for r in sel_rules if len(r) == len(uinds) or (len(uinds) == 1 and len(r) == 0)]
-        print(uinds) # once we're doing this over all possible indices I think I've lost any benefit
         states = base_space.apply_selection_rules(sr, target_dimensions=uinds)
         brakets = states.get_representation_brakets()
         vals = self._calculate_single_pop_elements(inds, funcs, brakets, sel_rules, check_orthogonality=False)
@@ -815,6 +819,8 @@ class Operator:
                 res = [res[i] for i in inverse]
                 brakets = [brakets[i] for i in inverse]
 
+            # TODO: this will need to be _a lot_ faster if this is going to become the default
+            #       method for getting representations...
             # now we need to apply the permutations which
             # we'll do in a slightly dumb/inefficient way
             # by determining which brakets correspond to which

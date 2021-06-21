@@ -3243,6 +3243,10 @@ class VPT2Tests(TestCase):
     @debugTest
     def test_HOHVPTCartesians(self):
 
+        import warnings
+        np.seterr(all='raise')
+        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
+
         tag = 'HOH Cartesians'
         file_name = "HOH_freq.fchk"
 
@@ -3270,6 +3274,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=False,
             print_report=print_report
+            , checkpoint=os.path.expanduser('~/hoh.hdf5')
         )
 
     @inactiveTest
@@ -6383,7 +6388,7 @@ class VPT2Tests(TestCase):
             )
         )
 
-    @debugTest
+    @validationTest
     def test_HOHIntensitiesCartesian4thOrder(self):
 
         internals = None
