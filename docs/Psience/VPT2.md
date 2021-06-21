@@ -4680,10 +4680,12 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes)#[:10]
+        states = self.get_states(3, n_modes)[:6]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
+
+        chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
 
         print_report = False
         nielsen_tolerance = 50
@@ -4701,6 +4703,7 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
+            , checkpoint=chk
             # , parallelized=True
         )
 

@@ -4,6 +4,7 @@ methods to index into a basis and generate representations
 
 ### Properties and Methods
 ```python
+keep_excitations: bool
 StateSpaceSpec: EnumMeta
 excitations_dtype: dtype[int8]
 indices_dtype: dtype[int64]
