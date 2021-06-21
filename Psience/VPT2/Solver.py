@@ -1350,7 +1350,7 @@ class PerturbationTheorySolver:
             # print("    ...", contracted)
             return contracted
 
-    def _get_new_coupled_space(self, a, b, spaces=None):
+    def _get_new_coupled_space(self, a, b, spaces=None, ret_space=True):
         """
         A symbolic version of the dot product appropriate for getting
         transformed state spaces under the operation of a on b
@@ -1441,13 +1441,19 @@ class PerturbationTheorySolver:
                         existing = cur.intersection(b_sels, handle_subspaces=False)
                         # and now we do extra transformations where we need to
                         new_new = a.get_transformed_space(diffs, parallelizer=self.parallelizer, logger=logger)
+
                         # next we add the new stuff to the cache
                         cur = cur.union(new_new)
                         # print(">>", a.coeffs.shape, len(cur._base_space.unique_indices))
                         projections[proj] = rep_space.union(diffs)
                         spaces[op] = (projections, cur)
 
-                        new = existing.union(new_new).to_single().take_unique()
+                        # TODO: find a way to make this not cause memory spikes...
+                        if ret_space:
+                            new = existing.union(new_new).to_single().take_unique()
+                        else:
+                            new = b
+
                     else:
                         # means we already calculated everything
                         # so we don't need to worry about this
@@ -1460,7 +1466,7 @@ class PerturbationTheorySolver:
 
         return self.StateSpaceWrapper(new)
 
-    def _reduce_new_coupled_space(self, *terms, spaces=None):
+    def _reduce_new_coupled_space(self, *terms, spaces=None, ret_space=True):
         """
         Reduces through `_get_new_coupled_space` from right to left
         :param terms:
@@ -1472,7 +1478,7 @@ class PerturbationTheorySolver:
         """
         import functools
         return functools.reduce(
-            lambda a, b:self._get_new_coupled_space(b, a, spaces),
+            lambda a, b:self._get_new_coupled_space(b, a, spaces, ret_space=ret_space),
             reversed(terms[:-1]),
             terms[-1]
         )
@@ -1540,7 +1546,8 @@ class PerturbationTheorySolver:
             D = input_state_space
         pi = self.ProjectionOperatorWrapper(D, complement=True)
         # piD = self.ProjectionOperatorWrapper(D, complement=False)
-        dot = lambda *terms, spaces=spaces: self._reduce_new_coupled_space(*terms, spaces=spaces)
+
+        dot = lambda *terms, spaces=spaces,ret_space=True: self._reduce_new_coupled_space(*terms, spaces=spaces,ret_space=ret_space)
 
         H = self.PastIndexableTuple(self.perts)
 
@@ -1571,11 +1578,14 @@ class PerturbationTheorySolver:
                              )
                 )
             with self.logger.block(tag='getting states for order {k}'.format(k=k)):
-                corrs[k] = sum(corrs[i] for i in range(0, k))
+                corrs[k] = sum(corrs[i] for i in range(0, k)) # this all in here from energies
                 for i in range(0, k):
                     if not isinstance(H[k - i], (int, np.integer)):
                         self.logger.log_print('H({a})|n({b})>', a=k - i, b=i)
-                        corrs[k] += dot(H[k - i], corrs[i])
+                        if k < order-1:
+                            corrs[k] += dot(H[k - i], corrs[i])
+                        else:
+                            dot(H[k - i], corrs[i], ret_space=False)
 
         # raise Exception(
         #     [x[1] for x in spaces.values() if x is not None][0].get_representation_indices().T
