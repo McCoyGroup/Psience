@@ -28,6 +28,8 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
     methods to index into a basis and generate representations
     """
 
+    keep_excitations=True # whether or not to keep excitations for memory purposes
+
     class StateSpaceSpec(enum.Enum):
         Excitations = "excitations"
         Indices = "indices"
@@ -84,9 +86,12 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         return self.basis.ndim
 
     def _pull_exc(self):
-        if self._excitations is None:
-            self._excitations = self.as_excitations()
-        return self._excitations
+        if self.keep_excitations:
+            if self._excitations is None:
+                self._excitations = self.as_excitations()
+            return self._excitations
+        else:
+            return self.as_excitations()
     @property
     def excitations(self):
         return self._pull_exc()
@@ -427,7 +432,6 @@ class BasisStateSpace(AbstractStateSpace):
     Useful largely to provide consistent, unambiguous representations of multiple states across
     the different representation-generating methods in the code base.
     """
-
     def __init__(self, basis, states, mode=None):
         """
         :param basis:
@@ -451,6 +455,9 @@ class BasisStateSpace(AbstractStateSpace):
                 self._indices = self._init_states.astype(int)
             else:
                 self._excitations = self._init_states.astype(self.excitations_dtype)
+            if not self.keep_excitations:
+                self.indices # caching
+                self._excitations = None
         else:
             if mode is None:
                 self._init_state_types = self.StateSpaceSpec.Indices
@@ -1605,11 +1612,26 @@ class BasisMultiStateSpace(AbstractStateSpace):
 
     def to_state(self, serializer=None):
         return {
-            'spaces':self.spaces
+            'basis':self.basis,
+            'shape':self.spaces.shape,
+            'spaces':[{'indices':x._indices, 'excitations':x._excitations} for x in self.spaces.flatten()]
         }
     @classmethod
     def from_state(cls, data, serializer=None):
-        return cls(serializer.deserialize(data['spaces']))
+        basis = serializer.deserialize(data['basis'])
+        shape = data['shape']
+        raw_spaces = serializer.deserialize(data['spaces'])
+        reload_spaces = np.full(len(raw_spaces), None, dtype=object)
+        for n,x in enumerate(raw_spaces):
+            if x['indices'] is not None:
+                new = BasisStateSpace(basis, x['indices'], mode=BasisStateSpace.StateSpaceSpec.Indices)
+                if x['excitations'] is not None:
+                    new._excitations = x['excitations']
+            else:
+                new = BasisStateSpace(basis, x['indices'], mode=BasisStateSpace.StateSpaceSpec.Indices)
+            reload_spaces[n] = new
+        reload_spaces = reload_spaces.reshape(shape)
+        return cls(reload_spaces)
 
     @property
     def representative_space(self):
@@ -1930,14 +1952,25 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
     def to_state(self, serializer=None):
         return {
             'base_space':self._base_space,
-            'spaces':self.spaces,
+            'spaces':[{'indices':x._indices, 'excitations':x._excitations} for x in self.spaces.flatten()],
             'selection_rules':self.sel_rules
         }
     @classmethod
     def from_state(cls, data, serializer=None):
+        base_space = serializer.deserialize(data['base_space'])
+        raw_spaces = serializer.deserialize(data['spaces'])
+        reload_spaces = np.full(len(raw_spaces), None, dtype=object)
+        for n, x in enumerate(raw_spaces):
+            if x['indices'] is not None:
+                new = BasisStateSpace(base_space.basis, x['indices'], mode=BasisStateSpace.StateSpaceSpec.Indices)
+                if x['excitations'] is not None:
+                    new._excitations = x['excitations']
+            else:
+                new = BasisStateSpace(base_space.basis, x['indices'], mode=BasisStateSpace.StateSpaceSpec.Indices)
+            reload_spaces[n] = new
         return cls(
-            serializer.deserialize(data['base_space']),
-            serializer.deserialize(data['spaces']),
+            base_space,
+            reload_spaces,
             selection_rules=serializer.deserialize(data['selection_rules'])
             )
 
