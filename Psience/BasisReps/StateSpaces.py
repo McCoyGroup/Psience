@@ -16,6 +16,8 @@ __all__ = [
     "BasisStateSpace",
     "BasisMultiStateSpace",
     "SelectionRuleStateSpace",
+    "PermutationallyReducedStateSpace",
+    "PermutationallyReducedTransformedSpace",
     "BraKetSpace",
     "StateSpaceMatrix"
 ]
@@ -722,7 +724,9 @@ class BasisStateSpace(AbstractStateSpace):
 
         return new
 
-    def apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None, logger=None, iterations=1):
+    def apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None, logger=None, iterations=1,
+                              new_state_space_class=None
+                              ):
         """
         Generates a new state space from the application of `selection_rules` to the state space.
         Returns a `BasisMultiStateSpace` where each state tracks the effect of the application of the selection rules
@@ -742,13 +746,15 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype: SelectionRuleStateSpace
         """
 
-        return SelectionRuleStateSpace.from_rules(self, selection_rules, target_dimensions=target_dimensions,
+        if new_state_space_class is None:
+            new_state_space_class = SelectionRuleStateSpace
+        return new_state_space_class.from_rules(self, selection_rules, target_dimensions=target_dimensions,
                                                   filter_space=filter_space, iterations=iterations,
                                                   parallelizer=parallelizer, logger=logger
                                                   )
 
     def permutationally_reduce(self):
-        return PermutationallyReudcedStateSpace.from_space(self)
+        return PermutationallyReducedStateSpace.from_space(self)
 
     def get_representation_indices(self,
                                    other=None,
@@ -1043,6 +1049,56 @@ class BasisStateSpace(AbstractStateSpace):
                     new.excitations = e
             spaces.append(new)
         return spaces
+
+    def concatenate(self, other):
+        """
+        Just does a direct concatenation with no unions or any
+        of that
+        :param other:
+        :type other:
+        :return:
+        :rtype:
+        """
+
+        if self.basis is not other.basis:
+            raise ValueError("can't merge state spaces over different bases ({} and {})".format(
+                self.basis,
+                other.basis
+            ))
+
+        if (self.has_indices and other.has_indices) or(
+                self.has_indices
+                and not (self.has_excitations and other.has_excitations)
+                and len(self) > len(other)
+        ): # no need to be wasteful and recalc stuff, right?
+            # create merge based on indices and then
+            # secondarily based on excitations if possible
+            self_inds = self.indices
+            other_inds = other.indices
+            new_inds = np.concatenate([self_inds, other_inds], axis=0)
+            new = BasisStateSpace(self.basis, new_inds, mode=self.StateSpaceSpec.Indices)
+
+            if self._excitations is not None or other._excitations is not None:
+                self_exc = self.excitations
+                other_exc = other.excitations
+                new_exc = np.concatenate([self_exc, other_exc], axis=0)
+                new._excitations = new_exc
+
+        else:
+            # create merge based on excitations and then
+            # secondarily based on indices if possible
+            self_exc = self.excitations
+            other_exc = other.excitations
+            new_exc = np.concatenate([self_exc, other_exc], axis=0)
+
+            new = BasisStateSpace(self.basis, new_exc, mode=self.StateSpaceSpec.Excitations)
+            if other._indices is not None:
+                self_inds = self.indices
+                other_inds = other.indices
+                new_inds = np.concatenate([self_inds, other_inds], axis=0)
+                new._indices = new_inds
+
+        return new
 
     def union(self, other, sort=False, use_indices=False):
         """
@@ -1368,7 +1424,7 @@ class BasisStateSpace(AbstractStateSpace):
             and (self.indices == other.indices).all()
         )
 
-class PermutationallyReudcedStateSpace(BasisStateSpace):
+class PermutationallyReducedStateSpace(BasisStateSpace):
     """
     Defines a basis state space where terms are reduced over their
     permutationally equivalent operations, making many operations
@@ -1382,6 +1438,9 @@ class PermutationallyReudcedStateSpace(BasisStateSpace):
         """
         super().__init__(basis, class_reps, mode=self.StateSpaceSpec.Excitations)
         self.equivalence_classes = perms
+
+    def to_equivalence_class_space(self):
+        return BraKetSpace(self.basis, self.excitations, mode=self.StateSpaceSpec.Excitations)
 
     @classmethod
     def from_space(cls, original_space):
@@ -1432,12 +1491,17 @@ class PermutationallyReudcedStateSpace(BasisStateSpace):
         return new
 
     def apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None,
-                              logger=None, iterations=1):
+                              logger=None, iterations=1, new_state_space_class=None
+                              ):
+        if new_state_space_class is None:
+            new_state_space_class = PermutationallyReducedTransformedSpace
         if filter_space is not None:
             raise NotImplementedError("I'm not sure how to do direct filtering on a permutationally reduced space...")
         basic = super().apply_selection_rules(selection_rules, target_dimensions=target_dimensions,
-                                              filter_space=filter_space, parallelizer=parallelizer, iterations=iterations
+                                              filter_space=filter_space, parallelizer=parallelizer, iterations=iterations,
+                                              new_state_space_class=new_state_space_class
                                               )
+
         # now for each generated space we reduce it and calculate the final permutation direct products
         for i in range(len(self)):
             basic_space = basic.get_space(i).permutationally_reduce()
@@ -1841,6 +1905,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
 class SelectionRuleStateSpace(BasisMultiStateSpace):
     """
     A `BasisMultiStateSpace` subclass that is only built from applying selection rules to an initial space
+    This really should have been called `TransformedStateSpace` but I am dumb
     """
     def __init__(self, init_space, excitations, selection_rules=None, ignore_shapes=False):
         """
@@ -2757,6 +2822,28 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             self.basis
         )
 
+class PermutationallyReducedTransformedSpace(SelectionRuleStateSpace):
+    """
+    A specialized wrapper that overloads some key operations so that they
+    can be done more efficiently with permutationally reduced spaces.
+    Currently just delegates getting brakets
+    """
+
+    def to_equivalence_class_space(self):
+        """
+        Returns the SelectionRuleStateSpace for the equivalence classes 
+        :return: 
+        :rtype: 
+        """
+        
+        reps = self.representative_space #type: PermutationallyReducedStateSpace
+        spaces = [s.to_equivalence_class_space() for s in self.spaces]
+        
+        return SelectionRuleStateSpace(
+            reps.to_equivalence_class_space(),
+            spaces
+        )
+
 class BraKetSpace:
     """
     Represents a set of pairs of states that can be fed into a `Representation` or `Operator`
@@ -3317,11 +3404,19 @@ class BraKetSpace:
 
         return [type(self)(b, k) for b,k in zip(bra_splits, ket_splits)]
 
+
+    def concatenate(self, other):
+        return type(self)(
+            self.bras.concatenate(other.bras),
+            self.kets.concatenate(other.bras),
+        )
+
 # # We might need this in the future, but it feels premature to set it up just yet...
 # class SharedBasisStateSpace(BasisStateSpace):
 #     """
 #     A mutable basis state space that can register "listeners"
 #     """
+
 
 class StateSpaceMatrix:
     """

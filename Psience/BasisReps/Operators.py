@@ -6,10 +6,11 @@ I chose to only implement direct product operators. Not sure if we'll need a 1D 
 import numpy as np, scipy.sparse as sp, os, tempfile as tf, time, gc
 from collections import OrderedDict
 from McUtils.Numputils import SparseArray
+import McUtils.Numputils as nput
 from McUtils.Scaffolding import Logger, NullLogger
 from McUtils.Parallelizers import Parallelizer, SerialNonParallelizer
 
-from .StateSpaces import BasisStateSpace, SelectionRuleStateSpace, BraKetSpace
+from .StateSpaces import BasisStateSpace, SelectionRuleStateSpace, PermutationallyReducedStateSpace, BraKetSpace
 
 __all__ = [
     "Operator",
@@ -116,7 +117,7 @@ class Operator:
         else:
             return self._parallelizer
 
-    def get_inner_indices(self):
+    def get_inner_indices(self, reduced_inds=False):
         """
         Gets the n-dimensional array of ijkl (e.g.) indices that functions will map over
         Basically returns the indices of the inner-most tensor
@@ -127,7 +128,8 @@ class Operator:
         dims = self.fdim
         if dims == 0:
             return None
-        shp = (self.mode_n,) * dims
+        n_terms = max(len(x) for x in self.selection_rules) if reduced_inds else self.mode_n
+        shp = (n_terms,) * dims
         inds = np.indices(shp, dtype=int)
         tp = np.roll(np.arange(dims + 1), -1)
         base_tensor = np.transpose(inds, tp)
@@ -368,7 +370,7 @@ class Operator:
 
         return chunk, sel_rules
 
-    def _calculate_single_pop_elements(self, inds, funcs, states, sel_rules, check_orthogonality=False):
+    def _calculate_single_pop_elements(self, inds, funcs, states, sel_rules, check_orthogonality=True):
         """
         Calculates terms for a single product operator.
         Assumes orthogonal product bases.
@@ -609,7 +611,7 @@ class Operator:
         Calculates a subset of elements
 
         :param idx: bra and ket states as tuples of elements
-        :type idx: Iterable[(Iterable[int], Iterable[int])]
+        :type idx: BraKetSpace
         :return:
         :rtype:
         """
@@ -711,10 +713,15 @@ class Operator:
         :rtype:
         """
 
-        states = base_space.apply_selection_rules(sel_rules, target_dimensions=inds)
+        # trying to not calculate anything unnecessary
+        uinds = np.unique(inds)
+        sr = [r for r in sel_rules if len(r) == len(uinds) or (len(uinds) == 1 and len(r) == 0)]
+        print(uinds) # once we're doing this over all possible indices I think I've lost any benefit
+        states = base_space.apply_selection_rules(sr, target_dimensions=uinds)
         brakets = states.get_representation_brakets()
         vals = self._calculate_single_pop_elements(inds, funcs, brakets, sel_rules, check_orthogonality=False)
-        return vals, brakets, states
+
+        return vals, brakets#, states
     def _get_transf_sequential(self, inds, base_space):#, save_to_disk=False):
         """
         Sequential method for getting elements of our product operator tensors
@@ -729,17 +736,22 @@ class Operator:
         :rtype:
         """
 
+        # raise Exception(inds)
+
         res = np.apply_along_axis(self._calculate_single_transf,
                                   -1, inds, self.funcs, base_space, self.selection_rules
                                   )
 
+        # spaces = [r[2] for r in res]
+        brakets = [r[1] for r in res]
+        res = [r[0] for r in res]
 
-        total_space = res[0][2]
-        total_brakets = res[0][1]
-        for s in res[1:]:
-            total_brakets = total_brakets.union(s[1]) # to preserve ordering since union will destroy that
-            total_space = total_space.union(s[2])
-        res = np.concatenate([r[1] for r in res])
+        # total_space = res[0][2]
+        # total_brakets = res[0][1]
+        # for s in res[1:]:
+        #     total_brakets = total_brakets.concatenate(s[1]) # to preserve ordering since union will destroy that
+        #     total_space = total_space.union(s[2])
+        # res = np.concatenate([r[0] for r in res])
 
         # if save_to_disk:
         #     flattened = [x for y in res.flatten() for x in y]
@@ -759,12 +771,12 @@ class Operator:
         #             except:
         #                 pass
         #         raise
+        #
+        # raise Exception(res, total_space, total_brakets, total_brakets.bras.excitations[5], inds, total_brakets.kets.excitations[5])
 
-        raise Exception(res, total_space)
-
-        return res, total_space
+        return res, brakets
     @Parallelizer.main_restricted
-    def _apply_transformations_sequential(self, inds, base_space, parallelizer=None):
+    def _apply_transformations_sequential(self, inds, base_space, perm_class_map, parallelizer=None):
         """
         Implementation of get_elements to be run on the main process...
 
@@ -780,7 +792,8 @@ class Operator:
             self.logger.log_print("returning identity tensor")
             new = self._get_eye_tensor(base_space)
         else:
-            mapped_inds, inverse = self.filter_symmetric_indices(inds)
+            mapped_inds, inverse = self.filter_symmetric_indices(inds) # I can't actually reduce here...
+            inds = np.reshape(inds, (-1, inds.shape[-1]))
             if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
                 raise NotImplementedError("still working up parallelism")
                 self.logger.log_print(
@@ -796,43 +809,100 @@ class Operator:
                     nind=len(mapped_inds)
                 ))
 
-                res, spaces = self._get_transf_sequential(mapped_inds, base_space)
+                res, brakets = self._get_transf_sequential(mapped_inds, base_space)
 
-            if inverse is not None:
-                res = res.flatten()[inverse]
+            if inverse is not None: # fix the reductions by symmetry
+                res = [res[i] for i in inverse]
+                brakets = [brakets[i] for i in inverse]
 
+            # now we need to apply the permutations which
+            # we'll do in a slightly dumb/inefficient way
+            # by determining which brakets correspond to which
+            # input classes and using this to do the necessary
+            # permutations of all relevant components
+            full_res = []
+            full_bras = []
+            full_kets = []
+            full_inds = []
+            for r, b, i in zip(res, brakets, inds):
+                res_groups, sorting = nput.group_by(r, b.bras.excitations)
+                ket_groups, _ = nput.group_by(b.kets.excitations, b.bras.excitations, sorting=sorting)
+                res_keys, res_vals = res_groups
+                # raise Exception(res_groups[0], ket_groups[0])
+                for key, vals, kets in zip(res_keys, res_vals, ket_groups[1]):
+                    for test_key, perms, inv_perms in perm_class_map:
+                        if np.all(key == test_key):
+                            # permute kets
+                            perm_kets = np.array([k[perms] for k in kets]).transpose((1, 0, 2))
+                            perm_bras = np.broadcast_to(key[perms][:, np.newaxis, :], (len(perms), len(vals), key.shape[-1]))
+                            perm_inds = np.broadcast_to(inv_perms[:, np.newaxis, i], (len(perms), len(vals), len(i)))
+                            perm_vals = np.broadcast_to(vals[np.newaxis], (len(perms), len(vals)))
+                            full_res.append(perm_vals.reshape(-1))
+                            full_bras.append(perm_bras.reshape(-1, perm_bras.shape[-1]))
+                            full_kets.append(perm_kets.reshape(-1, perm_kets.shape[-1]))
+                            full_inds.append(perm_inds.reshape(-1, perm_inds.shape[-1]))
+                            break
+                    else:
+                        raise ValueError("couldn't find key {} in input keys?".format(key))
 
+            full_bras = np.concatenate(full_bras, axis=0)
+            full_kets = np.concatenate(full_kets, axis=0)
+            full_inds = np.concatenate(full_inds)
+            full_res = np.concatenate(full_res)
 
-            # wat = [x for y in res for x in y]
-            # new = sp.vstack(wat)
+            new_brakets = BraKetSpace(
+                BasisStateSpace(base_space.basis, full_bras, mode=BasisStateSpace.StateSpaceSpec.Excitations),
+                BasisStateSpace(base_space.basis, full_kets, mode=BasisStateSpace.StateSpaceSpec.Excitations),
+            )
+            _, _, bk_inds = nput.unique(np.concatenate([full_bras, full_kets], axis=1), return_inverse=True)
+            real_full_inds = np.concatenate([full_inds, bk_inds[:, np.newaxis]], axis=1).T
 
-        shp = inds.shape if inds is not None else ()
-        res = SparseArray.from_data(new)
-        res = res.reshape(shp[:-1] + res.shape[-1:])
+            res = SparseArray.from_data(
+                (
+                    full_res,
+                    real_full_inds
+                ),
+                shape=(self.mode_n, self.mode_n, np.max(bk_inds)+1)
+            )
 
-        return res, spaces
-    def _transform_and_apply(self, base_space, parallelizer=None, logger=None):
+            # raise Exception("oookay")
+            #
+            # res = np.concatenate(res)
+            # full_brakets = brakets[0]
+            # for s in brakets[1:]:
+            #     full_brakets = full_brakets.concatenate(s)
+
+        return res, new_brakets
+
+    def apply_reduced(self, base_space, parallelizer=None, logger=None):
         """
         Takes a base space as input and applies the held selection rules in semi-efficient
         fashion only on the indices that can change and then uses this to compute all matrix
         elements, returning then the final generated space
 
         :param base_space:
-        :type base_space:
+        :type base_space: BasisStateSpace | PermutationallyReducedStateSpace
         :return:
-        :rtype:
+        :rtype: tuple[SparseArray, BraKetSpace]
         """
 
-        if self.chunk_size is not None and len(base_space) > self.chunk_size:
-            idx_splits = base_space.split(self.chunk_size)
-        else:
-            idx_splits = [base_space]
+        if not isinstance(base_space, PermutationallyReducedStateSpace):
+            base_space = base_space.permutationally_reduce()
 
-        inds = self.get_inner_indices()
+        rep_space = base_space.representative_space()
+        if self.chunk_size is not None and len(rep_space) > self.chunk_size:
+            raise NotImplementedError("not handling chunking yet...")
+            idx_splits = rep_space.split(self.chunk_size)
+        else:
+            idx_splits = [rep_space]
+
+        inds = self.get_inner_indices(reduced_inds=False)
+        perm_class_map = [(e, p, np.argsort(p, axis=1)) for e,p in zip(rep_space.excitations, base_space.equivalence_classes)]
         chunks = []
+        brakets = []
         for idx in idx_splits:
             if inds is None:
-                return self._apply_transformations_sequential(inds, idx) #...oh whoops this could have been an issue
+                return self._apply_transformations_sequential(inds, idx)
 
             if parallelizer is None:
                 parallelizer = self.parallelizer
@@ -845,9 +915,15 @@ class Operator:
                                               comm=None if len(inds) >= parallelizer.nprocs else list(range(len(inds)))
                                               )
             else:
-                elem_chunk = self._apply_transformations_sequential(inds, idx, parallelizer=None)
+                elem_chunk, elem_brakets = self._apply_transformations_sequential(inds, idx, perm_class_map, parallelizer=None)
 
+            brakets.append(elem_brakets)
             chunks.append(elem_chunk)
+
+        brakets = brakets[0]
+        chunks = chunks[0]
+
+        # raise Exception(chunks, brakets)
 
         # if all(isinstance(x, np.ndarray) for x in chunks):
         #     elems = np.concatenate(chunks, axis=0)
@@ -855,7 +931,7 @@ class Operator:
         #     from functools import reduce
         #     elems = reduce(lambda a, b: a.concatenate(b), chunks[1:], chunks[0])
 
-        return chunks
+        return chunks, brakets
 
 class ContractedOperator(Operator):
     """
@@ -970,6 +1046,49 @@ class ContractedOperator(Operator):
             from functools import reduce
             contracted = reduce(lambda a,b: a.concatenate(b), chunks[1:], chunks[0])
         return contracted
+
+    def apply_reduced(self, base_space, parallelizer=None, logger=None):
+
+        c = self.coeffs
+        if isinstance(c, (int, np.integer, float, np.floating)) and c == 0:
+            return 0
+
+        c = self.coeffs
+        if not isinstance(c, (int, np.integer, float, np.floating)):
+            # takes an (e.g.) 5-dimensional SparseTensor and turns it into a contracted 2D one
+            axes = self.axes
+            if axes is None:
+                axes = (tuple(range(c.ndim)),) * 2
+
+            subTensor, brakets = super().apply_reduced(base_space, parallelizer=parallelizer, logger=logger)
+
+            # we collect here to minimize the effect of memory spikes if possible
+            # self.clear_cache()
+            # SparseArray.clear_cache()
+            gc.collect()
+            if isinstance(subTensor, np.ndarray):
+                contracted = np.tensordot(subTensor.squeeze(), c, axes=axes)
+            else:
+                contracted = subTensor.tensordot(c, axes=axes).squeeze()
+
+            # if self.fdim > 3:
+            #     raise RuntimeError("wwwwooooof")
+
+        elif c == 0:
+            contracted = 0  # a short-circuit
+            brakets = None
+        else:
+            subTensor, brakets = super().apply_reduced(base_space, parallelizer=parallelizer, logger=logger)
+            if c == 1:
+                return subTensor
+            contracted = c * subTensor
+
+        gc.collect()
+
+        return contracted, brakets
+
+        return chunks, brakets
+
 
     def __repr__(self):
         return "{}(<{}>x<{}>, {})".format(

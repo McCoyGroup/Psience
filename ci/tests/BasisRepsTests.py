@@ -868,6 +868,20 @@ class BasisSetTests(TestCase):
             np.sort(old_rep.indices).tolist()
         )
 
+    @debugTest
+    def test_TransformedReduced(self):
+        n = 15  # totally meaningless these days
+        m = 10
+        basis = HarmonicOscillatorProductBasis((n,) * m)
 
+        x_rep = basis.representation('x', 'x', 'x', coeffs=np.ones((m, m, m)) )
+        init_space = basis.get_state_space(2)
 
+        with BlockProfiler("standard method"):
+            tf_space = x_rep.operator.get_transformed_space(init_space).get_representation_brakets()
+            tf_els = x_rep.operator.get_elements(tf_space)
+        # raise Exception(tf_els)
 
+        with BlockProfiler("new method"):
+            tf, bk = x_rep.operator.apply_reduced(init_space)
+        self.assertEquals(np.sort(tf).tolist(), np.sort(tf_els).tolist())
