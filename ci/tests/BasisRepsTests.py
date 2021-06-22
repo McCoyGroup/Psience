@@ -1,4 +1,5 @@
 from Peeves import Timer, BlockProfiler
+
 from McUtils.Scaffolding import *
 import McUtils.Plots as plt
 from Peeves.TestUtils import *
@@ -832,6 +833,26 @@ class BasisSetTests(TestCase):
         # raise Exception(mat_2.array.asarray())
 
     @debugTest
+    def test_StateConnections(self):
+
+
+        n = 15  # totally meaningless these days
+        m = 12
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        init_state = basis.get_state_space(2)
+
+        x_rep = basis.representation('x', 'x', 'x', coeffs=np.ones((m, m, m)))
+        with BlockProfiler():
+            for i in range(15):
+                tf = x_rep.get_transformed_space(init_state)
+            # tf = x_rep.get_transformed_space(init_state)
+
+
+        # np.set_printoptions(threshold=100000)
+        # raise Exception(tf.excitations)
+
+    @validationTest
     def test_PermutationallyReducedStateSpace(self):
         n = 15  # totally meaningless these days
         m = 4
@@ -868,7 +889,7 @@ class BasisSetTests(TestCase):
             np.sort(old_rep.indices).tolist()
         )
 
-    @debugTest
+    @validationTest
     def test_TransformedReduced(self):
         n = 15  # totally meaningless these days
         m = 10

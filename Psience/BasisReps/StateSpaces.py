@@ -3380,6 +3380,21 @@ class BraKetSpace:
                                          )
         return self.take_subspace(non_orthog), non_orthog
 
+    def apply_sel_rules_along(self, rules, inds):
+
+        rules = [r for r in rules if len(r) == len(inds) or len(inds) == 1 and len(r) == 0]
+        state_diffs = self.kets.excitations[:, inds] - self.bras.excitations[:, inds]
+        diff_sums = np.sum(state_diffs, axis=1)
+        rule_sums = [sum(x) for x in rules]
+        not_pos = np.full(len(diff_sums), True)
+        for r in rule_sums:
+            not_pos[not_pos] = diff_sums[not_pos] != r
+        all_pos = np.logical_not(not_pos)
+        sel = np.where(all_pos)
+        if len(sel) > 0:
+            sel = sel[0]
+        return self.take_subspace(sel), sel
+
     def apply_sel_rules(self, rules):
         """
         Applies selections rules

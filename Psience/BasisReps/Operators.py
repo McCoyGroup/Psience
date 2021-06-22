@@ -398,6 +398,11 @@ class Operator:
             # TODO: selection rules are actually _cheaper_ to apply than this in general, esp. if we focus
             #       only on the number of quanta that can change within the set of indices
             #       so we should support applying them first & then only doing this for the rest
+            # if sel_rules is not None:
+            #     states, non_orthog_1 = states.apply_sel_rules_along(sel_rules, inds) # currently only filters by sum
+            #     states, non_orthog_2 = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
+            #     non_orthog = non_orthog_1[non_orthog_2]
+            # else:
             states, non_orthog = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
         else:
             non_orthog = np.arange(nstates)

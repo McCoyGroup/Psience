@@ -483,7 +483,7 @@ class PerturbationTheoryCorrections:
     @classmethod
     def loadz(cls, file):
         keys = np.load(file)
-        return cls(
+        return cls.from_dicts(
             {
                 "states":keys['states'],
                  "coupled_states":keys['coupled_states'],
@@ -1154,7 +1154,11 @@ class PerturbationTheorySolver:
 
                     space_list = [self.states] + [s for s in self._coupled_states if s is not None]
                     self._total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
-                    flat_space = self._total_space.to_single()
+                    flat_space = self.states.take_unique()
+                    for s in self._coupled_states:
+                        if s is not None:
+                            flat_space = flat_space.union(s.to_single())
+                    # flat_space = self._total_space.to_single()
                     self._flat_space = flat_space.take_unique()
                     # raise Exception(
                     #     self._flat_space.find(

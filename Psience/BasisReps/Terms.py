@@ -384,7 +384,8 @@ class Representation:
                                   diagonal=False,
                                   logger=None,
                                   zero_element_warning=True,
-                                  clear_sparse_caches=True
+                                  clear_sparse_caches=True,
+                                  clear_operator_caches=True
                                   ):
         """
         Actively constructs a perturbation theory Hamiltonian representation
@@ -413,6 +414,8 @@ class Representation:
             sub = self[m_pairs]
             if isinstance(sub, SparseArray):
                 sub = sub.asarray()
+            if clear_operator_caches:
+                self.clear_cache()
             if clear_sparse_caches:
                 SparseArray.clear_cache()
         else:
