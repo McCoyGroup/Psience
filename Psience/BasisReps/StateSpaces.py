@@ -1242,7 +1242,7 @@ class BasisStateSpace(AbstractStateSpace):
                     indexer = np.arange(len(uinds))
 
                 new_inds = new_inds[uinds,]
-                new = BasisStateSpace(self.basis, new_inds, mode=self.StateSpaceSpec.Indices)
+                new = BasisStateSpace(self.basis, new_inds, mode=self.StateSpaceSpec.Indices, full_basis=self.full_basis)
                 new._indexer = indexer
                 new._uinds = np.arange(len(uinds))
 
@@ -1285,7 +1285,7 @@ class BasisStateSpace(AbstractStateSpace):
                 uinds = uinds[sorting]
                 new_exc = new_exc[uinds,]
 
-                new = BasisStateSpace(self.basis, new_exc, mode=self.StateSpaceSpec.Excitations)
+                new = BasisStateSpace(self.basis, new_exc, mode=self.StateSpaceSpec.Excitations, full_basis=self.full_basis)
                 new._exc_indexer = nput.argsort(sorting)
                 new._uinds = np.arange(len(uinds))
 
@@ -2623,13 +2623,13 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 return cls(space, new, selection_rules)
 
             else:
-
                 if full_basis is not None:
                     track_excitations=False
 
                 par = Parallelizer.lookup(parallelizer)
 
                 exc = space.excitations
+                # raise Exception(space.indices, space.excitations)
 
                 symmetric_group_inds = hasattr(space.basis.indexer, 'symmetric_group')
                 if symmetric_group_inds:
@@ -2660,7 +2660,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                             new_inds.extend(new_inds_chunk)
 
                     else:
-                        print(full_basis)
                         new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces,
                                                             selection_rules, symm_grp, filter_space, logger, full_basis,
                                                             main_kwargs={'exc':exc},
@@ -2803,6 +2802,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
 
+        if self.representative_space.full_basis is not None:
+            track_excitations = False
+
         if not isinstance(other, SelectionRuleStateSpace):
             raise TypeError("union with {} only defined over subclasses of {}".format(
                 type(self).__name__,
@@ -2833,8 +2835,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                    sorting=other.representative_space._exc_indexer
                                    )
             where_inds = np.sort(where_inds)
-
-            # print(">>>", self_exc, other.representative_space.excitations )
 
         else:
             self_inds = self.representative_space.indices
@@ -2899,6 +2899,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
 
+        if self.representative_space.full_basis is not None:
+            track_excitations = False
+
         if not isinstance(other, SelectionRuleStateSpace):
             raise TypeError("intersection with {} only defined over subclasses of {}".format(
                 type(self).__name__,
@@ -2953,7 +2956,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
             # _, where_inds, other_where = np.intersect1d(self_inds, other_inds, return_indices=True)
 
-        # print(where_inds, len(self.spaces), len(self.representative_space))
         new_spaces = self.spaces[where_inds,]
         if handle_subspaces:
             for n,i in enumerate(other_where):
