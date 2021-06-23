@@ -577,6 +577,10 @@ class PerturbationTheorySolver:
         :param checkpointer:
         :type checkpointer:
         """
+
+        if memory_constrained:
+            raise NotImplementedError('memory constraint handling currently broken')
+
         self.perts = perturbations
         self._reps = None
         self.order = order
@@ -588,6 +592,7 @@ class PerturbationTheorySolver:
         self.checkpointer = checkpointer
 
         self.states = states
+        self.full_basis = states.full_basis
 
         self.degeneracy_spec = degenerate_states
         self._deg_states = None
@@ -1426,7 +1431,7 @@ class PerturbationTheorySolver:
                     spaces[op] = (projections, cur)
                     # reduce to a single space to feed to the next round
                     # of terms
-                    new = new.to_single(track_excitations = not self.memory_constrained).take_unique()
+                    new = new.to_single(track_excitations=not self.memory_constrained).take_unique()
                 else:
                     # means we've potentially calculated some of this already,
                     # so we figure out what parts we've already calculated in this
@@ -1781,7 +1786,7 @@ class PerturbationTheorySolver:
                 _ = []
                 for deg_group in degenerate_states:
                     if not hasattr(deg_group, 'indices'):
-                        deg_group = BasisStateSpace(self.flat_total_space.basis, deg_group)
+                        deg_group = BasisStateSpace(self.flat_total_space.basis, deg_group, full_basis=self.full_basis)
                     deg_group.deg_find_inds = None
                     _.append(deg_group)
                 degenerate_states = _

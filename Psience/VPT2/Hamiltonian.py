@@ -7,7 +7,7 @@ import numpy as np, itertools, time
 from McUtils.Numputils import SparseArray, vec_outer
 from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer
-from McUtils.Data import UnitsData
+from McUtils.Combinatorics import CompleteSymmetricGroupSpace
 
 from ..Molecools import Molecule
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
@@ -773,6 +773,7 @@ class PerturbationTheoryHamiltonian:
                           intermediate_normalization=False,
                           ignore_odd_order_energies=True,
                           zero_element_warning=True,
+                          use_full_basis=True,
                           memory_constrained=False,
                           state_space_iterations=None,
                           verbose=False,
@@ -833,6 +834,12 @@ class PerturbationTheoryHamiltonian:
                 #     self.logger.log_print("took {t}s...", t=round(end - start, 3))
                 if not isinstance(states, BasisStateSpace):
                     states = BasisStateSpace(self.basis, states)
+
+                if use_full_basis and states.full_basis is None:
+                    states = BasisStateSpace(self.basis, states.indices,
+                                             mode=BasisStateSpace.StateSpaceSpec.Indices,
+                                             full_basis=CompleteSymmetricGroupSpace(states.ndim)
+                                             )
 
                 solver = PerturbationTheorySolver(h_reps, states,
                                                   order=order,

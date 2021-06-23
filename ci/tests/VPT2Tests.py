@@ -331,7 +331,7 @@ class VPT2Tests(TestCase):
                     invert_x=False,
                     **opts
                     ):
-        with BlockProfiler(tag, print_res=print_profile, filter=profile_filter):
+        with BlockProfiler(tag, print_res=print_profile, inactive=print_profile):#, filter=profile_filter):
             wfns, hammer = self.get_VPT2_wfns_and_ham(
                 mol_spec,
                 internals,
@@ -5086,7 +5086,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @debugTest
+    @validationTest
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"
@@ -5116,7 +5116,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=True,
-            print_profile=True,
+            print_profile=False,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,

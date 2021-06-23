@@ -9,7 +9,7 @@ import abc
 from McUtils.Numputils import SparseArray
 import McUtils.Numputils as nput
 from McUtils.Parallelizers import Parallelizer
-from McUtils.Combinatorics import SymmetricGroupGenerator, IntegerPartitionPermutations, UniquePermutations
+from McUtils.Combinatorics import SymmetricGroupGenerator, CompleteSymmetricGroupSpace, UniquePermutations
 
 __all__ = [
     "AbstractStateSpace",
@@ -435,7 +435,7 @@ class BasisStateSpace(AbstractStateSpace):
     Useful largely to provide consistent, unambiguous representations of multiple states across
     the different representation-generating methods in the code base.
     """
-    def __init__(self, basis, states, mode=None):
+    def __init__(self, basis, states, full_basis=None, mode=None):
         """
         :param basis:
         :type basis: RepresentationBasis
@@ -446,6 +446,12 @@ class BasisStateSpace(AbstractStateSpace):
         """
 
         super().__init__(basis)
+
+        if full_basis is not None:
+            self.keep_excitations = False
+            self.full_basis = full_basis #type: CompleteSymmetricGroupSpace
+        else:
+            self.full_basis = full_basis
 
         self._init_states = np.asanyarray(states)#, dtype=int)
         if mode is not None and not isinstance(mode, self.StateSpaceSpec):
@@ -595,6 +601,9 @@ class BasisStateSpace(AbstractStateSpace):
         if states_type is self.StateSpaceSpec.Excitations:
             return np.reshape(states, (-1, self.ndim))
         elif states_type is self.StateSpaceSpec.Indices:
+            if self.full_basis is not None:
+                return self.full_basis.take(self.indices, uncoerce=True)
+
             states, self._indexer, uinds, inv = nput.unique(states, sorting=self._indexer, return_index=True, return_inverse=True)
             self._sort_uinds = uinds
             self._uinds = np.sort(uinds)
@@ -649,9 +658,9 @@ class BasisStateSpace(AbstractStateSpace):
         if track_excitations and track_indices:
             return self
         elif track_excitations:
-            return type(self)(self.basis, self.excitations, mode=self.StateSpaceSpec.Excitations)
+            return type(self)(self.basis, self.excitations, mode=self.StateSpaceSpec.Excitations, full_basis=self.full_basis)
         elif track_indices:
-            return type(self)(self.basis, self.indices, mode=self.StateSpaceSpec.Indices)
+            return type(self)(self.basis, self.indices, mode=self.StateSpaceSpec.Indices, full_basis=self.full_basis)
 
     def is_unique(self):
         """
@@ -687,6 +696,9 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+        if self.full_basis is not None:
+            track_excitations = False
+
         if self.is_unique():
             if not sort:
                 return self
@@ -721,6 +733,8 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+        if self.full_basis is not None:
+            track_excitations = False
 
         indexer = self.indexer
         spec = self.StateSpaceSpec.Indices
@@ -767,14 +781,17 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype: SelectionRuleStateSpace
         """
+        if self.full_basis is not None:
+            track_excitations = False
 
         if new_state_space_class is None:
             new_state_space_class = SelectionRuleStateSpace
         return new_state_space_class.from_rules(self, selection_rules, target_dimensions=target_dimensions,
-                                                  filter_space=filter_space, iterations=iterations,
-                                                  parallelizer=parallelizer, logger=logger,
-                                                track_excitations=track_excitations, track_indices=track_indices
-                                                  )
+                                                filter_space=filter_space, iterations=iterations,
+                                                parallelizer=parallelizer, logger=logger,
+                                                track_excitations=track_excitations, track_indices=track_indices,
+                                                full_basis=self.full_basis
+                                                )
 
     def permutationally_reduce(self):
         return PermutationallyReducedStateSpace.from_space(self)
@@ -944,6 +961,8 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+        if self.full_basis is not None:
+            track_excitations = False
 
         if assume_sorted and not self.is_sorted():
             return self.as_sorted().take_subspace(sel, assume_sorted=True,
@@ -955,7 +974,8 @@ class BasisStateSpace(AbstractStateSpace):
             subspace = type(self)(
                 self.basis,
                 self.excitations[sel,],
-                mode=self.StateSpaceSpec.Excitations
+                mode=self.StateSpaceSpec.Excitations,
+                full_basis=self.full_basis
             )
             if track_indices and self.has_indices:
                 subspace.indices = self.indices[sel,]
@@ -972,7 +992,8 @@ class BasisStateSpace(AbstractStateSpace):
             subspace = type(self)(
                 self.basis,
                 self.indices[sel,],
-                mode=self.StateSpaceSpec.Indices
+                mode=self.StateSpaceSpec.Indices,
+                full_basis=self.full_basis
             )
 
         return subspace
@@ -1097,9 +1118,11 @@ class BasisStateSpace(AbstractStateSpace):
         spaces = []
         for i,e in zip(ind_chunks, exc_chunks):
             if i is None:
-                new = type(self)(self.basis, e, mode = self.StateSpaceSpec.Excitations)
+                new = type(self)(self.basis, e, mode=self.StateSpaceSpec.Excitations,
+                                 full_basis=self.full_basis)
             else:
-                new = type(self)(self.basis, i, mode=self.StateSpaceSpec.Indices)
+                new = type(self)(self.basis, i, mode=self.StateSpaceSpec.Indices,
+                                 full_basis=self.full_basis)
                 if e is not None:
                     new.excitations = e
             spaces.append(new)
@@ -2483,7 +2506,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         return new
 
     @classmethod
-    def _get_direct_product_spaces(cls, selection_rules, symm_grp, filter_space, logger, exc=None, parallelizer=None):
+    def _get_direct_product_spaces(cls, selection_rules, symm_grp, filter_space, logger, full_basis=None, exc=None, parallelizer=None):
 
         # selection_rules, symm_grp, filter_space = parallelizer.broadcast([selection_rules, symm_grp, filter_space])
         exc = parallelizer.scatter(exc)
@@ -2494,6 +2517,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         if filter_space is None:
             new_exc, new_inds = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
+                                                                          full_basis=full_basis,
                                                                           return_indices=True, split_results=True,
                                                                           logger=logger
                                                                           )
@@ -2505,6 +2529,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 filter_space = (filter_space.excitations, filter_space.indices)
 
             new_exc, new_inds, filter = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
+                                                                                  full_basis=full_basis,
                                                                                   filter_perms=filter_space,
                                                                                   return_filter=True,
                                                                                   return_indices=True,
@@ -2522,7 +2547,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
     @classmethod
     def from_rules(cls, space, selection_rules, target_dimensions=None, filter_space=None, iterations=1, method='new',
                    parallelizer=None, parallel_chunk_size=None,
-                   logger=None, track_excitations=True, track_indices=True
+                   logger=None, track_excitations=True, track_indices=True, full_basis=None
                    ):
         """
         :param space: initial space to which to apply the transformations
@@ -2580,6 +2605,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 new_exc = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
                                                                                       filter_perms=None,
                                                                                       return_filter=False,
+                                                                                      full_basis=full_basis,
                                                                                       return_indices=False,
                                                                                       split_results=True,
                                                                                       logger=logger
@@ -2597,6 +2623,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 return cls(space, new, selection_rules)
 
             else:
+
+                if full_basis is not None:
+                    track_excitations=False
 
                 par = Parallelizer.lookup(parallelizer)
 
@@ -2619,7 +2648,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                         chunks = np.array_split(exc, num_chunks, axis=0)
                         for chunk in chunks:
                             new_exc_chunk, new_inds_chunk, filter = par.run(cls._get_direct_product_spaces,
-                                                                            selection_rules, symm_grp, filter, logger,
+                                                                            selection_rules, symm_grp, filter, logger, full_basis,
                                                                             main_kwargs={'exc':chunk},
                                                                             comm = list(range(len(chunk))) if len(chunk) < (1 + par.nprocs) else None
                                                                             )
@@ -2631,15 +2660,21 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                             new_inds.extend(new_inds_chunk)
 
                     else:
+                        print(full_basis)
                         new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces,
-                                                            selection_rules, symm_grp, filter_space, logger,
+                                                            selection_rules, symm_grp, filter_space, logger, full_basis,
                                                             main_kwargs={'exc':exc},
                                                             comm=list(range(len(exc))) if len(exc) < (1 + par.nprocs) else None
                                                             )
-                        if not isinstance(new_exc[0], np.ndarray):
-                            # means we got too blocky of a shape out of the parallelizer
-                            new_exc = sum(new_exc, [])
-                            new_inds = sum(new_inds, [])
+                        if new_exc is not None:
+                            if not isinstance(new_exc[0], np.ndarray):
+                                # means we got too blocky of a shape out of the parallelizer
+                                new_exc = sum(new_exc, [])
+                                new_inds = sum(new_inds, [])
+                        elif not isinstance(new_inds[0], np.ndarray):
+                                # means we got too blocky of a shape out of the parallelizer
+                                new_inds = sum(new_inds, [])
+                                new_exc = [None] * len(new_inds)
 
                 new = []
                 for e,i in zip(new_exc, new_inds): # looping over input excitations
@@ -2878,7 +2913,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         # create intersection based on indices and then
         # make use of this subselection to resample the basis
-
 
         if not use_indices and (
                 self.representative_space.has_excitations
