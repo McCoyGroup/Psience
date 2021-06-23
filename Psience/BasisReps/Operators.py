@@ -678,7 +678,7 @@ class Operator:
             self.funcs
         )
 
-    def get_transformed_space(self, base_space, rules=None, parallelizer=None, logger=None):
+    def get_transformed_space(self, base_space, rules=None, parallelizer=None, logger=None, **opts):
         """
         Returns the space one would get from applying
         the selection rules from this operator
@@ -692,7 +692,7 @@ class Operator:
             rules = self.selection_rules
         if parallelizer is None:
             parallelizer = self.parallelizer
-        return base_space.apply_selection_rules(rules, parallelizer=parallelizer, logger=logger)
+        return base_space.apply_selection_rules(rules, parallelizer=parallelizer, logger=logger, **opts)
 
     def _calculate_single_transf(self, inds, funcs, base_space, sel_rules):
         """

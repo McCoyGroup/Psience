@@ -325,12 +325,13 @@ class VPT2Tests(TestCase):
                     nielsen_tolerance=1,
                     gaussian_tolerance=1,
                     print_profile=False,
+                    profile_filter=None,
                     pre_wfns_script=None,
                     post_wfns_script=None,
                     invert_x=False,
                     **opts
                     ):
-        with BlockProfiler(tag, print_res=print_profile):
+        with BlockProfiler(tag, print_res=print_profile, filter=profile_filter):
             wfns, hammer = self.get_VPT2_wfns_and_ham(
                 mol_spec,
                 internals,
@@ -4662,7 +4663,6 @@ class VPT2Tests(TestCase):
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
         # chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
-
         print_report = False
         nielsen_tolerance = 50
         gaussian_tolerance = 50
@@ -4676,7 +4676,8 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=True,
-                print_profile=True,
+            print_profile=True,
+            # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
@@ -5085,59 +5086,44 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @validationTest
+    @debugTest
     def test_WaterTrimerVPTCartesians(self):
-        # the high-frequency stuff agrees with Gaussian, but not the low-freq
+        tag = 'Water Trimer Cartesians'
+        file_name = "water_trimer_freq.fchk"
 
         internals = None
 
-        n_modes = 9 * 3 - 6
-        mode_selection = None#[-3, -2, -1]
+        n_atoms = 9
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)  # [:6]
 
-        states = self.get_states(2, n_modes)
+        gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = None#self.gaussian_data['WaterDimer']['freqs']
 
-        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
-
-        with BlockProfiler("WaterTrimer", print_res=True,
-                           filter='BasisReps',
-                           strip_dirs=[os.path.expanduser(
-                               '~/Documents/UW/Research/Development/Psience/Psience/')]):  # , sort_by='tottime'):
-            wfns = self.get_VPT2_wfns(
-                "water_trimer_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                mode_selection=mode_selection,
-                log=True
-                # , parallelized=True
-            )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        print_report = True
-        if print_report:
-            # print("Gaussian Energies:\n",
-            #       ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-            #       *(
-            #           ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-            #           in
-            #           zip(states[1:], gaussian_freqs)
-            #       )
-            #       )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
+        print_report = False
+        nielsen_tolerance = 50
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            print_profile=True,
+            # profile_filter='Combinatorics/Permutations',
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+            # , checkpoint=chk
+            # , parallelized=True
+        )
 
     @inactiveTest
     def test_WaterDimerVPTInternals(self):

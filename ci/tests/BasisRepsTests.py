@@ -849,6 +849,7 @@ class BasisSetTests(TestCase):
             # tf = x_rep.get_transformed_space(init_state)
 
 
+
         # np.set_printoptions(threshold=100000)
         # raise Exception(tf.excitations)
 

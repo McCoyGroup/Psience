@@ -1,5 +1,5 @@
 
-import numpy as np, itertools, time
+import numpy as np, itertools, time, gc
 
 from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
@@ -550,6 +550,7 @@ class PerturbationTheorySolver:
                  intermediate_normalization=False,
                  zero_element_warning=True,
                  degenerate_states=None,
+                 memory_constrained=False,
                  logger=None,
                  verbose=False,
                  parallelizer=None,
@@ -598,6 +599,8 @@ class PerturbationTheorySolver:
         self.intermediate_normalization = intermediate_normalization
         self.gaussian_resonance_handling = gaussian_resonance_handling
         self.zero_element_warning = zero_element_warning
+
+        self.memory_constrained=memory_constrained
 
         self._coupled_states = coupled_states
         self._total_space = total_space
@@ -1154,12 +1157,12 @@ class PerturbationTheorySolver:
 
                     space_list = [self.states] + [s for s in self._coupled_states if s is not None]
                     self._total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
-                    flat_space = self.states.take_unique()
+                    flat_space = self.states.take_unique().to_single(track_excitations=False)
                     for s in self._coupled_states:
                         if s is not None:
-                            flat_space = flat_space.union(s.to_single())
+                            flat_space = flat_space.union(s.to_single(track_excitations=False), track_excitations=False)
                     # flat_space = self._total_space.to_single()
-                    self._flat_space = flat_space.take_unique()
+                    self._flat_space = flat_space.take_unique(track_excitations=False)
                     # raise Exception(
                     #     self._flat_space.find(
                     #         space_list[1].get_representation_brakets(other=None).bras
@@ -1408,20 +1411,22 @@ class PerturbationTheorySolver:
                     sub_rep = projections[proj] if proj in projections else None
                     if sub_rep is not None:
                         if rep_space is not None:
-                            rep_space = rep_space.union(sub_rep)
+                            rep_space = rep_space.union(sub_rep, track_excitations=False)
                         else:
                             rep_space = sub_rep
 
                 if rep_space is None:
                     # means we can't determine which parts we have and have not calculated
                     # so we calculate everything and associate it to proj
-                    new = a.get_transformed_space(b, parallelizer=self.parallelizer, logger=logger)
+                    new = a.get_transformed_space(b,
+                                                  track_excitations=not self.memory_constrained,
+                                                  parallelizer=self.parallelizer, logger=logger)
                     cur = cur.union(new)
                     projections[proj] = b
                     spaces[op] = (projections, cur)
                     # reduce to a single space to feed to the next round
                     # of terms
-                    new = new.to_single().take_unique()
+                    new = new.to_single(track_excitations = not self.memory_constrained).take_unique()
                 else:
                     # means we've potentially calculated some of this already,
                     # so we figure out what parts we've already calculated in this
@@ -1434,7 +1439,9 @@ class PerturbationTheorySolver:
                         b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True)  # just some type fuckery
                         existing = cur.intersection(b_sels, handle_subspaces=False)
                         # and now we do extra transformations where we need to
-                        new_new = a.get_transformed_space(diffs, parallelizer=self.parallelizer, logger=logger)
+                        new_new = a.get_transformed_space(diffs,
+                                                          track_excitations = not self.memory_constrained,
+                                                          parallelizer=self.parallelizer, logger=logger)
 
                         # next we add the new stuff to the cache
                         cur = cur.union(new_new)
@@ -1444,7 +1451,7 @@ class PerturbationTheorySolver:
 
                         # TODO: find a way to make this not cause memory spikes...
                         if ret_space:
-                            new = existing.union(new_new).to_single().take_unique()
+                            new = existing.union(new_new).to_single(track_excitations=not self.memory_constrained).take_unique()
                         else:
                             new = b
 
