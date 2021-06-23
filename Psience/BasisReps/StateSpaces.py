@@ -1429,6 +1429,9 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype:
         """
 
+        if self.full_basis is not None:
+            track_excitations = False
+
         if self.basis is not other.basis:
             raise ValueError("can't take a difference of state spaces over different bases ({} and {})".format(
                 self.basis,
@@ -2670,10 +2673,11 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                 # means we got too blocky of a shape out of the parallelizer
                                 new_exc = sum(new_exc, [])
                                 new_inds = sum(new_inds, [])
-                        elif not isinstance(new_inds[0], np.ndarray):
+                        else:
+                            if not isinstance(new_inds[0], np.ndarray):
                                 # means we got too blocky of a shape out of the parallelizer
                                 new_inds = sum(new_inds, [])
-                                new_exc = [None] * len(new_inds)
+                            new_exc = [None] * len(new_inds)
 
                 new = []
                 for e,i in zip(new_exc, new_inds): # looping over input excitations
@@ -2840,9 +2844,11 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             self_inds = self.representative_space.indices
             other_inds = other.representative_space.indices
 
+            # raise Exception(other.representative_space, self.representative_space.indexer)
+
             other_exclusions, sortings, union_sorting = nput.difference(
                 other_inds, self_inds,
-                sortings=(other.representative_space._indexer, self.representative_space._indexer)
+                # sortings=(other.representative_space._indexer, self.representative_space._indexer)
             )
             other.representative_space._indexer, self.representative_space._indexer = sortings
             where_inds, _ = nput.find(other_inds, other_exclusions,
