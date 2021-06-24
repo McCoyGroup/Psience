@@ -71,7 +71,7 @@ Takes subsets of the stored permutations.
 
 <a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.take_subspace" class="docs-object-method">&nbsp;</a>
 ```python
-take_subspace(self, sel, assume_sorted=False): 
+take_subspace(self, sel, assume_sorted=False, track_excitations=True, track_indices=True): 
 ```
 Returns a subsample of the space.
         Intended to be a cheap operation, so samples

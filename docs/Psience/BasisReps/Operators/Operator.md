@@ -103,7 +103,7 @@ __repr__(self):
 
 <a id="Psience.BasisReps.Operators.Operator.get_transformed_space" class="docs-object-method">&nbsp;</a>
 ```python
-get_transformed_space(self, base_space, rules=None, parallelizer=None, logger=None): 
+get_transformed_space(self, base_space, rules=None, parallelizer=None, logger=None, **opts): 
 ```
 Returns the space one would get from applying
         the selection rules from this operator

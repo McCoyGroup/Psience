@@ -5,7 +5,9 @@ methods to index into a basis and generate representations
 ### Properties and Methods
 ```python
 keep_excitations: bool
+keep_indices: bool
 StateSpaceSpec: EnumMeta
+StateSpaceCache: type
 excitations_dtype: dtype[int8]
 indices_dtype: dtype[int64]
 from_state: method
@@ -251,7 +253,7 @@ Drops a subset of the state dimensions
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.to_single" class="docs-object-method">&nbsp;</a>
 ```python
-to_single(self): 
+to_single(self, track_excitations=True, track_indices=True): 
 ```
 Flattens any complicated state space structure into a
         single space like a `BasisStateSpace`

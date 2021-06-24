@@ -35,8 +35,10 @@ BasisReps manages useful functions for generating & working with basis-set repre
 
 ```python
 from Peeves import Timer, BlockProfiler
+
 from McUtils.Scaffolding import *
 import McUtils.Plots as plt
+from McUtils.Combinatorics import CompleteSymmetricGroupSpace
 from Peeves.TestUtils import *
 from unittest import TestCase
 from Psience.BasisReps import *
@@ -785,7 +787,7 @@ class BasisSetTests(TestCase):
 
             print(states.indices.tolist(), np.sort(h2_space.indices).tolist())
 
-    @validationTest
+    @debugTest
     def test_NewOrthogonalityCalcs(self):
 
         n = 15
@@ -867,7 +869,45 @@ class BasisSetTests(TestCase):
         self.assertTrue(np.allclose(x2.array.asarray(), x22.array.asarray()))
         # raise Exception(mat_2.array.asarray())
 
-    @debugTest
+    @validationTest
+    def test_StateConnections(self):
+
+        n = 15  # totally meaningless these days
+        m = 12
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        init_state = basis.get_state_space(2)
+
+        x_rep = basis.representation('x', 'x', 'x', coeffs=np.ones((m, m, m)))
+        with BlockProfiler():
+            for i in range(15):
+                tf = x_rep.get_transformed_space(init_state)
+            # tf = x_rep.get_transformed_space(init_state)
+
+
+
+        # np.set_printoptions(threshold=100000)
+        # raise Exception(tf.excitations)
+
+    @validationTest
+    def test_StateSpaceTakeProfile(self):
+
+        n = 15  # totally meaningless these days
+        m = 12
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        x_rep = basis.representation('x', 'x', coeffs=np.ones((m,)))
+        init_space = basis.get_state_space(2)
+        init_space.full_basis = CompleteSymmetricGroupSpace(m)
+        tf = x_rep.get_transformed_space(init_space)#, logger=Logger())
+
+        # with BlockProfiler():
+        #     for i in range(500):
+        #         exc = tf.excitations
+
+        # raise Exception(len(exc))
+
+    @validationTest
     def test_PermutationallyReducedStateSpace(self):
         n = 15  # totally meaningless these days
         m = 4
@@ -904,7 +944,7 @@ class BasisSetTests(TestCase):
             np.sort(old_rep.indices).tolist()
         )
 
-    @debugTest
+    @validationTest
     def test_TransformedReduced(self):
         n = 15  # totally meaningless these days
         m = 10

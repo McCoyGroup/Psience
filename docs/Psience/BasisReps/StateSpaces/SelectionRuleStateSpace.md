@@ -138,7 +138,7 @@ Filters representation indices by the allowed #quantum changes.
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.union" class="docs-object-method">&nbsp;</a>
 ```python
-union(self, other, handle_subspaces=True): 
+union(self, other, handle_subspaces=True, track_excitations=True, track_indices=True): 
 ```
 Returns a merged version of self and other, adding
         any states in other to self and merging where they intersect

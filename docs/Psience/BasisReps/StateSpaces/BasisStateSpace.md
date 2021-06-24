@@ -10,7 +10,7 @@ from_quanta: method
 ```
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, basis, states, mode=None): 
+__init__(self, basis, states, full_basis=None, mode=None): 
 ```
 
 - `basis`: `RepresentationBasis`
@@ -86,7 +86,7 @@ Returns states as sets of excitations, rather than indices indo the basis functi
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.to_single" class="docs-object-method">&nbsp;</a>
 ```python
-to_single(self): 
+to_single(self, track_excitations=True, track_indices=True): 
 ```
 Basically a no-op
 - `:returns`: `_`
@@ -110,7 +110,7 @@ Checks and then sets a flag
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_unique" class="docs-object-method">&nbsp;</a>
 ```python
-take_unique(self, sort=False, use_indices=False): 
+take_unique(self, sort=False, track_excitations=True, track_indices=True): 
 ```
 Returns only the unique states, but preserves
         ordering and all of that unless explicitly allowed not to
@@ -119,16 +119,15 @@ Returns only the unique states, but preserves
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.as_sorted" class="docs-object-method">&nbsp;</a>
 ```python
-as_sorted(self): 
+as_sorted(self, track_excitations=True, track_indices=True): 
 ```
-Returns only the unique states, but preserves
-        ordering and all of that unless explicitly allowed not to
+Returns a sorted version of the state space
 - `:returns`: `_`
     >No description...
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.apply_selection_rules" class="docs-object-method">&nbsp;</a>
 ```python
-apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None, logger=None, iterations=1, new_state_space_class=None): 
+apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None, logger=None, iterations=1, new_state_space_class=None, track_excitations=True, track_indices=True): 
 ```
 Generates a new state space from the application of `selection_rules` to the state space.
         Returns a `BasisMultiStateSpace` where each state tracks the effect of the application of the selection rules
@@ -164,7 +163,7 @@ Generates a set of indices that can be fed into a `Representation` to provide a 
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.get_representation_brakets" class="docs-object-method">&nbsp;</a>
 ```python
-get_representation_brakets(self, other=None, selection_rules=None, freqs=None, freq_threshold=None, filter=None, return_filter=False): 
+get_representation_brakets(self, other=None, selection_rules=None, freqs=None, freq_threshold=None, filter=None, return_filter=False, track_excitations=True): 
 ```
 Generates a `BraKetSpace` that can be fed into a `Representation`
         Only returns the upper-triangle pairs because we assume symmetry
@@ -173,7 +172,7 @@ Generates a `BraKetSpace` that can be fed into a `Representation`
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_subspace" class="docs-object-method">&nbsp;</a>
 ```python
-take_subspace(self, sel, assume_sorted=False): 
+take_subspace(self, sel, assume_sorted=False, track_excitations=True, track_indices=True): 
 ```
 Returns a subsample of the space.
         Intended to be a cheap operation, so samples
@@ -188,7 +187,7 @@ Returns a subsample of the space.
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_subdimensions" class="docs-object-method">&nbsp;</a>
 ```python
-take_subdimensions(self, inds): 
+take_subdimensions(self, inds, exc=None): 
 ```
 Returns a subsample of the space with some dimensions
         dropped
@@ -199,7 +198,7 @@ Returns a subsample of the space with some dimensions
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_states" class="docs-object-method">&nbsp;</a>
 ```python
-take_states(self, states, sort=False, assume_sorted=False): 
+take_states(self, states, sort=False, assume_sorted=False, track_excitations=True, track_indices=True): 
 ```
 Takes the set of specified states from the space.
         A lot like take_subspace, but operates on states, not indices
@@ -210,7 +209,7 @@ Takes the set of specified states from the space.
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.drop_subspace" class="docs-object-method">&nbsp;</a>
 ```python
-drop_subspace(self, sel): 
+drop_subspace(self, sel, track_excitations=True, track_indices=True): 
 ```
 Returns a subsample of the space.
         Intended to be a cheap operation, so samples
@@ -223,7 +222,7 @@ Returns a subsample of the space.
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.drop_subdimensions" class="docs-object-method">&nbsp;</a>
 ```python
-drop_subdimensions(self, inds): 
+drop_subdimensions(self, inds, track_excitations=True, track_indices=True): 
 ```
 Returns a subsample of the space with some dimensions
         dropped
@@ -234,7 +233,7 @@ Returns a subsample of the space with some dimensions
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.drop_states" class="docs-object-method">&nbsp;</a>
 ```python
-drop_states(self, states): 
+drop_states(self, states, track_excitations=True, track_indices=True): 
 ```
 Takes the set of specified states from the space.
         A lot like take_subspace, but operates on states, not indices
@@ -255,7 +254,7 @@ Splits the space up into chunks of at max chunksize
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.concatenate" class="docs-object-method">&nbsp;</a>
 ```python
-concatenate(self, other): 
+concatenate(self, other, track_excitations=True, track_indices=True): 
 ```
 Just does a direct concatenation with no unions or any
         of that
@@ -266,7 +265,7 @@ Just does a direct concatenation with no unions or any
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.union" class="docs-object-method">&nbsp;</a>
 ```python
-union(self, other, sort=False, use_indices=False): 
+union(self, other, sort=False, track_excitations=True, track_indices=True): 
 ```
 Returns a merged version of self and other, making
         use of as much of the information inherent in both as is possible
@@ -277,7 +276,7 @@ Returns a merged version of self and other, making
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.intersection" class="docs-object-method">&nbsp;</a>
 ```python
-intersection(self, other, sort=False, use_indices=False): 
+intersection(self, other, sort=False, track_excitations=True, track_indices=True): 
 ```
 Returns an intersected self and other
 - `other`: `BasisStateSpace`
@@ -287,7 +286,7 @@ Returns an intersected self and other
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.difference" class="docs-object-method">&nbsp;</a>
 ```python
-difference(self, other, sort=False, use_indices=False): 
+difference(self, other, sort=False, track_excitations=True, track_indices=True): 
 ```
 Returns an diff'ed self and other
 - `other`: `BasisStateSpace`

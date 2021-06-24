@@ -115,7 +115,7 @@ selection_rules(self):
 
 <a id="Psience.BasisReps.Terms.Representation.get_transformed_space" class="docs-object-method">&nbsp;</a>
 ```python
-get_transformed_space(self, space, parallelizer=None, logger=None): 
+get_transformed_space(self, space, parallelizer=None, logger=None, **opts): 
 ```
 Returns the state space obtained by using the
         held operator to transform `space`
@@ -131,7 +131,7 @@ apply(self, other):
 
 <a id="Psience.BasisReps.Terms.Representation.get_representation_matrix" class="docs-object-method">&nbsp;</a>
 ```python
-get_representation_matrix(self, coupled_space, total_space, filter_space=None, diagonal=False, logger=None, zero_element_warning=True, clear_sparse_caches=True): 
+get_representation_matrix(self, coupled_space, total_space, filter_space=None, diagonal=False, logger=None, zero_element_warning=True, clear_sparse_caches=True, clear_operator_caches=True): 
 ```
 Actively constructs a perturbation theory Hamiltonian representation
 - `h`: `Any`

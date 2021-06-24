@@ -45,6 +45,12 @@ representative_space(self):
 basis(self): 
 ```
 
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.full_basis" class="docs-object-method">&nbsp;</a>
+```python
+@property
+full_basis(self): 
+```
+
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.ndim" class="docs-object-method">&nbsp;</a>
 ```python
 @property
@@ -98,7 +104,7 @@ check_indices(self):
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.to_single" class="docs-object-method">&nbsp;</a>
 ```python
-to_single(self): 
+to_single(self, track_excitations=True, track_indices=True): 
 ```
 Condenses the multi state space down to
         a single BasisStateSpace
@@ -107,7 +113,7 @@ Condenses the multi state space down to
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.take_states" class="docs-object-method">&nbsp;</a>
 ```python
-take_states(self, states): 
+take_states(self, states, track_excitations=True, track_indices=True): 
 ```
 Takes the intersection of each held space and the specified states
 - `states`: `Any`
@@ -117,7 +123,7 @@ Takes the intersection of each held space and the specified states
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.take_subspace" class="docs-object-method">&nbsp;</a>
 ```python
-take_subspace(self, sel): 
+take_subspace(self, sel, track_excitations=True, track_indices=True): 
 ```
 Takes the specified states, making sure each held space
         only contains states in `sel`

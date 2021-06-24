@@ -86,6 +86,11 @@ Takes the bra-ket pairs that are non-orthogonal under the indices `inds`
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.apply_sel_rules_along" class="docs-object-method">&nbsp;</a>
+```python
+apply_sel_rules_along(self, rules, inds): 
+```
+
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.apply_sel_rules" class="docs-object-method">&nbsp;</a>
 ```python
 apply_sel_rules(self, rules): 
