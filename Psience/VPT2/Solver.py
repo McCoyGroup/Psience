@@ -1405,6 +1405,7 @@ class PerturbationTheorySolver:
                 )
                 # reduce to a single space to feed to the next round
                 # of terms
+
                 new = new.to_single().take_unique()
             else:
                 projections, cur = cur
@@ -1423,7 +1424,8 @@ class PerturbationTheorySolver:
                     # so we calculate everything and associate it to proj
                     new = a.get_transformed_space(b,
                                                   track_excitations=not self.memory_constrained,
-                                                  parallelizer=self.parallelizer, logger=logger)
+                                                  parallelizer=self.parallelizer, logger=logger
+                                                  )
                     cur = cur.union(new)
                     projections[proj] = b
                     spaces[op] = (projections, cur)
@@ -1435,6 +1437,8 @@ class PerturbationTheorySolver:
                     # so we figure out what parts we've already calculated in this
                     # projected space (rep_space is the current space of the representations)
                     diffs = b.difference(rep_space)
+                    # if diffs.full_basis is None:
+                    #     raise ValueError(diffs.full_basis, b.full_basis)
                     if len(diffs) > 0:
                         # raise Exception(projections, rep_space, diffs)
                         # we have an initial space we've already transformed, so we
@@ -1444,7 +1448,8 @@ class PerturbationTheorySolver:
                         # and now we do extra transformations where we need to
                         new_new = a.get_transformed_space(diffs,
                                                           track_excitations = not self.memory_constrained,
-                                                          parallelizer=self.parallelizer, logger=logger)
+                                                          parallelizer=self.parallelizer, logger=logger
+                                                          )
 
                         # next we add the new stuff to the cache
                         cur = cur.union(new_new)

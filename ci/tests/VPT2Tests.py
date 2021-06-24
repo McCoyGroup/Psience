@@ -281,12 +281,16 @@ class VPT2Tests(TestCase):
             , zero_element_warning=zero_element_warning
         )[0]
 
-    def get_states(self, n_quanta, n_modes, max_quanta = None):
-
-        return [np.flip(x) for x in BasisStateSpace.from_quanta(
+    def get_states(self, n_quanta, n_modes, max_quanta=None, target_modes=None):
+        whee = [np.flip(x) for x in BasisStateSpace.from_quanta(
             HarmonicOscillatorProductBasis(n_modes),
             range(n_quanta)
         ).excitations]
+        if target_modes is not None:
+            whee = [
+                p for p in whee if any(p[i] > 0 for i in target_modes)
+            ]
+        return whee
 
     def print_energy_block(self, tag, states, zpe, freqs, real_fmt='{:>8.3f}', dash_fmt='{:>8}' ):
         freqs = np.asanyarray(freqs)
@@ -326,12 +330,13 @@ class VPT2Tests(TestCase):
                     gaussian_tolerance=1,
                     print_profile=False,
                     profile_filter=None,
+                    profiling_mode=None,
                     pre_wfns_script=None,
                     post_wfns_script=None,
                     invert_x=False,
                     **opts
                     ):
-        with BlockProfiler(tag, print_res=print_profile, inactive=print_profile):#, filter=profile_filter):
+        with BlockProfiler(tag, print_res=print_profile, mode=profiling_mode, inactive=not print_profile):#, filter=profile_filter):
             wfns, hammer = self.get_VPT2_wfns_and_ham(
                 mol_spec,
                 internals,
@@ -4643,7 +4648,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4676,7 +4681,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=True,
-            print_profile=True,
+            print_profile=False,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
@@ -5086,7 +5091,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @validationTest
+    @debugTest
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"
@@ -5098,7 +5103,8 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes)  # [:6]
+        states = self.get_states(3, n_modes, target_modes=[-1])[:2]  # [:6]
+        # raise Exception(states)
 
         gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = None#self.gaussian_data['WaterDimer']['freqs']
@@ -5116,7 +5122,8 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=True,
-            print_profile=False,
+            print_profile=True,
+            # profiling_mode='deterministic',
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,

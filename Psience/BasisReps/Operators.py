@@ -357,12 +357,6 @@ class Operator:
         else:
             gen = g
             sel_rules = None
-            # og_rules = sel_rules
-            # states, sel_rules = states.apply_sel_rules(sel_rules)
-            # if len(states) == 0:
-            #     # if len(inds) == 3:
-            #     #     raise Exception(inds, og_rules)
-            #     return None, None
 
         # bras, kets = states.state_pairs
         # states = [bk for i, bk in enumerate(zip(bras, kets)) if i in inds]
@@ -796,6 +790,8 @@ class Operator:
         :return:
         :rtype:
         """
+
+        raise NotImplementedError("no")
 
         if inds is None:  # just a number
             self.logger.log_print("returning identity tensor")

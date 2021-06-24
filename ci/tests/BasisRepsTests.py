@@ -2,6 +2,7 @@ from Peeves import Timer, BlockProfiler
 
 from McUtils.Scaffolding import *
 import McUtils.Plots as plt
+from McUtils.Combinatorics import CompleteSymmetricGroupSpace
 from Peeves.TestUtils import *
 from unittest import TestCase
 from Psience.BasisReps import *
@@ -832,9 +833,8 @@ class BasisSetTests(TestCase):
         self.assertTrue(np.allclose(x2.array.asarray(), x22.array.asarray()))
         # raise Exception(mat_2.array.asarray())
 
-    @debugTest
+    @validationTest
     def test_StateConnections(self):
-
 
         n = 15  # totally meaningless these days
         m = 12
@@ -852,6 +852,24 @@ class BasisSetTests(TestCase):
 
         # np.set_printoptions(threshold=100000)
         # raise Exception(tf.excitations)
+
+    @debugTest
+    def test_StateSpaceTakeProfile(self):
+
+        n = 15  # totally meaningless these days
+        m = 12
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        x_rep = basis.representation('x', 'x', coeffs=np.ones((m,)))
+        init_space = basis.get_state_space(2)
+        init_space.full_basis = CompleteSymmetricGroupSpace(m)
+        tf = x_rep.get_transformed_space(init_space, logger=Logger())
+
+        with BlockProfiler():
+            for i in range(500):
+                exc = tf.excitations
+
+        # raise Exception(len(exc))
 
     @validationTest
     def test_PermutationallyReducedStateSpace(self):
