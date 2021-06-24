@@ -92,6 +92,7 @@ class VPT2Tests(TestCase):
                               pre_run_script=None,
                               get_breakdown=False,
                               parallelized=False,
+                              initialization_timeout=1,
                               processes=None,
                               checkpoint=None,
                               chunk_size=None,
@@ -108,7 +109,10 @@ class VPT2Tests(TestCase):
                               ):
         if parallelized:
             pverb = verbose == 'all'
-            parallelizer = MultiprocessingParallelizer(verbose=pverb, processes=processes)
+            parallelizer = MultiprocessingParallelizer(verbose=pverb,
+                                                       processes=processes,
+                                                       initialization_timeout=initialization_timeout
+                                                       )
         else:
             parallelizer = SerialNonParallelizer()
 
@@ -230,6 +234,7 @@ class VPT2Tests(TestCase):
                       verbose=False,
                       pre_run_script=None,
                       parallelized=False,
+                      initialization_timeout=1,
                       checkpoint=None,
                       get_breakdown=False,
                       chunk_size=None,
@@ -3246,7 +3251,7 @@ class VPT2Tests(TestCase):
             watson=True
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -5103,7 +5108,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes, target_modes=[-1])[:2]  # [:6]
+        states = self.get_states(3, n_modes, target_modes=[-1])  # [:6]
         # raise Exception(states)
 
         gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
@@ -5129,7 +5134,9 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
             # , checkpoint=chk
-            # , parallelized=True
+            , parallelized=True
+            , initialization_timeout=2
+            , chunk_size=int(5e6)
         )
 
     @inactiveTest

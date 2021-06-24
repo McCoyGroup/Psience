@@ -751,7 +751,7 @@ class BasisSetTests(TestCase):
 
             print(states.indices.tolist(), np.sort(h2_space.indices).tolist())
 
-    @validationTest
+    @debugTest
     def test_NewOrthogonalityCalcs(self):
 
         n = 15
@@ -853,7 +853,7 @@ class BasisSetTests(TestCase):
         # np.set_printoptions(threshold=100000)
         # raise Exception(tf.excitations)
 
-    @debugTest
+    @validationTest
     def test_StateSpaceTakeProfile(self):
 
         n = 15  # totally meaningless these days
@@ -863,11 +863,11 @@ class BasisSetTests(TestCase):
         x_rep = basis.representation('x', 'x', coeffs=np.ones((m,)))
         init_space = basis.get_state_space(2)
         init_space.full_basis = CompleteSymmetricGroupSpace(m)
-        tf = x_rep.get_transformed_space(init_space, logger=Logger())
+        tf = x_rep.get_transformed_space(init_space)#, logger=Logger())
 
-        with BlockProfiler():
-            for i in range(500):
-                exc = tf.excitations
+        # with BlockProfiler():
+        #     for i in range(500):
+        #         exc = tf.excitations
 
         # raise Exception(len(exc))
 

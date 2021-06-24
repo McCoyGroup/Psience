@@ -1479,7 +1479,8 @@ class BasisStateSpace(AbstractStateSpace):
                 new._uinds = np.arange(len(new_inds))
                 return new
 
-    def difference(self, other, sort=False,
+    def difference(self, other,
+                   sort=False,
                    track_excitations=True,
                    track_indices=True
                    ):
@@ -2744,7 +2745,12 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                                             comm=list(range(len(exc))) if len(exc) < (1 + par.nprocs) else None
                                                             )
                         if new_exc is not None:
-                            if not isinstance(new_exc[0], np.ndarray):
+                            if new_exc[0] is None:
+                                if not isinstance(new_inds[0], np.ndarray):
+                                    # means we got too blocky of a shape out of the parallelizer
+                                    new_inds = sum(new_inds, [])
+                                new_exc = [None] * len(new_inds)
+                            elif not isinstance(new_exc[0], np.ndarray):
                                 # means we got too blocky of a shape out of the parallelizer
                                 new_exc = sum(new_exc, [])
                                 new_inds = sum(new_inds, [])
@@ -3307,6 +3313,11 @@ class BraKetSpace:
         the cheap
         """
 
+        #TODO: this needs to all be rewritten to work as a boolean mask
+        #       until the very end when we are ready to convert back
+        #       to actual indices or to make `take_subspace` work over
+        #       boolean masks
+
         def __init__(self, eq_tests, trie):
             self.tests = eq_tests
             self.pretest = eq_tests.flatten().all()
@@ -3327,6 +3338,7 @@ class BraKetSpace:
             if self.pretest:
                 return np.arange(len(self.tests[0]))
             # skip doing any work if we're in this special case
+            # fast enough
             rest_inds = np.setdiff1d(np.arange(len(self.tests)), item)
             if len(rest_inds) == 0:
                 return np.arange(len(self.tests[0]))
@@ -3408,7 +3420,8 @@ class BraKetSpace:
             :return:
             :rtype:
             """
-            cur_inds = cache['vals']
+
+            cur_inds = cache['vals'] # both of these are sorted
             next_tests = self.tests[inds[-1]]
 
             if self.trie is not None:
@@ -3416,7 +3429,7 @@ class BraKetSpace:
                 # us to do (potentially) even less work than before
                 unused = np.setdiff1d(np.arange(len(self.tests)), inds)
                 init_inds, rest = self.trie.get_idx_terms(unused)
-                init_inds = np.setdiff1d(init_inds, cur_inds)
+                init_inds = nput.difference(init_inds, cur_inds, assume_unique=True, method='find')[0]
                 init_inds = init_inds[np.logical_not(next_tests[init_inds])]
 
                 for e in rest:
@@ -3428,7 +3441,7 @@ class BraKetSpace:
                 # we can reuse the entirety of cur_inds, since the next case is just a relaxation on those
                 # the new positions we need to calculate are just the intersection of the complement of cur_inds and where
                 # next_tests fails...which is just the symmetric difference of where next_tests fails and cur_inds
-                recalc_pos = np.setdiff1d(np.where(np.logical_not(next_tests))[0], cur_inds)
+                recalc_pos = nput.difference(np.where(np.logical_not(next_tests))[0], cur_inds, assume_unique=True, method='find')[0]
 
                 if self.trie is None:
                     recalcs = self._pull_nonorthog(inds, subinds=recalc_pos)
