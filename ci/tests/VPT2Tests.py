@@ -92,6 +92,7 @@ class VPT2Tests(TestCase):
                               pre_run_script=None,
                               get_breakdown=False,
                               parallelized=False,
+                              initialization_timeout=1,
                               processes=None,
                               checkpoint=None,
                               chunk_size=None,
@@ -108,7 +109,10 @@ class VPT2Tests(TestCase):
                               ):
         if parallelized:
             pverb = verbose == 'all'
-            parallelizer = MultiprocessingParallelizer(verbose=pverb, processes=processes)
+            parallelizer = MultiprocessingParallelizer(verbose=pverb,
+                                                       processes=processes,
+                                                       initialization_timeout=initialization_timeout
+                                                       )
         else:
             parallelizer = SerialNonParallelizer()
 
@@ -230,6 +234,7 @@ class VPT2Tests(TestCase):
                       verbose=False,
                       pre_run_script=None,
                       parallelized=False,
+                      initialization_timeout=1,
                       checkpoint=None,
                       get_breakdown=False,
                       chunk_size=None,
@@ -281,12 +286,16 @@ class VPT2Tests(TestCase):
             , zero_element_warning=zero_element_warning
         )[0]
 
-    def get_states(self, n_quanta, n_modes, max_quanta = None):
-
-        return [np.flip(x) for x in BasisStateSpace.from_quanta(
+    def get_states(self, n_quanta, n_modes, max_quanta=None, target_modes=None):
+        whee = [np.flip(x) for x in BasisStateSpace.from_quanta(
             HarmonicOscillatorProductBasis(n_modes),
             range(n_quanta)
         ).excitations]
+        if target_modes is not None:
+            whee = [
+                p for p in whee if any(p[i] > 0 for i in target_modes)
+            ]
+        return whee
 
     def print_energy_block(self, tag, states, zpe, freqs, real_fmt='{:>8.3f}', dash_fmt='{:>8}' ):
         freqs = np.asanyarray(freqs)
@@ -325,12 +334,14 @@ class VPT2Tests(TestCase):
                     nielsen_tolerance=1,
                     gaussian_tolerance=1,
                     print_profile=False,
+                    profile_filter=None,
+                    profiling_mode=None,
                     pre_wfns_script=None,
                     post_wfns_script=None,
                     invert_x=False,
                     **opts
                     ):
-        with BlockProfiler(tag, print_res=print_profile):
+        with BlockProfiler(tag, print_res=print_profile, mode=profiling_mode, inactive=not print_profile):#, filter=profile_filter):
             wfns, hammer = self.get_VPT2_wfns_and_ham(
                 mol_spec,
                 internals,
@@ -3240,7 +3251,7 @@ class VPT2Tests(TestCase):
             watson=True
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -4642,7 +4653,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4656,13 +4667,12 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes)[:6]
+        states = self.get_states(3, n_modes)#[:6]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
-        chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
-
+        # chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
         print_report = False
         nielsen_tolerance = 50
         gaussian_tolerance = 50
@@ -4676,10 +4686,12 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=True,
+            print_profile=False,
+            # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
-            , checkpoint=chk
+            # , checkpoint=chk
             # , parallelized=True
         )
 
@@ -4720,7 +4732,6 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
             , parallelized=True
         )
-
 
     @validationTest
     def test_WaterDimerVPTCartesiansPararalelMemConstrained(self):
@@ -5085,59 +5096,48 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @validationTest
+    @debugTest
     def test_WaterTrimerVPTCartesians(self):
-        # the high-frequency stuff agrees with Gaussian, but not the low-freq
+        tag = 'Water Trimer Cartesians'
+        file_name = "water_trimer_freq.fchk"
 
         internals = None
 
-        n_modes = 9 * 3 - 6
-        mode_selection = None#[-3, -2, -1]
+        n_atoms = 9
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes, target_modes=[-1])  # [:6]
+        # raise Exception(states)
 
-        states = self.get_states(2, n_modes)
+        gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = None#self.gaussian_data['WaterDimer']['freqs']
 
-        # coupled_states = self.get_states(5, n_modes, max_quanta=5)
-
-        with BlockProfiler("WaterTrimer", print_res=True,
-                           filter='BasisReps',
-                           strip_dirs=[os.path.expanduser(
-                               '~/Documents/UW/Research/Development/Psience/Psience/')]):  # , sort_by='tottime'):
-            wfns = self.get_VPT2_wfns(
-                "water_trimer_freq.fchk",
-                internals,
-                states,
-                regenerate=True,
-                mode_selection=mode_selection,
-                log=True
-                # , parallelized=True
-            )
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        engs = h2w * wfns.energies
-        freqs = engs[1:] - engs[0]
-        harm_engs = h2w * wfns.zero_order_energies
-        harm_freq = harm_engs[1:] - harm_engs[0]
-
-        print_report = True
-        if print_report:
-            # print("Gaussian Energies:\n",
-            #       ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(*gaussian_engs, "-", "-"),
-            #       *(
-            #           ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", *e) for s, e
-            #           in
-            #           zip(states[1:], gaussian_freqs)
-            #       )
-            #       )
-            print("State Energies:\n",
-                  ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}\n").format(harm_engs[0], engs[0], "-", "-"),
-                  *(
-                      ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}\n").format(*s, "-", "-", e1, e2) for
-                      s, e1, e2 in
-                      zip(states[1:], harm_freq, freqs)
-                  )
-                  )
+        print_report = False
+        nielsen_tolerance = 50
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            print_profile=True,
+            # profiling_mode='deterministic',
+            # profile_filter='Combinatorics/Permutations',
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+            # , checkpoint=chk
+            , parallelized=True
+            , initialization_timeout=2
+            , chunk_size=int(5e6)
+        )
 
     @inactiveTest
     def test_WaterDimerVPTInternals(self):

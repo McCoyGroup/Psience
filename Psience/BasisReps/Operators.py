@@ -357,12 +357,6 @@ class Operator:
         else:
             gen = g
             sel_rules = None
-            # og_rules = sel_rules
-            # states, sel_rules = states.apply_sel_rules(sel_rules)
-            # if len(states) == 0:
-            #     # if len(inds) == 3:
-            #     #     raise Exception(inds, og_rules)
-            #     return None, None
 
         # bras, kets = states.state_pairs
         # states = [bk for i, bk in enumerate(zip(bras, kets)) if i in inds]
@@ -398,6 +392,11 @@ class Operator:
             # TODO: selection rules are actually _cheaper_ to apply than this in general, esp. if we focus
             #       only on the number of quanta that can change within the set of indices
             #       so we should support applying them first & then only doing this for the rest
+            # if sel_rules is not None:
+            #     states, non_orthog_1 = states.apply_sel_rules_along(sel_rules, inds) # currently only filters by sum
+            #     states, non_orthog_2 = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
+            #     non_orthog = non_orthog_1[non_orthog_2]
+            # else:
             states, non_orthog = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
         else:
             non_orthog = np.arange(nstates)
@@ -673,7 +672,7 @@ class Operator:
             self.funcs
         )
 
-    def get_transformed_space(self, base_space, rules=None, parallelizer=None, logger=None):
+    def get_transformed_space(self, base_space, rules=None, parallelizer=None, logger=None, **opts):
         """
         Returns the space one would get from applying
         the selection rules from this operator
@@ -687,7 +686,7 @@ class Operator:
             rules = self.selection_rules
         if parallelizer is None:
             parallelizer = self.parallelizer
-        return base_space.apply_selection_rules(rules, parallelizer=parallelizer, logger=logger)
+        return base_space.apply_selection_rules(rules, parallelizer=parallelizer, logger=logger, **opts)
 
     def _calculate_single_transf(self, inds, funcs, base_space, sel_rules):
         """
@@ -791,6 +790,8 @@ class Operator:
         :return:
         :rtype:
         """
+
+        raise NotImplementedError("no")
 
         if inds is None:  # just a number
             self.logger.log_print("returning identity tensor")

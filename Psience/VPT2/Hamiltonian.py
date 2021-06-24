@@ -7,7 +7,7 @@ import numpy as np, itertools, time
 from McUtils.Numputils import SparseArray, vec_outer
 from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer
-from McUtils.Data import UnitsData
+from McUtils.Combinatorics import CompleteSymmetricGroupSpace
 
 from ..Molecools import Molecule
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
@@ -773,6 +773,8 @@ class PerturbationTheoryHamiltonian:
                           intermediate_normalization=False,
                           ignore_odd_order_energies=True,
                           zero_element_warning=True,
+                          use_full_basis=True,
+                          memory_constrained=False,
                           state_space_iterations=None,
                           verbose=False,
                           order=2,
@@ -833,6 +835,12 @@ class PerturbationTheoryHamiltonian:
                 if not isinstance(states, BasisStateSpace):
                     states = BasisStateSpace(self.basis, states)
 
+                if use_full_basis and states.full_basis is None:
+                    states = BasisStateSpace(self.basis, states.indices,
+                                             mode=BasisStateSpace.StateSpaceSpec.Indices,
+                                             full_basis=CompleteSymmetricGroupSpace(states.ndim)
+                                             )
+
                 solver = PerturbationTheorySolver(h_reps, states,
                                                   order=order,
                                                   state_space_iterations=state_space_iterations,
@@ -843,6 +851,7 @@ class PerturbationTheoryHamiltonian:
                                                   parallelizer=self.parallelizer,
                                                   allow_sakurai_degs=allow_sakurai_degs,
                                                   allow_post_PT_calc=allow_post_PT_calc,
+                                                  memory_constrained=memory_constrained,
                                                   modify_degenerate_perturbations=modify_degenerate_perturbations,
                                                   gaussian_resonance_handling=gaussian_resonance_handling,
                                                   ignore_odd_order_energies=ignore_odd_order_energies,

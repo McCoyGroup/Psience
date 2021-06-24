@@ -1,5 +1,5 @@
 
-import numpy as np, itertools, time
+import numpy as np, itertools, time, gc
 
 from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
@@ -21,7 +21,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
     @classmethod
     def from_spec(cls,
                   solver,
-                  degenerate_states
+                  degenerate_states,
+                  full_basis=None
                   ):
         """
         Generates a DegenerateMultiStateSpace object from a number
@@ -181,7 +182,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         for i,g in enumerate(groups):
             # g = np.sort(np.array(g))
             if not isinstance(g, BasisStateSpace):
-                g =  BasisStateSpace(states.basis, np.array(g), mode=BasisStateSpace.StateSpaceSpec.Indices)
+                g =  BasisStateSpace(states.basis, np.array(g), mode=BasisStateSpace.StateSpaceSpec.Indices, full_basis=full_basis)
             ugh[i] = g
             # if len(g) > 1:
             #     raise Exception(ugh[i].indices, g, ugh[i].excitations,
@@ -483,7 +484,7 @@ class PerturbationTheoryCorrections:
     @classmethod
     def loadz(cls, file):
         keys = np.load(file)
-        return cls(
+        return cls.from_dicts(
             {
                 "states":keys['states'],
                  "coupled_states":keys['coupled_states'],
@@ -550,6 +551,7 @@ class PerturbationTheorySolver:
                  intermediate_normalization=False,
                  zero_element_warning=True,
                  degenerate_states=None,
+                 memory_constrained=False,
                  logger=None,
                  verbose=False,
                  parallelizer=None,
@@ -576,6 +578,10 @@ class PerturbationTheorySolver:
         :param checkpointer:
         :type checkpointer:
         """
+
+        if memory_constrained:
+            raise NotImplementedError('memory constraint handling currently broken')
+
         self.perts = perturbations
         self._reps = None
         self.order = order
@@ -587,6 +593,7 @@ class PerturbationTheorySolver:
         self.checkpointer = checkpointer
 
         self.states = states
+        self.full_basis = states.full_basis
 
         self.degeneracy_spec = degenerate_states
         self._deg_states = None
@@ -598,6 +605,8 @@ class PerturbationTheorySolver:
         self.intermediate_normalization = intermediate_normalization
         self.gaussian_resonance_handling = gaussian_resonance_handling
         self.zero_element_warning = zero_element_warning
+
+        self.memory_constrained=memory_constrained
 
         self._coupled_states = coupled_states
         self._total_space = total_space
@@ -645,8 +654,7 @@ class PerturbationTheorySolver:
     @property
     def degenerate_spaces(self):
         if self._deg_states is None:
-            self._deg_states = DegenerateMultiStateSpace.from_spec(self, self.degeneracy_spec)
-
+            self._deg_states = DegenerateMultiStateSpace.from_spec(self, self.degeneracy_spec, full_basis=self.full_basis)
         return self._deg_states
 
     @property
@@ -741,7 +749,6 @@ class PerturbationTheorySolver:
                             logger.log_print("took {t:.3f}s", t=end - start)
                             self.perts[0].clear_cache()
 
-                        # print(flat_total_space.indices)
                         for i, h in enumerate(self.perts[1:]):
                             # calculate matrix elements in the coupled subspace
                             if n_spaces > i + 1:
@@ -983,7 +990,6 @@ class PerturbationTheorySolver:
             o = np.argmax(sort_transf[i, :])
             sorting[i] = o
             sort_transf[:, o] = 0.
-            # print(sort_transf)
 
         new_eng = eng2[sorting]
         deg_transf2 = deg_transf2.T[sorting]
@@ -1124,7 +1130,7 @@ class PerturbationTheorySolver:
                 ))
             elif any(not isinstance(cs, (BasisStateSpace, SelectionRuleStateSpace)) for cs in self._coupled_states):
                 self._coupled_states = [
-                    BasisStateSpace(self.states.basis, cs)
+                    BasisStateSpace(self.states.basis, cs, full_basis=self.full_basis)
                     if not isinstance(cs, (BasisStateSpace, SelectionRuleStateSpace))
                     else cs
                     for cs in self._coupled_states
@@ -1154,8 +1160,12 @@ class PerturbationTheorySolver:
 
                     space_list = [self.states] + [s for s in self._coupled_states if s is not None]
                     self._total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
-                    flat_space = self._total_space.to_single()
-                    self._flat_space = flat_space.take_unique()
+                    flat_space = self.states.take_unique().to_single(track_excitations=False)
+                    for s in self._coupled_states:
+                        if s is not None:
+                            flat_space = flat_space.union(s.to_single(track_excitations=False), track_excitations=False)
+                    # flat_space = self._total_space.to_single()
+                    self._flat_space = flat_space.take_unique(track_excitations=False)
                     # raise Exception(
                     #     self._flat_space.find(
                     #         space_list[1].get_representation_brakets(other=None).bras
@@ -1224,6 +1234,8 @@ class PerturbationTheorySolver:
             space = simple_spaces[0]
             for s in simple_spaces[1:]:
                 space = space.union(s)
+
+            # raise Exception(simple_spaces[0].full_basis)
 
             spaces = self.get_coupled_space(
                 space,
@@ -1335,9 +1347,7 @@ class PerturbationTheorySolver:
                 return None
 
             wtf1 = self.op.get_transformed_space(other)
-            # print("======>", wtf1)
             contracted = self.proj.get_transformed_space(wtf1)
-            # print("    ...", contracted)
             return contracted
 
     def _get_new_coupled_space(self, a, b, spaces=None, ret_space=True):
@@ -1395,6 +1405,7 @@ class PerturbationTheorySolver:
                 )
                 # reduce to a single space to feed to the next round
                 # of terms
+
                 new = new.to_single().take_unique()
             else:
                 projections, cur = cur
@@ -1404,25 +1415,30 @@ class PerturbationTheorySolver:
                     sub_rep = projections[proj] if proj in projections else None
                     if sub_rep is not None:
                         if rep_space is not None:
-                            rep_space = rep_space.union(sub_rep)
+                            rep_space = rep_space.union(sub_rep, track_excitations=False)
                         else:
                             rep_space = sub_rep
 
                 if rep_space is None:
                     # means we can't determine which parts we have and have not calculated
                     # so we calculate everything and associate it to proj
-                    new = a.get_transformed_space(b, parallelizer=self.parallelizer, logger=logger)
+                    new = a.get_transformed_space(b,
+                                                  track_excitations=not self.memory_constrained,
+                                                  parallelizer=self.parallelizer, logger=logger
+                                                  )
                     cur = cur.union(new)
                     projections[proj] = b
                     spaces[op] = (projections, cur)
                     # reduce to a single space to feed to the next round
                     # of terms
-                    new = new.to_single().take_unique()
+                    new = new.to_single(track_excitations=not self.memory_constrained).take_unique()
                 else:
                     # means we've potentially calculated some of this already,
                     # so we figure out what parts we've already calculated in this
                     # projected space (rep_space is the current space of the representations)
                     diffs = b.difference(rep_space)
+                    # if diffs.full_basis is None:
+                    #     raise ValueError(diffs.full_basis, b.full_basis)
                     if len(diffs) > 0:
                         # raise Exception(projections, rep_space, diffs)
                         # we have an initial space we've already transformed, so we
@@ -1430,17 +1446,19 @@ class PerturbationTheorySolver:
                         b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True)  # just some type fuckery
                         existing = cur.intersection(b_sels, handle_subspaces=False)
                         # and now we do extra transformations where we need to
-                        new_new = a.get_transformed_space(diffs, parallelizer=self.parallelizer, logger=logger)
+                        new_new = a.get_transformed_space(diffs,
+                                                          track_excitations = not self.memory_constrained,
+                                                          parallelizer=self.parallelizer, logger=logger
+                                                          )
 
                         # next we add the new stuff to the cache
                         cur = cur.union(new_new)
-                        # print(">>", a.coeffs.shape, len(cur._base_space.unique_indices))
                         projections[proj] = rep_space.union(diffs)
                         spaces[op] = (projections, cur)
 
                         # TODO: find a way to make this not cause memory spikes...
                         if ret_space:
-                            new = existing.union(new_new).to_single().take_unique()
+                            new = existing.union(new_new).to_single(track_excitations=not self.memory_constrained).take_unique()
                         else:
                             new = b
 
@@ -1450,7 +1468,6 @@ class PerturbationTheorySolver:
                         b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True) # just some type fuckery
                         new = cur.intersection(b_sels, handle_subspaces=False)
                         new = new.to_single().take_unique()
-                    # print(" ::|>>", new)
         else:
             raise TypeError("don't know what to do with {} and {}".format(a, b))
 
@@ -1770,7 +1787,7 @@ class PerturbationTheorySolver:
                 _ = []
                 for deg_group in degenerate_states:
                     if not hasattr(deg_group, 'indices'):
-                        deg_group = BasisStateSpace(self.flat_total_space.basis, deg_group)
+                        deg_group = BasisStateSpace(self.flat_total_space.basis, deg_group, full_basis=self.full_basis)
                     deg_group.deg_find_inds = None
                     _.append(deg_group)
                 degenerate_states = _
@@ -1843,7 +1860,6 @@ class PerturbationTheorySolver:
                 for i, corr in enumerate(all_corrs):
                     # we find the non-zero elements within the o level of correction for the ith state
                     nonzi = np.where(np.abs(corr[o]) > non_zero_cutoff)[0]
-                    # print(nonzi)
                     # then we pull these out
                     vals = corr[o][nonzi,]
                     # and we add the values and indices to the list
@@ -1864,7 +1880,6 @@ class PerturbationTheorySolver:
                 # now we build the full mat rep for this level of correction
                 vals = np.concatenate([x[0] for x in non_zeros])
                 inds = np.concatenate([x[1] for x in non_zeros], axis=0).T
-                # print(inds, N)
                 corr_mats[o] = SparseArray.from_data(
                     (
                         vals,
@@ -1878,8 +1893,7 @@ class PerturbationTheorySolver:
                 cat = np.concatenate(dat)
                 _, upos = np.unique(cat, return_index=True)
                 full_dat = cat[np.sort(upos)]
-                corr_inds[i] = flat_total_space.take_states(
-                    full_dat)  # BasisStateSpace(states.basis, full_dat, mode="indices")
+                corr_inds[i] = flat_total_space.take_states(full_dat)  # BasisStateSpace(states.basis, full_dat, mode="indices")
 
             cs_states = SelectionRuleStateSpace(states, corr_inds, None)
             total_states = self.flat_total_space
@@ -2497,7 +2511,6 @@ class PerturbationTheorySolver:
                     for p in perts[1:]:
                         els.append(p[idx].flatten())
                         p[idx] = 0.
-                        # print(p[idx].flatten())
                     pert_blocks.append([idx, els])
                     if self.verbose:
                         triu = np.where(idx[0] > idx[1])
@@ -2606,7 +2619,6 @@ class PerturbationTheorySolver:
         # sorting = np.argsort(sorting)
 
         #
-        # print(sorting)
         # # if len(sorting) != len(np.unique(sorting)):
         # #     raise PerturbationTheoryException("After diagonalizing can't distinguish modes...")
         deg_engs = deg_engs[sorting,]

@@ -329,7 +329,7 @@ class Representation:
             raise ValueError('selection rules expected to be a list of lists')
         self._selection_rules = rules
 
-    def get_transformed_space(self, space, parallelizer=None, logger=None):
+    def get_transformed_space(self, space, parallelizer=None, logger=None, **opts):
         """
         Returns the state space obtained by using the
         held operator to transform `space`
@@ -344,9 +344,13 @@ class Representation:
             parallelizer = self.parallelizer
 
         if self.operator is not None:
-            return self.operator.get_transformed_space(space, rules=self.selection_rules, parallelizer=parallelizer, logger=logger)
+            return self.operator.get_transformed_space(space, rules=self.selection_rules, parallelizer=parallelizer, logger=logger,
+                                                       **opts
+                                                       )
         elif self.selection_rules is not None:
-            return space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger)
+            return space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger,
+                                               **opts
+                                               )
         else:
             raise ValueError("can't get a transformed space without a held operator or selection rules")
 
@@ -384,7 +388,8 @@ class Representation:
                                   diagonal=False,
                                   logger=None,
                                   zero_element_warning=True,
-                                  clear_sparse_caches=True
+                                  clear_sparse_caches=True,
+                                  clear_operator_caches=True
                                   ):
         """
         Actively constructs a perturbation theory Hamiltonian representation
@@ -413,6 +418,8 @@ class Representation:
             sub = self[m_pairs]
             if isinstance(sub, SparseArray):
                 sub = sub.asarray()
+            if clear_operator_caches:
+                self.clear_cache()
             if clear_sparse_caches:
                 SparseArray.clear_cache()
         else:
@@ -687,7 +694,7 @@ class ExpansionRepresentation(Representation):
                 self._selection_rules = _
         return self._selection_rules
 
-    def get_transformed_space(self, space, parallelizer=None, logger=None):
+    def get_transformed_space(self, space, parallelizer=None, logger=None, **opts):
         """
         Returns the state space obtained by using the
         held operators to transform `space`
@@ -705,9 +712,9 @@ class ExpansionRepresentation(Representation):
         # we take a union of all transformation rules and just apply that
         # if possible
         if self.selection_rules is not None:
-            ooooh_shiz = space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger)
+            ooooh_shiz = space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger, **opts)
         else:
-            spaces = [r.get_transformed_space(space, parallelizer=parallelizer, logger=logger) for r in self.computers]
+            spaces = [r.get_transformed_space(space, parallelizer=parallelizer, logger=logger, **opts) for r in self.computers]
             ooooh_shiz = functools.reduce(lambda s1,s2: s1.union(s2), spaces[1:], spaces[0])
 
         return ooooh_shiz

@@ -15,6 +15,7 @@ from .StateSpaces import BraKetSpace
 
 from McUtils.Data import WavefunctionData
 from McUtils.Scaffolding import MaxSizeCache
+import McUtils.Numputils as nput
 
 class HarmonicOscillatorBasis(RepresentationBasis):
     """
@@ -436,15 +437,16 @@ class HarmonicProductOperatorTermEvaluator:
         def pull_state_groups(self, states):
 
             deltas = states[1] - states[0]
-            delta_vals = np.unique(deltas)
-            delta_sels = [np.where(deltas == a) for a in delta_vals]
+            groups, _ = nput.group_by(np.arange(len(states[1])), deltas)
+            # delta_vals = np.unique(deltas)
+            # delta_sels = [np.where(deltas == a) for a in delta_vals]
             # delta_sels = []
             # reminds = np.arange(len(deltas))
             # for a in delta_vals:
             #     woop = np.where(deltas[reminds] == a)
             #     reminds = np.setdiff1d(reminds, woop[0])
             #     delta_sels.append(woop)
-            return (delta_vals, delta_sels)
+            return groups
 
         def evaluate_state_terms(self, states):
             """
