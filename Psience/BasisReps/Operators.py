@@ -427,25 +427,25 @@ class Operator:
             if chunk is None:
                 return sp.csr_matrix((1, nstates), dtype='float')
 
-            if check_orthogonality:
-                # finally we make sure that everything we're working with is
-                # non-zero because it'll buy us time on dot products later
-                non_zero = np.where(np.abs(chunk) >= self.zero_threshold)[0]
-                if len(non_zero) == 0:
-                    return sp.csr_matrix((1, nstates), dtype='float')
-                chunk = chunk[non_zero,]
-                non_orthog = non_orthog[non_zero,]
+            # if check_orthogonality:
+            # finally we make sure that everything we're working with is
+            # non-zero because it'll buy us time on dot products later
+            non_zero = np.where(np.abs(chunk) >= self.zero_threshold)[0]
+            if len(non_zero) == 0:
+                return sp.csr_matrix((1, nstates), dtype='float')
+            chunk = chunk[non_zero,]
+            non_orthog = non_orthog[non_zero,]
 
-                wat = sp.csr_matrix(
+            wat = sp.csr_matrix(
+                (
+                    chunk,
                     (
-                        chunk,
-                        (
-                            np.zeros(len(non_zero)),
-                            non_orthog
-                        )
-                    ), shape=(1, nstates))
-            else:
-                wat = chunk
+                        np.zeros(len(non_zero)),
+                        non_orthog
+                    )
+                ), shape=(1, nstates))
+            # else:
+            #     wat = chunk
 
             return wat
 
