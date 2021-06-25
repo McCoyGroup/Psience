@@ -3259,7 +3259,7 @@ class VPT2Tests(TestCase):
             watson=True
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -5120,7 +5120,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes, target_modes=[-1])[:5]  # [:6]
+        states = self.get_states(3, n_modes, target_modes=[-1]) # [:6]
         # raise Exception(states)
 
         gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
@@ -5148,7 +5148,7 @@ class VPT2Tests(TestCase):
             # , checkpoint=chk
             # , parallelized=True
             , initialization_timeout=2
-            , chunk_size=int(1e6)
+            # , chunk_size=int(1e6)
             # , direct_sum_chunk_size=int(1e3)
             # , memory_constrained=True
         )

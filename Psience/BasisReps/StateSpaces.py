@@ -2730,10 +2730,21 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                                                             main_kwargs={'exc':chunk},
                                                                             comm = list(range(len(chunk))) if len(chunk) < (1 + par.nprocs) else None
                                                                             )
-                            if not isinstance(new_exc_chunk[0], np.ndarray):
-                                # means we got too blocky of a shape out of the parallelizer
-                                new_exc_chunk = sum(new_exc_chunk, [])
-                                new_inds_chunk = sum(new_inds_chunk, [])
+                            if new_exc_chunk is not None:
+                                if new_exc_chunk[0] is None:
+                                    if not isinstance(new_inds_chunk[0], np.ndarray):
+                                        # means we got too blocky of a shape out of the parallelizer
+                                        new_inds_chunk = sum(new_inds_chunk, [])
+                                    new_exc_chunk = [None] * len(new_inds_chunk)
+                                elif not isinstance(new_exc_chunk[0], np.ndarray):
+                                    # means we got too blocky of a shape out of the parallelizer
+                                    new_exc_chunk = sum(new_exc_chunk, [])
+                                    new_inds_chunk = sum(new_inds_chunk, [])
+                            else:
+                                if not isinstance(new_inds_chunk[0], np.ndarray):
+                                    # means we got too blocky of a shape out of the parallelizer
+                                    new_inds_chunk = sum(new_inds_chunk, [])
+                                new_exc_chunk = [None] * len(new_inds_chunk)
                             new_exc.extend(new_exc_chunk)
                             new_inds.extend(new_inds_chunk)
 
