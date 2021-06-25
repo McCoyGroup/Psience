@@ -119,11 +119,13 @@ class VPT2Tests(TestCase):
                               get_breakdown=False,
                               parallelized=False,
                               initialization_timeout=1,
+                              direct_sum_chunk_size=None,
                               processes=None,
                               checkpoint=None,
                               chunk_size=None,
                               order=2,
                               expansion_order=None
+                              , memory_constrained=False
                               , allow_sakurai_degs=False
                               , allow_post_PT_calc=True
                               , modify_degenerate_perturbations=False
@@ -141,6 +143,9 @@ class VPT2Tests(TestCase):
                                                        )
         else:
             parallelizer = SerialNonParallelizer()
+
+        if direct_sum_chunk_size is not None:
+            BasisStateSpace.direct_sum_chunk_size = direct_sum_chunk_size
 
         with parallelizer:
             if isinstance(mol_spec, str):
@@ -225,6 +230,7 @@ class VPT2Tests(TestCase):
             wfns = hammer.get_wavefunctions(states, coupled_states=coupled_states, degeneracies=degeneracies,
                                             order=order,
                                             expansion_order=expansion_order
+                                            , memory_constrained=memory_constrained
                                             , allow_sakurai_degs=allow_sakurai_degs
                                             , allow_post_PT_calc=allow_post_PT_calc
                                             , modify_degenerate_perturbations=modify_degenerate_perturbations
@@ -266,6 +272,7 @@ class VPT2Tests(TestCase):
                       chunk_size=None,
                       order=2,
                       expansion_order=None
+                      , memory_constrained=False
                       , allow_sakurai_degs=False
                       , allow_post_PT_calc=True
                       , ignore_odd_order=True
@@ -302,6 +309,7 @@ class VPT2Tests(TestCase):
             chunk_size=chunk_size,
             order=order,
             expansion_order=expansion_order
+            , memory_constrained=memory_constrained
             , allow_sakurai_degs=allow_sakurai_degs
             , allow_post_PT_calc=allow_post_PT_calc
             , gaussian_resonance_handling=gaussian_resonance_handling
@@ -319,7 +327,7 @@ class VPT2Tests(TestCase):
         ).excitations]
         if target_modes is not None:
             whee = [
-                p for p in whee if any(p[i] > 0 for i in target_modes)
+                p for p in whee if sum(p) == 0 or any(p[i] > 0 for i in target_modes)
             ]
         return whee
 
@@ -3301,6 +3309,9 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['HOH']['zpe']
         gaussian_freqs = self.gaussian_data['HOH']['freqs']
 
+        # import McUtils.Misc as mcmisc
+        #
+        # with mcmisc.without_numba():
         os.remove(os.path.expanduser('~/hoh.hdf5'))
         self.run_PT_test(
             tag,
@@ -3310,7 +3321,8 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=False,
+            log=True,
+            verbose=True,
             print_report=print_report
             , checkpoint=os.path.expanduser('~/hoh.hdf5')
         )
@@ -4712,7 +4724,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=True,
-            print_profile=False,
+            print_profile=True,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
@@ -5134,7 +5146,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes, target_modes=[-1])  # [:6]
+        states = self.get_states(3, n_modes, target_modes=[-1])[:5]  # [:6]
         # raise Exception(states)
 
         gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
@@ -5160,9 +5172,11 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
             # , checkpoint=chk
-            , parallelized=True
+            # , parallelized=True
             , initialization_timeout=2
-            , chunk_size=int(5e6)
+            , chunk_size=int(1e6)
+            # , direct_sum_chunk_size=int(1e3)
+            # , memory_constrained=True
         )
 
     @inactiveTest

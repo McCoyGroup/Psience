@@ -23,7 +23,7 @@ parallelizer(self):
 
 <a id="Psience.BasisReps.Terms.Representation.compute" class="docs-object-method">&nbsp;</a>
 ```python
-compute(self, inds): 
+compute(self, inds, **kwargs): 
 ```
 
 <a id="Psience.BasisReps.Terms.Representation.compute_cached" class="docs-object-method">&nbsp;</a>
@@ -56,7 +56,7 @@ dim_inds(self):
 
 <a id="Psience.BasisReps.Terms.Representation.get_brakets" class="docs-object-method">&nbsp;</a>
 ```python
-get_brakets(self, states): 
+get_brakets(self, states, check_orthogonality=True): 
 ```
 Computes term elements based on getting a BraKetSpace.
         Can directly pass element specs through, since the shape management shit

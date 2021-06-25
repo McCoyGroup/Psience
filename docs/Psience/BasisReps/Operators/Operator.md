@@ -88,7 +88,7 @@ Determines which inds are symmetry unique.
 
 <a id="Psience.BasisReps.Operators.Operator.get_elements" class="docs-object-method">&nbsp;</a>
 ```python
-get_elements(self, idx, parallelizer=None): 
+get_elements(self, idx, parallelizer=None, check_orthogonality=True): 
 ```
 Calculates a subset of elements
 - `idx`: `BraKetSpace`

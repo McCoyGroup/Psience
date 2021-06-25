@@ -5,7 +5,7 @@ This really should have been called `TransformedStateSpace` but I am dumb
 ### Properties and Methods
 ```python
 from_state: method
-parallel_chunk_size: int
+direct_sum_chunk_size: int
 from_rules: method
 ```
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.__init__" class="docs-object-method">&nbsp;</a>

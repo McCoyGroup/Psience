@@ -36,7 +36,7 @@ __add__(self, other):
 
 <a id="Psience.BasisReps.Terms.ExpansionRepresentation.get_brakets" class="docs-object-method">&nbsp;</a>
 ```python
-get_brakets(self, states): 
+get_brakets(self, states, check_orthogonality=True): 
 ```
 
 <a id="Psience.BasisReps.Terms.ExpansionRepresentation.get_element" class="docs-object-method">&nbsp;</a>

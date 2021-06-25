@@ -34,7 +34,7 @@ __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None,
 
 <a id="Psience.BasisReps.Operators.ContractedOperator.get_elements" class="docs-object-method">&nbsp;</a>
 ```python
-get_elements(self, idx, parallelizer=None): 
+get_elements(self, idx, parallelizer=None, check_orthogonality=True): 
 ```
 Computes the operator values over the specified indices
 - `idx`: `Iterable[int]`

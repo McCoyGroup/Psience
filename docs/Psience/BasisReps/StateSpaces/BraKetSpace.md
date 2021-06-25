@@ -24,6 +24,12 @@ __init__(self, bra_space, ket_space):
 - `ket_space`: `BasisStateSpace`
     >No description...
 
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.state_pairs" class="docs-object-method">&nbsp;</a>
+```python
+@property
+state_pairs(self): 
+```
+
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.__len__" class="docs-object-method">&nbsp;</a>
 ```python
 __len__(self): 
@@ -32,6 +38,11 @@ __len__(self):
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.__repr__" class="docs-object-method">&nbsp;</a>
 ```python
 __repr__(self): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.load_space_diffs" class="docs-object-method">&nbsp;</a>
+```python
+load_space_diffs(self): 
 ```
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.load_non_orthog" class="docs-object-method">&nbsp;</a>
@@ -88,7 +99,7 @@ Takes the bra-ket pairs that are non-orthogonal under the indices `inds`
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.apply_sel_rules_along" class="docs-object-method">&nbsp;</a>
 ```python
-apply_sel_rules_along(self, rules, inds): 
+apply_sel_rules_along(self, rules, inds, permute=True, dim=None): 
 ```
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.apply_sel_rules" class="docs-object-method">&nbsp;</a>
