@@ -7,8 +7,8 @@ import numpy as np, itertools as ip, enum, scipy.sparse as sp
 import abc
 
 from McUtils.Numputils import SparseArray
-import McUtils.Numputils as nput
-from McUtils.Parallelizers import Parallelizer
+import McUtils.Numputils as nput, McUtils.Misc as mcmisc
+from McUtils.Parallelizers import Parallelizer, SerialNonParallelizer
 from McUtils.Combinatorics import SymmetricGroupGenerator, CompleteSymmetricGroupSpace, UniquePermutations
 
 __all__ = [
@@ -1907,8 +1907,6 @@ class BasisMultiStateSpace(AbstractStateSpace):
         :rtype:
         """
 
-        raise Exception("no!")
-
         # we figure out which held spaces still need excitations
         needs_exc = [x for x in self.spaces.flat if (not x.has_excitations and len(x) > 0)]
         if len(needs_exc) > 0:
@@ -2620,10 +2618,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         if parallelizer.on_main:
             return new_exc, new_inds, filter
 
-    parallel_chunk_size = int(1e6) # so I can mess with this as I debug
+    direct_sum_chunk_size = int(1e4) # so I can mess with this as I debug
     @classmethod
     def from_rules(cls, space, selection_rules, target_dimensions=None, filter_space=None, iterations=1, method='new',
-                   parallelizer=None, parallel_chunk_size=None,
+                   parallelizer=None, chunk_size=None,
                    logger=None, track_excitations=True, track_indices=True, full_basis=None
                    ):
         """
@@ -2705,7 +2703,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 if full_basis is not None:
                     track_excitations=False
 
-                par = Parallelizer.lookup(parallelizer)
+                par = SerialNonParallelizer()
+                # par = Parallelizer.lookup(parallelizer)
 
                 exc = space.excitations
                 # raise Exception(space.indices, space.excitations)
@@ -2717,13 +2716,13 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                     symm_grp = SymmetricGroupGenerator(exc.shape[-1])
 
                 with par:
-                    if parallel_chunk_size is None:
-                        parallel_chunk_size = cls.parallel_chunk_size
-                    if len(exc) > parallel_chunk_size:
+                    if chunk_size is None:
+                        chunk_size = cls.direct_sum_chunk_size
+                    if len(exc) > chunk_size:
                         new_exc = []
                         new_inds = []
                         filter = filter_space
-                        num_chunks = len(exc) // parallel_chunk_size
+                        num_chunks = len(exc) // chunk_size
                         chunks = np.array_split(exc, num_chunks, axis=0)
                         for chunk in chunks:
                             new_exc_chunk, new_inds_chunk, filter = par.run(cls._get_direct_product_spaces,
@@ -3024,16 +3023,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             self.representative_space._exc_indexer, other.representative_space._exc_indexer = sortings
             where_inds = np.sort(where_inds)
 
-            # nrows, ncols = self_exc.shape
-            # dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
-            #          'formats': ncols * [self_exc.dtype]}
-            #
-            # self_inds = self_exc.view(dtype)
-            # other_inds = other_exc.view(dtype)
-            # _, where_inds, other_where = np.intersect1d(self_inds, other_inds, return_indices=True)
-            #
-            # where_inds = np.sort(where_inds)
-
         else:
             self_inds = self.representative_space.indices
             other_inds = other.representative_space.indices
@@ -3176,16 +3165,22 @@ class BraKetSpace:
         self._preind_trie = None
         if len(bra_space) != len(ket_space) or (bra_space.ndim != ket_space.ndim):
             raise ValueError("Bras {} and kets {} have different dimension".format(bra_space, ket_space))
+        self._state_pairs = None
 
-        brex = self.bras.excitations
-        if brex.dtype.names is not None:
-            brex = nput.uncoerce_dtype(brex, (len(brex), len(brex.dtype.names)), brex.dtype[0])
-        keex = self.kets.excitations
-        if keex.dtype.names is not None:
-            keex = nput.uncoerce_dtype(keex, (len(keex), len(keex.dtype.names)), keex.dtype[0])
-
-        self.state_pairs = (brex.T, keex.T)
-
+    @property
+    def state_pairs(self):
+        if self._state_pairs is None:
+            brex = self.bras.excitations
+            if brex.dtype.names is not None:
+                brex = nput.uncoerce_dtype(brex, (len(brex), len(brex.dtype.names)), brex.dtype[0])
+            keex = self.kets.excitations
+            if keex.dtype.names is not None:
+                keex = nput.uncoerce_dtype(keex, (len(keex), len(keex.dtype.names)), keex.dtype[0])
+            self._state_pairs = (brex.T, keex.T)
+        return self._state_pairs
+    @state_pairs.setter
+    def state_pairs(self, pairs):
+        self._state_pairs = pairs
 
     @classmethod
     def from_indices(cls, inds, basis=None, quanta=None):
@@ -3613,16 +3608,26 @@ class BraKetSpace:
         return fp.reduce(np.logical_and, sels[1:], sels[0])
 
     def take_subspace(self, sel):
-        return type(self)(
+        sub = type(self)(
             self.bras.take_subspace(sel),
             self.kets.take_subspace(sel)
         )
+        sub.state_pairs = (
+            self.state_pairs[0][:, sel],
+            self.state_pairs[1][:, sel]
+        )
+        return sub
 
     def take_subdimensions(self, inds):
-        return type(self)(
+        new = type(self)(
             self.bras.take_subdimensions(inds, exc=self.state_pairs[0].T),
             self.kets.take_subdimensions(inds, exc=self.state_pairs[1].T)
         )
+        new.state_pairs = (
+            self.state_pairs[0][inds],
+            self.state_pairs[1][inds]
+        )
+        return new
 
     def apply_non_orthogonality(self,
                                 inds,
@@ -3653,19 +3658,63 @@ class BraKetSpace:
                                          )
         return self.take_subspace(non_orthog), non_orthog
 
-    def apply_sel_rules_along(self, rules, inds):
+    @staticmethod
+    @mcmisc.jit(nopython=True)
+    def _get_rule_matches(test_space, rules, M):
+        masks = {0: np.arange(len(test_space[0]))}
+        inds = []
+        for r in rules:
+            key = 0
+            for i, k in enumerate(r[:1]):
+                prev_key = key
+                if k < 0: # numba hackery
+                    key = prev_key + (2*abs(k)+1)*(M**i)
+                else:
+                    key = prev_key + 2*abs(k)*(M**i)
+                if key not in masks:
+                    base = masks[prev_key]
+                    if len(base) > 0:
+                        subsel = base[test_space[i][base] == k]
+                        masks[key] = subsel
+                    else:
+                        masks[key] = base
+            inds.append(masks[key])
 
-        rules = [r for r in rules if len(r) == len(inds) or len(inds) == 1 and len(r) == 0]
-        state_diffs = self.kets.excitations[:, inds] - self.bras.excitations[:, inds]
-        diff_sums = np.sum(state_diffs, axis=1)
-        rule_sums = [sum(x) for x in rules]
-        not_pos = np.full(len(diff_sums), True)
-        for r in rule_sums:
-            not_pos[not_pos] = diff_sums[not_pos] != r
-        all_pos = np.logical_not(not_pos)
-        sel = np.where(all_pos)
-        if len(sel) > 0:
-            sel = sel[0]
+        # more numba hackery
+        num_els = 0
+        for i in inds: num_els+=len(i)
+        full_arr = np.zeros(num_els, dtype=inds[0].dtype)
+        l = 0
+        for i in inds:
+            full_arr[l:l+len(i)] = i
+            l += len(i)
+
+        sel = np.unique(full_arr)
+        return sel
+
+    def apply_sel_rules_along(self, rules, inds, permute=True, dim=None):
+        import itertools
+        # we assume each rule is the same len as inds
+
+        if dim is None:
+            dim = len(inds)
+
+        rules = np.array([
+            r if len(r) == dim else list(r) + [0] * (dim - len(r))
+            for r in rules if len(r) <= dim
+        ])
+        M = 2*np.max(np.abs(rules))+2
+        if permute:
+            rules = nput.unique(
+                np.concatenate([
+                    list(itertools.permutations(r))
+                    for r in rules
+                ])
+            )[0]
+
+        state_diffs = self.state_pairs[1][inds] - self.state_pairs[0][inds]
+        sel = self._get_rule_matches(state_diffs, rules, M)
+
         return self.take_subspace(sel), sel
 
     def apply_sel_rules(self, rules):

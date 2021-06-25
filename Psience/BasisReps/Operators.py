@@ -387,19 +387,24 @@ class Operator:
 
         # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
+
         nstates = len(states)
         if check_orthogonality:
             # TODO: selection rules are actually _cheaper_ to apply than this in general, esp. if we focus
             #       only on the number of quanta that can change within the set of indices
             #       so we should support applying them first & then only doing this for the rest
-            # if sel_rules is not None:
-            #     states, non_orthog_1 = states.apply_sel_rules_along(sel_rules, inds) # currently only filters by sum
-            #     states, non_orthog_2 = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
-            #     non_orthog = non_orthog_1[non_orthog_2]
-            # else:
-            states, non_orthog = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
+            if sel_rules is not None:
+                _, idx = np.unique(inds, return_index=True)
+                uinds = inds[np.sort(idx)]
+                states, non_orthog = states.apply_sel_rules_along(sel_rules, uinds)
+                if len(non_orthog) > 0:
+                    states, non_orthog_2 = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
+                    non_orthog = non_orthog[non_orthog_2]
+            else:
+                states, non_orthog = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
         else:
             non_orthog = np.arange(nstates)
+
 
         # if none of the states are non-orthogonal...just don't calculate anything
         if len(non_orthog) == 0:
@@ -428,7 +433,6 @@ class Operator:
                 chunk = chunk[non_zero,]
                 non_orthog = non_orthog[non_zero,]
 
-
                 wat = sp.csr_matrix(
                     (
                         chunk,
@@ -442,7 +446,7 @@ class Operator:
 
             return wat
 
-    def _get_pop_sequential(self, inds, idx, save_to_disk=False):
+    def _get_pop_sequential(self, inds, idx, check_orthogonality=True, save_to_disk=False):
         """
         Sequential method for getting elements of our product operator tensors
 
@@ -457,7 +461,9 @@ class Operator:
         """
 
         res = np.apply_along_axis(self._calculate_single_pop_elements,
-                                  -1, inds, self.funcs, idx, self.selection_rules
+                                  -1, inds, self.funcs, idx,
+                                  self.selection_rules,
+                                  check_orthogonality
                                   )
         if save_to_disk:
             flattened = [x for y in res.flatten() for x in y]
@@ -500,7 +506,7 @@ class Operator:
 
         return res
 
-    def _get_pop_parallel(self, inds, idx, parallelizer):
+    def _get_pop_parallel(self, inds, idx, parallelizer, check_orthogonality=True):
         """
         :param inds:
         :type inds:
@@ -516,7 +522,7 @@ class Operator:
         inds = parallelizer.scatter(inds)
         # parallelizer.print(inds.shape)
         # parallelizer.print(inds.shape)
-        dump = self._get_pop_sequential(inds, idx, False)
+        dump = self._get_pop_sequential(inds, idx, save_to_disk=False, check_orthogonality=check_orthogonality)
         res = parallelizer.gather(dump)
         # parallelizer.print(res)
         if parallelizer.on_main:
@@ -525,7 +531,7 @@ class Operator:
         return res
 
     @Parallelizer.main_restricted
-    def _main_get_elements(self, inds, idx, parallelizer=None):
+    def _main_get_elements(self, inds, idx, parallelizer=None, check_orthogonality=True):
         """
         Implementation of get_elements to be run on the main process...
 
@@ -554,13 +560,13 @@ class Operator:
                     nind = len(mapped_inds),
                     cores = parallelizer.nproc
                 ))
-                res = self._get_pop_parallel(mapped_inds, idx, parallelizer)
+                res = self._get_pop_parallel(mapped_inds, idx, parallelizer, check_orthogonality=check_orthogonality)
             else:
                 self.logger.log_print("evaluating {nel} elements over {nind} unique indices sequentially".format(
                     nel = len(idx),
                     nind = len(mapped_inds)
                 ))
-                res = self._get_pop_sequential(mapped_inds, idx)
+                res = self._get_pop_sequential(mapped_inds, idx, check_orthogonality=check_orthogonality)
 
             if inverse is not None:
                 res = res.flatten()[inverse]
@@ -589,7 +595,7 @@ class Operator:
         # and actually inherit most of their info from the parent process
         self._get_pop_parallel(None, idx, parallelizer)
 
-    def _get_elements(self, inds, idx, full_inds=None, parallelizer=None):
+    def _get_elements(self, inds, idx, full_inds=None, parallelizer=None, check_orthogonality=True):
         """
         Runs the regular element getting algorithm in parallel
 
@@ -602,10 +608,10 @@ class Operator:
         """
         if full_inds is not None:
             inds = full_inds
-        self._worker_get_elements(idx, parallelizer=parallelizer)
-        return self._main_get_elements(inds, idx, parallelizer=parallelizer)
+        self._worker_get_elements(idx, parallelizer=parallelizer, check_orthogonality=check_orthogonality)
+        return self._main_get_elements(inds, idx, parallelizer=parallelizer, check_orthogonality=check_orthogonality)
 
-    def get_elements(self, idx, parallelizer=None):
+    def get_elements(self, idx, parallelizer=None, check_orthogonality=True):
         """
         Calculates a subset of elements
 
@@ -631,7 +637,7 @@ class Operator:
 
             inds = self.get_inner_indices()
             if inds is None:
-                return self._get_elements(inds, idx)
+                return self._get_elements(inds, idx, check_orthogonality=check_orthogonality)
 
             if parallelizer is None:
                 parallelizer = self.parallelizer
@@ -639,11 +645,14 @@ class Operator:
             if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
                 parallelizer.printer = self.logger.log_print
                 elem_chunk = parallelizer.run(self._get_elements, None, idx,
-                                              main_kwargs={'full_inds':inds},
+                                              check_orthogonality=check_orthogonality,
+                                              main_kwargs={'full_inds': inds},
                                               comm=None if len(inds) >= parallelizer.nprocs else list(range(len(inds)))
                                               )
             else:
-                elem_chunk = self._main_get_elements(inds, idx, parallelizer=None)
+                elem_chunk = self._main_get_elements(inds, idx, parallelizer=None,
+                                                     check_orthogonality=check_orthogonality
+                                                     )
 
             chunks.append(elem_chunk)
 
@@ -988,14 +997,14 @@ class ContractedOperator(Operator):
                          )
         self.chunk_size = chunk_size
 
-    def _get_element_block(self, idx, parallelizer=None):
+    def _get_element_block(self, idx, parallelizer=None, check_orthogonality=True):
         c = self.coeffs
         if not isinstance(c, (int, np.integer, float, np.floating)):
             # takes an (e.g.) 5-dimensional SparseTensor and turns it into a contracted 2D one
             axes = self.axes
             if axes is None:
                 axes = (tuple(range(c.ndim)),) * 2
-            subTensor = super().get_elements(idx, parallelizer=parallelizer)
+            subTensor = super().get_elements(idx, parallelizer=parallelizer, check_orthogonality=check_orthogonality)
 
             # we collect here to minimize the effect of memory spikes if possible
             # self.clear_cache()
@@ -1012,7 +1021,7 @@ class ContractedOperator(Operator):
         elif c == 0:
             contracted = 0  # a short-circuit
         else:
-            subTensor = super().get_elements(idx)
+            subTensor = super().get_elements(idx, check_orthogonality=check_orthogonality)
             if c == 1:
                 return subTensor
             contracted = c * subTensor
@@ -1021,7 +1030,7 @@ class ContractedOperator(Operator):
 
         return contracted
 
-    def get_elements(self, idx, parallelizer=None):
+    def get_elements(self, idx, parallelizer=None, check_orthogonality=True):
         """
         Computes the operator values over the specified indices
 
@@ -1045,7 +1054,7 @@ class ContractedOperator(Operator):
         else:
             idx_splits = [idx]
 
-        chunks = [self._get_element_block(idx) for idx in idx_splits]
+        chunks = [self._get_element_block(idx, check_orthogonality=check_orthogonality) for idx in idx_splits]
         if all(isinstance(x, np.ndarray) for x in chunks):
             subchunks = [np.array([y]) if y.shape == () else y for y in chunks]
             contracted = np.concatenate(subchunks, axis=0)
