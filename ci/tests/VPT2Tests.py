@@ -5108,7 +5108,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @debugTest
+    @validationTest
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"
@@ -5120,7 +5120,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes, target_modes=[-1]) # [:6]
+        states = self.get_states(3, n_modes, target_modes=[-1, -2, -3, -4, -5, -6]) # [:6]
         # raise Exception(states)
 
         gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
@@ -5148,7 +5148,7 @@ class VPT2Tests(TestCase):
             # , checkpoint=chk
             # , parallelized=True
             , initialization_timeout=2
-            # , chunk_size=int(1e6)
+            , chunk_size=int(10e6)
             # , direct_sum_chunk_size=int(1e3)
             # , memory_constrained=True
         )
@@ -6837,7 +6837,7 @@ class VPT2Tests(TestCase):
             )
             print(report)
 
-    @validationTest
+    @debugTest
     def test_OCHHIntensitiesSanbox(self):
 
         tag = "OCHH Intenstities"
@@ -6862,14 +6862,82 @@ class VPT2Tests(TestCase):
         degeneracies = (
             [
                 [0, 0, 0, 0, 0, 1],
-                [0, 1, 0, 1, 0, 0]
+                [0, 1, 0, 1, 0, 0],
             ],
+            [
+                [0, 0, 0, 0, 0, 2],
+                [0, 1, 0, 1, 0, 1],
+            ],
+            [
+                [0, 0, 0, 0, 1, 1],
+                [0, 1, 0, 1, 1, 0],
+            ],
+            [
+                [0, 0, 0, 1, 0, 1],
+                [0, 1, 0, 2, 0, 0],
+            ],
+            [
+                [0, 0, 1, 0, 0, 1],
+                [0, 1, 1, 1, 0, 0],
+            ],
+            [
+                [0, 1, 0, 0, 0, 1],
+                [0, 2, 0, 1, 0, 0],
+            ],
+            [
+                [1, 0, 0, 0, 0, 1],
+                [1, 1, 0, 1, 0, 0],
+            ]
+
+            #
+            # [0, 0, 0, 0, 1, 1],
+            # [0, 1, 0, 1, 1, 0],
+            #
+            # [0, 0, 0, 1, 0, 1],
+            # [0, 1, 0, 2, 0, 0],
+            #
+            # [0, 0, 1, 0, 0, 1],
+            # [0, 1, 1, 1, 0, 0],
+            #
+            # [0, 1, 0, 0, 0, 1],
+            # [0, 2, 0, 1, 0, 0],
+            #
+            # [1, 0, 0, 0, 0, 1],
+            # [1, 1, 0, 1, 0, 0]
+            # [
+            #     [0, 0, 0, 0, 0, 2],
+            #     [0, 1, 0, 0, 0, 1],
+            #     [0, 1, 0, 1, 0, 1],
+            # ]
+            # [
+            #     [0, 0, 0, 0, 1, 1],
+            #     [0, 1, 0, 1, 1, 0]
+            # ],
+            # [
+            #     [1, 0, 0, 0, 0, 1],
+            #     [1, 1, 0, 1, 0, 0]
+            # ],
+            # [
+            #     [0, 0, 0, 1, 0, 1],
+            #     [0, 1, 0, 2, 0, 0]
+            # ],
+            # [
+            #     [0, 0, 0, 0, 0, 2],
+            #     [0, 1, 0, 1, 0, 1],
+            #     [0, 2, 0, 2, 0, 0]
+            # ]
         )
-        degeneracies = None
+
+        degeneracies = [np.array(x).tolist() for x in degeneracies]
+        states = np.array(states).tolist()
+        for pair in degeneracies:
+            for p in pair:
+                if p not in states:
+                    states.append(p)
 
         basis = HarmonicOscillatorProductBasis(n_modes)
 
-        with BlockProfiler(tag, print_res=True):
+        with BlockProfiler(tag, inactive=True):
             wfns = self.get_VPT2_wfns(
                 file_name,
                 internals,

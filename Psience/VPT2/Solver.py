@@ -2376,8 +2376,6 @@ class PerturbationTheorySolver:
             overlaps[k] = ok # dot(corrs[0], corrs[k])
             corrs[k][D] += corrs[0][D]*ok #- corrs[0][D]*dot(corrs[0][D], corrs[k][D])
 
-
-
             check_overlap = True
             if check_overlap:
                 true_ov = dot(corrs[0], corrs[k])

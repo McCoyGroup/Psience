@@ -426,6 +426,8 @@ class Representation:
             logger.log_print('no states to couple!')
             sub = 0
 
+
+
         logger.log_print("constructing sparse representation...")
 
         N = len(total_space)
