@@ -5174,7 +5174,7 @@ class VPT2Tests(TestCase):
             # , checkpoint=chk
             # , parallelized=True
             , initialization_timeout=2
-            , chunk_size=int(10e6)
+            , chunk_size=int(5e6)
             # , direct_sum_chunk_size=int(1e3)
             # , memory_constrained=True
         )
@@ -6876,7 +6876,7 @@ class VPT2Tests(TestCase):
             [3,  1,  0,  2]
         ]
 
-        internals = None
+        # internals = None
 
         n_atoms = 4
         n_modes = 3 * n_atoms - 6
