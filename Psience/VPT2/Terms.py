@@ -742,7 +742,7 @@ class ExpansionTerms:
         # ))
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=order,
-            internal_by_cartesian_order=min(order, self.internal_by_cartesian_order)
+            internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
         )['CartesiansByModes']
         if order is not None:
             base = base[:order]
@@ -753,7 +753,7 @@ class ExpansionTerms:
         return self.get_coordinate_transforms()['ModesByCartesians']
     def get_modes_by_cartesians(self, order=None):
         base = self.get_coordinate_transforms(
-            cartesian_by_internal_order=min(order, self.cartesian_by_internal_order),
+            cartesian_by_internal_order=None if order is None else min(order, self.cartesian_by_internal_order),
             internal_by_cartesian_order=order
         )['ModesByCartesians']
         if order is not None:
@@ -765,7 +765,7 @@ class ExpansionTerms:
     def get_cartesians_by_internals(self, order=None):
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=order,
-            internal_by_cartesian_order=min(order, self.internal_by_cartesian_order)
+            internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
         )['CartesiansByInternals']
         if order is not None:
             base = base[:order]
@@ -775,7 +775,7 @@ class ExpansionTerms:
         return self.get_coordinate_transforms()['InternalsByCartesians']
     def get_internals_by_cartesians(self, order=None):
         base = self.get_coordinate_transforms(
-            cartesian_by_internal_order=min(order, self.cartesian_by_internal_order),
+            cartesian_by_internal_order=None if order is None else min(order, self.cartesian_by_internal_order),
             internal_by_cartesian_order=order
         )['InternalsByCartesians']
         if order is not None:
@@ -787,7 +787,7 @@ class ExpansionTerms:
         return self.get_coordinate_transforms()['CartesianModesByInternalModes']
     def get_cartesian_modes_by_internal_modes(self, order=None):
         base = self.get_coordinate_transforms(
-            cartesian_by_internal_order=min(order, self.cartesian_by_internal_order),
+            cartesian_by_internal_order=None if order is None else min(order, self.cartesian_by_internal_order),
             internal_by_cartesian_order=order
         )['CartesianModesByInternalModes']
         if order is not None:
