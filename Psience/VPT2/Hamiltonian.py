@@ -838,8 +838,13 @@ class PerturbationTheoryHamiltonian:
                 if use_full_basis and states.full_basis is None:
                     states = BasisStateSpace(self.basis, states.indices,
                                              mode=BasisStateSpace.StateSpaceSpec.Indices,
-                                             full_basis=CompleteSymmetricGroupSpace(states.ndim)
+                                             full_basis=CompleteSymmetricGroupSpace(states.ndim,
+                                                                                    memory_constrained=states.ndim > 20 if memory_constrained is None else memory_constrained
+                                                                                    )
                                              )
+
+                # if memory_constrained is True:
+                #     memory_constrained = False
 
                 solver = PerturbationTheorySolver(h_reps, states,
                                                   order=order,

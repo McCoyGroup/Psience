@@ -128,6 +128,7 @@ class BasisSetTests(TestCase):
 
     #endregion
 
+    #region Test Multidim Operators
     @validationTest
     def test_HOBasis2DXX(self):
 
@@ -494,6 +495,9 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 
+    #endregion
+
+    #region Selection Rules
     @inactiveTest
     def test_HOSelRuleTerms(self):
         """
@@ -628,6 +632,9 @@ class BasisSetTests(TestCase):
     #     new_rep = new_basis.representation('p', 'x', 'p')
     #     old_rep = old_basis.representation('p', 'x', 'p')
 
+    #endregion
+
+    #region Indices
     @validationTest
     def test_FindIndices(self):
         ndim = 6
@@ -679,59 +686,6 @@ class BasisSetTests(TestCase):
         raise Exception(indexer.to_indices(states))
 
     @inactiveTest
-    def test_OperatorAdjacencyGraph(self):
-        """
-        Tests building an adjacency graph for an operator
-        under an initial set of states
-
-        :return:
-        :rtype:
-        """
-
-        from McUtils.Numputils import SparseArray
-
-        ndim = 4
-        basis = HarmonicOscillatorProductBasis(ndim)
-        oppo = basis.representation("x", "x", "x", "x", coeffs=np.ones((ndim,)*4))
-        rules = basis.selection_rules("x", "x", "x", "x")
-
-        states = BasisStateSpace.from_quanta(basis, 3)
-        h2_space = states.apply_selection_rules(rules, iterations=1)
-        bk = h2_space.get_representation_brakets()
-        flat_total_space = h2_space.to_single().take_unique()
-
-        # pull from get_vpt2_reps or whatever
-        # sub = oppo[bk]
-        # flat_total_space = h2_space.to_single().take_unique()
-        # N = len(flat_total_space)
-        #
-        # row_inds = flat_total_space.find(bk.bras)
-        # col_inds = flat_total_space.find(bk.kets)
-        #
-        # up_tri = np.array([row_inds, col_inds]).T
-        # low_tri = np.array([col_inds, row_inds]).T
-        # # but now we need to remove the duplicates, because many sparse matrix implementations
-        # # will sum up any repeated elements
-        # full_inds = np.concatenate([up_tri, low_tri])
-        # full_dat = np.concatenate([sub, sub])
-        #
-        # _, idx = np.unique(full_inds, axis=0, return_index=True)
-        # sidx = np.sort(idx)
-        # full_inds = full_inds[sidx]
-        # full_dat = full_dat[sidx]
-        # adj_mat = SparseArray((full_dat, full_inds.T), shape=(N, N))
-
-        adj_arr = bk.adjacency_matrix(total_space=flat_total_space).toarray()
-
-        # plt.ArrayPlot(adj_arr).show()
-
-        # np.savetxt(os.path.expanduser("~/Desktop/bleh.dat"), adj_arr)
-
-        # adj_dat = adj_mat.data.reshape(N, N)
-        # import networkx
-        # graph = networkx.from_scipy_sparse_matrix(adj_dat)
-
-    @inactiveTest
     def test_PermIndexingChange(self):
         import json
         ndim = 5
@@ -751,7 +705,10 @@ class BasisSetTests(TestCase):
 
             print(states.indices.tolist(), np.sort(h2_space.indices).tolist())
 
-    @debugTest
+    #endregion
+
+    #region Mat. El Inputs Filtering
+    @validationTest
     def test_NewOrthogonalityCalcs(self):
 
         n = 15
@@ -785,6 +742,154 @@ class BasisSetTests(TestCase):
         # raise Exception(orthog_1, orthog_2)
 
         self.assertTrue((orthog_1 == orthog_2).all())
+
+    @debugTest
+    def test_NewSelRulesFilterCalcs(self):
+
+        n = 15
+        m = 4
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        x_rep = basis.representation('x', 'x', coeffs=np.ones((m,)))
+        init_space = basis.get_state_space(2)
+        tf = x_rep.get_transformed_space(init_space)
+
+        brakets = tf.get_representation_brakets()
+
+        new_brakets, new_sel = brakets.apply_sel_rules_along([[-1], [1]], [0])
+        self.assertTrue(np.unique(
+            new_brakets.state_pairs[1][0]
+            - new_brakets.state_pairs[0][0]
+        ).tolist() == [-1, 1])
+
+        new_brakets, new_sel = brakets.apply_sel_rules_along([[-1, 1], [1, 1]], [0, 1])
+        self.assertTrue(
+            np.logical_and(
+                np.logical_or(
+                    new_brakets.state_pairs[1][0]
+                    - new_brakets.state_pairs[0][0] == -1,
+                    new_brakets.state_pairs[1][0]
+                    - new_brakets.state_pairs[0][0] == 1,
+                ),
+                np.logical_or(
+                    new_brakets.state_pairs[1][1]
+                    - new_brakets.state_pairs[0][1] == -1,
+                    new_brakets.state_pairs[1][1]
+                    - new_brakets.state_pairs[0][1] == 1,
+                )
+            ).all()
+        )
+
+        new_brakets, new_sel = brakets.apply_sel_rules_along([[-1, 1], [1, 1]], [3, 1], permute=False)
+        self.assertTrue(
+            np.logical_and(
+                new_brakets.state_pairs[1][1]
+                - new_brakets.state_pairs[0][1] == 1,
+                np.logical_or(
+                    new_brakets.state_pairs[1][3]
+                    - new_brakets.state_pairs[0][3] == -1,
+                    new_brakets.state_pairs[1][3]
+                    - new_brakets.state_pairs[0][3] == 1,
+                )
+            ).all()
+        )
+
+        x_rep = basis.representation('x', 'x', 'x', coeffs=np.ones((m,)))
+        tf = x_rep.get_transformed_space(init_space)
+
+        brakets = tf.get_representation_brakets()
+
+        new_brakets, new_sel = brakets.apply_sel_rules_along([[-1, -1, -1], [-1, -1, 1], [-1, 1, 1], [1, 1, 1]], [0, 1, 2])
+        new_comp = np.setdiff1d(np.arange(len(brakets)), new_sel)
+        self.assertTrue(
+            np.logical_and(
+                np.logical_or(
+                    new_brakets.state_pairs[1][0]
+                    - new_brakets.state_pairs[0][0] == -1,
+                    new_brakets.state_pairs[1][0]
+                    - new_brakets.state_pairs[0][0] == 1,
+                ),
+                np.logical_or(
+                    new_brakets.state_pairs[1][1]
+                    - new_brakets.state_pairs[0][1] == -1,
+                    new_brakets.state_pairs[1][1]
+                    - new_brakets.state_pairs[0][1] == 1,
+                ),
+
+                np.logical_or(
+                    new_brakets.state_pairs[1][1]
+                    - new_brakets.state_pairs[0][2] == -1,
+                    new_brakets.state_pairs[1][1]
+                    - new_brakets.state_pairs[0][2] == 1,
+                )
+            ).all(),
+            not np.logical_and(
+                np.logical_or(
+                    brakets.state_pairs[1][0][new_comp]
+                    - brakets.state_pairs[0][0][new_comp] == -1,
+                    brakets.state_pairs[1][0][new_comp]
+                    - brakets.state_pairs[0][0][new_comp] == 1,
+                ),
+                np.logical_or(
+                    brakets.state_pairs[1][1][new_comp]
+                    - brakets.state_pairs[0][1][new_comp] == -1,
+                    brakets.state_pairs[1][1][new_comp]
+                    - brakets.state_pairs[0][1][new_comp] == 1,
+                ),
+
+                np.logical_or(
+                    brakets.state_pairs[1][1][new_comp]
+                    - brakets.state_pairs[0][2][new_comp] == -1,
+                    brakets.state_pairs[1][1][new_comp]
+                    - brakets.state_pairs[0][2][new_comp] == 1,
+                )
+            ).any()
+        )
+
+    #endregion
+
+    #region State spaces
+    @validationTest
+    def test_StateConnections(self):
+
+        n = 15  # totally meaningless these days
+        m = 12
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        init_state = basis.get_state_space(2)
+
+        x_rep = basis.representation('x', 'x', 'x', coeffs=np.ones((m, m, m)))
+        with BlockProfiler():
+            for i in range(15):
+                tf = x_rep.get_transformed_space(init_state)
+            # tf = x_rep.get_transformed_space(init_state)
+
+
+
+        # np.set_printoptions(threshold=100000)
+        # raise Exception(tf.excitations)
+
+    @validationTest
+    def test_StateSpaceTakeProfile(self):
+
+        n = 15  # totally meaningless these days
+        m = 12
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        x_rep = basis.representation('x', 'x', coeffs=np.ones((m,)))
+        init_space = basis.get_state_space(2)
+        init_space.full_basis = CompleteSymmetricGroupSpace(m)
+        tf = x_rep.get_transformed_space(init_space)#, logger=Logger())
+
+        # with BlockProfiler():
+        #     for i in range(500):
+        #         exc = tf.excitations
+
+        # raise Exception(len(exc))
+
+    #endregion
+
+    #region Experiments
 
     @inactiveTest
     def test_BasisRepMatrixOps(self):
@@ -832,44 +937,6 @@ class BasisSetTests(TestCase):
 
         self.assertTrue(np.allclose(x2.array.asarray(), x22.array.asarray()))
         # raise Exception(mat_2.array.asarray())
-
-    @validationTest
-    def test_StateConnections(self):
-
-        n = 15  # totally meaningless these days
-        m = 12
-        basis = HarmonicOscillatorProductBasis((n,) * m)
-
-        init_state = basis.get_state_space(2)
-
-        x_rep = basis.representation('x', 'x', 'x', coeffs=np.ones((m, m, m)))
-        with BlockProfiler():
-            for i in range(15):
-                tf = x_rep.get_transformed_space(init_state)
-            # tf = x_rep.get_transformed_space(init_state)
-
-
-
-        # np.set_printoptions(threshold=100000)
-        # raise Exception(tf.excitations)
-
-    @validationTest
-    def test_StateSpaceTakeProfile(self):
-
-        n = 15  # totally meaningless these days
-        m = 12
-        basis = HarmonicOscillatorProductBasis((n,) * m)
-
-        x_rep = basis.representation('x', 'x', coeffs=np.ones((m,)))
-        init_space = basis.get_state_space(2)
-        init_space.full_basis = CompleteSymmetricGroupSpace(m)
-        tf = x_rep.get_transformed_space(init_space)#, logger=Logger())
-
-        # with BlockProfiler():
-        #     for i in range(500):
-        #         exc = tf.excitations
-
-        # raise Exception(len(exc))
 
     @validationTest
     def test_PermutationallyReducedStateSpace(self):
@@ -925,3 +992,58 @@ class BasisSetTests(TestCase):
         with BlockProfiler("new method"):
             tf, bk = x_rep.operator.apply_reduced(init_space)
         self.assertEquals(np.sort(tf).tolist(), np.sort(tf_els).tolist())
+
+    @inactiveTest
+    def test_OperatorAdjacencyGraph(self):
+        """
+        Tests building an adjacency graph for an operator
+        under an initial set of states
+
+        :return:
+        :rtype:
+        """
+
+        from McUtils.Numputils import SparseArray
+
+        ndim = 4
+        basis = HarmonicOscillatorProductBasis(ndim)
+        oppo = basis.representation("x", "x", "x", "x", coeffs=np.ones((ndim,)*4))
+        rules = basis.selection_rules("x", "x", "x", "x")
+
+        states = BasisStateSpace.from_quanta(basis, 3)
+        h2_space = states.apply_selection_rules(rules, iterations=1)
+        bk = h2_space.get_representation_brakets()
+        flat_total_space = h2_space.to_single().take_unique()
+
+        # pull from get_vpt2_reps or whatever
+        # sub = oppo[bk]
+        # flat_total_space = h2_space.to_single().take_unique()
+        # N = len(flat_total_space)
+        #
+        # row_inds = flat_total_space.find(bk.bras)
+        # col_inds = flat_total_space.find(bk.kets)
+        #
+        # up_tri = np.array([row_inds, col_inds]).T
+        # low_tri = np.array([col_inds, row_inds]).T
+        # # but now we need to remove the duplicates, because many sparse matrix implementations
+        # # will sum up any repeated elements
+        # full_inds = np.concatenate([up_tri, low_tri])
+        # full_dat = np.concatenate([sub, sub])
+        #
+        # _, idx = np.unique(full_inds, axis=0, return_index=True)
+        # sidx = np.sort(idx)
+        # full_inds = full_inds[sidx]
+        # full_dat = full_dat[sidx]
+        # adj_mat = SparseArray((full_dat, full_inds.T), shape=(N, N))
+
+        adj_arr = bk.adjacency_matrix(total_space=flat_total_space).toarray()
+
+        # plt.ArrayPlot(adj_arr).show()
+
+        # np.savetxt(os.path.expanduser("~/Desktop/bleh.dat"), adj_arr)
+
+        # adj_dat = adj_mat.data.reshape(N, N)
+        # import networkx
+        # graph = networkx.from_scipy_sparse_matrix(adj_dat)
+
+    #endregion

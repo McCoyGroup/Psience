@@ -58,12 +58,12 @@ class Representation:
         else:
             return None
 
-    def compute(self, inds):
+    def compute(self, inds, **kwargs):
         # if isinstance(inds, BraKetSpace):
         #     # allows us to use cached stuff
         #     return self.array.compute_values(self._compute, inds)
         # else:
-        return self._compute(inds)
+        return self._compute(inds, **kwargs)
     def compute_cached(self, inds):
         if isinstance(inds, BraKetSpace):
             # allows us to use cached stuff
@@ -78,8 +78,8 @@ class Representation:
             self.operator.clear_cache()
         elif hasattr(self.compute, 'clear_cache'):
             self.compute.clear_cache()
-    def _compute_op_els(self, inds):
-        return self.operator[inds] #compute: c[inds]
+    def _compute_op_els(self, inds, check_orthogonality=True):
+        return self.operator.get_elements(inds, check_orthogonality=check_orthogonality)
 
     @property
     def diag(self):
@@ -115,7 +115,7 @@ class Representation:
                 n[negs] += self.ndims
             return n
 
-    def get_brakets(self, states):
+    def get_brakets(self, states, check_orthogonality=True):
         """
         Computes term elements based on getting a BraKetSpace.
         Can directly pass element specs through, since the shape management shit
@@ -134,7 +134,7 @@ class Representation:
             states=states
         )
 
-        return self.compute(states)
+        return self.compute(states, check_orthogonality=check_orthogonality)
 
     def get_element(self, n, m):
         """
@@ -415,7 +415,7 @@ class Representation:
 
         if len(m_pairs) > 0:
             # logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
-            sub = self[m_pairs]
+            sub = self.get_brakets(m_pairs, check_orthogonality=not diagonal)
             if isinstance(sub, SparseArray):
                 sub = sub.asarray()
             if clear_operator_caches:
@@ -628,13 +628,13 @@ class ExpansionRepresentation(Representation):
                     type(other).__name__
                 ))
 
-    def _dispatch_over_expansion(self, attr, *args):
+    def _dispatch_over_expansion(self, attr, *args, **kwargs):
         els = None
         for c, t in zip(self.coeffs, self.computers):
             if not (isinstance(c, (int, float, np.integer, np.floating)) and c == 0):
                 with self.logger.block(tag="in {}".format(t)):
                     start = time.time()
-                    bits = getattr(t, attr)(*args)
+                    bits = getattr(t, attr)(*args, **kwargs)
                     scaled = bits * c
                     if self.ndims == 4:
                         raise ValueError("woop")
@@ -669,10 +669,10 @@ class ExpansionRepresentation(Representation):
 
         return els
 
-    def get_brakets(self, states):
+    def get_brakets(self, states, check_orthogonality=True):
         if not isinstance(states, BraKetSpace):
             states = BraKetSpace.from_indices(states, basis=self.basis)
-        return self._dispatch_over_expansion('get_brakets', states)
+        return self._dispatch_over_expansion('get_brakets', states, check_orthogonality=check_orthogonality)
 
     def get_element(self, n, m):
         return self._dispatch_over_expansion('get_element', n, m)

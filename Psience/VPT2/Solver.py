@@ -579,8 +579,8 @@ class PerturbationTheorySolver:
         :type checkpointer:
         """
 
-        if memory_constrained:
-            raise NotImplementedError('memory constraint handling currently broken')
+        # if memory_constrained:
+        #     raise NotImplementedError('memory constraint handling currently broken')
 
         self.perts = perturbations
         self._reps = None
