@@ -200,6 +200,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                             correction_terms=None,
                             lower_states=None,
                             excited_states=None,
+                            degenerate_transformation=None,
                             partitioning=None,
                             order=None
                             ):
@@ -227,8 +228,25 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         with logger.block(tag="Calculating intensities:"):
 
             space = self.corrs.coupled_states
+            # store this for handling the degenerate_transformation
+            lower_states_input = (0,) if lower_states is None else lower_states
+            upper_states_input = tuple(range(space.nstates)) if excited_states is None else excited_states
 
             corr_terms = self.corrs.wfn_corrections
+            if degenerate_transformation is None:
+                degenerate_transformation = self.corrs.degenerate_transf
+            if degenerate_transformation is not None:
+                deg_transf_lower = degenerate_transformation[lower_states_input, :]
+                deg_transf_upper = degenerate_transformation[upper_states_input, :]
+
+                corr_terms_lower = [deg_transf_lower.dot(corr_terms[i]) for i in range(order)]
+                corr_terms_upper = [deg_transf_upper.dot(corr_terms[i]).T for i in range(order)]
+
+                correction_terms = corr_terms_lower, corr_terms_upper
+
+                bra_space = space.to_single().take_unique()
+                ket_space = space.to_single().take_unique()
+
             if correction_terms is None:
                 if lower_states is None:
                     low_spec = (0,)
@@ -247,8 +265,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     up_spec = excited_states
                     excited_states = space[(up_spec,)]
 
-                bra_space = lower_states if isinstance(lower_states, BasisStateSpace) else lower_states.to_single().take_unique()
-                ket_space = excited_states if isinstance(excited_states, BasisStateSpace) else excited_states.to_single().take_unique()
+                bra_space = lower_states if isinstance(lower_states,
+                                                       BasisStateSpace) else lower_states.to_single().take_unique()
+                ket_space = excited_states if isinstance(excited_states,
+                                                         BasisStateSpace) else excited_states.to_single().take_unique()
 
                 # M = len(space.indices)
                 logger.log_print(
@@ -276,7 +296,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                         [
                             "highest-order space: {s}",
                         ],
-                        s = corr_terms_upper[-1]
+                        s=corr_terms_upper[-1]
                     )
 
                     end = time.time()
@@ -370,7 +390,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                                         m = mu_terms[k]
                                         if isinstance(m, (int, float, np.integer, np.floating)) and m == 0:
                                             # to make it easy to zero stuff out
-                                            new = np.zeros((len(low_spec), len(up_spec)))
+                                            new = np.zeros((len(lower_states_input), len(upper_states_input)))
                                         else:
                                             c_lower = corr_terms_lower[i]
                                             c_upper = corr_terms_upper[j]
@@ -378,9 +398,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                                             new = num.dot(c_upper)
                                         if isinstance(new, SparseArray):
                                             new = new.asarray()
-                                    terms.append( # what is this...?
-                                        new.reshape((len(low_spec), len(up_spec))
-                                        ))
+                                        new = new.reshape((len(lower_states_input), len(upper_states_input)))
+                                    terms.append(new)
                                     # raise Exception(new.toarray())
                             # print(q, a)
                             transition_moment_components[q][a] = terms
