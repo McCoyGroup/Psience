@@ -3166,6 +3166,7 @@ class BraKetSpace:
         if len(bra_space) != len(ket_space) or (bra_space.ndim != ket_space.ndim):
             raise ValueError("Bras {} and kets {} have different dimension".format(bra_space, ket_space))
         self._state_pairs = None
+        self._state_diffs = None
 
     @property
     def state_pairs(self):
@@ -3219,6 +3220,10 @@ class BraKetSpace:
 
     def __repr__(self):
         return "{}(nstates={})".format(type(self).__name__, len(self))
+
+    def load_space_diffs(self):
+        if self._state_diffs is None:
+            self._state_diffs = self.state_pairs[1] - self.state_pairs[0]
 
     def load_non_orthog(self,
                         use_aggressive_caching=None,
@@ -3712,7 +3717,8 @@ class BraKetSpace:
                 ])
             )[0]
 
-        state_diffs = self.state_pairs[1][inds] - self.state_pairs[0][inds]
+        self.load_space_diffs()
+        state_diffs = self._state_diffs[inds]
         sel = self._get_rule_matches(state_diffs, rules, M)
 
         return self.take_subspace(sel), sel

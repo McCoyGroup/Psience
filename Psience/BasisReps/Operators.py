@@ -364,7 +364,10 @@ class Operator:
 
         return chunk, sel_rules
 
-    def _calculate_single_pop_elements(self, inds, funcs, states, sel_rules, check_orthogonality=True):
+    def _calculate_single_pop_elements(self, inds, funcs, states, sel_rules,
+                                       check_orthogonality=True,
+                                       use_sel_rule_filtering=False
+                                       ):
         """
         Calculates terms for a single product operator.
         Assumes orthogonal product bases.
@@ -393,7 +396,7 @@ class Operator:
             # TODO: selection rules are actually _cheaper_ to apply than this in general, esp. if we focus
             #       only on the number of quanta that can change within the set of indices
             #       so we should support applying them first & then only doing this for the rest
-            if sel_rules is not None:
+            if use_sel_rule_filtering and sel_rules is not None:
                 _, idx = np.unique(inds, return_index=True)
                 uinds = inds[np.sort(idx)]
                 states, non_orthog = states.apply_sel_rules_along(sel_rules, uinds)

@@ -5108,7 +5108,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @validationTest
+    @debugTest
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"
@@ -5140,7 +5140,7 @@ class VPT2Tests(TestCase):
             log=True,
             verbose=True,
             print_profile=True,
-            profiling_mode='deterministic',
+            # profiling_mode='deterministic',
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,

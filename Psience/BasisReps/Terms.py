@@ -415,7 +415,7 @@ class Representation:
 
         if len(m_pairs) > 0:
             # logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
-            sub = self.get_brakets(m_pairs)#, check_orthogonality=not diagonal)
+            sub = self.get_brakets(m_pairs, check_orthogonality=not diagonal)
             if isinstance(sub, SparseArray):
                 sub = sub.asarray()
             if clear_operator_caches:
