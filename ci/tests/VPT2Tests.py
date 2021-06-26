@@ -108,6 +108,7 @@ class VPT2Tests(TestCase):
                               , intermediate_normalization=False
                               , state_space_iterations=None
                               , zero_element_warning = False
+                              , **solver_opts
                               ):
         if parallelized:
             pverb = verbose == 'all'
@@ -214,6 +215,7 @@ class VPT2Tests(TestCase):
                                             , intermediate_normalization=intermediate_normalization
                                             , state_space_iterations=state_space_iterations
                                             , verbose=verbose
+                                            , **solver_opts
                                             )
 
         return wfns, hammer
@@ -294,7 +296,8 @@ class VPT2Tests(TestCase):
             , zero_element_warning=zero_element_warning
         )[0]
 
-    def get_states(self, n_quanta, n_modes, max_quanta=None, target_modes=None):
+    @staticmethod
+    def get_states(n_quanta, n_modes, max_quanta=None, target_modes=None):
         whee = [np.flip(x) for x in BasisStateSpace.from_quanta(
             HarmonicOscillatorProductBasis(n_modes),
             range(n_quanta)
@@ -304,6 +307,53 @@ class VPT2Tests(TestCase):
                 p for p in whee if sum(p) == 0 or any(p[i] > 0 for i in target_modes)
             ]
         return whee
+
+    @staticmethod
+    def get_degenerate_polyad_space(states, polyadic_pairs):
+        # we build a graph of connected states by the polyadic rules
+        polyadic_pairs = np.array(polyadic_pairs)
+        states = np.array(states)
+        poss_degs = [[] for _ in states]
+        check_list = states.tolist()
+        for n,s in enumerate(states): # build list-of-lists structure
+            for i, nt_spec in enumerate(polyadic_pairs):
+                if np.all(s - nt_spec[0] >= 0):
+                    new = (s - nt_spec[0] + nt_spec[1]).tolist()
+                    if new not in check_list:
+                        check_list.append(new)
+                        poss_degs.append([])
+                    # else:
+                    #     poss_degs[idx].append(slist)
+                    poss_degs[n].append(new)
+
+        # from the populated lists build the real connection graph
+        groups = [[] for _ in check_list]
+        new_checks = []
+        for i,s1 in enumerate(check_list):
+            if s1 not in new_checks:
+                new_checks.append(s1)
+                groups[i].append(s1)
+                groups[i].extend(poss_degs[i])
+                for s2,p in zip(check_list[i+1:], poss_degs[i+1:]):
+                    if s2 not in new_checks:
+                        if s2 in poss_degs[i]:
+                            new_checks.append(s2)
+                            groups[i].extend(p)
+
+        return [g for g in groups if len(g) > 1]
+
+        # degeneracies = {}
+        # for s in states:
+        #     for i, nt_spec in enumerate(nt_specs):
+        #         nt = nt_spec * s
+        #         if np.all(nt % 0 == 0):
+        #             if i not in degeneracies:
+        #                 degeneracies[i] = {}
+        #             key = tuple(nt.astype(int))
+        #             if key in degeneracies[i]:
+        #                 degeneracies[i].append(s)
+        #             else:
+        #                 degeneracies[i] = [s]
 
     def print_energy_block(self, tag, states, zpe, freqs, real_fmt='{:>8.3f}', dash_fmt='{:>8}' ):
         freqs = np.asanyarray(freqs)
@@ -3880,7 +3930,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @validationTest
+    @debugTest
     def test_OCHHVPTCartesiansDegenerate(self):
 
         tag = 'OCHH Cartesians'
@@ -3924,75 +3974,12 @@ class VPT2Tests(TestCase):
             ]))
         pre_wfns_script = None
 
-        degeneracies = (
+        degeneracies = self.get_degenerate_polyad_space(
+            states,
             [
-                [0, 0, 0, 0, 0, 1],
-                [0, 1, 0, 1, 0, 0],
-            ],
-            [
-                [0, 0, 0, 0, 0, 2],
-                [0, 1, 0, 1, 0, 1],
-            ],
-            [
-                [0, 0, 0, 0, 1, 1],
-                [0, 1, 0, 1, 1, 0],
-            ],
-            [
-                [0, 0, 0, 1, 0, 1],
-                [0, 1, 0, 2, 0, 0],
-            ],
-            [
-                [0, 0, 1, 0, 0, 1],
-                [0, 1, 1, 1, 0, 0],
-            ],
-            [
-                [0, 1, 0, 0, 0, 1],
-                [0, 2, 0, 1, 0, 0],
-            ],
-            [
-                [1, 0, 0, 0, 0, 1],
-                [1, 1, 0, 1, 0, 0],
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
             ]
-
-                #
-                # [0, 0, 0, 0, 1, 1],
-                # [0, 1, 0, 1, 1, 0],
-                #
-                # [0, 0, 0, 1, 0, 1],
-                # [0, 1, 0, 2, 0, 0],
-                #
-                # [0, 0, 1, 0, 0, 1],
-                # [0, 1, 1, 1, 0, 0],
-                #
-                # [0, 1, 0, 0, 0, 1],
-                # [0, 2, 0, 1, 0, 0],
-                #
-                # [1, 0, 0, 0, 0, 1],
-                # [1, 1, 0, 1, 0, 0]
-            # [
-            #     [0, 0, 0, 0, 0, 2],
-            #     [0, 1, 0, 0, 0, 1],
-            #     [0, 1, 0, 1, 0, 1],
-            # ]
-            # [
-            #     [0, 0, 0, 0, 1, 1],
-            #     [0, 1, 0, 1, 1, 0]
-            # ],
-            # [
-            #     [1, 0, 0, 0, 0, 1],
-            #     [1, 1, 0, 1, 0, 0]
-            # ],
-            # [
-            #     [0, 0, 0, 1, 0, 1],
-            #     [0, 1, 0, 2, 0, 0]
-            # ],
-            # [
-            #     [0, 0, 0, 0, 0, 2],
-            #     [0, 1, 0, 1, 0, 1],
-            #     [0, 2, 0, 2, 0, 0]
-            # ]
         )
-
         degeneracies = [np.array(x).tolist() for x in degeneracies]
         states = np.array(states).tolist()
         for pair in degeneracies:
@@ -5108,7 +5095,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @validationTest
+    @debugTest
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"
@@ -5149,6 +5136,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
             , initialization_timeout=2
             , chunk_size=int(5e6)
+            , state_space_terms=((1, 0), (2, 0))
             # , direct_sum_chunk_size=int(1e3)
             # , memory_constrained=True
         )
@@ -6837,7 +6825,7 @@ class VPT2Tests(TestCase):
             )
             print(report)
 
-    @debugTest
+    @validationTest
     def test_OCHHIntensitiesSanbox(self):
 
         tag = "OCHH Intenstities"
@@ -6963,23 +6951,23 @@ class VPT2Tests(TestCase):
         # with BlockProfiler(tag, print_res=True):
         #     raise Exception(wfns.intensities)
 
-        import json
-        with BlockProfiler(tag, print_res=True):
-            breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
-        raise Exception(
-            json.dumps(
-                [
-                    (np.array(breakdown['frequencies']) * self.h2w).tolist(),
-                    breakdown['breakdowns']['Full']['intensities'].tolist(),
-                    breakdown['breakdowns']['Linear']['intensities'].tolist(),
-                    breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
-                    breakdown['breakdowns']['Cubic']['intensities'].tolist(),
-                    breakdown['breakdowns']['Constant']['intensities'].tolist(),
-                    breakdown['breakdowns']['Order0']['intensities'].tolist(),
-                    breakdown['breakdowns']['Order1']['intensities'].tolist()
-                ]
-            )
-        )
+        # import json
+        # with BlockProfiler(tag, print_res=True):
+        #     breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+        # raise Exception(
+        #     json.dumps(
+        #         [
+        #             (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+        #             breakdown['breakdowns']['Full']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Linear']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Constant']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Order0']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Order1']['intensities'].tolist()
+        #         ]
+        #     )
+        # )
 
         # trying to turn off the orthogonality condition
         # states = wfns.corrs.states

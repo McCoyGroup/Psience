@@ -538,11 +538,14 @@ class PerturbationTheorySolver:
     Supports degenerate and non-degenerate PT.
     """
 
-    def __init__(self, perturbations, states,
+    def __init__(self,
+                 perturbations, states,
                  coupled_states=None,
-                 order=2, total_space=None,
+                 order=2,
+                 total_space=None,
                  flat_total_space=None,
                  state_space_iterations=None,
+                 state_space_terms=None,
                  allow_sakurai_degs=False,
                  allow_post_PT_calc=True,
                  modify_degenerate_perturbations=False,
@@ -586,6 +589,7 @@ class PerturbationTheorySolver:
         self._reps = None
         self.order = order
         self.state_space_iterations=state_space_iterations
+        self.state_space_terms=state_space_terms
 
         self.logger = logger
         self.verbose = verbose
@@ -1203,7 +1207,6 @@ class PerturbationTheorySolver:
                 else:
                     self._total_dim = len(self._flat_space)
 
-
     def load_coupled_spaces(self):
         """
         Determines which states need to be coupled at which levels of correction
@@ -1241,7 +1244,8 @@ class PerturbationTheorySolver:
                 space,
                 None, False,
                 allow_PT_degs=self.allow_sakurai_degs,
-                spaces=spaces
+                spaces=spaces,
+                wavefunction_terms=self.state_space_terms
                 )
             total_state_spaces.append(spaces)
 
@@ -1495,6 +1499,7 @@ class PerturbationTheorySolver:
                             degenerate_space,
                             use_second_deg,
                             allow_PT_degs=True,
+                            wavefunction_terms=None,
                             spaces=None
                             ):
         """
@@ -1506,7 +1511,7 @@ class PerturbationTheorySolver:
         """
 
         if not allow_PT_degs:
-            spaces = self.get_nondeg_coupled_space(input_state_space, degenerate_space, spaces=spaces)
+            spaces = self.get_nondeg_coupled_space(input_state_space, degenerate_space, spaces=spaces, wavefunction_terms=wavefunction_terms)
         else:
             raise NotImplementedError("True degeneracy handling is getting a rewrite")
             if degenerate_space is None:
@@ -1522,7 +1527,8 @@ class PerturbationTheorySolver:
     def get_nondeg_coupled_space(self,
                                  input_state_space,
                                  degenerate_space=None,
-                                 spaces=None
+                                 spaces=None,
+                                 wavefunction_terms=None
                                  ):
         """
         Applies the non-degenerate equations in semi-symbolic form to determine
@@ -1581,18 +1587,22 @@ class PerturbationTheorySolver:
                 'getting states for ' +
                     '+'.join('H({})|n({})>'.format(k-i, i)
                              for i in range(0, k)
-                             if not isinstance(H[k - i], (int, np.integer))
+                             if (
+                                     not isinstance(H[k - i], (int, np.integer))
+                                     and (wavefunction_terms is None or (k-i, i) in wavefunction_terms)
+                             )
                              )
                 )
             with self.logger.block(tag='getting states for order {k}'.format(k=k)):
                 corrs[k] = sum(corrs[i] for i in range(0, k)) # this all in here from energies
                 for i in range(0, k):
                     if not isinstance(H[k - i], (int, np.integer)):
-                        self.logger.log_print('H({a})|n({b})>', a=k - i, b=i)
-                        if k < order-1:
-                            corrs[k] += dot(H[k - i], corrs[i])
-                        else:
-                            dot(H[k - i], corrs[i], ret_space=False)
+                        if wavefunction_terms is None or (k-i, i) in wavefunction_terms:
+                            self.logger.log_print('H({a})|n({b})>', a=k - i, b=i)
+                            if k < order-1:
+                                corrs[k] += dot(H[k - i], corrs[i])
+                            else:
+                                dot(H[k - i], corrs[i], ret_space=False)
 
         # raise Exception(
         #     [x[1] for x in spaces.values() if x is not None][0].get_representation_indices().T

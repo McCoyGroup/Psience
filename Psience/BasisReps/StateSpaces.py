@@ -3510,6 +3510,8 @@ class BraKetSpace:
 
     def clear_cache(self):
         self._orthogs = None
+        self._state_diffs = None
+        self._state_pairs = None
 
     class OrthogonalIndexCalculator:
         def __init__(self, tests, trie):
