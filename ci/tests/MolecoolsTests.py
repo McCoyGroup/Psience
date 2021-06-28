@@ -23,14 +23,14 @@ class MolecoolsTests(TestCase):
     def test_NormalModeRephasing(self):
         m_16 = Molecule.from_file(TestManager.test_data('CH2DT_freq_16.fchk'))
         m_09 = Molecule.from_file(TestManager.test_data('CH2DT_freq.fchk'))
-        modes_09 = m_09.normal_modes
+        modes_09 = m_09.normal_modes.modes
         # modes_16 = m_16.normal_modes
 
         modes_09 = np.array([x / np.linalg.norm(x) for x in modes_09.basis.matrix.T])
         # modes_16 = np.array([x / np.linalg.norm(x) for x in modes_16.basis.matrix.T])
 
-        phases = m_16.get_fchk_normal_mode_rephasing()
-        rescaled = m_16.normal_modes.rescale(phases)
+        phases = m_16.normal_modes.get_fchk_normal_mode_rephasing()
+        rescaled = m_16.normal_modes.modes.rescale(phases)
 
         rescaled_16 = np.array([x / np.linalg.norm(x) for x in rescaled.basis.matrix.T])
 
@@ -44,6 +44,77 @@ class MolecoolsTests(TestCase):
         n = 3 # water
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(m.atoms, ("O", "H", "H"))
+
+    @validationTest
+    def test_PrincipleAxisEmbedding(self):
+        ref_file = TestManager.test_data("tbhp_180.fchk")
+
+        ref = Molecule.from_file(ref_file)
+        self.assertEquals(ref.center_of_mass.tolist(),
+                          [-0.10886336323443993, -7.292720327263524e-05, -0.04764041570644441]
+                          )
+
+        inerts = ref.inertial_axes
+        self.assertTrue(np.allclose(
+            -inerts.T,
+            [
+                [-0.9998646051394727, -1.6944914059526497e-5, -1.6455123887595957e-2],
+                [-1.6455007408638932e-2, 4.930578772682442e-3, 0.9998524501765987],
+                [-6.419087070136426e-5, -0.9999878444790397, 4.930190026343585e-3]
+            ]
+        ))
+
+        pax_rot = ref.principle_axis_frame()  # type: MolecularTransformation
+        self.assertTrue(np.allclose(
+            pax_rot.transformation_function.transform,
+            inerts.T
+        ))
+        rot_ref = pax_rot.apply(ref)
+
+        self.assertTrue(np.allclose(
+            rot_ref.center_of_mass,
+            [0., 0., 0.]
+        ),
+            msg="COM: {} was {}".format(rot_ref.center_of_mass, ref.center_of_mass))
+
+        test_coords = np.matmul(
+                    (ref.coords - ref.center_of_mass[np.newaxis])[:, np.newaxis, :],
+                    inerts
+                ).squeeze()
+        # raise Exception(rot_ref.coords, test_coords)
+        self.assertTrue(
+            np.allclose(
+                rot_ref.coords,
+                test_coords
+            )
+        )
+
+        mathematica_coords = np.array([
+                [ 2.094928525160645e-4,   8.85212868882308e-2,  -0.8400509406910139],
+                [ 2.389396575506497,      1.697491740062459,    -0.8428256390972853],
+                [ 2.435043833038253,      2.934952064361808,     0.7950074811481486],
+                [ 4.0560845074996985,     0.4921123166233054,   -0.8003781737352631],
+                [-4.983484850171475e-3,  -1.5885626031388058,    1.2992229461755922],
+                [-1.7490151872158886e-4, -1.8815600632167903e-3, 3.5774728125123842],
+                [-4.314406779968471e-3,  -1.3424852433777361,    4.810480604689872],
+                [-4.312429484356625e-3,  -1.7659250558813848,   -3.0429810385290326],
+                [-1.6805757842711242,    -2.9559004963767235,   -2.984461679814903],
+                [1.663962078887355,      -2.9669237481136603,   -2.9820756778710344],
+                [4.171884239172418e-4,   -0.7242576512048614,   -4.816727043081511],
+                [-2.3797319162701913,     1.7110998385574014,   -0.8442221100234485],
+                [-4.053502667206945,      0.5153958278660512,   -0.8051208327551433],
+                [-2.439171179603177,      2.871593767591361,    -2.543401568931165],
+                [-2.419963556488472,      2.947396453869957,     0.7945604672548087],
+                [2.4576648430627377,      2.8566629998551765,   -2.5425989365331256]
+            ])
+        self.assertTrue(np.allclose(
+            rot_ref.coords,
+            -mathematica_coords[:, (2, 1, 0)]
+        ),
+        msg="{} but mathematica {}".format(
+            rot_ref.coords,
+            -mathematica_coords[:, (2, 1, 0)]
+        ))
 
     @validationTest
     def test_EckartEmbed(self):
@@ -63,8 +134,13 @@ class MolecoolsTests(TestCase):
         pax_rot = ref.principle_axis_frame(sel=sel) #type: MolecularTransformation
         rot_ref = pax_rot.apply(ref)
 
+        self.assertTrue(np.allclose(
+            rot_ref.center_of_mass,
+            [0., 0., 0.]
+        ))
+
         #transf = scan.principle_axis_frame(sel=sel)
-        transf = scan.eckart_frame(ref, sel=sel)
+        transf = scan.eckart_frame(rot_ref, sel=sel)
         tf_test = transf[0].transformation_function
 
         tf_mat = tf_test.transform
@@ -72,22 +148,56 @@ class MolecoolsTests(TestCase):
         self.assertEquals(tf_test.transf.shape, (4, 4))
 
         for t, m in zip(transf, scan):
+            # t = m.principle_axis_frame(sel=sel)  # type: MolecularTransformation
+
             new_mol = t(m)
             # rot_ref.guess_bonds = False
             # ref.guess_bonds = False
             # m.guess_bonds = False
             # new_mol.guess_bonds = False
             # m = m #type: Molecule
-            # g1, a, b = ref.plot()
+            # # g1, a, b = ref.plot()
             # # ref.plot(figure=g1)
-            # rot_ref.plot(figure=g1)
+            # # rot_ref.plot(figure=g1)
             # g, a, b = new_mol.plot()
             # rot_ref.plot(figure=g, atom_style=dict(color='black'))
             # g.show()
-            fuckup = np.linalg.norm(new_mol.coords[sel] - rot_ref.coords[sel])
-            self.assertLess(fuckup/len(sel), .1)
 
-    @validationTest
+            fuckup = np.linalg.norm(new_mol.coords[sel] - rot_ref.coords[sel])
+            self.assertLess(fuckup / len(sel), .1,
+                            msg="new: {}\nref: {}".format(
+                                new_mol.coords,
+                                rot_ref.coords
+                            )
+                            )
+
+            # transf = scan.principle_axis_frame(sel=sel)
+        transf = scan.eckart_frame(ref, sel=sel)
+        for t, m in zip(transf, scan):
+            # t = m.principle_axis_frame(sel=sel)  # type: MolecularTransformation
+
+            new_mol = t(m)
+            # rot_ref.guess_bonds = False
+            # ref.guess_bonds = False
+            # m.guess_bonds = False
+            # new_mol.guess_bonds = False
+            # m = m #type: Molecule
+            # # g1, a, b = ref.plot()
+            # # ref.plot(figure=g1)
+            # # rot_ref.plot(figure=g1)
+            # g, a, b = new_mol.plot()
+            # rot_ref.plot(figure=g, atom_style=dict(color='black'))
+            # g.show()
+
+            fuckup = np.linalg.norm(new_mol.coords[sel] - ref.coords[sel])
+            self.assertLess(fuckup / len(sel), .1,
+                            msg="new: {}\nref: {}".format(
+                                new_mol.coords,
+                                ref.coords
+                            )
+                            )
+
+    @inactiveTest
     def test_EckartEmbedDipoles(self):
         scan_file = TestManager.test_data("tbhp_030.log")
         ref_file = TestManager.test_data("tbhp_180.fchk")
@@ -115,6 +225,13 @@ class MolecoolsTests(TestCase):
         # Plot(dists, dips[:, 1], figure=p2)
         # Plot(dists, dips[:, 2], figure=p2)
         # g.show()
+
+    @debugTest
+    def test_EckartEmbedMolecule(self):
+
+        ref_file = TestManager.test_data("tbhp_180.fchk")
+        ref = Molecule.from_file(ref_file)
+        new = ref.get_embedded_molecule()
 
     @validationTest
     def test_Plotting(self):
@@ -310,3 +427,4 @@ class MolecoolsTests(TestCase):
 
         self.assertAlmostEquals(meh22[1, 1, 0, 0], .009235, places=6)
         self.assertTrue(np.allclose(meh12, meh22))
+

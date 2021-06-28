@@ -7,7 +7,9 @@ Uses AtomData to get properties and whatnot
 import os, numpy as np
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
+from .MoleculeInterface import *
 from .CoordinateSystems import MolecularCartesianCoordinateSystem, MolecularZMatrixCoordinateSystem
+from .Properties import *
 
 __all__ = [
     "Molecule",
@@ -16,7 +18,7 @@ __all__ = [
 
 # __reload_hook__ = [ '.Properties', '.Vibrations' ]
 
-class Molecule:
+class Molecule(AbstractMolecule):
     """
     General purpose 'Molecule' class where the 'Molecule' need not be a molecule at all
     """
@@ -25,17 +27,18 @@ class Molecule:
                  atoms,
                  coords,
                  bonds=None,
-                 obmol=None,
-                 charge=None,
                  name=None,
                  zmatrix=None,
+                 obmol=None,
                  dipole_surface=None,
                  dipole_derivatives=None,
                  potential_surface=None,
                  potential_derivatives=None,
+                 normal_modes=None,
                  source_file=None,
                  guess_bonds=True,
-                 **kw
+                 charge=None,
+                 **metadata
                  ):
         """
         :param atoms: atoms specified by name, either full name or short
@@ -72,29 +75,49 @@ class Molecule:
 
         coords = CoordinateSet(coords, CartesianCoordinates3D)
 
+        self._name = name
+
         # properties to be returned
         self._coords = coords
         self._sys = MolecularCartesianCoordinateSystem(self)
         self._coords = CoordinateSet(self._coords, self._sys)
-        self._bonds = bonds
-        self._charge = charge
-        self._name = name
-        self._mol = obmol
-        self._kw = kw
-        self.source_file = source_file
-        if potential_derivatives is None or len(potential_derivatives) == 1:
-            force_constants = None
-        else:
-            force_constants = potential_derivatives[1]
-        self._fcs = force_constants
-        self._pds = potential_derivatives
-        self._dipoles = dipole_surface
-        self._dipds= dipole_derivatives
-        self._pes = potential_surface
-        self._normal_modes = None
         self._zmat = zmatrix
         self._ints = None
+
+        self._bonds = bonds
+
+        self._src = source_file
+
+        self.pes = PotentialSurfaceManager(self,
+                                           surface=potential_surface,
+                                           derivatives=potential_derivatives
+                                           )
+        self.ext_mol = OpenBabelMolManager(self, obmol)
+        self._dips = DipoleSurfaceManager(self,
+                                                   surface=dipole_surface,
+                                                   derivatives=dipole_derivatives
+                                                   )
+        self._pes = PotentialSurfaceManager(self,
+                                                   surface=dipole_surface,
+                                                   derivatives=dipole_derivatives
+                                                   )
+
+        self.normal_modes = NormalModesManager(self, normal_modes=normal_modes)
+
+        metadata['charge'] = charge
+        self._meta = metadata
+
         self.guess_bonds=guess_bonds
+
+    @property
+    def dipole_surface(self):
+        return self._dips
+    @property
+    def potential_surface(self):
+        return self._pes
+    @property
+    def metadata(self):
+        return self._meta
 
     def __repr__(self):
         return "{cls}('{name}', formula='{formula}', shape={shape}, coord_sys={coord_sys})".format(
@@ -104,24 +127,6 @@ class Molecule:
             shape=self.coords.shape,
             coord_sys=self.coords.system.name if isinstance(self.coords, CoordinateSet) else 'undefined'
         )
-
-    @classmethod
-    def from_zmat(cls, zmat, **opts):
-        """Little z-matrix importer
-
-        :param zmat:
-        :type zmat: str | tuple
-        :return:
-        :rtype: Molecule
-        """
-
-        if isinstance(zmat, str):
-            from McUtils.Parsers import StringParser, ZMatPattern
-            zmcs = StringParser(ZMatPattern).parse(zmat)
-        else:
-            zmcs = zmat
-        coords = CoordinateSet([zmcs[1]], ZMatrixCoordinates).convert(CartesianCoordinates3D)
-        return cls(zmcs[0], coords, zmatrix=zmat[:, (1, 3, 5)], **opts)
 
     @property
     def num_atoms(self):
@@ -140,6 +145,12 @@ class Molecule:
     @property
     def coords(self):
         return self._coords
+    @coords.setter
+    def coords(self, new):
+        if not isinstance(new, CoordinateSet):
+            new = CoordinateSet(new, self.sys)
+        self._ints = None
+        self._coords = new
     @property
     def sys(self):
         return self._coords.system
@@ -156,37 +167,8 @@ class Molecule:
         else:
             return self._name
     @property
-    def force_constants(self):
-        if self._fcs is None:
-            self._fcs = self.load_force_constants()
-        return self._fcs
-    @property
-    def potential_derivatives(self):
-        if self._pds is None:
-            self._pds = self.load_potential_derivatives()
-        return self._pds
-    @potential_derivatives.setter
-    def potential_derivatives(self, pds):
-        #TODO: add validation to this
-        self._pds = pds
-        if self._fcs is None:
-            if pds is not None and len(pds) > 1:
-                self._fcs = pds[1]
-    @property
-    def potential_surface(self):
-        if self._pes is None:
-            self._pes = self.load_potential_surface()
-        return self._pes
-    @property
-    def dipole_surface(self):
-        if self._dipoles is None:
-            self._dipoles = self.load_dipole_surface()
-        return self._dipoles
-    @property
-    def dipole_derivatives(self):
-        if self._dipds is None:
-            self._dipds = self.load_dipole_derivatives()
-        return self._dipds
+    def source_file(self):
+        return self._src
 
     @property
     def mass_weighted_coords(self):
@@ -245,31 +227,23 @@ class Molecule:
             # print(zms)
             self._ints = self.coords.convert(zms)
         return self._ints
-    @property
-    def normal_modes(self):
-        """
 
-        :return:
-        :rtype: VibrationalModes
-        """
-        if self._normal_modes is None:
-            self._normal_modes = self.get_normal_modes()
-        return self._normal_modes
-    @normal_modes.setter
-    def normal_modes(self, modes):
-        """
+    def insert_atoms(self, atoms, coords, where):
+        new = self.copy()
+        new._coords = np.insert(new.coords, coords, where,
+                                axis=1 if self.multiconfig else 0
+                                )
+        new._ats = np.insert(np.array(new._ats, dtype=object),
+                             [AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms],
+                             where
+                             )
+        new.dipole_surface = new.dipole_surface.insert_atoms(atoms, coords, where)
+        new.pes = new.pes.insert_atoms(atoms, coords, where)
+        new.normal_modes = ...
 
-        :return:
-        :rtype: VibrationalModes
-        """
-        from .Vibrations import MolecularVibrations
-        if not isinstance(modes, MolecularVibrations):
-            raise TypeError("{}.{}: '{}' is expected to be a MolecularVibrations object".format(
-                type(self).__name__,
-                'normal_modes',
-                modes
-            ))
-        self._normal_modes = modes
+        raise NotImplementedError("need to manage properties from here...")
+        # manage properties
+
 
     def take_submolecule(self, spec):
         """
@@ -318,8 +292,10 @@ class Molecule:
         new = copy.copy(self)
         # but we also need to do some stuff where we store objects that
         # reference the molecule
-        if self._normal_modes is not None:
-            self._normal_modes.molecule = self
+        new.pes.set_molecule(new)
+        new.dipole_surface.set_molecule(new)
+        new.normal_modes.set_molecule(new)
+        new.ext_mol.set_molecule(new)
         return new
 
     def prop(self, name, *args, **kwargs):
@@ -332,299 +308,6 @@ class Molecule:
                 'prop',
                 name
             ))
-
-    def load_force_constants(self, file=None):
-        """
-        Loads force constants from a file (or from `source_file` if set)
-
-        :param file:
-        :type file:
-        :return:
-        :rtype:
-        """
-
-        if file is None:
-            file = self.source_file
-
-        path, ext = os.path.splitext(file)
-        ext = ext.lower()
-
-        if ext == ".fchk":
-            from McUtils.GaussianInterface import GaussianFChkReader
-            with GaussianFChkReader(file) as gr:
-                parse = gr.parse(['ForceConstants'])
-            return parse["ForceConstants"].array
-        elif ext == ".log":
-            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
-                type(self).__name__,
-                ext
-            ))
-        else:
-            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
-                type(self).__name__,
-                ext
-            ))
-    def load_potential_derivatives(self, file=None):
-        """
-        Loads potential derivatives from a file (or from `source_file` if set)
-
-        :param file:
-        :type file:
-        :return:
-        :rtype:
-        """
-
-        if file is None:
-            file = self.source_file
-        path, ext = os.path.splitext(file)
-        ext = ext.lower()
-
-        if ext == ".fchk":
-            from McUtils.GaussianInterface import GaussianFChkReader
-            keys= ['Gradient', 'ForceConstants', 'ForceDerivatives']
-            with GaussianFChkReader(file) as gr:
-                parse = gr.parse(keys)
-
-            seconds = parse["ForceConstants"].array
-            thirds = parse["ForceDerivatives"].third_deriv_array
-            fourths = parse["ForceDerivatives"].fourth_deriv_array
-
-            amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-            thirds = thirds / np.sqrt(amu_conv)
-            fourths = fourths / amu_conv
-
-            return (parse["Gradient"], seconds, thirds, fourths)
-        elif ext == ".log":
-            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
-                type(self).__name__,
-                ext
-            ))
-        else:
-            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
-                type(self).__name__,
-                ext
-            ))
-
-    #TODO: need to be careful about transition states...
-    def load_normal_modes(self, file=None, rephase=True):
-        """
-        Loads potential derivatives from a file (or from `source_file` if set)
-
-        :param file:
-        :type file:
-        :param rephase: whether to rephase FChk normal modes or not
-        :type rephase: bool
-        :return:
-        :rtype:
-        """
-        from .Vibrations import MolecularNormalModes
-
-        if file is None:
-            file = self.source_file
-        path, ext = os.path.splitext(file)
-        ext = ext.lower()
-
-        if ext == ".fchk":
-            from McUtils.GaussianInterface import GaussianFChkReader
-            with GaussianFChkReader(file) as gr:
-                parse = gr.parse(
-                    ['Real atomic weights', 'VibrationalModes', 'ForceConstants', 'VibrationalData']
-                )
-
-            modes = parse["VibrationalModes"]
-            freqs = parse["VibrationalData"]["Frequencies"] * UnitsData.convert("Wavenumbers", "Hartrees")
-            amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
-            masses = parse['Real atomic weights'] # * amu_conv
-            fcs = self.force_constants
-
-            # I do a bunch of messing with stuff here for like 0 pay off
-            # over the old simple method...not sure what un-dimensioning
-            # is really happening here...
-            mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten() * amu_conv
-            modes_conv = modes * np.sqrt(mass_vec[np.newaxis, :])
-            modes_conv = modes_conv / (
-                    np.linalg.norm(modes_conv, axis=1)[:, np.newaxis] *
-                    np.sqrt(freqs[:, np.newaxis]) * np.sqrt(mass_vec[np.newaxis, :])
-            )
-
-            #
-            internal_F2 = np.dot(np.dot(modes_conv, fcs), modes_conv.T)
-
-            final_scale = freqs**(3/2) / np.diag(internal_F2)
-            modes_conv *= final_scale[:, np.newaxis]
-            modes = modes_conv
-
-            # internal_F2 = np.dot(np.dot(modes_conv, fcs), modes_conv.T)
-
-            # internal_F = np.dot(np.dot(modes, fcs), modes.T)
-            # raw = np.sqrt(np.abs(np.diag(internal_F)))
-            # reweight = freqs / raw
-            # modes = modes * reweight[:, np.newaxis]
-            #
-            # raise Exception(modes_conv - modes)
-
-            # raise Exception(
-            #     np.diag(internal_F2) / np.diag(internal_F),
-            #     # freqs,
-            #     np.round(modes_conv, 5),
-            #     np.round(modes, 5)
-            # )
-
-            # add in translations and rotations
-            # tr_freqs, tr_vecs = self.prop("translation_rotation_eigenvectors")
-            # freqs = np.concatenate([tr_freqs, freqs])
-            # modes = np.concatenate([tr_vecs, modes.T], axis=1)
-
-            # modes = modes_conv
-
-            modes = modes.T
-
-            modes = MolecularNormalModes(self, modes, inverse=modes.T, freqs=freqs)
-
-            return modes
-        elif ext == ".log":
-            raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
-                type(self).__name__,
-                ext
-            ))
-        else:
-            raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
-                type(self).__name__,
-                ext
-            ))
-
-    def load_potential_surface(self):
-        raise NotImplemented
-    def load_dipole_surface(self):
-        raise NotImplemented
-
-    def _load_gaussian_fchk_dipoles(self, file):
-        from McUtils.GaussianInterface import GaussianFChkReader
-        try:
-            keys = ['DipoleMoment', 'DipoleDerivatives', 'DipoleHigherDerivatives', 'DipoleNumDerivatives']
-            with GaussianFChkReader(file) as gr:
-                parse = gr.parse(keys)
-
-            mom, grad, high = tuple(parse[k] for k in keys[:3])
-            seconds = high.second_deriv_array
-            thirds = high.third_deriv_array
-            num_derivs = parse[keys[3]]
-            num_grad = num_derivs.first_derivatives
-            num_secs = num_derivs.second_derivatives
-        except GaussianFChkReader.GaussianFChkReaderException:
-            keys = ['DipoleMoment', 'DipoleDerivatives']
-            with GaussianFChkReader(file) as gr:
-                parse = gr.parse(keys)
-
-            mom, grad = tuple(parse[k] for k in keys[:2])
-            seconds = thirds = None
-            num_grad = num_secs = None
-
-        # now instead of reweighting modes, we reweight all terms _using_ these modes
-
-        # remove dimensioning
-
-        # # grad = grad
-        # seconds = seconds / (
-        #         f_conv[:, np.newaxis, np.newaxis]
-        #         # * m_conv[np.newaxis, :, np.newaxis]
-        # )
-
-        if seconds is not None:
-            amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-            seconds = seconds / np.sqrt(amu_conv)
-        if thirds is not None:
-            amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-            thirds = thirds / amu_conv
-
-        # thirds = thirds / (
-        #         f_conv[:, np.newaxis, np.newaxis, np.newaxis]
-        #         * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
-        #         # * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
-        # )
-        #
-        # num_grad = num_grad / (
-        #         f_conv[:, np.newaxis]
-        #         # * m_conv[np.newaxis, :, np.newaxis]
-        # )
-        #
-        # num_secs = num_secs / (
-        #     f_conv[:, np.newaxis]
-        #     # * m_conv[np.newaxis, :, np.newaxis]
-        # )
-
-        return {
-            "analytic": (mom, grad, seconds, thirds),
-            "numerical": (num_grad, num_secs)
-        }
-
-
-    def load_dipole_derivatives(self, file=None):
-        """
-        Loads dipole derivatives from a file (or from `source_file` if set)
-
-        :param file:
-        :type file:
-        :return:
-        :rtype:
-        """
-
-        if file is None:
-            file = self.source_file
-        if file is None:
-            return None
-
-        path, ext = os.path.splitext(file)
-        ext = ext.lower()
-
-        if ext == ".fchk":
-            return self._load_gaussian_fchk_dipoles(file)
-        elif ext == ".log":
-            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
-                type(self).__name__,
-                ext
-            ))
-        else:
-            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
-                type(self).__name__,
-                ext
-            ))
-
-    def get_fchk_normal_mode_rephasing(self):
-        """
-        Returns the necessary rephasing to make the numerical dipole derivatives
-        agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
-        :return:
-        :rtype:
-        """
-
-        derivs = self.dipole_derivatives
-        if isinstance(derivs, dict):
-            d1_analytic = derivs['analytic'][1]
-            d1_numerical = derivs['numerical'][0]
-            if d1_numerical is None:
-                return None
-        else:
-            raise NotImplementedError("not sure how to calculate rephasing for dipoles {}".format(derivs))
-
-        if not isinstance(d1_analytic, np.ndarray):
-            d1_analytic = d1_analytic.array
-        if not isinstance(d1_numerical, np.ndarray):
-            d1_numerical = d1_numerical.first_derivatives
-
-        # raise Exception(d1_analytic.shape, d1_numerical.shape
-
-        mode_basis = self.normal_modes.basis.matrix
-        rot_analytic = np.dot(d1_analytic.T, mode_basis)
-
-        rot_analytic = np.array([x/np.linalg.norm(x) for x in rot_analytic])
-        d1_numerical = np.array([x/np.linalg.norm(x) for x in d1_numerical.T])
-
-        # could force some orientation relative to PAX frame?
-        # dot each into each other
-        phases = np.sign(np.diag(np.dot(d1_numerical.T, rot_analytic)))
-
-        return phases
 
 
     def principle_axis_frame(self, sel=None, inverse=False):
@@ -692,17 +375,12 @@ class Molecule:
         :rtype: Molecule
         """
 
-        raise NotImplementedError("need to handle applying embedding to various derivatives...")
-
         if ref is None:
             frame = self.principle_axis_frame(inverse=True)
         else:
             frame = self.eckart_frame(ref, inverse=True)
         new = frame.apply(self)
-        modes = new.normal_modes
-        if modes is not None:
-            modes = modes.embed(frame)
-            new.normal_modes = modes
+
         # pot_d = new.potential_derivatives
         # if pot_d is not None:
         #     derivs = [None]*len(pot_d)
@@ -713,6 +391,24 @@ class Molecule:
         #     new.potential_derivatives = derivs
         return new
 
+
+    @classmethod
+    def from_zmat(cls, zmat, **opts):
+        """Little z-matrix importer
+
+        :param zmat:
+        :type zmat: str | tuple
+        :return:
+        :rtype: Molecule
+        """
+
+        if isinstance(zmat, str):
+            from McUtils.Parsers import StringParser, ZMatPattern
+            zmcs = StringParser(ZMatPattern).parse(zmat)
+        else:
+            zmcs = zmat
+        coords = CoordinateSet([zmcs[1]], ZMatrixCoordinates).convert(CartesianCoordinates3D)
+        return cls(zmcs[0], coords, zmatrix=zmat[:, (1, 3, 5)], **opts)
     @classmethod
     def from_pybel(cls, mol, **opts):
         """
@@ -728,9 +424,8 @@ class Molecule:
         bonds = list(ob.OBMolBondIter(mol.OBMol))
         atoms = list(mol.atoms)
 
-        opts = dict({'bonds':bonds, 'mol':mol}, **opts)
+        opts = dict({'bonds':bonds, 'obmol':mol}, **opts)
         return cls(atoms, [a.coords for a in atoms], **opts)
-
     @classmethod
     def _from_log_file(cls, file, num=None, **opts):
         from McUtils.GaussianInterface import GaussianLogReader
@@ -759,7 +454,6 @@ class Molecule:
             **opts
         )
         return mol
-
     @classmethod
     def from_file(cls, file, mode=None, **opts):
         """In general we'll delegate to pybel except for like Fchk and Log files
@@ -894,33 +588,6 @@ class Molecule:
                             atoms[i][j] = plops
 
         return figure, atoms, bonds
-
-    def get_normal_modes(self, **kwargs):
-        """
-        Loads normal modes from file or calculates
-        from force constants
-
-        :param kwargs:
-        :type kwargs:
-        :return:
-        :rtype:
-        """
-        from .Vibrations import MolecularNormalModes, MolecularVibrations
-
-        if self.source_file is not None:
-            vibs = MolecularVibrations(self, self.load_normal_modes())
-        else:
-            try:
-                fcs = self.force_constants
-            except AttributeError:
-                raise MolecoolException("{} needs '{}' bound to calculate {}".format(
-                    type(self).__name__,
-                    'force_constants',
-                    'normal_modes'
-                ))
-            vibs = MolecularVibrations(self, MolecularNormalModes.from_force_constants(self, fcs, self.atoms, **kwargs))
-
-        return vibs
 
     def _get_ob_attr(self, item):
         if self._mol is None:

@@ -15,6 +15,8 @@ from McUtils.Coordinerds import (
     ZMatrixCoordinates, CartesianCoordinates3D, CoordinateSet, CoordinateSystemConverters
 )
 
+from .MoleculeInterface import AbstractMolecule
+
 def _get_best_axes(first_pos, axes):
     """
     Determine the best pair of inertial axes so that we don't get large-scale breakdowns from the choice of embedding
@@ -79,14 +81,13 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         """
 
         :param molecule:
-        :type molecule: Molecule
+        :type molecule: AbstractMolecule
         :param converter_options:
         :type converter_options:
         :param opts:
         :type opts:
         """
-        from .Molecule import Molecule
-        self.molecule = molecule #type: Molecule
+        self.molecule = molecule
         if converter_options is None:
             converter_options = opts
             opts = {}
@@ -149,21 +150,20 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         """
 
         :param molecule:
-        :type molecule: Molecule
+        :type molecule: AbstractMolecule
         :param converter_options:
         :type converter_options:
         :param opts:
         :type opts:
         """
-        from .Molecule import Molecule
-        self.molecule = molecule #type: Molecule
+        self.molecule = molecule #type: AbstractMolecule
         nats = len(self.molecule.atoms)
         if converter_options is None:
             converter_options = opts
             opts = {}
         super().__init__(converter_options=converter_options, dimension=(nats, 3), opts=opts)
 
-    def pre_convert(self, syystem):
+    def pre_convert(self, system):
         self.set_embedding()
 
     def set_embedding(self):
@@ -231,9 +231,32 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
 
         return zmcs, opts
 
-    def convert_many(self, coords, molecule=None, origins=None, axes=None, ordering=None, **kwargs):
+    def convert_many(self, coords,
+                     molecule=None, origins=None, axes=None, ordering=None,
+                     strip_embedding=True,
+                     strip_dummies=True,
+                     **kwargs):
         """
         Converts from Cartesian to ZMatrix coords, preserving the embedding
+
+        :param coords: coordinates in Cartesians to convert
+        :type coords: np.ndarray
+        :param molecule:
+        :type molecule: AbstractMolecule
+        :param origins: the origin for each individual structure
+        :type origins: np.ndarray
+        :param axes: the axes for each structure
+        :type axes: np.ndarray
+        :param ordering: the Z-matrix ordering spec
+        :type ordering:
+        :param strip_embedding: whether to strip the embedding coordinates
+        :type strip_embedding:
+        :param strip_dummies: whether to strip all dummy coordinates
+        :type strip_dummies:
+        :param kwargs:
+        :type kwargs:
+        :return:
+        :rtype:
         """
 
         n_sys = coords.shape[0]
@@ -268,19 +291,31 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
             opts=res.converter_options
         opts['ordering'] = opts['ordering'][3:] - 3
         zmcs = zmcs[:, 2:]
-        if 'derivs' in opts:
-            derivs = opts['derivs']
-            reshaped_derivs = [None] * len(derivs)
-            for i, v in enumerate(derivs):
-                # drop all terms relating to the embedding of the embedding
-                sel_1 = (
-                        (..., ) +
-                        (slice(3, None, None), slice(None, None, None)) * (i + 1)
-                        + (slice(2, None, None), slice(None, None, None))
-                )
-                reshaped_derivs[i] = v[sel_1]
+        if strip_dummies:
+            dummies = [0, 1, 2] + [x+2 for x in molecule.dummy_positions] # add on axes
+        elif strip_embedding:
+            dummies = [0, 1, 2]
+        else:
+            dummies = None
+        if dummies is not None:
+            main_excludes = np.setdiff1d(
+                np.arange(len(molecule.atoms)),
+                dummies
+            )
+            sub_excludes = main_excludes - 1 # drop one fewer terms to drop I think...
+            if 'derivs' in opts:
+                derivs = opts['derivs']
+                reshaped_derivs = [None] * len(derivs)
+                for i, v in enumerate(derivs):
+                    # drop all terms relating to the embedding of the embedding
+                    sel_1 = (
+                            (..., ) +
+                            (main_excludes, slice(None, None, None)) * (i + 1)
+                            + (sub_excludes, slice(None, None, None))
+                    )
+                    reshaped_derivs[i] = v[sel_1]
 
-            opts['derivs'] = reshaped_derivs
+                opts['derivs'] = reshaped_derivs
             # raise Exception(derivs.shape)
         return zmcs, opts
 
@@ -313,7 +348,10 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
         return total_points[0], opts
 
     def convert_many(self, coords, molecule=None, origins=None, axes=None, ordering=None,
-                     reembed=False, axes_choice=None, return_derivs=None, **kwargs):
+                     reembed=False, axes_choice=None, return_derivs=None,
+                     strip_dummies=False,
+                     strip_embedding=True,
+                     **kwargs):
         """
         Converts from Cartesian to ZMatrix coords, attempting to preserve the embedding
         """
@@ -364,14 +402,15 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
         if reembed:
             if molecule is None:
                 raise ValueError("can't reembed without a reference structure")
-            reembed = not (carts.squeeze().ndim == 2 and np.allclose(molecule.coords, carts, atol=1.0e-5)) # agree to like a ten thousandth of an angstrom
+            reembed = not (
+                    carts.squeeze().ndim == 2 and
+                    np.allclose(molecule.coords, carts, atol=1.0e-5))
+            # agree to like a ten thousandth of an angstrom
             if reembed:
                 if not return_derivs:
                     carts = molecule.embed_coords(carts)
                 else:
-                    print("garb")
                     inert_coords, coord_coms, coord_axes = Molecule(molecule.atoms, carts).principle_axis_data
-                    print("parp")
                     if axes_choice is None:
                         axes_choice = (0, 1)
                     guh = self.convert_many(coords,
@@ -391,18 +430,30 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
         opts['axes'] = axes
         if ordering is not None:
             opts['ordering'] = ordering[3:] - 3
-        if 'derivs' in opts:
-            derivs = opts['derivs']
-            reshaped_derivs = [None] * len(derivs)
-            for i, v in enumerate(derivs):
-                # drop all terms relating to the embedding of the embedding
-                sel_1 = (
-                        (..., ) +
-                        (slice(2, None, None), slice(None, None, None)) * (i + 1)
-                        + (slice(3, None, None), slice(None, None, None))
-                )
-                reshaped_derivs[i] = v[sel_1]
-            opts['derivs'] = reshaped_derivs
+        if strip_dummies:
+            dummies = [0, 1, 2] + [x + 3 for x in molecule.dummy_positions]  # add on axes
+        elif strip_embedding:
+            dummies = [0, 1]
+        else:
+            dummies = None
+        if dummies is not None:
+            main_excludes = np.setdiff1d(
+                np.arange(len(molecule.atoms)),
+                dummies
+            )
+            sub_excludes = main_excludes - 1  # drop one fewer terms to drop I think...
+            if 'derivs' in opts:
+                derivs = opts['derivs']
+                reshaped_derivs = [None] * len(derivs)
+                for i, v in enumerate(derivs):
+                    # drop all terms relating to the embedding of the embedding
+                    sel_1 = (
+                            (..., ) +
+                            (sub_excludes, slice(None, None, None)) * (i + 1)
+                            + (main_excludes, slice(None, None, None))
+                    )
+                    reshaped_derivs[i] = v[sel_1]
+                opts['derivs'] = reshaped_derivs
 
         return carts, opts
 
