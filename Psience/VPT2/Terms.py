@@ -10,7 +10,7 @@ from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpoint
 from McUtils.Parallelizers import Parallelizer
 from McUtils.Zachary import TensorDerivativeConverter, TensorExpansionTerms
 
-from ..Molecools import MolecularVibrations, MolecularNormalModes
+from ..Molecools import Molecule, MolecularVibrations, MolecularNormalModes
 
 from .Common import PerturbationTheoryException
 
@@ -166,7 +166,7 @@ class ExpansionTerms:
         self.coords = molecule.coords
         self.masses = molecule.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         if modes is None:
-            modes = molecule.normal_modes
+            modes = molecule.normal_modes.modes
         if undimensionalize:
             self.raw_modes = modes
             modes = self.undimensionalize(self.masses, modes.basis)
@@ -814,14 +814,14 @@ class PotentialTerms(ExpansionTerms):
         :param mixed_derivs: whether or not the pulled derivatives are partially derivatives along the normal coords
         :type mixed_derivs: bool
         :param modes: the normal modes to use when doing calculations
-        :type modes: None | MolecularNormalModes
+        :type modes: None | MolecularVibrations
         :param mode_selection: the subset of normal modes to use
         :type mode_selection: None | Iterable[int]
         """
         super().__init__(molecule, modes, mode_selection=mode_selection,
                          logger=logger, parallelizer=parallelizer, checkpointer=checkpointer)
         if potential_derivatives is None:
-            potential_derivatives = molecule.potential_derivatives
+            potential_derivatives = molecule.potential_surface.derivatives
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
         self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, potential_derivatives)
 
@@ -1237,7 +1237,7 @@ class DipoleTerms(ExpansionTerms):
         :param mixed_derivs: whether or not the pulled derivatives are partially derivatives along the normal coords
         :type mixed_derivs: bool
         :param modes: the normal modes to use when doing calculations
-        :type modes: None | MolecularNormalModes
+        :type modes: None | MolecularVibrations
         :param mode_selection: the subset of normal modes to use
         :type mode_selection: None | Iterable[int]
         """
@@ -1248,7 +1248,7 @@ class DipoleTerms(ExpansionTerms):
         if self.mixed_derivs is None:
             self.mixed_derivs = mixed_derivs
         if derivatives is None:
-            derivatives = molecule.dipole_derivatives
+            derivatives = molecule.dipole_surface.derivatives
         self.derivs = self._canonicalize_derivs(self.freqs, self.masses, derivatives)
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
@@ -1256,12 +1256,11 @@ class DipoleTerms(ExpansionTerms):
         Makes sure all of the dipole moments are clean and ready to rotate
         """
 
+        mom, grad, seconds, thirds = derivs
         try:
-            mom, grad, seconds, thirds = derivs['analytic']
-        except (IndexError, TypeError):
-            mom, grad, seconds, thirds = derivs
-        else:
             grad = grad.array
+        except AttributeError:
+            pass
 
         n = len(masses)
         modes_n = len(self.modes.freqs)

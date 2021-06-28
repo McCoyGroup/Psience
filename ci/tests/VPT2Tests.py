@@ -3305,8 +3305,7 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            print_report=print_report,
-            watson=True
+            print_report=print_report
         )
 
     @validationTest
@@ -3336,7 +3335,7 @@ class VPT2Tests(TestCase):
         # import McUtils.Misc as mcmisc
         #
         # with mcmisc.without_numba():
-        os.remove(os.path.expanduser('~/hoh.hdf5'))
+        # os.remove(os.path.expanduser('~/hoh.hdf5'))
         self.run_PT_test(
             tag,
             file_name,
@@ -3348,7 +3347,8 @@ class VPT2Tests(TestCase):
             log=True,
             verbose=True,
             print_report=print_report
-            , checkpoint=os.path.expanduser('~/hoh.hdf5')
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
         )
 
     @inactiveTest
@@ -3930,7 +3930,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesiansDegenerate(self):
 
         tag = 'OCHH Cartesians'
@@ -4334,18 +4334,22 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @validationTest
+    @debugTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
         file_name = "HOONO_freq.fchk"
 
+        mol = Molecule.from_file(file_name)
+        o_pos = mol.atom_positions["O"][0]
+        mol2.insert_atoms()
+
         internals = [
-            [0, -1, -1, -1],
-            [1,  0, -1, -1],
-            [2,  1,  0, -1],
-            [3,  2,  1,  0],
-            [4,  3,  2,  1],
+            ["H", 0, -1, -1, -1],
+            ["O", 1,  0, -1, -1],
+            ["O", 2,  1,  0, -1],
+            ["N", 3,  2,  1,  0],
+            ["O", 4,  3,  2,  1],
         ]
         n_atoms = 5
         n_modes = 3 * n_atoms - 6
@@ -5095,7 +5099,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @debugTest
+    @validationTest
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"

@@ -351,11 +351,12 @@ class MolecularNormalModes(CoordinateSystem):
 
         tmat = frame.transformation_function.transform
         mat = self.matrix
-        mat = mat@tmat
+        mat = np.tensordot(tmat, mat.reshape((-1, mat.shape[-1]//3, 3)), axes=[1, 2])
+        mat = mat.reshape(self.matrix.shape)
 
         if self._origin is not None:
             orig = self.origin
-            orig = tmat@orig
+            orig = np.tensordot(tmat, orig, axes=[1, 1])
         else:
             orig = None
 

@@ -12,23 +12,53 @@ __all__ = ["AbstractMolecule"]
 class PotentialSurfaceType(typing.Protocol):
     @property
     def surface(self):
-        raise NotImplementedError('abstract class')
+        raise NotImplementedError('abstract interface')
     @property
     def derivatives(self):
-        raise NotImplementedError('abstract class')
+        raise NotImplementedError('abstract interface')
+    def load(self):
+        raise NotImplementedError('abstract interface')
+    def update(self, val):
+        raise NotImplementedError('abstract interface')
+    def insert_atoms(self, atoms, coords, where):
+        raise NotImplementedError('abstract interface')
+    def delete_atoms(self, where):
+        raise NotImplementedError('abstract interface')
+    def apply_transformation(self, frame):
+        raise NotImplementedError('abstract interface')
 
 class DipoleSurfaceType(typing.Protocol):
     @property
     def surface(self):
-        raise NotImplementedError('abstract class')
+        raise NotImplementedError('abstract interface')
     @property
     def derivatives(self):
-        raise NotImplementedError('abstract class')
+        raise NotImplementedError('abstract interface')
+    def load(self):
+        raise NotImplementedError('abstract interface')
+    def update(self, val):
+        raise NotImplementedError('abstract interface')
+    def insert_atoms(self, atoms, coords, where):
+        raise NotImplementedError('abstract interface')
+    def delete_atoms(self, where):
+        raise NotImplementedError('abstract interface')
+    def apply_transformation(self, frame):
+        raise NotImplementedError('abstract interface')
 
 class NormalModesType(typing.Protocol):
     @property
     def modes(self):
-        raise NotImplementedError('abstract class')
+        raise NotImplementedError('abstract interface')
+    def load(self):
+        raise NotImplementedError('abstract interface')
+    def update(self, val):
+        raise NotImplementedError('abstract interface')
+    def insert_atoms(self, atoms, coords, where):
+        raise NotImplementedError('abstract interface')
+    def delete_atoms(self, where):
+        raise NotImplementedError('abstract interface')
+    def apply_transformation(self, frame):
+        raise NotImplementedError('abstract interface')
 
 class AbstractMolecule(metaclass=abc.ABCMeta):
     """
@@ -124,6 +154,13 @@ class AbstractMolecule(metaclass=abc.ABCMeta):
     def dipole_surface(self) -> DipoleSurfaceType:
         """
         Provides the dipole surface for the molecule
+        """
+        raise NotImplementedError('abstract class')
+    @property
+    @abc.abstractmethod
+    def normal_modes(self) -> NormalModesType:
+        """
+        Provides the normal modes for the molecule
         """
         raise NotImplementedError('abstract class')
 

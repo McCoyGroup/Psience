@@ -10,6 +10,7 @@ from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoor
 from .MoleculeInterface import *
 from .CoordinateSystems import MolecularCartesianCoordinateSystem, MolecularZMatrixCoordinateSystem
 from .Properties import *
+from .Transformations import *
 
 __all__ = [
     "Molecule",
@@ -102,22 +103,67 @@ class Molecule(AbstractMolecule):
                                                    derivatives=dipole_derivatives
                                                    )
 
-        self.normal_modes = NormalModesManager(self, normal_modes=normal_modes)
+        self._normal_modes = NormalModesManager(self, normal_modes=normal_modes)
 
         metadata['charge'] = charge
         self._meta = metadata
 
         self.guess_bonds=guess_bonds
 
+    #region Properties
     @property
     def dipole_surface(self):
+        """
+        :return:
+        :rtype: DipoleSurfaceManager
+        """
         return self._dips
+    @dipole_surface.setter
+    def dipole_surface(self, val):
+        if not isinstance(val, DipoleSurfaceManager):
+            raise TypeError("`dipole_surface` must be {}".format(
+                DipoleSurfaceManager.__name__
+            ))
+        self._dips = val
     @property
     def potential_surface(self):
+        """
+        :return:
+        :rtype: PotentialSurfaceManager
+        """
         return self._pes
+    @potential_surface.setter
+    def potential_surface(self, val):
+        if not isinstance(val, PotentialSurfaceManager):
+            raise TypeError("`potential_surface` must be {}".format(
+                PotentialSurfaceManager.__name__
+            ))
+        self._pes = val
+    @property
+    def normal_modes(self):
+        """
+        :return:
+        :rtype: NormalModesManager
+        """
+        return self._normal_modes
+    @normal_modes.setter
+    def normal_modes(self, val):
+        if not isinstance(val, NormalModesManager):
+            raise TypeError("`normal_modes` must be {}".format(
+                NormalModesManager.__name__
+            ))
+        self._normal_modes = val
     @property
     def metadata(self):
         return self._meta
+    @metadata.setter
+    def metadata(self, val):
+        if not isinstance(val, dict):
+            raise TypeError("metadata must be {}".format(
+                dict.__name__
+            ))
+        self._meta = val
+    #endregion
 
     def __repr__(self):
         return "{cls}('{name}', formula='{formula}', shape={shape}, coord_sys={coord_sys})".format(
@@ -131,6 +177,26 @@ class Molecule(AbstractMolecule):
     @property
     def num_atoms(self):
         return len(self._ats)
+    @property
+    def atom_positions(self):
+        """
+        A mapping of atom types to positions
+
+        :param spec:
+        :type spec:
+        :return:
+        :rtype:
+        """
+        pos_map = {}
+        for i,a in enumerate(self._ats):
+            if a["Symbol"] in pos_map:
+                pos_map[a["Symbol"]].append(i)
+            else:
+                pos_map[a["Symbol"]] = [i]
+        return pos_map
+    @property
+    def dummy_positions(self):
+        return self.atom_positions['X']
     @property
     def atoms(self):
         return tuple(a["Symbol"] for a in self._ats)
@@ -169,6 +235,109 @@ class Molecule(AbstractMolecule):
     @property
     def source_file(self):
         return self._src
+
+    #region Structure Modification
+    def insert_atoms(self, atoms, coords, where, handle_properties=True):
+        new = self.copy()
+
+        new._coords = np.insert(new.coords, where, coords,
+                                axis=1 if self.multiconfig else 0
+                                )
+        new._ats = np.insert(np.array(new._ats, dtype=object),
+                             where,
+                             [AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms]
+                             )
+        new.coords.system = MolecularCartesianCoordinateSystem(new)
+        if handle_properties:
+            new.dipole_surface = new.dipole_surface.insert_atoms(atoms, coords, where)
+            new.pes = new.pes.insert_atoms(atoms, coords, where)
+            new.normal_modes = new.normal_modes.insert_atoms(atoms, coords, where)
+
+        return new
+
+    def delete_atoms(self, where, handle_properties=True):
+        new = self.copy()
+        new._coords = np.delete(new.coords, where,
+                                axis=1 if self.multiconfig else 0
+                                )
+        new._ats = np.delete(np.array(new._ats, dtype=object),
+                             where
+                             )
+        new.coords.system = MolecularCartesianCoordinateSystem(new)
+        if handle_properties:
+            new.dipole_surface = new.dipole_surface.delete_atoms(where)
+            new.pes = new.pes.delete_atoms(where)
+            new.normal_modes = new.normal_modes.delete_atoms(where)
+
+        return new
+
+    def take_submolecule(self, spec):
+        """
+        Takes a 'slice' of a molecule if working with Cartesian coords.
+        If not, need to do some corner case handling for that.
+
+        :param spec:
+        :type spec:
+        :return:
+        :rtype:
+        """
+        new_coords = self.coords[spec]
+        new_shape = new_coords.shape
+        cur_shape = self.coords.shape
+        # if we're no longer working with Cartesians, then we say "Abort!"
+        if new_shape[-1] != 3:
+            return new_coords
+        elif new_shape[-2] != cur_shape[-2]:
+            # we have a different number of atoms now...
+            raise IndexError("I haven't implemented slicing for molecules that changes the # of atoms")
+        else:
+            new = self.copy()
+            new._coords = new_coords
+            return new
+    #endregion
+
+    @property
+    def shape(self):
+        return self.coords.shape
+    def __len__(self):
+        if self.multiconfig:
+            return self.coords.shape[0]
+        else:
+            return 1
+    def __iter__(self):
+        if self.multiconfig:
+            for i in range(len(self)):
+                yield self[i]
+        else:
+            yield self
+    def __getitem__(self, item):
+        return self.take_submolecule(item)
+
+    def copy(self):
+        import copy
+        # mostly just use the default and don't be fancy
+        new = copy.copy(self)
+        # but we also need to do some stuff where we store objects that
+        # reference the molecule
+        new.pes.set_molecule(new)
+        new.dipole_surface.set_molecule(new)
+        new.normal_modes.set_molecule(new)
+        new.ext_mol.set_molecule(new)
+        return new
+
+    def prop(self, name, *args, **kwargs):
+        from .Properties import MolecularProperties, MolecularPropertyError
+        if hasattr(MolecularProperties, name):
+            return getattr(MolecularProperties, name)(self, *args, **kwargs)
+        else:
+            raise MolecularPropertyError("{}.{}: property '{}' unknown".format(
+                type(self).__name__,
+                'prop',
+                name
+            ))
+
+
+    #region Coordinate Embeddings
 
     @property
     def mass_weighted_coords(self):
@@ -220,6 +389,22 @@ class Molecule(AbstractMolecule):
         :rtype: np.ndarray
         """
         return self.prop('translation_rotation_eigenvectors')
+
+    @property
+    def zmatrix(self):
+        """
+        :return:
+        :rtype:
+        """
+        return self._zmat
+    @zmatrix.setter
+    def zmatrix(self, val):
+        """
+        :return:
+        :rtype:
+        """
+        #TODO: add some validation
+        self._zmat = val
     @property
     def internal_coordinates(self):
         if self._ints is None and self._zmat is not None:
@@ -227,88 +412,6 @@ class Molecule(AbstractMolecule):
             # print(zms)
             self._ints = self.coords.convert(zms)
         return self._ints
-
-    def insert_atoms(self, atoms, coords, where):
-        new = self.copy()
-        new._coords = np.insert(new.coords, coords, where,
-                                axis=1 if self.multiconfig else 0
-                                )
-        new._ats = np.insert(np.array(new._ats, dtype=object),
-                             [AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms],
-                             where
-                             )
-        new.dipole_surface = new.dipole_surface.insert_atoms(atoms, coords, where)
-        new.pes = new.pes.insert_atoms(atoms, coords, where)
-        new.normal_modes = ...
-
-        raise NotImplementedError("need to manage properties from here...")
-        # manage properties
-
-
-    def take_submolecule(self, spec):
-        """
-        Takes a 'slice' of a molecule if working with Cartesian coords.
-        If not, need to do some corner case handling for that.
-
-        :param spec:
-        :type spec:
-        :return:
-        :rtype:
-        """
-        new_coords = self.coords[spec]
-        new_shape = new_coords.shape
-        cur_shape = self.coords.shape
-        # if we're no longer working with Cartesians, then we say "Abort!"
-        if new_shape[-1] != 3:
-            return new_coords
-        elif new_shape[-2] != cur_shape[-2]:
-            # we have a different number of atoms now...
-            raise IndexError("I haven't implemented slicing for molecules that changes the # of atoms")
-        else:
-            new = self.copy()
-            new._coords = new_coords
-            return new
-
-    @property
-    def shape(self):
-        return self.coords.shape
-    def __len__(self):
-        if self.multiconfig:
-            return self.coords.shape[0]
-        else:
-            return 1
-    def __iter__(self):
-        if self.multiconfig:
-            for i in range(len(self)):
-                yield self[i]
-        else:
-            yield self
-    def __getitem__(self, item):
-        return self.take_submolecule(item)
-
-    def copy(self):
-        import copy
-        # mostly just use the default and don't be fancy
-        new = copy.copy(self)
-        # but we also need to do some stuff where we store objects that
-        # reference the molecule
-        new.pes.set_molecule(new)
-        new.dipole_surface.set_molecule(new)
-        new.normal_modes.set_molecule(new)
-        new.ext_mol.set_molecule(new)
-        return new
-
-    def prop(self, name, *args, **kwargs):
-        from .Properties import MolecularProperties, MolecularPropertyError
-        if hasattr(MolecularProperties, name):
-            return getattr(MolecularProperties, name)(self, *args, **kwargs)
-        else:
-            raise MolecularPropertyError("{}.{}: property '{}' unknown".format(
-                type(self).__name__,
-                'prop',
-                name
-            ))
-
 
     def principle_axis_frame(self, sel=None, inverse=False):
         """
@@ -367,7 +470,10 @@ class Molecule(AbstractMolecule):
         :rtype: tuple[np.ndarray, tuple[np.ndarray], tuple[np.ndarray]]
         """
         return self.prop('eckart_embedding_data', crds, sel=sel)
-    def get_embedded_molecule(self, ref=None):
+    def get_embedded_molecule(self,
+                              ref=None,
+                              embed_properties=True
+                              ):
         """
         Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
         a principle-axis embedded Molecule
@@ -380,18 +486,16 @@ class Molecule(AbstractMolecule):
         else:
             frame = self.eckart_frame(ref, inverse=True)
         new = frame.apply(self)
+        if embed_properties:
+            new.normal_modes = new.normal_modes.apply_transformation(frame)
+            new.potential_surface = new.potential_surface.apply_transformation(frame)
+            new.dipole_surface = new.dipole_surface.apply_transformation(frame)
 
-        # pot_d = new.potential_derivatives
-        # if pot_d is not None:
-        #     derivs = [None]*len(pot_d)
-        #     for i, d in enumerate(pot_d):
-        #         if d.shape[-1] != 3:
-        #             d = d.reshape(d.shape[:-1] + (d.shape[-1]//3, 3))
-        #         derivs[i] = frame.apply(d, shift=False)
-        #     new.potential_derivatives = derivs
         return new
 
+    #endregion
 
+    #region Input Formats
     @classmethod
     def from_zmat(cls, zmat, **opts):
         """Little z-matrix importer
@@ -490,7 +594,9 @@ class Molecule(AbstractMolecule):
             else:
                 mol = next(pybel.readfile(mode, file))
                 return cls.from_pybel(mol)
+    #endregion
 
+    #region Visualization
     def plot(self,
              *geometries,
              figure = None,
@@ -589,11 +695,15 @@ class Molecule(AbstractMolecule):
 
         return figure, atoms, bonds
 
+    #endregion
+
+    #region External Program Properties
     def _get_ob_attr(self, item):
         if self._mol is None:
             raise AttributeError("No pybel molecule")
         else:
             return getattr(self._mol, item)
+    #endregion
 
 class MolecoolException(Exception):
     pass

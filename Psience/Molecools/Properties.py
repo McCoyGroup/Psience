@@ -37,7 +37,7 @@ class StructuralProperties:
 
     @classmethod
     def get_prop_mass_weighted_coords(cls, coords, masses):
-        """Gets the center of mass for the coordinates
+        """Gets the mass-weighted coordinates for the system
 
         :param coords:
         :type coords: CoordinateSet
@@ -47,7 +47,12 @@ class StructuralProperties:
         :rtype:
         """
 
-        return np.sqrt(masses)[:, np.newaxis] * coords
+        sel = masses > 0
+        comp = masses <= 0
+        new_stuff = masses.copy()
+        new_stuff[sel] = np.sqrt(masses[sel])
+        new_stuff[comp] = 1
+        return new_stuff[:, np.newaxis] * coords
 
     @classmethod
     def get_prop_center_of_mass(cls, coords, masses):
@@ -60,6 +65,9 @@ class StructuralProperties:
         :return:
         :rtype:
         """
+
+        masses = masses.copy()
+        masses[masses < 0] = 0
 
         return np.tensordot(masses / np.sum(masses), coords, axes=[0, -2])
 
@@ -78,6 +86,9 @@ class StructuralProperties:
 
         com = cls.get_prop_center_of_mass(coords, masses)
         coords = coords - com[..., np.newaxis, :]
+
+        masses = masses.copy()
+        masses[masses < 0] = 0
 
         d = np.zeros(coords.shape[:-1] + (3, 3), dtype=float)
         diag = nput.vec_dots(coords, coords)
@@ -1076,11 +1087,13 @@ class PropertyManager(metaclass=abc.ABCMeta):
             tf = transf.transformation_function.transform #type: np.ndarray
             new_derivs = []
             for i, d in enumerate(derivs):
-                if isinstance(d, (int, float, np.integer, np.floating)):
+                if d is None:
+                    new_derivs.append(d)
+                elif isinstance(d, (int, float, np.integer, np.floating)):
                     new_derivs.append(d)
                 else:
                     shp = d.shape
-                    for j in d.ndim:
+                    for j in range(d.ndim):
                         d = np.tensordot(
                             tf,
                             d.reshape(
@@ -1088,7 +1101,7 @@ class PropertyManager(metaclass=abc.ABCMeta):
                                 (
                                     d.shape[j]//3,
                                     3
-                                ),
+                                ) +
                                 d.shape[j+1:]
                             ),
                             axes=[1, j+1]
@@ -1181,27 +1194,27 @@ class DipoleSurfaceManager(PropertyManager):
             self._surf = self.load_dipole_surface()
         return self._surf
     @property
+    def numerical_derivatives(self):
+        if self._numerical_derivs is None and self._derivs is None:
+            derivatives = self.load_dipole_derivatives()
+            if isinstance(derivatives, dict):
+                self._numerical_derivs = derivatives['numerical']
+                self._derivs = derivatives['analytic']
+            else:
+                self._numerical_derivs = None
+                self._derivs = derivatives
+        return self._numerical_derivs
+    @property
     def derivatives(self):
         if self._derivs is None:
             derivatives = self.load_dipole_derivatives()
             if isinstance(derivatives, dict):
-                self._derivs = derivatives['numerical']
-                self._analytic_derivatives = derivatives['analytic']
+                self._numerical_derivs = derivatives['numerical']
+                self._derivs = derivatives['analytic']
             else:
+                self._numerical_derivs = None
                 self._derivs = derivatives
-                self._analytic_derivatives = None
         return self._derivs
-    @property
-    def analytical_derivatives(self):
-        if self._analytic_derivatives is None and self._derivs is None:
-            derivatives = self.load_dipole_derivatives()
-            if isinstance(derivatives, dict):
-                self._derivs = derivatives['numerical']
-                self._analytic_derivatives = derivatives['analytic']
-            else:
-                self._derivs = derivatives
-                self._analytic_derivatives = None
-        return self._analytic_derivatives
 
     def load(self):
         if self._surf is not None:
@@ -1229,6 +1242,7 @@ class DipoleSurfaceManager(PropertyManager):
                 parse = gr.parse(keys)
 
             mom, grad, high = tuple(parse[k] for k in keys[:3])
+            grad = grad.array
             seconds = high.second_deriv_array
             thirds = high.third_deriv_array
             num_derivs = parse[keys[3]]
@@ -1252,7 +1266,7 @@ class DipoleSurfaceManager(PropertyManager):
 
         return {
             "analytic": (mom, grad, seconds, thirds),
-            "numerical": (num_grad, num_secs)
+            "numerical": (mom, num_grad, num_secs)
         }
 
     def load_dipole_derivatives(self, file=None):
@@ -1308,7 +1322,10 @@ class DipoleSurfaceManager(PropertyManager):
         :return:
         :rtype:
         """
-        raise NotImplementedError("Incomplete interface")
+        if all(a == "X" for a in atoms):
+            raise NotImplementedError("haven't added dummy atom insertion")
+        else:
+            raise NotImplementedError("don't know how to insert non-dummy atoms")
     def delete_atoms(self, where):
         """
         Handles the deletion from the structure
@@ -1466,6 +1483,13 @@ class NormalModesManager(PropertyManager):
         if self._modes is None:
             self._modes = self.get_normal_modes()
         return self._modes
+    @modes.setter
+    def modes(self, modes):
+        if not isinstance(modes, MolecularVibrations):
+            raise TypeError("`modes` must be {}".format(
+                MolecularVibrations.__name__
+            ))
+        self._modes = modes
 
     def load(self):
         return self._modes
@@ -1577,15 +1601,15 @@ class NormalModesManager(PropertyManager):
         :rtype:
         """
 
-        d1_analytic = self.mol.dipole_surface.analytical_derivatives[1]
-        d1_numerical = self.mol.dipole_surface.derivatives[1]
+        d1_analytic = self.mol.dipole_surface.derivatives[1]
+        d1_numerical = self.mol.dipole_surface.numerical_derivatives[1]
         if d1_numerical is None:
             return None
 
-        if not isinstance(d1_analytic, np.ndarray):
-            d1_analytic = d1_analytic.array
-        if not isinstance(d1_numerical, np.ndarray):
-            d1_numerical = d1_numerical.first_derivatives
+        # if not isinstance(d1_analytic, np.ndarray):
+        #     d1_analytic = d1_analytic.array
+        # if not isinstance(d1_numerical, np.ndarray):
+        #     d1_numerical = d1_numerical.first_derivatives
 
         # raise Exception(d1_analytic.shape, d1_numerical.shape
 
@@ -1604,9 +1628,9 @@ class NormalModesManager(PropertyManager):
     def apply_transformation(self, transf):
         new = self.copy()
 
-        modes = new.normal_modes
+        modes = new.modes
         modes = modes.embed(transf)
-        new.normal_modes = modes
+        new.modes = modes
 
         return new
 

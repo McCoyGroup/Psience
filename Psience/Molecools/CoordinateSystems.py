@@ -128,15 +128,63 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         converter_options['axes_choice'] = ax_choice
         converter_options['molecule'] = molecule
 
-    def jacobian(self, *args, **kwargs):
+    def jacobian(self,
+                 *args,
+                 reembed=None,
+                 strip_dummies=None,
+                 converter_options=None,
+                 **kwargs
+                 ):
+        if converter_options is None:
+            converter_options = {}
+        merged_convert_options = dict(self.converter_options, **converter_options)
         try:
-            remb = self.converter_options['reembed']
+            remb = merged_convert_options['reembed'] if reembed is None else reembed
         except KeyError:
             remb = None
 
         try:
+            strip_dummies = merged_convert_options['strip_dummies'] if strip_dummies is None else strip_dummies
+        except KeyError:
+            strip_dummies = False
+
+        if strip_dummies:
+            dummies = self.molecule.dummy_positions
+        else:
+            dummies = None
+
+        if dummies is not None:
+            main_excludes = np.setdiff1d(
+                np.arange(self.molecule.num_atoms),
+                dummies
+            )
+
+        try:
             self.converter_options['reembed'] = True if remb is None else remb
-            return super().jacobian(*args, **kwargs)
+            jacs = super().jacobian(*args, converter_options=converter_options, **kwargs)
+            raw_jacs = []
+            for j in jacs:
+                ext_dim = j.ndim - 2
+                shp = sum(
+                    ((j.shape[i] // 3, 3) for i in range(ext_dim)),
+                    ()
+                ) +  j.shape[-2:]
+                j = j.reshape(shp)
+                if dummies is not None:
+                    sel_1 = (
+                            (...,) +
+                            (main_excludes, slice(None, None, None)) * ext_dim
+                            + (slice(None, None, None), slice(None, None, None))
+                    )
+                    j = j[sel_1]
+
+                #     j.shape[:i]
+                #     + (j.shape[i] // 3, 3)
+                #     + j.shape[i+1:]
+                # )
+                raw_jacs.append(j)
+            jacs = raw_jacs
+            return jacs
         finally:
             if remb is not None:
                 self.converter_options['reembed'] = remb
@@ -195,6 +243,55 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         converter_options['axes_choice'] = ax_choice
         converter_options['molecule'] = molecule
 
+    def jacobian(self,
+                 *args,
+                 strip_dummies=None,
+                 converter_options=None,
+                 **kwargs
+                 ):
+        if converter_options is None:
+            converter_options = {}
+        merged_convert_options = dict(self.converter_options, **converter_options)
+        try:
+            strip_dummies = merged_convert_options['strip_dummies'] if strip_dummies is None else strip_dummies
+        except KeyError:
+            strip_dummies = False
+
+        if strip_dummies:
+            dummies = self.molecule.dummy_positions
+        else:
+            dummies = None
+
+        if dummies is not None:
+            main_excludes = np.setdiff1d(
+                np.arange(self.molecule.num_atoms),
+                dummies
+            )
+
+        jacs = super().jacobian(*args, converter_options=converter_options, **kwargs)
+        raw_jacs = []
+        for j in jacs:
+            shp = sum(
+                ((j.shape[i] // 3, 3) for i in range(j.ndim - 2)),
+                ()
+            ) +  j.shape[-2:]
+            j = j.reshape(shp)
+            if dummies is not None:
+                sel_1 = (
+                        (...,) +
+                        (main_excludes, slice(None, None, None)) * (j.ndim - + 1)
+                        + (slice(None, None, None), slice(None, None, None))
+                )
+                j = j[sel_1]
+
+            #     j.shape[:i]
+            #     + (j.shape[i] // 3, 3)
+            #     + j.shape[i+1:]
+            # )
+            raw_jacs.append(j)
+        jacs = raw_jacs
+        return jacs
+
 class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
     """
     ...
@@ -219,7 +316,8 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
         :rtype:
         """
 
-        zmcs, opts = self.convert_many(np.array([coords]), molecule=molecule, origins=origins, axes=axes, ordering=ordering, **kwargs)
+        zmcs, opts = self.convert_many(np.array([coords]),
+                                       molecule=molecule, origins=origins, axes=axes, ordering=ordering, **kwargs)
         zmcs = zmcs[0]
 
         if 'derivs' in opts:
@@ -232,9 +330,11 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
         return zmcs, opts
 
     def convert_many(self, coords,
-                     molecule=None, origins=None, axes=None, ordering=None,
+                     molecule=None,
+                     origins=None, axes=None,
+                     ordering=None,
                      strip_embedding=True,
-                     strip_dummies=True,
+                     strip_dummies=False,
                      **kwargs):
         """
         Converts from Cartesian to ZMatrix coords, preserving the embedding
@@ -290,16 +390,17 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
             zmcs = res
             opts=res.converter_options
         opts['ordering'] = opts['ordering'][3:] - 3
-        zmcs = zmcs[:, 2:]
+        # zmcs = zmcs[:, 2:]
         if strip_dummies:
-            dummies = [0, 1, 2] + [x+2 for x in molecule.dummy_positions] # add on axes
+            dummies = [0, 1, 2] + [x+3 for x in molecule.dummy_positions] # add on axes
         elif strip_embedding:
             dummies = [0, 1, 2]
         else:
             dummies = None
+
         if dummies is not None:
             main_excludes = np.setdiff1d(
-                np.arange(len(molecule.atoms)),
+                np.arange(len(molecule.atoms) + 3),
                 dummies
             )
             sub_excludes = main_excludes - 1 # drop one fewer terms to drop I think...
@@ -316,6 +417,8 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
                     reshaped_derivs[i] = v[sel_1]
 
                 opts['derivs'] = reshaped_derivs
+
+            zmcs = zmcs[..., sub_excludes, :]
             # raise Exception(derivs.shape)
         return zmcs, opts
 
@@ -397,20 +500,26 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
         else:
             carts = res
             opts = res.converter_options
-        carts = carts[..., 3:, :]
 
         if reembed:
             if molecule is None:
                 raise ValueError("can't reembed without a reference structure")
+            embed_carts = carts[..., 3:, :]
             reembed = not (
                     carts.squeeze().ndim == 2 and
-                    np.allclose(molecule.coords, carts, atol=1.0e-5))
-            # agree to like a ten thousandth of an angstrom
+                    np.allclose(molecule.coords, carts, atol=1.0e-5)
+            ) # agree to like a ten thousandth of an angstrom
             if reembed:
                 if not return_derivs:
-                    carts = molecule.embed_coords(carts)
+                    embed_carts = molecule.embed_coords(embed_carts)
+                    carts = np.concatenate([
+                        carts[..., :3, :],
+                        embed_carts
+                        ],
+                    axis=-2
+                    )
                 else:
-                    inert_coords, coord_coms, coord_axes = Molecule(molecule.atoms, carts).principle_axis_data
+                    inert_coords, coord_coms, coord_axes = Molecule(molecule.atoms, embed_carts).principle_axis_data
                     if axes_choice is None:
                         axes_choice = (0, 1)
                     guh = self.convert_many(coords,
@@ -423,7 +532,6 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
                                              axes_choice=axes_choice,
                                              **kwargs
                                              )
-                    # print("...farts")
                     return guh
 
         opts['origins'] = origins
@@ -433,12 +541,12 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
         if strip_dummies:
             dummies = [0, 1, 2] + [x + 3 for x in molecule.dummy_positions]  # add on axes
         elif strip_embedding:
-            dummies = [0, 1]
+            dummies = [0, 1, 2]
         else:
             dummies = None
         if dummies is not None:
             main_excludes = np.setdiff1d(
-                np.arange(len(molecule.atoms)),
+                np.arange(len(molecule.atoms) + 3),
                 dummies
             )
             sub_excludes = main_excludes - 1  # drop one fewer terms to drop I think...
@@ -454,6 +562,8 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
                     )
                     reshaped_derivs[i] = v[sel_1]
                 opts['derivs'] = reshaped_derivs
+
+            carts = carts[..., main_excludes, :]
 
         return carts, opts
 

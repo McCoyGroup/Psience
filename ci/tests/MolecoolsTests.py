@@ -1,6 +1,8 @@
 
 from Peeves.TestUtils import *
 from unittest import TestCase
+from Peeves import BlockProfiler
+
 from Psience.Molecools import Molecule, MolecularNormalModes
 # from Psience.Molecools.Transformations import MolecularTransformation
 from Psience.Data import DipoleSurface # this will be leaving Zachary very soon I think...
@@ -9,6 +11,7 @@ from McUtils.Plots import *
 from McUtils.Coordinerds import cartesian_to_zmatrix
 from McUtils.Data import UnitsData
 import numpy as np
+import McUtils.Numputils as nput
 
 class MolecoolsTests(TestCase):
 
@@ -226,12 +229,133 @@ class MolecoolsTests(TestCase):
         # Plot(dists, dips[:, 2], figure=p2)
         # g.show()
 
-    @debugTest
+    @validationTest
     def test_EckartEmbedMolecule(self):
 
         ref_file = TestManager.test_data("tbhp_180.fchk")
         ref = Molecule.from_file(ref_file)
         new = ref.get_embedded_molecule()
+
+    @debugTest
+    def test_AddDummyAtoms(self):
+
+        file_name = TestManager.test_data("HOONO_freq.fchk")
+
+        mol = Molecule.from_file(file_name)
+        n_pos = mol.atom_positions["N"]
+        o_pos = mol.atom_positions["O"]
+
+        normal = nput.vec_crosses(
+            mol.coords[o_pos[0]] - mol.coords[o_pos[1]],
+            mol.coords[n_pos[0]] - mol.coords[o_pos[1]],
+            normalize=True
+        )
+
+        mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
+        del mol # to elim hard to debug errors
+
+        self.assertEquals(mol2.atoms,
+                          ("H", "O", "O", "N", "O", "X")
+                          )
+        self.assertEquals(np.linalg.norm(mol2.coords[o_pos[1]] - mol2.coords[-1]), 5.0)
+
+        mol2.zmatrix = [
+            [1, -1, -1, -1], #O
+            [2,  1, -1, -1], #O
+            [3,  2,  1, -1], #N
+            [5,  2,  1,  3], #X
+            [0,  1,  2,  5], #H
+            [4,  3,  2,  5], #O
+        ]
+
+        self.assertEquals(
+            mol2.internal_coordinates[3, 0], 5.0
+        )
+        self.assertEquals(
+            mol2.internal_coordinates[3, 1], np.pi/2
+        )
+        self.assertEquals(
+            mol2.internal_coordinates[3, 2], np.pi/2
+        )
+        self.assertEquals(
+            mol2.internal_coordinates[4, 2], np.pi/2
+        )
+        self.assertEquals(
+            mol2.internal_coordinates[5, 2], -np.pi/2
+        )
+
+    @debugTest
+    def test_AddDummyAtomProperties(self):
+
+        file_name = TestManager.test_data("HOONO_freq.fchk")
+
+        mol = Molecule.from_file(file_name)
+        n_pos = mol.atom_positions["N"]
+        o_pos = mol.atom_positions["O"]
+
+        normal = nput.vec_crosses(
+            mol.coords[o_pos[0]] - mol.coords[o_pos[1]],
+            mol.coords[n_pos[0]] - mol.coords[o_pos[1]],
+            normalize=True
+        )
+
+        mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
+
+        self.assertEquals(
+            mol2.moments_of_inertia.tolist(),
+            mol.moments_of_inertia.tolist()
+        )
+
+        self.assertEquals(
+            mol2.inertial_axes.tolist(),
+            mol.inertial_axes.tolist()
+        )
+
+    @debugTest
+    def test_AddDummyAtomJacobians(self):
+
+        file_name = TestManager.test_data("HOONO_freq.fchk")
+
+        mol = Molecule.from_file(file_name)
+        n_pos = mol.atom_positions["N"]
+        o_pos = mol.atom_positions["O"]
+
+        normal = nput.vec_crosses(
+            mol.coords[o_pos[0]] - mol.coords[o_pos[1]],
+            mol.coords[n_pos[0]] - mol.coords[o_pos[1]],
+            normalize=True
+        )
+
+        mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
+
+        mol2.zmatrix = [
+            [1, -1, -1, -1],  # O
+            [2,  1, -1, -1],  # O
+            [3,  2,  1, -1],  # N
+            [5,  2,  1,  3],  # X
+            [0,  1,  2,  5],  # H
+            [4,  3,  2,  5],  # O
+        ]
+
+        # with BlockProfiler():
+        jacobians_no_dummy = mol2.internal_coordinates.jacobian(mol2.coords.system,
+                                                       [1, 2],
+                                                       stencil=3,
+                                                       all_numerical=True,
+                                                       converter_options=dict(strip_dummies=True),
+                                                       )
+        self.assertEquals(jacobians_no_dummy[0].shape, (5, 3, 5, 3))
+        jacobians = mol2.internal_coordinates.jacobian(mol2.coords.system,
+                                                       [1],
+                                                       stencil=3,
+                                                       all_numerical=True,
+                                                       converter_options=dict(strip_dummies=False),
+                                                       )
+        self.assertEquals(jacobians[0].shape, (6, 3, 6, 3))
+
+
+        self.assertEquals(jacobians[0][0, 0][:2].tolist(), jacobians_no_dummy[0][0, 0][:2].tolist())
+        # raise Exception(jacobians[0].shape)
 
     @validationTest
     def test_Plotting(self):

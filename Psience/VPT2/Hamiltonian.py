@@ -94,11 +94,11 @@ class PerturbationTheoryHamiltonian:
         # molecule = molecule.get_embedded_molecule()
         self.molecule = molecule
         if modes is None:
-            modes = molecule.normal_modes
+            modes = molecule.normal_modes.modes
             # this basically presupposes we've got a held fe...might need to think
             # abotu the input format we want for this
             try:
-                phases = molecule.get_fchk_normal_mode_rephasing()
+                phases = molecule.normal_modes.get_fchk_normal_mode_rephasing()
             except NotImplementedError:
                 pass
             else:
