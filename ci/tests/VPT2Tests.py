@@ -4338,19 +4338,29 @@ class VPT2Tests(TestCase):
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
-        file_name = "HOONO_freq.fchk"
+        file_name = TestManager.test_data("HOONO_freq.fchk")
 
         mol = Molecule.from_file(file_name)
-        o_pos = mol.atom_positions["O"][0]
-        mol2.insert_atoms()
+        n_pos = mol.atom_positions["N"]
+        o_pos = mol.atom_positions["O"]
 
-        internals = [
-            ["H", 0, -1, -1, -1],
-            ["O", 1,  0, -1, -1],
-            ["O", 2,  1,  0, -1],
-            ["N", 3,  2,  1,  0],
-            ["O", 4,  3,  2,  1],
+        normal = nput.vec_crosses(
+            mol.coords[o_pos[0]] - mol.coords[o_pos[1]],
+            mol.coords[n_pos[0]] - mol.coords[o_pos[1]],
+            normalize=True
+        )
+
+        mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
+
+        mol2.zmatrix = [
+            [1, -1, -1, -1],  # O
+            [2,  1, -1, -1],  # O
+            [3,  2,  1, -1],  # N
+            [5,  2,  1,  3],  # X
+            [0,  1,  2,  5],  # H
+            [4,  3,  2,  5],  # O
         ]
+
         n_atoms = 5
         n_modes = 3 * n_atoms - 6
         mode_selection = None  # [5, 4, 3]
@@ -4369,7 +4379,7 @@ class VPT2Tests(TestCase):
         self.run_PT_test(
             tag,
             file_name,
-            internals,
+            mol,
             mode_selection,
             states,
             gaussian_energies,

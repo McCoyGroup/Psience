@@ -1,14 +1,29 @@
-'''ND Colbert and Miller DVR'''
+"""
+ND Colbert and Miller DVR on [-inf, inf] range
+but the basic template can be directly adapted to the
+[0, 2pi] one or really any DVR that is a direct product
+of 1D DVRs
+"""
 
 import numpy as np
 import scipy.sparse as sp
 import ColbertMiller1D as cm1D
 
+def grid(domain=None, divs=None, flavor='[-inf,inf]', **kw):
+    """
 
-def grid(domain=((-5, 5), (-5, 5)), divs=(10, 10), **kw):
-    '''Creates a ND grid from 1D ones'''
+    :param domain:
+    :type domain:
+    :param divs:
+    :type divs:
+    :param kw:
+    :type kw:
+    :return:
+    :rtype:
+    """
 
-    mesh = np.array(np.meshgrid(*map(cm1D.grid, domain, divs), indexing='ij'))
+    subgrids = [cm1D.grid(domain=dom, divs=div, flavor=flavor) for dom,div in zip(domain, divs)]
+    mesh = np.array(np.meshgrid(*subgrids, indexing='ij'))
 
     rolly_polly_OLLY = np.roll(np.arange(len(mesh.shape)), -1)
     MEHSH = mesh.transpose(rolly_polly_OLLY)
@@ -16,8 +31,7 @@ def grid(domain=((-5, 5), (-5, 5)), divs=(10, 10), **kw):
     #     mesh = mesh.swapaxes(i, i+1)
     return MEHSH
 
-
-def kinetic_energy(grid=None, m=1, hb=1, **kw):
+def kinetic_energy(grid=None, m=1, hb=1, flavor='[-inf,inf]', **kw):
     '''Computes n-dimensional kinetic energy for the grid'''
     from functools import reduce
 
@@ -33,10 +47,13 @@ def kinetic_energy(grid=None, m=1, hb=1, **kw):
         hbs = [hb]*ndims
 
     ndim = grid.shape[-1]
-    grids = [grid[(0, )*i + (...,) + (0, ) * (ndim-i-1) +(i,)] for i in range(ndim)]
-    kes = [cm1D.kinetic_energy(g, m=m, hb=hb) for g, m, hb in zip(grids, ms, hbs)]
+    grids = [
+        grid[(0, )*i + (...,) + (0, ) * (ndim-i-1) +(i,)]
+        for i in range(ndim)
+    ]
+    kes = [cm1D.kinetic_energy(subg, m=m, hb=hb, flavor=flavor) for subg, m, hb in zip(grids, ms, hbs)]
 
-    kes = map(sp.csr_matrix, kes)
+    kes = [sp.csr_matrix(mat) for mat in kes]
 
     def _kron_sum(a, b):
         '''Computes a Kronecker sum to build our Kronecker-Delta tensor product expression'''

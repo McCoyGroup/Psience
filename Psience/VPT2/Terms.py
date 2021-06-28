@@ -260,7 +260,10 @@ class ExpansionTerms:
             with Parallelizer.lookup(self.parallelizer) as par:
                 new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs, mesh_spacing=1.0e-2,
                                                                  all_numerical=self.all_numerical,
-                                                                 converter_options=dict(reembed=self.reembed),
+                                                                 converter_options=dict(
+                                                                     reembed=self.reembed,
+                                                                     strip_dummies=True
+                                                                 ),
                                                                  parallelizer=par
                                                                  )]
             self._cached_jacobians[self.molecule]['int'] = new_jacs
@@ -287,10 +290,13 @@ class ExpansionTerms:
                     x.squeeze() for x in ccoords.jacobian(internals, need_jacs,
                                                           mesh_spacing=1.0e-5,
                                                           # all_numerical=True,
+                                                          converter_options=dict(
+                                                              strip_dummies=True
+                                                          ),
                                                           analytic_deriv_order=1,
                                                           parallelizer=par
                                                           )
-                    ]
+                ]
                 self._cached_jacobians[self.molecule]['cart'] = new_jacs
                 exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
