@@ -166,7 +166,7 @@ class ExpansionTerms:
         dummy_comp = np.setdiff1d(np.arange(molecule.num_atoms), dummies)
         self.internal_coordinates = molecule.internal_coordinates
         self.coords = molecule.coords
-        self.masses = molecule.masses[dummy_comp, :] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        self.masses = molecule.masses[dummy_comp] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         if modes is None:
             modes = molecule.normal_modes.modes
         if undimensionalize:
@@ -292,10 +292,8 @@ class ExpansionTerms:
                     x.squeeze() for x in ccoords.jacobian(internals, need_jacs,
                                                           mesh_spacing=1.0e-5,
                                                           # all_numerical=True,
-                                                          converter_options=dict(
-                                                              strip_dummies=True
-                                                          ),
                                                           analytic_deriv_order=1,
+                                                          converter_options=dict(strip_dummies=True),
                                                           parallelizer=par
                                                           )
                 ]
@@ -1124,9 +1122,13 @@ class PotentialTerms(ExpansionTerms):
                 v2_diff = v2 - v2x
                 if np.max(np.abs(v2_diff)) > self.hessian_tolerance:
                     raise PerturbationTheoryException(
-                        "Internal normal mode Hessian differs from Cartesian normal mode Hessian;"
-                        " this likely indicates issues with the second derivatives"
-                        " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)".format(
+                        (
+                            "Internal normal mode Hessian differs from Cartesian normal mode Hessian."
+                            " Cartesian frequencies are {}, internals are {}"
+                            " this likely indicates issues with the second derivatives"
+                            " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)"
+                         ).format(
+                            np.diag(v2x), np.diag(v2),
                             np.min(x_derivs[1]), np.max(x_derivs[1])
                         )
                     )

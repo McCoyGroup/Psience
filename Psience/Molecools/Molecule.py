@@ -200,7 +200,8 @@ class Molecule(AbstractMolecule):
         return pos_map
     @property
     def dummy_positions(self):
-        return self.atom_positions['X']
+        ats = self.atom_positions
+        return ats['X'] if 'X' in ats else []
     @property
     def atoms(self):
         return tuple(a["Symbol"] for a in self._ats)

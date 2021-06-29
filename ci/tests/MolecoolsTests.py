@@ -337,6 +337,46 @@ class MolecoolsTests(TestCase):
             [4,  3,  2,  5],  # O
         ]
 
+
+
+        jacobians_no_dummy = mol2.coords.jacobian(mol2.internal_coordinates.system,
+                                                  [1, 2],
+                                                  stencil=3,
+                                                  all_numerical=True,
+                                                  converter_options=dict(strip_dummies=True),
+                                                  )
+        self.assertEquals(jacobians_no_dummy[0].shape, (5, 3, 5, 3))
+        self.assertEquals(jacobians_no_dummy[1].shape, (5, 3, 5, 3, 5, 3))
+        jacobians = mol2.coords.jacobian(mol2.internal_coordinates.system,
+                                                       [1, 2, 3],
+                                                       stencil=5,
+                                                       all_numerical=True,
+                                                       converter_options=dict(strip_dummies=False),
+                                                       )
+        self.assertEquals(jacobians[0].shape, (6, 3, 6, 3))
+        self.assertEquals(jacobians[1].shape, (6, 3, 6, 3, 6, 3))
+        self.assertEquals(jacobians[2].shape, (6, 3, 6, 3, 6, 3, 6, 3))
+        jacobians_analytic = mol2.coords.jacobian(mol2.internal_coordinates.system,
+                                                       [1, 2],
+                                                       stencil=5,
+                                                       analytic_deriv_order=1,
+                                                       converter_options=dict(strip_dummies=False),
+                                                       )
+        self.assertEquals(jacobians_analytic[0].shape, (6, 3, 6, 3))
+        self.assertEquals(jacobians_analytic[1].shape, (6, 3, 6, 3, 6, 3))
+        jacobians_no_dummy_analytic = mol2.coords.jacobian(mol2.internal_coordinates.system,
+                                                  [1, 2],
+                                                  stencil=3,
+                                                  analytic_deriv_order=1,
+                                                  converter_options=dict(strip_dummies=True),
+                                                  )
+        self.assertEquals(jacobians_no_dummy_analytic[0].shape, (5, 3, 5, 3))
+        self.assertEquals(jacobians_no_dummy_analytic[1].shape, (5, 3, 5, 3, 5, 3))
+
+        self.assertTrue(np.allclose(
+            jacobians[0][0, 0][:2], jacobians_no_dummy[0][0, 0][:2]
+        ))
+
         # with BlockProfiler():
         jacobians_no_dummy = mol2.internal_coordinates.jacobian(mol2.coords.system,
                                                        [1, 2],
@@ -345,16 +385,16 @@ class MolecoolsTests(TestCase):
                                                        converter_options=dict(strip_dummies=True),
                                                        )
         self.assertEquals(jacobians_no_dummy[0].shape, (5, 3, 5, 3))
+        self.assertEquals(jacobians_no_dummy[1].shape, (5, 3, 5, 3, 5, 3))
         jacobians = mol2.internal_coordinates.jacobian(mol2.coords.system,
-                                                       [1],
+                                                       [1, 2],
                                                        stencil=3,
                                                        all_numerical=True,
                                                        converter_options=dict(strip_dummies=False),
                                                        )
         self.assertEquals(jacobians[0].shape, (6, 3, 6, 3))
+        self.assertEquals(jacobians[1].shape, (6, 3, 6, 3, 6, 3))
 
-
-        self.assertEquals(jacobians[0][0, 0][:2].tolist(), jacobians_no_dummy[0][0, 0][:2].tolist())
         # raise Exception(jacobians[0].shape)
 
     @validationTest

@@ -4340,6 +4340,49 @@ class VPT2Tests(TestCase):
         tag = 'HOONO Internals'
         file_name = TestManager.test_data("HOONO_freq.fchk")
 
+        n_atoms = 5
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        internals = [
+            [1, -1, -1, -1],  # O
+            [2,  1, -1, -1],  # O
+            [3,  2,  1, -1],  # N
+            [0,  1,  2,  3],  # H
+            [4,  3,  2,  1]   # O
+        ]
+
+        gaussian_energies = self.gaussian_data['HOONO']['zpe']
+        gaussian_freqs = self.gaussian_data['HOONO']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 10
+        gaussian_tolerance = 10
+        # from Psience.VPT2 import PotentialTerms
+        # PotentialTerms.hessian_tolerance = None
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
+    @debugTest
+    def test_HOONOVPTInternalsDummy(self):
+
+        tag = 'HOONO Internals'
+        file_name = TestManager.test_data("HOONO_freq.fchk")
+
         mol = Molecule.from_file(file_name)
         n_pos = mol.atom_positions["N"]
         o_pos = mol.atom_positions["O"]

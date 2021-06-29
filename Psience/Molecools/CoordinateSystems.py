@@ -171,12 +171,8 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
                 ) +  j.shape[-2:]
                 j = j.reshape(shp)
                 if dummies is not None:
-                    sel_1 = (
-                            (...,) +
-                            (main_excludes, slice(None, None, None)) * ext_dim
-                            + (slice(None, None, None), slice(None, None, None))
-                    )
-                    j = j[sel_1]
+                    for i in range(ext_dim):
+                        j = np.take(j, main_excludes, axis=2*i)
 
                 #     j.shape[:i]
                 #     + (j.shape[i] // 3, 3)
@@ -247,6 +243,7 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
                  *args,
                  strip_dummies=None,
                  converter_options=None,
+                 analytic_deriv_order=None,
                  **kwargs
                  ):
         if converter_options is None:
@@ -257,8 +254,15 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         except KeyError:
             strip_dummies = False
 
+        try:
+            analytic_deriv_order = merged_convert_options['analytic_deriv_order'] if analytic_deriv_order is None else analytic_deriv_order
+        except KeyError:
+            analytic_deriv_order = 0
+
         if strip_dummies:
             dummies = self.molecule.dummy_positions
+            if len(dummies) == 0:
+                dummies = None
         else:
             dummies = None
 
@@ -268,26 +272,20 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
                 dummies
             )
 
-        jacs = super().jacobian(*args, converter_options=converter_options, **kwargs)
+        jacs = super().jacobian(*args, analytic_deriv_order=analytic_deriv_order, converter_options=converter_options, **kwargs)
         raw_jacs = []
-        for j in jacs:
+        for n,j in enumerate(jacs): # this expects a full filling of the jacobians which maybe I need to not expect...
+            baseline = 2*(analytic_deriv_order+1)
+            ext_dim = j.ndim - baseline
+            all_dim = j.ndim - 2
             shp = sum(
-                ((j.shape[i] // 3, 3) for i in range(j.ndim - 2)),
+                ((j.shape[i] // 3, 3) for i in range(ext_dim)),
                 ()
-            ) +  j.shape[-2:]
+            ) + j.shape[-baseline:]
             j = j.reshape(shp)
             if dummies is not None:
-                sel_1 = (
-                        (...,) +
-                        (main_excludes, slice(None, None, None)) * (j.ndim - + 1)
-                        + (slice(None, None, None), slice(None, None, None))
-                )
-                j = j[sel_1]
-
-            #     j.shape[:i]
-            #     + (j.shape[i] // 3, 3)
-            #     + j.shape[i+1:]
-            # )
+                for i in range(all_dim):
+                    j = np.take(j, main_excludes, axis=2*i)
             raw_jacs.append(j)
         jacs = raw_jacs
         return jacs
@@ -407,14 +405,14 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
             if 'derivs' in opts:
                 derivs = opts['derivs']
                 reshaped_derivs = [None] * len(derivs)
+                deriv_excludes = np.arange(3, len(molecule.atoms) + 3)
                 for i, v in enumerate(derivs):
                     # drop all terms relating to the embedding of the embedding
-                    sel_1 = (
-                            (..., ) +
-                            (main_excludes, slice(None, None, None)) * (i + 1)
-                            + (sub_excludes, slice(None, None, None))
-                    )
-                    reshaped_derivs[i] = v[sel_1]
+                    start_dim = v.ndim - 2*(i+2)
+                    for j in range(start_dim, v.ndim-2, 2):
+                        v = np.take(v, deriv_excludes, axis=j)
+                    v = np.take(v, sub_excludes, axis=-2)
+                    reshaped_derivs[i] = v
 
                 opts['derivs'] = reshaped_derivs
 
@@ -553,14 +551,14 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
             if 'derivs' in opts:
                 derivs = opts['derivs']
                 reshaped_derivs = [None] * len(derivs)
+                deriv_excludes = np.arange(3, len(molecule.atoms) + 3)
                 for i, v in enumerate(derivs):
                     # drop all terms relating to the embedding of the embedding
-                    sel_1 = (
-                            (..., ) +
-                            (sub_excludes, slice(None, None, None)) * (i + 1)
-                            + (main_excludes, slice(None, None, None))
-                    )
-                    reshaped_derivs[i] = v[sel_1]
+                    start_dim = v.ndim - i
+                    for j in range(start_dim, v.ndim, 2):
+                        v = np.take(v, deriv_excludes, axis=j)
+                    v = np.take(v, sub_excludes, axis=-2)
+                    reshaped_derivs[i] = v
                 opts['derivs'] = reshaped_derivs
 
             carts = carts[..., main_excludes, :]
