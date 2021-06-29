@@ -82,6 +82,10 @@ class Molecule(AbstractMolecule):
         self._coords = coords
         self._sys = MolecularCartesianCoordinateSystem(self)
         self._coords = CoordinateSet(self._coords, self._sys)
+        if not zmatrix is None:
+            zmatrix = np.asanyarray(zmatrix).astype(int)
+            if zmatrix.shape[1] != 4:
+                raise ValueError("can't understand Z-matrix {}".format(zmatrix))
         self._zmat = zmatrix
         self._ints = None
 
@@ -398,13 +402,16 @@ class Molecule(AbstractMolecule):
         """
         return self._zmat
     @zmatrix.setter
-    def zmatrix(self, val):
+    def zmatrix(self, zmatrix):
         """
         :return:
         :rtype:
         """
         #TODO: add some validation
-        self._zmat = val
+        zmatrix = np.asanyarray(zmatrix).astype(int)
+        if zmatrix.shape[1] != 4:
+            raise ValueError("can't understand Z-matrix {}".format(zmatrix))
+        self._zmat = zmatrix
     @property
     def internal_coordinates(self):
         if self._ints is None and self._zmat is not None:

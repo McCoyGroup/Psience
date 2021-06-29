@@ -162,9 +162,11 @@ class ExpansionTerms:
         """
         self._terms = None
         self.molecule = molecule
+        dummies = self.molecule.dummy_positions
+        dummy_comp = np.setdiff1d(np.arange(molecule.num_atoms), dummies)
         self.internal_coordinates = molecule.internal_coordinates
         self.coords = molecule.coords
-        self.masses = molecule.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        self.masses = molecule.masses[dummy_comp, :] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         if modes is None:
             modes = molecule.normal_modes.modes
         if undimensionalize:

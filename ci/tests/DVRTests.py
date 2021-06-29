@@ -22,21 +22,22 @@ class DVRTests(TestCase):
         pot = dvr_1D.run(potential_function=self.ho, result='potential_energy')
         self.assertIsInstance(pot.potential_energy, np.ndarray)
 
-    @validationTest
+    @debugTest
     def test_energies_1D(self):
         dvr_1D = DVR("ColbertMiller1D")
-        res = dvr_1D.run(potential_function=self.ho, divs=150)
+        res = dvr_1D.run(potential_function=self.ho, domain=(-5, 5), divs=250)
         # print(e[:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions.energies, np.ndarray)
+        self.assertTrue(np.allclose(res.wavefunctions.energies[:5].tolist(), [1/2, 3/2, 5/2, 7/2, 9/2]))
 
     @validationTest
     def test_energies_2D(self):
         dvr_2D = DVR("ColbertMillerND")
-        res = dvr_2D.run(potential_function=self.ho_2D, divs=(25, 25))
+        res = dvr_2D.run(potential_function=self.ho_2D, domain=((-5, 5), (-5, 5)), divs=(25, 25))
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
-    @debugTest
+    @validationTest
     def test_energies_3D(self):
         dvr_3D = DVR("ColbertMillerND")
         res = dvr_3D.run(potential_function=self.ho_3D, domain=((-5, 5),)*3, divs=(15,)*3)
@@ -80,12 +81,22 @@ class DVRTests(TestCase):
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
     @debugTest
-    def test_Ring3DCosMass(self):
+    def test_Ring3DCosMass3D(self):
         dvr_3D = DVR("ColbertMillerND")
+
+        g_el = lambda vals: (2 + np.cos(vals)) # plausible in size????
+        gd_el = lambda vals: -np.cos(vals)/10
         res = dvr_3D.run(potential_function=self.cos3D,
                          domain=((0, 2*np.pi),) * 3,
                          divs=(15,) * 3,
-                         flavor='[0,2pi]'
+                         g=[
+                             [g_el, 0, 0],
+                             [0, g_el, 0],
+                             [0, 0, g_el]
+                         ],
+                         g_deriv=[gd_el, gd_el, gd_el],
+                         flavor='[0,2pi]',
+                         num_wavefunctions=2
                          )
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)

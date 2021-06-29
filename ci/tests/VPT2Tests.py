@@ -4350,9 +4350,9 @@ class VPT2Tests(TestCase):
             normalize=True
         )
 
-        mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
+        mol = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
 
-        mol2.zmatrix = [
+        mol.zmatrix = [
             [1, -1, -1, -1],  # O
             [2,  1, -1, -1],  # O
             [3,  2,  1, -1],  # N
@@ -4376,10 +4376,11 @@ class VPT2Tests(TestCase):
         gaussian_tolerance = 10
         # from Psience.VPT2 import PotentialTerms
         # PotentialTerms.hessian_tolerance = None
+        internals = None
         self.run_PT_test(
             tag,
-            file_name,
             mol,
+            internals,
             mode_selection,
             states,
             gaussian_energies,

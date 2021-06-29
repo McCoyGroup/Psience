@@ -50,6 +50,9 @@ def kinetic_energy_neginfinf(grid=None, m=1, hb=1, **kw):
 
     return ke
 
+def real_momentum_neginfinf(grid=None, hb=1, **kw):
+    raise NotImplementedError("don't have an expression for the momentum on the [-inf, inf] range")
+
 def grid_02pi(domain=None, divs=None, **kw):
     """
     Provides the Colbert-Miller 1D grid for the [0, 2Pi] range
@@ -94,6 +97,34 @@ def kinetic_energy_02pi(grid=None, m=1, hb=1, **kw):
             Tmat[j, j_prime] = Tj_jprime
             Tmat[j_prime, j] = Tj_jprime
     return coeff*Tmat
+
+def real_momentum_02pi(grid=None, hb=1, **kw):
+    """
+    Provides the real part of the momentum for the [0, 2pi] range
+    :param grid:
+    :type grid:
+    :param hb:
+    :type hb:
+    :param kw:
+    :type kw:
+    :return:
+    :rtype:
+    """
+
+    divs = len(grid)
+    p = np.zeros((divs, divs))
+
+    col_rng = np.arange(1, divs + 1)  # the column indices -- also what will be used for computing the off diagonal bands
+    row_rng = np.arange(0, divs)  # the row indices -- computed once and sliced
+    for i in range(divs):
+        col_inds = col_rng[i - 1:-1]  # +(i-1)
+        row_inds = row_rng[:-i]
+        val = hb/2 * (-1)**(i) / np.sin(i * np.pi / divs)
+        p[row_inds, col_inds] = val
+        p[col_inds, row_inds] = val
+
+    return p
+
 
 # def get_kinE(self):
 #     # final KE consists of three parts: T_j,j', G(tau), and d^2G/dtau^2
@@ -148,9 +179,33 @@ def kinetic_energy(grid=None, m=1, hb=1, g=None, g_deriv=None, flavor='[-inf,inf
         if g_deriv is None:
             raise ValueError("if a function for `g` is supplied, also need a function, `g_deriv` for the second derivative of `g`")
         # add the average value of `g` across the grid points
-        g_vals = g(grid)
+        try:
+            iter(g)
+        except TypeError:
+            g_vals = g(grid)
+        else:
+            g_vals = np.asanyarray(g)
+
+        try:
+            iter(g_deriv)
+        except TypeError:
+            g_deriv_vals = g_deriv(grid)
+        else:
+            g_deriv_vals = np.asanyarray(g_deriv)
+
         g_vals = 1/2*(g_vals[:, np.newaxis] + g_vals[np.newaxis, :])
-        g_deriv_vals = (hb**2)/2*np.diag(g_deriv(grid))
+        g_deriv_vals = (hb**2)/2*np.diag(g_deriv_vals)
         ke_1D = ke_1D*g_vals + g_deriv_vals
 
     return ke_1D
+
+flavor_mom_map = {
+    '[-inf,inf]': real_momentum_neginfinf,
+    '[0,2pi]': real_momentum_02pi
+}
+def real_momentum(grid=None, hb=1, flavor='[-inf,inf]', **kw):
+    return flavor_mom_map[get_flavor(flavor)](
+        grid,
+        hb=hb,
+        **kw
+    )
