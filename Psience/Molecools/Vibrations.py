@@ -350,11 +350,21 @@ class MolecularNormalModes(CoordinateSystem):
             raise ValueError("Internal coordinate normals modes can't be re-embedded")
 
         tmat = frame.transformation_function.transform
+
+        if not np.allclose((tmat.T @ tmat), np.eye(3)):
+            raise ValueError("embedding matrix {} isn't a proper rotation".format(tmat))
+        if  np.round(np.linalg.det(tmat), 7) != 1:
+            raise ValueError("embedding matrix {} isn't a proper rotation; determinant is {}".format(tmat, np.linalg.det(tmat)))
+
         mat = self.matrix
-        mat = np.tensordot(tmat, mat.reshape((-1, mat.shape[-1]//3, 3)), axes=[1, 2])
+        mat = np.moveaxis(
+            np.tensordot(tmat, mat.reshape((mat.shape[0]//3, 3, -1)), axes=[1, 1]),
+            0, 1
+        )
         mat = mat.reshape(self.matrix.shape)
 
         if self._origin is not None:
+            raise Exception('oh')
             orig = self.origin
             orig = np.tensordot(tmat, orig, axes=[1, 1])
         else:

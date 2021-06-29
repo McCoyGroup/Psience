@@ -3273,7 +3273,7 @@ class VPT2Tests(TestCase):
         [5425.603, 5174.665]
     ])
     }
-    @debugTest
+    @validationTest
     def test_HOHVPTInternals(self):
 
         tag = 'HOH Cartesians'
@@ -3300,6 +3300,44 @@ class VPT2Tests(TestCase):
         self.run_PT_test(
             tag,
             file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report
+        )
+
+
+    @debugTest
+    def test_HOHVPTInternalsEmbedded(self):
+
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        mol = Molecule.from_file(TestManager.test_data(file_name)).get_embedded_molecule()
+        mol.zmatrix  = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        print_report = False
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        self.run_PT_test(
+            tag,
+            mol,
             internals,
             mode_selection,
             states,
@@ -4384,13 +4422,13 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @validationTest
+    @inactiveTest
     def test_HOONOVPTInternalsDummy(self):
 
         tag = 'HOONO Internals'
         file_name = TestManager.test_data("HOONO_freq.fchk")
 
-        mol = Molecule.from_file(file_name)
+        mol = Molecule.from_file(file_name).get_embedded_molecule()
         n_pos = mol.atom_positions["N"]
         o_pos = mol.atom_positions["O"]
 
@@ -4425,14 +4463,14 @@ class VPT2Tests(TestCase):
             [0,  1,  2,  3],  # H
             [5,  4,  2,  3]   # O
         ]
-        mol.zmatrix = [
-            [1, -1, -1, -1],  # O
-            [2,  1, -1, -1],  # O
-            [4,  2,  1, -1],  # N
-            [3,  2,  1,  4],  # X
-            [0,  1,  2,  3],  # H
-            [5,  4,  2,  3]   # O
-        ]
+        # mol.zmatrix = [
+        #     [1, -1, -1, -1],  # O
+        #     [2,  1, -1, -1],  # O
+        #     [4,  2,  1, -1],  # N
+        #     [3,  2,  1,  4],  # X
+        #     [0,  1,  2,  3],  # H
+        #     [5,  4,  2,  3]   # O
+        # ]
 
         # raise Exception(mol.internal_coordinates)
         # mol.zmatrix = [
@@ -4457,8 +4495,8 @@ class VPT2Tests(TestCase):
         print_report = True
         nielsen_tolerance = 10
         gaussian_tolerance = 10
-        # from Psience.VPT2 import PotentialTerms
-        # PotentialTerms.hessian_tolerance = None
+
+        PotentialTerms.hessian_tolerance = None
         internals = None
         self.run_PT_test(
             tag,

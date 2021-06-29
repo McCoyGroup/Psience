@@ -1166,7 +1166,8 @@ class PotentialTerms(ExpansionTerms):
                             " (YQ min/max: {} {} generally in the 10s for well-behaved systems)\n"
                             " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)"
                          ).format(
-                            np.diag(v2x), np.diag(v2),
+                            np.diag(v2x)*UnitsData.convert("Hartrees", "Wavenumbers"),
+                            np.diag(v2)*UnitsData.convert("Hartrees", "Wavenumbers"),
                             np.min(x_derivs[0]), np.max(x_derivs[0]),
                             np.min(x_derivs[1]), np.max(x_derivs[1])
                         )

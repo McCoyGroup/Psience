@@ -1094,19 +1094,20 @@ class PropertyManager(metaclass=abc.ABCMeta):
                 else:
                     shp = d.shape
                     for j in range(d.ndim):
-                        d = np.tensordot(
-                            tf,
-                            d.reshape(
+                        target_shape = (
                                 d.shape[:j] +
                                 (
-                                    d.shape[j]//3,
+                                    d.shape[j] // 3,
                                     3
                                 ) +
-                                d.shape[j+1:]
-                            ),
-                            axes=[1, j+1]
+                                d.shape[j + 1:]
                         )
-                        d = d.reshape(shp)
+                        reshape_d = np.reshape(d, target_shape)
+                        reshape_d = np.moveaxis(
+                            np.tensordot(tf, reshape_d, axes=[[1], [j+1]]),
+                            0, j+1
+                        )
+                        d = reshape_d.reshape(shp)
                     new_derivs.append(d)
             return tuple(new_derivs)
         else:
@@ -1389,6 +1390,8 @@ class PotentialSurfaceManager(PropertyManager):
             if parse["ForceDerivatives"] is not None:
                 thirds = parse["ForceDerivatives"].third_deriv_array
                 fourths = parse["ForceDerivatives"].fourth_deriv_array
+                if isinstance(fourths, nput.SparseArray):
+                    fourths = fourths.asarray()
 
                 amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
                 thirds = thirds / np.sqrt(amu_conv)

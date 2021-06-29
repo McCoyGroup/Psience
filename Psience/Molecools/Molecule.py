@@ -490,9 +490,9 @@ class Molecule(AbstractMolecule):
         """
 
         if ref is None:
-            frame = self.principle_axis_frame(inverse=True)
+            frame = self.principle_axis_frame(inverse=False)
         else:
-            frame = self.eckart_frame(ref, inverse=True)
+            frame = self.eckart_frame(ref, inverse=False)
         new = frame.apply(self)
         if embed_properties:
             new.normal_modes = new.normal_modes.apply_transformation(frame)

@@ -558,7 +558,8 @@ class PerturbationTheorySolver:
                  logger=None,
                  verbose=False,
                  parallelizer=None,
-                 checkpointer=None
+                 checkpointer=None,
+                 zero_order_energy_corrections=None
                  ):
         """
 
@@ -604,6 +605,7 @@ class PerturbationTheorySolver:
         # self.degeneracy_mode = degeneracy_mode
         self.allow_sakurai_degs = allow_sakurai_degs
         self.allow_post_PT_calc = allow_post_PT_calc
+        self.zero_order_energy_corrections = zero_order_energy_corrections
         self.ignore_odd_orders = ignore_odd_order_energies
         self.drop_perturbation_degs = modify_degenerate_perturbations
         self.intermediate_normalization = intermediate_normalization
@@ -668,6 +670,8 @@ class PerturbationTheorySolver:
             e_vec_full = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
             if isinstance(e_vec_full, SparseArray):
                 e_vec_full = e_vec_full.asarray()
+            if self.zero_order_energy_corrections is not None:
+                raise NotImplementedError("stub")
             self._zo_engs = e_vec_full
         return self._zo_engs
 

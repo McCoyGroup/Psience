@@ -236,6 +236,34 @@ class MolecoolsTests(TestCase):
         ref = Molecule.from_file(ref_file)
         new = ref.get_embedded_molecule()
 
+
+    @debugTest
+    def test_EmbeddedMolecule(self):
+        tag = 'HOONO Internals'
+        file_name = TestManager.test_data("HOONO_freq.fchk")
+
+        mol1 = Molecule.from_file(file_name)
+        mol = mol1.get_embedded_molecule()
+
+        self.assertTrue(np.allclose(np.abs(mol.inertial_axes), np.eye(3)),
+                        msg="???? {}".format(mol.inertial_axes)
+                        )
+
+        self.assertEquals(
+            np.linalg.norm(
+                mol.normal_modes.modes.basis.matrix,
+                axis=0
+            ).tolist(),
+            np.linalg.norm(
+                mol1.normal_modes.modes.basis.matrix,
+                axis=0
+            ).tolist()
+        )
+
+        # raise Exception(mol1.coords, mol1.normal_modes.modes.basis.matrix.T)
+
+        raise Exception(mol.coords, mol.normal_modes.modes.basis.matrix.T)
+
     @validationTest
     def test_AddDummyAtoms(self):
 
@@ -395,7 +423,7 @@ class MolecoolsTests(TestCase):
 
         # raise Exception(jacobians[0].shape)
 
-    @debugTest
+    @validationTest
     def test_InternalCoordOrder(self):
         file_name = TestManager.test_data("HOONO_freq.fchk")
 
@@ -437,9 +465,7 @@ class MolecoolsTests(TestCase):
         jacs = mol_ics.jacobian(mol.coords.system, [1], all_numerical=True)[0]
         jacs2 = mol2_ics.jacobian(mol2.coords.system, [1], all_numerical=True)[0]
 
-        raise Exception(jacs[3, 0], jacs2[1, 0])
-        raise Exception(mol_ics.converter_options, mol2_ics.converter_options)#jacs[3, 0], jacs2[3, 0])
-        mol_ics.jacobian()
+        self.assertTrue(np.allclose(jacs[3, 0], jacs2[1, 0]))
 
     @validationTest
     def test_Plotting(self):
