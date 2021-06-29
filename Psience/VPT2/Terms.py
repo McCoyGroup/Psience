@@ -290,9 +290,10 @@ class ExpansionTerms:
                 need_jacs = [x + 1 for x in range(0, max_jac)]
                 new_jacs = [
                     x.squeeze() for x in ccoords.jacobian(internals, need_jacs,
-                                                          mesh_spacing=1.0e-5,
-                                                          # all_numerical=True,
-                                                          analytic_deriv_order=1,
+                                                          mesh_spacing=1.0e-3,
+                                                          stencil=9,
+                                                          all_numerical=True,
+                                                          # analytic_deriv_order=1,
                                                           converter_options=dict(strip_dummies=True),
                                                           parallelizer=par
                                                           )

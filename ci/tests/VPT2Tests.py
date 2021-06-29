@@ -3308,7 +3308,6 @@ class VPT2Tests(TestCase):
             print_report=print_report
         )
 
-
     @debugTest
     def test_HOHVPTInternalsEmbedded(self):
 
@@ -3321,7 +3320,7 @@ class VPT2Tests(TestCase):
             [1,  0, -1, -1],
             [2,  0,  1, -1]
         ]
-        internals = None
+        internals = []
 
         n_atoms = 3
         n_modes = 3 * n_atoms - 6
@@ -3387,6 +3386,44 @@ class VPT2Tests(TestCase):
             print_report=print_report
             # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
             # , watson=False
+        )
+
+    @debugTest
+    def test_HOHVPTCartesiansEmbdedd(self):
+
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        mol = Molecule.from_file(TestManager.test_data(file_name)).get_embedded_molecule()
+        # mol.zmatrix = [
+        #     [0, -1, -1, -1],
+        #     [1, 0, -1, -1],
+        #     [2, 0, 1, -1]
+        # ]
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        print_report = False
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        self.run_PT_test(
+            tag,
+            mol,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            # log=True
         )
 
     @inactiveTest
@@ -4372,7 +4409,7 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @inactiveTest
+    @debugTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
@@ -4416,8 +4453,8 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
-            verbose=True,
+            # log=True,
+            # verbose=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
@@ -4512,7 +4549,52 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @validationTest
+    @debugTest
+    def test_HOONOVPTInternalsEmbed(self):
+
+        tag = 'HOONO Internals'
+        file_name = TestManager.test_data("HOONO_freq.fchk")
+
+        mol = Molecule.from_file(TestManager.test_data(file_name)).get_embedded_molecule()
+        mol.zmatrix = [
+            [1, -1, -1, -1],
+            [2,  1, -1, -1],
+            [3,  2,  1, -1],
+            [0,  1,  2,  3],
+            [4,  3,  2,  1]
+        ]
+        internals = []
+
+        n_atoms = 5
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['HOONO']['zpe']
+        gaussian_freqs = self.gaussian_data['HOONO']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 10
+        gaussian_tolerance = 10
+        # from Psience.VPT2 import PotentialTerms
+        # PotentialTerms.hessian_tolerance = None
+        self.run_PT_test(
+            tag,
+            mol,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            # log=True,
+            # verbose=True,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
+    @debugTest
     def test_HOONOVPTCartesians(self):
 
         tag = 'HOONO Cartesians'
@@ -4548,15 +4630,92 @@ class VPT2Tests(TestCase):
         #         )
         pre_wfns_script = None
 
+        # nt_spec = np.array([
+        #         [0, 0, 0, 0, 0, 0, 1, 0, 0],
+        #         [0, 0, 0, 2, 0, 0, 0, 0, 0]
+        #     ])
+        # degeneracies = [
+        #     [
+        #         s,
+        #         (s - nt_spec[0] + nt_spec[1])
+        #     ]for s in states if np.dot(s, nt_spec[0]) > 0
+        # ]
+        # degeneracies = [np.array(x).tolist() for x in degeneracies]
+        # states = np.array(states).tolist()
+        # for pair in degeneracies:
+        #     for p in pair:
+        #         if p not in states:
+        #             states.append(p)
+
+        degeneracies = None
+        print_report = False
+        nielsen_tolerance = 10 if degeneracies is None else 500
+        gaussian_tolerance = 10 if degeneracies is not None else 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            # log=True,
+            # verbose=True,
+            degeneracies=degeneracies,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            pre_wfns_script=pre_wfns_script,
+            gaussian_resonance_handling=True
+            # zero_element_warning=False
+
+        )
+
+    @validationTest
+    def test_HOONOVPTCartesiansDegenerate(self):
+
+        tag = 'HOONO Cartesians'
+        file_name = "HOONO_freq.fchk"
+
+        internals = None
+
+        n_atoms = 5
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['HOONO']['zpe']
+        gaussian_freqs = self.gaussian_data['HOONO']['freqs']
+
+        # """
+        # 0.337366D+01  0.708754D+00  0.685684D+00  0.704381D+00  0.386143D-01 0.189447D+00  0.238868D-01  0.000000D+00  0.000000D+00
+        # """
+
+        # def pre_wfns_script(hammer, states):
+        #     harm, corrs, x = hammer.get_Nielsen_energies(states, return_split=True)
+        #     x_flips = np.argsort([8, 6, 7, 5, 4, 3, 2, 1, 0])
+        #     _ = []
+        #     for y in x:
+        #         _.append(y[np.ix_(x_flips, x_flips)])
+        #     x = np.array(_)
+        #
+        #     import json
+        #     raise Exception(
+        #         json.dumps((x[2]*self.h2w).tolist())
+        #         )
+        pre_wfns_script = None
+
         nt_spec = np.array([
-                [0, 0, 0, 0, 0, 0, 1, 0, 0],
-                [0, 0, 0, 2, 0, 0, 0, 0, 0]
-            ])
+            [0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 2, 0, 0, 0, 0, 0]
+        ])
         degeneracies = [
             [
                 s,
                 (s - nt_spec[0] + nt_spec[1])
-            ]for s in states if np.dot(s, nt_spec[0]) > 0
+            ] for s in states if np.dot(s, nt_spec[0]) > 0
         ]
         degeneracies = [np.array(x).tolist() for x in degeneracies]
         states = np.array(states).tolist()

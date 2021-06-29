@@ -15,8 +15,8 @@ class MolecularTransformation(CoordinateTransform):
         :rtype:
         """
         if isinstance(mol, AbstractMolecule):
-            new_coords = super().apply(mol.coords)
             new = mol.copy()
+            new_coords = super().apply(new.coords)
             if isinstance(mol.coords, CoordinateSet):
                 new.coords = CoordinateSet(new_coords, mol.coords.system)
             else:

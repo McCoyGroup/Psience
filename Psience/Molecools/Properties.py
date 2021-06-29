@@ -96,8 +96,6 @@ class StructuralProperties:
         o = nput.vec_outer(coords, coords, axes=[-1, -1])
         tens = np.tensordot(masses, d - o, axes=[0, -3])
 
-        # print(masses)
-
         return tens
 
     @classmethod
@@ -421,7 +419,6 @@ class StructuralProperties:
         eigs = np.concatenate([M, R], axis=1)
 
         # import McUtils.Plots as plt
-        # print("????")
         # print(np.round(eigs, 10))
         # plt.ArrayPlot(eigs).show()
         # raise Exception([M, R])
@@ -1066,7 +1063,8 @@ class PropertyManager(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError("abstract base class")
 
-    def _transform_derivatives(self, derivs, transf):
+    @staticmethod
+    def _transform_derivatives(derivs, transf):
         """
         Handles the transformation of derivative tensors
         across coordinate systems
@@ -1083,7 +1081,9 @@ class PropertyManager(metaclass=abc.ABCMeta):
         # else:
         #     base_shape = derivs[0].shape
 
+        n_coords = derivs[0].shape[0] # might need a different check in the future...
         if transf.is_affine: # most relevant subcase
+            # take inverse?
             tf = transf.transformation_function.transform #type: np.ndarray
             new_derivs = []
             for i, d in enumerate(derivs):
@@ -1093,21 +1093,24 @@ class PropertyManager(metaclass=abc.ABCMeta):
                     new_derivs.append(d)
                 else:
                     shp = d.shape
+                    # print(">>", shp)
                     for j in range(d.ndim):
-                        target_shape = (
-                                d.shape[:j] +
-                                (
-                                    d.shape[j] // 3,
-                                    3
-                                ) +
-                                d.shape[j + 1:]
-                        )
-                        reshape_d = np.reshape(d, target_shape)
-                        reshape_d = np.moveaxis(
-                            np.tensordot(tf, reshape_d, axes=[[1], [j+1]]),
-                            0, j+1
-                        )
-                        d = reshape_d.reshape(shp)
+                        # print(j, d.shape[j])
+                        if d.shape[j] == n_coords:
+                            target_shape = (
+                                    d.shape[:j] +
+                                    (
+                                        d.shape[j] // 3,
+                                        3
+                                    ) +
+                                    d.shape[j + 1:]
+                            )
+                            reshape_d = np.reshape(d, target_shape)
+                            reshape_d = np.moveaxis(
+                                np.tensordot(tf, reshape_d, axes=[[1], [j+1]]),
+                                0, j+1
+                            )
+                            d = reshape_d.reshape(shp)
                     new_derivs.append(d)
             return tuple(new_derivs)
         else:
@@ -1307,7 +1310,7 @@ class DipoleSurfaceManager(PropertyManager):
         if new._surf is not None:
             new._surf = new._surf.transform(transf)
         if new._derivs is not None:
-            new._derivs = self._transform_derivatives(new._derivs, transf)
+            new._derivs = new._transform_derivatives(new._derivs, transf)
         return new
 
     def insert_atoms(self, atoms, coords, where):
@@ -1434,7 +1437,8 @@ class PotentialSurfaceManager(PropertyManager):
         if new._surf is not None:
             new._surf = new._surf.transform(transf)
         if new._derivs is not None:
-            new._derivs = self._transform_derivatives(new._derivs, transf)
+            # print([x.shape for x in new._derivs])
+            new._derivs = new._transform_derivatives(new._derivs, transf)
         return new
 
     def insert_atoms(self, atoms, coords, where):
@@ -1539,6 +1543,7 @@ class NormalModesManager(PropertyManager):
             freqs = parse["VibrationalData"]["Frequencies"] * UnitsData.convert("Wavenumbers", "Hartrees")
             amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
             masses = parse['Real atomic weights'] # * amu_conv
+
             fcs = self.mol.potential_surface.force_constants
 
             sqrt_freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
@@ -1629,6 +1634,7 @@ class NormalModesManager(PropertyManager):
         return phases
 
     def apply_transformation(self, transf):
+        # self.modes # load in for some reason?
         new = self.copy()
 
         modes = new.modes

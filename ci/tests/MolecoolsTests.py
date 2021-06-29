@@ -243,26 +243,30 @@ class MolecoolsTests(TestCase):
         file_name = TestManager.test_data("HOONO_freq.fchk")
 
         mol1 = Molecule.from_file(file_name)
+        # init_mat1 = mol1.normal_modes.modes
         mol = mol1.get_embedded_molecule()
+        init_mat = mol1.normal_modes.modes.basis.matrix
+        # self.assertEquals(init_mat1.tolist(), init_mat.tolist())
 
         self.assertTrue(np.allclose(np.abs(mol.inertial_axes), np.eye(3)),
                         msg="???? {}".format(mol.inertial_axes)
                         )
 
-        self.assertEquals(
-            np.linalg.norm(
+        norms_1 = np.linalg.norm(
                 mol.normal_modes.modes.basis.matrix,
                 axis=0
-            ).tolist(),
-            np.linalg.norm(
-                mol1.normal_modes.modes.basis.matrix,
+            )
+        norms_2 = np.linalg.norm(
+                init_mat,
                 axis=0
-            ).tolist()
+            )
+        self.assertTrue(np.allclose(norms_1, norms_2),
+                        msg="{} different from {}".format(norms_1, norms_2)
         )
 
         # raise Exception(mol1.coords, mol1.normal_modes.modes.basis.matrix.T)
 
-        raise Exception(mol.coords, mol.normal_modes.modes.basis.matrix.T)
+        # raise Exception(mol.coords, mol.normal_modes.modes.basis.matrix.T)
 
     @validationTest
     def test_AddDummyAtoms(self):

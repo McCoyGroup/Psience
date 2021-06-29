@@ -275,6 +275,14 @@ class MolecularNormalModes(CoordinateSystem):
         #     origin = molecule.coords
         if basis is None:
             basis = molecule.coords.system #type: MolecularCartesianCoordinateSystem | MolecularZMatrixCoordinateSystem
+
+        # norms = np.linalg.norm(
+        #                 coeffs,
+        #                 axis=0
+        #             )
+        # print(norms)
+        # if norms[1] < .008:
+        #     raise Exception('wat')
         super().__init__(
             matrix=coeffs,
             inverse=inverse,
@@ -356,12 +364,32 @@ class MolecularNormalModes(CoordinateSystem):
         if  np.round(np.linalg.det(tmat), 7) != 1:
             raise ValueError("embedding matrix {} isn't a proper rotation; determinant is {}".format(tmat, np.linalg.det(tmat)))
 
-        mat = self.matrix
-        mat = np.moveaxis(
-            np.tensordot(tmat, mat.reshape((mat.shape[0]//3, 3, -1)), axes=[1, 1]),
-            0, 1
+        mat = self.matrix.reshape((self.matrix.shape[0]//3, 3, -1))
+        mat_2 = np.moveaxis(
+            np.tensordot(tmat, mat, axes=[1, 1]),
+            0,
+            1
         )
-        mat = mat.reshape(self.matrix.shape)
+        mat = mat_2.reshape(self.matrix.shape)
+
+        # if self._inv is not None:
+        #     mat = self.matrix.reshape((self.matrix.shape[0] // 3, 3, -1))
+        #     mat_2 = np.moveaxis(
+        #         np.tensordot(tmat, mat, axes=[1, 1]),
+        #         0,
+        #         1
+        #     )
+        #     mat = mat_2.reshape(self.matrix.shape)
+
+        # norms = np.linalg.norm(
+        #         self.matrix,
+        #         axis=0
+        #     )
+        # norms_2 = np.linalg.norm(
+        #         mat,
+        #         axis=0
+        #     )
+        # raise Exception(norms, norms_2)
 
         if self._origin is not None:
             raise Exception('oh')
@@ -373,7 +401,8 @@ class MolecularNormalModes(CoordinateSystem):
         return type(self)(
             self.molecule,
             mat,
-            origin=orig
+            origin=orig,
+            freqs=self.freqs
         )
 
     def rescale(self, scaling_factors):
