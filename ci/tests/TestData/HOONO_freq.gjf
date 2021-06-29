@@ -66,11 +66,11 @@ HOONO freq
 !!        If done by hand, lines should have an explanation in the comment
 !!        https://en.wikipedia.org/wiki/Z-matrix_(chemistry)
 !
- H
- O   1  ROH
- O   2  ROO  1 AHOO
- N   3  RON  2 AOON  1 THOON
- O   4  RNO  3 AONO  2 TOONO
+ O
+ O   1  ROO
+ N   2  RON  1 AOON
+ H   1  ROH  2 AHOO  3 THOON
+ O   3  RNO  2 AONO  1 TOONO
 !
 !!      Variables Block:
 !!        Collection of variables for the run

@@ -236,7 +236,7 @@ class MolecoolsTests(TestCase):
         ref = Molecule.from_file(ref_file)
         new = ref.get_embedded_molecule()
 
-    @debugTest
+    @validationTest
     def test_AddDummyAtoms(self):
 
         file_name = TestManager.test_data("HOONO_freq.fchk")
@@ -284,7 +284,7 @@ class MolecoolsTests(TestCase):
             mol2.internal_coordinates[5, 2], -np.pi/2
         )
 
-    @debugTest
+    @validationTest
     def test_AddDummyAtomProperties(self):
 
         file_name = TestManager.test_data("HOONO_freq.fchk")
@@ -311,7 +311,7 @@ class MolecoolsTests(TestCase):
             mol.inertial_axes.tolist()
         )
 
-    @debugTest
+    @validationTest
     def test_AddDummyAtomJacobians(self):
 
         file_name = TestManager.test_data("HOONO_freq.fchk")
@@ -326,7 +326,7 @@ class MolecoolsTests(TestCase):
             normalize=True
         )
 
-        mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
+        mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 3, handle_properties=False)
 
         mol2.zmatrix = [
             [1, -1, -1, -1],  # O
@@ -336,8 +336,6 @@ class MolecoolsTests(TestCase):
             [0,  1,  2,  5],  # H
             [4,  3,  2,  5],  # O
         ]
-
-
 
         jacobians_no_dummy = mol2.coords.jacobian(mol2.internal_coordinates.system,
                                                   [1, 2],
@@ -396,6 +394,52 @@ class MolecoolsTests(TestCase):
         self.assertEquals(jacobians[1].shape, (6, 3, 6, 3, 6, 3))
 
         # raise Exception(jacobians[0].shape)
+
+    @debugTest
+    def test_InternalCoordOrder(self):
+        file_name = TestManager.test_data("HOONO_freq.fchk")
+
+        mol = Molecule.from_file(file_name)
+        mol.zmatrix = [
+            [1, -1, -1, -1],
+            [2,  1, -1, -1],
+            [3,  2,  1, -1],
+            [0,  1,  2,  3],
+            [4,  3,  2,  1]
+        ]
+        mol_ics = mol.internal_coordinates
+
+        mol2 = Molecule.from_file(file_name)
+        mol2.zmatrix = [
+            [0, -1, -1, -1],  # H
+            [1,  0, -1, -1],  # O
+            [2,  1,  0, -1],  # O
+            [3,  2,  1,  0],  # N
+            [4,  3,  2,  0]   # O
+        ]
+        mol2_ics = mol2.internal_coordinates
+
+        self.assertEquals(mol_ics[1, 0], mol2_ics[2, 0])
+        self.assertEquals(mol_ics[3, 0], mol2_ics[1, 0])
+        self.assertEquals(mol_ics[3, 2], mol2_ics[3, 2])
+
+        jacs = mol.coords.jacobian(mol_ics.system, [1])[0]
+        jacs2 = mol2.coords.jacobian(mol2_ics.system, [1])[0]
+
+        self.assertEquals(jacs[0, 0][3, 0], jacs2[0, 0][1, 0])
+        self.assertEquals(jacs[0, 0][1, 0], jacs2[0, 0][2, 0])
+        self.assertEquals(jacs[0, 0][3, 2], jacs2[0, 0][3, 2])
+
+        remade_carts = np.round(mol_ics.convert(mol.coords.system), 4)
+        remade_carts2 = np.round(mol2_ics.convert(mol2.coords.system), 4)
+        # raise Exception(remade_carts, remade_carts2)
+
+        jacs = mol_ics.jacobian(mol.coords.system, [1], all_numerical=True)[0]
+        jacs2 = mol2_ics.jacobian(mol2.coords.system, [1], all_numerical=True)[0]
+
+        raise Exception(jacs[3, 0], jacs2[1, 0])
+        raise Exception(mol_ics.converter_options, mol2_ics.converter_options)#jacs[3, 0], jacs2[3, 0])
+        mol_ics.jacobian()
 
     @validationTest
     def test_Plotting(self):

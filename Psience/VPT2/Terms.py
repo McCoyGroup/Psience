@@ -602,6 +602,10 @@ class ExpansionTerms:
                         _.append(_contract_dim(x, 2+i))
                 internal_jacobs = _
 
+                # we'll strip off the embedding coords just in case
+                embedding_coords = [0, 1, 2, 4, 5, 8]
+                good_coords = np.setdiff1d(np.arange(3*len(self.masses)), embedding_coords)
+
                 # Need to then mass weight
                 masses = self.masses
                 mass_conv = np.sqrt(self._tripmass(masses))
@@ -613,7 +617,10 @@ class ExpansionTerms:
                     if isinstance(x, int):
                         _.append(x)
                     else:
-                        _.append(x * internal_weighting)
+                        x = x * internal_weighting
+                        for j in range(i+1):
+                            x = np.take(x, good_coords, axis=j)
+                        _.append(x)
                 internal_jacobs = _
 
                 current_cache["CartesiansByInternals"] = internal_jacobs
@@ -660,6 +667,10 @@ class ExpansionTerms:
                         _.append(_contract_dim(x, 2+i))
                 cartesian_jacobs = _
 
+                # we'll strip off the embedding coords just in case
+                embedding_coords = [0, 1, 2, 4, 5, 8]
+                good_coords = np.setdiff1d(np.arange(3*len(self.masses)), embedding_coords)
+
                 # Need to then mass weight
                 masses = self.masses
                 mass_conv = np.sqrt(self._tripmass(masses))
@@ -672,7 +683,9 @@ class ExpansionTerms:
                     if isinstance(x, int):
                         _.append(x)
                     else:
-                        _.append(x / cartesian_weighting)
+                        x = x / cartesian_weighting
+                        x = np.take(x, good_coords, axis=-1)
+                        _.append(x)
                     mc = np.expand_dims(mc, 0)
                     cartesian_weighting = cartesian_weighting * mc
                 cartesian_jacobs = _
@@ -702,9 +715,15 @@ class ExpansionTerms:
             ):
                 x_derivs = internal_jacobs#(YR, YRR, YRRR, YRRRR)
                 Q_derivs = [RQ] + [0]*(len(internal_jacobs) - 1)
-                YQ_derivs = TensorDerivativeConverter(Q_derivs, x_derivs).convert(order=len(internal_jacobs), check_arrays=True)
+                YQ_derivs = TensorDerivativeConverter(Q_derivs, x_derivs,
+                                                      jacobians_name='Q',
+                                                      values_name='X'
+                                                      ).convert(order=len(internal_jacobs), check_arrays=True)
 
-                qQ_derivs= TensorDerivativeConverter(YQ_derivs, [QY] + [0]*(len(internal_jacobs) - 1)).convert(order=len(internal_jacobs), check_arrays=True)
+                qQ_derivs = TensorDerivativeConverter(YQ_derivs, [QY] + [0] * (len(internal_jacobs) - 1),
+                                                      jacobians_name='Yq',
+                                                      values_name='qY'
+                                                      ).convert(order=len(internal_jacobs), check_arrays=True)
                 # self._get_tensor_derivs(
                 #     YQ_derivs, (QY, 0, 0, 0),
                 #     mixed_XQ=False
@@ -1124,11 +1143,13 @@ class PotentialTerms(ExpansionTerms):
                     raise PerturbationTheoryException(
                         (
                             "Internal normal mode Hessian differs from Cartesian normal mode Hessian."
-                            " Cartesian frequencies are {}, internals are {}"
-                            " this likely indicates issues with the second derivatives"
+                            " Cartesian frequencies are {}, internals are {}.\n"
+                            " This often indicates issues with the derivatives.\n"
+                            " (YQ min/max: {} {} generally in the 10s for well-behaved systems)\n"
                             " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)"
                          ).format(
                             np.diag(v2x), np.diag(v2),
+                            np.min(x_derivs[0]), np.max(x_derivs[0]),
                             np.min(x_derivs[1]), np.max(x_derivs[1])
                         )
                     )

@@ -271,21 +271,28 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
                 np.arange(self.molecule.num_atoms),
                 dummies
             )
+        else:
+            main_excludes = None
 
         jacs = super().jacobian(*args, analytic_deriv_order=analytic_deriv_order, converter_options=converter_options, **kwargs)
         raw_jacs = []
         for n,j in enumerate(jacs): # this expects a full filling of the jacobians which maybe I need to not expect...
+            # print(">>>>", j.shape, main_excludes, analytic_deriv_order)
             baseline = 2*(analytic_deriv_order+1)
             ext_dim = j.ndim - baseline
-            all_dim = j.ndim - 2
             shp = sum(
                 ((j.shape[i] // 3, 3) for i in range(ext_dim)),
                 ()
             ) + j.shape[-baseline:]
             j = j.reshape(shp)
+            # print(j.shape, ext_dim)
             if dummies is not None:
-                for i in range(all_dim):
+                for i in range(ext_dim):
                     j = np.take(j, main_excludes, axis=2*i)
+                # print("?", j.shape)
+                for i in range(analytic_deriv_order):
+                    j = np.take(j, main_excludes, axis=-2*(i+2))
+
             raw_jacs.append(j)
         jacs = raw_jacs
         return jacs

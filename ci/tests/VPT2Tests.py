@@ -4334,7 +4334,7 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @debugTest
+    @inactiveTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
@@ -4347,12 +4347,19 @@ class VPT2Tests(TestCase):
             n_modes = len(mode_selection)
         states = self.get_states(3, n_modes)
 
+        # internals = [
+        #     [0, -1, -1, -1],  # H
+        #     [1,  0, -1, -1],  # O
+        #     [2,  1,  0, -1],  # O
+        #     [3,  2,  1,  0],  # N
+        #     [4,  3,  2,  0]   # O
+        # ]
         internals = [
-            [1, -1, -1, -1],  # O
-            [2,  1, -1, -1],  # O
-            [3,  2,  1, -1],  # N
-            [0,  1,  2,  3],  # H
-            [4,  3,  2,  1]   # O
+            [1, -1, -1, -1],
+            [2,  1, -1, -1],
+            [3,  2,  1, -1],
+            [0,  1,  2,  3],
+            [4,  3,  2,  1]
         ]
 
         gaussian_energies = self.gaussian_data['HOONO']['zpe']
@@ -4387,22 +4394,47 @@ class VPT2Tests(TestCase):
         n_pos = mol.atom_positions["N"]
         o_pos = mol.atom_positions["O"]
 
-        normal = nput.vec_crosses(
+        normal = -nput.vec_crosses(
             mol.coords[o_pos[0]] - mol.coords[o_pos[1]],
             mol.coords[n_pos[0]] - mol.coords[o_pos[1]],
             normalize=True
         )
 
-        mol = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
+        mol = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 3, handle_properties=False)
 
+        # internals = [
+        #     [0, -1, -1, -1],  # H
+        #     [1,  0, -1, -1],  # O
+        #     [2,  1,  0, -1],  # O
+        #     [3,  2,  1,  0],  # N
+        #     [4,  3,  2,  0]  # O
+        # ]
+        # mol.zmatrix = [
+        #     [0, -1, -1, -1],  # H
+        #     [1,  0, -1, -1],  # O
+        #     [2,  1,  0, -1],  # O
+        #     [3,  2,  1,  0],  # X
+        #     [4,  2,  1,  3],  # N
+        #     [5,  4,  2,  3]   # O
+        # ]
         mol.zmatrix = [
             [1, -1, -1, -1],  # O
             [2,  1, -1, -1],  # O
-            [3,  2,  1, -1],  # N
-            [5,  2,  1,  3],  # X
-            [0,  1,  2,  5],  # H
-            [4,  3,  2,  5],  # O
+            [4,  2,  1, -1],  # N
+            [3,  2,  1,  4],  # X
+            [0,  1,  2,  3],  # H
+            [5,  4,  2,  3]   # O
         ]
+
+        # raise Exception(mol.internal_coordinates)
+        # mol.zmatrix = [
+        #     [1, -1, -1, -1],  # O
+        #     [2,  1, -1, -1],  # O
+        #     [4,  2,  1, -1],  # N
+        #     [3,  2,  1,  4],  # X
+        #     [0,  1,  2,  3],  # H
+        #     [5,  4,  2,  3]  # O
+        # ]
 
         n_atoms = 5
         n_modes = 3 * n_atoms - 6
