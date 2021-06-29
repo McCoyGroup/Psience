@@ -31,15 +31,15 @@ def grid(domain=None, divs=None, flavor='[-inf,inf]', **kw):
     #     mesh = mesh.swapaxes(i, i+1)
     return MEHSH
 
-def kinetic_energy(grid=None, m=1, hb=1, g=None, g_deriv=None, flavor='[-inf,inf]', **kw):
+def kinetic_energy(grid=None, mass=1, hb=1, g=None, g_deriv=None, flavor='[-inf,inf]', **kw):
     '''Computes n-dimensional kinetic energy for the grid'''
     from functools import reduce
 
     ndims = grid.shape[-1]
     try:
-        iter(m); ms = m
+        iter(mass); ms = mass
     except TypeError:
-        ms = [m]*ndims
+        ms = [mass] * ndims
 
     try:
         iter(hb); hbs = hb
@@ -69,7 +69,7 @@ def kinetic_energy(grid=None, m=1, hb=1, g=None, g_deriv=None, flavor='[-inf,inf
         g_diag = [None] * ndims
         g_deriv = [None] * ndims
 
-    kes = [cm1D.kinetic_energy(subg, m=m, hb=hb, g=gv, g_deriv=gdv, flavor=flavor) for subg, m, hb, gv, gdv in zip(grids, ms, hbs, g_diag, g_deriv)]
+    kes = [cm1D.kinetic_energy(subg, mass=m, hb=hb, g=gv, g_deriv=gdv, flavor=flavor) for subg, m, hb, gv, gdv in zip(grids, ms, hbs, g_diag, g_deriv)]
 
     kes = [sp.csr_matrix(mat) for mat in kes]
     def _kron_sum(a, b):

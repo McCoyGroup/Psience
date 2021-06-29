@@ -25,14 +25,14 @@ def grid_neginfinf(domain=None, divs=None, **kw):
 
     return domain[0] + (domain[1] - domain[0]) * np.arange(1, divs)/(divs+1)
 
-def kinetic_energy_neginfinf(grid=None, m=1, hb=1, **kw):
+def kinetic_energy_neginfinf(grid=None, mass=1, hb=1, **kw):
     '''Computes the kinetic energy for the grid'''
 
     dx=grid[1]-grid[0] # recomputed here simply to decouple the calling from dvr_grid
     divs=len(grid)
     ke=np.empty((divs, divs))
 
-    coeff=(hb**2)/(2*m*(dx**2))
+    coeff=(hb**2)/(2 * mass * (dx ** 2))
     # compute the band values for the first row
     b_val_0 = coeff*(math.pi**2)/3
     col_rng = np.arange(1, divs+1) # the column indices -- also what will be used for computing the off diagonal bands
@@ -71,13 +71,13 @@ def grid_02pi(domain=None, divs=None, **kw):
 
     return domain[0] + (domain[1] - domain[0]) * np.arange(1, divs+1)/divs
 
-def kinetic_energy_02pi(grid=None, m=1, hb=1, **kw):
+def kinetic_energy_02pi(grid=None, mass=1, hb=1, **kw):
     """
     Colbert-Miller kinetic energy for the [0, 2pi] range
     :param grid:
     :type grid:
-    :param m:
-    :type m:
+    :param mass:
+    :type mass:
     :param hb:
     :type hb:
     :param kw:
@@ -87,7 +87,7 @@ def kinetic_energy_02pi(grid=None, m=1, hb=1, **kw):
     """
 
 
-    coeff = hb**2/(2*m)
+    coeff = hb**2/(2 * mass)
     divs = len(grid)
     n = (divs - 1)//2
     ke=np.empty((divs, divs))
@@ -171,12 +171,12 @@ flavor_ke_map = {
     '[-inf,inf]': kinetic_energy_neginfinf,
     '[0,2pi]': kinetic_energy_02pi
 }
-def kinetic_energy(grid=None, m=1, hb=1, g=None, g_deriv=None, flavor='[-inf,inf]', **kw):
+def kinetic_energy(grid=None, mass=1, hb=1, g=None, g_deriv=None, flavor='[-inf,inf]', **kw):
     if g is not None:
-        m = 1/2 # to get rid of the 1/2m
+        mass = 1 / 2 # to get rid of the 1/2m
     ke_1D = flavor_ke_map[get_flavor(flavor)](
         grid,
-        m=m,
+        mass=mass,
         hb=hb,
         **kw
     )

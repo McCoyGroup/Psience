@@ -290,9 +290,10 @@ class ExpansionTerms:
                 need_jacs = [x + 1 for x in range(0, max_jac)]
                 new_jacs = [
                     x.squeeze() for x in ccoords.jacobian(internals, need_jacs,
-                                                          mesh_spacing=1.0e-5,
-                                                          # all_numerical=True,
-                                                          analytic_deriv_order=1,
+                                                          mesh_spacing=1.0e-3,
+                                                          stencil=9,
+                                                          all_numerical=True,
+                                                          # analytic_deriv_order=1,
                                                           converter_options=dict(strip_dummies=True),
                                                           parallelizer=par
                                                           )
@@ -605,6 +606,7 @@ class ExpansionTerms:
                 # we'll strip off the embedding coords just in case
                 embedding_coords = [0, 1, 2, 4, 5, 8]
                 good_coords = np.setdiff1d(np.arange(3*len(self.masses)), embedding_coords)
+                # good_coords = np.arange(3*len(self.masses))
 
                 # Need to then mass weight
                 masses = self.masses
@@ -670,6 +672,7 @@ class ExpansionTerms:
                 # we'll strip off the embedding coords just in case
                 embedding_coords = [0, 1, 2, 4, 5, 8]
                 good_coords = np.setdiff1d(np.arange(3*len(self.masses)), embedding_coords)
+                # good_coords = np.arange(3*len(self.masses))
 
                 # Need to then mass weight
                 masses = self.masses
@@ -1122,14 +1125,30 @@ class PotentialTerms(ExpansionTerms):
                         "WARNING: gradient norm is {n}",
                         n = np.linalg.norm(grad)
                     )
-                    grad = np.zeros(grad.shape)
+                    # grad = np.zeros(grad.shape)
 
             V_derivs = self.v_derivs
 
             if self.mixed_derivs:
                 if order > 4:
-                    raise ValueError("don't currently have things tested for expansions beyond 4th V derivatives with mixed derivatives")
-                terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=True, mixed_XQ=self.mixed_derivs)
+                    raise ValueError("don't currently have things tested for expansions beyond 4th V derivatives with mixed derivatives") #TODO: relax this once we have more flexible input determination
+                # terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=True, mixed_XQ=self.mixed_derivs)
+
+                # since the normal modes are expressed over
+                # different sets of coordinates the fourth mixed deriv
+                # terms need to be partially corrected
+                QY, = self.get_modes_by_cartesians(1)
+                qQQ = np.tensordot(x_derivs[1], QY, axes=[2, 0])
+                f43 = np.tensordot(qQQ, V_derivs[2], axes=[2, 0])
+                fourths = V_derivs[3] + f43
+                V_derivs = V_derivs[:3] + [fourths]
+
+                terms = TensorDerivativeConverter(x_derivs, V_derivs,
+                                                  mixed_terms=[
+                                                      [None, V_derivs[2]],  # dVdQXX
+                                                      [None, V_derivs[3]]  # dVdQQXX
+                                                  ]
+                                                  ).convert(order=order, check_arrays=True)
             else:
                 terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order, check_arrays=True)
 
@@ -1148,7 +1167,8 @@ class PotentialTerms(ExpansionTerms):
                             " (YQ min/max: {} {} generally in the 10s for well-behaved systems)\n"
                             " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)"
                          ).format(
-                            np.diag(v2x), np.diag(v2),
+                            np.diag(v2x)*UnitsData.convert("Hartrees", "Wavenumbers"),
+                            np.diag(v2)*UnitsData.convert("Hartrees", "Wavenumbers"),
                             np.min(x_derivs[0]), np.max(x_derivs[0]),
                             np.min(x_derivs[1]), np.max(x_derivs[1])
                         )

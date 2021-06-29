@@ -324,9 +324,13 @@ class Molecule(AbstractMolecule):
         new = copy.copy(self)
         # but we also need to do some stuff where we store objects that
         # reference the molecule
-        new.pes.set_molecule(new)
+        new.potential_surface = new.pes.copy()
+        new.potential_surface.set_molecule(new)
+        new.dipole_surface = new.dipole_surface.copy()
         new.dipole_surface.set_molecule(new)
+        new.normal_modes = new.normal_modes.copy()
         new.normal_modes.set_molecule(new)
+        new.ext_mol = new.ext_mol.copy()
         new.ext_mol.set_molecule(new)
         return new
 
@@ -493,6 +497,7 @@ class Molecule(AbstractMolecule):
             frame = self.principle_axis_frame(inverse=True)
         else:
             frame = self.eckart_frame(ref, inverse=True)
+        # self.normal_modes.modes
         new = frame.apply(self)
         if embed_properties:
             new.normal_modes = new.normal_modes.apply_transformation(frame)
