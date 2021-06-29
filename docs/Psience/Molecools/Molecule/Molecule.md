@@ -9,7 +9,7 @@ from_file: method
 ```
 <a id="Psience.Molecools.Molecule.Molecule.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, atoms, coords, bonds=None, obmol=None, charge=None, name=None, zmatrix=None, dipole_surface=None, dipole_derivatives=None, potential_surface=None, potential_derivatives=None, source_file=None, guess_bonds=True, **kw): 
+__init__(self, atoms, coords, bonds=None, name=None, zmatrix=None, obmol=None, dipole_surface=None, dipole_derivatives=None, potential_surface=None, potential_derivatives=None, normal_modes=None, source_file=None, guess_bonds=True, charge=None, **metadata): 
 ```
 
 - `atoms`: `Iterable[str]`
@@ -39,6 +39,39 @@ __init__(self, atoms, coords, bonds=None, obmol=None, charge=None, name=None, zm
 - `kw`: `Any`
     >Other bound parameters that might be useful
 
+<a id="Psience.Molecools.Molecule.Molecule.dipole_surface" class="docs-object-method">&nbsp;</a>
+```python
+@property
+dipole_surface(self): 
+```
+
+- `:returns`: `DipoleSurfaceManager`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.potential_surface" class="docs-object-method">&nbsp;</a>
+```python
+@property
+potential_surface(self): 
+```
+
+- `:returns`: `PotentialSurfaceManager`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.normal_modes" class="docs-object-method">&nbsp;</a>
+```python
+@property
+normal_modes(self): 
+```
+
+- `:returns`: `NormalModesManager`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.metadata" class="docs-object-method">&nbsp;</a>
+```python
+@property
+metadata(self): 
+```
+
 <a id="Psience.Molecools.Molecule.Molecule.__repr__" class="docs-object-method">&nbsp;</a>
 ```python
 __repr__(self): 
@@ -48,6 +81,23 @@ __repr__(self):
 ```python
 @property
 num_atoms(self): 
+```
+
+<a id="Psience.Molecools.Molecule.Molecule.atom_positions" class="docs-object-method">&nbsp;</a>
+```python
+@property
+atom_positions(self): 
+```
+A mapping of atom types to positions
+- `spec`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.dummy_positions" class="docs-object-method">&nbsp;</a>
+```python
+@property
+dummy_positions(self): 
 ```
 
 <a id="Psience.Molecools.Molecule.Molecule.atoms" class="docs-object-method">&nbsp;</a>
@@ -98,34 +148,62 @@ multiconfig(self):
 name(self): 
 ```
 
-<a id="Psience.Molecools.Molecule.Molecule.force_constants" class="docs-object-method">&nbsp;</a>
+<a id="Psience.Molecools.Molecule.Molecule.source_file" class="docs-object-method">&nbsp;</a>
 ```python
 @property
-force_constants(self): 
+source_file(self): 
 ```
 
-<a id="Psience.Molecools.Molecule.Molecule.potential_derivatives" class="docs-object-method">&nbsp;</a>
+<a id="Psience.Molecools.Molecule.Molecule.insert_atoms" class="docs-object-method">&nbsp;</a>
 ```python
-@property
-potential_derivatives(self): 
+insert_atoms(self, atoms, coords, where, handle_properties=True): 
 ```
 
-<a id="Psience.Molecools.Molecule.Molecule.potential_surface" class="docs-object-method">&nbsp;</a>
+<a id="Psience.Molecools.Molecule.Molecule.delete_atoms" class="docs-object-method">&nbsp;</a>
 ```python
-@property
-potential_surface(self): 
+delete_atoms(self, where, handle_properties=True): 
 ```
 
-<a id="Psience.Molecools.Molecule.Molecule.dipole_surface" class="docs-object-method">&nbsp;</a>
+<a id="Psience.Molecools.Molecule.Molecule.take_submolecule" class="docs-object-method">&nbsp;</a>
+```python
+take_submolecule(self, spec): 
+```
+Takes a 'slice' of a molecule if working with Cartesian coords.
+        If not, need to do some corner case handling for that.
+- `spec`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.shape" class="docs-object-method">&nbsp;</a>
 ```python
 @property
-dipole_surface(self): 
+shape(self): 
 ```
 
-<a id="Psience.Molecools.Molecule.Molecule.dipole_derivatives" class="docs-object-method">&nbsp;</a>
+<a id="Psience.Molecools.Molecule.Molecule.__len__" class="docs-object-method">&nbsp;</a>
 ```python
-@property
-dipole_derivatives(self): 
+__len__(self): 
+```
+
+<a id="Psience.Molecools.Molecule.Molecule.__iter__" class="docs-object-method">&nbsp;</a>
+```python
+__iter__(self): 
+```
+
+<a id="Psience.Molecools.Molecule.Molecule.__getitem__" class="docs-object-method">&nbsp;</a>
+```python
+__getitem__(self, item): 
+```
+
+<a id="Psience.Molecools.Molecule.Molecule.copy" class="docs-object-method">&nbsp;</a>
+```python
+copy(self): 
+```
+
+<a id="Psience.Molecools.Molecule.Molecule.prop" class="docs-object-method">&nbsp;</a>
+```python
+prop(self, name, *args, **kwargs): 
 ```
 
 <a id="Psience.Molecools.Molecule.Molecule.mass_weighted_coords" class="docs-object-method">&nbsp;</a>
@@ -191,123 +269,20 @@ translation_rotation_modes(self):
 - `:returns`: `np.ndarray`
     >No description...
 
+<a id="Psience.Molecools.Molecule.Molecule.zmatrix" class="docs-object-method">&nbsp;</a>
+```python
+@property
+zmatrix(self): 
+```
+
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.Molecools.Molecule.Molecule.internal_coordinates" class="docs-object-method">&nbsp;</a>
 ```python
 @property
 internal_coordinates(self): 
 ```
-
-<a id="Psience.Molecools.Molecule.Molecule.normal_modes" class="docs-object-method">&nbsp;</a>
-```python
-@property
-normal_modes(self): 
-```
-
-- `:returns`: `VibrationalModes`
-    >No description...
-
-<a id="Psience.Molecools.Molecule.Molecule.take_submolecule" class="docs-object-method">&nbsp;</a>
-```python
-take_submolecule(self, spec): 
-```
-Takes a 'slice' of a molecule if working with Cartesian coords.
-        If not, need to do some corner case handling for that.
-- `spec`: `Any`
-    >No description...
-- `:returns`: `_`
-    >No description...
-
-<a id="Psience.Molecools.Molecule.Molecule.shape" class="docs-object-method">&nbsp;</a>
-```python
-@property
-shape(self): 
-```
-
-<a id="Psience.Molecools.Molecule.Molecule.__len__" class="docs-object-method">&nbsp;</a>
-```python
-__len__(self): 
-```
-
-<a id="Psience.Molecools.Molecule.Molecule.__iter__" class="docs-object-method">&nbsp;</a>
-```python
-__iter__(self): 
-```
-
-<a id="Psience.Molecools.Molecule.Molecule.__getitem__" class="docs-object-method">&nbsp;</a>
-```python
-__getitem__(self, item): 
-```
-
-<a id="Psience.Molecools.Molecule.Molecule.copy" class="docs-object-method">&nbsp;</a>
-```python
-copy(self): 
-```
-
-<a id="Psience.Molecools.Molecule.Molecule.prop" class="docs-object-method">&nbsp;</a>
-```python
-prop(self, name, *args, **kwargs): 
-```
-
-<a id="Psience.Molecools.Molecule.Molecule.load_force_constants" class="docs-object-method">&nbsp;</a>
-```python
-load_force_constants(self, file=None): 
-```
-Loads force constants from a file (or from `source_file` if set)
-- `file`: `Any`
-    >No description...
-- `:returns`: `_`
-    >No description...
-
-<a id="Psience.Molecools.Molecule.Molecule.load_potential_derivatives" class="docs-object-method">&nbsp;</a>
-```python
-load_potential_derivatives(self, file=None): 
-```
-Loads potential derivatives from a file (or from `source_file` if set)
-- `file`: `Any`
-    >No description...
-- `:returns`: `_`
-    >No description...
-
-<a id="Psience.Molecools.Molecule.Molecule.load_normal_modes" class="docs-object-method">&nbsp;</a>
-```python
-load_normal_modes(self, file=None, rephase=True): 
-```
-Loads potential derivatives from a file (or from `source_file` if set)
-- `file`: `Any`
-    >No description...
-- `rephase`: `bool`
-    >whether to rephase FChk normal modes or not
-- `:returns`: `_`
-    >No description...
-
-<a id="Psience.Molecools.Molecule.Molecule.load_potential_surface" class="docs-object-method">&nbsp;</a>
-```python
-load_potential_surface(self): 
-```
-
-<a id="Psience.Molecools.Molecule.Molecule.load_dipole_surface" class="docs-object-method">&nbsp;</a>
-```python
-load_dipole_surface(self): 
-```
-
-<a id="Psience.Molecools.Molecule.Molecule.load_dipole_derivatives" class="docs-object-method">&nbsp;</a>
-```python
-load_dipole_derivatives(self, file=None): 
-```
-Loads dipole derivatives from a file (or from `source_file` if set)
-- `file`: `Any`
-    >No description...
-- `:returns`: `_`
-    >No description...
-
-<a id="Psience.Molecools.Molecule.Molecule.get_fchk_normal_mode_rephasing" class="docs-object-method">&nbsp;</a>
-```python
-get_fchk_normal_mode_rephasing(self): 
-```
-Returns the necessary rephasing to make the numerical dipole derivatives
-        agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
-- `:returns`: `_`
-    >No description...
 
 <a id="Psience.Molecools.Molecule.Molecule.principle_axis_frame" class="docs-object-method">&nbsp;</a>
 ```python
@@ -368,7 +343,7 @@ Gets the necessary data to embed crds in the Eckart frame using `self` as a refe
 
 <a id="Psience.Molecools.Molecule.Molecule.get_embedded_molecule" class="docs-object-method">&nbsp;</a>
 ```python
-get_embedded_molecule(self, ref=None): 
+get_embedded_molecule(self, ref=None, embed_properties=True): 
 ```
 Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
         a principle-axis embedded Molecule
@@ -379,17 +354,6 @@ Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise ret
 ```python
 plot(self, *geometries, figure=None, bond_radius=0.1, atom_radius_scaling=0.25, atom_style=None, bond_style=None, mode='fast', objects=False, **plot_ops): 
 ```
-
-<a id="Psience.Molecools.Molecule.Molecule.get_normal_modes" class="docs-object-method">&nbsp;</a>
-```python
-get_normal_modes(self, **kwargs): 
-```
-Loads normal modes from file or calculates
-        from force constants
-- `kwargs`: `Any`
-    >No description...
-- `:returns`: `_`
-    >No description...
 
 ### Examples
 

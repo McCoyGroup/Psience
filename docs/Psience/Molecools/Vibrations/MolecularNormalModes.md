@@ -12,6 +12,29 @@ from_force_constants: method
 __init__(self, molecule, coeffs, name=None, freqs=None, internal=False, origin=None, basis=None, inverse=None): 
 ```
 
+- `molecule`: `AbstractMolecule`
+    >No description...
+- `coeffs`: `Any`
+    >No description...
+- `name`: `Any`
+    >No description...
+- `freqs`: `Any`
+    >No description...
+- `internal`: `Any`
+    >No description...
+- `origin`: `Any`
+    >No description...
+- `basis`: `Any`
+    >No description...
+- `inverse`: `Any`
+    >No description...
+
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.molecule" class="docs-object-method">&nbsp;</a>
+```python
+@property
+molecule(self): 
+```
+
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.to_internals" class="docs-object-method">&nbsp;</a>
 ```python
 to_internals(self, intcrds=None, dYdR=None, dRdY=None): 

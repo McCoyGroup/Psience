@@ -10,7 +10,7 @@ name: str
 __init__(self, molecule, converter_options=None, **opts): 
 ```
 
-- `molecule`: `Molecule`
+- `molecule`: `AbstractMolecule`
     >No description...
 - `converter_options`: `Any`
     >No description...
@@ -41,7 +41,7 @@ set_embedding(self):
 
 <a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.jacobian" class="docs-object-method">&nbsp;</a>
 ```python
-jacobian(self, *args, **kwargs): 
+jacobian(self, *args, reembed=None, strip_dummies=None, converter_options=None, **kwargs): 
 ```
 
 ### Examples

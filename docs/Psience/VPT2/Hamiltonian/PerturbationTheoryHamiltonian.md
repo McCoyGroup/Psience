@@ -120,9 +120,14 @@ Converts the input state specs into proper `BasisStateSpace` specs that
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_solver" class="docs-object-method">&nbsp;</a>
+```python
+get_solver(self, states, degeneracies=None, allow_post_PT_calc=True, ignore_odd_order_energies=True, use_full_basis=True, verbose=False, order=2, expansion_order=None, memory_constrained=None, **opts): 
+```
+
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_wavefunctions" class="docs-object-method">&nbsp;</a>
 ```python
-get_wavefunctions(self, states, coupled_states=None, degeneracies=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, gaussian_resonance_handling=False, intermediate_normalization=False, ignore_odd_order_energies=True, zero_element_warning=True, use_full_basis=True, memory_constrained=False, state_space_iterations=None, verbose=False, order=2, expansion_order=None): 
+get_wavefunctions(self, states, degeneracies=None, allow_post_PT_calc=True, ignore_odd_order_energies=True, use_full_basis=True, verbose=False, order=2, expansion_order=None, memory_constrained=None, **opts): 
 ```
 Gets a set of `PerturbationTheoryWavefunctions` from the perturbations defined by the Hamiltonian
 - `states`: `BasisStateSpace | Iterable[int] | Iterable[Iterable[int]]`

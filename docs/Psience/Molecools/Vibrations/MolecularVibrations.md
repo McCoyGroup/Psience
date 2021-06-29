@@ -7,7 +7,7 @@
 __init__(self, molecule, basis, freqs=None, init=None): 
 ```
 Sets up a vibration for a Molecule object over the CoordinateSystem basis
-- `molecule`: `Molecule`
+- `molecule`: `AbstractMolecule`
     >No description...
 - `init`: `None | CoordinateSet`
     >No description...

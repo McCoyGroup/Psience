@@ -10,7 +10,7 @@ name: str
 __init__(self, molecule, converter_options=None, **opts): 
 ```
 
-- `molecule`: `Molecule`
+- `molecule`: `AbstractMolecule`
     >No description...
 - `converter_options`: `Any`
     >No description...
@@ -19,7 +19,7 @@ __init__(self, molecule, converter_options=None, **opts):
 
 <a id="Psience.Molecools.CoordinateSystems.MolecularCartesianCoordinateSystem.pre_convert" class="docs-object-method">&nbsp;</a>
 ```python
-pre_convert(self, syystem): 
+pre_convert(self, system): 
 ```
 
 <a id="Psience.Molecools.CoordinateSystems.MolecularCartesianCoordinateSystem.set_embedding" class="docs-object-method">&nbsp;</a>
@@ -29,6 +29,11 @@ set_embedding(self):
 Sets up the embedding options...
 - `:returns`: `_`
     >No description...
+
+<a id="Psience.Molecools.CoordinateSystems.MolecularCartesianCoordinateSystem.jacobian" class="docs-object-method">&nbsp;</a>
+```python
+jacobian(self, *args, strip_dummies=None, converter_options=None, **kwargs): 
+```
 
 ### Examples
 

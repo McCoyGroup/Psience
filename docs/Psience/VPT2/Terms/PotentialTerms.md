@@ -16,7 +16,7 @@ __init__(self, molecule, mixed_derivs=None, modes=None, potential_derivatives=No
     >the molecule that will supply the potential derivatives
 - `mixed_derivs`: `bool`
     >whether or not the pulled derivatives are partially derivatives along the normal coords
-- `modes`: `None | MolecularNormalModes`
+- `modes`: `None | MolecularVibrations`
     >the normal modes to use when doing calculations
 - `mode_selection`: `None | Iterable[int]`
     >the subset of normal modes to use

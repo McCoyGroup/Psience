@@ -134,6 +134,7 @@ class VPT2Tests(TestCase):
                               , intermediate_normalization=False
                               , state_space_iterations=None
                               , zero_element_warning = False
+                              , **solver_opts
                               ):
         if parallelized:
             pverb = verbose == 'all'
@@ -240,6 +241,7 @@ class VPT2Tests(TestCase):
                                             , intermediate_normalization=intermediate_normalization
                                             , state_space_iterations=state_space_iterations
                                             , verbose=verbose
+                                            , **solver_opts
                                             )
 
         return wfns, hammer
@@ -320,7 +322,8 @@ class VPT2Tests(TestCase):
             , zero_element_warning=zero_element_warning
         )[0]
 
-    def get_states(self, n_quanta, n_modes, max_quanta=None, target_modes=None):
+    @staticmethod
+    def get_states(n_quanta, n_modes, max_quanta=None, target_modes=None):
         whee = [np.flip(x) for x in BasisStateSpace.from_quanta(
             HarmonicOscillatorProductBasis(n_modes),
             range(n_quanta)
@@ -330,6 +333,53 @@ class VPT2Tests(TestCase):
                 p for p in whee if sum(p) == 0 or any(p[i] > 0 for i in target_modes)
             ]
         return whee
+
+    @staticmethod
+    def get_degenerate_polyad_space(states, polyadic_pairs):
+        # we build a graph of connected states by the polyadic rules
+        polyadic_pairs = np.array(polyadic_pairs)
+        states = np.array(states)
+        poss_degs = [[] for _ in states]
+        check_list = states.tolist()
+        for n,s in enumerate(states): # build list-of-lists structure
+            for i, nt_spec in enumerate(polyadic_pairs):
+                if np.all(s - nt_spec[0] >= 0):
+                    new = (s - nt_spec[0] + nt_spec[1]).tolist()
+                    if new not in check_list:
+                        check_list.append(new)
+                        poss_degs.append([])
+                    # else:
+                    #     poss_degs[idx].append(slist)
+                    poss_degs[n].append(new)
+
+        # from the populated lists build the real connection graph
+        groups = [[] for _ in check_list]
+        new_checks = []
+        for i,s1 in enumerate(check_list):
+            if s1 not in new_checks:
+                new_checks.append(s1)
+                groups[i].append(s1)
+                groups[i].extend(poss_degs[i])
+                for s2,p in zip(check_list[i+1:], poss_degs[i+1:]):
+                    if s2 not in new_checks:
+                        if s2 in poss_degs[i]:
+                            new_checks.append(s2)
+                            groups[i].extend(p)
+
+        return [g for g in groups if len(g) > 1]
+
+        # degeneracies = {}
+        # for s in states:
+        #     for i, nt_spec in enumerate(nt_specs):
+        #         nt = nt_spec * s
+        #         if np.all(nt % 0 == 0):
+        #             if i not in degeneracies:
+        #                 degeneracies[i] = {}
+        #             key = tuple(nt.astype(int))
+        #             if key in degeneracies[i]:
+        #                 degeneracies[i].append(s)
+        #             else:
+        #                 degeneracies[i] = [s]
 
     def print_energy_block(self, tag, states, zpe, freqs, real_fmt='{:>8.3f}', dash_fmt='{:>8}' ):
         freqs = np.asanyarray(freqs)
@@ -3281,8 +3331,7 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            print_report=print_report,
-            watson=True
+            print_report=print_report
         )
 
     @validationTest
@@ -3312,7 +3361,7 @@ class VPT2Tests(TestCase):
         # import McUtils.Misc as mcmisc
         #
         # with mcmisc.without_numba():
-        os.remove(os.path.expanduser('~/hoh.hdf5'))
+        # os.remove(os.path.expanduser('~/hoh.hdf5'))
         self.run_PT_test(
             tag,
             file_name,
@@ -3324,7 +3373,8 @@ class VPT2Tests(TestCase):
             log=True,
             verbose=True,
             print_report=print_report
-            , checkpoint=os.path.expanduser('~/hoh.hdf5')
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
         )
 
     @inactiveTest
@@ -3950,75 +4000,12 @@ class VPT2Tests(TestCase):
             ]))
         pre_wfns_script = None
 
-        degeneracies = (
+        degeneracies = self.get_degenerate_polyad_space(
+            states,
             [
-                [0, 0, 0, 0, 0, 1],
-                [0, 1, 0, 1, 0, 0],
-            ],
-            [
-                [0, 0, 0, 0, 0, 2],
-                [0, 1, 0, 1, 0, 1],
-            ],
-            [
-                [0, 0, 0, 0, 1, 1],
-                [0, 1, 0, 1, 1, 0],
-            ],
-            [
-                [0, 0, 0, 1, 0, 1],
-                [0, 1, 0, 2, 0, 0],
-            ],
-            [
-                [0, 0, 1, 0, 0, 1],
-                [0, 1, 1, 1, 0, 0],
-            ],
-            [
-                [0, 1, 0, 0, 0, 1],
-                [0, 2, 0, 1, 0, 0],
-            ],
-            [
-                [1, 0, 0, 0, 0, 1],
-                [1, 1, 0, 1, 0, 0],
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
             ]
-
-                #
-                # [0, 0, 0, 0, 1, 1],
-                # [0, 1, 0, 1, 1, 0],
-                #
-                # [0, 0, 0, 1, 0, 1],
-                # [0, 1, 0, 2, 0, 0],
-                #
-                # [0, 0, 1, 0, 0, 1],
-                # [0, 1, 1, 1, 0, 0],
-                #
-                # [0, 1, 0, 0, 0, 1],
-                # [0, 2, 0, 1, 0, 0],
-                #
-                # [1, 0, 0, 0, 0, 1],
-                # [1, 1, 0, 1, 0, 0]
-            # [
-            #     [0, 0, 0, 0, 0, 2],
-            #     [0, 1, 0, 0, 0, 1],
-            #     [0, 1, 0, 1, 0, 1],
-            # ]
-            # [
-            #     [0, 0, 0, 0, 1, 1],
-            #     [0, 1, 0, 1, 1, 0]
-            # ],
-            # [
-            #     [1, 0, 0, 0, 0, 1],
-            #     [1, 1, 0, 1, 0, 0]
-            # ],
-            # [
-            #     [0, 0, 0, 1, 0, 1],
-            #     [0, 1, 0, 2, 0, 0]
-            # ],
-            # [
-            #     [0, 0, 0, 0, 0, 2],
-            #     [0, 1, 0, 1, 0, 1],
-            #     [0, 2, 0, 2, 0, 0]
-            # ]
         )
-
         degeneracies = [np.array(x).tolist() for x in degeneracies]
         states = np.array(states).tolist()
         for pair in degeneracies:
@@ -4373,19 +4360,33 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @validationTest
+    @debugTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
-        file_name = "HOONO_freq.fchk"
+        file_name = TestManager.test_data("HOONO_freq.fchk")
 
-        internals = [
-            [0, -1, -1, -1],
-            [1,  0, -1, -1],
-            [2,  1,  0, -1],
-            [3,  2,  1,  0],
-            [4,  3,  2,  1],
+        mol = Molecule.from_file(file_name)
+        n_pos = mol.atom_positions["N"]
+        o_pos = mol.atom_positions["O"]
+
+        normal = nput.vec_crosses(
+            mol.coords[o_pos[0]] - mol.coords[o_pos[1]],
+            mol.coords[n_pos[0]] - mol.coords[o_pos[1]],
+            normalize=True
+        )
+
+        mol = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
+
+        mol.zmatrix = [
+            [1, -1, -1, -1],  # O
+            [2,  1, -1, -1],  # O
+            [3,  2,  1, -1],  # N
+            [5,  2,  1,  3],  # X
+            [0,  1,  2,  5],  # H
+            [4,  3,  2,  5],  # O
         ]
+
         n_atoms = 5
         n_modes = 3 * n_atoms - 6
         mode_selection = None  # [5, 4, 3]
@@ -4401,9 +4402,10 @@ class VPT2Tests(TestCase):
         gaussian_tolerance = 10
         # from Psience.VPT2 import PotentialTerms
         # PotentialTerms.hessian_tolerance = None
+        internals = None
         self.run_PT_test(
             tag,
-            file_name,
+            mol,
             internals,
             mode_selection,
             states,
@@ -5175,6 +5177,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
             , initialization_timeout=2
             , chunk_size=int(5e6)
+            , state_space_terms=((1, 0), (2, 0))
             # , direct_sum_chunk_size=int(1e3)
             # , memory_constrained=True
         )
@@ -6863,7 +6866,7 @@ class VPT2Tests(TestCase):
             )
             print(report)
 
-    @debugTest
+    @validationTest
     def test_OCHHIntensitiesSanbox(self):
 
         tag = "OCHH Intenstities"
@@ -6989,23 +6992,23 @@ class VPT2Tests(TestCase):
         # with BlockProfiler(tag, print_res=True):
         #     raise Exception(wfns.intensities)
 
-        import json
-        with BlockProfiler(tag, print_res=True):
-            breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
-        raise Exception(
-            json.dumps(
-                [
-                    (np.array(breakdown['frequencies']) * self.h2w).tolist(),
-                    breakdown['breakdowns']['Full']['intensities'].tolist(),
-                    breakdown['breakdowns']['Linear']['intensities'].tolist(),
-                    breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
-                    breakdown['breakdowns']['Cubic']['intensities'].tolist(),
-                    breakdown['breakdowns']['Constant']['intensities'].tolist(),
-                    breakdown['breakdowns']['Order0']['intensities'].tolist(),
-                    breakdown['breakdowns']['Order1']['intensities'].tolist()
-                ]
-            )
-        )
+        # import json
+        # with BlockProfiler(tag, print_res=True):
+        #     breakdown = wfns.generate_intensity_breakdown(include_wavefunctions=False)
+        # raise Exception(
+        #     json.dumps(
+        #         [
+        #             (np.array(breakdown['frequencies']) * self.h2w).tolist(),
+        #             breakdown['breakdowns']['Full']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Linear']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Quadratic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Cubic']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Constant']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Order0']['intensities'].tolist(),
+        #             breakdown['breakdowns']['Order1']['intensities'].tolist()
+        #         ]
+        #     )
+        # )
 
         # trying to turn off the orthogonality condition
         # states = wfns.corrs.states

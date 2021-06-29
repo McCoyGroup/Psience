@@ -14,7 +14,7 @@ ProjectedOperator: type
 ```
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, perturbations, states, coupled_states=None, order=2, total_space=None, flat_total_space=None, state_space_iterations=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, gaussian_resonance_handling=False, ignore_odd_order_energies=False, intermediate_normalization=False, zero_element_warning=True, degenerate_states=None, memory_constrained=False, logger=None, verbose=False, parallelizer=None, checkpointer=None): 
+__init__(self, perturbations, states, coupled_states=None, order=2, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, gaussian_resonance_handling=False, ignore_odd_order_energies=False, intermediate_normalization=False, zero_element_warning=True, degenerate_states=None, memory_constrained=False, logger=None, verbose=False, parallelizer=None, checkpointer=None): 
 ```
 
 - `perturbations`: `Iterable[Representation]`
@@ -114,7 +114,7 @@ Determines which states need to be coupled at which levels of correction
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.get_coupled_space" class="docs-object-method">&nbsp;</a>
 ```python
-get_coupled_space(self, input_state_space, degenerate_space, use_second_deg, allow_PT_degs=True, spaces=None): 
+get_coupled_space(self, input_state_space, degenerate_space, use_second_deg, allow_PT_degs=True, wavefunction_terms=None, spaces=None): 
 ```
 Applies the VPT equations semi-symbolically, dispatching based on how many
         degeneracies we need to handle
@@ -123,7 +123,7 @@ Applies the VPT equations semi-symbolically, dispatching based on how many
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.get_nondeg_coupled_space" class="docs-object-method">&nbsp;</a>
 ```python
-get_nondeg_coupled_space(self, input_state_space, degenerate_space=None, spaces=None): 
+get_nondeg_coupled_space(self, input_state_space, degenerate_space=None, spaces=None, wavefunction_terms=None): 
 ```
 Applies the non-degenerate equations in semi-symbolic form to determine
         which states needs to be calculated.
