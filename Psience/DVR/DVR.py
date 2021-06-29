@@ -152,7 +152,10 @@ class DVR:
         :return: the kinetic energy matrix
         :rtype: np.ndarray
         """
-        return self._dvr_prop('kinetic_energy')
+        base_ke = self._dvr_prop('kinetic_energy')
+        if 'kinetic_coupling' in self.params:
+            base_ke += self.params['kinetic_coupling']
+        return base_ke
 
     def potential_energy(self):
         """

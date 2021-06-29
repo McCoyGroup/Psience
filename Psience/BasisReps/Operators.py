@@ -614,7 +614,11 @@ class Operator:
         self._worker_get_elements(idx, parallelizer=parallelizer, check_orthogonality=check_orthogonality)
         return self._main_get_elements(inds, idx, parallelizer=parallelizer, check_orthogonality=check_orthogonality)
 
-    def get_elements(self, idx, parallelizer=None, check_orthogonality=True):
+    def get_elements(self, idx, parallelizer=None,
+                     check_orthogonality=True,
+                     memory_constrained=False
+                     # need to work in further cache clearing to account for mem. constraints
+                     ):
         """
         Calculates a subset of elements
 
@@ -656,6 +660,8 @@ class Operator:
                 elem_chunk = self._main_get_elements(inds, idx, parallelizer=None,
                                                      check_orthogonality=check_orthogonality
                                                      )
+
+            idx.clear_cache()
 
             chunks.append(elem_chunk)
 

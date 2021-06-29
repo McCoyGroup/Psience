@@ -1,16 +1,25 @@
 """
 A collection of methods used in computing molecule properties
 """
-import numpy as np, scipy.sparse as sp, itertools as ip, scipy
+import numpy as np, scipy.sparse as sp, itertools as ip, os, abc
+
 import McUtils.Numputils as nput
 from McUtils.Coordinerds import CoordinateSet
+from McUtils.ExternalPrograms import OpenBabelInterface
+from McUtils.GaussianInterface import GaussianFChkReader
 from McUtils.Data import AtomData, UnitsData, BondData
 
+from .MoleculeInterface import *
 from .Transformations import MolecularTransformation
+from .Vibrations import MolecularVibrations, MolecularNormalModes
 
 __all__ = [
     "MolecularProperties",
-    "MolecularPropertyError"
+    "MolecularPropertyError",
+    "OpenBabelMolManager",
+    "DipoleSurfaceManager",
+    "PotentialSurfaceManager",
+    "NormalModesManager"
 ]
 
 __reload_hook__ = ['.Transformations']
@@ -28,7 +37,7 @@ class StructuralProperties:
 
     @classmethod
     def get_prop_mass_weighted_coords(cls, coords, masses):
-        """Gets the center of mass for the coordinates
+        """Gets the mass-weighted coordinates for the system
 
         :param coords:
         :type coords: CoordinateSet
@@ -38,7 +47,12 @@ class StructuralProperties:
         :rtype:
         """
 
-        return np.sqrt(masses)[:, np.newaxis] * coords
+        sel = masses > 0
+        comp = masses <= 0
+        new_stuff = masses.copy()
+        new_stuff[sel] = np.sqrt(masses[sel])
+        new_stuff[comp] = 1
+        return new_stuff[:, np.newaxis] * coords
 
     @classmethod
     def get_prop_center_of_mass(cls, coords, masses):
@@ -51,6 +65,9 @@ class StructuralProperties:
         :return:
         :rtype:
         """
+
+        masses = masses.copy()
+        masses[masses < 0] = 0
 
         return np.tensordot(masses / np.sum(masses), coords, axes=[0, -2])
 
@@ -69,6 +86,9 @@ class StructuralProperties:
 
         com = cls.get_prop_center_of_mass(coords, masses)
         coords = coords - com[..., np.newaxis, :]
+
+        masses = masses.copy()
+        masses[masses < 0] = 0
 
         d = np.zeros(coords.shape[:-1] + (3, 3), dtype=float)
         diag = nput.vec_dots(coords, coords)
@@ -108,7 +128,7 @@ class StructuralProperties:
         moms, axes = np.linalg.eigh(massy_doop)
         a = axes[..., :, 0]
         b = axes[..., :, 1]
-        c = nput.vec_crosses(a, b)  # force right-handedness because we can
+        c = nput.vec_crosses(b, a)  # force right-handedness because we can
         axes[..., :, 2] = c  # ensure we have true rotation matrices
         dets = np.linalg.det(axes)
         axes[..., :, 1] *= dets[..., np.newaxis]  # ensure we have true rotation matrices
@@ -135,6 +155,8 @@ class StructuralProperties:
 
         multiconf = coords.multiconfig
         transforms = [None] * (1 if not multiconf else len(coords))
+        com_coords = coords
+        com_mass = masses
         if sel is not None:
             coords = coords[..., sel, :]
             masses = masses[sel]
@@ -143,12 +165,12 @@ class StructuralProperties:
         else:
             coords = [coords]
         mass = masses
-        for i, c in enumerate(coords):
-            com = cls.get_prop_center_of_mass(c, mass)
+        for i, (c, c2) in enumerate(zip(coords, com_coords)):
+            com = cls.get_prop_center_of_mass(com_coords, com_mass)
             transf = MolecularTransformation(-com)
             c = transf(c)
             moms, axes = cls.get_prop_moments_of_inertia(c, mass)
-            if inverse:
+            if not inverse:
                 axes = axes.T
             transf = MolecularTransformation(axes)(transf)
             transforms[i] = transf
@@ -196,7 +218,7 @@ class StructuralProperties:
         return coords, com, axes
 
     @classmethod
-    def get_eckart_rotations(cls, masses, ref, coords, in_paf=False):
+    def get_eckart_rotations(cls, masses, ref, coords, sel=None, in_paf=False):
         """
         Generates the Eckart rotation that will align ref and coords, assuming initially that `ref` and `coords` are
         in the principle axis frame
@@ -222,10 +244,17 @@ class StructuralProperties:
             com = pax_axes = None
             ref_com = ref_axes = None
 
+
+        if sel is not None:
+            coords = coords[..., sel, :]
+            masses = masses[sel]
+            ref = ref[..., sel, :]
+
         planar_ref = np.allclose(ref[:, 2], 0., atol=1.0e-8)
         if not planar_ref:
             # generate pair-wise product matrix
-            A = np.tensordot(masses / np.sum(masses), ref[np.newaxis, :, :, np.newaxis] * coords[:, :, np.newaxis, :],
+            A = np.tensordot(masses / np.sum(masses),
+                             ref[np.newaxis, :, :, np.newaxis] * coords[:, :, np.newaxis, :],
                              axes=[0, 1])
             # take SVD of this
             U, S, V = np.linalg.svd(A)
@@ -263,15 +292,14 @@ class StructuralProperties:
         :rtype:
         """
 
-        if sel is not None:
-            coords = coords[..., sel, :]
-            masses = masses[sel]
-            ref = ref[..., sel, :]
-
-        return cls.get_eckart_rotations(masses, ref, coords, in_paf=False)
+        return cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False)
 
     @classmethod
-    def get_prop_eckart_transformation(cls, masses, ref, coords, sel=None, inverse=False):
+    def get_prop_eckart_transformation(cls, masses, ref, coords,
+                                       sel=None,
+                                       inverse=False,
+                                       reset_com=False
+                                       ):
         """
         Computes Eckart transformations for a set of coordinates
 
@@ -286,26 +314,28 @@ class StructuralProperties:
         """
 
         multiconf = coords.multiconfig
-        if sel is not None:
-            coords = coords[..., sel, :]
-            masses = masses[sel]
-            ref = ref[..., sel, :]
 
         # if multiconf:
         #     coords = list(coords)
         # else:
         #     coords = [coords]
 
-        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, in_paf=False)
+        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False)
         ref, ref_com, ref_rot = ref_stuff
         crd, crd_com, crd_rot = coord_stuff
 
         transforms = [None] * len(coords)
-        for i, rot, com, crd_rot in enumerate(zip(ek_rot, crd_com, crd_rot)):
+        for i, (rot, com, crd_rot) in enumerate(zip(ek_rot, crd_com, crd_rot)):
             if inverse:
-                transf = MolecularTransformation(ref_com, ref_rot.T, ek_rot, crd_rot, -com)
+                if reset_com:
+                    transf = MolecularTransformation(com, crd_rot, rot.T, ref_rot.T, -ref_com)
+                else:
+                    transf = MolecularTransformation(crd_rot, rot.T, ref_rot.T)
             else:
-                transf = MolecularTransformation(com, crd_rot.T, ek_rot.T, ref_rot, -ref_com)
+                if reset_com:
+                    transf = MolecularTransformation(ref_com, ref_rot, rot, crd_rot.T, -com)
+                else:
+                    transf = MolecularTransformation(ref_rot, rot, crd_rot.T, -com)
             transforms[i] = transf
 
         if not multiconf:
@@ -582,7 +612,7 @@ class MolecularProperties:
         Computes the moments of inertia
 
         :param mol:
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :return:
         :rtype:
         """
@@ -595,7 +625,7 @@ class MolecularProperties:
         Computes the moments of inertia
 
         :param mol:
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :return:
         :rtype:
         """
@@ -608,7 +638,7 @@ class MolecularProperties:
         Computes the inertia tensors for the stored geometries
 
         :param mol:
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :return:
         :rtype:
         """
@@ -621,7 +651,7 @@ class MolecularProperties:
         Computes the moments of inertia
 
         :param mol:
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :return:
         :rtype:
         """
@@ -634,7 +664,7 @@ class MolecularProperties:
         Generates the center of masses and inertial axes
 
         :param mol:
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :return:
         :rtype:
         """
@@ -651,7 +681,7 @@ class MolecularProperties:
         Generates the principle axis transformation for a Molecule
 
         :param mol:
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :return:
         :rtype:
         """
@@ -662,7 +692,7 @@ class MolecularProperties:
         """
 
         :param mol:
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :param coords:
         :type coords:
         :param sel:
@@ -680,9 +710,9 @@ class MolecularProperties:
         """
 
         :param ref_mol: reference geometry
-        :type ref_mol: Molecule
+        :type ref_mol: AbstractMolecule
         :param mol: molecules to get Eckart embeddings for
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :param sel: coordinate selection to use when doing the Eckart stuff
         :type mol:
         :return:
@@ -702,7 +732,7 @@ class MolecularProperties:
         """
 
         :param mol:
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :param coords:
         :type coords:
         :param sel:
@@ -720,7 +750,7 @@ class MolecularProperties:
         """
 
         :param mol: molecules to get eigenvectors for
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :param sel: coordinate selection to use when doing the rotation/translation calculations
         :type mol:
         :return:
@@ -735,7 +765,7 @@ class MolecularProperties:
         """
 
         :param mol:
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :return:
         :rtype:
         """
@@ -779,14 +809,14 @@ class MolecularProperties:
         :rtype:
         """
 
-        return BondingProperties.get_prop_guessed_bonds(mol, tol=1.05, guess_type=True)
+        return BondingProperties.get_prop_guessed_bonds(mol, tol=tol, guess_type=guess_type)
 
     @classmethod
     def get_prop_chemical_formula(cls, atoms):
         """
 
         :param atoms:
-        :type atoms: list[str]
+        :type atoms: Tuple[str]
         :return:
         :rtype:
         """
@@ -796,9 +826,839 @@ class MolecularProperties:
         """
 
         :param mol:
-        :type mol: Molecule
+        :type mol: AbstractMolecule
         :return:
         :rtype:
         """
         return cls.get_prop_chemical_formula(mol.atoms)
 
+class StringFormatHandler(metaclass=abc.ABCMeta):
+    """
+    A base class to handle converting to/from string formats
+    mostly just here to implement SDF so OpenBabel can read off that
+    """
+    def __init__(self, mol):
+        self.mol = mol
+    @abc.abstractmethod
+    def get_string(self, atoms, coords, bonds, meta):
+        """
+        Converts the molecular info to string format
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param bonds:
+        :type bonds: tuple[tuple]
+        :param meta:
+        :type meta: dict
+        :return:
+        :rtype: str
+        """
+        raise NotImplementedError("abstract base class")
+
+    def convert(self):
+        return self.get_string(
+            self.mol.atoms,
+            self.mol.coords,
+            self.mol.bonds,
+            self.mol.metadata
+        )
+
+    @classmethod
+    @abc.abstractmethod
+    def parse_string(cls, str):
+        """
+
+        :param str:
+        :type str:
+        :return: (atoms, coords, bonds, meta)
+        :rtype: (list, np.ndarray, list, dict)
+        """
+        raise NotImplementedError("abstract base class")
+
+    @classmethod
+    def parse(cls, string):
+        from .Molecule import Molecule
+        atoms, crds, bonds, meta = cls.parse_string(string)
+        return Molecule(
+            atoms, crds,
+            bonds=bonds,
+            **meta
+        )
+
+class SDFFormatHandler(StringFormatHandler):
+    misc_useless_structural_data_header = " 0     0  0  0  0  0  0999 V2000"
+    program = 'Psience.Molecools'
+    def __init__(self, mol):
+        """
+        :param mol:
+        :type mol: AbstractMolecule
+        :param program:
+        :type program:
+        :param comment:
+        :type comment:
+        """
+        super().__init__(mol)
+        self.name = mol.name
+        self.comment = '' if 'comment' not in mol.metadata else mol.metadata['comment']
+
+    def convert_header(self, comment=None):
+        return "\n".join([
+            self.name,
+            "  " + self.program,
+            " " + self.comment + ("" if comment is None else comment)
+        ])
+
+    def convert_counts_line(self, atoms, bonds):
+        return "{:>3.0f}{:>3.0f} {}".format(len(atoms), len(bonds),
+                                            self.misc_useless_structural_data_header)
+
+    def convert_coordinate_block(self, atoms, coords):
+        return "\n".join(
+            " {0[0]:>9.5f} {0[1]:>9.5f} {0[2]:>9.5f} {1:<3} 0  0  0  0  0  0  0  0  0  0  0  0".format(
+                crd,
+                at
+            ) for crd, at in zip(coords, atoms)
+        )
+
+    def convert_bond_block(self, bonds):
+        return "\n".join(
+            "{:>3.0f}{:>3.0f}{:>3.0f}  0  0  0  0".format(
+                b[0] + 1,
+                b[1] + 1,
+                b[2] if len(b) > 2 else 1
+            ) for b in bonds
+        )
+
+    def convert_metadata(self, meta):
+        return "\n\n".join(
+            ">  <{}>\n{}".format(k, v) for k,v in meta.items()
+        )
+
+    def get_single_structure_string(self, atoms, coords, bonds, meta):
+        return "{header}\n{counts}\n{atoms}\n{bonds}\nM  END\n{meta}\n$$$$".format(
+            header=self.convert_header(),
+            counts=self.convert_counts_line(atoms, bonds),
+            atoms=self.convert_coordinate_block(atoms, coords),
+            bonds=self.convert_bond_block(bonds),
+            meta=self.convert_metadata(meta)
+        ).strip()
+
+    def get_string(self, atoms, coords, bonds, meta):
+        """
+        Converts the molecular info to string format
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param bonds:
+        :type bonds: tuple[tuple]
+        :param meta:
+        :type meta: dict
+        :return:
+        :rtype: str
+        """
+        if coords.multiconfig:
+            return "\n".join(
+                self.get_single_structure_string(
+                    atoms,
+                    c,
+                    bonds,
+                    meta
+                ) for c in coords
+            )
+        else:
+            return self.get_single_structure_string(
+                atoms,
+                coords,
+                bonds,
+                meta
+            )
+
+    @classmethod
+    def parse_string(cls, str):
+        """
+
+        :param str:
+        :type str:
+        :return: (atoms, coords, bonds, meta)
+        :rtype: (list, np.ndarray, list, dict)
+        """
+        raise NotImplementedError("SDF parsing not supported/use OpenBabel as interface")
+
+class PropertyManager(metaclass=abc.ABCMeta):
+    """
+    A utility base class so to make it easier to have a unified way to
+    handled derived properties
+    """
+    name = None
+    def __init__(self, mol):
+        """
+        :param mol:
+        :type mol: AbstractMolecule
+        """
+        self.mol=mol
+
+    def set_molecule(self, mol):
+        self.mol = mol
+
+    @abc.abstractmethod
+    def load(self):
+        """
+        Loads in the values
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("abstract base class")
+    @abc.abstractmethod
+    def update(self, val):
+        """
+        Updates the held values
+
+        :param val:
+        :type val:
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("abstract base class")
+    @abc.abstractmethod
+    def apply_transformation(self, transf):
+        """
+        Applies a transformation to the held values
+
+        :param transf:
+        :type transf: MolecularTransformation
+        :return:
+        :rtype: PropertyManager
+        """
+        raise NotImplementedError("abstract base class")
+    @abc.abstractmethod
+    def insert_atoms(self, atoms, coords, where):
+        """
+        Handles the insertion of new atoms into the structure
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param where:
+        :type where: tuple[int]
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("abstract base class")
+    @abc.abstractmethod
+    def delete_atoms(self, where):
+        """
+        Handles the deletion from the structure
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param where:
+        :type where: tuple[int]
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("abstract base class")
+
+    def _transform_derivatives(self, derivs, transf):
+        """
+        Handles the transformation of derivative tensors
+        across coordinate systems
+
+        :param derivs: derivative tensors starting at order 0
+        :type derivs: tuple[np.ndarray]
+        :param transf:
+        :type transf: MolecularTransformation
+        :return:
+        :rtype: tuple[np.ndarray]
+        """
+        # if isinstance(derivs[0], (int, float, np.integer, np.floating)):
+        #     base_shape = 0
+        # else:
+        #     base_shape = derivs[0].shape
+
+        if transf.is_affine: # most relevant subcase
+            tf = transf.transformation_function.transform #type: np.ndarray
+            new_derivs = []
+            for i, d in enumerate(derivs):
+                if d is None:
+                    new_derivs.append(d)
+                elif isinstance(d, (int, float, np.integer, np.floating)):
+                    new_derivs.append(d)
+                else:
+                    shp = d.shape
+                    for j in range(d.ndim):
+                        d = np.tensordot(
+                            tf,
+                            d.reshape(
+                                d.shape[:j] +
+                                (
+                                    d.shape[j]//3,
+                                    3
+                                ) +
+                                d.shape[j+1:]
+                            ),
+                            axes=[1, j+1]
+                        )
+                        d = d.reshape(shp)
+                    new_derivs.append(d)
+            return tuple(new_derivs)
+        else:
+            raise NotImplementedError('not sure how to transform in non-affine manner')
+    def __repr__(self):
+        return "{}({})".format(
+            self.name if self.name is not None else type(self).__name__,
+            self.mol
+        )
+
+    def copy(self):
+        import copy
+        return copy.copy(self)
+
+class OpenBabelMolManager(PropertyManager):
+    name="OBMol"
+    def __init__(self, mol, obmol=None):
+        super().__init__(mol)
+        self._obmol = obmol
+
+    def load(self):
+        if self._obmol is None:
+            pybel = OpenBabelInterface().pybel
+            mol_string = SDFFormatHandler(self.mol).convert()
+            pymol = pybel.readstring(mol_string, 'sdf')
+            self._obmol = pymol.OBMol
+        return self._obmol
+    def update(self, val):
+        self._obmol = val
+
+    def apply_transformation(self, transf):
+        """
+        Applies a transformation to the held values
+
+        :param transf:
+        :type transf: MolecularTransformation
+        :return:
+        :rtype: PropertyManager
+        """
+        raise NotImplementedError("Incomplete interface")
+    def insert_atoms(self, atoms, coords, where):
+        """
+        Handles the insertion of new atoms into the structure
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param where:
+        :type where: tuple[int]
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("Incomplete interface")
+    def delete_atoms(self, where):
+        """
+        Handles the deletion from the structure
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param where:
+        :type where: tuple[int]
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("Incomplete interface")
+
+class DipoleSurfaceManager(PropertyManager):
+    name='DipoleSurface'
+    def __init__(self, mol, surface=None, derivatives=None):
+        super().__init__(mol)
+        self._surf = surface
+        if isinstance(derivatives, dict):
+            self._derivs = derivatives['numerical']
+            self._analytic_derivatives = derivatives['analytic']
+        else:
+            self._derivs = derivatives
+            self._analytic_derivatives = None
+
+    @property
+    def surface(self):
+        if self._surf is None:
+            self._surf = self.load_dipole_surface()
+        return self._surf
+    @property
+    def numerical_derivatives(self):
+        if self._numerical_derivs is None and self._derivs is None:
+            derivatives = self.load_dipole_derivatives()
+            if isinstance(derivatives, dict):
+                self._numerical_derivs = derivatives['numerical']
+                self._derivs = derivatives['analytic']
+            else:
+                self._numerical_derivs = None
+                self._derivs = derivatives
+        return self._numerical_derivs
+    @property
+    def derivatives(self):
+        if self._derivs is None:
+            derivatives = self.load_dipole_derivatives()
+            if isinstance(derivatives, dict):
+                self._numerical_derivs = derivatives['numerical']
+                self._derivs = derivatives['analytic']
+            else:
+                self._numerical_derivs = None
+                self._derivs = derivatives
+        return self._derivs
+
+    def load(self):
+        if self._surf is not None:
+            return self.surface
+        else:
+            return self.derivatives
+    def update(self, val):
+        """
+        Updates the held values
+
+        :param val:
+        :type val:
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("Incomplete interface")
+
+    def load_dipole_surface(self):
+        raise NotImplementedError("haven't needed general dipole surfaces yet")
+
+    def _load_gaussian_fchk_dipoles(self, file):
+        try:
+            keys = ['DipoleMoment', 'DipoleDerivatives', 'DipoleHigherDerivatives', 'DipoleNumDerivatives']
+            with GaussianFChkReader(file) as gr:
+                parse = gr.parse(keys)
+
+            mom, grad, high = tuple(parse[k] for k in keys[:3])
+            grad = grad.array
+            seconds = high.second_deriv_array
+            thirds = high.third_deriv_array
+            num_derivs = parse[keys[3]]
+            num_grad = num_derivs.first_derivatives
+            num_secs = num_derivs.second_derivatives
+        except GaussianFChkReader.GaussianFChkReaderException:
+            keys = ['DipoleMoment', 'DipoleDerivatives']
+            with GaussianFChkReader(file) as gr:
+                parse = gr.parse(keys)
+
+            mom, grad = tuple(parse[k] for k in keys[:2])
+            seconds = thirds = None
+            num_grad = num_secs = None
+
+        if seconds is not None:
+            amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            seconds = seconds / np.sqrt(amu_conv)
+        if thirds is not None:
+            amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            thirds = thirds / amu_conv
+
+        return {
+            "analytic": (mom, grad, seconds, thirds),
+            "numerical": (mom, num_grad, num_secs)
+        }
+
+    def load_dipole_derivatives(self, file=None):
+        """
+        Loads dipole derivatives from a file (or from `source_file` if set)
+
+        :param file:
+        :type file:
+        :return:
+        :rtype:
+        """
+
+        if file is None:
+            file = self.mol.source_file
+        if file is None:
+            return None
+
+
+        path, ext = os.path.splitext(file)
+        ext = ext.lower()
+
+        if ext == ".fchk":
+            return self._load_gaussian_fchk_dipoles(file)
+        elif ext == ".log":
+            raise NotImplementedError("{}: support for loading dipole derivatives from {} files not there yet".format(
+                type(self).__name__,
+                ext
+            ))
+        else:
+            raise NotImplementedError("{}: support for loading dipole derivatives from {} files not there yet".format(
+                type(self).__name__,
+                ext
+            ))
+
+    def apply_transformation(self, transf):
+        new = self.copy()
+        if new._surf is not None:
+            new._surf = new._surf.transform(transf)
+        if new._derivs is not None:
+            new._derivs = self._transform_derivatives(new._derivs, transf)
+        return new
+
+    def insert_atoms(self, atoms, coords, where):
+        """
+        Handles the insertion of new atoms into the structure
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param where:
+        :type where: tuple[int]
+        :return:
+        :rtype:
+        """
+        if all(a == "X" for a in atoms):
+            raise NotImplementedError("haven't added dummy atom insertion")
+        else:
+            raise NotImplementedError("don't know how to insert non-dummy atoms")
+    def delete_atoms(self, where):
+        """
+        Handles the deletion from the structure
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param where:
+        :type where: tuple[int]
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("Incomplete interface")
+
+class PotentialSurfaceManager(PropertyManager):
+    name="PotentialSurface"
+    def __init__(self, mol, surface=None, derivatives=None):
+        super().__init__(mol)
+        self._surf = surface
+        self._derivs = derivatives
+
+    @property
+    def surface(self):
+        if self._surf is None:
+            self._surf = self.load_potential_surface()
+        return self._surf
+
+    @property
+    def derivatives(self):
+        if self._derivs is None:
+            self._derivs = self.load_potential_derivatives()
+        return self._derivs
+
+    @property
+    def force_constants(self):
+        return self.derivatives[1]
+
+    def load_potential_derivatives(self, file=None):
+        """
+        Loads potential derivatives from a file (or from `source_file` if set)
+
+        :param file:
+        :type file:
+        :return:
+        :rtype:
+        """
+
+        if file is None:
+            file = self.mol.source_file
+        path, ext = os.path.splitext(file)
+        ext = ext.lower()
+
+        if ext == ".fchk":
+            from McUtils.GaussianInterface import GaussianFChkReader
+            keys= ['Gradient', 'ForceConstants', 'ForceDerivatives']
+            with GaussianFChkReader(file) as gr:
+                parse = gr.parse(keys, default=None)
+
+            seconds = parse["ForceConstants"].array
+            if parse["ForceDerivatives"] is not None:
+                thirds = parse["ForceDerivatives"].third_deriv_array
+                fourths = parse["ForceDerivatives"].fourth_deriv_array
+
+                amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+                thirds = thirds / np.sqrt(amu_conv)
+                fourths = fourths / amu_conv
+            else:
+                thirds = fourths = None
+
+            return (parse["Gradient"], seconds, thirds, fourths)
+        elif ext == ".log":
+            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
+                type(self).__name__,
+                ext
+            ))
+        else:
+            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
+                type(self).__name__,
+                ext
+            ))
+    def load_potential_surface(self):
+        raise NotImplemented
+
+    def load(self):
+        if self._surf is not None:
+            return self.surface
+        else:
+            return self.derivatives
+    def update(self, val):
+        """
+        Updates the held values
+
+        :param val:
+        :type val:
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("Incomplete interface")
+
+    def apply_transformation(self, transf):
+        new = self.copy()
+        if new._surf is not None:
+            new._surf = new._surf.transform(transf)
+        if new._derivs is not None:
+            new._derivs = self._transform_derivatives(new._derivs, transf)
+        return new
+
+    def insert_atoms(self, atoms, coords, where):
+        """
+        Handles the insertion of new atoms into the structure
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param where:
+        :type where: tuple[int]
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("Incomplete interface")
+    def delete_atoms(self, where):
+        """
+        Handles the deletion from the structure
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param where:
+        :type where: tuple[int]
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("Incomplete interface")
+
+class NormalModesManager(PropertyManager):
+    def __init__(self, mol, normal_modes=None):
+        super().__init__(mol)
+        self._modes = normal_modes
+
+    def set_molecule(self, mol):
+        super().set_molecule(mol)
+        if self._modes is not None:
+            self.modes.molecule = mol
+
+    @property
+    def modes(self):
+        """
+
+        :return:
+        :rtype: MolecularVibrations
+        """
+        if self._modes is None:
+            self._modes = self.get_normal_modes()
+        return self._modes
+    @modes.setter
+    def modes(self, modes):
+        if not isinstance(modes, MolecularVibrations):
+            raise TypeError("`modes` must be {}".format(
+                MolecularVibrations.__name__
+            ))
+        self._modes = modes
+
+    def load(self):
+        return self._modes
+    def update(self, modes):
+        """
+
+        :return:
+        :rtype:
+        """
+        if not isinstance(modes, MolecularVibrations):
+            raise TypeError("{}.{}: '{}' is expected to be a MolecularVibrations object".format(
+                type(self).__name__,
+                'normal_modes',
+                modes
+            ))
+        self._modes = modes
+    #TODO: need to be careful about transition states...
+    def load_normal_modes(self, file=None, rephase=True):
+        """
+        Loads potential derivatives from a file (or from `source_file` if set)
+
+        :param file:
+        :type file:
+        :param rephase: whether to rephase FChk normal modes or not
+        :type rephase: bool
+        :return:
+        :rtype:
+        """
+        from .Vibrations import MolecularNormalModes
+
+        if file is None:
+            file = self.mol.source_file
+        path, ext = os.path.splitext(file)
+        ext = ext.lower()
+
+        if ext == ".fchk":
+            from McUtils.GaussianInterface import GaussianFChkReader
+            with GaussianFChkReader(file) as gr:
+                parse = gr.parse(
+                    ['Real atomic weights', 'VibrationalModes', 'ForceConstants', 'VibrationalData']
+                )
+
+            modes = parse["VibrationalModes"]
+            freqs = parse["VibrationalData"]["Frequencies"] * UnitsData.convert("Wavenumbers", "Hartrees")
+            amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
+            masses = parse['Real atomic weights'] # * amu_conv
+            fcs = self.mol.potential_surface.force_constants
+
+            sqrt_freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
+
+            # I do a bunch of messing with stuff here for like 0 pay off
+            # over the old simple method...not sure what un-dimensioning
+            # is really happening here...
+            mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten() * amu_conv
+            modes_conv = modes * np.sqrt(mass_vec[np.newaxis, :])
+            modes_conv = modes_conv / (
+                    np.linalg.norm(modes_conv, axis=1)[:, np.newaxis] *
+                    sqrt_freqs[:, np.newaxis] * np.sqrt(mass_vec[np.newaxis, :])
+            )
+
+            #
+            internal_F2 = np.dot(np.dot(modes_conv, fcs), modes_conv.T)
+
+            final_scale = sqrt_freqs**(3) / np.diag(internal_F2)
+            modes_conv *= final_scale[:, np.newaxis]
+            modes = modes_conv
+
+            modes = modes.T
+
+            modes = MolecularNormalModes(self.mol, modes, inverse=modes.T, freqs=freqs)
+
+            return modes
+        elif ext == ".log":
+            raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
+                type(self).__name__,
+                ext
+            ))
+        else:
+            raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
+                type(self).__name__,
+                ext
+            ))
+    def get_normal_modes(self, **kwargs):
+        """
+        Loads normal modes from file or calculates
+        from force constants
+
+        :param kwargs:
+        :type kwargs:
+        :return:
+        :rtype:
+        """
+        from .Vibrations import MolecularNormalModes, MolecularVibrations
+
+        if self.mol.source_file is not None:
+            vibs = MolecularVibrations(self.mol, self.load_normal_modes())
+        else:
+            fcs = self.mol.potential_surface.force_constants
+            vibs = MolecularVibrations(self.mol,
+                                       MolecularNormalModes.from_force_constants(self.mol, fcs, self.mol.atoms, **kwargs)
+                                       )
+
+        return vibs
+    def get_fchk_normal_mode_rephasing(self):
+        """
+        Returns the necessary rephasing to make the numerical dipole derivatives
+        agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
+        :return:
+        :rtype:
+        """
+
+        d1_analytic = self.mol.dipole_surface.derivatives[1]
+        d1_numerical = self.mol.dipole_surface.numerical_derivatives[1]
+        if d1_numerical is None:
+            return None
+
+        # if not isinstance(d1_analytic, np.ndarray):
+        #     d1_analytic = d1_analytic.array
+        # if not isinstance(d1_numerical, np.ndarray):
+        #     d1_numerical = d1_numerical.first_derivatives
+
+        # raise Exception(d1_analytic.shape, d1_numerical.shape
+
+        mode_basis = self.modes.basis.matrix
+        rot_analytic = np.dot(d1_analytic.T, mode_basis)
+
+        rot_analytic = np.array([x/np.linalg.norm(x) for x in rot_analytic])
+        d1_numerical = np.array([x/np.linalg.norm(x) for x in d1_numerical.T])
+
+        # could force some orientation relative to PAX frame?
+        # dot each into each other
+        phases = np.sign(np.diag(np.dot(d1_numerical.T, rot_analytic)))
+
+        return phases
+
+    def apply_transformation(self, transf):
+        new = self.copy()
+
+        modes = new.modes
+        modes = modes.embed(transf)
+        new.modes = modes
+
+        return new
+
+    def insert_atoms(self, atoms, coords, where):
+        """
+        Handles the insertion of new atoms into the structure
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param where:
+        :type where: tuple[int]
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("Incomplete interface")
+    def delete_atoms(self, where):
+        """
+        Handles the deletion from the structure
+
+        :param atoms:
+        :type atoms: tuple[str]
+        :param coords:
+        :type coords: CoordinateSet
+        :param where:
+        :type where: tuple[int]
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("Incomplete interface")

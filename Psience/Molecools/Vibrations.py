@@ -6,7 +6,7 @@ import numpy as np, scipy.linalg as slag
 from McUtils.Coordinerds import CoordinateSystem, CoordinateSet
 from McUtils.Data import AtomData, UnitsData
 
-from .Molecule import Molecule
+from .MoleculeInterface import AbstractMolecule
 from .Transformations import MolecularTransformation
 
 __all__ = [
@@ -25,7 +25,7 @@ class MolecularVibrations:
         """Sets up a vibration for a Molecule object over the CoordinateSystem basis
 
         :param molecule:
-        :type molecule: Molecule
+        :type molecule: AbstractMolecule
         :param init:
         :type init: None | CoordinateSet
         :param basis:
@@ -45,6 +45,7 @@ class MolecularVibrations:
     @molecule.setter
     def molecule(self, mol):
         self._mol = mol
+        self._basis.molecule = mol
 
     @property
     def freqs(self):
@@ -243,6 +244,24 @@ class MolecularNormalModes(CoordinateSystem):
                  name=None, freqs=None,
                  internal=False, origin=None, basis=None, inverse=None
                  ):
+        """
+        :param molecule:
+        :type molecule: AbstractMolecule
+        :param coeffs:
+        :type coeffs:
+        :param name:
+        :type name:
+        :param freqs:
+        :type freqs:
+        :param internal:
+        :type internal:
+        :param origin:
+        :type origin:
+        :param basis:
+        :type basis:
+        :param inverse:
+        :type inverse:
+        """
         if freqs is None:
             freqs = np.diag(coeffs.T@coeffs)
         if inverse is None:
@@ -250,12 +269,12 @@ class MolecularNormalModes(CoordinateSystem):
                 inverse = coeffs.T/freqs[:, np.newaxis]
             else:
                 inverse = None
-        self.molecule = molecule
+        self._molecule = molecule
         self.in_internals = internal
         # if origin is None:
         #     origin = molecule.coords
         if basis is None:
-            basis = molecule.sys
+            basis = molecule.coords.system #type: MolecularCartesianCoordinateSystem | MolecularZMatrixCoordinateSystem
         super().__init__(
             matrix=coeffs,
             inverse=inverse,
@@ -265,6 +284,15 @@ class MolecularNormalModes(CoordinateSystem):
             origin=origin
         )
         self.freqs = freqs
+    @property
+    def molecule(self):
+        return self._molecule
+    @molecule.setter
+    def molecule(self, mol):
+        # thought I wanted this to reset the origin and things..
+        self.basis.molecule = mol
+        self._molecule = mol
+
     # also need a Cartesian equivalent of this
     def to_internals(self, intcrds=None, dYdR=None, dRdY=None):
         if self.in_internals:
@@ -323,15 +351,19 @@ class MolecularNormalModes(CoordinateSystem):
 
         tmat = frame.transformation_function.transform
         mat = self.matrix
-        mat = mat@tmat
+        mat = np.tensordot(tmat, mat.reshape((-1, mat.shape[-1]//3, 3)), axes=[1, 2])
+        mat = mat.reshape(self.matrix.shape)
 
-        orig = self.origin
-        orig = tmat@orig
+        if self._origin is not None:
+            orig = self.origin
+            orig = np.tensordot(tmat, orig, axes=[1, 1])
+        else:
+            orig = None
 
         return type(self)(
             self.molecule,
             mat,
-            origin = orig
+            origin=orig
         )
 
     def rescale(self, scaling_factors):
@@ -371,7 +403,7 @@ class MolecularNormalModes(CoordinateSystem):
         Generates normal modes from the specified force constants
 
         :param molecule:
-        :type molecule: Molecule
+        :type molecule: AbstractMolecule
         :param fcs: force constants array
         :type fcs: np.ndarray
         :param atoms: atom list

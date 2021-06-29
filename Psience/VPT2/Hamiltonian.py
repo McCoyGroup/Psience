@@ -94,11 +94,11 @@ class PerturbationTheoryHamiltonian:
         # molecule = molecule.get_embedded_molecule()
         self.molecule = molecule
         if modes is None:
-            modes = molecule.normal_modes
+            modes = molecule.normal_modes.modes
             # this basically presupposes we've got a held fe...might need to think
             # abotu the input format we want for this
             try:
-                phases = molecule.get_fchk_normal_mode_rephasing()
+                phases = molecule.normal_modes.get_fchk_normal_mode_rephasing()
             except NotImplementedError:
                 pass
             else:
@@ -762,23 +762,59 @@ class PerturbationTheoryHamiltonian:
 
         return coupled_states
 
+    def get_solver(self,
+                   states,
+                   degeneracies=None,
+                   allow_post_PT_calc=True,
+                   ignore_odd_order_energies=True,
+                   use_full_basis=True,
+                   verbose=False,
+                   order=2,
+                   expansion_order=None,
+                   memory_constrained=None,
+                   **opts
+                ):
+
+        h_reps = self.get_perturbations(expansion_order)
+
+        if not isinstance(states, BasisStateSpace):
+            states = BasisStateSpace(self.basis, states)
+
+        if use_full_basis and states.full_basis is None:
+            states = BasisStateSpace(self.basis, states.indices,
+                                     mode=BasisStateSpace.StateSpaceSpec.Indices,
+                                     full_basis=CompleteSymmetricGroupSpace(states.ndim,
+                                                                            memory_constrained=states.ndim > 20 if memory_constrained is None else memory_constrained
+                                                                            )
+                                     )
+
+        # if memory_constrained is True:
+        #     memory_constrained = False
+
+        return PerturbationTheorySolver(h_reps, states,
+                                          order=order,
+                                          degenerate_states=degeneracies,
+                                          logger=self.logger,
+                                          checkpointer=self.checkpointer,
+                                          parallelizer=self.parallelizer,
+                                          allow_post_PT_calc=allow_post_PT_calc,
+                                          memory_constrained=memory_constrained,
+                                          ignore_odd_order_energies=ignore_odd_order_energies,
+                                          verbose=verbose,
+                                          **opts
+                                          )
+
     def get_wavefunctions(self,
                           states,
-                          coupled_states=None,
                           degeneracies=None,
-                          allow_sakurai_degs=False,
                           allow_post_PT_calc=True,
-                          modify_degenerate_perturbations=False,
-                          gaussian_resonance_handling=False,
-                          intermediate_normalization=False,
                           ignore_odd_order_energies=True,
-                          zero_element_warning=True,
                           use_full_basis=True,
-                          memory_constrained=False,
-                          state_space_iterations=None,
                           verbose=False,
                           order=2,
-                          expansion_order=None
+                          expansion_order=None,
+                          memory_constrained=None,
+                          **opts
                           ):
         """
         Gets a set of `PerturbationTheoryWavefunctions` from the perturbations defined by the Hamiltonian
@@ -793,9 +829,6 @@ class PerturbationTheoryHamiltonian:
         :rtype: PerturbationTheoryWavefunctions
         """
 
-        if allow_sakurai_degs:
-            raise NotImplementedError("true degeneracy handling needs to be reworked to be fully general")
-
         # print([self.V_terms[i] for i in range(5)])
 
         with self.checkpointer:
@@ -803,7 +836,6 @@ class PerturbationTheoryHamiltonian:
             from .Wavefunctions import PerturbationTheoryWavefunctions
 
             with self.logger.block(tag='Computing PT corrections:'):
-
 
                 if expansion_order is None:
                     expansion_order = order
@@ -815,55 +847,22 @@ class PerturbationTheoryHamiltonian:
                     ],
                     ord=order,
                     state_num=len(states),
-                    eord=expansion_order
+                    eord=order if expansion_order is None else expansion_order
                 )
 
-                h_reps = self.get_perturbations(expansion_order)
-                self.logger.log_print(
-                        "perturbations: {pert_num}",
-                    pert_num=len(h_reps) - 1,
+                solver = self.get_solver(
+                    states,
+                    degeneracies=degeneracies,
+                    allow_post_PT_calc=allow_post_PT_calc,
+                    ignore_odd_order_energies=ignore_odd_order_energies,
+                    use_full_basis=use_full_basis,
+                    memory_constrained=memory_constrained,
+                    verbose=verbose,
+                    order=order,
+                    expansion_order=expansion_order,
+                    **opts
                 )
 
-                # with self.logger.block(tag='getting coupled states'):
-                #     start = time.time()
-                #     states, coupled_states, total_space, flat_space, degeneracies = self.get_input_state_spaces(states,
-                #                                                                        coupled_states,
-                #                                                                        degeneracies,
-                #                                                                        order=order)
-                #     end = time.time()
-                #     self.logger.log_print("took {t}s...", t=round(end - start, 3))
-                if not isinstance(states, BasisStateSpace):
-                    states = BasisStateSpace(self.basis, states)
-
-                if use_full_basis and states.full_basis is None:
-                    states = BasisStateSpace(self.basis, states.indices,
-                                             mode=BasisStateSpace.StateSpaceSpec.Indices,
-                                             full_basis=CompleteSymmetricGroupSpace(states.ndim,
-                                                                                    memory_constrained=states.ndim > 20 if memory_constrained is None else memory_constrained
-                                                                                    )
-                                             )
-
-                # if memory_constrained is True:
-                #     memory_constrained = False
-
-                solver = PerturbationTheorySolver(h_reps, states,
-                                                  order=order,
-                                                  state_space_iterations=state_space_iterations,
-                                                  coupled_states=coupled_states,
-                                                  degenerate_states=degeneracies,
-                                                  logger=self.logger,
-                                                  checkpointer=self.checkpointer,
-                                                  parallelizer=self.parallelizer,
-                                                  allow_sakurai_degs=allow_sakurai_degs,
-                                                  allow_post_PT_calc=allow_post_PT_calc,
-                                                  memory_constrained=memory_constrained,
-                                                  modify_degenerate_perturbations=modify_degenerate_perturbations,
-                                                  gaussian_resonance_handling=gaussian_resonance_handling,
-                                                  ignore_odd_order_energies=ignore_odd_order_energies,
-                                                  intermediate_normalization=intermediate_normalization,
-                                                  zero_element_warning=zero_element_warning,
-                                                  verbose=verbose
-                                                  )
                 corrs = solver.apply_VPT()
 
         return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, modes=self.modes, mode_selection=self.mode_selection, logger=self.logger)
