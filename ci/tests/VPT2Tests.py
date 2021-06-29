@@ -3273,7 +3273,7 @@ class VPT2Tests(TestCase):
         [5425.603, 5174.665]
     ])
     }
-    @validationTest
+    @debugTest
     def test_HOHVPTInternals(self):
 
         tag = 'HOH Cartesians'
@@ -4384,7 +4384,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @debugTest
+    @validationTest
     def test_HOONOVPTInternalsDummy(self):
 
         tag = 'HOONO Internals'
@@ -4417,6 +4417,14 @@ class VPT2Tests(TestCase):
         #     [4,  2,  1,  3],  # N
         #     [5,  4,  2,  3]   # O
         # ]
+        mol.zmatrix = [
+            [1, -1, -1, -1],  # O
+            [2,  1, -1, -1],  # O
+            [4,  2,  1, -1],  # N
+            [3,  2,  1,  4],  # X
+            [0,  1,  2,  3],  # H
+            [5,  4,  2,  3]   # O
+        ]
         mol.zmatrix = [
             [1, -1, -1, -1],  # O
             [2,  1, -1, -1],  # O
