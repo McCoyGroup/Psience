@@ -23,7 +23,7 @@ def grid_neginfinf(domain=None, divs=None, **kw):
     :rtype:
     """
 
-    return np.linspace(*domain, divs)
+    return domain[0] + (domain[1] - domain[0]) * np.arange(1, divs)/(divs+1)
 
 def kinetic_energy_neginfinf(grid=None, m=1, hb=1, **kw):
     '''Computes the kinetic energy for the grid'''
@@ -69,7 +69,7 @@ def grid_02pi(domain=None, divs=None, **kw):
     if divs % 2 != 1:
         raise ValueError('number of DVR points must go as (2N + 1), i.e. it must be odd')
 
-    return np.linspace(*domain, divs)
+    return domain[0] + (domain[1] - domain[0]) * np.arange(1, divs+1)/divs
 
 def kinetic_energy_02pi(grid=None, m=1, hb=1, **kw):
     """
@@ -85,18 +85,24 @@ def kinetic_energy_02pi(grid=None, m=1, hb=1, **kw):
     :return:
     :rtype:
     """
+
+
     coeff = hb**2/(2*m)
-    nPts = len(grid)
-    Nval = (nPts - 1)//2
-    Tjj = np.repeat((1/2)*(Nval*((Nval+1)/3)), nPts)
-    Tmat = np.diag(Tjj)
-    for j in range(1, nPts):
-        for j_prime in range(j):
-            Tj_jprime = (1/2*((-1)**(j-j_prime))) * (np.cos((np.pi*(j-j_prime))/nPts) /
-                                                     (2*np.sin((np.pi*(j-j_prime))/nPts)**2))
-            Tmat[j, j_prime] = Tj_jprime
-            Tmat[j_prime, j] = Tj_jprime
-    return coeff*Tmat
+    divs = len(grid)
+    n = (divs - 1)//2
+    ke=np.empty((divs, divs))
+    np.fill_diagonal(ke, coeff*n * (n+1) / 3)
+
+    col_rng = np.arange(1, divs + 1)  # the column indices -- also what will be used for computing the off diagonal bands
+    row_rng = np.arange(0, divs)  # the row indices -- computed once and sliced
+    for i in range(1, divs):
+        col_inds = col_rng[i - 1:-1]  # +(i-1)
+        row_inds = row_rng[:-i]
+        val = coeff*(-1)**(i) * np.cos(i * np.pi / divs) / (2 * np.sin(i * np.pi / divs)**2)
+        ke[row_inds, col_inds] = val
+        ke[col_inds, row_inds] = val
+
+    return ke
 
 def real_momentum_02pi(grid=None, hb=1, **kw):
     """
@@ -116,7 +122,7 @@ def real_momentum_02pi(grid=None, hb=1, **kw):
 
     col_rng = np.arange(1, divs + 1)  # the column indices -- also what will be used for computing the off diagonal bands
     row_rng = np.arange(0, divs)  # the row indices -- computed once and sliced
-    for i in range(divs):
+    for i in range(1, divs):
         col_inds = col_rng[i - 1:-1]  # +(i-1)
         row_inds = row_rng[:-i]
         val = hb/2 * (-1)**(i) / np.sin(i * np.pi / divs)
