@@ -3,6 +3,10 @@ Base class for kinetic, potential, and dipole derivative terms
 
 ### Properties and Methods
 ```python
+internal_fd_mesh_spacing: float
+internal_fd_stencil: int
+cartesian_fd_mesh_spacing: float
+cartesian_fd_stencil: int
 internal_by_cartesian_order: int
 cartesian_by_internal_order: int
 jacobian_warning_threshold: float

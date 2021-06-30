@@ -422,6 +422,8 @@ class VPT2Tests(TestCase):
                     profiling_mode=None,
                     pre_wfns_script=None,
                     post_wfns_script=None,
+                    print_specs=True,
+                    calculate_intensities=False,
                     invert_x=False,
                     **opts
                     ):
@@ -482,6 +484,30 @@ class VPT2Tests(TestCase):
             if print_diffs:
                 self.print_energy_block("Reference Difference Energies:", states, my_energies - gaussian_energies,
                                         my_freqs[:ns] - gaussian_freqs[:ns])
+
+        if calculate_intensities:
+            engs = h2w * wfns.energies
+            freqs = engs - engs[0]
+            ints = wfns.intensities
+
+            harm_engs = h2w * wfns.zero_order_energies
+            harm_freqs = harm_engs - harm_engs[0]
+            harm_ints = wfns.zero_order_intensities
+
+            print_specs = True
+            if print_specs:
+                n_modes= wfns.corrs.total_basis.ndim
+                padding = len(str("0 " * n_modes)) - 6
+                report = "State" + " " * padding + "Harmonic:  Frequency   Intensity     Anharmonic:  Frequency   Intensity\n" + "\n".join(
+                    (
+                        (
+                                "  " + ("{:<1.0f} " * n_modes)
+                                + " " * len("Harmonic:") + "{:>7.2f} {:>12.4f}"
+                                + " " * len("Anharmonic:") + "{:>7.2f} {:>12.4f}"
+                        ).format(*s, hf, hi, f, i)
+                        for s, hf, hi, f, i in zip(states[1:], harm_freqs[1:], harm_ints[1:], freqs[1:], ints[1:])
+                    ))
+                print(report)
 
         # if invert_x:
         #
@@ -2595,6 +2621,7 @@ class VPT2Tests(TestCase):
         ])
     }
     @validationTest
+    #paper
     def test_OneMorseCartesiansNonDeg(self):
 
         import warnings
@@ -2646,7 +2673,7 @@ class VPT2Tests(TestCase):
 
         import time
         start = time.time()
-        mol.potential_derivatives = deriv_gen.derivative_tensor([1, 2, 3, 4, 5, 6])
+        mol.potential_derivatives = deriv_gen.derivative_tensor([1, 2])#, 3, 4, 5, 6])
         end = time.time()
         print('getting input derivs took {:.3f}s'.format(end-start))
         # raise Exception([x.shape for x in mol.potential_derivatives])
@@ -2658,7 +2685,7 @@ class VPT2Tests(TestCase):
             n_modes = len(mode_selection)
         states = self.get_states(5, n_modes)
 
-        print_report = False
+        print_report = True
         reference_energies = self.analytic_data['Morse3500/50']['zpe']
         reference_freqs = self.analytic_data['Morse3500/50']['freqs']
 
@@ -2682,26 +2709,26 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             # ignore_odd_order=False,
             intermediate_normalization=False,
-            order=4,
-            expansion_order=4
-            # , potential_terms=[
-            #     np.array([[0.01594717]]),
-            #     np.array([[[-0.00808669]]]), #np.array([[[0.]]]),
-            #     np.array([[[[0.00318943]]]]), #np.array([[[[0.]]]])
-            #     np.array([[[[[-0.00115532]]]]]),
-            #     np.array([[[[[[0.000403561]]]]]]),
-            #     np.array([[[[[[[-0.000138629]]]]]]]),
-            #     np.array([[[[[[[[0.0000472371]]]]]]]]) # for some reason my FD was giving me np.array([[[[[[0.00038929]]]]]])
-            # ]
-            # , kinetic_terms=[
-            #     np.array([[0.01594717]]),
-            #     0,
-            #     0,
-            #     0,
-            #     0,
-            #     0,
-            #     0
-            # ]
+            order=6,
+            expansion_order=6
+            , potential_terms=[
+                np.array([[0.01594717]]),
+                np.array([[[-0.00808669]]]), #np.array([[[0.]]]),
+                np.array([[[[0.00318943]]]]), #np.array([[[[0.]]]])
+                np.array([[[[[-0.00115532]]]]]),
+                np.array([[[[[[0.000403561]]]]]]),
+                np.array([[[[[[[-0.000138629]]]]]]]),
+                np.array([[[[[[[[0.0000472371]]]]]]]]) # for some reason my FD was giving me np.array([[[[[[0.00038929]]]]]])
+            ]
+            , kinetic_terms=[
+                np.array([[0.01594717]]),
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+            ]
             , watson=False
             # pseudopotential_terms = [
             #     None,
@@ -2882,7 +2909,7 @@ class VPT2Tests(TestCase):
             [13000.000, 12100.000]
         ])
     }
-    @validationTest
+    @inactiveTest
     def test_TwoMorseCartesiansNonDeg(self):
 
         import warnings
@@ -3046,7 +3073,7 @@ class VPT2Tests(TestCase):
             [13000.000, 12100.000]
         ])
     }
-    @validationTest
+    @validationTest # was on
     def test_TwoMorseCartesiansAndBendNonDeg(self):
 
         import warnings
@@ -3117,7 +3144,7 @@ class VPT2Tests(TestCase):
 
         # we rigorously zero out small terms for
         # numerical stability
-        mat = mol.normal_modes.basis.matrix
+        mat = mol.normal_modes.modes.basis.matrix
         bad_spots = np.where(np.abs(mat) < 1e-14)
         mat[bad_spots] = 0.
 
@@ -3194,7 +3221,7 @@ class VPT2Tests(TestCase):
             #     None,
             #     None
             # ]
-            , parallelized=True
+            # , parallelized=True
         )
 
     #endregion
@@ -3302,7 +3329,7 @@ class VPT2Tests(TestCase):
     @validationTest
     def test_HOHVPTInternals(self):
 
-        tag = 'HOH Cartesians'
+        tag = 'HOH Internals'
         file_name = "HOH_freq.fchk"
 
         internals = [
@@ -3331,10 +3358,13 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            print_report=print_report
+            log=True,
+            verbose=True,
+            print_report=print_report,
+            calculate_intensities=True
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTInternalsEmbedded(self):
 
         tag = 'HOH Cartesians'
@@ -3368,10 +3398,13 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            print_report=print_report
+            log=True,
+            verbose=True,
+            print_report=print_report,
+            calculate_intensities=True
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -3409,12 +3442,15 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=True,
-            print_report=print_report
+            print_report=print_report,
+            calculate_intensities=True
+            , memory_constrained=True
+            , state_space_terms=((1, 0), (2, 0))
             # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
             # , watson=False
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesiansEmbdedd(self):
 
         tag = 'HOH Cartesians'
@@ -3452,7 +3488,7 @@ class VPT2Tests(TestCase):
             # log=True
         )
 
-    @inactiveTest
+    @validationTest
     def test_HOHVPTCartesians4thOrder(self):
 
         import warnings
@@ -3462,11 +3498,6 @@ class VPT2Tests(TestCase):
         tag = 'HOH Cartesians'
         file_name = "HOH_freq.fchk"
 
-        internals = [
-            [0, -1, -1, -1],
-            [1,  0, -1, -1],
-            [2,  0,  1, -1]
-        ]
         internals = None
 
         n_atoms = 3
@@ -3476,21 +3507,53 @@ class VPT2Tests(TestCase):
             n_modes = len(mode_selection)
         states = self.get_states(3, n_modes)
 
-        basis = HarmonicOscillatorProductBasis(n_modes)
-        coupled_states =  [
-            BasisStateSpace(basis, self.get_states(20, n_modes)).apply_selection_rules(
-                basis.selection_rules("x", "x", "x")
-            ),
-            BasisStateSpace(basis, self.get_states(20, n_modes)).apply_selection_rules(
-                basis.selection_rules("x", "x", "x", "x")
-            )
-        ]
-        coupled_states=None
+        print_report = True
 
-        print_report = False
-        log = True
-        nielsen_tolerance = None
-        order = 4
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        # import McUtils.Misc as mcmisc
+        #
+        # with mcmisc.without_numba():
+        # os.remove(os.path.expanduser('~/hoh.hdf5'))
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            order=4,
+            expansion_order=2,
+            print_report=print_report,
+            calculate_intensities=True
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
+        )
+
+    @validationTest
+    def test_HOHVPTInternals4thOrder(self):
+
+        tag = 'HOH Internals'
+        file_name = "HOH_freq.fchk"
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        print_report = True
 
         gaussian_energies = self.gaussian_data['HOH']['zpe']
         gaussian_freqs = self.gaussian_data['HOH']['freqs']
@@ -3503,17 +3566,12 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            order=order,
-            nielsen_tolerance=nielsen_tolerance,
-            log=log,
-            print_report=print_report
-            # , energy_order=2
-            , coupled_states=coupled_states
-            , intermediate_normalization=False
-            , selection_rules=[
-                [r for r in basis.selection_rules("x", "x", "x") if len(r) <= 2],
-                [r for r in basis.selection_rules("x", "x", "x", "x") if len(r) <= 3]
-            ]
+            log=True,
+            verbose=True,
+            order=4,
+            expansion_order=2,
+            print_report=print_report,
+            calculate_intensities=True
         )
 
     @inactiveTest
@@ -3549,7 +3607,7 @@ class VPT2Tests(TestCase):
         ]
         # coupled_states=None
 
-        print_report = False
+        print_report = True
         log = True
         nielsen_tolerance = None
         order = 4
@@ -3991,6 +4049,9 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
+            log=True,
+            verbose=True,
+            calculate_intensities=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
@@ -4026,6 +4087,8 @@ class VPT2Tests(TestCase):
             gaussian_energies,
             gaussian_freqs,
             log=True,
+            verbose=True,
+            calculate_intensities=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
@@ -4109,6 +4172,100 @@ class VPT2Tests(TestCase):
             pre_wfns_script=pre_wfns_script,
             log=True,
             verbose=True,
+            calculate_intensities=True,
+            gaussian_tolerance=gaussian_tolerance,
+            degeneracies=degeneracies
+            , allow_post_PT_calc=False
+            # , invert_x=True
+            # , modify_degenerate_perturbations=True
+        )
+
+    @validationTest
+    def test_OCHHVPTInternalsDegenerate(self):
+
+        tag = 'OCHH Cartesians'
+        file_name = "OCHH_freq.fchk"
+
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  1,  0, -1],
+            [3,  1,  0,  2]
+        ]
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        # nt_spec = np.array([
+        #     [0, 0, 0, 0, 0, 1],
+        #     [0, 1, 0, 1, 0, 0]
+        # ])
+        # degeneracies = []
+        # for s in states:
+        #     if np.dot(nt_spec[0], s) > 0:
+        #         degeneracies.append([
+        #             s,
+        #             s - nt_spec[0] + nt_spec[1]
+        #         ])
+        # # raise Exception(degeneracies)
+
+        from McUtils.GaussianInterface import GaussianLogReader
+        with GaussianLogReader(TestManager.test_data('OCHH_freq_16.log')) as reader:
+            sort_spec = np.flip([4, 0, 1, 2, 5, 3])
+            x = reader.parse("XMatrix")["XMatrix"][np.ix_(sort_spec, sort_spec)]
+            # raise Exception(x)
+
+        def pre_wfns_script(hammer, states):
+            harm, corrs = hammer.get_Nielsen_energies(states, x_mat=x)
+            harm = harm * self.h2w
+            anharms = harm + corrs
+            # print(states)
+            print(np.column_stack([
+                harm[1:] - harm[0],
+                anharms[1:] - anharms[0]
+            ]))
+
+        pre_wfns_script = None
+
+        degeneracies = self.get_degenerate_polyad_space(
+            states,
+            [
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            ]
+        )
+        degeneracies = [np.array(x).tolist() for x in degeneracies]
+        states = np.array(states).tolist()
+        for pair in degeneracies:
+            for p in pair:
+                if p not in states:
+                    states.append(p)
+
+        # degeneracies = None
+
+        gaussian_energies = self.gaussian_data['OCHH']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHH']['freqs']
+
+        print_report = True
+        nielsen_tolerance = None
+        gaussian_tolerance = 1
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            pre_wfns_script=pre_wfns_script,
+            log=True,
+            verbose=True,
+            calculate_intensities=True,
             gaussian_tolerance=gaussian_tolerance,
             degeneracies=degeneracies
             , allow_post_PT_calc=False
@@ -4435,7 +4592,7 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @debugTest
+    @validationTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
@@ -4479,8 +4636,9 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            # log=True,
-            # verbose=True,
+            log=True,
+            verbose=True,
+            calculate_intensities=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
@@ -4575,7 +4733,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @debugTest
+    @validationTest
     def test_HOONOVPTInternalsEmbed(self):
 
         tag = 'HOONO Internals'
@@ -4614,13 +4772,13 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            # log=True,
-            # verbose=True,
+            log=True,
+            verbose=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @debugTest
+    @validationTest
     def test_HOONOVPTCartesians(self):
 
         tag = 'HOONO Cartesians'
@@ -4685,8 +4843,9 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            # log=True,
-            # verbose=True,
+            log=True,
+            verbose=True,
+            calculate_intensities=True,
             degeneracies=degeneracies,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
@@ -4763,6 +4922,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=True,
+            calculate_intensities=True,
             degeneracies=degeneracies,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
@@ -5457,9 +5617,9 @@ class VPT2Tests(TestCase):
             # , parallelized=True
             , initialization_timeout=2
             , chunk_size=int(5e6)
+            # , memory_constrained=True
             , state_space_terms=((1, 0), (2, 0))
             # , direct_sum_chunk_size=int(1e3)
-            # , memory_constrained=True
         )
 
     @inactiveTest

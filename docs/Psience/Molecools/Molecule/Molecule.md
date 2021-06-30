@@ -48,6 +48,12 @@ dipole_surface(self):
 - `:returns`: `DipoleSurfaceManager`
     >No description...
 
+<a id="Psience.Molecools.Molecule.Molecule.dipole_derivatives" class="docs-object-method">&nbsp;</a>
+```python
+@property
+dipole_derivatives(self): 
+```
+
 <a id="Psience.Molecools.Molecule.Molecule.potential_surface" class="docs-object-method">&nbsp;</a>
 ```python
 @property
@@ -56,6 +62,12 @@ potential_surface(self):
 
 - `:returns`: `PotentialSurfaceManager`
     >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.potential_derivatives" class="docs-object-method">&nbsp;</a>
+```python
+@property
+potential_derivatives(self): 
+```
 
 <a id="Psience.Molecools.Molecule.Molecule.normal_modes" class="docs-object-method">&nbsp;</a>
 ```python

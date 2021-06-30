@@ -15,6 +15,8 @@ Provides and extensible DVR framework with an easy-to-write structure.
 
 from Peeves.TestUtils import *
 from unittest import TestCase
+
+from McUtils.Data import UnitsData
 from Psience.DVR import *
 import numpy as np
 
@@ -112,6 +114,98 @@ class DVRTests(TestCase):
         ))
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
+    @debugTest
+    def test_RingDVR1D(self):
+        dvr_1D = DVR("ColbertMiller1D")
+        npts = 5
+        n = (5 - 1) // 2
+        res = dvr_1D.run(potential_function=np.sin,
+                         domain=(0, 2 * np.pi),
+                         divs=npts,
+                         flavor='[0,2pi]',
+                         result='grid'
+                         )
+        self.assertTrue(np.allclose(
+            res.grid,
+            (2 * np.pi) * np.arange(1, npts + 1) / npts
+        ))
+
+        res = dvr_1D.run(potential_function=np.sin,
+                         domain=(0, 2 * np.pi),
+                         divs=5,
+                         flavor='[0,2pi]',
+                         result='kinetic_energy'
+                         )
+        self.assertTrue(np.allclose(res.kinetic_energy,
+                                    [
+                                        [1.0, -0.5854101966249685, 8.541019662496847e-2, 8.54101966249685e-2,
+                                         -0.5854101966249681],
+                                        [-0.5854101966249685, 1.0, -0.5854101966249685, 8.541019662496847e-2,
+                                         8.54101966249685e-2],
+                                        [8.541019662496847e-2, -0.5854101966249685, 1.0, -0.5854101966249685,
+                                         8.541019662496847e-2],
+                                        [8.54101966249685e-2, 8.541019662496847e-2, -0.5854101966249685, 1.0,
+                                         -0.5854101966249685],
+                                        [-0.5854101966249681, 8.54101966249685e-2, 8.541019662496847e-2,
+                                         -0.5854101966249685, 1.0]
+                                    ]
+                                    ))
+
+        res = dvr_1D.run(potential_function=np.sin,
+                         domain=(0, 2 * np.pi),
+                         divs=5,
+                         flavor='[0,2pi]',
+                         result='potential_energy'
+                         )
+        self.assertTrue(np.allclose(np.diag(res.potential_energy), np.sin(res.grid)))
+
+    @debugTest
+    def test_RingDVR1DExplicitMass(self):
+
+        dvr_1D = DVR("ColbertMiller1D")
+        res = dvr_1D.run(potential_function=np.sin,
+                         domain=(0, 2 * np.pi),
+                         mass=1/(2*0.000197),
+                         divs=251,
+                         flavor='[0,2pi]'
+                         )
+
+        print(
+            UnitsData.convert("Hartrees", "Wavenumbers")*(
+                    res.wavefunctions[:5].energies[1:] -
+                    res.wavefunctions[:5].energies[0]
+            )
+            )
+        # self.assertTrue(np.allclose(
+        #     res.wavefunctions[:5].energies.tolist(), [-0.536281, 0.341958, 0.854909, 2.05781, 2.08047],
+        #     atol=.03  # different eigensolvers?
+        # ))
+        # self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
+
+    @debugTest
+    def test_RingDVR2DExplicitMass(self):
+
+        dvr_2D = DVR("ColbertMillerND")
+        res = dvr_2D.run(potential_function=self.cos2D,
+                         domain=((0, 2 * np.pi),)*2,
+                         mass=[1/(2*0.000197), 1/(2*0.000197)],
+                         divs=(25, 25),
+                         flavor='[0,2pi]',
+                         diag_mode='dense'
+                         )
+
+        print(
+            UnitsData.convert("Hartrees", "Wavenumbers") * (
+                    res.wavefunctions[:5].energies[1:] -
+                    res.wavefunctions[:5].energies[0]
+            )
+        )
+        self.assertTrue(np.allclose(
+            res.wavefunctions[:5].energies.tolist(), [-0.536281, 0.341958, 0.854909, 2.05781, 2.08047],
+            atol=.03  # different eigensolvers?
+        ))
+        self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
+
     @validationTest
     def test_RingDVR1DCosMass(self):
         dvr_1D = DVR("ColbertMiller1D")
@@ -182,7 +276,7 @@ class DVRTests(TestCase):
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
-    @debugTest
+    @validationTest
     def test_Ring2DDifferentMass(self):
 
         dvr_2D = DVR("ColbertMillerND")
@@ -218,7 +312,6 @@ class DVRTests(TestCase):
                          )
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
 
         g_tH = lambda vals: (2 + np.cos(vals[..., 0])*np.sin(vals[..., 1]))
 
