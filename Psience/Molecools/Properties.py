@@ -1363,6 +1363,9 @@ class PotentialSurfaceManager(PropertyManager):
         if self._derivs is None:
             self._derivs = self.load_potential_derivatives()
         return self._derivs
+    @derivatives.setter
+    def derivatives(self, v):
+        self._derivs = v
 
     @property
     def force_constants(self):
@@ -1609,10 +1612,20 @@ class NormalModesManager(PropertyManager):
         :rtype:
         """
 
-        d1_analytic = self.mol.dipole_surface.derivatives[1]
-        d1_numerical = self.mol.dipole_surface.numerical_derivatives[1]
+        d1_analytic = self.mol.dipole_surface.derivatives
+        if d1_analytic is None:
+            return None
+        else:
+            d1_analytic = d1_analytic[1]
+            if d1_analytic is None:
+                return None
+        d1_numerical = self.mol.dipole_surface.numerical_derivatives
         if d1_numerical is None:
             return None
+        else:
+            d1_numerical = d1_numerical[1]
+            if d1_numerical is None:
+                return None
 
         # if not isinstance(d1_analytic, np.ndarray):
         #     d1_analytic = d1_analytic.array
