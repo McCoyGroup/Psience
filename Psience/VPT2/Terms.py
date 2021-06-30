@@ -245,6 +245,8 @@ class ExpansionTerms:
             # print(weights, weighted.array)
         return weighted
 
+    internal_fd_mesh_spacing = 1.0e-2
+    internal_fd_stencil = 9
     def get_int_jacobs(self, jacs):
         intcds = self.internal_coordinates
         ccoords = self.coords
@@ -260,7 +262,9 @@ class ExpansionTerms:
         if max_jac > len(exist_jacs):
             need_jacs = [x+1 for x in range(0, max_jac)]
             with Parallelizer.lookup(self.parallelizer) as par:
-                new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs, mesh_spacing=1.0e-2,
+                new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs,
+                                                                 mesh_spacing=self.internal_fd_mesh_spacing,
+                                                                 stencil=self.internal_fd_stencil,
                                                                  all_numerical=self.all_numerical,
                                                                  converter_options=dict(
                                                                      reembed=self.reembed,
@@ -272,6 +276,8 @@ class ExpansionTerms:
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
 
+    cartesian_fd_mesh_spacing = 1.0e-3
+    cartesian_fd_stencil = 9
     def get_cart_jacobs(self, jacs):
         intcds = self.internal_coordinates
         ccoords = self.coords
@@ -290,8 +296,8 @@ class ExpansionTerms:
                 need_jacs = [x + 1 for x in range(0, max_jac)]
                 new_jacs = [
                     x.squeeze() for x in ccoords.jacobian(internals, need_jacs,
-                                                          mesh_spacing=1.0e-3,
-                                                          stencil=9,
+                                                          mesh_spacing=self.cartesian_fd_mesh_spacing,
+                                                          stencil=self.cartesian_fd_stencil,
                                                           all_numerical=True,
                                                           # analytic_deriv_order=1,
                                                           converter_options=dict(strip_dummies=True),

@@ -130,6 +130,12 @@ class Molecule(AbstractMolecule):
             ))
         self._dips = val
     @property
+    def dipole_derivatives(self):
+        return self.dipole_surface.derivatives
+    @dipole_derivatives.setter
+    def dipole_derivatives(self, derivs):
+        self.dipole_surface.derivatives = derivs
+    @property
     def potential_surface(self):
         """
         :return:
@@ -143,6 +149,12 @@ class Molecule(AbstractMolecule):
                 PotentialSurfaceManager.__name__
             ))
         self._pes = val
+    @property
+    def potential_derivatives(self):
+        return self.potential_surface.derivatives
+    @potential_derivatives.setter
+    def potential_derivatives(self, derivs):
+        self.potential_surface.derivatives = derivs
     @property
     def normal_modes(self):
         """

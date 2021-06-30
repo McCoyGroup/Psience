@@ -89,7 +89,7 @@ class Wavefunctions:
         return self.get_wavefunctions(item)
     def __iter__(self):
         eng_list = list(self.energies)
-        wf_list = list(self.wavefunctions)
+        wf_list = list(self.wavefunctions) # is this right?
         for eng, wfn in zip(eng_list, wf_list):
             yield self.wavefunction_class(eng, wfn, parent = self, **self.opts)
 
