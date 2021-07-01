@@ -5,6 +5,7 @@ Provides classes to support wave functions coming from VPT calculations
 import numpy as np, itertools as ip, time, enum
 
 from McUtils.Numputils import SparseArray
+from McUtils.Data import UnitsData
 
 from ..BasisReps import BasisStateSpace, SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction
 
@@ -543,7 +544,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             eng = self.energies
         else:
             eng = self.energies_to_order(energy_order)
-        units = 3.554206329390961e6
+        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
         return units * (eng - eng[0]) * oscs
 
     @property
@@ -660,7 +661,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :rtype:
         """
         import csv
-        from McUtils.Data import UnitsData
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
@@ -719,8 +719,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 writer.writerows([padding + x for x in coupled_state_blocks])
 
     def format_energies_table(self):
-
-        from McUtils.Data import UnitsData
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 

@@ -8,8 +8,9 @@ from McUtils.Coordinerds import CoordinateSet
 from McUtils.ExternalPrograms import OpenBabelInterface
 from McUtils.GaussianInterface import GaussianFChkReader
 from McUtils.Data import AtomData, UnitsData, BondData
+from McUtils.Zachary import FiniteDifferenceDerivative
 
-from .MoleculeInterface import *
+from .MoleculeInterface import AbstractMolecule
 from .Transformations import MolecularTransformation
 from .Vibrations import MolecularVibrations, MolecularNormalModes
 
@@ -424,6 +425,37 @@ class StructuralProperties:
         # raise Exception([M, R])
         return freqs, eigs
 
+    @classmethod
+    def get_prop_g_matrix(cls, masses, coords, internal_coords):
+        """
+        Gets the molecular g-matrix
+        :param masses:
+        :type masses: np.ndarray
+        :param coords:
+        :type coords: CoordinateSet
+        :param internal_coords:
+        :type internal_coords: CoordinateSet
+        :return:
+        :rtype:
+        """
+        jacobian = coords.jacobian(internal_coords.system, [1])
+        if not isinstance(jacobian, np.ndarray):
+            jacobian = jacobian[0]
+        if coords.multiconfig:
+            raise NotImplementedError("not sure what the jacobian will look like in multiconfig cases... (it's {})".format(jacobian.shape))
+        else:
+            # now mass-weight
+            jacobian = jacobian.reshape((len(masses), 3, len(masses), 3))
+            # strip embedding
+            embedding_coords = [0, 1, 2, 4, 5, 8]
+            good_coords = np.setdiff1d(np.arange(3*len(masses)), embedding_coords)
+            mass_weighting = np.sqrt(masses)
+            jacobian *= 1/mass_weighting[:, np.newaxis, np.newaxis, np.newaxis]
+            jacobian = jacobian.reshape(jacobian.shape[0]*jacobian.shape[1], jacobian.shape[2]*jacobian.shape[3])
+            jacobian = jacobian[:, good_coords]
+        # dot together
+        return np.tensordot(jacobian, jacobian, axes=[0, 0])
+
 class BondingProperties:
     """
     The set of properties that depend only on bonding
@@ -615,6 +647,18 @@ class MolecularProperties:
         """
 
         return StructuralProperties.get_prop_mass_weighted_coords(mol.coords, mol.masses)
+
+
+    @classmethod
+    def g_matrix(cls, mol):
+        """
+        :param mol:
+        :type mol: AbstractMolecule
+        :return:
+        :rtype:
+        """
+        masses = mol.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        return StructuralProperties.get_prop_g_matrix(masses, mol.coords, mol.internal_coordinates)
 
     @classmethod
     def center_of_mass(cls, mol):

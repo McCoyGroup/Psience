@@ -436,6 +436,16 @@ class Molecule(AbstractMolecule):
             # print(zms)
             self._ints = self.coords.convert(zms)
         return self._ints
+    @property
+    def g_matrix(self):
+        """
+        Returns the molecular g-matrix for the system
+        :return:
+        :rtype:
+        """
+        if self.internal_coordinates is None:
+            raise ValueError("need an internal coordinate Z-matrix to calculate the G-matrix")
+        return self.prop('g_matrix')
 
     def principle_axis_frame(self, sel=None, inverse=False):
         """
