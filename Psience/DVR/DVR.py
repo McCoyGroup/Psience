@@ -236,15 +236,7 @@ class DVR:
 
     @staticmethod
     def _potential_energy(**pars):
-        """
-        A default potential energy implementation for reuse
-        :param pars: parameters; important keys are potential_values, potential_grid, potential_function
-        :type pars:
-        :return: potential energy matrix
-        :rtype: np.ndarray
-        """
-
-        import numpy as np
+        """ A default ND potential implementation for reuse"""
 
         if 'potential_function' in pars:
             # explicit potential function passed; map over coords
@@ -259,20 +251,39 @@ class DVR:
                     de = pars['De'] if 'De' in pars else 10
                     a = pars['alpha'] if 'alpha' in pars else 1
                     re = pars['re'] if 're' in pars else 0
-                    pf = lambda x, a=a, de=de, re=re: de*(1-np.exp((-a*(x-re)))**2)
+                    pf = lambda x, a=a, de=de, re=re: de*(1-np.exp((-a*(x-re))))**2
                 else:
                     raise DVRException("unknown potential "+pf)
-            pot = np.diag([pf(x) for x in pars['grid']])
+
+            grid = pars['grid']
+            dim = len(grid.shape)
+            if dim > 1:
+                import scipy.sparse as sp
+                from functools import reduce
+                from operator import mul
+
+                npts = reduce(mul, grid.shape[:-1], 1)
+                grid = np.reshape(grid, (npts, grid.shape[-1]))
+                pot = sp.diags([pf(grid)], [0])
+            else:
+                pot = np.diag(pf(grid))
         elif 'potential_values' in pars:
             # array of potential values at coords passed
             pot = np.diag(pars['potential_values'])
         elif 'potential_grid' in pars:
             # TODO: extend to include ND, scipy.griddata
-            import scipy.interpolate as interp, scipy.sparse as sp
+            import scipy.interpolate as interp
+            import scipy.sparse as sp
 
-            dim = len(pars['grid'].shape)
+            grid = pars['grid']
+            dim = len(grid.shape)
             if dim > 1:
                 dim -= 1
+                from functools import reduce
+                from operator import mul
+
+                npts = reduce(mul, grid.shape[:-1], 1)
+                grid = np.reshape(grid, (npts, grid.shape[-1]))
 
             if dim == 1:
                 interpolator = lambda g1, g2: interp.interp1d(g1[:, 0], g1[:, 1], kind='cubic')(g2)
@@ -292,8 +303,8 @@ class DVR:
                         points = tuple(np.unique(x) for x in mesh[:-1])
                         vals = mesh[-1]
                         return interp.interpn(points, vals, g2)
-            interp_vals = interpolator(pars['potential_grid'], pars['grid']).flatten()
-            pot = sp.diags([interp_vals], [0])
+            wtf = np.nan_to_num(interpolator(pars['potential_grid'], grid))
+            pot = sp.diags([wtf], [0])
         else:
             raise DVRException("couldn't construct potential matrix")
 
