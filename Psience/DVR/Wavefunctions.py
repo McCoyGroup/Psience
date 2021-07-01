@@ -4,6 +4,8 @@ Provides a DVRWavefunction class that inherits from the base Psience wavefunctio
 
 from Psience.Wavefun import Wavefunction, Wavefunctions
 
+__all__ = ["DVRWavefunctions", "DVRWavefunction"]
+
 class DVRWavefunction(Wavefunction):
     def plot(self, figure = None, grid = None, index=0, scaling=1, shift=0, **opts):
         import numpy as np
@@ -65,6 +67,24 @@ class DVRWavefunctions(Wavefunctions):
     # most evaluations are most efficient done in batch for DVR wavefunctions so we focus on the batch object
     def __init__(self, energies=None, wavefunctions=None, wavefunction_class=DVRWavefunction, **opts):
         super().__init__(energies=energies, wavefunctions=wavefunctions, wavefunction_class=wavefunction_class, **opts)
+
+    def __len__(self):
+        return len(self.energies)
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self.__getitem__(i)
+    def __getitem__(self, item):
+        """Returns a single Wavefunction object"""
+        # iter comes for free with this
+        if isinstance(item, slice):
+            return type(self)(
+                energies=self.energies[item],
+                wavefunctions=self.wavefunctions[:, item],
+                wavefunction_class=self.wavefunction_class,
+                **self.opts
+            )
+        else:
+            return self.wavefunction_class(self.energies[item], self.wavefunctions[:, item], parent=self, **self.opts)
 
     def plot(self, figure = None, graphics_class = None, plot_style = None, scaling=1, shift=0, **opts):
         import numpy as np

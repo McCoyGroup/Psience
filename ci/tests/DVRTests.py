@@ -25,93 +25,40 @@ class DVRTests(TestCase):
 
     @validationTest
     def test_1D(self):
-        dvr_1D = DVR("ColbertMiller1D")
+        dvr_1D = CartesianDVR(domain=(-5, 5), divs=250)
         pot = dvr_1D.run(potential_function=self.ho, result='potential_energy')
         self.assertIsInstance(pot.potential_energy, np.ndarray)
 
     @validationTest
     def test_energies_1D(self):
-        dvr_1D = DVR("ColbertMiller1D")
-        res = dvr_1D.run(potential_function=self.ho, domain=(-5, 5), divs=250)
+        dvr_1D = CartesianDVR()
+        res = dvr_1D.run(potential_function=self.ho, domain=(-5, 5), divs=250, mass=1)
         # print(e[:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions.energies, np.ndarray)
         self.assertTrue(np.allclose(res.wavefunctions.energies[:5].tolist(), [1/2, 3/2, 5/2, 7/2, 9/2]))
 
     @validationTest
     def test_energies_2D(self):
-        dvr_2D = DVR("ColbertMillerND")
-        res = dvr_2D.run(potential_function=self.ho_2D, domain=((-5, 5), (-5, 5)), divs=(25, 25))
-        # print(res[0][:5], file=sys.stderr)
+        dvr_2D = CartesianNDDVR(((-5, 5, 25), (-5, 5, 25)))
+        res = dvr_2D.run(potential_function=self.ho_2D, mass=1)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
     @validationTest
     def test_energies_3D(self):
-        dvr_3D = DVR("ColbertMillerND")
-        res = dvr_3D.run(potential_function=self.ho_3D, domain=((-5, 5),)*3, divs=(15,)*3)
+        dvr_3D = CartesianNDDVR(((-5, 5, 25), (-5, 5, 25), (-5, 5, 25)))
+        res = dvr_3D.run(potential_function=self.ho_3D, mass=1)
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
-    @debugTest
+    @validationTest
     def test_RingDVR1D(self):
-        dvr_1D = DVR("ColbertMiller1D")
-        npts = 5
-        n = (5-1)//2
-        res = dvr_1D.run(potential_function=np.sin,
-                         domain=(0, 2 * np.pi),
-                         divs=npts,
-                         flavor='[0,2pi]',
-                         result='grid'
-                         )
-        self.assertTrue(np.allclose(
-            res.grid,
-            (2*np.pi) * np.arange(1, npts+1)/npts
-        ))
-
-        res = dvr_1D.run(potential_function=np.sin,
-                         domain=(0, 2 * np.pi),
-                         divs=5,
-                         flavor='[0,2pi]',
-                         result='kinetic_energy'
-                         )
-        self.assertTrue(np.allclose(res.kinetic_energy,
-                                    [
-                                        [1.0, -0.5854101966249685, 8.541019662496847e-2, 8.54101966249685e-2, -0.5854101966249681],
-                                        [-0.5854101966249685, 1.0, -0.5854101966249685, 8.541019662496847e-2, 8.54101966249685e-2],
-                                        [8.541019662496847e-2, -0.5854101966249685, 1.0, -0.5854101966249685, 8.541019662496847e-2],
-                                        [8.54101966249685e-2, 8.541019662496847e-2, -0.5854101966249685, 1.0, -0.5854101966249685],
-                                        [-0.5854101966249681, 8.54101966249685e-2, 8.541019662496847e-2, -0.5854101966249685, 1.0]
-                                    ]
-                                    ))
-
-        res = dvr_1D.run(potential_function=np.sin,
-                         domain=(0, 2 * np.pi),
-                         divs=5,
-                         flavor='[0,2pi]',
-                         result='potential_energy'
-                         )
-        self.assertTrue(np.allclose(np.diag(res.potential_energy), np.sin(res.grid)))
-
-        res = dvr_1D.run(potential_function=np.sin,
-                         domain=(0, 2 * np.pi),
-                         divs=251,
-                         flavor='[0,2pi]'
-                         )
-
-        self.assertTrue(np.allclose(
-            res.wavefunctions[:5].energies.tolist(), [-0.536281, 0.341958, 0.854909, 2.05781, 2.08047],
-            atol=.03 # different eigensolvers?
-        ))
-        self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
-    @debugTest
-    def test_RingDVR1D(self):
-        dvr_1D = DVR("ColbertMiller1D")
+        dvr_1D = RingDVR()
         npts = 5
         n = (5 - 1) // 2
         res = dvr_1D.run(potential_function=np.sin,
                          domain=(0, 2 * np.pi),
                          divs=npts,
-                         flavor='[0,2pi]',
+                         mass=1,
                          result='grid'
                          )
         self.assertTrue(np.allclose(
@@ -122,7 +69,7 @@ class DVRTests(TestCase):
         res = dvr_1D.run(potential_function=np.sin,
                          domain=(0, 2 * np.pi),
                          divs=5,
-                         flavor='[0,2pi]',
+                         mass=1,
                          result='kinetic_energy'
                          )
         self.assertTrue(np.allclose(res.kinetic_energy,
@@ -143,15 +90,15 @@ class DVRTests(TestCase):
         res = dvr_1D.run(potential_function=np.sin,
                          domain=(0, 2 * np.pi),
                          divs=5,
-                         flavor='[0,2pi]',
+                         mass=1,
                          result='potential_energy'
                          )
         self.assertTrue(np.allclose(np.diag(res.potential_energy), np.sin(res.grid)))
 
-    @debugTest
+    @validationTest
     def test_RingDVR1DExplicitMass(self):
 
-        dvr_1D = DVR("ColbertMiller1D")
+        dvr_1D = RingDVR()
         res = dvr_1D.run(potential_function=np.sin,
                          domain=(0, 2 * np.pi),
                          mass=1/(2*0.000197),
@@ -171,10 +118,10 @@ class DVRTests(TestCase):
         # ))
         # self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
-    @debugTest
+    @validationTest
     def test_RingDVR2DExplicitMass(self):
 
-        dvr_2D = DVR("ColbertMillerND")
+        dvr_2D = RingNDDVR((25, 25))
         res = dvr_2D.run(potential_function=self.cos_sin_pot,
                          domain=((0, 2 * np.pi),)*2,
                          mass=[1/(2*0.000197), 1/(2*0.000197)],
@@ -195,40 +142,34 @@ class DVRTests(TestCase):
         # ))
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
-    @debugTest
+    @validationTest
     def test_RingDVR1DCosMass(self):
-        dvr_1D = DVR("ColbertMiller1D")
+        dvr_1D = RingDVR()
         res = dvr_1D.run(potential_function=np.sin,
                          g=np.cos,
                          g_deriv=lambda g:-np.cos(g),
                          domain=(0, 2*np.pi),
-                         divs=15,
-                         flavor='[0,2pi]'
+                         divs=251
                          )
-        # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
 
     @validationTest
     def test_Ring3D(self):
-        dvr_3D = DVR("ColbertMillerND")
-        res = dvr_3D.run(potential_function=self.cos3D,
-                         domain=((0, 2*np.pi),) * 3,
-                         divs=(15,) * 3,
-                         flavor='[0,2pi]'
-                         )
+        dvr_3D = RingNDDVR((15,) * 3)
+        res = dvr_3D.run(mass=1, potential_function=self.cos3D)
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
     @validationTest
     def test_Ring3DCosMass3D(self):
-        dvr_3D = DVR("ColbertMillerND")
+        dvr_3D = RingNDDVR((15,) * 3)
 
         res_basic = dvr_3D.run(potential_function=self.cos3D,
-                         domain=((0, 2 * np.pi),) * 3,
-                         divs=(15,) * 3,
-                         flavor='[0,2pi]'
-                         )
+                               mass=1,
+                               domain=((0, 2 * np.pi),) * 3,
+                               divs=(15,) * 3,
+                               flavor='[0,2pi]'
+                               )
 
         g_el = lambda vals: np.full(len(vals), 1/2)
         gd_el = lambda vals: np.zeros(len(vals))
@@ -248,7 +189,7 @@ class DVRTests(TestCase):
 
         self.assertTrue(np.allclose(res.wavefunctions.energies, res_basic.wavefunctions.energies))
 
-        g_el = lambda vals: (2 + np.cos(vals)) # plausible in size????
+        g_el = lambda vals: (2 + np.cos(vals[..., 0])) # plausible in size????
         gd_el = lambda vals: -np.cos(vals)/10
         res = dvr_3D.run(potential_function=self.cos3D,
                          domain=((0, 2*np.pi),) * 3,
@@ -265,17 +206,15 @@ class DVRTests(TestCase):
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
-    @debugTest
+    @validationTest
     def test_Ring2DDifferentMass(self):
 
-        dvr_2D = DVR("ColbertMillerND")
+        dvr_2D = RingNDDVR((15, 15))
 
         g_tt = lambda vals: (2 + np.cos(vals[..., 0])); gd_tt = lambda vals: -np.cos(vals[..., 0])
         g_HH = lambda vals: (2 + np.cos(2*vals[..., 1])); gd_HH = lambda vals: -np.sin(vals[..., 1])
 
         res = dvr_2D.run(potential_function=self.cos2D,
-                         domain=((0, 2 * np.pi),) * 2,
-                         divs=(15,) * 2,
                          g=[
                              [g_tt, 0],
                              [0, g_HH]
@@ -286,10 +225,9 @@ class DVRTests(TestCase):
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
+        dvr_3D = RingNDDVR((15, 15, 15))
         g_tH = lambda vals: (2 + np.cos(vals[..., 0])*np.cos(2*vals[..., 1]))
-        res = dvr_2D.run(potential_function=self.cos3D,
-                         domain=((0, 2 * np.pi),) * 3,
-                         divs=(15,) * 3,
+        res = dvr_3D.run(potential_function=self.cos3D,
                          g=[
                              [g_tt, g_tH,    0],
                              [g_tH, g_HH,    0],

@@ -4,27 +4,138 @@ Redoes what was originally PyDVR but in the _right_ way using proper subclassing
 
 import abc, numpy as np, scipy.sparse as sp, scipy.interpolate as interp
 
-class AbstractDVR(metaclass=abc.ABCMeta):
+__all__ = ["BaseDVR", "DVRResults", "DVRException"]
+
+class BaseDVR(metaclass=abc.ABCMeta):
     """
     Provides the abstract interface for creating a
     convenient runnable DVR that can be cleanly subclassed to provide
     extensions
     """
 
-    @abc.abstractmethod
-    def grid(self, **kwargs):
-        raise NotImplementedError("abstact interface")
+    def __init__(self,
+                 domain=None,
+                 divs=None,
+                 potential_function=None,
+                 **base_opts
+                 ):
+        """
+        :param base_opts: base opts to use when running
+        :type base_opts:
+        """
+        self.domain = domain
+        base_opts['domain'] = domain
+        self.divs = divs
+        base_opts['divs'] = divs
+        self.potential_function = potential_function
+        base_opts['potential_function'] = potential_function
+        self.opts = base_opts
+
+    def __repr__(self):
+        if self.potential_function is not None:
+            return "{}({}, pts={}, pot={})".format(
+                type(self).__name__,
+                self.domain,
+                self.divs,
+                self.potential_function
+            )
+        else:
+            return "{}({}, pts={}, pot={})".format(
+                type(self).__name__,
+                self.domain,
+                self.divs,
+                self.potential_function
+            )
+
 
     @abc.abstractmethod
-    def kinetic_energy(self, **kwargs):
-        raise NotImplementedError("abstact interface")
+    def get_grid(self, domain=None, divs=None, **kwargs):
+        raise NotImplementedError("abstract interface")
+
+    def grid(self, domain=None, divs=None, **kwargs):
+        if domain is None:
+            domain = self.domain
+        if divs is None:
+            divs = self.divs
+
+        if divs is None:
+            raise ValueError("need a value for `domain`")
+        if divs is None:
+            raise ValueError("need a value for `divs`")
+        return self.get_grid(domain=domain, divs=divs, **kwargs)
+
+    @abc.abstractmethod
+    def get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs):
+        raise NotImplementedError("abstract interface")
+    def kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, **kwargs):
+
+        if grid is None:
+            grid = self.grid()
+
+        if g is not None:
+            mass = 1 / 2  # to get rid of the 1/2m
+
+        if mass is None:
+            raise ValueError("need a value for the mass")
+        ke_1D = self.get_kinetic_energy(grid=grid, mass=mass, hb=hb, **kwargs)
+
+        if g is not None:
+            if g_deriv is None:
+                raise ValueError(
+                    "if a function for `g` is supplied, also need a function, `g_deriv` for the second derivative of `g`")
+            # add the average value of `g` across the grid points
+            try:
+                iter(g)
+            except TypeError:
+                g_vals = g(grid)
+            else:
+                g_vals = np.asanyarray(g)
+
+            try:
+                iter(g_deriv)
+            except TypeError:
+                g_deriv_vals = g_deriv(grid)
+            else:
+                g_deriv_vals = np.asanyarray(g_deriv)
+
+            g_vals = 1 / 2 * (g_vals[:, np.newaxis] + g_vals[np.newaxis, :])
+            g_deriv_vals = (hb ** 2) / 2 * np.diag(g_deriv_vals)
+            ke_1D = ke_1D * g_vals + g_deriv_vals
+
+        return ke_1D
+
+    def real_momentum(self, grid=None, mass=None, hb=1, **kwargs):
+        raise NotImplementedError("real momentum needs to be implemented")
 
     def potential_energy(self, grid=None,
                          potential_function=None,
                          potential_values=None,
+                         potential_grid=None,
                          **pars
                          ):
-        """ A default ND potential implementation for reuse"""
+        """
+        Calculates the potential energy at the grid points based
+        on dispatching on the input form of the potential
+
+        :param grid: the grid of points built earlier in the DVR
+        :type grid:
+        :param potential_function: a function to evaluate the potential energy at the points
+        :type potential_function:
+        :param potential_values: the values of the potential at the DVR points
+        :type potential_values:
+        :param potential_grid: a grid of points and values to be interpolated
+        :type potential_grid:
+        :param pars: ignored keyword arguments
+        :type pars:
+        :return:
+        :rtype:
+        """
+
+        if grid is None:
+            grid = self.grid()
+
+        if potential_function is None and potential_grid is None and potential_values is None:
+            potential_function = self.potential_function
 
         if potential_function is not None:
             # explicit potential function passed; map over coords
@@ -45,10 +156,9 @@ class AbstractDVR(metaclass=abc.ABCMeta):
                 pot = sp.diags([potential_values], [0])
             else:
                 pot = np.diag(potential_values)
-        elif potential_values is not None:
+        elif potential_grid is not None:
             # TODO: extend to include ND, scipy.griddata
 
-            grid = pars['grid']
             dim = len(grid.shape)
             if dim > 1:
                 dim -= 1
@@ -75,14 +185,14 @@ class AbstractDVR(metaclass=abc.ABCMeta):
                         points = tuple(np.unique(x) for x in mesh[:-1])
                         vals = mesh[-1]
                         return interp.interpn(points, vals, g2)
-            wtf = np.nan_to_num(interpolator(pars['potential_grid'], grid))
+            wtf = np.nan_to_num(interpolator(potential_grid, grid))
             pot = sp.diags([wtf], [0])
         else:
             raise DVRException("couldn't construct potential matrix")
 
         return pot
 
-    def hamiltonain(self, kinetic_energy=None, potential_energy=None, potential_threshold=None, **pars):
+    def hamiltonian(self, kinetic_energy=None, potential_energy=None, potential_threshold=None, **pars):
         """
         Calculates the total Hamiltonian from the kinetic and potential matrices
 
@@ -114,7 +224,7 @@ class AbstractDVR(metaclass=abc.ABCMeta):
         else:
             return kinetic_energy + potential_energy
 
-    def wavefunctions(self, hamiltonian=None, num_wfns=None, nodeless_ground_state=False, diag_mode=None, **pars):
+    def wavefunctions(self, hamiltonian=None, num_wfns=25, nodeless_ground_state=False, diag_mode=None, **pars):
         """
         Calculates the wavefunctions for the given Hamiltonian.
         Doesn't support any kind of pruning based on potential values although that might be a good feature
@@ -143,7 +253,7 @@ class AbstractDVR(metaclass=abc.ABCMeta):
             engs, wfns = np.linalg.eigh(hamiltonian)
             if num_wfns is not None:
                 engs = engs[:num_wfns]
-                wfns = wfns[:, num_wfns]
+                wfns = wfns[:, :num_wfns]
 
         if nodeless_ground_state:
             s = np.sign(wfns[:, 0])
@@ -156,6 +266,8 @@ class AbstractDVR(metaclass=abc.ABCMeta):
         :rtype: DVR.Results
         """
         from .Wavefunctions import DVRWavefunctions
+
+        opts = dict(self.opts, **opts)
 
         res = DVRResults(parent=self, **opts)
 
