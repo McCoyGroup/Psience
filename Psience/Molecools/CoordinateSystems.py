@@ -240,7 +240,8 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         converter_options['molecule'] = molecule
 
     def jacobian(self,
-                 *args,
+                 coords,
+                 system,
                  strip_dummies=None,
                  converter_options=None,
                  analytic_deriv_order=None,
@@ -274,24 +275,24 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         else:
             main_excludes = None
 
-        jacs = super().jacobian(*args, analytic_deriv_order=analytic_deriv_order, converter_options=converter_options, **kwargs)
+        jacs = super().jacobian(coords, system, analytic_deriv_order=analytic_deriv_order, converter_options=converter_options, **kwargs)
         raw_jacs = []
         for n,j in enumerate(jacs): # this expects a full filling of the jacobians which maybe I need to not expect...
-            # print(">>>>", j.shape, main_excludes, analytic_deriv_order)
-            baseline = 2*(analytic_deriv_order+1)
+            baseline = 2*analytic_deriv_order + len(coords.shape)
             ext_dim = j.ndim - baseline
             shp = sum(
                 ((j.shape[i] // 3, 3) for i in range(ext_dim)),
                 ()
             ) + j.shape[-baseline:]
             j = j.reshape(shp)
-            # print(j.shape, ext_dim)
             if dummies is not None:
                 for i in range(ext_dim):
                     j = np.take(j, main_excludes, axis=2*i)
-                # print("?", j.shape)
                 for i in range(analytic_deriv_order):
                     j = np.take(j, main_excludes, axis=-2*(i+2))
+
+            if len(coords.shape) > 2:
+                j = np.moveaxis(j, -3, 0)
 
             raw_jacs.append(j)
         jacs = raw_jacs
@@ -371,8 +372,28 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
         # we add three dummy atoms at the origins and along the axes before doing the conversion
         if origins.ndim == 1:
             origins = np.broadcast_to(origins[np.newaxis, np.newaxis], (n_sys, 1, 3))
+        elif origins.ndim == 2:
+            origins = origins[:, np.newaxis, :]
         if axes.ndim == 2:
             axes = np.broadcast_to(axes[np.newaxis], (n_sys, 2, 3))
+        if origins.shape[0] != n_sys:
+            if n_sys % origins.shape[0] != 0:
+                raise ValueError("inconsistent shapes; origins shape {} but coords shape {}".format(
+                    origins.shape,
+                    coords.shape
+                ))
+            num_coords = n_sys // origins.shape[0]
+            origins = np.broadcast_to(origins[:, np.newaxis, :, :], (origins.shape[0], num_coords) + origins.shape[1:])
+            origins = origins.reshape((n_sys,) + origins.shape[2:])
+        if axes.shape[0] != n_sys:
+            if n_sys % axes.shape[0] != 0:
+                raise ValueError("inconsistent shapes; axes shape {} but coords shape {}".format(
+                    axes.shape,
+                    coords.shape
+                ))
+            num_coords = n_sys // axes.shape[0]
+            axes = np.broadcast_to(axes[:, np.newaxis, :, :], (axes.shape[0], num_coords) + axes.shape[1:])
+            axes = axes.reshape((n_sys,) + axes.shape[2:])
         coords = np.concatenate([origins, origins+axes, coords], axis=1)
         if ordering is not None:
             ordering = np.array(ordering, dtype=int)

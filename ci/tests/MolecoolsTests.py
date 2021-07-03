@@ -22,7 +22,7 @@ class MolecoolsTests(TestCase):
         self.test_fchk = TestManager.test_data("water_freq.fchk")
         self.test_log_h2 = TestManager.test_data("outer_H2_scan_new.log")
 
-    @debugTest
+    @validationTest
     def test_NormalModeRephasing(self):
         m_16 = Molecule.from_file(TestManager.test_data('CH2DT_freq_16.fchk'))
         m_09 = Molecule.from_file(TestManager.test_data('CH2DT_freq.fchk'))
@@ -40,6 +40,18 @@ class MolecoolsTests(TestCase):
         phase_test = np.sign(np.diag(np.dot(modes_09, rescaled_16.T)))
 
         self.assertEquals(np.sum(np.diff(phase_test)), 0)
+
+    @validationTest
+    def test_MolecularGMatrix(self):
+        mol = Molecule.from_file(self.test_fchk)
+        mol.zmatrix = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+        g = mol.g_matrix
+
+        self.assertEquals(g.shape, (3, 3))
 
     @validationTest
     def test_ImportMolecule(self):
@@ -236,8 +248,7 @@ class MolecoolsTests(TestCase):
         ref = Molecule.from_file(ref_file)
         new = ref.get_embedded_molecule()
 
-
-    @debugTest
+    @validationTest
     def test_EmbeddedMolecule(self):
         tag = 'HOONO Internals'
         file_name = TestManager.test_data("HOONO_freq.fchk")
@@ -263,6 +274,37 @@ class MolecoolsTests(TestCase):
         self.assertTrue(np.allclose(norms_1, norms_2),
                         msg="{} different from {}".format(norms_1, norms_2)
         )
+
+        # raise Exception(mol1.coords, mol1.normal_modes.modes.basis.matrix.T)
+
+        # raise Exception(mol.coords, mol.normal_modes.modes.basis.matrix.T)
+
+    @validationTest
+    def test_EmbeddedMolecule(self):
+        tag = 'HOONO Internals'
+        file_name = TestManager.test_data("HOONO_freq.fchk")
+
+        mol1 = Molecule.from_file(file_name)
+        # init_mat1 = mol1.normal_modes.modes
+        mol = mol1.get_embedded_molecule()
+        init_mat = mol1.normal_modes.modes.basis.matrix
+        # self.assertEquals(init_mat1.tolist(), init_mat.tolist())
+
+        self.assertTrue(np.allclose(np.abs(mol.inertial_axes), np.eye(3)),
+                        msg="???? {}".format(mol.inertial_axes)
+                        )
+
+        norms_1 = np.linalg.norm(
+            mol.normal_modes.modes.basis.matrix,
+            axis=0
+        )
+        norms_2 = np.linalg.norm(
+            init_mat,
+            axis=0
+        )
+        self.assertTrue(np.allclose(norms_1, norms_2),
+                        msg="{} different from {}".format(norms_1, norms_2)
+                        )
 
         # raise Exception(mol1.coords, mol1.normal_modes.modes.basis.matrix.T)
 
@@ -520,6 +562,7 @@ class MolecoolsTests(TestCase):
 
     @inactiveTest
     def test_AutoZMat(self):
+        raise NotImplementedError("saddy")
         m = Molecule.from_file(self.test_fchk)
 
     @validationTest
@@ -533,7 +576,6 @@ class MolecoolsTests(TestCase):
             (1422.0, 2810.0, 3874.0)
         )
 
-
     @validationTest
     def test_H2OModes(self):
         m = Molecule.from_file(self.test_fchk, bonds=[[0, 1, 1], [0, 2, 1]])
@@ -546,7 +588,6 @@ class MolecoolsTests(TestCase):
 
     @inactiveTest
     def test_RenormalizeGaussianModes(self):
-
 
         with GaussianFChkReader(self.test_HOD) as gr:
             parse = gr.parse(["Coordinates", "Gradient", "AtomicMasses",

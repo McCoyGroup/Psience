@@ -5,8 +5,11 @@ Uses AtomData to get properties and whatnot
 """
 
 import os, numpy as np
+
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
+import McUtils.Numputils as nput
+
 from .MoleculeInterface import *
 from .CoordinateSystems import MolecularCartesianCoordinateSystem, MolecularZMatrixCoordinateSystem
 from .Properties import *
@@ -436,6 +439,56 @@ class Molecule(AbstractMolecule):
             # print(zms)
             self._ints = self.coords.convert(zms)
         return self._ints
+    @property
+    def g_matrix(self):
+        """
+        Returns the molecular g-matrix for the system
+        :return:
+        :rtype:
+        """
+        if self.internal_coordinates is None:
+            raise ValueError("need an internal coordinate Z-matrix to calculate the G-matrix")
+        return self.prop('g_matrix')
+
+    def bond_length(self, i, j):
+        """
+        Returns the bond length of the coordinates
+
+        :param i:
+        :type i:
+        :param j:
+        :type j:
+        :return:
+        :rtype:
+        """
+        return nput.pts_norms(self.coords[..., i, :], self.coords[..., j, :])
+    def bond_angle(self, i, j, k):
+        """
+        Returns the bond angle of the specified coordinates
+
+        :param i:
+        :type i:
+        :param j:
+        :type j:
+        :return:
+        :rtype:
+        """
+        return nput.pts_angles(self.coords[..., i, :], self.coords[..., j, :], self.coords[..., k, :])[0]
+    def dihedral(self, i, j, k, l):
+        """
+        Returns the dihedral angle of the specified coordinates
+
+        :param i:
+        :type i:
+        :param j:
+        :type j:
+        :return:
+        :rtype:
+        """
+        return nput.pts_dihedrals(
+            self.coords[..., i, :], self.coords[..., j, :],
+            self.coords[..., k, :], self.coords[..., l, :]
+        )[0]
 
     def principle_axis_frame(self, sel=None, inverse=False):
         """

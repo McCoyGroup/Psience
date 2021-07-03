@@ -8,8 +8,9 @@ from McUtils.Coordinerds import CoordinateSet
 from McUtils.ExternalPrograms import OpenBabelInterface
 from McUtils.GaussianInterface import GaussianFChkReader
 from McUtils.Data import AtomData, UnitsData, BondData
+from McUtils.Zachary import FiniteDifferenceDerivative
 
-from .MoleculeInterface import *
+from .MoleculeInterface import AbstractMolecule
 from .Transformations import MolecularTransformation
 from .Vibrations import MolecularVibrations, MolecularNormalModes
 
@@ -424,6 +425,46 @@ class StructuralProperties:
         # raise Exception([M, R])
         return freqs, eigs
 
+    @classmethod
+    def get_prop_g_matrix(cls, masses, coords, internal_coords):
+        """
+        Gets the molecular g-matrix
+        :param masses:
+        :type masses: np.ndarray
+        :param coords:
+        :type coords: CoordinateSet
+        :param internal_coords:
+        :type internal_coords: CoordinateSet
+        :return:
+        :rtype:
+        """
+        jacobian = coords.jacobian(internal_coords.system, [1])
+        if not isinstance(jacobian, np.ndarray):
+            jacobian = jacobian[0]
+        if coords.multiconfig:
+            # strip embedding
+            embedding_coords = [0, 1, 2, 4, 5, 8]
+            good_coords = np.setdiff1d(np.arange(3*len(masses)), embedding_coords)
+            mass_weighting = np.sqrt(masses)[:, np.newaxis, np.newaxis, np.newaxis]
+            for i in range(jacobian.ndim - 4):
+                jacobian = np.expand_dims(jacobian, 0)
+            jacobian *= 1/mass_weighting
+            jac_shapes = jacobian.shape[:-4] + (jacobian.shape[-4] * jacobian.shape[-3], jacobian.shape[-2] * jacobian.shape[-1])
+            jacobian = jacobian.reshape(jac_shapes)
+            jacobian = jacobian[..., :, good_coords]
+        else:
+            # now mass-weight
+            jacobian = jacobian.reshape((len(masses), 3, len(masses), 3))
+            # strip embedding
+            embedding_coords = [0, 1, 2, 4, 5, 8]
+            good_coords = np.setdiff1d(np.arange(3*len(masses)), embedding_coords)
+            mass_weighting = np.sqrt(masses)
+            jacobian *= 1/mass_weighting[:, np.newaxis, np.newaxis, np.newaxis]
+            jacobian = jacobian.reshape(jacobian.shape[0]*jacobian.shape[1], jacobian.shape[2]*jacobian.shape[3])
+            jacobian = jacobian[:, good_coords]
+        # dot together
+        return nput.vec_tensordot(jacobian, jacobian, axes=[-2, -2]).squeeze()
+
 class BondingProperties:
     """
     The set of properties that depend only on bonding
@@ -615,6 +656,18 @@ class MolecularProperties:
         """
 
         return StructuralProperties.get_prop_mass_weighted_coords(mol.coords, mol.masses)
+
+
+    @classmethod
+    def g_matrix(cls, mol):
+        """
+        :param mol:
+        :type mol: AbstractMolecule
+        :return:
+        :rtype:
+        """
+        masses = mol.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        return StructuralProperties.get_prop_g_matrix(masses, mol.coords, mol.internal_coordinates)
 
     @classmethod
     def center_of_mass(cls, mol):
@@ -1416,10 +1469,38 @@ class PotentialSurfaceManager(PropertyManager):
                 type(self).__name__,
                 ext
             ))
-    def load_potential_surface(self):
-        raise NotImplemented
+    def load_potential_surface(self, coordinates):
+        from ..Data import PotentialSurface
 
-    def load(self):
+        ang2bohr = UnitsData.convert("Angstroms", "BohrRadius")
+
+        try:
+            iter(coordinates)
+        except TypeError:
+            coord_transf = coordinates
+        else:
+            fns = []
+            for ctup in coordinates:
+                if len(ctup) == 2:
+                    fns.append(lambda c, i=ctup[0], j=ctup[1]: ang2bohr*nput.pts_norms(c[:, i], c[:, j]))
+                elif len(ctup) == 3:
+                    fns.append(lambda c, i=ctup[0], j=ctup[1], k=ctup[2]: nput.pts_angles(c[:, i], c[:, j], c[:, k])[0])
+                elif len(ctup) == 4:
+                    fns.append(lambda c, i=ctup[0], j=ctup[1], k=ctup[2], l=ctup[3]: nput.pts_dihedrals(c[:, i], c[:, j], c[:, k],  c[:, l])[0])
+                else:
+                    raise ValueError("don't know how to interpret coordinate spec '{}'".format(ctup))
+            def coord_transf(crds, fns=fns):
+                return np.array([f(crds) for f in fns]).T
+
+        surf = PotentialSurface.from_log_file(
+            self.mol.source_file,
+            coord_transf
+        )
+        return surf
+
+    def load(self, coordinates=None):
+        if coordinates is not None and self._surf is None:
+            self._surf = self.load_potential_surface(coordinates)
         if self._surf is not None:
             return self.surface
         else:
