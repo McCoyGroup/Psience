@@ -231,7 +231,7 @@ class PotentialSurface(Surface):
             diffs = np.sum(abs(np.diff(tol_coords, axis=0)), axis=1)
         inds = np.where(diffs != 0)[0]
         inds = np.concatenate((inds, [len(inds)]))
-        scan_coords = scan_coords[inds]
+        scan_coords = scan_coords[inds].squeeze()
         pots = pots[inds]
 
         return cls(

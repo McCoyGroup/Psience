@@ -4,6 +4,8 @@ Redoes what was originally PyDVR but in the _right_ way using proper subclassing
 
 import abc, numpy as np, scipy.sparse as sp, scipy.interpolate as interp
 
+from McUtils.Data import UnitsData
+
 __all__ = ["BaseDVR", "DVRResults", "DVRException"]
 
 class BaseDVR(metaclass=abc.ABCMeta):
@@ -58,7 +60,7 @@ class BaseDVR(metaclass=abc.ABCMeta):
         if divs is None:
             divs = self.divs
 
-        if divs is None:
+        if domain is None:
             raise ValueError("need a value for `domain`")
         if divs is None:
             raise ValueError("need a value for `divs`")
@@ -73,7 +75,7 @@ class BaseDVR(metaclass=abc.ABCMeta):
             grid = self.grid()
 
         if g is not None:
-            mass = 1 / 2  # to get rid of the 1/2m
+            mass = 1
 
         if mass is None:
             raise ValueError("need a value for the mass")
@@ -89,6 +91,7 @@ class BaseDVR(metaclass=abc.ABCMeta):
             except TypeError:
                 g_vals = g(grid)
             else:
+                print(g)
                 g_vals = np.asanyarray(g)
 
             try:
@@ -257,13 +260,13 @@ class BaseDVR(metaclass=abc.ABCMeta):
 
         if nodeless_ground_state:
             s = np.sign(wfns[:, 0])
-            wfns *= s[np.newaxis, :]
+            wfns *= s[:, np.newaxis]
         return engs, wfns
 
     def run(self, result='wavefunctions', **opts):
         """
         :return:
-        :rtype: DVR.Results
+        :rtype: DVRResults
         """
         from .Wavefunctions import DVRWavefunctions
 
@@ -299,7 +302,7 @@ class BaseDVR(metaclass=abc.ABCMeta):
             hamiltonian=res.hamiltonian,
             **opts
         )
-        wfns = DVRWavefunctions(energies=energies, wavefunctions=wfn_data, **opts)
+        wfns = DVRWavefunctions(energies=energies, wavefunctions=wfn_data, results=res, **opts)
         res.wavefunctions = wfns
 
         return res
@@ -314,7 +317,7 @@ class DVRResults:
     A subclass that can wrap all of the DVR run parameters and results into a clean interface for reuse and extension
     """
     def __init__(self,
-                 grid = None,
+                 grid=None,
                  kinetic_energy=None,
                  potential_energy=None,
                  hamiltonian=None,
@@ -339,7 +342,7 @@ class DVRResults:
             dim -= 1
         return dim
 
-    def plot_potential(self, plot_class=None, **opts):
+    def plot_potential(self, plot_class=None, figure=None, plot_units=None, energy_threshold=None, zero_shift=False, **opts):
         """
         Simple plotting function for the potential.
         Should be updated to deal with higher dimensional cases
@@ -373,7 +376,15 @@ class DVRResults:
                 ))
 
         pot = self.potential_energy.diagonal()
+        if isinstance(plot_units, str) and plot_units == 'wavenumbers':
+            pot = pot * UnitsData.convert("Hartrees", "Wavenumbers")
 
-        return plot_class(*mesh, pot.reshape(mesh[0].shape), **opts)
+        if zero_shift:
+            pot = pot - np.min(pot)
+
+        if energy_threshold:
+            pot[pot > energy_threshold] = energy_threshold
+
+        return plot_class(*mesh, pot.reshape(mesh[0].shape), figure=figure, **opts)
 
 

@@ -155,6 +155,10 @@ class DirectProductDVR(BaseDVR):
 
                     ke += ke_mat
 
+                    gd_vals = 1 / 4 * g_deriv[i](flat_grid)
+                    ke_contrib = sp.diags([gd_vals], [0])
+                    ke += ke_contrib
+
             if include_coupling:
                 momenta = [dvr.real_momentum(subg, hb=hb) for dvr,subg in zip(self.dvrs, grids)]
                 kinetic_coupling = sp.csr_matrix(ke.shape, dtype=ke.dtype)  # initialize empty tensor
