@@ -296,6 +296,51 @@ zmatrix(self):
 internal_coordinates(self): 
 ```
 
+<a id="Psience.Molecools.Molecule.Molecule.g_matrix" class="docs-object-method">&nbsp;</a>
+```python
+@property
+g_matrix(self): 
+```
+Returns the molecular g-matrix for the system
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.bond_length" class="docs-object-method">&nbsp;</a>
+```python
+bond_length(self, i, j): 
+```
+Returns the bond length of the coordinates
+- `i`: `Any`
+    >No description...
+- `j`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.bond_angle" class="docs-object-method">&nbsp;</a>
+```python
+bond_angle(self, i, j, k): 
+```
+Returns the bond angle of the specified coordinates
+- `i`: `Any`
+    >No description...
+- `j`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.dihedral" class="docs-object-method">&nbsp;</a>
+```python
+dihedral(self, i, j, k, l): 
+```
+Returns the dihedral angle of the specified coordinates
+- `i`: `Any`
+    >No description...
+- `j`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.Molecools.Molecule.Molecule.principle_axis_frame" class="docs-object-method">&nbsp;</a>
 ```python
 principle_axis_frame(self, sel=None, inverse=False): 
