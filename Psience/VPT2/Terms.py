@@ -276,8 +276,9 @@ class ExpansionTerms:
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
 
-    cartesian_fd_mesh_spacing = 1.0e-3
-    cartesian_fd_stencil = 9
+    cartesian_fd_mesh_spacing = 1.0e-5
+    cartesian_fd_stencil = 5
+    cartesian_analytic_deriv_order = 1
     def get_cart_jacobs(self, jacs):
         intcds = self.internal_coordinates
         ccoords = self.coords
@@ -298,12 +299,13 @@ class ExpansionTerms:
                     x.squeeze() for x in ccoords.jacobian(internals, need_jacs,
                                                           mesh_spacing=self.cartesian_fd_mesh_spacing,
                                                           stencil=self.cartesian_fd_stencil,
-                                                          all_numerical=True,
-                                                          # analytic_deriv_order=1,
+                                                          # all_numerical=True,
+                                                          analytic_deriv_order=self.cartesian_analytic_deriv_order,
                                                           converter_options=dict(strip_dummies=True),
                                                           parallelizer=par
                                                           )
                 ]
+
                 self._cached_jacobians[self.molecule]['cart'] = new_jacs
                 exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
@@ -1164,7 +1166,7 @@ class PotentialTerms(ExpansionTerms):
             if self.hessian_tolerance is not None:
                 v2 = terms[1]
                 v2_diff = v2 - v2x
-                if np.max(np.abs(v2_diff)) > self.hessian_tolerance:
+                if True or np.max(np.abs(v2_diff)) > self.hessian_tolerance:
                     raise PerturbationTheoryException(
                         (
                             "Internal normal mode Hessian differs from Cartesian normal mode Hessian."
