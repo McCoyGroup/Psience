@@ -718,26 +718,117 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
                 writer.writerows([padding + x for x in coupled_state_blocks])
 
-    def format_energies_table(self):
+    @classmethod
+    def _format_energies_table(cls, states, zpe, freqs, real_fmt='{:>10.3f}', dash_fmt='{:>10}'):
+
+        n_modes = len(states[0])
+
+        zpe = np.asanyarray(zpe)
+        freqs = np.asanyarray(freqs)
+
+        ncols = freqs.shape[1] if len(freqs.shape) > 0 else 1
+        states_fmt = '{:<1.0f} ' * n_modes
+        padding = len(states_fmt.format(*[0 for _ in range(n_modes)]))
+        bar = "  Harmonic Anharmonic"
+        if zpe is not None:
+            header = ["State" + " " * (padding - len("State")) + bar + " " + bar]
+            header += [
+                " " * padding
+                + " " * (len("  Harmonic") - 3) + "ZPE"
+                + " " + " " * (len("Anharmonic") - 3) + "ZPE"
+                + " "
+                + " " * (len("  Harmonic") - 9) + "Frequency"
+                + " " + " " * (len("Anharmonic") - 9) + "Frequency"
+            ]
+            zpe_fmt = (real_fmt + " ") * ncols + (dash_fmt + " ") * ncols
+            freq_fmt = (dash_fmt + " ") * ncols + (real_fmt + " ") * ncols
+            lines = [
+                        states_fmt.format(*[0] * n_modes) + zpe_fmt.format(*zpe, *["-"] * ncols)] + [
+                        states_fmt.format(*s) + freq_fmt.format(*["-"] * ncols, *e)
+                        for s, e in
+                        zip(states[1:], freqs)
+                    ]
+        else:
+            header = ["State" + " " * (padding - len("State")) + bar]
+            header += [
+                " " * padding
+                + " " * (len("  Harmonic") - 9) + "Frequency"
+                + " " + " " * (len("Anharmonic") - 9) + "Frequency"
+            ]
+            freq_fmt = ncols + (real_fmt + " ") * ncols
+            lines = [
+                states_fmt.format(*s) + freq_fmt.format(*e)
+                for s, e in
+                zip(states, freqs)
+            ]
+
+        return "\n".join([
+            *header,
+            *lines,
+        ])
+
+
+    def format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>10.3f}', dash_fmt='{:>10}'):
+        # simple utility function pulled from the unit tests
+
+        if states is None:
+            states = self.corrs.states.excitations
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        harm_engs = self.zero_order_energies * h2w
+        engs = self.energies * h2w
+        if zpe is None and np.all(states[0] == 0):
+            zpe = [harm_engs[0], engs[0]]
+
+        if freqs is None:
+            harm_freq = harm_engs[1:] - harm_engs[0]
+            anh_freqs = engs[1:] - engs[0]
+            freqs = np.column_stack([harm_freq, anh_freqs])
+
+        return self._format_energies_table(
+            states,
+            zpe,
+            freqs,
+            real_fmt=real_fmt,
+            dash_fmt=dash_fmt
+        )
+
+
+
+    def format_intensities_table(self):
+        # simple utility function pulled from the unit tests
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
         states = self.corrs.states.excitations
-        harm_engs = h2w * self.zero_order_energies
+
         engs = h2w * self.energies
+        freqs = engs - engs[0]
+        ints = self.intensities
 
-        n_modes = self.corrs.states.ndim
-        harm_freq = harm_engs[1:] - harm_engs[0]
-        freqs = engs[1:] - engs[0]
+        harm_engs = h2w * self.zero_order_energies
+        harm_freqs = harm_engs - harm_engs[0]
+        harm_ints = self.zero_order_intensities
 
-        return "\n".join([
-                             "State Energies:",
-                             ('0 ' * n_modes + "{:>8.3f} {:>8.3f} {:>8} {:>8}").format(harm_engs[0], engs[0], "-",
-                                                                                         "-")
-                         ] +
-                         [
-                             ('{:<1.0f} ' * n_modes + "{:>8} {:>8} {:>8.3f} {:>8.3f}").format(*s, "-", "-", e1, e2)
-                             for s, e1, e2 in
-                             zip(states[1:], harm_freq, freqs)
-                         ]
-                         )
+        n_modes = self.corrs.total_basis.ndim
+        padding = np.max([len(str("0 " * n_modes)), 1]) + 1
+        bar = "Frequency    Intensity"
+        spacer = "    "
+        report = (
+                         " " * (padding + 2) + " " * (len("Frequency") - 2) + "Harmonic" + " " * (
+                             len("    Intensity") + 2 - len("Harmonic")) + spacer + " " * (
+                                     len("Frequency") - 2) + "Anharmonic\n"
+                                                             "State" + " " * (padding - 3) + bar + spacer + bar + "\n"
+                 ) + "\n".join(
+            (
+                (
+                        "  " + ("{:<1.0f} " * n_modes) + " "
+                        + "{:>9.2f} {:>12.4f}"
+                        + spacer
+                        + "{:>9.2f} {:>12.4f}"
+                ).format(*s, hf, hi, f, i)
+                for s, hf, hi, f, i in zip(states[1:], harm_freqs[1:], harm_ints[1:], freqs[1:], ints[1:])
+            ))
+
+        return report
