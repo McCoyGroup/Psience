@@ -147,7 +147,12 @@ Generates a breakdown of the terms that contribute to the intensity
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_energies_table" class="docs-object-method">&nbsp;</a>
 ```python
-format_energies_table(self): 
+format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>10.3f}', dash_fmt='{:>10}'): 
+```
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_intensities_table" class="docs-object-method">&nbsp;</a>
+```python
+format_intensities_table(self): 
 ```
 
 ### Examples

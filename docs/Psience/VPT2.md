@@ -381,32 +381,29 @@ class VPT2Tests(TestCase):
         #             else:
         #                 degeneracies[i] = [s]
 
-    def print_energy_block(self, tag, states, zpe, freqs, real_fmt='{:>8.3f}', dash_fmt='{:>8}' ):
-        freqs = np.asanyarray(freqs)
-        states = np.asanyarray(states)
-        ncols = freqs.shape[1] if len(freqs.shape) > 0 else 1
-        n_modes = len(states[0])
-        states_fmt = '{:<1.0f} ' * n_modes
-        if zpe is not None:
-            zpe_fmt = (real_fmt + " ")*ncols + (dash_fmt + " ") * ncols
-            freq_fmt = (dash_fmt + " ") * ncols + (real_fmt + " ") * ncols
-            lines = [states_fmt.format(*[0] * n_modes) + zpe_fmt.format(*zpe, *["-"] * ncols)] + [
-                states_fmt.format(*s) + freq_fmt.format(*["-"] * ncols, *e)
-                for s, e in
-                zip(states[1:], freqs)
-            ]
-        else:
-            freq_fmt = ncols + (real_fmt + " ") * ncols
-            lines =[
-                states_fmt.format(*s) + freq_fmt.format(*e)
-                for s, e in
-                zip(states, freqs)
-            ]
+    def print_energy_block(self, tag, wfns, states, zpe, freqs, real_fmt='{:>10.3f}', dash_fmt='{:>10}'):
 
-        print(tag,
-              *lines,
-              sep="\n  "
-              )
+        if wfns is not None:
+            print(
+                tag,
+                wfns.format_energies_table(
+                    state=states, zpe=zpe, freqs=freqs,
+                    real_fmt=real_fmt, dash_fmt=dash_fmt).replace(
+                    "\n", "\n  "
+                ),
+                sep="\n  "
+            )
+        else:
+            print(
+                tag,
+                PerturbationTheoryWavefunctions._format_energies_table(
+                    states, zpe, freqs,
+                    real_fmt=real_fmt, dash_fmt=dash_fmt
+                ).replace(
+                    "\n", "\n  "
+                ),
+                sep="\n  "
+            )
 
     def run_PT_test(self,
                     tag, mol_spec, internals, mode_selection,
@@ -457,7 +454,7 @@ class VPT2Tests(TestCase):
         my_freqs = np.column_stack([harm_freq, freqs])
 
         if print_report:
-            self.print_energy_block("State Energies:", states, my_energies, my_freqs)
+            self.print_energy_block("State Energies:", wfns, states, my_energies, my_freqs)
 
         if internals is None and nielsen_tolerance is not None:
             # Energies from Nielsen expressions
@@ -470,19 +467,19 @@ class VPT2Tests(TestCase):
             nielsen_freqs = np.column_stack([zero_ord[1:] - zero_ord[0], energies[1:] - energies[0]])
 
             if print_report:
-                self.print_energy_block("Nielsen Energies:", states, nielsen_engs, nielsen_freqs)
+                self.print_energy_block("Nielsen Energies:", None, states, nielsen_engs, nielsen_freqs)
 
             if print_diffs:
-                self.print_energy_block("Nielsen Difference Energies:", states, my_energies - nielsen_engs,
+                self.print_energy_block("Nielsen Difference Energies:", None, states, my_energies - nielsen_engs,
                                         my_freqs - nielsen_freqs)
 
         if gaussian_freqs is not None:
             ns = min(len(freqs), len(gaussian_freqs))
             if print_report:
-                self.print_energy_block("Reference Energies:", states, gaussian_energies, gaussian_freqs[:ns])
+                self.print_energy_block("Reference Energies:", None, states, gaussian_energies, gaussian_freqs[:ns])
 
             if print_diffs:
-                self.print_energy_block("Reference Difference Energies:", states, my_energies - gaussian_energies,
+                self.print_energy_block("Reference Difference Energies:", None, states, my_energies - gaussian_energies,
                                         my_freqs[:ns] - gaussian_freqs[:ns])
 
         if calculate_intensities:
@@ -496,24 +493,25 @@ class VPT2Tests(TestCase):
 
             print_specs = True
             if print_specs:
-                n_modes= wfns.corrs.total_basis.ndim
-                padding = np.max([len(str("0 " * n_modes)), 1]) + 1
-                bar = "Frequency    Intensity"
-                spacer = "    "
-                report = (
-                        " " * (padding+2) + " " * (len("Frequency")-2) + "Harmonic" + " " * (len("    Intensity")+2 - len("Harmonic")) + spacer + " " * (len("Frequency")-2) + "Anharmonic\n"
-                        "State" + " " * (padding - 3) + bar + spacer + bar + "\n"
-                         )+ "\n".join(
-                    (
-                        (
-                                "  " + ("{:<1.0f} " * n_modes) + " "
-                                + "{:>9.2f} {:>12.4f}"
-                                + spacer
-                                + "{:>9.2f} {:>12.4f}"
-                        ).format(*s, hf, hi, f, i)
-                        for s, hf, hi, f, i in zip(states[1:], harm_freqs[1:], harm_ints[1:], freqs[1:], ints[1:])
-                    ))
-                print(report)
+                print(wfns.format_intensities_table())
+                # n_modes= wfns.corrs.total_basis.ndim
+                # padding = np.max([len(str("0 " * n_modes)), 1]) + 1
+                # bar = "Frequency    Intensity"
+                # spacer = "    "
+                # report = (
+                #         " " * (padding+2) + " " * (len("Frequency")-2) + "Harmonic" + " " * (len("    Intensity")+2 - len("Harmonic")) + spacer + " " * (len("Frequency")-2) + "Anharmonic\n"
+                #         "State" + " " * (padding - 3) + bar + spacer + bar + "\n"
+                #          )+ "\n".join(
+                #     (
+                #         (
+                #                 "  " + ("{:<1.0f} " * n_modes) + " "
+                #                 + "{:>9.2f} {:>12.4f}"
+                #                 + spacer
+                #                 + "{:>9.2f} {:>12.4f}"
+                #         ).format(*s, hf, hi, f, i)
+                #         for s, hf, hi, f, i in zip(states[1:], harm_freqs[1:], harm_ints[1:], freqs[1:], ints[1:])
+                #     ))
+                # print(report)
 
         # if invert_x:
         #
@@ -3410,7 +3408,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -4789,7 +4787,7 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @debugTest
+    @inactiveTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
@@ -4846,7 +4844,7 @@ class VPT2Tests(TestCase):
         tag = 'HOONO Internals'
         file_name = TestManager.test_data("HOONO_freq.fchk")
 
-        mol = Molecule.from_file(file_name).get_embedded_molecule()
+        mol = Molecule.from_file(file_name)#.get_embedded_molecule()
         n_pos = mol.atom_positions["N"]
         o_pos = mol.atom_positions["O"]
 
@@ -4900,6 +4898,8 @@ class VPT2Tests(TestCase):
         #     [5,  4,  2,  3]  # O
         # ]
 
+        # raise Exception(mol.normal_modes.modes.freqs*UnitsData.convert("Hartrees", "Wavenumbers"))
+
         n_atoms = 5
         n_modes = 3 * n_atoms - 6
         mode_selection = None  # [5, 4, 3]
@@ -4914,7 +4914,7 @@ class VPT2Tests(TestCase):
         nielsen_tolerance = 10
         gaussian_tolerance = 10
 
-        PotentialTerms.hessian_tolerance = None
+        # ExpansionTerms.cartesian_analytic_deriv_order = 0
         internals = None
         self.run_PT_test(
             tag,
@@ -4930,7 +4930,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @validationTest
+    @inactiveTest
     def test_HOONOVPTInternalsEmbed(self):
 
         tag = 'HOONO Internals'

@@ -3,6 +3,7 @@ A helper class that can transform the derivatives of the potential from Cartesia
 
 ### Properties and Methods
 ```python
+check_input_force_constants: bool
 hessian_tolerance: float
 grad_tolerance: float
 freq_tolerance: float
