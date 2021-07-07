@@ -212,6 +212,56 @@ class MolecoolsTests(TestCase):
                             )
                             )
 
+    @debugTest
+    def test_HOONODihedral(self):
+
+        mol = Molecule.from_file(TestManager.test_data('HOONO_freq.fchk'))
+        mol.zmatrix = [
+            [1, -1, -1, -1],
+            [2,  1, -1, -1],
+            [3,  2,  1, -1],
+            [0,  1,  2,  3],
+            [4,  3,  2,  1]
+        ]
+
+        intcds = mol.internal_coordinates
+        ccoords = mol.coords
+        carts = ccoords.system
+        internals = intcds.system
+
+
+        raise Exception(nput.dihed_deriv(
+            ccoords,
+            0, 1, 2, 3
+        ))
+
+        new_jacs_anal, = ccoords.jacobian(internals, [1],
+                                          mesh_spacing=1.0e-3,
+                                          stencil=5,
+                                          # all_numerical=True,
+                                          analytic_deriv_order=1,
+                                          converter_options=dict(strip_dummies=True)
+                                          )
+
+        raise Exception(new_jacs_anal.shape)
+        raise Exception(new_jacs_anal[1][2][3], np.deg2rad(45))
+
+
+        new_jacs_num, = ccoords.jacobian(internals, [1],
+                                    mesh_spacing=1.0e-3,
+                                    stencil=5,
+                                    # all_numerical=True,
+                                    analytic_deriv_order=0,
+                                    converter_options=dict(strip_dummies=True)
+                                   )
+
+
+        raise Exception(new_jacs_num[1][2][3], np.deg2rad(45))
+
+
+
+        raise Exception(new_jacs_num[1][2], new_jacs_anal[1][2])
+
     @inactiveTest
     def test_EckartEmbedDipoles(self):
         scan_file = TestManager.test_data("tbhp_030.log")

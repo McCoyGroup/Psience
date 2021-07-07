@@ -471,13 +471,19 @@ class VPT2Tests(TestCase):
             print_specs = True
             if print_specs:
                 n_modes= wfns.corrs.total_basis.ndim
-                padding = len(str("0 " * n_modes)) - 6
-                report = "State" + " " * padding + "Harmonic:  Frequency   Intensity     Anharmonic:  Frequency   Intensity\n" + "\n".join(
+                padding = np.max([len(str("0 " * n_modes)), 1]) + 1
+                bar = "Frequency    Intensity"
+                spacer = "    "
+                report = (
+                        " " * (padding+2) + " " * (len("Frequency")-2) + "Harmonic" + " " * (len("    Intensity")+2 - len("Harmonic")) + spacer + " " * (len("Frequency")-2) + "Anharmonic\n"
+                        "State" + " " * (padding - 3) + bar + spacer + bar + "\n"
+                         )+ "\n".join(
                     (
                         (
-                                "  " + ("{:<1.0f} " * n_modes)
-                                + " " * len("Harmonic:") + "{:>7.2f} {:>12.4f}"
-                                + " " * len("Anharmonic:") + "{:>7.2f} {:>12.4f}"
+                                "  " + ("{:<1.0f} " * n_modes) + " "
+                                + "{:>9.2f} {:>12.4f}"
+                                + spacer
+                                + "{:>9.2f} {:>12.4f}"
                         ).format(*s, hf, hi, f, i)
                         for s, hf, hi, f, i in zip(states[1:], harm_freqs[1:], harm_ints[1:], freqs[1:], ints[1:])
                     ))
@@ -3378,7 +3384,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -4502,6 +4508,197 @@ class VPT2Tests(TestCase):
 
     #endregion Formaldehyde Analogs
 
+    #region X-HOCL
+
+
+
+    #Paper
+    @validationTest
+    def test_ClHOClVPTInternals(self):
+
+        tag = 'ClHOCl Internals'
+        file_name = TestManager.test_data("cl_hocl.fchk")
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        # internals = [
+        #     [0, -1, -1, -1],  # H
+        #     [1,  0, -1, -1],  # O
+        #     [2,  1,  0, -1],  # O
+        #     [3,  2,  1,  0],  # N
+        #     [4,  3,  2,  0]   # O
+        # ]
+        internals = [
+            [1, -1, -1, -1],
+            [2,  1, -1, -1],
+            [3,  2,  1, -1],
+            [0,  1,  2,  3]
+        ]
+
+        gaussian_energies = None#self.gaussian_data['HOONO']['zpe']
+        gaussian_freqs = None#self.gaussian_data['HOONO']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 10
+        gaussian_tolerance = 10
+        # from Psience.VPT2 import PotentialTerms
+        # PotentialTerms.hessian_tolerance = None
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            calculate_intensities=True,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
+    @inactiveTest
+    def test_ClHOClVPTInternalsDummy(self):
+
+        tag = 'Cl-HOCl Internals'
+        file_name = TestManager.test_data("cl_hocl.fchk")
+
+        mol = Molecule.from_file(file_name).get_embedded_molecule()
+        n_pos = mol.atom_positions["N"]
+        o_pos = mol.atom_positions["O"]
+
+        normal = -nput.vec_crosses(
+            mol.coords[o_pos[0]] - mol.coords[o_pos[1]],
+            mol.coords[n_pos[0]] - mol.coords[o_pos[1]],
+            normalize=True
+        )
+
+        mol = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 3, handle_properties=False)
+
+        # internals = [
+        #     [0, -1, -1, -1],  # H
+        #     [1,  0, -1, -1],  # O
+        #     [2,  1,  0, -1],  # O
+        #     [3,  2,  1,  0],  # N
+        #     [4,  3,  2,  0]  # O
+        # ]
+        # mol.zmatrix = [
+        #     [0, -1, -1, -1],  # H
+        #     [1,  0, -1, -1],  # O
+        #     [2,  1,  0, -1],  # O
+        #     [3,  2,  1,  0],  # X
+        #     [4,  2,  1,  3],  # N
+        #     [5,  4,  2,  3]   # O
+        # ]
+        mol.zmatrix = [
+            [1, -1, -1, -1],  # O
+            [2,  1, -1, -1],  # O
+            [4,  2,  1, -1],  # N
+            [3,  2,  1,  4],  # X
+            [0,  1,  2,  3],  # H
+            [5,  4,  2,  3]   # O
+        ]
+        # mol.zmatrix = [
+        #     [1, -1, -1, -1],  # O
+        #     [2,  1, -1, -1],  # O
+        #     [4,  2,  1, -1],  # N
+        #     [3,  2,  1,  4],  # X
+        #     [0,  1,  2,  3],  # H
+        #     [5,  4,  2,  3]   # O
+        # ]
+
+        # raise Exception(mol.internal_coordinates)
+        # mol.zmatrix = [
+        #     [1, -1, -1, -1],  # O
+        #     [2,  1, -1, -1],  # O
+        #     [4,  2,  1, -1],  # N
+        #     [3,  2,  1,  4],  # X
+        #     [0,  1,  2,  3],  # H
+        #     [5,  4,  2,  3]  # O
+        # ]
+
+        n_atoms = 5
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['HOONO']['zpe']
+        gaussian_freqs = self.gaussian_data['HOONO']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 10
+        gaussian_tolerance = 10
+
+        PotentialTerms.hessian_tolerance = None
+        internals = None
+        self.run_PT_test(
+            tag,
+            mol,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
+    @validationTest
+    def test_ClHOClVPTCartesians(self):
+
+        tag = 'Cl-HOCl Cartesians'
+        file_name = "cl_hocl.fchk"
+
+        internals = None
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = None#self.gaussian_data['HOONO']['zpe']
+        gaussian_freqs = None#self.gaussian_data['HOONO']['freqs']
+        pre_wfns_script = None
+
+        degeneracies = None
+        print_report = False
+        nielsen_tolerance = 10 if degeneracies is None else 500
+        gaussian_tolerance = 10 if degeneracies is not None else 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            calculate_intensities=True,
+            degeneracies=degeneracies,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            pre_wfns_script=pre_wfns_script,
+            gaussian_resonance_handling=True
+            # zero_element_warning=False
+
+        )
+
+    #endregion
+
     #region HOONO
 
     gaussian_data['HOONO'] = {
@@ -4566,7 +4763,7 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @validationTest
+    @debugTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
