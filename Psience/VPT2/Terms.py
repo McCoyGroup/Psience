@@ -861,6 +861,7 @@ class PotentialTerms(ExpansionTerms):
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
         self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, potential_derivatives)
 
+    check_input_force_constants=True
     def _canonicalize_derivs(self, freqs, masses, derivs):
 
         if len(derivs) == 3:
@@ -999,6 +1000,25 @@ class PotentialTerms(ExpansionTerms):
         else:
             undimension_2 = 1
         fcs = fcs * (1 / undimension_2)
+
+        if self.freq_tolerance is not None and self.check_input_force_constants:
+
+            xQ2 = self.modes.inverse
+            _, v2x,  =  TensorDerivativeConverter((xQ2, 0), (grad, fcs)).convert(order=2)
+
+            real_freqs = np.diag(v2x)
+            nominal_freqs = self.modes.freqs
+            # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
+            if self.freq_tolerance is not None:
+                if np.max(np.abs(nominal_freqs - real_freqs)) > self.freq_tolerance:
+                    raise PerturbationTheoryException(
+                        "Input frequencies aren't obtained when transforming the force constant matrix;"
+                        " this likely indicates issues with the input mode vectors"
+                        " got \n{}\n but expected \n{}\n".format(
+                            real_freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
+                            nominal_freqs * UnitsData.convert("Hartrees", "Wavenumbers")
+                        )
+                    )
 
         all_derivs = [grad, fcs]
         if len(derivs) > 2:
@@ -1166,21 +1186,41 @@ class PotentialTerms(ExpansionTerms):
             if self.hessian_tolerance is not None:
                 v2 = terms[1]
                 v2_diff = v2 - v2x
-                if True or np.max(np.abs(v2_diff)) > self.hessian_tolerance:
-                    raise PerturbationTheoryException(
-                        (
-                            "Internal normal mode Hessian differs from Cartesian normal mode Hessian."
-                            " Cartesian frequencies are {}, internals are {}.\n"
-                            " This often indicates issues with the derivatives.\n"
-                            " (YQ min/max: {} {} generally in the 10s for well-behaved systems)\n"
-                            " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)"
-                         ).format(
-                            np.diag(v2x)*UnitsData.convert("Hartrees", "Wavenumbers"),
-                            np.diag(v2)*UnitsData.convert("Hartrees", "Wavenumbers"),
-                            np.min(x_derivs[0]), np.max(x_derivs[0]),
-                            np.min(x_derivs[1]), np.max(x_derivs[1])
+                if np.max(np.abs(v2_diff)) > self.hessian_tolerance:
+                    new_freqs = np.diag(v2)*UnitsData.convert("Hartrees", "Wavenumbers")
+                    old_freqs = np.diag(v2x)*UnitsData.convert("Hartrees", "Wavenumbers")
+                    zero_pos_new = np.where(np.abs(new_freqs) < 1.0e-10)
+                    zero_pos_old = np.where(np.abs(old_freqs) < 1.0e-10)
+                    if len(zero_pos_new) > 0 and (
+                        len(zero_pos_old) == 0
+                        or len(zero_pos_old[0]) != len(zero_pos_new[0])
+                    ):
+                        raise PerturbationTheoryException(
+                            (
+                                "Encountered zero frequencies in internal normal mode Hessian that aren't in Cartesian normal mode Hessian."
+                                " Cartesian frequencies are \n{}\n but internals are \n{}\n"
+                                " This often indicates a planar dihedral angle where the derivatives are ill-defined.\n"
+                                " Try using dummy atoms to create a proper 3D structure.\n"
+                            ).format(
+                                old_freqs,
+                                new_freqs
+                            )
                         )
-                    )
+                    else:
+                        raise PerturbationTheoryException(
+                            (
+                                "Internal normal mode Hessian differs from Cartesian normal mode Hessian."
+                                " Cartesian frequencies are {}, internals are {}.\n"
+                                " This often indicates issues with the derivatives.\n"
+                                " (YQ min/max: {} {} generally in the 10s for well-behaved systems)\n"
+                                " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)"
+                             ).format(
+                                old_freqs,
+                                new_freqs,
+                                np.min(x_derivs[0]), np.max(x_derivs[0]),
+                                np.min(x_derivs[1]), np.max(x_derivs[1])
+                            )
+                        )
 
         terms = terms[1:]
 
@@ -1204,7 +1244,10 @@ class PotentialTerms(ExpansionTerms):
                 raise PerturbationTheoryException(
                     "Force constants in normal modes don't return frequencies along diagonal;"
                     " this likely indicates issues with the mass-weighting"
-                    " got {} but expected {}".format(new_freqs, old_freqs)
+                    " got \n{}\n but expected \n{}\n".format(
+                        new_freqs*UnitsData.convert("Hartrees", "Wavenumbers"),
+                        old_freqs*UnitsData.convert("Hartrees", "Wavenumbers")
+                    )
                 )
 
         return terms

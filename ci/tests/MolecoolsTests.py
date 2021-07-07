@@ -212,8 +212,9 @@ class MolecoolsTests(TestCase):
                             )
                             )
 
-    @debugTest
+    @inactiveTest
     def test_HOONODihedral(self):
+        # should be broken
 
         mol = Molecule.from_file(TestManager.test_data('HOONO_freq.fchk'))
         mol.zmatrix = [
@@ -435,7 +436,7 @@ class MolecoolsTests(TestCase):
             mol.inertial_axes.tolist()
         )
 
-    @validationTest
+    @debugTest
     def test_AddDummyAtomJacobians(self):
 
         file_name = TestManager.test_data("HOONO_freq.fchk")
@@ -449,9 +450,7 @@ class MolecoolsTests(TestCase):
             mol.coords[n_pos[0]] - mol.coords[o_pos[1]],
             normalize=True
         )
-
         mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 3, handle_properties=False)
-
         mol2.zmatrix = [
             [1, -1, -1, -1],  # O
             [2,  1, -1, -1],  # O
@@ -496,7 +495,12 @@ class MolecoolsTests(TestCase):
         self.assertEquals(jacobians_no_dummy_analytic[1].shape, (5, 3, 5, 3, 5, 3))
 
         self.assertTrue(np.allclose(
-            jacobians[0][0, 0][:2], jacobians_no_dummy[0][0, 0][:2]
+            jacobians[0][0, 0][:2],
+            jacobians_no_dummy[0][0, 0][:2]
+        ))
+
+        self.assertTrue(np.allclose(
+            jacobians[1][0, 0, 0, 0][:2], jacobians_no_dummy[1][0, 0, 0, 0][:2]
         ))
 
         # with BlockProfiler():
@@ -517,7 +521,9 @@ class MolecoolsTests(TestCase):
         self.assertEquals(jacobians[0].shape, (6, 3, 6, 3))
         self.assertEquals(jacobians[1].shape, (6, 3, 6, 3, 6, 3))
 
-        # raise Exception(jacobians[0].shape)
+        # # now test against regular stuff
+        # mol = Molecule.from_file(file_name)
+        #
 
     @validationTest
     def test_InternalCoordOrder(self):
