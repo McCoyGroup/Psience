@@ -98,13 +98,21 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         return self.corrs.energy_corrs[:, 0]
 
     def get_M0(self, mu_0):
-        return self.rep_basis.representation(name='M(0)', coeffs=mu_0)
+        return self.rep_basis.representation(name='M(0)', coeffs=mu_0,
+                                             logger=self.logger
+                                             )
     def get_M1(self, mu_1):
-        return self.rep_basis.representation("x", name='M(1)', coeffs=mu_1)
+        return self.rep_basis.representation("x", name='M(1)', coeffs=mu_1,
+                                             logger=self.logger
+                                             )
     def get_M2(self, mu_2):
-        return 1 / 2 * self.rep_basis.representation("x", "x", name="M(2)", coeffs=mu_2)
+        return 1 / 2 * self.rep_basis.representation("x", "x", name="M(2)", coeffs=mu_2,
+                                             logger=self.logger
+                                                     )
     def get_M3(self, mu_3):
-        return 1 / 6 * self.rep_basis.representation("x", "x", "x", name="M(3)", coeffs=mu_3)
+        return 1 / 6 * self.rep_basis.representation("x", "x", "x", name="M(3)", coeffs=mu_3,
+                                             logger=self.logger
+                                                     )
 
     def _mu_representations(self,
                             a,
@@ -377,33 +385,43 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                         nt=len(mu_terms) - mu_terms.count(0)
                     )
 
-                    with logger.block(tag="calculating corrections..."):
-                        start = time.time()
-                        for q in range(order):  # total quanta
-                            # logger.log_print("calculating corrections at order {q}...", q=q)
-                            terms = []
-                            # should do this smarter
-                            for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
-                                if i + j + k == q:
-                                    if len(mu_terms) <= k or len(corr_terms) <= i or len(corr_terms) <= j:
-                                        new = np.zeros((len(low_spec), len(up_spec)))
-                                    else:
-                                        m = mu_terms[k]
-                                        if isinstance(m, (int, float, np.integer, np.floating)) and m == 0:
-                                            # to make it easy to zero stuff out
-                                            new = np.zeros((len(lower_states_input), len(upper_states_input)))
+                    cur_lw = np.get_printoptions()['linewidth']
+                    try:
+                        np.set_printoptions(linewidth=100000) #infinite line width basically...
+
+                        with logger.block(tag="calculating corrections..."):
+                            start = time.time()
+                            for q in range(order):  # total quanta
+                                # logger.log_print("calculating corrections at order {q}...", q=q)
+                                terms = []
+                                # should do this smarter
+                                for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
+                                    if i + j + k == q:
+                                        if len(mu_terms) <= k or len(corr_terms) <= i or len(corr_terms) <= j:
+                                            new = np.zeros((len(low_spec), len(up_spec)))
                                         else:
-                                            c_lower = corr_terms_lower[i]
-                                            c_upper = corr_terms_upper[j]
-                                            num = c_lower.dot(m)
-                                            new = num.dot(c_upper)
-                                        if isinstance(new, SparseArray):
-                                            new = new.asarray()
-                                        new = new.reshape((len(lower_states_input), len(upper_states_input)))
-                                    terms.append(new)
-                                    # raise Exception(new.toarray())
-                            # print(q, a)
-                            transition_moment_components[q][a] = terms
+                                            m = mu_terms[k]
+                                            if isinstance(m, (int, float, np.integer, np.floating)) and m == 0:
+                                                # to make it easy to zero stuff out
+                                                new = np.zeros((len(lower_states_input), len(upper_states_input)))
+                                            else:
+                                                c_lower = corr_terms_lower[i]
+                                                c_upper = corr_terms_upper[j]
+                                                num = c_lower.dot(m)
+                                                new = num.dot(c_upper)
+                                            if isinstance(new, SparseArray):
+                                                new = new.asarray()
+                                            new = new.reshape((len(lower_states_input), len(upper_states_input)))
+                                        with logger.block(tag="<{i}|M({k})|{j}>".format(i=i, j=j, k=k)):
+                                            logger.log_print(
+                                                str(new).splitlines()
+                                            )
+                                        terms.append(new)
+                                        # raise Exception(new.toarray())
+                                # print(q, a)
+                                transition_moment_components[q][a] = terms
+                    finally:
+                        np.set_printoptions(linewidth=cur_lw)
 
                         end = time.time()
                         logger.log_print(
