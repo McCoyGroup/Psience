@@ -559,15 +559,19 @@ class Molecule(AbstractMolecule):
         """
 
         if ref is None:
-            frame = self.principle_axis_frame(inverse=True)
+            frame = self.principle_axis_frame(inverse=False)
         else:
-            frame = self.eckart_frame(ref, inverse=True)
+            frame = self.eckart_frame(ref, inverse=False)
         # self.normal_modes.modes
         new = frame.apply(self)
         if embed_properties:
-            new.normal_modes = new.normal_modes.apply_transformation(frame)
-            new.potential_surface = new.potential_surface.apply_transformation(frame)
-            new.dipole_surface = new.dipole_surface.apply_transformation(frame)
+            if ref is None:
+                inv_frame = self.principle_axis_frame(inverse=True)
+            else:
+                inv_frame = self.eckart_frame(ref, inverse=True)
+            new.normal_modes = new.normal_modes.apply_transformation(inv_frame)
+            new.potential_surface = new.potential_surface.apply_transformation(inv_frame)
+            new.dipole_surface = new.dipole_surface.apply_transformation(inv_frame)
 
         return new
 

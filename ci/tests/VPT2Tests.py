@@ -395,6 +395,7 @@ class VPT2Tests(TestCase):
                     post_wfns_script=None,
                     print_specs=True,
                     calculate_intensities=False,
+                    print_x=False,
                     invert_x=False,
                     **opts
                     ):
@@ -433,6 +434,9 @@ class VPT2Tests(TestCase):
         if internals is None and nielsen_tolerance is not None:
             # Energies from Nielsen expressions
             e_harm, e_corr, x = hammer.get_Nielsen_energies(states, return_split=True)
+            if print_x:
+                print("X-Matrix:")
+                print(x * h2w)
             e_corr = np.sum(e_corr, axis=0)
             energies = h2w * (e_harm + e_corr)
             zero_ord = h2w * e_harm
@@ -3382,7 +3386,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -3433,16 +3437,17 @@ class VPT2Tests(TestCase):
         )
 
     @validationTest
-    def test_HOHVPTCartesiansEmbdedd(self):
+    def test_HOHVPTCartesiansEmbdeddd(self):
 
         tag = 'HOH Cartesians'
         file_name = "HOH_freq.fchk"
 
-        mol = Molecule.from_file(TestManager.test_data(file_name)).get_embedded_molecule()
+        mol = Molecule.from_file(TestManager.test_data(file_name)).get_embedded_molecule()#embed_properties=False)
+
         # mol.zmatrix = [
         #     [0, -1, -1, -1],
-        #     [1, 0, -1, -1],
-        #     [2, 0, 1, -1]
+        #     [1,  0, -1, -1],
+        #     [2,  0, 1, -1]
         # ]
         internals = None
 
@@ -3458,6 +3463,8 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['HOH']['zpe']
         gaussian_freqs = self.gaussian_data['HOH']['freqs']
 
+        # def floop(ham, states):
+        #     raise Exception(*args)
         self.run_PT_test(
             tag,
             mol,
@@ -3466,8 +3473,9 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
+            print_x=True,
             print_report=print_report,
-            # log=True
+            log=True
         )
 
     @validationTest
@@ -3997,7 +4005,7 @@ class VPT2Tests(TestCase):
             [2440.278, 2404.805]
         ])
     }
-    @validationTest
+    @debugTest
     def test_OCHHVPTInternals(self):
 
         tag = 'OCHH Internals'
@@ -4019,6 +4027,10 @@ class VPT2Tests(TestCase):
 
         gaussian_energies = self.gaussian_data['OCHH']['zpe']
         gaussian_freqs = self.gaussian_data['OCHH']['freqs']
+
+        # ExpansionTerms.cartesian_analytic_deriv_order = 0
+        # ExpansionTerms.cartesian_fd_mesh_spacing = 1.0e-3
+        # ExpansionTerms.cartesian_fd_stencil = 9
 
         print_report = False
         nielsen_tolerance = 1
