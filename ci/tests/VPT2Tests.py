@@ -3421,9 +3421,12 @@ class VPT2Tests(TestCase):
             log=True,
             verbose=True,
             print_report=print_report,
-            calculate_intensities=True
-            , memory_constrained=True
-            , state_space_terms=((1, 0), (2, 0))
+            calculate_intensities=True,
+            # zero_order_energy_corrections = [
+            #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
+            # ],
+            # , memory_constrained=True
+            # , state_space_terms=((1, 0), (2, 0))
             # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
             # , watson=False
         )
@@ -5747,7 +5750,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @debugTest
+    @validationTest
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"
