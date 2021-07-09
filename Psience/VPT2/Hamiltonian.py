@@ -865,7 +865,12 @@ class PerturbationTheoryHamiltonian:
 
                 corrs = solver.apply_VPT()
 
-        return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs, modes=self.modes, mode_selection=self.mode_selection, logger=self.logger)
+        return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs,
+                                               modes=self.modes,
+                                               mode_selection=self.mode_selection,
+                                               logger=self.logger,
+                                               operator_settings=self.operator_settings
+                                               )
 
     @classmethod
     def _invert_action_expansion_tensors(cls,

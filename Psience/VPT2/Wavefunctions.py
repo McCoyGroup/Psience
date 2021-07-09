@@ -54,7 +54,12 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     These things are fed the first and second order corrections
     """
 
-    def __init__(self, mol, basis, corrections, modes=None, mode_selection=None, logger=None):
+    def __init__(self, mol, basis, corrections,
+                 modes=None,
+                 mode_selection=None,
+                 logger=None,
+                 operator_settings=None
+                 ):
         """
         :param mol: the molecule the wavefunction is for
         :type mol: Molecule
@@ -73,6 +78,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         self._dipole_terms = None
         self._dipole_partitioning = self.DipolePartitioningMethod.Standard
         self.logger = logger
+        self.operator_settings = operator_settings if operator_settings is not None else {}
         self._order = None
         super().__init__(
             self.corrs.energies,
@@ -99,19 +105,19 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
     def get_M0(self, mu_0):
         return self.rep_basis.representation(name='M(0)', coeffs=mu_0,
-                                             logger=self.logger
+                                             **self.operator_settings
                                              )
     def get_M1(self, mu_1):
         return self.rep_basis.representation("x", name='M(1)', coeffs=mu_1,
-                                             logger=self.logger
+                                             **self.operator_settings
                                              )
     def get_M2(self, mu_2):
         return 1 / 2 * self.rep_basis.representation("x", "x", name="M(2)", coeffs=mu_2,
-                                             logger=self.logger
+                                                     **self.operator_settings
                                                      )
     def get_M3(self, mu_3):
         return 1 / 6 * self.rep_basis.representation("x", "x", "x", name="M(3)", coeffs=mu_3,
-                                             logger=self.logger
+                                                     **self.operator_settings
                                                      )
 
     def _mu_representations(self,
@@ -155,7 +161,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 m3 = self.get_M3(mu_3)
                 if rep_inds[3] is None:
                     m3_inds, filter = get_states(m3, filter)
-                    with self.logger.block(tag="getting {h}".format(h=m3)):
+                    with self.logger.block(tag="building {h}".format(h=m3)):
                         rep_inds[3] = m3_inds
                         rep_3 = m3.get_representation_matrix(rep_inds[3], self.corrs.total_basis)
                 mu_terms.append(rep_3)
@@ -194,7 +200,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 if m_pairs is None:
                     raise ValueError("representation indices haven't filled enough to calculate {}".format(h))
 
-                with self.logger.block(tag="getting {}".format(h)):
+                with self.logger.block(tag="building {}".format(h)):
                     start = time.time()
                     sub = h.get_representation_matrix(m_pairs, self.corrs.total_basis, zero_element_warning=False) # expect zeros in M(3)?
                     end = time.time()

@@ -3421,7 +3421,8 @@ class VPT2Tests(TestCase):
             log=True,
             verbose=True,
             print_report=print_report,
-            calculate_intensities=True,
+            calculate_intensities=True
+            # , chunk_size=1000
             # zero_order_energy_corrections = [
             #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
             # ],
