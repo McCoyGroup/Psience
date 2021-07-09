@@ -361,7 +361,7 @@ class VPT2Tests(TestCase):
             print(
                 tag,
                 wfns.format_energies_table(
-                    state=states, zpe=zpe, freqs=freqs,
+                    states=states, zpe=zpe, freqs=freqs,
                     real_fmt=real_fmt, dash_fmt=dash_fmt).replace(
                     "\n", "\n  "
                 ),
