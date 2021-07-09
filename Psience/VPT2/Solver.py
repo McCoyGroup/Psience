@@ -675,6 +675,13 @@ class PerturbationTheorySolver:
                 for k,v in self.zero_order_energy_corrections:
                     if not isinstance(k, int):
                         k = self.flat_total_space.find([k]) # slow but w/e
+                    if k >= len(self._zo_engs):
+                        self.logger.log_print(
+                            "WARNING: zero-order correction {} for state {} not used as state is not in basis".format(
+                                v * UnitsData.convert("Hartrees", "Wavenumbers"),
+                                k
+                            )
+                        )
                     self._zo_engs[k] = v
         return self._zo_engs
 
