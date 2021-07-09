@@ -5747,7 +5747,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @validationTest
+    @debugTest
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"
@@ -5765,7 +5765,7 @@ class VPT2Tests(TestCase):
         gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = None#self.gaussian_data['WaterDimer']['freqs']
 
-        print_report = False
+        print_report = True
         nielsen_tolerance = 50
         gaussian_tolerance = 50
         self.run_PT_test(
@@ -5790,6 +5790,7 @@ class VPT2Tests(TestCase):
             , chunk_size=int(5e6)
             # , memory_constrained=True
             , state_space_terms=((1, 0), (2, 0))
+            , calculate_intensities=True
             # , direct_sum_chunk_size=int(1e3)
         )
 
