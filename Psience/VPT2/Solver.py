@@ -670,9 +670,12 @@ class PerturbationTheorySolver:
             e_vec_full = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
             if isinstance(e_vec_full, SparseArray):
                 e_vec_full = e_vec_full.asarray()
-            if self.zero_order_energy_corrections is not None:
-                raise NotImplementedError("stub")
             self._zo_engs = e_vec_full
+            if self.zero_order_energy_corrections is not None:
+                for k,v in self.zero_order_energy_corrections:
+                    if not isinstance(k, int):
+                        k = self.flat_total_space.find([k]) # slow but w/e
+                    self._zo_engs[k] = v
         return self._zo_engs
 
     def apply_VPT(self):
@@ -838,10 +841,7 @@ class PerturbationTheorySolver:
         # generate the perturbation operator
         e_vec_full = self.zero_order_energies
         if E0 is None:
-            E0 = np.average(e_vec_full[degenerate_subspace]) # better to use the first or the average? Not clear, we'll go with first
-            # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-            # gs = self.zero_order_energies[0] * h2w
-            # raise Exception(E0*h2w - gs, e_vec_full[degenerate_subspace]*h2w - gs)
+            E0 = np.average(e_vec_full[degenerate_subspace]) # better to use the first or the average? Not clear...not even sure this is a useful codepath
         e_vec = e_vec_full - E0
         e_vec[degenerate_subspace] = 1
         zero_checks = np.where(np.abs(e_vec) < non_zero_cutoff)[0]
