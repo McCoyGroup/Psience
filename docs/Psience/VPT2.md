@@ -4803,7 +4803,7 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @inactiveTest
+    @debugTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
@@ -4839,6 +4839,7 @@ class VPT2Tests(TestCase):
         gaussian_tolerance = 10
         # from Psience.VPT2 import PotentialTerms
         # PotentialTerms.hessian_tolerance = None
+        ExpansionTerms.cartesian_analytic_deriv_order = 0
         self.run_PT_test(
             tag,
             file_name,
@@ -4930,7 +4931,7 @@ class VPT2Tests(TestCase):
         nielsen_tolerance = 10
         gaussian_tolerance = 10
 
-        # ExpansionTerms.cartesian_analytic_deriv_order = 0
+        ExpansionTerms.cartesian_analytic_deriv_order = 0
         internals = None
         self.run_PT_test(
             tag,
@@ -5836,7 +5837,7 @@ class VPT2Tests(TestCase):
             # , direct_sum_chunk_size=int(1e3)
         )
 
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTInternals(self):
 
         """
@@ -5867,23 +5868,23 @@ class VPT2Tests(TestCase):
         #     [RH1, RO, RH2, LHF]
         # ]
 
-        internals = [
-            [LHF,   X,   X,   X],
-            [LO,  LHF,   X,   X],
-            [SH,   LO, LHF,   X],
-            [RO,   LO,  SH, LHF],
-            [RH1,  RO,  LO, LHF],
-            [RH2,  RO, RH1,  LO]
-        ]
-
         # internals = [
-        #     [LHF,   X,   X,    X],
-        #     [LO,  LHF,   X,    X],
-        #     [SH,   LO,  LHF,   X],
-        #     [RO,   LO,  LHF,   C],
-        #     [RH1,  RO,   SH, LHF],
-        #     [RH2,  RO,  RH1, LHF]
+        #     [LHF,   X,   X,   X],
+        #     [LO,  LHF,   X,   X],
+        #     [SH,   LO, LHF,   X],
+        #     [RO,   LO,  SH, LHF],
+        #     [RH1,  RO,  LO, LHF],
+        #     [RH2,  RO, RH1,  LO]
         # ]
+
+        internals = [
+            [LHF,   X,   X,    X],
+            [LO,  LHF,   X,    X],
+            [SH,   LO,  LHF,   X],
+            [RO,   LO,  LHF,   C],
+            [RH1,  RO,   SH, LHF],
+            [RH2,  RO,  RH1, LHF]
+        ]
 
         n_modes = 6 * 3 - 6
         mode_selection = None
