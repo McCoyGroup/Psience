@@ -317,9 +317,33 @@ class MolecoolsTests(TestCase):
         ref = Molecule.from_file(ref_file)
         new = ref.get_embedded_molecule()
 
-    @validationTest
+    @debugTest
     def test_EmbeddedMolecule(self):
-        tag = 'HOONO Internals'
+
+        file_name = TestManager.test_data("HOH_freq.fchk")
+
+        mol1 = Molecule.from_file(file_name)
+        # init_mat1 = mol1.normal_modes.modes
+        mol = mol1.get_embedded_molecule()
+        init_mat = mol1.normal_modes.modes.basis.matrix
+        # self.assertEquals(init_mat1.tolist(), init_mat.tolist())
+
+        self.assertTrue(np.allclose(np.abs(mol.inertial_axes), np.eye(3)),
+                        msg="???? {}".format(mol.inertial_axes)
+                        )
+
+        norms_1 = np.linalg.norm(
+            mol.normal_modes.modes.basis.matrix,
+            axis=0
+        )
+        norms_2 = np.linalg.norm(
+            init_mat,
+            axis=0
+        )
+        self.assertTrue(np.allclose(norms_1, norms_2),
+                        msg="{} different from {}".format(norms_1, norms_2)
+                        )
+
         file_name = TestManager.test_data("HOONO_freq.fchk")
 
         mol1 = Molecule.from_file(file_name)
@@ -343,37 +367,6 @@ class MolecoolsTests(TestCase):
         self.assertTrue(np.allclose(norms_1, norms_2),
                         msg="{} different from {}".format(norms_1, norms_2)
         )
-
-        # raise Exception(mol1.coords, mol1.normal_modes.modes.basis.matrix.T)
-
-        # raise Exception(mol.coords, mol.normal_modes.modes.basis.matrix.T)
-
-    @validationTest
-    def test_EmbeddedMolecule(self):
-        tag = 'HOONO Internals'
-        file_name = TestManager.test_data("HOONO_freq.fchk")
-
-        mol1 = Molecule.from_file(file_name)
-        # init_mat1 = mol1.normal_modes.modes
-        mol = mol1.get_embedded_molecule()
-        init_mat = mol1.normal_modes.modes.basis.matrix
-        # self.assertEquals(init_mat1.tolist(), init_mat.tolist())
-
-        self.assertTrue(np.allclose(np.abs(mol.inertial_axes), np.eye(3)),
-                        msg="???? {}".format(mol.inertial_axes)
-                        )
-
-        norms_1 = np.linalg.norm(
-            mol.normal_modes.modes.basis.matrix,
-            axis=0
-        )
-        norms_2 = np.linalg.norm(
-            init_mat,
-            axis=0
-        )
-        self.assertTrue(np.allclose(norms_1, norms_2),
-                        msg="{} different from {}".format(norms_1, norms_2)
-                        )
 
         # raise Exception(mol1.coords, mol1.normal_modes.modes.basis.matrix.T)
 
@@ -454,7 +447,7 @@ class MolecoolsTests(TestCase):
             mol.inertial_axes.tolist()
         )
 
-    @debugTest
+    @validationTest
     def test_AddDummyAtomJacobians(self):
 
         file_name = TestManager.test_data("HOONO_freq.fchk")
