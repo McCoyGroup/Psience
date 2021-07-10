@@ -277,7 +277,7 @@ class ExpansionTerms:
         return [exist_jacs[j-1] for j in jacs]
 
     cartesian_fd_mesh_spacing = 1.0e-5
-    cartesian_fd_stencil = 5
+    cartesian_fd_stencil = 9
     cartesian_analytic_deriv_order = 1
     def get_cart_jacobs(self, jacs):
         intcds = self.internal_coordinates

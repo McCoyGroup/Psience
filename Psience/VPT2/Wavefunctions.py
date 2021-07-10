@@ -125,8 +125,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                             mu,
                             M,
                             space,
-                            bra_space,
-                            ket_space,
+                            bra_spaces,
+                            ket_spaces,
+                            order,
+                            k,
                             partitioning,
                             rep_inds
                             ):
@@ -137,9 +139,17 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         elif not isinstance(partitioning, self.DipolePartitioningMethod):
             partitioning = self.DipolePartitioningMethod(partitioning)
 
-        def get_states(m, filter):
+        def get_states(m, filters):
             with self.logger.block(tag="getting coupled states for {}".format(m)):
                 start = time.time()
+
+                for i in range(order+1):
+                    for j in range(order+1):
+                        if i + j + k:
+                            ...
+                        filter = filters[j]
+
+
                 inds, filter = bra_space.get_representation_brakets(
                     other=ket_space, filter=filter, return_filter=True,
                     selection_rules=m.selection_rules

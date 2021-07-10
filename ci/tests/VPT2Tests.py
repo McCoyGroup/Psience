@@ -4005,7 +4005,7 @@ class VPT2Tests(TestCase):
             [2440.278, 2404.805]
         ])
     }
-    @debugTest
+    @validationTest
     def test_OCHHVPTInternals(self):
 
         tag = 'OCHH Internals'
@@ -5810,7 +5810,7 @@ class VPT2Tests(TestCase):
             # , direct_sum_chunk_size=int(1e3)
         )
 
-    @inactiveTest
+    @debugTest
     def test_WaterDimerVPTInternals(self):
 
         """
@@ -5840,24 +5840,24 @@ class VPT2Tests(TestCase):
         #     [RO,  LO, RH2, LHF],
         #     [RH1, RO, RH2, LHF]
         # ]
-        #
-        # internals = [
-        #     [LHF,   X,   X,   X],
-        #     [LO,  LHF,   X,   X],
-        #     [SH,   LO, LHF,   X],
-        #     [RO,   LO,  SH, LHF],
-        #     [RH1,  RO,  LO, LHF],
-        #     [RH2,  RO, RH1,  LO]
-        # ]
 
         internals = [
-            [LHF,   X,   X,    X],
-            [LO,  LHF,   X,    X],
-            [SH,   LO,  LHF,   X],
-            [RO,   LO,  LHF,   C],
-            [RH1,  RO,   SH, LHF],
-            [RH2,  RO,  RH1, LHF]
+            [LHF,   X,   X,   X],
+            [LO,  LHF,   X,   X],
+            [SH,   LO, LHF,   X],
+            [RO,   LO,  SH, LHF],
+            [RH1,  RO,  LO, LHF],
+            [RH2,  RO, RH1,  LO]
         ]
+
+        # internals = [
+        #     [LHF,   X,   X,    X],
+        #     [LO,  LHF,   X,    X],
+        #     [SH,   LO,  LHF,   X],
+        #     [RO,   LO,  LHF,   C],
+        #     [RH1,  RO,   SH, LHF],
+        #     [RH2,  RO,  RH1, LHF]
+        # ]
 
         n_modes = 6 * 3 - 6
         mode_selection = None
