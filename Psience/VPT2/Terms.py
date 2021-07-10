@@ -277,7 +277,7 @@ class ExpansionTerms:
         return [exist_jacs[j-1] for j in jacs]
 
     cartesian_fd_mesh_spacing = 1.0e-5
-    cartesian_fd_stencil = 5
+    cartesian_fd_stencil = 9
     cartesian_analytic_deriv_order = 1
     def get_cart_jacobs(self, jacs):
         intcds = self.internal_coordinates
@@ -534,7 +534,7 @@ class ExpansionTerms:
     _cached_transforms = {}
     internal_by_cartesian_order=3
     cartesian_by_internal_order=4
-    jacobian_warning_threshold=1e12
+    jacobian_warning_threshold=1e4
     def get_coordinate_transforms(self,
                                   internal_by_cartesian_order=None,
                                   cartesian_by_internal_order=None,
@@ -709,13 +709,13 @@ class ExpansionTerms:
             YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
 
             if "InternalsByModes" not in current_cache:
-                RQ, = TensorDerivativeConverter([YQ], cartesian_jacobs).convert(order=1, check_arrays=True)
+                RQ, = TensorDerivativeConverter([YQ], cartesian_jacobs).convert(order=1)#, check_arrays=True)
                 current_cache["InternalsByModes"] = [RQ]
             else:
                 RQ, = current_cache["InternalsByModes"]
 
             if "ModesByInternals" not in current_cache:
-                QR, = TensorDerivativeConverter(internal_jacobs, [QY]).convert(order=1, check_arrays=True)
+                QR, = TensorDerivativeConverter(internal_jacobs, [QY]).convert(order=1)#, check_arrays=True)
                 current_cache["ModesByInternals"] = [QR]
             else:
                 QR, = current_cache["ModesByInternals"]
