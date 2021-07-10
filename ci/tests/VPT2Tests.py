@@ -3386,7 +3386,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -4005,7 +4005,7 @@ class VPT2Tests(TestCase):
             [2440.278, 2404.805]
         ])
     }
-    @validationTest
+    @debugTest
     def test_OCHHVPTInternals(self):
 
         tag = 'OCHH Internals'
@@ -4777,7 +4777,7 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @debugTest
+    @validationTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'

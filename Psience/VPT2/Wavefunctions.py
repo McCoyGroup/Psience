@@ -7,7 +7,7 @@ import numpy as np, itertools as ip, time, enum
 from McUtils.Numputils import SparseArray
 from McUtils.Data import UnitsData
 
-from ..BasisReps import BasisStateSpace, SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction
+from ..BasisReps import BasisStateSpace, SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction, BraKetSpace
 
 from .Terms import DipoleTerms
 from .Hamiltonian import PerturbationTheoryCorrections
@@ -128,7 +128,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                             bra_spaces,
                             ket_spaces,
                             order,
-                            k,
                             partitioning,
                             rep_inds
                             ):
@@ -139,26 +138,69 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         elif not isinstance(partitioning, self.DipolePartitioningMethod):
             partitioning = self.DipolePartitioningMethod(partitioning)
 
-        def get_states(m, filters):
+        filters = [[None] * (order+1) for _ in range(ket_spaces.nstates)]
+        def get_states(m, k, filters=filters, order=order):
             with self.logger.block(tag="getting coupled states for {}".format(m)):
                 start = time.time()
+                inds = None
+                rules = m.selection_rules
+                # bra_space = bra_spaces.to_single().take_unique()
+                # ket_space = ket_spaces.to_single().take_unique()
+                # inds, filter = bra_space.get_representation_brakets(
+                #     other=ket_space, return_filter=True,
+                #     selection_rules=m.selection_rules
+                # )
 
-                for i in range(order+1):
-                    for j in range(order+1):
-                        if i + j + k:
-                            ...
-                        filter = filters[j]
+                for i in range(order):
+                    ket_space = None
+                    for j in range(order):
+                        if i + j + k <= (order-1):
+                            self.logger.log_print("<{i}|{k}|{j}>", i=i, j=j, k=k)
+                            for nk, kets in enumerate(ket_spaces.spaces):
+                                if ket_space is None:
+                                    ket_space = kets[j]
+                                else:
+                                    ket_space = ket_space.union(kets[j])
 
+                    bra_space = None
+                    for nb, bras in enumerate(bra_spaces.spaces):
+                        if ket_space is None:
+                            bra_space = bras[i]
+                        else:
+                            bra_space = ket_space.union(bras[i])
 
-                inds, filter = bra_space.get_representation_brakets(
-                    other=ket_space, filter=filter, return_filter=True,
-                    selection_rules=m.selection_rules
-                )  # no selection rules here
+                    self.logger.log_print("<{bras}|{k}|{kets}>", bras=bra_space, kets=ket_space, k=k)
+
+                    if ket_space is not None:
+                        filt=None
+                        new_inds, filt = bra_space.get_representation_brakets(
+                            other=ket_space, filter=filt, return_filter=True,
+                            selection_rules=rules
+                        )  # no selection rules here
+                        # filters[nk][j] = filter
+                        if inds is None:
+                            inds = new_inds #type: BraKetSpace
+                        else:
+                            inds = inds.concatenate(new_inds)
                 end = time.time()
-                self.logger.log_print('took {t:.3f}s...', t=end - start)
-            return inds, filter
 
-        filter = ket_space.to_single()
+                self.logger.log_print([
+                    'got {sp}',
+                    'took {t:.3f}s...'
+                    ],
+                    sp=inds,
+                    t=end - start
+                )
+
+            if inds is None:
+                raise ValueError("Dipole operator {} (order {}) has empty representation at order {}".format(
+                    m,
+                    k,
+                    order-1
+                ))
+
+            return inds
+
         if all(
                     isinstance(m, (np.ndarray, SparseArray)) and m.shape == (M, M)
                     or isinstance(m, (int, float, np.integer, np.floating)) and m == 0
@@ -170,7 +212,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 mu_3 = dts[3]
                 m3 = self.get_M3(mu_3)
                 if rep_inds[3] is None:
-                    m3_inds, filter = get_states(m3, filter)
+                    m3_inds = get_states(m3, 2)
                     with self.logger.block(tag="building {h}".format(h=m3)):
                         rep_inds[3] = m3_inds
                         rep_3 = m3.get_representation_matrix(rep_inds[3], self.corrs.total_basis)
@@ -181,15 +223,21 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
             m0 = self.get_M0(mu_0)
             if rep_inds[0] is None:
-                m0_inds, filter = get_states(m0, filter)
+                m0_inds = get_states(m0, 0)
                 rep_inds[0] = m0_inds
             m1 = self.get_M1(mu_1)
             if rep_inds[1] is None:
-                m1_inds, filter = get_states(m1, filter)
+                if partitioning == self.DipolePartitioningMethod.Intuitive:
+                    m1_inds = get_states(m1, 1)
+                else:
+                    m1_inds = get_states(m1, 0)
                 rep_inds[1] = m1_inds
             m2 = self.get_M2(mu_2)
             if rep_inds[2] is None:
-                m2_inds, filter = get_states(m2, filter)
+                if partitioning == self.DipolePartitioningMethod.Intuitive:
+                    m2_inds = get_states(m2, 2)
+                else:
+                    m2_inds = get_states(m2, 1)
                 rep_inds[2] = m2_inds
 
             if partitioning == self.DipolePartitioningMethod.Intuitive:
@@ -197,7 +245,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             elif partitioning == self.DipolePartitioningMethod.Standard:
                 m3 = self.get_M3(mu_3)
                 if rep_inds[3] is None:
-                    m3_inds, filter = get_states(m3, filter)
+                    m3_inds = get_states(m3, 2)
                     rep_inds[3] = m3_inds
                 reps = [m0, m1, m2, m3]
             else:
@@ -267,10 +315,12 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 corr_terms_lower = [deg_transf_lower.dot(corr_terms[i]) for i in range(order)]
                 corr_terms_upper = [deg_transf_upper.dot(corr_terms[i]).T for i in range(order)]
 
+                raise NotImplementedError("need to use `find` to get appropriate positions for deg cases", corr_terms_lower[0], corr_terms_upper[0])
+
                 correction_terms = corr_terms_lower, corr_terms_upper
 
-                bra_space = space.to_single().take_unique()
-                ket_space = space.to_single().take_unique()
+                # bra_space = space.to_single().take_unique()
+                # ket_space = space.to_single().take_unique()
 
             if correction_terms is None:
                 if lower_states is None:
@@ -290,10 +340,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     up_spec = excited_states
                     excited_states = space[(up_spec,)]
 
-                bra_space = lower_states if isinstance(lower_states,
-                                                       BasisStateSpace) else lower_states.to_single().take_unique()
-                ket_space = excited_states if isinstance(excited_states,
-                                                         BasisStateSpace) else excited_states.to_single().take_unique()
+                bra_spaces = lower_states #if isinstance(lower_states, BasisStateSpace) else lower_states.to_single().take_unique()
+                ket_spaces = excited_states # if isinstance(excited_states, BasisStateSpace) else excited_states.to_single().take_unique()
 
                 # M = len(space.indices)
                 logger.log_print(
@@ -368,8 +416,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                         mu[a],
                         M,
                         total_space,
-                        bra_space,
-                        ket_space,
+                        bra_spaces,
+                        ket_spaces,
+                        order,
                         partitioning,
                         rep_inds
                     )
@@ -386,7 +435,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
                 if partitioning == self.DipolePartitioningMethod.Intuitive:
                     mu_terms = [mu_terms[0], mu_terms[1], mu_terms[2]]
-                    # print(mu_terms)
                 elif partitioning == self.DipolePartitioningMethod.Standard:
                     mu_terms = [mu_terms[0] + mu_terms[1], mu_terms[2], mu_terms[3]]
                 else:

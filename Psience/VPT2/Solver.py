@@ -1911,10 +1911,12 @@ class PerturbationTheorySolver:
 
             # now we build state reps from corr_inds
             for i, dat in enumerate(corr_inds):
-                cat = np.concatenate(dat)
-                _, upos = np.unique(cat, return_index=True)
-                full_dat = cat[np.sort(upos)]
-                corr_inds[i] = flat_total_space.take_states(full_dat)  # BasisStateSpace(states.basis, full_dat, mode="indices")
+                spaces = []
+                for substates in dat:
+                    _, upos = np.unique(substates, return_index=True)
+                    usubs = substates[np.sort(upos)]
+                    spaces.append(flat_total_space.take_states(usubs))
+                corr_inds[i] = BasisMultiStateSpace(np.array(spaces, dtype=object))
 
             cs_states = SelectionRuleStateSpace(states, corr_inds, None)
             total_states = self.flat_total_space

@@ -1853,10 +1853,6 @@ class BasisMultiStateSpace(AbstractStateSpace):
     def ndim(self):
         return self.representative_space.ndim
 
-    @property
-    def nstates(self):
-        return int(np.product(self.spaces.shape))
-
     def __iter__(self):
         return iter(self.spaces)
     @property
@@ -1950,6 +1946,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
         if self.representative_space.full_basis is not None:
             track_excitations = False
 
+
         if track_excitations and self.mode == self.StateSpaceSpec.Excitations:
             states = BasisStateSpace(
                 self.basis,
@@ -1957,7 +1954,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
                 mode=BasisStateSpace.StateSpaceSpec.Excitations,
                 full_basis=self.representative_space.full_basis
             )
-            if self.spaces[0]._indices is not None and track_indices:
+            if self.flat[0]._indices is not None and track_indices:
                 states.indices = self.indices
         else:
             states = BasisStateSpace(
@@ -1966,7 +1963,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
                 mode=BasisStateSpace.StateSpaceSpec.Indices,
                 full_basis=self.representative_space.full_basis
             )
-            if self.spaces[0]._excitations is not None and track_excitations:
+            if self.flat[0]._excitations is not None and track_excitations:
                 states.excitations = self.excitations
         return states
 
@@ -2227,6 +2224,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
     @property
     def representative_space(self):
         return self._base_space
+
+    @property
+    def nstates(self):
+        return len(self.representative_space)
 
     def check_indices(self):
         self._base_space.check_indices()
