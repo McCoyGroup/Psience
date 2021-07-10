@@ -614,7 +614,7 @@ class ExpansionTerms:
                 # we'll strip off the embedding coords just in case
                 embedding_coords = [0, 1, 2, 4, 5, 8]
                 good_coords = np.setdiff1d(np.arange(3*len(self.masses)), embedding_coords)
-                # good_coords = np.arange(3*len(self.masses))
+                good_coords = np.arange(3*len(self.masses))
 
                 # Need to then mass weight
                 masses = self.masses
@@ -680,7 +680,7 @@ class ExpansionTerms:
                 # we'll strip off the embedding coords just in case
                 embedding_coords = [0, 1, 2, 4, 5, 8]
                 good_coords = np.setdiff1d(np.arange(3*len(self.masses)), embedding_coords)
-                # good_coords = np.arange(3*len(self.masses))
+                good_coords = np.arange(3*len(self.masses))
 
                 # Need to then mass weight
                 masses = self.masses
@@ -1144,6 +1144,7 @@ class PotentialTerms(ExpansionTerms):
 
         else:
             x_derivs = self.get_cartesians_by_modes(order=order-1)
+            # raise Exception(x_derivs[1])
             x_derivs = list(x_derivs) + [0] # gradient term never matters
 
             if self.grad_tolerance is not None:
@@ -1155,7 +1156,7 @@ class PotentialTerms(ExpansionTerms):
                     )
                     grad = np.zeros(grad.shape)
 
-            V_derivs = self.v_derivs
+            V_derivs = [grad] + list(self.v_derivs[1:])
 
             if self.mixed_derivs:
                 if order > 4:
