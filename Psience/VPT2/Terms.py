@@ -246,7 +246,7 @@ class ExpansionTerms:
         return weighted
 
     internal_fd_mesh_spacing = 1.0e-2
-    internal_fd_stencil = 9
+    internal_fd_stencil = None
     def get_int_jacobs(self, jacs):
         intcds = self.internal_coordinates
         ccoords = self.coords
@@ -277,7 +277,7 @@ class ExpansionTerms:
         return [exist_jacs[j-1] for j in jacs]
 
     cartesian_fd_mesh_spacing = 1.0e-5
-    cartesian_fd_stencil = 9
+    cartesian_fd_stencil = None
     cartesian_analytic_deriv_order = 1
     def get_cart_jacobs(self, jacs):
         intcds = self.internal_coordinates
@@ -1153,7 +1153,7 @@ class PotentialTerms(ExpansionTerms):
                         "WARNING: gradient norm is {n}",
                         n = np.linalg.norm(grad)
                     )
-                    # grad = np.zeros(grad.shape)
+                    grad = np.zeros(grad.shape)
 
             V_derivs = self.v_derivs
 
