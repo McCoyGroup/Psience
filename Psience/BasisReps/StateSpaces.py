@@ -1793,7 +1793,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
     def __init__(self, spaces):
         """
         :param spaces: array of `BasisStateSpace` objects
-        :type spaces: np.ndarray
+        :type spaces: Iterable
         :param selection_rules: array of rules used to generate the subspace
         :type selection_rules: np.ndarray
         """
@@ -1852,10 +1852,6 @@ class BasisMultiStateSpace(AbstractStateSpace):
     @property
     def ndim(self):
         return self.representative_space.ndim
-
-    @property
-    def nstates(self):
-        return int(np.product(self.spaces.shape))
 
     def __iter__(self):
         return iter(self.spaces)
@@ -1950,6 +1946,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
         if self.representative_space.full_basis is not None:
             track_excitations = False
 
+
         if track_excitations and self.mode == self.StateSpaceSpec.Excitations:
             states = BasisStateSpace(
                 self.basis,
@@ -1957,7 +1954,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
                 mode=BasisStateSpace.StateSpaceSpec.Excitations,
                 full_basis=self.representative_space.full_basis
             )
-            if self.spaces[0]._indices is not None and track_indices:
+            if self.flat[0]._indices is not None and track_indices:
                 states.indices = self.indices
         else:
             states = BasisStateSpace(
@@ -1966,7 +1963,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
                 mode=BasisStateSpace.StateSpaceSpec.Indices,
                 full_basis=self.representative_space.full_basis
             )
-            if self.spaces[0]._excitations is not None and track_excitations:
+            if self.flat[0]._excitations is not None and track_excitations:
                 states.excitations = self.excitations
         return states
 
@@ -2165,6 +2162,11 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         if isinstance(excitations, np.ndarray) and excitations.dtype == int:
             excitations = [BasisStateSpace(init_space.basis, x) for x in excitations]
+        elif not isinstance(excitations, np.ndarray) and len(excitations) > 0 and isinstance(excitations[0], AbstractStateSpace):
+            new_exc = np.full(len(excitations), None, dtype=object)
+            for i,s in enumerate(excitations):
+                new_exc[i] = s
+            excitations = new_exc
         if not ignore_shapes and len(init_space) != len(excitations):
             raise ValueError("index space {} doesn't work with excitations {}".format(init_space, excitations))
         if not init_space.is_unique():
@@ -2228,6 +2230,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
     def representative_space(self):
         return self._base_space
 
+    @property
+    def nstates(self):
+        return len(self.representative_space)
+
     def check_indices(self):
         self._base_space.check_indices()
         super().check_indices()
@@ -2242,15 +2248,19 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         """
 
         def take_inter(space, states=states):
-            try:
+            # try:
                 return space.take_states(states)
-            except:
-                raise ValueError(space, len(self.spaces[0]), self.spaces[0], self.spaces.shape)
+            # except:
+            #     raise ValueError(space, len(self.spaces[0]), self.spaces[0], self.spaces.shape)
 
-        if self.spaces.ndim == 1:
-            new_spaces = np.array([s.take_states(states) for s in self.spaces])
-        else:
-            new_spaces = np.apply_along_axis(take_inter, -1, self.spaces)
+        # if self.spaces.ndim == 1:
+        new_spaces = [s.take_states(states) for s in self.spaces.flat]
+        ret_spaces = np.full(len(new_spaces), None, dtype=object)
+        for i,s in enumerate(new_spaces):
+            ret_spaces[i] = s
+        new_spaces = ret_spaces.reshape(self.spaces.shape)
+        # else:
+        #     new_spaces = np.apply_along_axis(take_inter, -1, self.spaces)
 
         return type(self)(self._base_space, new_spaces)
     def take_subspace(self, states):
@@ -2268,10 +2278,16 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             except:
                 raise ValueError(space, len(self.spaces[0]), self.spaces[0], self.spaces.shape)
 
-        if self.spaces.ndim == 1:
-            new_spaces = np.array([s.take_subspace(states) for s in self.spaces])
-        else:
-            new_spaces = np.apply_along_axis(take_inter, -1, self.spaces)
+        new_spaces = [s.take_subspace(states) for s in self.spaces.flat]
+        ret_spaces = np.full(len(new_spaces), None, dtype=object)
+        for i, s in enumerate(new_spaces):
+            ret_spaces[i] = s
+        new_spaces = ret_spaces.reshape(self.spaces.shape)
+
+        # if self.spaces.ndim == 1:
+        #     new_spaces = np.array([s.take_subspace(states) for s in self.spaces])
+        # else:
+        #     new_spaces = np.apply_along_axis(take_inter, -1, self.spaces)
 
         return type(self)(self._base_space, new_spaces)
     def take_subdimensions(self, inds):
@@ -2285,10 +2301,17 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         def take(space, inds=inds):
             return space.take_subdimensions(inds)
-        if self.spaces.ndim == 1: # something is going weird with apply_along_axis...
-            new_spaces = np.array([take(x) for x in self.spaces], dtype=object)
-        else:
-            new_spaces = np.apply_along_axis(take, -1, self.spaces)
+
+        new_spaces = [take(s) for s in self.spaces.flat]
+        ret_spaces = np.full(len(new_spaces), None, dtype=object)
+        for i, s in enumerate(new_spaces):
+            ret_spaces[i] = s
+        new_spaces = ret_spaces.reshape(self.spaces.shape)
+
+        # if self.spaces.ndim == 1: # something is going weird with apply_along_axis...
+        #     new_spaces = np.array([take(x) for x in self.spaces], dtype=object)
+        # else:
+        #     new_spaces = np.apply_along_axis(take, -1, self.spaces)
         return type(self)(self._base_space.take_subdimensions(inds), new_spaces)
 
     def drop_states(self, states):

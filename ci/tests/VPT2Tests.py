@@ -4088,7 +4088,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @validationTest
+    @debugTest
     def test_OCHHVPTCartesiansDegenerate(self):
 
         tag = 'OCHH Cartesians'
@@ -4169,7 +4169,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True,
             gaussian_tolerance=gaussian_tolerance,
             degeneracies=degeneracies
-            , allow_post_PT_calc=False
+            # , allow_post_PT_calc=False
             # , invert_x=True
             # , modify_degenerate_perturbations=True
         )
@@ -4777,7 +4777,7 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @debugTest
+    @validationTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
