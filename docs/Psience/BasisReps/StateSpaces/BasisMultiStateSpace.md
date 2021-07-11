@@ -13,7 +13,7 @@ from_state: method
 __init__(self, spaces): 
 ```
 
-- `spaces`: `np.ndarray`
+- `spaces`: `Iterable`
     >array of `BasisStateSpace` objects
 - `selection_rules`: `np.ndarray`
     >array of rules used to generate the subspace
@@ -55,12 +55,6 @@ full_basis(self):
 ```python
 @property
 ndim(self): 
-```
-
-<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.nstates" class="docs-object-method">&nbsp;</a>
-```python
-@property
-nstates(self): 
 ```
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__iter__" class="docs-object-method">&nbsp;</a>

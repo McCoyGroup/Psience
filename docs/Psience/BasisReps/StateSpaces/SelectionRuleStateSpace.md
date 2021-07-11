@@ -49,6 +49,12 @@ Pulls the full set excitations out of all of the
 representative_space(self): 
 ```
 
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.nstates" class="docs-object-method">&nbsp;</a>
+```python
+@property
+nstates(self): 
+```
+
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.check_indices" class="docs-object-method">&nbsp;</a>
 ```python
 check_indices(self): 
