@@ -5,9 +5,10 @@ Provides classes to support wave functions coming from VPT calculations
 import numpy as np, itertools as ip, time, enum
 
 from McUtils.Numputils import SparseArray
+import McUtils.Numputils as nput
 from McUtils.Data import UnitsData
 
-from ..BasisReps import BasisStateSpace, SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction, BraKetSpace
+from ..BasisReps import BasisStateSpace, SelectionRuleStateSpace, BasisMultiStateSpace, SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction, BraKetSpace
 
 from .Terms import DipoleTerms
 from .Hamiltonian import PerturbationTheoryCorrections
@@ -312,10 +313,44 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 deg_transf_lower = degenerate_transformation[lower_states_input, :]
                 deg_transf_upper = degenerate_transformation[upper_states_input, :]
 
-                corr_terms_lower = [deg_transf_lower.dot(corr_terms[i]) for i in range(order)]
-                corr_terms_upper = [deg_transf_upper.dot(corr_terms[i]).T for i in range(order)]
+                corr_terms_lower = [deg_transf_lower.dot(corr_terms[i]) for i in range(order)] #type: list[SparseArray]
+                corr_terms_upper = [deg_transf_upper.dot(corr_terms[i]).T for i in range(order)] #type: list[SparseArray]
 
-                raise NotImplementedError("need to use `find` to get appropriate positions for deg cases", corr_terms_lower[0], corr_terms_upper[0])
+                bra_starts = space.representative_space.take_subspace(lower_states_input)
+                bra_finals = [[] for _ in lower_states_input]
+                for l in corr_terms_lower:
+                    _, (rows, cols) = l.block_inds
+                    (froms, tos), _ = nput.group_by(cols, rows)
+                    for n,t in enumerate(tos):
+                        # print(t)
+                        exc_space = self.corrs.total_basis.take_subspace(t)
+                        bra_finals[n].append(exc_space)
+
+                bra_multis = [BasisMultiStateSpace(s) for s in bra_finals]
+                bra_spaces = SelectionRuleStateSpace(bra_starts, bra_multis)
+
+                ket_starts = space.representative_space.take_subspace(upper_states_input)
+                ket_finals = [[] for _ in upper_states_input]
+                for l in corr_terms_upper:
+                    _, (cols, rows) = l.block_inds
+                    (froms, tos), _ = nput.group_by(cols, rows)
+                    for n, t in enumerate(tos):
+                        # print(t)
+                        exc_space = self.corrs.total_basis.take_subspace(t)
+                        ket_finals[n].append(exc_space)
+
+                ket_multis = np.array([
+                    BasisMultiStateSpace(
+                        np.array(s, dtype=object)
+                    ) for s in ket_finals], dtype=object)
+                ket_spaces = SelectionRuleStateSpace(ket_starts, ket_multis)
+
+                # raise Exception(bra_spaces)
+                #
+                # ket_spaces = []
+                #
+                #
+                # raise NotImplementedError("need to use `find` to get appropriate positions for deg cases", corr_terms_lower[0], corr_terms_upper[0])
 
                 correction_terms = corr_terms_lower, corr_terms_upper
 
