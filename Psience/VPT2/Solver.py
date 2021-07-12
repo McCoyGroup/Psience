@@ -554,12 +554,15 @@ class PerturbationTheorySolver:
                  intermediate_normalization=False,
                  zero_element_warning=True,
                  degenerate_states=None,
+                 zero_order_energy_corrections=None,
                  memory_constrained=False,
                  logger=None,
                  verbose=False,
                  parallelizer=None,
                  checkpointer=None,
-                 zero_order_energy_corrections=None
+                 checkpoint_keys=None,
+                 use_cached_representations=True,
+                 use_cached_basis=True
                  ):
         """
 
@@ -596,6 +599,9 @@ class PerturbationTheorySolver:
         self.verbose = verbose
         self.parallelizer = parallelizer
         self.checkpointer = checkpointer
+        self.checkpoint_keys = checkpoint_keys
+        self.use_cached_representations=use_cached_representations
+        self.use_cached_basis=use_cached_basis
 
         self.states = states
         self.full_basis = states.full_basis
@@ -722,7 +728,6 @@ class PerturbationTheorySolver:
         return corrs
 
     #region Get Matrix Inputs
-    use_cached_representations=True
     def get_VPT_representations(self):
         """
         Gets the sparse representations of the passed perturbation inside the basis of coupled states.
@@ -783,7 +788,10 @@ class PerturbationTheorySolver:
                                     logger.log_print("took {t:.3f}s", t=end - start)
 
                     if self.use_cached_representations:
-                        checkpointer['representations'] = H
+                        try:
+                            checkpointer['representations'] = H
+                        except KeyError:
+                            pass
 
             return H
 
@@ -1098,7 +1106,6 @@ class PerturbationTheorySolver:
     #endregion
 
     #region Get Coupled Spaces
-    use_cached_basis=True
     def load_state_spaces(self):
 
         logger = self.logger
@@ -1134,7 +1141,10 @@ class PerturbationTheorySolver:
                             )
                         # raise Exception('break')
                         if self.use_cached_basis:
-                            self.checkpointer['coupled_states'] = self._coupled_states
+                            try:
+                                self.checkpointer['coupled_states'] = self._coupled_states
+                            except KeyError:
+                                pass
 
                     # raise Exception('break')
 
@@ -1936,10 +1946,13 @@ class PerturbationTheorySolver:
                 perturbations # we probably want to ditch this for memory reasons...
             )
 
-            checkpointer['corrections'] = {
-                'energies': all_energies,
-                'wavefunctions': corr_mats
-            }
+            try:
+                checkpointer['corrections'] = {
+                    'energies': all_energies,
+                    'wavefunctions': corr_mats
+                }
+            except KeyError:
+                pass
 
         return corrs
 

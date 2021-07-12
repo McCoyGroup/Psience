@@ -679,7 +679,7 @@ class ExpansionTerms:
 
                 # we'll strip off the embedding coords just in case
                 embedding_coords = [0, 1, 2, 4, 5, 8]
-                good_coords = np.setdiff1d(np.arange(3*len(self.masses)), embedding_coords)
+                # good_coords = np.setdiff1d(np.arange(3*len(self.masses)), embedding_coords)
                 good_coords = np.arange(3*len(self.masses))
 
                 # Need to then mass weight
@@ -764,7 +764,10 @@ class ExpansionTerms:
             # }
 
             self._cached_transforms[self.molecule] = current_cache
-            self.checkpointer['coordinate_transforms'] = current_cache
+            try:
+                self.checkpointer['coordinate_transforms'] = current_cache
+            except KeyError:
+                pass
 
         return current_cache#self._cached_transforms[self.molecule]
 
@@ -1235,7 +1238,10 @@ class PotentialTerms(ExpansionTerms):
                 for i in range(v4.shape[0]):
                     v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
 
-        self.checkpointer['potential_terms'] = terms
+        try:
+            self.checkpointer['potential_terms'] = terms
+        except KeyError:
+            pass
 
         new_freqs = np.diag(terms[0])
         old_freqs = self.modes.freqs
@@ -1319,7 +1325,10 @@ class KineticTerms(ExpansionTerms):
             # raise Exception([G, GQ, GQQ])
 
         G_terms = terms
-        self.checkpointer['gmatrix_terms'] = G_terms
+        try:
+            self.checkpointer['gmatrix_terms'] = G_terms
+        except KeyError:
+            pass
 
         return G_terms
 
@@ -1563,8 +1572,10 @@ class DipoleTerms(ExpansionTerms):
 
             mu[coord] = (v0[coord], v1, v2, v3)#(v1, v2, 0)#(v1, 0, 0)
 
-
-        self.checkpointer['dipole_terms'] = mu
+        try:
+            self.checkpointer['dipole_terms'] = mu
+        except KeyError:
+            pass
 
         return mu
 
@@ -1626,7 +1637,10 @@ class CoriolisTerm(ExpansionTerms):
 
         corr = B_e[:, np.newaxis, np.newaxis, np.newaxis, np.newaxis] * coriolis
 
-        self.checkpointer['coriolis_terms'] = (corr[0], corr[1], corr[2])
+        try:
+            self.checkpointer['coriolis_terms'] = (corr[0], corr[1], corr[2])
+        except KeyError:
+            pass
 
         return [[corr[0], corr[1], corr[2]]]
 
@@ -1686,6 +1700,9 @@ class PotentialLikeTerm(KineticTerms):
                 wat_terms.append(wat_terms[-1].dQ())
             wat_terms = [w.array for w in wat_terms]
 
-        self.checkpointer['psuedopotential_terms'] = wat_terms
+        try:
+            self.checkpointer['psuedopotential_terms'] = wat_terms
+        except KeyError:
+            pass
 
         return wat_terms

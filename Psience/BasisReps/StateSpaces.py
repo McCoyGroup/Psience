@@ -1199,7 +1199,7 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype:
         """
 
-        if self.basis is not other.basis:
+        if self.basis != other.basis:
             raise ValueError("can't merge state spaces over different bases ({} and {})".format(
                 self.basis,
                 other.basis
@@ -1259,7 +1259,7 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype:
         """
 
-        if self.basis is not other.basis:
+        if self.basis != other.basis:
             raise ValueError("can't merge state spaces over different bases ({} and {})".format(
                 self.basis,
                 other.basis
@@ -1373,7 +1373,7 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype:
         """
 
-        if self.basis is not other.basis:
+        if self.basis != other.basis:
             raise ValueError("can't merge state spaces over different bases ({} and {})".format(
                 self.basis,
                 other.basis
@@ -1496,7 +1496,7 @@ class BasisStateSpace(AbstractStateSpace):
         if self.full_basis is not None:
             track_excitations = False
 
-        if self.basis is not other.basis:
+        if self.basis != other.basis:
             raise ValueError("can't take a difference of state spaces over different bases ({} and {})".format(
                 self.basis,
                 other.basis
@@ -1613,7 +1613,7 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
-        if self.basis is not other.basis:
+        if self.basis != other.basis:
             raise ValueError("can't compare {} and {} with different bases ({} and {})".format(
                 type(self).__name__,
                 type(other).__name__,
@@ -2933,7 +2933,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 SelectionRuleStateSpace.__name__
             ))
 
-        if self.basis is not other.basis:
+        if self.basis != other.basis:
             raise ValueError("can't merge state spaces over different bases ({} and {})".format(
                 self.basis,
                 other.basis
@@ -3032,7 +3032,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 SelectionRuleStateSpace.__name__
             ))
 
-        if self.basis is not other.basis:
+        if self.basis != other.basis:
             raise ValueError("can't merge state spaces over different bases ({} and {})".format(
                 self.basis,
                 other.basis
@@ -3102,7 +3102,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 type(other).__name__
             ))
 
-        if self.basis is not other.basis:
+        if self.basis != other.basis:
             raise ValueError("can't take a difference of state spaces over different bases ({} and {})".format(
                 self.basis,
                 other.basis

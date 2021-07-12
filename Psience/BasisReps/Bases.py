@@ -26,11 +26,15 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
 
         :param function_generator:
         :type function_generator:
-        :param n_quanta: numbers of quanta
+        :param n_quanta: numbers of quanta (hold over from initial implementation)
         :type n_quanta: int
         """
         self.quanta = n_quanta
         self.generator = function_generator
+
+    @abc.abstractmethod
+    def __eq__(self, other):
+        raise NotImplementedError("abstract equality not implemented")
 
     @property
     def dimensions(self):
@@ -335,6 +339,15 @@ class SimpleProductBasis(RepresentationBasis):
     @property
     def dimensions(self):
         return self.quanta
+
+    def __eq__(self, other):
+        """
+        :param other:
+        :type other: SimpleProductBasis
+        :return:
+        :rtype:
+        """
+        return all(s==o for s,o in zip(self.bases, other.bases))
 
     @property
     def quanta(self):
