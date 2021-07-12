@@ -106,23 +106,27 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
     def get_M0(self, mu_0):
         return self.rep_basis.representation(name='M(0)', coeffs=mu_0,
+                                             axes=[[], []],
                                              **self.operator_settings
                                              )
     def get_M1(self, mu_1):
         return self.rep_basis.representation("x", name='M(1)', coeffs=mu_1,
+                                             axes=[[0], [1]],
                                              **self.operator_settings
                                              )
     def get_M2(self, mu_2):
-        return 1 / 2 * self.rep_basis.representation("x", "x", name="M(2)", coeffs=mu_2,
+        return 1 / 2 * self.rep_basis.representation("x", "x", name="M(2)",
+                                                     coeffs=mu_2,
+                                                     axes=[[0, 1], [1, 2]],
                                                      **self.operator_settings
                                                      )
     def get_M3(self, mu_3):
         return 1 / 6 * self.rep_basis.representation("x", "x", "x", name="M(3)", coeffs=mu_3,
+                                                     axes=[[0, 1, 2], [1, 2, 3]],
                                                      **self.operator_settings
                                                      )
 
     def _mu_representations(self,
-                            a,
                             mu,
                             M,
                             space,
@@ -156,7 +160,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     ket_space = None
                     for j in range(order):
                         if i + j + k <= (order-1):
-                            self.logger.log_print("<{i}|{k}|{j}>", i=i, j=j, k=k)
+                            # self.logger.log_print("<{i}|{k}|{j}>", i=i, j=j, k=k)
                             for nk, kets in enumerate(ket_spaces.spaces):
                                 if ket_space is None:
                                     ket_space = kets[j]
@@ -170,7 +174,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                         else:
                             bra_space = ket_space.union(bras[i])
 
-                    self.logger.log_print("<{bras}|{k}|{kets}>", bras=bra_space, kets=ket_space, k=k)
+                    # self.logger.log_print("<{bras}|{k}|{kets}>", bras=bra_space, kets=ket_space, k=k)
 
                     if ket_space is not None:
                         filt=None
@@ -209,8 +213,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         ): # we were passed representations to reuse
             mu_terms = mu
             if partitioning == self.DipolePartitioningMethod.Standard and len(mu_terms) < 4:
-                dts = self.dipole_terms[a]
-                mu_3 = dts[3]
+                mu_3 = [d[3] for d in self.dipole_terms]
                 m3 = self.get_M3(mu_3)
                 if rep_inds[3] is None:
                     m3_inds = get_states(m3, 2)
@@ -220,7 +223,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 mu_terms.append(rep_3)
                 # mu_terms = mu_terms + [rep_3]
         else:
-            mu_0, mu_1, mu_2, mu_3 = mu
+            mu_0 = np.array([m[0] for m in mu])
+            mu_1 = np.array([m[1] for m in mu])
+            mu_2 = np.array([m[2] for m in mu])
+            mu_3 = np.array([m[3] for m in mu])
 
             m0 = self.get_M0(mu_0)
             if rep_inds[0] is None:
@@ -443,30 +449,29 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
             # raise Exception(corr_terms[1], corr_terms_lower[1], corr_terms_upper[1], low_spec, len(low_spec), len(up_spec))
 
-            for a in range(3):  # x, y, and z
-                with logger.block(tag="Getting M representations for axis {}:".format(a)):
-                    start = time.time()
-                    mu_terms = self._mu_representations(
-                        a,
-                        mu[a],
-                        M,
-                        total_space,
-                        bra_spaces,
-                        ket_spaces,
-                        order,
-                        partitioning,
-                        rep_inds
-                    )
-                    end = time.time()
-                    logger.log_print(
-                        [
-                            "took {t:.3f}s..."
-                        ],
-                        t=end-start
-                    )
+            mu_reps = self._mu_representations(
+                mu,
+                M,
+                total_space,
+                bra_spaces,
+                ket_spaces,
+                order,
+                partitioning,
+                rep_inds
+            )
+                # logger.log_print(
+                #     [
+                #         "took {t:.3f}s..."
+                #     ],
+                #     t=end-start
+                # )
 
-                # print(">>>>", mu_terms)
-                mu_reps.append(mu_terms)
+
+            # raise Exception(mu_terms)
+
+            for a in range(3):
+
+                mu_terms = [r[:, :, a] for r in mu_reps]
 
                 if partitioning == self.DipolePartitioningMethod.Intuitive:
                     mu_terms = [mu_terms[0], mu_terms[1], mu_terms[2]]

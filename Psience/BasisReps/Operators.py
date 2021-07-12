@@ -1020,9 +1020,18 @@ class ContractedOperator(Operator):
             # SparseArray.clear_cache()
             gc.collect()
             if isinstance(subTensor, np.ndarray):
-                contracted = np.tensordot(subTensor.squeeze(), c, axes=axes)
+                if len(axes[1]) > 0:
+                    contracted = np.tensordot(subTensor.squeeze(), c, axes=axes)
+                else:
+                    # TODO: make this broadcasting more robust
+                    contracted = c[np.newaxis, :] * subTensor.squeeze()[:, np.newaxis]
             else:
-                contracted = subTensor.tensordot(c, axes=axes).squeeze()
+                if len(axes[1]) > 0:
+                    contracted = subTensor.tensordot(c, axes=axes).squeeze()
+                else:
+                    # TODO: make this broadcasting more robust
+                    subTensor = subTensor.expand_dims(-1)
+                    contracted = subTensor * c[np.newaxis, :]
 
             # if self.fdim > 3:
             #     raise RuntimeError("wwwwooooof")
@@ -1112,7 +1121,7 @@ class ContractedOperator(Operator):
 
         return contracted, brakets
 
-        return chunks, brakets
+        # return chunks, brakets
 
 
     def __repr__(self):
