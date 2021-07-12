@@ -3386,7 +3386,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -4088,7 +4088,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesiansDegenerate(self):
 
         tag = 'OCHH Cartesians'
@@ -5321,7 +5321,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -5358,7 +5358,8 @@ class VPT2Tests(TestCase):
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
-            gaussian_tolerance=gaussian_tolerance
+            gaussian_tolerance=gaussian_tolerance,
+            calculate_intensities=True
             # , checkpoint=chk
             # , parallelized=True
         )

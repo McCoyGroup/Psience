@@ -426,8 +426,6 @@ class Representation:
             logger.log_print('no states to couple!')
             sub = 0
 
-
-
         logger.log_print("constructing sparse representation...")
 
         N = len(total_space)
@@ -464,13 +462,39 @@ class Representation:
                 # but now we need to remove the duplicates, because many sparse matrix implementations
                 # will sum up any repeated elements
                 full_inds = np.concatenate([up_tri, low_tri])
-                full_dat = np.concatenate([sub, sub])
+                print(sub.shape)
+                full_dat = np.concatenate([sub, sub], axis=0)
 
                 _, idx = np.unique(full_inds, axis=0, return_index=True)
                 sidx = np.sort(idx)
                 full_inds = full_inds[sidx]
                 full_dat = full_dat[sidx]
-                sub = SparseArray.from_data((full_dat, full_inds.T), shape=(N, N))
+
+                if full_dat.ndim > 1:
+                    # need to tile the inds enough times to cover the shape of full_dat
+                    ext_shape = full_dat.shape[1:]
+                    shape = (N, N) + ext_shape
+                    full_dat = np.moveaxis(full_dat, 0, -1).flatten()
+                    rows, cols = full_inds.T
+                    full_inds = np.empty(
+                        (2 + len(ext_shape), len(full_dat)),
+                        dtype=int
+                    )
+                    block_size = len(rows)
+                    # create a tensor of indices that will be used to appropriately tile
+                    # the system
+                    ind_tensor = np.moveaxis(np.indices(ext_shape), 0, -1).reshape(-1, len(ext_shape))
+                    for n, idx in enumerate(ind_tensor):
+                        s, e = n*block_size, (n+1)*block_size
+                        full_inds[0, s:e] = rows
+                        full_inds[1, s:e] = cols
+                        for j,x in enumerate(idx):
+                            full_inds[2+j, s:e] = x
+                else:
+                    full_inds = full_inds.T
+                    shape = (N, N)
+
+                sub = SparseArray.from_data((full_dat, full_inds), shape=shape)
 
         return sub
 
