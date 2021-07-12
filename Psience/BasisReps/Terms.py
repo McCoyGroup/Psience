@@ -462,7 +462,6 @@ class Representation:
                 # but now we need to remove the duplicates, because many sparse matrix implementations
                 # will sum up any repeated elements
                 full_inds = np.concatenate([up_tri, low_tri])
-                print(sub.shape)
                 full_dat = np.concatenate([sub, sub], axis=0)
 
                 _, idx = np.unique(full_inds, axis=0, return_index=True)

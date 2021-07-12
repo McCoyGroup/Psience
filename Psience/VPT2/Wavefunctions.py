@@ -160,7 +160,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     ket_space = None
                     for j in range(order):
                         if i + j + k <= (order-1):
-                            self.logger.log_print("<{i}|{k}|{j}>", i=i, j=j, k=k)
+                            # self.logger.log_print("<{i}|{k}|{j}>", i=i, j=j, k=k)
                             for nk, kets in enumerate(ket_spaces.spaces):
                                 if ket_space is None:
                                     ket_space = kets[j]
@@ -174,7 +174,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                         else:
                             bra_space = ket_space.union(bras[i])
 
-                    self.logger.log_print("<{bras}|{k}|{kets}>", bras=bra_space, kets=ket_space, k=k)
+                    # self.logger.log_print("<{bras}|{k}|{kets}>", bras=bra_space, kets=ket_space, k=k)
 
                     if ket_space is not None:
                         filt=None
