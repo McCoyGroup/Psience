@@ -32,6 +32,13 @@ class HarmonicOscillatorBasis(RepresentationBasis):
         # raise Exception(self.data)
         super().__init__(self.data, n_quanta)
 
+    def __eq__(self, other):
+        return (
+            isinstance(other, HarmonicOscillatorBasis)
+            and (self.dimensionless is other.dimensionless)
+            # need to add another check if non-dimensionless basis used
+        )
+
     selection_rules_mapping = {
         'x':[-1, 1],
         'p':[-1, 1],
@@ -154,6 +161,12 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
         if isinstance(n_quanta, int):
             n_quanta = [self.nquant_max] * n_quanta
         super().__init__(HarmonicOscillatorBasis, n_quanta, indexer=indexer)
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, HarmonicOscillatorProductBasis)
+            and (self.ndim == other.ndim)
+        )
 
     def to_state(self, serializer=None):
         return {
