@@ -15,6 +15,11 @@ x: _lru_cache_wrapper
 __init__(self, n_quanta, m=None, re=None, dimensionless=True): 
 ```
 
+<a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis.__eq__" class="docs-object-method">&nbsp;</a>
+```python
+__eq__(self, other): 
+```
+
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis.pmatrix_ho" class="docs-object-method">&nbsp;</a>
 ```python
 pmatrix_ho(n): 

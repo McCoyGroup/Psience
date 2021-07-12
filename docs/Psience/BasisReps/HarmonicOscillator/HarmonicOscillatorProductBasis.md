@@ -12,6 +12,11 @@ from_state: method
 __init__(self, n_quanta, indexer=None): 
 ```
 
+<a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorProductBasis.__eq__" class="docs-object-method">&nbsp;</a>
+```python
+__eq__(self, other): 
+```
+
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorProductBasis.to_state" class="docs-object-method">&nbsp;</a>
 ```python
 to_state(self, serializer=None): 

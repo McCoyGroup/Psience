@@ -15,7 +15,12 @@ __init__(self, function_generator, n_quanta):
 - `function_generator`: `Any`
     >No description...
 - `n_quanta`: `int`
-    >numbers of quanta
+    >numbers of quanta (hold over from initial implementation)
+
+<a id="Psience.BasisReps.Bases.RepresentationBasis.__eq__" class="docs-object-method">&nbsp;</a>
+```python
+__eq__(self, other): 
+```
 
 <a id="Psience.BasisReps.Bases.RepresentationBasis.dimensions" class="docs-object-method">&nbsp;</a>
 ```python

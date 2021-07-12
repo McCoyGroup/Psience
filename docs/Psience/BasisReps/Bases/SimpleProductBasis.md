@@ -38,6 +38,16 @@ ndim(self):
 dimensions(self): 
 ```
 
+<a id="Psience.BasisReps.Bases.SimpleProductBasis.__eq__" class="docs-object-method">&nbsp;</a>
+```python
+__eq__(self, other): 
+```
+
+- `other`: `SimpleProductBasis`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.quanta" class="docs-object-method">&nbsp;</a>
 ```python
 @property

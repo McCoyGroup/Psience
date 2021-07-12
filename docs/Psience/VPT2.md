@@ -5366,7 +5366,7 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
-        # chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
+        chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
         print_report = False
         nielsen_tolerance = 50
         gaussian_tolerance = 50
@@ -5386,7 +5386,8 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
             calculate_intensities=True
-            # , checkpoint=chk
+            , checkpoint=chk
+            , use_cached_representations=False
             # , parallelized=True
         )
 
