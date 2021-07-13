@@ -268,7 +268,7 @@ class ExpansionTerms:
                                                                  all_numerical=self.all_numerical,
                                                                  converter_options=dict(
                                                                      reembed=self.reembed,
-                                                                     strip_dummies=True
+                                                                     # strip_dummies=True
                                                                  ),
                                                                  parallelizer=par
                                                                  )]
@@ -301,7 +301,7 @@ class ExpansionTerms:
                                                           stencil=self.cartesian_fd_stencil,
                                                           # all_numerical=True,
                                                           analytic_deriv_order=self.cartesian_analytic_deriv_order,
-                                                          converter_options=dict(strip_dummies=True),
+                                                          # converter_options=dict(strip_dummies=True),
                                                           parallelizer=par
                                                           )
                 ]
@@ -1145,6 +1145,8 @@ class PotentialTerms(ExpansionTerms):
             else:
                 terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order, check_arrays=True)
 
+            # raise Exception("V3", terms[2])
+
         else:
             x_derivs = self.get_cartesians_by_modes(order=order-1)
             # raise Exception(x_derivs[1])
@@ -1583,7 +1585,6 @@ class CoriolisTerm(ExpansionTerms):
     """
     Calculates the Coriolis coupling term
     """
-
     def get_zetas_and_momi(self):
         # mass-weighted mode matrix
         # (note that we want the transpose not the inverse for unit reasons)
@@ -1592,10 +1593,16 @@ class CoriolisTerm(ExpansionTerms):
         freqs = self.freqs
         xQ = xQ / np.sqrt(freqs[:, np.newaxis])
         # reshape xQ so that it looks like atom x mode x Cartesian
-        J = xQ.reshape((len(xQ), self.molecule.num_atoms, 3)).transpose(1, 0, 2)
+        J = np.moveaxis(
+            xQ.reshape((len(xQ), self.molecule.num_atoms, 3)),
+            1, 0
+        )
 
         # then rotate into the inertial frame
         B_e, eigs = self.inertial_frame
+        # print(B_e * UnitsData.convert("Hartrees", "Wavenumbers"))
+        # print(eigs)
+        # print(J)
         J = np.tensordot(J, eigs, axes=[2, 0])
 
         # coriolis terms are given by zeta = sum(JeJ^T, n)

@@ -153,8 +153,8 @@ class VPT2Tests(TestCase):
                     kinetic_terms=kinetic_terms,
                     coriolis_terms=coriolis_terms,
                     pseudopotential_terms=pseudopotential_terms,
-                    include_pseudopotential=False if watson is False else None,
-                    coriolis_coupling=False if coriolis is False else None
+                    include_pseudopotential=False if watson is False else True,
+                    coriolis_coupling=False if coriolis is False else True
                 )
 
             if pre_run_script is not None:
@@ -3422,10 +3422,11 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
+            log=False,
             verbose=True,
             print_report=print_report,
-            calculate_intensities=True
+            calculate_intensities=True,
+            print_x=True
             # , chunk_size=1000
             # zero_order_energy_corrections = [
             #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
@@ -3436,7 +3437,7 @@ class VPT2Tests(TestCase):
             # , watson=False
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesiansEmbdeddd(self):
 
         tag = 'HOH Cartesians'
@@ -3475,7 +3476,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             print_x=True,
             print_report=print_report,
-            log=True
+            log=False
         )
 
     @validationTest
@@ -5044,6 +5045,91 @@ class VPT2Tests(TestCase):
 
         )
 
+    @debugTest
+    def test_HOONOVPTCartesiansEmbdedded(self):
+
+        tag = 'HOONO Cartesians'
+        file_name = "HOONO_freq.fchk"
+
+        mol = Molecule.from_file(TestManager.test_data(file_name)).get_embedded_molecule()  # embed_properties=False)
+
+        # mol.zmatrix = [
+        #     [0, -1, -1, -1],
+        #     [1,  0, -1, -1],
+        #     [2,  0, 1, -1]
+        # ]
+        internals = None
+
+        n_atoms = 5
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['HOONO']['zpe']
+        gaussian_freqs = self.gaussian_data['HOONO']['freqs']
+
+        # """
+        # 0.337366D+01  0.708754D+00  0.685684D+00  0.704381D+00  0.386143D-01 0.189447D+00  0.238868D-01  0.000000D+00  0.000000D+00
+        # """
+
+        # def pre_wfns_script(hammer, states):
+        #     harm, corrs, x = hammer.get_Nielsen_energies(states, return_split=True)
+        #     x_flips = np.argsort([8, 6, 7, 5, 4, 3, 2, 1, 0])
+        #     _ = []
+        #     for y in x:
+        #         _.append(y[np.ix_(x_flips, x_flips)])
+        #     x = np.array(_)
+        #
+        #     import json
+        #     raise Exception(
+        #         json.dumps((x[2]*self.h2w).tolist())
+        #         )
+        pre_wfns_script = None
+
+        # nt_spec = np.array([
+        #         [0, 0, 0, 0, 0, 0, 1, 0, 0],
+        #         [0, 0, 0, 2, 0, 0, 0, 0, 0]
+        #     ])
+        # degeneracies = [
+        #     [
+        #         s,
+        #         (s - nt_spec[0] + nt_spec[1])
+        #     ]for s in states if np.dot(s, nt_spec[0]) > 0
+        # ]
+        # degeneracies = [np.array(x).tolist() for x in degeneracies]
+        # states = np.array(states).tolist()
+        # for pair in degeneracies:
+        #     for p in pair:
+        #         if p not in states:
+        #             states.append(p)
+
+        degeneracies = None
+        print_report = False
+        nielsen_tolerance = 10 if degeneracies is None else 500
+        gaussian_tolerance = 10 if degeneracies is not None else 50
+        self.run_PT_test(
+            tag,
+            mol,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            calculate_intensities=True,
+            degeneracies=degeneracies,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            pre_wfns_script=pre_wfns_script,
+            gaussian_resonance_handling=True
+            # zero_element_warning=False
+
+        )
+
     @validationTest
     def test_HOONOVPTCartesiansDegenerate(self):
 
@@ -5321,7 +5407,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -5766,52 +5852,6 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @validationTest
-    def test_WaterTrimerVPTCartesians(self):
-        tag = 'Water Trimer Cartesians'
-        file_name = "water_trimer_freq.fchk"
-
-        internals = None
-
-        n_atoms = 9
-        n_modes = 3 * n_atoms - 6
-        mode_selection = None  # [5, 4, 3]
-        if mode_selection is not None and len(mode_selection) < n_modes:
-            n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes, target_modes=[-1, -2, -3, -4, -5, -6]) # [:6]
-        # raise Exception(states)
-
-        gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
-        gaussian_freqs = None#self.gaussian_data['WaterDimer']['freqs']
-
-        print_report = True
-        nielsen_tolerance = 50
-        gaussian_tolerance = 50
-        self.run_PT_test(
-            tag,
-            file_name,
-            internals,
-            mode_selection,
-            states,
-            gaussian_energies,
-            gaussian_freqs,
-            log=True,
-            verbose=True,
-            print_profile=True,
-            # profiling_mode='deterministic',
-            # profile_filter='Combinatorics/Permutations',
-            print_report=print_report,
-            nielsen_tolerance=nielsen_tolerance,
-            gaussian_tolerance=gaussian_tolerance
-            # , checkpoint=chk
-            # , parallelized=True
-            , initialization_timeout=2
-            , chunk_size=int(5e6)
-            # , memory_constrained=True
-            , state_space_terms=((1, 0), (2, 0))
-            , calculate_intensities=True
-            # , direct_sum_chunk_size=int(1e3)
-        )
 
     @validationTest
     def test_WaterDimerVPTInternals(self):
@@ -6035,7 +6075,54 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    #endregion Water Dimer
+    @validationTest
+    def test_WaterTrimerVPTCartesians(self):
+        tag = 'Water Trimer Cartesians'
+        file_name = "water_trimer_freq.fchk"
+
+        internals = None
+
+        n_atoms = 9
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes, target_modes=[-1, -2, -3, -4, -5, -6]) # [:6]
+        # raise Exception(states)
+
+        gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = None#self.gaussian_data['WaterDimer']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 50
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            print_profile=True,
+            # profiling_mode='deterministic',
+            # profile_filter='Combinatorics/Permutations',
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+            # , checkpoint=chk
+            # , parallelized=True
+            , initialization_timeout=2
+            , chunk_size=int(5e6)
+            # , memory_constrained=True
+            , state_space_terms=((1, 0), (2, 0))
+            , calculate_intensities=True
+            # , direct_sum_chunk_size=int(1e3)
+        )
+
+    #endregion Water Clusters
 
     #endregion Test Systems
 

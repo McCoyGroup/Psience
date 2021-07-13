@@ -129,6 +129,7 @@ class PerturbationTheoryHamiltonian:
             self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection,
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
         else:
+            # raise Exception(self.molecule.internal_coordinates)
             self.coriolis_terms = None
 
         self._input_pseudopotential = pseudopotential_terms

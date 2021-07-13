@@ -89,7 +89,7 @@ class StructuralProperties:
         coords = coords - com[..., np.newaxis, :]
 
         masses = masses.copy()
-        masses[masses < 0] = 0
+        masses[masses < 0] = np.inf
 
         d = np.zeros(coords.shape[:-1] + (3, 3), dtype=float)
         diag = nput.vec_dots(coords, coords)
@@ -130,7 +130,7 @@ class StructuralProperties:
         c = nput.vec_crosses(b, a)  # force right-handedness because we can
         axes[..., :, 2] = c  # ensure we have true rotation matrices
         dets = np.linalg.det(axes)
-        axes[..., :, 1] *= dets[..., np.newaxis]  # ensure we have true rotation matrices
+        axes[..., :, 1] /= dets[..., np.newaxis]  # ensure we have true rotation matrices
         if multiconfig:
             moms = moms.reshape(extra_shape + (3,))
             axes = axes.reshape(extra_shape + (3, 3))

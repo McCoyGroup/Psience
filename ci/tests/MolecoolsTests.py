@@ -310,7 +310,7 @@ class MolecoolsTests(TestCase):
         init_mat = mol1.normal_modes.modes.basis.matrix
         # self.assertEquals(init_mat1.tolist(), init_mat.tolist())
 
-        self.assertTrue(np.allclose(np.abs(mol.inertial_axes), np.eye(3)),
+        self.assertTrue(np.allclose(mol.inertial_axes, np.eye(3)),
                         msg="???? {}".format(mol.inertial_axes)
                         )
 

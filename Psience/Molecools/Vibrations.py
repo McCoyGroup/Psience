@@ -361,8 +361,8 @@ class MolecularNormalModes(CoordinateSystem):
 
         if not np.allclose((tmat.T @ tmat), np.eye(3)):
             raise ValueError("embedding matrix {} isn't a proper rotation".format(tmat))
-        if  np.round(np.linalg.det(tmat), 7) != 1:
-            raise ValueError("embedding matrix {} isn't a proper rotation; determinant is {}".format(tmat, np.linalg.det(tmat)))
+        # if  np.round(np.linalg.det(tmat), 7) != 1:
+        #     raise ValueError("embedding matrix {} isn't a proper rotation; determinant is {}".format(tmat, np.linalg.det(tmat)))
 
         mat = self.matrix.reshape((self.matrix.shape[0]//3, 3, -1))
         mat_2 = np.moveaxis(
