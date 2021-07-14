@@ -163,18 +163,29 @@ class RingDVR(BaseDVR):
         :rtype:
         """
 
+        # divs = len(grid)
+        # p = np.zeros((divs, divs))
+        # for j in range(1, divs+1):
+        #     for jp in range(1, divs+1):
+        #         i = j - jp
+        #         if i == 0:
+        #             p[j-1, jp-1] = 0
+        #         else:
+        #             val = hb / 2 * ((-1) ** i) / np.sin(i * np.pi / divs)
+        #             p[j-1, jp-1] = val
+        #             # p[jp-1, j-1] = val
+        # print("FIRST", p)
+
         divs = len(grid)
         p = np.zeros((divs, divs))
-
-        col_rng = np.arange(1,
-                            divs + 1)  # the column indices -- also what will be used for computing the off diagonal bands
+        col_rng = np.arange(1, divs + 1)  # the column indices -- also what will be used for computing the off diagonal bands
         row_rng = np.arange(0, divs)  # the row indices -- computed once and sliced
-        for i in range(1, divs):
+        for i in range(1, divs): # loop over possible values of j - j'
             col_inds = col_rng[i - 1:-1]  # +(i-1)
             row_inds = row_rng[:-i]
-            val = hb / 2 * (-1) ** (i) / np.sin(i * np.pi / divs)
-            p[row_inds, col_inds] = val
-            p[col_inds, row_inds] = val
+            val = hb / 2 * ( (-1)**i ) / np.sin(i * np.pi / divs)
+            p[row_inds, col_inds] = -val
+            p[col_inds, row_inds] =  val
 
         return p
 

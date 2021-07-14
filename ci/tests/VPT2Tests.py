@@ -435,8 +435,18 @@ class VPT2Tests(TestCase):
             # Energies from Nielsen expressions
             e_harm, e_corr, x = hammer.get_Nielsen_energies(states, return_split=True)
             if print_x:
-                print("X-Matrix:")
-                print(x * h2w)
+
+                cur_lw = np.get_printoptions()['linewidth']
+                try:
+                    np.set_printoptions(linewidth=100000)  # infinite line width basically...
+                    print("="*25 + "X-Matrix:" + "="*25,
+                          repr(x * h2w).strip("array()").replace("       ", " "),
+                          "=" * 50,
+                          sep="\n"
+                          )
+                finally:
+                    np.set_printoptions(linewidth=cur_lw)
+
             e_corr = np.sum(e_corr, axis=0)
             energies = h2w * (e_harm + e_corr)
             zero_ord = h2w * e_harm
@@ -3346,7 +3356,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTInternalsEmbedded(self):
 
         tag = 'HOH Cartesians'
@@ -3380,13 +3390,13 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
+            log=False,
             verbose=True,
             print_report=print_report,
-            calculate_intensities=True
+            calculate_intensities=False
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -3437,14 +3447,14 @@ class VPT2Tests(TestCase):
             # , watson=False
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesiansEmbdeddd(self):
 
         tag = 'HOH Cartesians'
         file_name = "HOH_freq.fchk"
 
-        mol = Molecule.from_file(TestManager.test_data(file_name)).get_embedded_molecule()#embed_properties=False)
-
+        mol = Molecule.from_file(TestManager.test_data(file_name)).get_embedded_molecule()
+        # mol.source_file = None
         # mol.zmatrix = [
         #     [0, -1, -1, -1],
         #     [1,  0, -1, -1],
@@ -3476,7 +3486,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             print_x=True,
             print_report=print_report,
-            log=False
+            log=True
         )
 
     @validationTest
@@ -4922,7 +4932,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @inactiveTest
+    @debugTest
     def test_HOONOVPTInternalsEmbed(self):
 
         tag = 'HOONO Internals'
@@ -5032,15 +5042,15 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
-            verbose=True,
+            log=False,
+            verbose=False,
+            print_x=True,
             calculate_intensities=True,
             degeneracies=degeneracies,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
-            pre_wfns_script=pre_wfns_script,
-            gaussian_resonance_handling=True
+            pre_wfns_script=pre_wfns_script
             # zero_element_warning=False
 
         )
@@ -5070,41 +5080,6 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['HOONO']['zpe']
         gaussian_freqs = self.gaussian_data['HOONO']['freqs']
 
-        # """
-        # 0.337366D+01  0.708754D+00  0.685684D+00  0.704381D+00  0.386143D-01 0.189447D+00  0.238868D-01  0.000000D+00  0.000000D+00
-        # """
-
-        # def pre_wfns_script(hammer, states):
-        #     harm, corrs, x = hammer.get_Nielsen_energies(states, return_split=True)
-        #     x_flips = np.argsort([8, 6, 7, 5, 4, 3, 2, 1, 0])
-        #     _ = []
-        #     for y in x:
-        #         _.append(y[np.ix_(x_flips, x_flips)])
-        #     x = np.array(_)
-        #
-        #     import json
-        #     raise Exception(
-        #         json.dumps((x[2]*self.h2w).tolist())
-        #         )
-        pre_wfns_script = None
-
-        # nt_spec = np.array([
-        #         [0, 0, 0, 0, 0, 0, 1, 0, 0],
-        #         [0, 0, 0, 2, 0, 0, 0, 0, 0]
-        #     ])
-        # degeneracies = [
-        #     [
-        #         s,
-        #         (s - nt_spec[0] + nt_spec[1])
-        #     ]for s in states if np.dot(s, nt_spec[0]) > 0
-        # ]
-        # degeneracies = [np.array(x).tolist() for x in degeneracies]
-        # states = np.array(states).tolist()
-        # for pair in degeneracies:
-        #     for p in pair:
-        #         if p not in states:
-        #             states.append(p)
-
         degeneracies = None
         print_report = False
         nielsen_tolerance = 10 if degeneracies is None else 500
@@ -5117,15 +5092,14 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
-            verbose=True,
+            log=False,
+            verbose=False,
             calculate_intensities=True,
             degeneracies=degeneracies,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
-            pre_wfns_script=pre_wfns_script,
-            gaussian_resonance_handling=True
+            print_x=True
             # zero_element_warning=False
 
         )

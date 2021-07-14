@@ -94,6 +94,7 @@ class StructuralProperties:
         d = np.zeros(coords.shape[:-1] + (3, 3), dtype=float)
         diag = nput.vec_dots(coords, coords)
         d[..., (0, 1, 2), (0, 1, 2)] = diag[..., np.newaxis]
+        # o = np.array([[np.outer(a, a) for a in r] for r in coords])
         o = nput.vec_outer(coords, coords, axes=[-1, -1])
         tens = np.tensordot(masses, d - o, axes=[0, -3])
 
@@ -125,12 +126,18 @@ class StructuralProperties:
 
         massy_doop = cls.get_prop_inertia_tensors(coords, masses)
         moms, axes = np.linalg.eigh(massy_doop)
+        # a = axes[..., :, 0]
+        # c = axes[..., :, 2]
+        # b = nput.vec_crosses(a, c)  # force right-handedness to avoid inversions
+        # axes[..., :, 2] = b
+
         a = axes[..., :, 0]
         b = axes[..., :, 1]
-        c = nput.vec_crosses(b, a)  # force right-handedness because we can
-        axes[..., :, 2] = c  # ensure we have true rotation matrices
-        dets = np.linalg.det(axes)
-        axes[..., :, 1] /= dets[..., np.newaxis]  # ensure we have true rotation matrices
+        c = nput.vec_crosses(b, a)  # force right-handedness to avoid inversions
+        axes[..., :, 2] = c
+        dets = np.linalg.det(axes) # ensure we have true rotation matrices to avoid inversions
+        axes[..., :, 2] /= dets[..., np.newaxis]
+
         if multiconfig:
             moms = moms.reshape(extra_shape + (3,))
             axes = axes.reshape(extra_shape + (3, 3))
@@ -1134,7 +1141,7 @@ class PropertyManager(metaclass=abc.ABCMeta):
         # else:
         #     base_shape = derivs[0].shape
 
-        n_coords = derivs[0].shape[0] # might need a different check in the future...
+        n_coords = derivs[0].shape[0]
         if transf.is_affine: # most relevant subcase
             # take inverse?
             tf = transf.transformation_function.transform #type: np.ndarray
@@ -1341,7 +1348,6 @@ class DipoleSurfaceManager(PropertyManager):
         if file is None:
             return None
 
-
         path, ext = os.path.splitext(file)
         ext = ext.lower()
 
@@ -1436,6 +1442,7 @@ class PotentialSurfaceManager(PropertyManager):
 
         if file is None:
             file = self.mol.source_file
+
         path, ext = os.path.splitext(file)
         ext = ext.lower()
 
@@ -1653,6 +1660,14 @@ class NormalModesManager(PropertyManager):
 
             modes = MolecularNormalModes(self.mol, modes, inverse=modes.T, freqs=freqs)
 
+            try:
+                phases = self.get_fchk_normal_mode_rephasing(modes)
+            except NotImplementedError:
+                pass
+            else:
+                if phases is not None:
+                    modes = modes.rescale(phases)
+
             return modes
         elif ext == ".log":
             raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
@@ -1685,7 +1700,7 @@ class NormalModesManager(PropertyManager):
                                        )
 
         return vibs
-    def get_fchk_normal_mode_rephasing(self):
+    def get_fchk_normal_mode_rephasing(self, modes=None):
         """
         Returns the necessary rephasing to make the numerical dipole derivatives
         agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
@@ -1715,7 +1730,10 @@ class NormalModesManager(PropertyManager):
 
         # raise Exception(d1_analytic.shape, d1_numerical.shape
 
-        mode_basis = self.modes.basis.matrix
+        if modes is None:
+            modes = self.modes.basis
+
+        mode_basis = modes.matrix
         rot_analytic = np.dot(d1_analytic.T, mode_basis)
 
         rot_analytic = np.array([x/np.linalg.norm(x) for x in rot_analytic])

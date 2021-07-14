@@ -212,24 +212,59 @@ class DVRTests(TestCase):
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
-    @validationTest
+    @debugTest
     def test_Ring2DDifferentMass(self):
 
-        dvr_2D = RingNDDVR((15, 15))
+        dvr_2D = RingNDDVR((35, 35))
 
         g_tt = lambda vals: (2 + np.cos(vals[..., 0])); gd_tt = lambda vals: -np.cos(vals[..., 0])
         g_HH = lambda vals: (2 + np.cos(2*vals[..., 1])); gd_HH = lambda vals: -np.sin(vals[..., 1])
 
-        res = dvr_2D.run(potential_function=self.cos2D,
+        zero_pot = lambda v: np.zeros(len(v))
+        res = dvr_2D.run(potential_function=zero_pot,
                          g=[
                              [g_tt, 0],
                              [0, g_HH]
                          ],
                          g_deriv=[gd_tt, gd_HH],
-                         flavor='[0,2pi]'
                          )
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
+        f1 = res.wavefunctions.frequencies()
+        ke1 = res.kinetic_energy
+
+        g_tH = lambda vals: (2 + np.cos(vals[..., 0]) * np.sin(vals[..., 1]))
+        res = dvr_2D.run(potential_function=zero_pot,
+                         g=[
+                             [g_tt, g_tH],
+                             [g_tH, g_HH]
+                         ],
+                         g_deriv=[gd_tt, gd_HH],
+                         )
+        # print(res[0][:5], file=sys.stderr)
+        self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
+        f2 = res.wavefunctions.frequencies()
+        ke2 = res.kinetic_energy
+
+
+        self.assertLess(np.max(f1-f2), 5)
+
+        # ke1 = ke1.toarray()
+        # ke_coupling = ke2 - ke1
+        #
+        # import McUtils.Plots as plt
+        #
+        # plt.ArrayPlot(ke1, colorbar=True)
+        # plt.ArrayPlot(ke2, colorbar=True)
+        # plt.ArrayPlot(ke_coupling, colorbar=True)
+        # ke_coupling_2 = np.zeros_like(ke_coupling)
+        # wat = np.nonzero(ke1)
+        # ke_coupling_2[wat] = ke_coupling[wat]
+        #
+        # raise Exception(np.max(ke_coupling_2), np.min(ke_coupling_2))
+        # plt.ArrayPlot(ke_coupling_2, colorbar=True).show()
+
+        # print(ke2 - ke1)
 
         dvr_3D = RingNDDVR((15, 15, 15))
         g_tH = lambda vals: (2 + np.cos(vals[..., 0])*np.cos(2*vals[..., 1]))
@@ -246,22 +281,7 @@ class DVRTests(TestCase):
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
-        g_tH = lambda vals: (2 + np.cos(vals[..., 0])*np.sin(vals[..., 1]))
-
-        res = dvr_2D.run(potential_function=self.cos2D,
-                         domain=((0, 2 * np.pi),) * 2,
-                         divs=(15,) * 2,
-                         g=[
-                             [g_tt, g_tH],
-                             [g_tH, g_HH]
-                         ],
-                         g_deriv=[gd_tt, gd_HH],
-                         flavor='[0,2pi]'
-                         )
-        # print(res[0][:5], file=sys.stderr)
-        self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
-    @debugTest
+    @validationTest
     def test_MoleculeDVR(self):
 
         scan_coords = Molecule.from_file(TestManager.test_data("water_HOH_scan.log"))

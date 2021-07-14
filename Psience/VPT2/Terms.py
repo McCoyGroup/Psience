@@ -1109,7 +1109,7 @@ class PotentialTerms(ExpansionTerms):
     hessian_tolerance=1.0e-4
     grad_tolerance=1.0e-4
     freq_tolerance=2e-3
-    def old_get_terms(self, order=None, logger=None):
+    def get_terms(self, order=None, logger=None):
 
         if logger is None:
             logger = self.logger
@@ -1146,6 +1146,7 @@ class PotentialTerms(ExpansionTerms):
                 terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order, check_arrays=True)
 
             # raise Exception("V3", terms[2])
+            # raise Exception("V4", terms[3])
 
         else:
             x_derivs = self.get_cartesians_by_modes(order=order-1)
@@ -1260,8 +1261,6 @@ class PotentialTerms(ExpansionTerms):
                 )
 
         return terms
-
-    get_terms = old_get_terms
 
 class KineticTerms(ExpansionTerms):
     """Represents the KE coefficients"""

@@ -255,6 +255,9 @@ class Molecule(AbstractMolecule):
     @property
     def source_file(self):
         return self._src
+    @source_file.setter
+    def source_file(self, src):
+        self._src = src
 
     #region Structure Modification
     def insert_atoms(self, atoms, coords, where, handle_properties=True):
@@ -559,20 +562,21 @@ class Molecule(AbstractMolecule):
         """
 
         if ref is None:
-            frame = self.principle_axis_frame(inverse=True)
+            frame = self.principle_axis_frame(inverse=False)
         else:
-            frame = self.eckart_frame(ref, inverse=True)
+            frame = self.eckart_frame(ref, inverse=False)
         # self.normal_modes.modes
         new = frame.apply(self)
         if embed_properties:
-            inv_frame = frame
+            # inv_frame = frame
             # if ref is None:
             #     inv_frame = self.principle_axis_frame(inverse=True)
             # else:
             #     inv_frame = self.eckart_frame(ref, inverse=True)
-            new.normal_modes = new.normal_modes.apply_transformation(inv_frame)
-            new.potential_surface = new.potential_surface.apply_transformation(inv_frame)
-            new.dipole_surface = new.dipole_surface.apply_transformation(inv_frame)
+            new.normal_modes = new.normal_modes.apply_transformation(frame)
+            new.potential_surface = new.potential_surface.apply_transformation(frame)
+            new.dipole_surface = new.dipole_surface.apply_transformation(frame)
+        new.source_file = None # for safety
 
         return new
 
