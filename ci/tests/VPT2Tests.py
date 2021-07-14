@@ -3356,7 +3356,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTInternalsEmbedded(self):
 
         tag = 'HOH Cartesians'
@@ -3396,7 +3396,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=False
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -3432,12 +3432,12 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=False,
-            verbose=True,
+            log=True,
+            verbose=False,
             print_report=print_report,
             calculate_intensities=True,
             print_x=True
-            # , chunk_size=1000
+            , chunk_size=200
             # zero_order_energy_corrections = [
             #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
             # ],
@@ -4932,7 +4932,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @debugTest
+    @validationTest
     def test_HOONOVPTInternalsEmbed(self):
 
         tag = 'HOONO Internals'
@@ -5055,7 +5055,7 @@ class VPT2Tests(TestCase):
 
         )
 
-    @debugTest
+    @validationTest
     def test_HOONOVPTCartesiansEmbdedded(self):
 
         tag = 'HOONO Cartesians'

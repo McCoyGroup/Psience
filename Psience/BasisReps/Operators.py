@@ -553,8 +553,9 @@ class Operator:
             idx = BraKetSpace.from_indices(idx, quanta=self.quanta)
 
         if inds is None: # just a number
-            self.logger.log_print("returning identity tensor")
+            self.logger.log_print("evaluating identity tensor over {} elements".format(len(idx)))
             new = self._get_eye_tensor(idx)
+            print(new.shape)
         else:
             mapped_inds, inverse = self.filter_symmetric_indices(inds)
             if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
@@ -668,8 +669,7 @@ class Operator:
         if all(isinstance(x, np.ndarray) for x in chunks):
             elems = np.concatenate(chunks, axis=0)
         else:
-            from functools import reduce
-            elems = reduce(lambda a, b: a.concatenate(b), chunks[1:], chunks[0])
+            elems = chunks[0].concatenate(*chunks[1:])
 
         return elems
 
@@ -1077,8 +1077,15 @@ class ContractedOperator(Operator):
             subchunks = [np.array([y]) if y.shape == () else y for y in chunks]
             contracted = np.concatenate(subchunks, axis=0)
         else:
-            from functools import reduce
-            contracted = reduce(lambda a,b: a.concatenate(b), chunks[1:], chunks[0])
+            contracted = chunks[0].concatenate(*chunks[1:])
+            # print([x.shape for x in chunks])
+            # print(contracted.shape)
+            #
+            # raise Exception(contracted.asarray() -
+            #                 np.concatenate([x.asarray() for x in chunks], axis=0)
+            #                 )
+            # assert np.all(contracted == np.concatenate([x.asarray() for x in chunks], axis=0))
+        # print(contracted.shape)
         return contracted
 
     def apply_reduced(self, base_space, parallelizer=None, logger=None):
