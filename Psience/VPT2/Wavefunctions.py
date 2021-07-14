@@ -305,7 +305,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             order = self.order
 
         logger = self.logger
-        with logger.block(tag="Calculating intensities:"):
+        with logger.block(tag="Calculating intensities:", printoptions={'linewidth':int(1e8)}):
 
             space = self.corrs.coupled_states
             # store this for handling the degenerate_transformation
@@ -489,49 +489,42 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                         nt=len(mu_terms) - mu_terms.count(0)
                     )
 
-                    cur_lw = np.get_printoptions()['linewidth']
-                    try:
-                        np.set_printoptions(linewidth=100000) #infinite line width basically...
-
-                        with logger.block(tag="calculating corrections..."):
-                            start = time.time()
-                            for q in range(order):  # total quanta
-                                # logger.log_print("calculating corrections at order {q}...", q=q)
-                                terms = []
-                                # should do this smarter
-                                for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
-                                    if i + j + k == q:
-                                        if len(mu_terms) <= k or len(corr_terms) <= i or len(corr_terms) <= j:
-                                            new = np.zeros((len(low_spec), len(up_spec)))
+                    with logger.block(tag="calculating corrections..."):
+                        start = time.time()
+                        for q in range(order):  # total quanta
+                            # logger.log_print("calculating corrections at order {q}...", q=q)
+                            terms = []
+                            # should do this smarter
+                            for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
+                                if i + j + k == q:
+                                    if len(mu_terms) <= k or len(corr_terms) <= i or len(corr_terms) <= j:
+                                        new = np.zeros((len(low_spec), len(up_spec)))
+                                    else:
+                                        m = mu_terms[k]
+                                        if isinstance(m, (int, float, np.integer, np.floating)) and m == 0:
+                                            # to make it easy to zero stuff out
+                                            new = np.zeros((len(lower_states_input), len(upper_states_input)))
                                         else:
-                                            m = mu_terms[k]
-                                            if isinstance(m, (int, float, np.integer, np.floating)) and m == 0:
-                                                # to make it easy to zero stuff out
-                                                new = np.zeros((len(lower_states_input), len(upper_states_input)))
-                                            else:
-                                                c_lower = corr_terms_lower[i]
-                                                c_upper = corr_terms_upper[j]
-                                                num = c_lower.dot(m)
-                                                new = num.dot(c_upper)
-                                            if isinstance(new, SparseArray):
-                                                new = new.asarray()
-                                            new = new.reshape((len(lower_states_input), len(upper_states_input)))
-                                        with logger.block(tag="<{i}|M({k})|{j}>".format(i=i, j=j, k=k)):
-                                            logger.log_print(
-                                                str(new).splitlines()
-                                            )
-                                        terms.append(new)
-                                        # raise Exception(new.toarray())
-                                # print(q, a)
-                                transition_moment_components[q][a] = terms
-                    finally:
-                        np.set_printoptions(linewidth=cur_lw)
-
-                        end = time.time()
-                        logger.log_print(
-                            "took {t:.3f}s",
-                            t=end - start
-                        )
+                                            c_lower = corr_terms_lower[i]
+                                            c_upper = corr_terms_upper[j]
+                                            num = c_lower.dot(m)
+                                            new = num.dot(c_upper)
+                                        if isinstance(new, SparseArray):
+                                            new = new.asarray()
+                                        new = new.reshape((len(lower_states_input), len(upper_states_input)))
+                                    with logger.block(tag="<{i}|M({k})|{j}>".format(i=i, j=j, k=k)):
+                                        logger.log_print(
+                                            str(new).splitlines()
+                                        )
+                                    terms.append(new)
+                                    # raise Exception(new.toarray())
+                            # print(q, a)
+                            transition_moment_components[q][a] = terms
+                            end = time.time()
+                            logger.log_print(
+                                "took {t:.3f}s",
+                                t=end - start
+                            )
 
             # we calculate it explicitly like this up front in case we want to use it later since the shape
             # can be a bit confusing ([0-order, 1-ord, 2-ord], [x, y, z])

@@ -831,7 +831,7 @@ class PerturbationTheoryHamiltonian:
 
             from .Wavefunctions import PerturbationTheoryWavefunctions
 
-            with self.logger.block(tag='Computing PT corrections:'):
+            with self.logger.block(tag='Computing PT corrections:', printoptions={'linewidth':int(1e8)}):
 
                 if expansion_order is None:
                     expansion_order = order

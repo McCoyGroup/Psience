@@ -438,7 +438,7 @@ class VPT2Tests(TestCase):
 
                 cur_lw = np.get_printoptions()['linewidth']
                 try:
-                    np.set_printoptions(linewidth=100000)  # infinite line width basically...
+                    np.set_printoptions(linewidth=10000000)  # infinite line width basically...
                     print("="*25 + "X-Matrix:" + "="*25,
                           repr(x * h2w).strip("array()").replace("       ", " "),
                           "=" * 50,
