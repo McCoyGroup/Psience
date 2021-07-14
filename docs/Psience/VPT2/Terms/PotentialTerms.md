@@ -22,12 +22,7 @@ __init__(self, molecule, mixed_derivs=None, modes=None, potential_derivatives=No
 - `mode_selection`: `None | Iterable[int]`
     >the subset of normal modes to use
 
-<a id="Psience.VPT2.Terms.PotentialTerms.old_get_terms" class="docs-object-method">&nbsp;</a>
-```python
-old_get_terms(self, order=None, logger=None): 
-```
-
-<a id="Psience.VPT2.Terms.PotentialTerms.old_get_terms" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Terms.PotentialTerms.get_terms" class="docs-object-method">&nbsp;</a>
 ```python
 get_terms(self, order=None, logger=None): 
 ```

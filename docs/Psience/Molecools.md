@@ -78,7 +78,7 @@ class MolecoolsTests(TestCase):
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(m.atoms, ("O", "H", "H"))
 
-    @validationTest
+    @inactiveTest
     def test_PrincipleAxisEmbedding(self):
         ref_file = TestManager.test_data("tbhp_180.fchk")
 
@@ -87,15 +87,22 @@ class MolecoolsTests(TestCase):
                           [-0.10886336323443993, -7.292720327263524e-05, -0.04764041570644441]
                           )
 
-        inerts = ref.inertial_axes
-        self.assertTrue(np.allclose(
-            -inerts.T,
-            [
-                [-0.9998646051394727, -1.6944914059526497e-5, -1.6455123887595957e-2],
-                [-1.6455007408638932e-2, 4.930578772682442e-3, 0.9998524501765987],
-                [-6.419087070136426e-5, -0.9999878444790397, 4.930190026343585e-3]
+        ref_inerts = [
+                [-0.9998646051394727,    -1.6944914059526497e-5, -1.6455123887595957e-2],
+                [-1.6455007408638932e-2,  4.930578772682442e-3,   0.9998524501765987],
+                [-6.419087070136426e-5,  -0.9999878444790397,     4.930190026343585e-3]
             ]
-        ))
+        inerts = ref.inertial_axes
+        test_inerts = (inerts * np.array([-1, 1, 1])).T
+        self.assertTrue(np.allclose(
+            test_inerts,
+            ref_inerts
+        ),
+            msg="principle axes {} and {} don't align".format(
+                test_inerts,
+                ref_inerts
+            )
+        )
 
         pax_rot = ref.principle_axis_frame()  # type: MolecularTransformation
         self.assertTrue(np.allclose(
@@ -103,6 +110,10 @@ class MolecoolsTests(TestCase):
             inerts.T
         ))
         rot_ref = pax_rot.apply(ref)
+
+        # g, _, _ = ref.plot(atom_style=dict(color='black'))
+        # rot_ref.plot(figure=g)
+        # g.show()
 
         self.assertTrue(np.allclose(
             rot_ref.center_of_mass,
@@ -132,8 +143,8 @@ class MolecoolsTests(TestCase):
                 [-4.314406779968471e-3,  -1.3424852433777361,    4.810480604689872],
                 [-4.312429484356625e-3,  -1.7659250558813848,   -3.0429810385290326],
                 [-1.6805757842711242,    -2.9559004963767235,   -2.984461679814903],
-                [1.663962078887355,      -2.9669237481136603,   -2.9820756778710344],
-                [4.171884239172418e-4,   -0.7242576512048614,   -4.816727043081511],
+                [ 1.663962078887355,      -2.9669237481136603,   -2.9820756778710344],
+                [ 4.171884239172418e-4,   -0.7242576512048614,   -4.816727043081511],
                 [-2.3797319162701913,     1.7110998385574014,   -0.8442221100234485],
                 [-4.053502667206945,      0.5153958278660512,   -0.8051208327551433],
                 [-2.439171179603177,      2.871593767591361,    -2.543401568931165],
@@ -326,46 +337,58 @@ class MolecoolsTests(TestCase):
         # init_mat1 = mol1.normal_modes.modes
         mol = mol1.get_embedded_molecule()
         init_mat = mol1.normal_modes.modes.basis.matrix
-        # self.assertEquals(init_mat1.tolist(), init_mat.tolist())
-
-        self.assertTrue(np.allclose(np.abs(mol.inertial_axes), np.eye(3)),
-                        msg="???? {}".format(mol.inertial_axes)
+        self.assertTrue(np.allclose(mol.moments_of_inertia, mol1.moments_of_inertia),
+                        msg="(HOH) Moments of inertia changed post-rotation: {} to {}".format(mol1.moments_of_inertia, mol.moments_of_inertia)
+                        )
+        self.assertTrue(np.allclose(mol.inertial_axes, np.eye(3)),
+                        msg="(HOH) Principle axes are not identity matrix post-rotation: {}".format(mol.inertial_axes)
                         )
 
-        norms_1 = np.linalg.norm(
-            mol.normal_modes.modes.basis.matrix,
-            axis=0
-        )
-        norms_2 = np.linalg.norm(
-            init_mat,
-            axis=0
-        )
+        norms_1 = np.linalg.norm(mol.normal_modes.modes.basis.matrix, axis=0)
+        norms_2 = np.linalg.norm(init_mat, axis=0)
         self.assertTrue(np.allclose(norms_1, norms_2),
-                        msg="{} different from {}".format(norms_1, norms_2)
+                        msg="(HOH) Normal modes renomalized:{} different from {}".format(norms_1, norms_2)
                         )
 
-        file_name = TestManager.test_data("HOONO_freq.fchk")
-
+        # try on TBHP
+        file_name = TestManager.test_data("tbhp_180.fchk")
         mol1 = Molecule.from_file(file_name)
         # init_mat1 = mol1.normal_modes.modes
         mol = mol1.get_embedded_molecule()
         init_mat = mol1.normal_modes.modes.basis.matrix
-        # self.assertEquals(init_mat1.tolist(), init_mat.tolist())
-
-        self.assertTrue(np.allclose(np.abs(mol.inertial_axes), np.eye(3)),
-                        msg="???? {}".format(mol.inertial_axes)
+        self.assertTrue(np.allclose(mol.moments_of_inertia, mol1.moments_of_inertia),
+                        msg="(TBHP) Moments of inertia changed post-rotation: {} to {}".format(mol1.moments_of_inertia,
+                                                                                        mol.moments_of_inertia)
+                        )
+        self.assertTrue(np.allclose(mol.inertial_axes, np.eye(3)),
+                        msg="(TBHP) Principle axes are not identity matrix post-rotation: {}".format(mol.inertial_axes)
                         )
 
-        norms_1 = np.linalg.norm(
-                mol.normal_modes.modes.basis.matrix,
-                axis=0
-            )
-        norms_2 = np.linalg.norm(
-                init_mat,
-                axis=0
-            )
+        norms_1 = np.linalg.norm(mol.normal_modes.modes.basis.matrix, axis=0)
+        norms_2 = np.linalg.norm(init_mat, axis=0)
         self.assertTrue(np.allclose(norms_1, norms_2),
-                        msg="{} different from {}".format(norms_1, norms_2)
+                        msg="(TBHP) Normal modes renomalized: {} different from {}".format(norms_1, norms_2)
+                        )
+
+
+        # try on HOONO
+        file_name = TestManager.test_data("HOONO_freq.fchk")
+        mol1 = Molecule.from_file(file_name)
+        # init_mat1 = mol1.normal_modes.modes
+        mol = mol1.get_embedded_molecule()
+        init_mat = mol1.normal_modes.modes.basis.matrix
+        self.assertTrue(np.allclose(mol.moments_of_inertia, mol1.moments_of_inertia),
+                        msg="(HOONO) Moments of inertia changed post-rotation: {} to {}".format(mol1.moments_of_inertia,
+                                                                                        mol.moments_of_inertia)
+                        )
+        self.assertTrue(np.allclose(mol.inertial_axes, np.eye(3)),
+                        msg="(HOONO) Principle axes are not identity matrix post-rotation: {}".format(mol.inertial_axes)
+                        )
+
+        norms_1 = np.linalg.norm(mol.normal_modes.modes.basis.matrix, axis=0)
+        norms_2 = np.linalg.norm(init_mat, axis=0)
+        self.assertTrue(np.allclose(norms_1, norms_2),
+                        msg="(HOONO) Normal modes renomalized: {} different from {}".format(norms_1, norms_2)
         )
 
         # raise Exception(mol1.coords, mol1.normal_modes.modes.basis.matrix.T)
