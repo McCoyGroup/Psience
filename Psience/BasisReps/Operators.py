@@ -555,7 +555,6 @@ class Operator:
         if inds is None: # just a number
             self.logger.log_print("evaluating identity tensor over {} elements".format(len(idx)))
             new = self._get_eye_tensor(idx)
-            print(new.shape)
         else:
             mapped_inds, inverse = self.filter_symmetric_indices(inds)
             if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
