@@ -95,15 +95,6 @@ class PerturbationTheoryHamiltonian:
         self.molecule = molecule
         if modes is None:
             modes = molecule.normal_modes.modes
-            # this basically presupposes we've got a held fe...might need to think
-            # abotu the input format we want for this
-            try:
-                phases = molecule.normal_modes.get_fchk_normal_mode_rephasing()
-            except NotImplementedError:
-                pass
-            else:
-                if phases is not None:
-                    modes = modes.rescale(phases)
         if mode_selection is not None:
             mode_selection = tuple(mode_selection)
         mode_n = modes.basis.matrix.shape[1] if mode_selection is None else len(mode_selection)
@@ -129,6 +120,7 @@ class PerturbationTheoryHamiltonian:
             self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection,
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
         else:
+            # raise Exception(self.molecule.internal_coordinates)
             self.coriolis_terms = None
 
         self._input_pseudopotential = pseudopotential_terms
@@ -359,6 +351,10 @@ class PerturbationTheoryHamiltonian:
                                                                                         )
                     + 1 / np.math.factorial(o + 2) * self.basis.representation(*v_expansion,
                                                                                coeffs=V,
+                                                                               axes=[
+                                                                                    list(range(o+2)),
+                                                                                    [o] + list(range(o)) + [o+1]
+                                                                                ],
                                                                                name='V({})'.format(o),
                                                                                **self.operator_settings
                                                                                )

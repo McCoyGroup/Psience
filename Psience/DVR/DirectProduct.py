@@ -166,17 +166,20 @@ class DirectProductDVR(BaseDVR):
                     for j in range(i + 1, len(momenta)):
                         if not (isinstance(g[i][j], (int, float, np.integer, np.floating)) and g[i][j] == 0):
                             # evaluate g over the terms and average
-                            g_vals = np.reshape(g[i][i](flat_grid), grid.shape[:-1])
+                            g_vals = np.reshape(g[i][j](flat_grid), grid.shape[:-1])
 
                             # construct the basic momenta kronecker product
                             sub_momenta = [  # set up all the subtensors we'll need for this
                                 sp.eye(tot_shape[k]) if k != i and k != j else sp.csr_matrix(momenta[k])
                                 for k in range(len(momenta))
                             ]
+                            # print([x.toarray() for x in sub_momenta])
                             momentum_mat = reduce(sp.kron, sub_momenta)
 
                             # now we need to figure out where to multiply in the ij_vals
                             flat_rows, flat_cols, mom_prod_vals = sp.find(momentum_mat)
+
+                            # raise Exception(mom_prod_vals)
                             # we convert each row and column into its corresponding direct
                             # product index since each is basically a flat index for a multdimensional
                             # array
@@ -189,17 +192,17 @@ class DirectProductDVR(BaseDVR):
 
                             # finally we take the average of the two and put them into a sparse matrix
                             # that can be multiplied by the base momentum matrix values
-                            avg_g_vals = 1 / 2 * (row_vals + col_vals)
+                            avg_g_vals = 1 / 4 * (row_vals + col_vals)
                             coupling_term = sp.csr_matrix(
                                 (
-                                    avg_g_vals * mom_prod_vals,
+                                    -avg_g_vals * mom_prod_vals,
                                     (flat_rows, flat_cols)
                                 ),
                                 shape=momentum_mat.shape,
                                 dtype=momentum_mat.dtype
                             )
 
-                            kinetic_coupling -= coupling_term  # negative sign from the two factors of i
+                            kinetic_coupling += coupling_term  # negative sign from the two factors of i
                 ke += kinetic_coupling
                 # print(ke.getnnz(), np.prod(ke.shape))
                 if ke.getnnz() >= 1 / 2 * np.prod(ke.shape):

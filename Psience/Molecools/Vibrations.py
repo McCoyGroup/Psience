@@ -352,14 +352,14 @@ class MolecularNormalModes(CoordinateSystem):
         """
 
         # raise NotImplementedError("Haven't finished doing this... :)")
-        import copy
+        # import copy
 
         if self.in_internals:
             raise ValueError("Internal coordinate normals modes can't be re-embedded")
 
         tmat = frame.transformation_function.transform
 
-        if not np.allclose((tmat.T @ tmat), np.eye(3)):
+        if not np.allclose((tmat @ tmat.T), np.eye(3)):
             raise ValueError("embedding matrix {} isn't a proper rotation".format(tmat))
         if  np.round(np.linalg.det(tmat), 7) != 1:
             raise ValueError("embedding matrix {} isn't a proper rotation; determinant is {}".format(tmat, np.linalg.det(tmat)))
@@ -392,9 +392,10 @@ class MolecularNormalModes(CoordinateSystem):
         # raise Exception(norms, norms_2)
 
         if self._origin is not None:
-            raise Exception('oh')
-            orig = self.origin
-            orig = np.tensordot(tmat, orig, axes=[1, 1])
+            # raise NotImplementedError("transforming explicit origin needs to be supported")
+            raise Exception(self.origin)
+            orig = frame(self.origin)
+            # orig = np.tensordot(tmat, orig, axes=[1, 1])
         else:
             orig = None
 
@@ -422,7 +423,7 @@ class MolecularNormalModes(CoordinateSystem):
         return type(self)(
             self.molecule, mat,
             name=self.name, freqs=self.freqs,
-            internal=self.in_internals, origin=self.origin,
+            internal=self.in_internals, origin=self._origin,
             basis=self.basis, inverse=inv
         )
 
@@ -531,7 +532,7 @@ class MolecularNormalModes(CoordinateSystem):
             name=self.name,
             freqs=freq,
             internal=self.in_internals,
-            origin=self.origin,
+            origin=self._origin,
             basis=self.basis,
             inverse=inv
         )
