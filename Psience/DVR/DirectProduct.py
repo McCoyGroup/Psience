@@ -90,7 +90,7 @@ class DirectProductDVR(BaseDVR):
                 for i in range(ndim) for j in range(ndim)
             )
 
-            ms = [1 / 2] * len(ms)
+            ms = [1] * len(ms)
 
         else:
             include_coupling = False
@@ -125,7 +125,7 @@ class DirectProductDVR(BaseDVR):
 
                     # construct the basic kinetic energy kronecker product
                     sub_kes = [  # set up all the subtensors we'll need for this
-                        sp.eye(tot_shape[k]) if k != i else sp.csr_matrix(kes[k]) for k in range(ndim)
+                        sp.eye(tot_shape[k]) if k != i else kes[k] for k in range(ndim)
                     ]
                     ke_mat = reduce(sp.kron, sub_kes)
 
@@ -164,45 +164,46 @@ class DirectProductDVR(BaseDVR):
                 kinetic_coupling = sp.csr_matrix(ke.shape, dtype=ke.dtype)  # initialize empty tensor
                 for i in range(len(momenta)):  # build out all of the coupling term products
                     for j in range(i + 1, len(momenta)):
-                        if not (isinstance(g[i][j], (int, float, np.integer, np.floating)) and g[i][j] == 0):
-                            # evaluate g over the terms and average
+                        if i!= j and not (isinstance(g[i][j], (int, float, np.integer, np.floating)) and g[i][j] == 0):
                             g_vals = np.reshape(g[i][j](flat_grid), grid.shape[:-1])
 
-                            # construct the basic momenta kronecker product
+                            # construct the basic momenta Kroenecker product
                             sub_momenta = [  # set up all the subtensors we'll need for this
                                 sp.eye(tot_shape[k]) if k != i and k != j else sp.csr_matrix(momenta[k])
                                 for k in range(len(momenta))
                             ]
-                            # print([x.toarray() for x in sub_momenta])
                             momentum_mat = reduce(sp.kron, sub_momenta)
 
                             # now we need to figure out where to multiply in the ij_vals
                             flat_rows, flat_cols, mom_prod_vals = sp.find(momentum_mat)
 
-                            # raise Exception(mom_prod_vals)
                             # we convert each row and column into its corresponding direct
                             # product index since each is basically a flat index for a multdimensional
                             # array
                             row_inds = np.unravel_index(flat_rows, tot_shape)
                             col_inds = np.unravel_index(flat_cols, tot_shape)
 
-                            # and we pull the G matrix values for the corresponding i and j indices
-                            row_vals = g_vals[row_inds]
-                            col_vals = g_vals[col_inds]
+                            # we do the swap of row/column indices required by the mixed term
+                            swap_rows = row_inds[:i] + (col_inds[i],) + row_inds[i+1:]
+                            swap_cols = col_inds[:i] + (row_inds[i],) + col_inds[i+1:]
 
-                            # finally we take the average of the two and put them into a sparse matrix
+                            # and we pull the G matrix values for the corresponding indices
+                            row_vals = g_vals[swap_rows]
+                            col_vals = g_vals[swap_cols]
+
+                            # finally we take the sum of the two and put them into a sparse matrix
                             # that can be multiplied by the base momentum matrix values
-                            avg_g_vals = 1 / 4 * (row_vals + col_vals)
+                            sum_g_vals = (row_vals + col_vals)
                             coupling_term = sp.csr_matrix(
                                 (
-                                    -avg_g_vals * mom_prod_vals,
+                                    1/2 * sum_g_vals * mom_prod_vals,
                                     (flat_rows, flat_cols)
                                 ),
                                 shape=momentum_mat.shape,
                                 dtype=momentum_mat.dtype
                             )
 
-                            kinetic_coupling += coupling_term  # negative sign from the two factors of i
+                            kinetic_coupling -= coupling_term  # negative sign from the two factors of i
                 ke += kinetic_coupling
                 # print(ke.getnnz(), np.prod(ke.shape))
                 if ke.getnnz() >= 1 / 2 * np.prod(ke.shape):

@@ -136,10 +136,11 @@ class RingDVR(BaseDVR):
         divs = len(grid)
         n = (divs - 1) // 2
         ke = np.empty((divs, divs))
-        np.fill_diagonal(ke, coeff * n * (n + 1) / 3)
 
-        col_rng = np.arange(1,
-                            divs + 1)  # the column indices -- also what will be used for computing the off diagonal bands
+        diag_val = coeff * n * (n + 1) / 3
+        np.fill_diagonal(ke, diag_val)
+
+        col_rng = np.arange(1, divs + 1)  # the column indices -- also what will be used for computing the off diagonal bands
         row_rng = np.arange(0, divs)  # the row indices -- computed once and sliced
         for i in range(1, divs):
             col_inds = col_rng[i - 1:-1]  # +(i-1)
@@ -167,23 +168,24 @@ class RingDVR(BaseDVR):
         # p = np.zeros((divs, divs))
         # for j in range(1, divs+1):
         #     for jp in range(1, divs+1):
-        #         i = j - jp
+        #         i = jp - j
         #         if i == 0:
         #             p[j-1, jp-1] = 0
         #         else:
         #             val = hb / 2 * ((-1) ** i) / np.sin(i * np.pi / divs)
         #             p[j-1, jp-1] = val
-        #             # p[jp-1, j-1] = val
+                    # p[jp-1, j-1] = val
         # print("FIRST", p)
 
+        coeff = hb / 2
         divs = len(grid)
         p = np.zeros((divs, divs))
         col_rng = np.arange(1, divs + 1)  # the column indices -- also what will be used for computing the off diagonal bands
         row_rng = np.arange(0, divs)  # the row indices -- computed once and sliced
         for i in range(1, divs): # loop over possible values of j - j'
-            col_inds = col_rng[i - 1:-1]  # +(i-1)
+            col_inds = col_rng[i-1:-1]  # +(i-1)
             row_inds = row_rng[:-i]
-            val = hb / 2 * ( (-1)**i ) / np.sin(i * np.pi / divs)
+            val = coeff * ( (-1)**i ) / np.sin(i * np.pi / divs)
             p[row_inds, col_inds] = -val
             p[col_inds, row_inds] =  val
 
