@@ -215,10 +215,14 @@ class DVRTests(TestCase):
     @debugTest
     def test_Ring2DDifferentMass(self):
 
-        dvr_2D = RingNDDVR((35, 35))
+        dvr_2D = RingNDDVR((45, 45))
 
-        g_tt = lambda vals: (2 + np.cos(vals[..., 0])); gd_tt = lambda vals: -np.cos(vals[..., 0])
-        g_HH = lambda vals: (2 + np.cos(2*vals[..., 1])); gd_HH = lambda vals: -np.sin(vals[..., 1])
+
+        g_tt = lambda vals: np.full(len(vals), 2); gd_tt = lambda vals: np.zeros(len(vals))
+        g_HH = lambda vals: np.full(len(vals), 3); gd_HH = lambda vals: np.zeros(len(vals))
+
+        # g_tt = lambda vals: (2 + np.cos(vals[..., 0])); gd_tt = lambda vals: -np.cos(vals[..., 0])
+        # g_HH = lambda vals: (2 + np.cos(2*vals[..., 1])); gd_HH = lambda vals: -np.sin(vals[..., 1])
 
         zero_pot = lambda v: np.zeros(len(v))
         res = dvr_2D.run(potential_function=zero_pot,
@@ -230,10 +234,12 @@ class DVRTests(TestCase):
                          )
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-        f1 = res.wavefunctions.frequencies()
+        f1 = res.wavefunctions.energies
         ke1 = res.kinetic_energy
 
-        g_tH = lambda vals: (2 + np.cos(vals[..., 0]) * np.sin(vals[..., 1]))
+        # g_tH = lambda vals: np.cos(vals[..., 0])*np.cos(2*vals[..., 1]) # test
+        # g_tH = lambda vals: np.zeros(len(vals)) # zeros
+        g_tH = lambda vals: np.full(len(vals), 1) # constant
         res = dvr_2D.run(potential_function=zero_pot,
                          g=[
                              [g_tt, g_tH],
@@ -243,11 +249,13 @@ class DVRTests(TestCase):
                          )
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-        f2 = res.wavefunctions.frequencies()
+        f2 = res.wavefunctions.energies
         ke2 = res.kinetic_energy
 
+        # raise Exception(f1, f2)
+        # raise Exception(np.round(f1), np.round(f2))
 
-        self.assertLess(np.max(f1-f2), 5)
+        self.assertLess(np.max(np.abs(f2-f1)), 5)
 
         # ke1 = ke1.toarray()
         # ke_coupling = ke2 - ke1
