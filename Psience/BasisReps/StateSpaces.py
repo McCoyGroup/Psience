@@ -2788,10 +2788,13 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                 new_exc = sum(new_exc, [])
                                 new_inds = sum(new_inds, [])
                         else:
-                            if not isinstance(new_inds[0], np.ndarray):
-                                # means we got too blocky of a shape out of the parallelizer
-                                new_inds = sum(new_inds, [])
-                            new_exc = [None] * len(new_inds)
+                            if len(new_inds) > 0:
+                                if not isinstance(new_inds[0], np.ndarray):
+                                    # means we got too blocky of a shape out of the parallelizer
+                                    new_inds = sum(new_inds, [])
+                                new_exc = [None] * len(new_inds)
+                            else:
+                                new_exc = []
 
                 new = []
                 for e,i in zip(new_exc, new_inds): # looping over input excitations
@@ -2817,6 +2820,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
                     new.append(new_space)
                 new = np.array(new, dtype=object)
+
+            if len(new) == 0:
+                return None
 
             if filter_space is None:
                 return cls(space, new, selection_rules)

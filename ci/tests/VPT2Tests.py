@@ -3391,7 +3391,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=False
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -3428,11 +3428,11 @@ class VPT2Tests(TestCase):
             gaussian_energies,
             gaussian_freqs,
             log=True,
-            verbose=False,
+            verbose=True,
             print_report=print_report,
             calculate_intensities=True,
             print_x=True
-            , chunk_size=200
+            # , chunk_size=200
             # zero_order_energy_corrections = [
             #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
             # ],
@@ -3479,7 +3479,7 @@ class VPT2Tests(TestCase):
             gaussian_energies,
             gaussian_freqs,
             log=True,
-            verbose=False,
+            verbose=True,
             print_report=print_report,
             calculate_intensities=True,
             target_property_rules=([0], [

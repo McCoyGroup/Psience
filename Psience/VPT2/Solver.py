@@ -1662,7 +1662,7 @@ class PerturbationTheorySolver:
             # Now at each order we determine which selection rule terms we'll need
             all_sels = [
                 [ [] ]
-                if i == 0 else h.selection_rule_steps for i,h in enumerate(self.perts)
+                if i == 0 else h.selection_rules for i,h in enumerate(self.perts)
             ]
 
             # we populate the entire list of selection rules before filtering
@@ -1681,30 +1681,21 @@ class PerturbationTheorySolver:
                         for cur_hams, cur_sels in base_sel_paths[i]:
                             new_paths.append((
                                 cur_hams + (H[k - i],),
-                                cur_sels + tuple(sels)
+                                cur_sels + (sels,)
                             ))
                 base_sel_paths.append(new_paths)
 
+            # basic filter coming from needing to calculate the energy correctly
             sel_filts = [
-                LatticePathGenerator(x) if len(x[0]) == 0 or isinstance(x[0][0], (int, np.integer)) else
-                [LatticePathGenerator(y) for y in x]
-                for x in all_sels
+                LatticePathGenerator([x]) for x in all_sels
             ]
-            filter_paths = []
             for k in range(1, order):
-                sel_terms = [sum((tuple(x) for x in a[1]), ()) for a in base_sel_paths[k]]
-                # step_inds = [sum(((j,) * len(x) for x in a[1]), ()) for j,a in enumerate(base_sel_paths[k])]
-                # print(sel_terms, step_inds)
-
-                sel_terms = [sum((tuple(x) for x in a[1]), ()) for a in base_sel_paths[k]]
-                split_inds = [[len(x) for x in a[1]] for a in base_sel_paths[k]]
+                sel_terms = [a[1] for a in base_sel_paths[k]]
                 ham_terms = [a[0] for a in base_sel_paths[k]]
                 for i in range(0, k):
-                    print(">>>", k, i)
-                    subterms = []
                     main_terms = LatticePathGenerator(sel_terms[i])
-                    for terms in sel_filts[1:k+1]:
-                        subterms = []
+                    for n,terms in enumerate(sel_filts[1:k+1]):
+                        n+=1
                         # we figure out which sets of raising/lowering
                         # operations will get us from start to finish
                         if not isinstance(terms, list):
@@ -1715,51 +1706,33 @@ class PerturbationTheorySolver:
                         # operators
                         for t in terms:
                             bit_strings = main_terms.find_intersections(t)
-                            # we'll need to split this over the possible bit strings we can use
-                            # based on which ham_terms we're working with
-                            # that will come from splitting the total path into its contributions
-                            # over the steps coming from each object
-                            bit_splits = []
+                            print(bit_strings)
+                            # for now we'll just let this mean we need these specific
+                            # selection rules but in the future we'll be a bit more
+                            # targeted in terms of the terms we need to calculate
                             for b in bit_strings:
-                                split = []
-                                tot = 0
-                                for chunk in split_inds[i]:
-                                    split.append(b[tot:tot+chunk])
-                                    tot+=chunk
-                                bit_splits.append(split)
+                                new_space = input_state_space
+                                for h, j, r in zip(ham_terms[i], b, main_terms.steps):
+                                    if len(r[j]) > 0:
+                                        if isinstance(new_space, SelectionRuleStateSpace):
+                                            new_space = new_space.to_single().take_unique()
+                                        new_space = new_space.apply_selection_rules([r[j]])
+                                        if new_space is None:
+                                            break
 
-                            print(">", bit_splits)
-                            #
-                            #
-                            #
-                            # sums = [sum(s[j] for j,s in zip(b, t.steps)) for b in bit_strings]
-                            # usums = np.unique(sums)
-                            #
-                            # raise Exception(ham_terms[i], usums)
-                            # # print(t.rules)
-                            # subterms.extend(
-                            #     main_terms.find_intersections(t)
-                            # )
-
-                        #     for bit_string in subterms:
-                        #
-                        #
-                        #
-                        # # and then we back these out to the corresponding selection rules from each
-                        # # operator in sel_terms
-                        # for term in subterms:
-                        #     print(len(term), )
+                                        if spaces[h] is None:
+                                            spaces[h] = (None, new_space)
+                                        else:
+                                            spaces[h] = (None, spaces[h][1].union(new_space))
+                                    elif spaces[h] is None:
+                                        spaces[h] = (None, new_space)
 
 
-
-                    print(subterms)
-                    # LatticePathGenerator()
-                    # filter_paths
-
-
-            spaces = self._get_coupled_spaces_from_rules(...)
-
-
+        raise Exception(spaces)
+        #
+        #     # filter needed to get _excitations_ correctly
+        #
+        # raise Exception(spaces)
 
         return spaces
 
