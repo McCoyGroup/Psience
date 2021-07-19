@@ -547,6 +547,7 @@ class PerturbationTheorySolver:
                  flat_total_space=None,
                  state_space_iterations=None,
                  state_space_terms=None,
+                 state_space_filters=None,
                  target_property_rules=None,
                  allow_sakurai_degs=False,
                  allow_post_PT_calc=True,
@@ -596,6 +597,7 @@ class PerturbationTheorySolver:
         self.order = order
         self.state_space_iterations=state_space_iterations
         self.state_space_terms=state_space_terms
+        self.state_space_filters=state_space_filters
         self.target_property_rules=target_property_rules
 
         self.logger = logger
@@ -1270,7 +1272,8 @@ class PerturbationTheorySolver:
                 allow_PT_degs=self.allow_sakurai_degs,
                 spaces=spaces,
                 wavefunction_terms=self.state_space_terms,
-                property_filter=self.target_property_rules
+                property_filter=self.target_property_rules,
+                filter_spaces=self.state_space_filters
                 )
             total_state_spaces.append(spaces)
 
@@ -1379,7 +1382,7 @@ class PerturbationTheorySolver:
             contracted = self.proj.get_transformed_space(wtf1)
             return contracted
 
-    def _get_new_coupled_space(self, a, b, spaces=None, ret_space=True):
+    def _get_new_coupled_space(self, a, b, spaces=None, ret_space=True, filter_space=None):
         """
         A symbolic version of the dot product appropriate for getting
         transformed state spaces under the operation of a on b
@@ -1428,6 +1431,9 @@ class PerturbationTheorySolver:
                 # but also which projection operators have been applied
                 # so that we can make sure we calculate any pieces that
                 # need to be calculated
+                if filter_space is not None:
+                    new = new.intersection(filter_space)
+
                 spaces[op] = (
                     {proj:b},
                     new
@@ -1455,6 +1461,9 @@ class PerturbationTheorySolver:
                                                   track_excitations=not self.memory_constrained,
                                                   parallelizer=self.parallelizer, logger=logger
                                                   )
+                    if filter_space is not None:
+                        new = new.intersection(filter_space)
+
                     cur = cur.union(new)
                     projections[proj] = b
                     spaces[op] = (projections, cur)
@@ -1479,6 +1488,8 @@ class PerturbationTheorySolver:
                                                           track_excitations = not self.memory_constrained,
                                                           parallelizer=self.parallelizer, logger=logger
                                                           )
+                        if filter_space is not None:
+                            new_new = new_new.intersection(filter_space)
 
                         # next we add the new stuff to the cache
                         cur = cur.union(new_new)
@@ -1502,7 +1513,11 @@ class PerturbationTheorySolver:
 
         return self.StateSpaceWrapper(new)
 
-    def _reduce_new_coupled_space(self, *terms, spaces=None, ret_space=True):
+    def _reduce_new_coupled_space(self, *terms,
+                                  spaces=None,
+                                  ret_space=True,
+                                  filter_space=None
+                                  ):
         """
         Reduces through `_get_new_coupled_space` from right to left
         :param terms:
@@ -1514,7 +1529,7 @@ class PerturbationTheorySolver:
         """
         import functools
         return functools.reduce(
-            lambda a, b:self._get_new_coupled_space(b, a, spaces, ret_space=ret_space),
+            lambda a, b:self._get_new_coupled_space(b, a, spaces, ret_space=ret_space, filter_space=filter_space),
             reversed(terms[:-1]),
             terms[-1]
         )
@@ -1526,7 +1541,8 @@ class PerturbationTheorySolver:
                             allow_PT_degs=True,
                             wavefunction_terms=None,
                             spaces=None,
-                            property_filter=None
+                            property_filter=None,
+                            filter_spaces=None
                             ):
         """
         Applies the VPT equations semi-symbolically, dispatching based on how many
@@ -1542,7 +1558,8 @@ class PerturbationTheorySolver:
                 degenerate_space,
                 spaces=spaces,
                 wavefunction_terms=wavefunction_terms,
-                property_filter=property_filter
+                property_filter=property_filter,
+                filter_spaces=filter_spaces
             )
         else:
             raise NotImplementedError("True degeneracy handling is getting a rewrite")
@@ -1561,7 +1578,8 @@ class PerturbationTheorySolver:
                                  degenerate_space=None,
                                  spaces=None,
                                  wavefunction_terms=None,
-                                 property_filter=None
+                                 property_filter=None,
+                                 filter_spaces=None
                                  ):
         """
         Applies the non-degenerate equations in semi-symbolic form to determine
@@ -1603,7 +1621,11 @@ class PerturbationTheorySolver:
         pi = self.ProjectionOperatorWrapper(D, complement=True)
         # piD = self.ProjectionOperatorWrapper(D, complement=False)
 
-        dot = lambda *terms, spaces=spaces,ret_space=True: self._reduce_new_coupled_space(*terms, spaces=spaces,ret_space=ret_space)
+        dot = lambda *terms, spaces=spaces,ret_space=True,filter_space=None: self._reduce_new_coupled_space(*terms,
+                                                                                          spaces=spaces,
+                                                                                          ret_space=ret_space,
+                                                                                          filter_space=filter_space
+                                                                                          )
 
         H = self.PastIndexableTuple(self.perts)
 
@@ -1643,92 +1665,96 @@ class PerturbationTheorySolver:
                             if wavefunction_terms is None or (k-i, i) in wavefunction_terms:
                                 self.logger.log_print('H({a})|n({b})>', a=k - i, b=i)
                                 if k < order-1:
-                                    corrs[k] += dot(H[k - i], corrs[i])
+                                    corrs[k] += dot(H[k - i], corrs[i],
+                                                    filter_space=filter_spaces[(k-i, i)] if filter_spaces is not None and (k-i, i) in filter_spaces else None
+                                                    )
                                 else:
-                                    dot(H[k - i], corrs[i], ret_space=False)
-        else:
-            # indicates we were given target property terms to work with so rather
-            # than just allowing us to recursively build up we use the selection
-            # rules for these terms to determine which selection rules we actually
-            # need to calculate both the energy and target property correctly
-            target_states, target_sel_rules = property_filter
-            exc = input_state_space.excitations
-            if isinstance(target_states, (int, np.integer)):
-                target_states = (target_states,)
-            else:
-                target_states = tuple(target_states)
-            target_rules = exc[:, np.newaxis, :] - exc[np.newaxis, target_states, :]
-
-            # Now at each order we determine which selection rule terms we'll need
-            all_sels = [
-                [ [] ]
-                if i == 0 else h.selection_rules for i,h in enumerate(self.perts)
-            ]
-
-            # we populate the entire list of selection rules before filtering
-            # this tells us what _would_ be applied and then we'll filter it
-            # down to see what _will_ be applied
-            base_sel_paths = [
-                [((), ())]
-            ]
-            for k in range(1, order):
-                new_paths = []
-                for i in range(0, k):
-                    if not isinstance(H[k - i], (int, np.integer)):
-                        sels = all_sels[k-i]
-                        if sels is None:
-                            raise NotImplementedError("how are we here")
-                        for cur_hams, cur_sels in base_sel_paths[i]:
-                            new_paths.append((
-                                cur_hams + (H[k - i],),
-                                cur_sels + (sels,)
-                            ))
-                base_sel_paths.append(new_paths)
-
-            # basic filter coming from needing to calculate the energy correctly
-            sel_filts = [
-                LatticePathGenerator([x]) for x in all_sels
-            ]
-            for k in range(1, order):
-                sel_terms = [a[1] for a in base_sel_paths[k]]
-                ham_terms = [a[0] for a in base_sel_paths[k]]
-                for i in range(0, k):
-                    main_terms = LatticePathGenerator(sel_terms[i])
-                    for n,terms in enumerate(sel_filts[1:k+1]):
-                        n+=1
-                        # we figure out which sets of raising/lowering
-                        # operations will get us from start to finish
-                        if not isinstance(terms, list):
-                            terms = [terms]
-
-                        # then we turn these into proper selection rules and
-                        # determine which selection rules will go with which
-                        # operators
-                        for t in terms:
-                            bit_strings = main_terms.find_intersections(t)
-                            print(bit_strings)
-                            # for now we'll just let this mean we need these specific
-                            # selection rules but in the future we'll be a bit more
-                            # targeted in terms of the terms we need to calculate
-                            for b in bit_strings:
-                                new_space = input_state_space
-                                for h, j, r in zip(ham_terms[i], b, main_terms.steps):
-                                    if len(r[j]) > 0:
-                                        if isinstance(new_space, SelectionRuleStateSpace):
-                                            new_space = new_space.to_single().take_unique()
-                                        new_space = new_space.apply_selection_rules([r[j]])
-                                        if new_space is None:
-                                            break
-
-                                        if spaces[h] is None:
-                                            spaces[h] = (None, new_space)
-                                        else:
-                                            spaces[h] = (None, spaces[h][1].union(new_space))
-                                    elif spaces[h] is None:
-                                        spaces[h] = (None, new_space)
-
-
-        raise Exception(spaces)
+                                    dot(H[k - i], corrs[i], ret_space=False,
+                                                    filter_space=filter_spaces[(k-i, i)] if filter_spaces is not None and (k-i, i) in filter_spaces else None
+                                                    )
+        # else:
+        #     # indicates we were given target property terms to work with so rather
+        #     # than just allowing us to recursively build up we use the selection
+        #     # rules for these terms to determine which selection rules we actually
+        #     # need to calculate both the energy and target property correctly
+        #     target_states, target_sel_rules = property_filter
+        #     exc = input_state_space.excitations
+        #     if isinstance(target_states, (int, np.integer)):
+        #         target_states = (target_states,)
+        #     else:
+        #         target_states = tuple(target_states)
+        #     target_rules = exc[:, np.newaxis, :] - exc[np.newaxis, target_states, :]
+        #
+        #     # Now at each order we determine which selection rule terms we'll need
+        #     all_sels = [
+        #         [ [] ]
+        #         if i == 0 else h.selection_rules for i,h in enumerate(self.perts)
+        #     ]
+        #
+        #     # we populate the entire list of selection rules before filtering
+        #     # this tells us what _would_ be applied and then we'll filter it
+        #     # down to see what _will_ be applied
+        #     base_sel_paths = [
+        #         [((), ())]
+        #     ]
+        #     for k in range(1, order):
+        #         new_paths = []
+        #         for i in range(0, k):
+        #             if not isinstance(H[k - i], (int, np.integer)):
+        #                 sels = all_sels[k-i]
+        #                 if sels is None:
+        #                     raise NotImplementedError("how are we here")
+        #                 for cur_hams, cur_sels in base_sel_paths[i]:
+        #                     new_paths.append((
+        #                         cur_hams + (H[k - i],),
+        #                         cur_sels + (sels,)
+        #                     ))
+        #         base_sel_paths.append(new_paths)
+        #
+        #     # basic filter coming from needing to calculate the energy correctly
+        #     sel_filts = [
+        #         LatticePathGenerator([x]) for x in all_sels
+        #     ]
+        #     for k in range(1, order):
+        #         sel_terms = [a[1] for a in base_sel_paths[k]]
+        #         ham_terms = [a[0] for a in base_sel_paths[k]]
+        #         for i in range(0, k):
+        #             main_terms = LatticePathGenerator(sel_terms[i])
+        #             for n,terms in enumerate(sel_filts[1:k+1]):
+        #                 n+=1
+        #                 # we figure out which sets of raising/lowering
+        #                 # operations will get us from start to finish
+        #                 if not isinstance(terms, list):
+        #                     terms = [terms]
+        #
+        #                 # then we turn these into proper selection rules and
+        #                 # determine which selection rules will go with which
+        #                 # operators
+        #                 for t in terms:
+        #                     bit_strings = main_terms.find_intersections(t)
+        #                     print(bit_strings)
+        #                     # for now we'll just let this mean we need these specific
+        #                     # selection rules but in the future we'll be a bit more
+        #                     # targeted in terms of the terms we need to calculate
+        #                     for b in bit_strings:
+        #                         new_space = input_state_space
+        #                         for h, j, r in zip(ham_terms[i], b, main_terms.steps):
+        #                             if len(r[j]) > 0:
+        #                                 if isinstance(new_space, SelectionRuleStateSpace):
+        #                                     new_space = new_space.to_single().take_unique()
+        #                                 new_space = new_space.apply_selection_rules([r[j]])
+        #                                 if new_space is None:
+        #                                     break
+        #
+        #                                 if spaces[h] is None:
+        #                                     spaces[h] = (None, new_space)
+        #                                 else:
+        #                                     spaces[h] = (None, spaces[h][1].union(new_space))
+        #                             elif spaces[h] is None:
+        #                                 spaces[h] = (None, new_space)
+        #
+        #
+        # raise Exception(spaces)
         #
         #     # filter needed to get _excitations_ correctly
         #
