@@ -201,12 +201,18 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
             labels = [mapping[k] for k in ids]
 
             if coeffs is None:
-                op = Operator(computer, self.quanta, prod_dim=len(terms),
-                              selection_rules=self.selection_rules(*terms), symmetries=labels,
+                op = Operator(computer, self.quanta,
+                              prod_dim=len(terms),
+                              selection_rules=self.selection_rules(*terms),
+                              selection_rule_steps=self.selection_rule_steps(*terms),
+                              symmetries=labels,
                               logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)#, axes=axes)
             else:
-                op = ContractedOperator(coeffs, computer, self.quanta, prod_dim=len(terms),
-                                        selection_rules=self.selection_rules(*terms), symmetries=labels, axes=axes,
+                op = ContractedOperator(coeffs, computer, self.quanta,
+                                        prod_dim=len(terms),
+                                        selection_rules=self.selection_rules(*terms),
+                                        selection_rule_steps=self.selection_rule_steps(*terms),
+                                        symmetries=labels, axes=axes,
                                         logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)
             return op
         else:

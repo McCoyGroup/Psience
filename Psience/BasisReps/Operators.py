@@ -29,6 +29,7 @@ class Operator:
                  prod_dim=None,
                  symmetries=None,
                  selection_rules=None,
+                 selection_rule_steps=None, # for product operators
                  parallelizer=None,
                  logger=None,
                  zero_threshold=1.0e-14,
@@ -59,6 +60,7 @@ class Operator:
         self.fdim = prod_dim
         self.funcs = funcs
         self.selection_rules = selection_rules
+        self.selection_rule_steps = selection_rule_steps
         self.symmetry_inds = symmetries
         self.quanta = tuple(quanta)
         self.mode_n = len(quanta)
@@ -966,6 +968,7 @@ class ContractedOperator(Operator):
 
     def __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None,
                  selection_rules=None,
+                 selection_rule_steps=None,
                  zero_threshold=1.0e-14,
                  chunk_size=None,
                  parallelizer=None, logger=None
@@ -999,6 +1002,7 @@ class ContractedOperator(Operator):
         self.axes = axes
         super().__init__(funcs, quanta, symmetries=symmetries, prod_dim=prod_dim,
                          selection_rules=selection_rules,
+                         selection_rule_steps=selection_rule_steps,
                          zero_threshold=zero_threshold,
                          parallelizer=parallelizer,
                          logger=logger

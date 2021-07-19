@@ -7,7 +7,7 @@ from McUtils.Plots import *
 
 from ..Wavefun import *
 
-from .Terms import Representation
+from .Representations import Representation
 from .Operators import Operator
 
 __all__ = [

@@ -27,6 +27,10 @@ class VPT2Tests(TestCase):
     analytic_data = {} # same idea
 
     def setUp(self):
+        import warnings
+        np.seterr(all='raise')
+        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
+
         self.h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
     def __getstate__(self):
@@ -435,17 +439,12 @@ class VPT2Tests(TestCase):
             # Energies from Nielsen expressions
             e_harm, e_corr, x = hammer.get_Nielsen_energies(states, return_split=True)
             if print_x:
-
-                cur_lw = np.get_printoptions()['linewidth']
-                try:
-                    np.set_printoptions(linewidth=10000000)  # infinite line width basically...
+                with np.printoptions(linewidth=10000000):  # infinite line width basically...
                     print("="*25 + "X-Matrix:" + "="*25,
                           repr(x * h2w).strip("array()").replace("       ", " "),
                           "=" * 50,
                           sep="\n"
                           )
-                finally:
-                    np.set_printoptions(linewidth=cur_lw)
 
             e_corr = np.sum(e_corr, axis=0)
             energies = h2w * (e_harm + e_corr)
@@ -3399,6 +3398,53 @@ class VPT2Tests(TestCase):
     @debugTest
     def test_HOHVPTCartesians(self):
 
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        print_report = False
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        # import McUtils.Misc as mcmisc
+        #
+        # with mcmisc.without_numba():
+        # os.remove(os.path.expanduser('~/hoh.hdf5'))
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            print_report=print_report,
+            calculate_intensities=True,
+            print_x=True
+            # , chunk_size=200
+            # zero_order_energy_corrections = [
+            #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
+            # ],
+            # , memory_constrained=True
+            # , state_space_terms=((1, 0), (2, 0))
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
+        )
+
+    @debugTest
+    def test_HOHVPTCartesiansFiltered(self):
+
         import warnings
         np.seterr(all='raise')
         warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
@@ -3433,11 +3479,25 @@ class VPT2Tests(TestCase):
             gaussian_energies,
             gaussian_freqs,
             log=True,
-            verbose=False,
+            verbose=True,
             print_report=print_report,
             calculate_intensities=True,
-            print_x=True
-            , chunk_size=200
+            state_space_filters={
+                # (2, 0): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1],
+                # ).apply_selection_rules([[]]), # get energies right
+                (1, 1): BasisStateSpace(
+                    HarmonicOscillatorProductBasis(n_modes),
+                    states[:1]
+                ).apply_selection_rules([[-1], [], [1]])
+
+            }
+            # target_property_rules=([0], [
+            #     [-1,  0, 1],
+            #     [-2,  0, 2],
+            #     [-3, -1, 1, 3],
+            # ])
             # zero_order_energy_corrections = [
             #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
             # ],
@@ -4062,7 +4122,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @validationTest
+    @debugTest
     def test_OCHHVPTCartesians(self):
 
         tag = 'OCHH Cartesians'
@@ -4097,6 +4157,54 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
+        )
+
+    @debugTest
+    def test_OCHHVPTCartesiansFiltered(self):
+
+        tag = 'OCHH Cartesians'
+        file_name = "OCHH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['OCHH']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHH']['freqs']
+
+        print_report = False
+        nielsen_tolerance = 1
+        gaussian_tolerance = 100
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=True,
+            calculate_intensities=True,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            state_space_filters={
+                # (2, 0): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1],
+                # ).apply_selection_rules([[]]), # get energies right
+                (1, 1): BasisStateSpace(
+                    HarmonicOscillatorProductBasis(n_modes),
+                    states[:1]
+                ).apply_selection_rules([[-1], [], [1]])
+
+            }
         )
 
     @validationTest

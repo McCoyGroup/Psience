@@ -768,6 +768,7 @@ class PerturbationTheoryHamiltonian:
                    order=2,
                    expansion_order=None,
                    memory_constrained=None,
+                   target_property_rules=None,
                    **opts
                 ):
 
@@ -797,6 +798,7 @@ class PerturbationTheoryHamiltonian:
                                           memory_constrained=memory_constrained,
                                           ignore_odd_order_energies=ignore_odd_order_energies,
                                           verbose=verbose,
+                                          target_property_rules=target_property_rules,
                                           **opts
                                           )
 
@@ -810,6 +812,7 @@ class PerturbationTheoryHamiltonian:
                           order=2,
                           expansion_order=None,
                           memory_constrained=None,
+                          target_property_rules=None,
                           **opts
                           ):
         """
@@ -856,6 +859,7 @@ class PerturbationTheoryHamiltonian:
                     verbose=verbose,
                     order=order,
                     expansion_order=expansion_order,
+                    target_property_rules=target_property_rules,
                     **opts
                 )
 
