@@ -25,7 +25,10 @@ class Representation:
 
     """
 
-    def __init__(self, compute, basis, name=None, logger=None, selection_rules=None):
+    def __init__(self, compute, basis, name=None, logger=None,
+                 selection_rules=None,
+                 selection_rule_steps=None
+                 ):
         """
         :param compute: the function that turns indices into values
         :type compute: callable | Operator
@@ -49,6 +52,7 @@ class Representation:
         self.logger = logger
         self.array = StateSpaceMatrix(basis)
         self._selection_rules = selection_rules
+        self._selection_rule_steps = selection_rule_steps
         self.name=name
 
     @property
@@ -328,6 +332,21 @@ class Representation:
         if isinstance(rules[0], (int, np.integer)):
             raise ValueError('selection rules expected to be a list of lists')
         self._selection_rules = rules
+
+    @property
+    def selection_rule_steps(self):
+        """
+        :return:
+        :rtype:
+        """
+        if self._selection_rule_steps is None:
+            if self.operator is not None:
+                return self.operator.selection_rule_steps
+
+            else:
+                return None
+        else:
+            return self._selection_rule_steps
 
     def get_transformed_space(self, space, parallelizer=None, logger=None, **opts):
         """
@@ -718,6 +737,23 @@ class ExpansionRepresentation(Representation):
                             _.append(r)
                 self._selection_rules = _
         return self._selection_rules
+
+    @property
+    def selection_rule_steps(self):
+        """
+
+        :return:
+        :rtype:
+        """
+        if self._selection_rule_steps is None:
+            if all(hasattr(x, 'selection_rule_steps') for x in self.computers):
+                _ = []
+                for x in self.computers:
+                    r = x.selection_rule_steps
+                    if r not in _:
+                        _.append(r)
+                self._selection_rule_steps = _
+        return self._selection_rule_steps
 
     def get_transformed_space(self, space, parallelizer=None, logger=None, **opts):
         """

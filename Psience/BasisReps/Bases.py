@@ -13,7 +13,7 @@ __all__ = [
     "SimpleProductBasis"
 ]
 
-__reload_hook__ = ['.StateIndexers', '.Terms', '.Operators']
+__reload_hook__ = ['.StateIndexers', '.Representations', '.Operators']
 
 class RepresentationBasis(metaclass=abc.ABCMeta):
     """
@@ -150,7 +150,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         :return:
         :rtype:
         """
-        from .Terms import Representation
+        from .Representations import Representation
         q=self.quanta
         return Representation(self.operator(*terms,
                                             logger=logger, parallelizer=parallelizer, chunk_size=chunk_size),
@@ -238,8 +238,7 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
 
         return new_rules
 
-
-    def selection_rules(self, *terms):
+    def selection_rule_steps(self, *terms):
         """
         Generates the full set of possible selection rules for terms
 
@@ -259,28 +258,23 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
                     t
                 ))
 
+        return rules
+
+    def selection_rules(self, *terms):
+        """
+        Generates the full set of possible selection rules for terms
+
+        :param terms:
+        :type terms:
+        :return:
+        :rtype:
+        """
+
+        # first we get the rules the basis knows about
+        rules = self.selection_rule_steps(*terms)
+
         # print(rules)
         return self._sel_rules_from_rules(rules)
-        # TODO: add in to PerturbationTheory stuff + need to add initial_states & final_states for transition moment code... (otherwise _waaay_ too slow)
-        # transitions_h1 = [
-        #     [-1],
-        #     [1],
-        #     [-3],
-        #     [3],
-        #     [-1, -1, -1],
-        #     [-1, -1, 1],
-        #     [-1, 1, 1],
-        #     [1, 1, 1],
-        #     [1, 2],
-        #     [-1, 2],
-        #     [1, -2],
-        #     [-1, -2]
-        # ]
-    # def __repr__(self):
-    #     return "{}('{}')".format(
-    #         type(self).__name__,
-    #         self.name
-    #     )
 
 class SimpleProductBasis(RepresentationBasis):
     """
@@ -444,7 +438,7 @@ class SimpleProductBasis(RepresentationBasis):
         :return:
         :rtype:
         """
-        from .Terms import Representation
+        from .Representations import Representation
         return Representation(
             self.operator(*terms, coeffs=coeffs, axes=axes,
                           parallelizer=parallelizer, logger=logger, chunk_size=chunk_size),

@@ -5,6 +5,7 @@ from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
 from McUtils.Parallelizers import Parallelizer, SerialNonParallelizer
 from McUtils.Data import UnitsData
+from McUtils.Combinatorics import LatticePathGenerator
 
 from ..BasisReps import Representation, BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace
 from .Common import PerturbationTheoryException
@@ -546,6 +547,7 @@ class PerturbationTheorySolver:
                  flat_total_space=None,
                  state_space_iterations=None,
                  state_space_terms=None,
+                 target_property_rules=None,
                  allow_sakurai_degs=False,
                  allow_post_PT_calc=True,
                  modify_degenerate_perturbations=False,
@@ -594,6 +596,7 @@ class PerturbationTheorySolver:
         self.order = order
         self.state_space_iterations=state_space_iterations
         self.state_space_terms=state_space_terms
+        self.target_property_rules=target_property_rules
 
         self.logger = logger
         self.verbose = verbose
@@ -1266,7 +1269,8 @@ class PerturbationTheorySolver:
                 None, False,
                 allow_PT_degs=self.allow_sakurai_degs,
                 spaces=spaces,
-                wavefunction_terms=self.state_space_terms
+                wavefunction_terms=self.state_space_terms,
+                property_filter=self.target_property_rules
                 )
             total_state_spaces.append(spaces)
 
@@ -1521,7 +1525,8 @@ class PerturbationTheorySolver:
                             use_second_deg,
                             allow_PT_degs=True,
                             wavefunction_terms=None,
-                            spaces=None
+                            spaces=None,
+                            property_filter=None
                             ):
         """
         Applies the VPT equations semi-symbolically, dispatching based on how many
@@ -1532,7 +1537,13 @@ class PerturbationTheorySolver:
         """
 
         if not allow_PT_degs:
-            spaces = self.get_nondeg_coupled_space(input_state_space, degenerate_space, spaces=spaces, wavefunction_terms=wavefunction_terms)
+            spaces = self.get_nondeg_coupled_space(
+                input_state_space,
+                degenerate_space,
+                spaces=spaces,
+                wavefunction_terms=wavefunction_terms,
+                property_filter=property_filter
+            )
         else:
             raise NotImplementedError("True degeneracy handling is getting a rewrite")
             if degenerate_space is None:
@@ -1549,7 +1560,8 @@ class PerturbationTheorySolver:
                                  input_state_space,
                                  degenerate_space=None,
                                  spaces=None,
-                                 wavefunction_terms=None
+                                 wavefunction_terms=None,
+                                 property_filter=None
                                  ):
         """
         Applies the non-degenerate equations in semi-symbolic form to determine
@@ -1559,6 +1571,16 @@ class PerturbationTheorySolver:
         truly degenerate stuff.
         The only difference there will be to add on
 
+        :param input_state_space:
+        :type input_state_space: BasisStateSpace
+        :param degenerate_space:
+        :type degenerate_space: BasisStateSpace
+        :param spaces:
+        :type spaces:
+        :param wavefunction_terms: which terms to include when calculating corrections
+        :type wavefunction_terms: None | Iterable[Iterable[int]]
+        :param property_filter: a set of states and selection rules to allow for being targeted in state to calculate
+        :type property_filter: None | Iterable[Iterable[int], Iterable[Iterable[int]]]
         :return:
         :rtype:
         """
@@ -1585,50 +1607,159 @@ class PerturbationTheorySolver:
 
         H = self.PastIndexableTuple(self.perts)
 
-        # raise Exception( (dot(self.ProjectedOperator(pi, H[1]), corrs[0]) + corrs[0]).space )
+        if property_filter is None:
+            # This is intentionally written to parallel the non-degenerate VPT equations
+            for k in range(1, order):
+                ####################################################################################################
+                #                                       *IMPLEMENTATION NOTE*
+                # The states for the energy end up being totally subsumed in the states
+                # for the corrections, so we just leave this part off
+                ####################################################################################################
+                #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
+                # but we drop the shift part because that doesn't affect the state space at all
+                # E[k] = sum(
+                #             dot(self.ProjectedOperator(piD, H[k - i]), corrs[i])
+                #             for i in range(0, k)
+                #             )
 
-        for k in range(1, order):
-            ####################################################################################################
-            #                                       *IMPLEMENTATION NOTE*
-            # The states for the energy end up being totally subsumed in the states
-            # for the corrections, so we just leave this part off
-            ####################################################################################################
-            #         En^(k) = <n^(0)|H^(k)|n^(0)> + sum(<n^(0)|H^(k-i)|n^(i)> - E^(k-i)<n^(0)|n^(i)>, i=1...k-1)
-            # but we drop the shift part because that doesn't affect the state space at all
-            # E[k] = sum(
-            #             dot(self.ProjectedOperator(piD, H[k - i]), corrs[i])
-            #             for i in range(0, k)
-            #             )
+                #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
+                #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
+                # but we drop the energy and overlap parts of this because they don't affect the overall state space
 
-            #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
-            #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
-            # but we drop the energy and overlap parts of this because they don't affect the overall state space
+                self.logger.log_print(
+                    'getting states for ' +
+                        '+'.join('H({})|n({})>'.format(k-i, i)
+                                 for i in range(0, k)
+                                 if (
+                                         not isinstance(H[k - i], (int, np.integer))
+                                         and (wavefunction_terms is None or (k-i, i) in wavefunction_terms)
+                                 )
+                                 )
+                    )
+                with self.logger.block(tag='getting states for order {k}'.format(k=k)):
+                    corrs[k] = sum(corrs[i] for i in range(0, k)) # this all in here from energies
+                    for i in range(0, k):
+                        if not isinstance(H[k - i], (int, np.integer)):
+                            if wavefunction_terms is None or (k-i, i) in wavefunction_terms:
+                                self.logger.log_print('H({a})|n({b})>', a=k - i, b=i)
+                                if k < order-1:
+                                    corrs[k] += dot(H[k - i], corrs[i])
+                                else:
+                                    dot(H[k - i], corrs[i], ret_space=False)
+        else:
+            # indicates we were given target property terms to work with so rather
+            # than just allowing us to recursively build up we use the selection
+            # rules for these terms to determine which selection rules we actually
+            # need to calculate both the energy and target property correctly
+            target_states, target_sel_rules = property_filter
+            exc = input_state_space.excitations
+            if isinstance(target_states, (int, np.integer)):
+                target_states = (target_states,)
+            else:
+                target_states = tuple(target_states)
+            target_rules = exc[:, np.newaxis, :] - exc[np.newaxis, target_states, :]
 
-            self.logger.log_print(
-                'getting states for ' +
-                    '+'.join('H({})|n({})>'.format(k-i, i)
-                             for i in range(0, k)
-                             if (
-                                     not isinstance(H[k - i], (int, np.integer))
-                                     and (wavefunction_terms is None or (k-i, i) in wavefunction_terms)
-                             )
-                             )
-                )
-            with self.logger.block(tag='getting states for order {k}'.format(k=k)):
-                corrs[k] = sum(corrs[i] for i in range(0, k)) # this all in here from energies
+            # Now at each order we determine which selection rule terms we'll need
+            all_sels = [
+                [ [] ]
+                if i == 0 else h.selection_rule_steps for i,h in enumerate(self.perts)
+            ]
+
+            # we populate the entire list of selection rules before filtering
+            # this tells us what _would_ be applied and then we'll filter it
+            # down to see what _will_ be applied
+            base_sel_paths = [
+                [((), ())]
+            ]
+            for k in range(1, order):
+                new_paths = []
                 for i in range(0, k):
                     if not isinstance(H[k - i], (int, np.integer)):
-                        if wavefunction_terms is None or (k-i, i) in wavefunction_terms:
-                            self.logger.log_print('H({a})|n({b})>', a=k - i, b=i)
-                            if k < order-1:
-                                corrs[k] += dot(H[k - i], corrs[i])
-                            else:
-                                dot(H[k - i], corrs[i], ret_space=False)
+                        sels = all_sels[k-i]
+                        if sels is None:
+                            raise NotImplementedError("how are we here")
+                        for cur_hams, cur_sels in base_sel_paths[i]:
+                            new_paths.append((
+                                cur_hams + (H[k - i],),
+                                cur_sels + tuple(sels)
+                            ))
+                base_sel_paths.append(new_paths)
 
-        # raise Exception(
-        #     [x[1] for x in spaces.values() if x is not None][0].get_representation_indices().T
-        #     # [x.space for x in corrs]
-        # )
+            sel_filts = [
+                LatticePathGenerator(x) if len(x[0]) == 0 or isinstance(x[0][0], (int, np.integer)) else
+                [LatticePathGenerator(y) for y in x]
+                for x in all_sels
+            ]
+            filter_paths = []
+            for k in range(1, order):
+                sel_terms = [sum((tuple(x) for x in a[1]), ()) for a in base_sel_paths[k]]
+                # step_inds = [sum(((j,) * len(x) for x in a[1]), ()) for j,a in enumerate(base_sel_paths[k])]
+                # print(sel_terms, step_inds)
+
+                sel_terms = [sum((tuple(x) for x in a[1]), ()) for a in base_sel_paths[k]]
+                split_inds = [[len(x) for x in a[1]] for a in base_sel_paths[k]]
+                ham_terms = [a[0] for a in base_sel_paths[k]]
+                for i in range(0, k):
+                    print(">>>", k, i)
+                    subterms = []
+                    main_terms = LatticePathGenerator(sel_terms[i])
+                    for terms in sel_filts[1:k+1]:
+                        subterms = []
+                        # we figure out which sets of raising/lowering
+                        # operations will get us from start to finish
+                        if not isinstance(terms, list):
+                            terms = [terms]
+
+                        # then we turn these into proper selection rules and
+                        # determine which selection rules will go with which
+                        # operators
+                        for t in terms:
+                            bit_strings = main_terms.find_intersections(t)
+                            # we'll need to split this over the possible bit strings we can use
+                            # based on which ham_terms we're working with
+                            # that will come from splitting the total path into its contributions
+                            # over the steps coming from each object
+                            bit_splits = []
+                            for b in bit_strings:
+                                split = []
+                                tot = 0
+                                for chunk in split_inds[i]:
+                                    split.append(b[tot:tot+chunk])
+                                    tot+=chunk
+                                bit_splits.append(split)
+
+                            print(">", bit_splits)
+                            #
+                            #
+                            #
+                            # sums = [sum(s[j] for j,s in zip(b, t.steps)) for b in bit_strings]
+                            # usums = np.unique(sums)
+                            #
+                            # raise Exception(ham_terms[i], usums)
+                            # # print(t.rules)
+                            # subterms.extend(
+                            #     main_terms.find_intersections(t)
+                            # )
+
+                        #     for bit_string in subterms:
+                        #
+                        #
+                        #
+                        # # and then we back these out to the corresponding selection rules from each
+                        # # operator in sel_terms
+                        # for term in subterms:
+                        #     print(len(term), )
+
+
+
+                    print(subterms)
+                    # LatticePathGenerator()
+                    # filter_paths
+
+
+            spaces = self._get_coupled_spaces_from_rules(...)
+
+
 
         return spaces
 

@@ -435,17 +435,12 @@ class VPT2Tests(TestCase):
             # Energies from Nielsen expressions
             e_harm, e_corr, x = hammer.get_Nielsen_energies(states, return_split=True)
             if print_x:
-
-                cur_lw = np.get_printoptions()['linewidth']
-                try:
-                    np.set_printoptions(linewidth=10000000)  # infinite line width basically...
+                with np.printoptions(linewidth=10000000):  # infinite line width basically...
                     print("="*25 + "X-Matrix:" + "="*25,
                           repr(x * h2w).strip("array()").replace("       ", " "),
                           "=" * 50,
                           sep="\n"
                           )
-                finally:
-                    np.set_printoptions(linewidth=cur_lw)
 
             e_corr = np.sum(e_corr, axis=0)
             energies = h2w * (e_harm + e_corr)
@@ -3396,7 +3391,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=False
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
 
         import warnings
@@ -3438,6 +3433,60 @@ class VPT2Tests(TestCase):
             calculate_intensities=True,
             print_x=True
             , chunk_size=200
+            # zero_order_energy_corrections = [
+            #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
+            # ],
+            # , memory_constrained=True
+            # , state_space_terms=((1, 0), (2, 0))
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
+        )
+
+    @debugTest
+    def test_HOHVPTCartesiansFiltered(self):
+
+        import warnings
+        np.seterr(all='raise')
+        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
+
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        print_report = False
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        # import McUtils.Misc as mcmisc
+        #
+        # with mcmisc.without_numba():
+        # os.remove(os.path.expanduser('~/hoh.hdf5'))
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=False,
+            print_report=print_report,
+            calculate_intensities=True,
+            target_property_rules=([0], [
+                [-1,  0, 1],
+                [-2,  0, 2],
+                [-3, -1, 1, 3],
+            ])
             # zero_order_energy_corrections = [
             #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
             # ],
