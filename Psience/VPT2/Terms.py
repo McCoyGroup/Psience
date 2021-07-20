@@ -634,6 +634,16 @@ class ExpansionTerms:
                 internal_jacobs = _
 
                 current_cache["CartesiansByInternals"] = internal_jacobs
+
+
+                import os, json
+                with open(os.path.expanduser("~/Desktop/new_int_jacobs.json"), "w+") as dump:
+                    json.dump(
+                        [internal_jacobs[0].tolist(), internal_jacobs[1].tolist(), internal_jacobs[2].tolist()],
+                        dump
+                    )
+
+                raise Exception(internal_jacobs[2])
             else:
                 internal_jacobs = current_cache["CartesiansByInternals"]
 
@@ -1324,6 +1334,13 @@ class KineticTerms(ExpansionTerms):
             # )
 
             # raise Exception([G, GQ, GQQ])
+
+            import os, json
+            with open(os.path.expanduser("~/Desktop/new_dimer_G.json"), "w+") as dump:
+                json.dump(
+                    [terms[0].tolist(), terms[1].tolist(), terms[2].tolist()],
+                    dump
+                )
 
         G_terms = terms
         try:

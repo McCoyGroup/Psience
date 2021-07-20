@@ -384,7 +384,7 @@ class StructuralProperties:
         ek_rot = np.swapaxes(ek_rot, -2, -1)
         crd = crd @ ek_rot
         # now we rotate this back to the reference frame
-        crd = crd @ (ref_rot)[np.newaxis, :, :]
+        crd = crd @ (ref_rot.T)[np.newaxis, :, :]
 
         if reset_com:
             # and then shift so the COM doesn't change

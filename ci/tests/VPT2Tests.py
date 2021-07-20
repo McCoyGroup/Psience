@@ -4076,7 +4076,7 @@ class VPT2Tests(TestCase):
             [2440.278, 2404.805]
         ])
     }
-    @debugTest
+    @validationTest
     def test_OCHHVPTInternals(self):
 
         tag = 'OCHH Internals'
@@ -5945,7 +5945,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTInternals(self):
 
         """
