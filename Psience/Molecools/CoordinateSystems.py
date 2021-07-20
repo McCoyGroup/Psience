@@ -2,10 +2,7 @@
 Defines useful extended internal coordinate frames
 """
 
-__all__ = [
-    "MolecularZMatrixCoordinateSystem",
-    "MolecularCartesianCoordinateSystem"
-]
+
 
 import numpy as np
 import McUtils.Numputils as nput
@@ -16,6 +13,13 @@ from McUtils.Coordinerds import (
 )
 
 from .MoleculeInterface import AbstractMolecule
+
+__all__ = [
+    "MolecularZMatrixCoordinateSystem",
+    "MolecularCartesianCoordinateSystem"
+]
+
+__reload_hook__ = [".MoleculeInterface"]
 
 def _get_best_axes(first_pos, axes):
     """

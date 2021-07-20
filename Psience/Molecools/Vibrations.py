@@ -14,6 +14,8 @@ __all__ = [
     "MolecularNormalModes",
 ]
 
+__reload_hook__ = [".MoleculeInterface", ".Transformations"]
+
 class MolecularVibrations:
 
     def __init__(self,

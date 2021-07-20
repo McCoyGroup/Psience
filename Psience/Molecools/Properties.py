@@ -23,7 +23,7 @@ __all__ = [
     "NormalModesManager"
 ]
 
-__reload_hook__ = ['.Transformations']
+__reload_hook__ = [".MoleculeInterface", '.Vibrations']
 
 class MolecularPropertyError(Exception):
     """
@@ -129,12 +129,11 @@ class StructuralProperties:
         # a = axes[..., :, 0]
         # c = axes[..., :, 2]
         # b = nput.vec_crosses(a, c)  # force right-handedness to avoid inversions
-        # axes[..., :, 2] = b
-
-        a = axes[..., :, 0]
-        b = axes[..., :, 1]
-        c = nput.vec_crosses(b, a)  # force right-handedness to avoid inversions
-        axes[..., :, 2] = c
+        # axes[..., :, 1] = b
+        # a = axes[..., :, 0]
+        # b = axes[..., :, 1]
+        # c = nput.vec_crosses(b, a)  # force right-handedness to avoid inversions
+        # axes[..., :, 2] = c
         dets = np.linalg.det(axes) # ensure we have true rotation matrices to avoid inversions
         axes[..., :, 2] /= dets[..., np.newaxis]
 
@@ -1279,6 +1278,16 @@ class DipoleSurfaceManager(PropertyManager):
                 self._numerical_derivs = None
                 self._derivs = derivatives
         return self._derivs
+    @derivatives.setter
+    def derivatives(self, derivatives):
+        if isinstance(derivatives, dict):
+            self._numerical_derivs = derivatives['numerical']
+            self._derivs = derivatives['analytic']
+        else:
+            self._numerical_derivs = None
+            self._derivs = derivatives
+
+
 
     def load(self):
         if self._surf is not None:
@@ -1528,6 +1537,7 @@ class PotentialSurfaceManager(PropertyManager):
         if new._surf is not None:
             new._surf = new._surf.transform(transf)
         if new._derivs is not None:
+            raise Exception(new._derivs)
             # print([x.shape for x in new._derivs])
             new._derivs = new._transform_derivatives(new._derivs, transf)
         return new

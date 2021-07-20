@@ -5,6 +5,8 @@ Then it layers some common transformations on top of that
 from .MoleculeInterface import AbstractMolecule
 from McUtils.Coordinerds import CoordinateSet, CoordinateTransform
 
+__reload_hook__ = [".MoleculeInterface"]
+
 class MolecularTransformation(CoordinateTransform):
     def apply(self, mol, shift=True):
         """
