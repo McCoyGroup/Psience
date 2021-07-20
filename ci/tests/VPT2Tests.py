@@ -4122,7 +4122,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesians(self):
 
         tag = 'OCHH Cartesians'

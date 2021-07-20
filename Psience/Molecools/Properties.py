@@ -130,10 +130,10 @@ class StructuralProperties:
         # c = axes[..., :, 2]
         # b = nput.vec_crosses(a, c)  # force right-handedness to avoid inversions
         # axes[..., :, 1] = b
-        # a = axes[..., :, 0]
-        # b = axes[..., :, 1]
-        # c = nput.vec_crosses(b, a)  # force right-handedness to avoid inversions
-        # axes[..., :, 2] = c
+        a = axes[..., :, 0]
+        b = axes[..., :, 1]
+        c = nput.vec_crosses(b, a)  # force right-handedness to avoid inversions
+        axes[..., :, 2] = c
         dets = np.linalg.det(axes) # ensure we have true rotation matrices to avoid inversions
         axes[..., :, 2] /= dets[..., np.newaxis]
 
@@ -272,10 +272,13 @@ class StructuralProperties:
             rot = np.broadcast_to(np.eye(3, dtype=float), (len(coords), 3, 3)).copy()
             rot[..., :2, :2] = np.matmul(U, V)
 
-        a = rot[..., 0, :]
-        b = rot[..., 1, :]
-        c = nput.vec_crosses(a, b)  # force right-handedness because we can
-        rot[..., 2, :] = c  # ensure we have true rotation matrices
+        a = rot[..., :, 0]
+        b = rot[..., :, 1]
+        c = nput.vec_crosses(a, b, normalize=True)  # force right-handedness because we can
+        rot[..., :, 2] = c  # ensure we have true rotation matrices
+        dets = np.linalg.det(rot)
+        rot[..., :, 2] /= dets[..., np.newaxis]  # ensure we have true rotation matrices
+
 
         # dets = np.linalg.det(rot)
         # raise ValueError(dets)
@@ -349,7 +352,11 @@ class StructuralProperties:
         return transforms
 
     @classmethod
-    def get_eckart_embedded_coords(cls, masses, ref, coords, sel=None):
+    def get_eckart_embedded_coords(cls, masses,
+                                   ref, coords,
+                                   reset_com=False,
+                                   sel=None
+                                   ):
         """
         Embeds a set of coordinates in the reference frame
 
@@ -377,9 +384,11 @@ class StructuralProperties:
         ek_rot = np.swapaxes(ek_rot, -2, -1)
         crd = crd @ ek_rot
         # now we rotate this back to the reference frame
-        crd = crd @ (ref_rot.T)[np.newaxis, :, :]
-        # and then shift so the COM doesn't change
-        crd = crd + ref_com[np.newaxis, np.newaxis, :]
+        crd = crd @ (ref_rot)[np.newaxis, :, :]
+
+        if reset_com:
+            # and then shift so the COM doesn't change
+            crd = crd + ref_com[np.newaxis, np.newaxis, :]
 
         if not multiconf:
             crd = crd[0]
