@@ -267,7 +267,7 @@ class ExpansionTerms:
                                                                  stencil=self.internal_fd_stencil,
                                                                  all_numerical=self.all_numerical,
                                                                  converter_options=dict(
-                                                                     reembed=self.reembed,
+                                                                     reembed=False,#self.reembed,
                                                                      # strip_dummies=True
                                                                  ),
                                                                  parallelizer=par
@@ -643,7 +643,7 @@ class ExpansionTerms:
                         dump
                     )
 
-                raise Exception(internal_jacobs[2])
+                raise Exception(internal_jacobs[0])
             else:
                 internal_jacobs = current_cache["CartesiansByInternals"]
 
