@@ -6,7 +6,7 @@ Crucially, the underlying basis for the operator is assumed to be orthonormal.
 ### Properties and Methods
 <a id="Psience.BasisReps.Operators.Operator.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, funcs, quanta, prod_dim=None, symmetries=None, selection_rules=None, parallelizer=None, logger=None, zero_threshold=1e-14, chunk_size=None): 
+__init__(self, funcs, quanta, prod_dim=None, symmetries=None, selection_rules=None, selection_rule_steps=None, parallelizer=None, logger=None, zero_threshold=1e-14, chunk_size=None): 
 ```
 
 - `funcs`: `callable | Iterable[callable]`

@@ -12,7 +12,7 @@ ProjectedOperator: type
 ```
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, perturbations, states, coupled_states=None, order=2, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, gaussian_resonance_handling=False, ignore_odd_order_energies=False, intermediate_normalization=False, zero_element_warning=True, degenerate_states=None, zero_order_energy_corrections=None, memory_constrained=False, logger=None, verbose=False, parallelizer=None, checkpointer=None, checkpoint_keys=None, use_cached_representations=True, use_cached_basis=True): 
+__init__(self, perturbations, states, coupled_states=None, order=2, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, state_space_filters=None, target_property_rules=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, gaussian_resonance_handling=False, ignore_odd_order_energies=False, intermediate_normalization=False, zero_element_warning=True, degenerate_states=None, zero_order_energy_corrections=None, memory_constrained=False, logger=None, verbose=False, parallelizer=None, checkpointer=None, checkpoint_keys=None, use_cached_representations=True, use_cached_basis=True): 
 ```
 
 - `perturbations`: `Iterable[Representation]`
@@ -112,7 +112,7 @@ Determines which states need to be coupled at which levels of correction
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.get_coupled_space" class="docs-object-method">&nbsp;</a>
 ```python
-get_coupled_space(self, input_state_space, degenerate_space, use_second_deg, allow_PT_degs=True, wavefunction_terms=None, spaces=None): 
+get_coupled_space(self, input_state_space, degenerate_space, use_second_deg, allow_PT_degs=True, wavefunction_terms=None, spaces=None, property_filter=None, filter_spaces=None): 
 ```
 Applies the VPT equations semi-symbolically, dispatching based on how many
         degeneracies we need to handle
@@ -121,7 +121,7 @@ Applies the VPT equations semi-symbolically, dispatching based on how many
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.get_nondeg_coupled_space" class="docs-object-method">&nbsp;</a>
 ```python
-get_nondeg_coupled_space(self, input_state_space, degenerate_space=None, spaces=None, wavefunction_terms=None): 
+get_nondeg_coupled_space(self, input_state_space, degenerate_space=None, spaces=None, wavefunction_terms=None, property_filter=None, filter_spaces=None): 
 ```
 Applies the non-degenerate equations in semi-symbolic form to determine
         which states needs to be calculated.
@@ -129,6 +129,16 @@ Applies the non-degenerate equations in semi-symbolic form to determine
         certain additional states may be calculated on the fly if they are needed to handle
         truly degenerate stuff.
         The only difference there will be to add on
+- `input_state_space`: `BasisStateSpace`
+    >No description...
+- `degenerate_space`: `BasisStateSpace`
+    >No description...
+- `spaces`: `Any`
+    >No description...
+- `wavefunction_terms`: `None | Iterable[Iterable[int]]`
+    >which terms to include when calculating corrections
+- `property_filter`: `None | Iterable[Iterable[int], Iterable[Iterable[int]]]`
+    >a set of states and selection rules to allow for being targeted in state to calculate
 - `:returns`: `_`
     >No description...
 

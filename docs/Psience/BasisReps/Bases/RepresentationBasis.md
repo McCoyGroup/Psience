@@ -122,6 +122,16 @@ Provides a representation of a product operator specified by 'terms'
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.BasisReps.Bases.RepresentationBasis.selection_rule_steps" class="docs-object-method">&nbsp;</a>
+```python
+selection_rule_steps(self, *terms): 
+```
+Generates the full set of possible selection rules for terms
+- `terms`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.BasisReps.Bases.RepresentationBasis.selection_rules" class="docs-object-method">&nbsp;</a>
 ```python
 selection_rules(self, *terms): 
