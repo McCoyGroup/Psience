@@ -1559,7 +1559,7 @@ class VPT2Tests(TestCase):
             n_modes = len(mode_selection)
         states = self.get_states(3, n_modes)
 
-        print_report = False
+        print_report = True
 
         gaussian_energies = self.gaussian_data['HOH']['zpe']
         gaussian_freqs = self.gaussian_data['HOH']['freqs']
@@ -1580,7 +1580,7 @@ class VPT2Tests(TestCase):
             verbose=False,
             print_report=print_report,
             calculate_intensities=True,
-            print_x=True
+            print_x=False
             # , chunk_size=200
             # zero_order_energy_corrections = [
             #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
