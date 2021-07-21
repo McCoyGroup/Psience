@@ -3317,7 +3317,7 @@ class VPT2Tests(TestCase):
         [5425.603, 5174.665]
     ])
     }
-    @validationTest
+    @debugTest
     def test_HOHVPTInternals(self):
 
         tag = 'HOH Internals'
@@ -3336,10 +3336,24 @@ class VPT2Tests(TestCase):
             n_modes = len(mode_selection)
         states = self.get_states(3, n_modes)
 
-        print_report = False
+        print_report = True
 
         gaussian_energies = self.gaussian_data['HOH']['zpe']
         gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        """
+        State Energies:
+          0 0 0 4681.555 4605.955        -        - 
+          0 0 1        -        - 3937.525 3744.737 
+          0 1 0        -        - 3803.300 3621.995 
+          1 0 0        -        - 1622.286 1572.725 
+          0 0 2        -        - 7875.049 7391.393 
+          0 2 0        -        - 7606.599 7155.885 
+          2 0 0        -        - 3244.571 3117.430 
+          0 1 1        -        - 7740.824 7200.366 
+          1 0 1        -        - 5559.810 5294.413 
+          1 1 0        -        - 5425.585 5174.691
+        """
 
         self.run_PT_test(
             tag,
@@ -3349,8 +3363,8 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
-            verbose=True,
+            log=False,
+            verbose=False,
             print_report=print_report,
             calculate_intensities=True
         )
@@ -5945,7 +5959,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTInternals(self):
 
         """
