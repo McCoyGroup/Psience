@@ -5959,7 +5959,7 @@ class VPT2Tests(TestCase):
         #     np.max(np.abs(freqs[:ns] - gaussian_freqs[:ns, 1])),
         #     1)
 
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTInternals(self):
 
         """
@@ -6033,8 +6033,8 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
-            verbose=True,
+            log=False,
+            verbose=False,
             print_profile=False,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
