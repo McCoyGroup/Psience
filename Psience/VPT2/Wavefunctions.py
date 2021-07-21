@@ -834,7 +834,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 writer.writerows([padding + x for x in coupled_state_blocks])
 
     @classmethod
-    def _format_energies_table(cls, states, zpe, freqs, real_fmt='{:>10.3f}', dash_fmt='{:>10}'):
+    def _format_energies_table(cls, states, zpe, freqs, real_fmt='{:>12.5f}', dash_fmt='{:>12}'):
 
         n_modes = len(states[0])
 
@@ -883,7 +883,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         ])
 
 
-    def format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>10.3f}', dash_fmt='{:>10}'):
+    def format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}', dash_fmt='{:>12}'):
         # simple utility function pulled from the unit tests
 
         if states is None:
@@ -939,9 +939,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             (
                 (
                         "  " + ("{:<1.0f} " * n_modes) + " "
-                        + "{:>9.2f} {:>12.4f}"
+                        + "{:>12.5f} {:>12.5f}"
                         + spacer
-                        + "{:>9.2f} {:>12.4f}"
+                        + "{:>12.5f} {:>12.5f}"
                 ).format(*s, hf, hi, f, i)
                 for s, hf, hi, f, i in zip(states[1:], harm_freqs[1:], harm_ints[1:], freqs[1:], ints[1:])
             ))

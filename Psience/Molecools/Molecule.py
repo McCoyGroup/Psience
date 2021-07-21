@@ -20,7 +20,7 @@ __all__ = [
     "MolecoolException"
 ]
 
-# __reload_hook__ = [ '.Properties', '.Vibrations' ]
+__reload_hook__ = [".MoleculeInterface", '.Properties']
 
 class Molecule(AbstractMolecule):
     """
