@@ -834,7 +834,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 writer.writerows([padding + x for x in coupled_state_blocks])
 
     @classmethod
-    def _format_energies_table(cls, states, zpe, freqs, real_fmt='{:>10.3f}', dash_fmt='{:>10}'):
+    def _format_energies_table(cls, states, zpe, freqs, real_fmt='{:>12.5f}', dash_fmt='{:>12}'):
 
         n_modes = len(states[0])
 
