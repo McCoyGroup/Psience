@@ -2225,7 +2225,7 @@ class VPT2Tests(TestCase):
             [2440.278, 2404.805]
         ])
     }
-    @validationTest
+    @debugTest
     def test_OCHHVPTInternals(self):
 
         tag = 'OCHH Internals'
@@ -2252,7 +2252,7 @@ class VPT2Tests(TestCase):
         # ExpansionTerms.cartesian_fd_mesh_spacing = 1.0e-3
         # ExpansionTerms.cartesian_fd_stencil = 9
 
-        print_report = False
+        print_report = True
         nielsen_tolerance = 1
         gaussian_tolerance = 100
         self.run_PT_test(
@@ -2271,7 +2271,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @validationTest
+    @debugTest
     def test_OCHHVPTCartesians(self):
 
         tag = 'OCHH Cartesians'
@@ -2289,7 +2289,7 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['OCHH']['zpe']
         gaussian_freqs = self.gaussian_data['OCHH']['freqs']
 
-        print_report = False
+        print_report = True
         nielsen_tolerance = 1
         gaussian_tolerance = 100
         self.run_PT_test(
@@ -3638,7 +3638,106 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @validationTest
+
+    @debugTest
+    def test_WaterDimerVPTInternals(self):
+
+        """
+      1          1           0        0.000000    0.000000    0.000000
+      2          8           0        0.000000    0.000000    0.960485
+      3          1           0        0.938795    0.000000    1.199654
+      4          8           0        2.745004    0.000000    1.930528
+      5          1           0        2.858217    0.761260    2.508248
+      6          1           0        2.858217   -0.761260    2.508248
+      """
+
+        tag = 'Water Dimer Internals'
+        file_name = "water_dimer_freq.fchk"
+
+        COM = -3
+        A = -2
+        C = -1
+        X = 1000
+        LHF = 0
+        LO = 1
+        SH = 2
+        RO = 3
+        RH1 = 4
+        RH2 = 5
+        # internals = [
+        #     [LHF,  X,   X,   X],
+        #     [LO, LHF,   X,   X],
+        #     [SH,  LO, LHF,   X],
+        #     [RH2, SH,  LO, LHF], # get out of plane
+        #     [RO,  LO, RH2, LHF],
+        #     [RH1, RO, RH2, LHF]
+        # ]
+
+        # internals = [
+        #     [LHF,   X,   X,   X],
+        #     [LO,  LHF,   X,   X],
+        #     [SH,   LO, LHF,   X],
+        #     [RO,   LO,  SH, LHF],
+        #     [RH1,  RO,  LO, LHF],
+        #     [RH2,  RO, RH1,  LO]
+        # ]
+
+        internals = [
+            [LHF,   X,   X,    X],
+            [LO,  LHF,   X,    X],
+            [SH,   LO,  LHF,   X],
+            [RO,   LO,  LHF,   C],
+            [RH1,  RO,   SH, LHF],
+            [RH2,  RO,  RH1, LHF]
+        ]
+
+        n_atoms = 6
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)  # [:6]
+
+        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
+
+        # chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
+        print_report = True
+        nielsen_tolerance = 50
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_profile=False,
+            # profile_filter='Combinatorics/Permutations',
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            calculate_intensities=True
+            # , checkpoint=chk
+            , use_cached_representations=False
+            , state_space_filters={
+                # (2, 0): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1],
+                # ).apply_selection_rules([[]]), # get energies right
+                (1, 1): BasisStateSpace(
+                    HarmonicOscillatorProductBasis(n_modes),
+                    states[:1]
+                ).apply_selection_rules([[-1], [], [1]])
+
+            }
+            # , parallelized=True
+        )
+
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -3657,8 +3756,7 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
-        chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
-        print_report = False
+        print_report = True
         nielsen_tolerance = 50
         gaussian_tolerance = 50
         self.run_PT_test(
@@ -3669,15 +3767,15 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
-            verbose=True,
-            print_profile=True,
+            log=False,
+            verbose=False,
+            print_profile=False,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
             calculate_intensities=True
-            , checkpoint=chk
+            # , checkpoint=chk
             , use_cached_representations=False
             , state_space_filters={
                 # (2, 0): BasisStateSpace(
@@ -3787,7 +3885,7 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
-        chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
+        # chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
         print_report = False
         nielsen_tolerance = 50
         gaussian_tolerance = 50
@@ -3842,7 +3940,7 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
-        chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
+        # chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
         print_report = False
         nielsen_tolerance = 50
         gaussian_tolerance = 50
@@ -3864,104 +3962,6 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance,
             calculate_intensities=True
             , checkpoint=chk
-            , use_cached_representations=False
-            , state_space_filters={
-                # (2, 0): BasisStateSpace(
-                #     HarmonicOscillatorProductBasis(n_modes),
-                #     states[:1],
-                # ).apply_selection_rules([[]]), # get energies right
-                (1, 1): BasisStateSpace(
-                    HarmonicOscillatorProductBasis(n_modes),
-                    states[:1]
-                ).apply_selection_rules([[-1], [], [1]])
-
-            }
-            # , parallelized=True
-        )
-
-    @validationTest
-    def test_WaterDimerVPTInternals(self):
-
-        """
-      1          1           0        0.000000    0.000000    0.000000
-      2          8           0        0.000000    0.000000    0.960485
-      3          1           0        0.938795    0.000000    1.199654
-      4          8           0        2.745004    0.000000    1.930528
-      5          1           0        2.858217    0.761260    2.508248
-      6          1           0        2.858217   -0.761260    2.508248
-      """
-
-        tag = 'Water Dimer Internals'
-        file_name = "water_dimer_freq.fchk"
-
-        COM = -3
-        A = -2
-        C = -1
-        X = 1000
-        LHF = 0
-        LO = 1
-        SH = 2
-        RO = 3
-        RH1 = 4
-        RH2 = 5
-        # internals = [
-        #     [LHF,  X,   X,   X],
-        #     [LO, LHF,   X,   X],
-        #     [SH,  LO, LHF,   X],
-        #     [RH2, SH,  LO, LHF], # get out of plane
-        #     [RO,  LO, RH2, LHF],
-        #     [RH1, RO, RH2, LHF]
-        # ]
-
-        # internals = [
-        #     [LHF,   X,   X,   X],
-        #     [LO,  LHF,   X,   X],
-        #     [SH,   LO, LHF,   X],
-        #     [RO,   LO,  SH, LHF],
-        #     [RH1,  RO,  LO, LHF],
-        #     [RH2,  RO, RH1,  LO]
-        # ]
-
-        internals = [
-            [LHF,   X,   X,    X],
-            [LO,  LHF,   X,    X],
-            [SH,   LO,  LHF,   X],
-            [RO,   LO,  LHF,   C],
-            [RH1,  RO,   SH, LHF],
-            [RH2,  RO,  RH1, LHF]
-        ]
-
-        n_atoms = 6
-        n_modes = 3 * n_atoms - 6
-        mode_selection = None  # [5, 4, 3]
-        if mode_selection is not None and len(mode_selection) < n_modes:
-            n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes)  # [:6]
-
-        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
-        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
-
-        # chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
-        print_report = False
-        nielsen_tolerance = 50
-        gaussian_tolerance = 50
-        self.run_PT_test(
-            tag,
-            file_name,
-            internals,
-            mode_selection,
-            states,
-            gaussian_energies,
-            gaussian_freqs,
-            log=False,
-            verbose=False,
-            print_profile=False,
-            # profile_filter='Combinatorics/Permutations',
-            print_report=print_report,
-            nielsen_tolerance=nielsen_tolerance,
-            gaussian_tolerance=gaussian_tolerance,
-            calculate_intensities=True
-            # , checkpoint=chk
             , use_cached_representations=False
             , state_space_filters={
                 # (2, 0): BasisStateSpace(
@@ -4008,20 +4008,26 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=True,
-            print_profile=True,
-            # profiling_mode='deterministic',
+            print_profile=False,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
-            gaussian_tolerance=gaussian_tolerance
+            gaussian_tolerance=gaussian_tolerance,
+            calculate_intensities=True
             # , checkpoint=chk
+            , use_cached_representations=False
+            , state_space_filters={
+                # (2, 0): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1],
+                # ).apply_selection_rules([[]]), # get energies right
+                (1, 1): BasisStateSpace(
+                    HarmonicOscillatorProductBasis(n_modes),
+                    states[:1]
+                ).apply_selection_rules([[-1], [], [1]])
+
+            }
             # , parallelized=True
-            , initialization_timeout=2
-            , chunk_size=int(5e6)
-            # , memory_constrained=True
-            , state_space_terms=((1, 0), (2, 0))
-            , calculate_intensities=True
-            # , direct_sum_chunk_size=int(1e3)
         )
 
     #endregion Water Clusters
