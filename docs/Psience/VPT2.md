@@ -1564,8 +1564,8 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=False,
-            verbose=False,
+            log=True,
+            verbose=True,
             print_report=print_report,
             calculate_intensities=True
         )
@@ -1719,9 +1719,12 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            print_x=True,
+            print_x=False,
+            order=2,
             print_report=print_report,
-            log=True
+            log=True,
+            verbose=True,
+            calculate_intensities=True
         )
 
     @validationTest
@@ -3665,7 +3668,7 @@ class VPT2Tests(TestCase):
     }
     #Paper
 
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTInternals(self):
 
         """
@@ -3763,7 +3766,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
