@@ -143,8 +143,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         elif not isinstance(partitioning, self.DipolePartitioningMethod):
             partitioning = self.DipolePartitioningMethod(partitioning)
 
-        filters = [[None] * (order+1) for _ in range(ket_spaces.nstates)]
-        def get_states(m, k, filters=filters, order=order):
+        # filters = [[None] * (order+1) for _ in range(ket_spaces.nstates)]
+        def get_states(m, k, order=order):
             with self.logger.block(tag="getting coupled states for {}".format(m)):
                 start = time.time()
                 inds = None
@@ -212,7 +212,11 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     for m in mu
         ): # we were passed representations to reuse
             mu_terms = mu
-            if partitioning == self.DipolePartitioningMethod.Standard and len(mu_terms) < 4:
+            if (
+                    partitioning == self.DipolePartitioningMethod.Standard and
+                    order > 1
+                    and len(mu_terms) < 4
+            ):
                 mu_3 = [d[3] for d in self.dipole_terms]
                 m3 = self.get_M3(mu_3)
                 if rep_inds[3] is None:
@@ -223,38 +227,66 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 mu_terms.append(rep_3)
                 # mu_terms = mu_terms + [rep_3]
         else:
+            int_part = partitioning == self.DipolePartitioningMethod.Intuitive
             mu_0 = np.array([m[0] for m in mu])
-            mu_1 = np.array([m[1] for m in mu])
-            mu_2 = np.array([m[2] for m in mu])
-            mu_3 = np.array([m[3] for m in mu])
+            if (not int_part and order > 0) or (int_part and order > 1):
+                mu_1 = np.array([m[1] for m in mu])
+            else:
+                mu_1 = None
+            if (not int_part and order > 1) or (int_part and order > 2):
+                mu_2 = np.array([m[2] for m in mu])
+            else:
+                mu_2 = None
+            if (not int_part and order > 2) or (int_part and order > 3):
+                mu_3 = np.array([m[3] for m in mu])
+            else:
+                mu_3 = None
+            if (not int_part and order > 3) or (int_part and order > 4):
+                raise NotImplementedError("dipole representations up to order {} with {} partitioning not supported yet".format(
+                    order,
+                    self.DipolePartitioningMethod
+                ))
 
-            m0 = self.get_M0(mu_0)
-            if rep_inds[0] is None:
-                m0_inds = get_states(m0, 0)
-                rep_inds[0] = m0_inds
-            m1 = self.get_M1(mu_1)
-            if rep_inds[1] is None:
-                if partitioning == self.DipolePartitioningMethod.Intuitive:
-                    m1_inds = get_states(m1, 1)
-                else:
-                    m1_inds = get_states(m1, 0)
-                rep_inds[1] = m1_inds
-            m2 = self.get_M2(mu_2)
-            if rep_inds[2] is None:
-                if partitioning == self.DipolePartitioningMethod.Intuitive:
-                    m2_inds = get_states(m2, 2)
-                else:
-                    m2_inds = get_states(m2, 1)
-                rep_inds[2] = m2_inds
+            if mu_0 is not None:
+                m0 = self.get_M0(mu_0)
+                if rep_inds[0] is None:
+                    m0_inds = get_states(m0, 0)
+                    rep_inds[0] = m0_inds
+            if mu_1 is not None:
+                m1 = self.get_M1(mu_1)
+                if rep_inds[1] is None:
+                    if partitioning == self.DipolePartitioningMethod.Intuitive:
+                        m1_inds = get_states(m1, 1)
+                    else:
+                        m1_inds = get_states(m1, 0)
+                    rep_inds[1] = m1_inds
+            if mu_2 is not None:
+                m2 = self.get_M2(mu_2)
+                if rep_inds[2] is None:
+                    if partitioning == self.DipolePartitioningMethod.Intuitive:
+                        m2_inds = get_states(m2, 2)
+                    else:
+                        m2_inds = get_states(m2, 1)
+                    rep_inds[2] = m2_inds
 
             if partitioning == self.DipolePartitioningMethod.Intuitive:
-                reps = [m0, m1, m2]
+                reps = [m0]
+                if order > 1:
+                    reps.append(m1)
+                if order > 2:
+                    reps.append(m2)
+
             elif partitioning == self.DipolePartitioningMethod.Standard:
-                m3 = self.get_M3(mu_3)
-                if rep_inds[3] is None:
-                    m3_inds = get_states(m3, 2)
-                    rep_inds[3] = m3_inds
-                reps = [m0, m1, m2, m3]
+                if mu_3 is not None:
+                    m3 = self.get_M3(mu_3)
+                    if rep_inds[3] is None:
+                        m3_inds = get_states(m3, 2)
+                        rep_inds[3] = m3_inds
+                reps = [m0, m1]
+                if order > 1:
+                    reps.append(m2)
+                if order > 2:
+                    reps.append(m3)
             else:
                 raise ValueError("don't know how to interpret dipole partitioning {}".format(partitioning))
 
@@ -471,12 +503,20 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
             for a in range(3):
 
-                mu_terms = [r[:, :, a] for r in mu_reps]
+                mu_basic_terms = [r[:, :, a] for r in mu_reps]
 
                 if partitioning == self.DipolePartitioningMethod.Intuitive:
-                    mu_terms = [mu_terms[0], mu_terms[1], mu_terms[2]]
+                    mu_terms = [mu_basic_terms[0]]
+                    if order > 1:
+                        mu_terms.append(mu_basic_terms[1])
+                    if order > 2:
+                        mu_terms.append(mu_basic_terms[2])
                 elif partitioning == self.DipolePartitioningMethod.Standard:
-                    mu_terms = [mu_terms[0] + mu_terms[1], mu_terms[2], mu_terms[3]]
+                    mu_terms = [mu_basic_terms[0] + mu_basic_terms[1]]
+                    if order > 1:
+                        mu_terms.append(mu_basic_terms[2])
+                    if order > 2:
+                        mu_terms.append(mu_basic_terms[3])
                 else:
                     raise ValueError("don't know how to interpret dipole partitioning {}".format(partitioning))
 

@@ -1520,67 +1520,84 @@ class DipoleTerms(ExpansionTerms):
         return mom, grad, seconds, thirds
 
     def get_terms(self, order=None):
+
         if order is None:
-            order = 2
-        if order > 2:
-            raise ValueError("only have this up order 2...")
+            order = len(self.derivs) - 1
+        else:
+            order += 1
+
         v0 = self.derivs[0]
-        grad = self.derivs[1]
-        seconds = self.derivs[2]
-        thirds = self.derivs[3]
+        # grad = self.derivs[1]
+        # seconds = self.derivs[2]
+        # thirds = self.derivs[3]
 
         # Use the Molecule's coordinates which know about their embedding by default
         intcds = self.internal_coordinates
         if intcds is None:# or not self.non_degenerate:
             # this is nice because it eliminates most of terms in the expansion
             xQ = self.modes.inverse
-            xQQ = 0
-            xQQQ = 0
-            xQQQQ = 0
+            x_derivs = [xQ] + [0] * (order-1)
+            mu_derivs = self.derivs[1:]
         else:
+            x_derivs = self.get_cartesians_by_modes(order=order)
 
-            QY, QYY, QYYY = self.modes_by_cartesians
-            xQ, xQQ, xQQQ, xQQQQ = self.cartesians_by_modes
+            mu_derivs = self.derivs[1:]
 
-        x_derivs = (xQ, xQQ, xQQQ, xQQQQ)
+            if len(mu_derivs) > 2:
+                QY, = self.get_modes_by_cartesians(1)
+                qQQ = np.tensordot(x_derivs[1], QY, axes=[2, 0])
+                f43 = np.tensordot(qQQ, mu_derivs[1], axes=[2, 0])
+                mu_derivs = list(mu_derivs)
+                mu_derivs[2] = mu_derivs[2] + f43
+
         mu = [None]*3
         for coord in range(3):
-            u_derivs = (grad[..., coord], seconds[..., coord], thirds[..., coord])
-            # raise Exception(intcds, self.mixed_derivs)
-            if intcds is not None and self.mixed_derivs:
-                xQ, xQQ, xQQQ, xQQQQ = [DumbTensor(x) for x in x_derivs]
-                u1, u2, u3 = [DumbTensor(u) for u in u_derivs]
 
-                v1 = (xQ@u1).t
-                v2 = xQ.dot(u2, axes=[[1, 1]]).t + xQQ.dot(u1, axes=[[2, 0]]).t
+            u_derivs = [d[..., coord] for d in mu_derivs]
 
-                # rather than do the naive total transformation, for numerical stability reasons
-                # we'll want to directly apply xQQ since we have YQ QY _should_ be the identity
-                # but is not since we're working in a subspace
-                v3_1 = xQQQ.dot(u1, axes=[[3, 0]]).t
-
-                v3_2 = xQQ.dot(u2, axes=[[2, 1]]).t
-                v3_2 = 1/6 * sum(v3_2.transpose(p) for p in ip.permutations([0, 1, 2]))
-
-                # raise Exception(v3_2 - v3_2.transpose([1, 2, 0]))
-
-                v3_3 = xQ.dot(u3, axes=[[1, 2]]).t
-                # for p in ip.permutations([0, 1, 2]):
-                #     # we don't have enough data to actually determine anything where i!=j!=k
-                #     v3_3[p] = 0.
-                v3 = v3_1 + v3_2 + v3_3
-
+            if self.mixed_derivs:
+                terms = TensorDerivativeConverter(x_derivs, u_derivs,
+                                                  mixed_terms=[
+                                                      [u_derivs[1]],  # dVdQXX
+                                                      [u_derivs[2]]  # dVdQQXX
+                                                  ],
+                                                  values_name="U"
+                                                  ).convert(order=order)  # , check_arrays=True)
             else:
-                u1, u2, u3 = u_derivs
-                v1 = np.tensordot(xQ, u1, axes=[1, 0])
-                v2 = np.tensordot(xQ, u2, axes=[1, 1])
-                v3 = np.tensordot(xQ, u3, axes=[1, 2])
+                terms = TensorDerivativeConverter(x_derivs, u_derivs).convert(order=order)  # , check_arrays=True)
 
-            # print(">>>>>", v2)
+            mu[coord] = (self.derivs[0][coord],) + tuple(terms)
 
-            # raise Exception(v1, v2, v3)
-
-            mu[coord] = (v0[coord], v1, v2, v3)#(v1, v2, 0)#(v1, 0, 0)
+            # u_derivs = (grad[..., coord], seconds[..., coord], thirds[..., coord])
+            # # raise Exception(intcds, self.mixed_derivs)
+            # if intcds is not None and self.mixed_derivs:
+            #     xQ, xQQ, xQQQ, xQQQQ = [DumbTensor(x) for x in x_derivs]
+            #     u1, u2, u3 = [DumbTensor(u) for u in u_derivs]
+            #
+            #     v1 = (xQ@u1).t
+            #     v2 = xQ.dot(u2, axes=[[1, 1]]).t + xQQ.dot(u1, axes=[[2, 0]]).t
+            #
+            #     # rather than do the naive total transformation, for numerical stability reasons
+            #     # we'll want to directly apply xQQ since we have YQ QY _should_ be the identity
+            #     # but is not since we're working in a subspace
+            #     v3_1 = xQQQ.dot(u1, axes=[[3, 0]]).t
+            #
+            #     v3_2 = xQQ.dot(u2, axes=[[2, 1]]).t
+            #     v3_2 = 1/6 * sum(v3_2.transpose(p) for p in ip.permutations([0, 1, 2]))
+            #
+            #     # raise Exception(v3_2 - v3_2.transpose([1, 2, 0]))
+            #
+            #     v3_3 = xQ.dot(u3, axes=[[1, 2]]).t
+            #     # for p in ip.permutations([0, 1, 2]):
+            #     #     # we don't have enough data to actually determine anything where i!=j!=k
+            #     #     v3_3[p] = 0.
+            #     v3 = v3_1 + v3_2 + v3_3
+            #
+            # else:
+            #     u1, u2, u3 = u_derivs
+            #     v1 = np.tensordot(xQ, u1, axes=[1, 0])
+            #     v2 = np.tensordot(xQ, u2, axes=[1, 1])
+            #     v3 = np.tensordot(xQ, u3, axes=[1, 2])
 
         try:
             self.checkpointer['dipole_terms'] = mu
