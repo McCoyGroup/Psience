@@ -1387,7 +1387,11 @@ class DipoleSurfaceManager(PropertyManager):
         if new._surf is not None:
             new._surf = new._surf.transform(transf)
         if new._derivs is not None:
-            new._derivs = new._transform_derivatives(new._derivs, transf)
+            rot_dip = transf.transformation_function.transform@new._derivs[0]
+            new._derivs = (
+                    (rot_dip,) +
+                    tuple(new._transform_derivatives(new._derivs[1:], transf))
+            )
         return new
 
     def insert_atoms(self, atoms, coords, where):
@@ -1546,7 +1550,7 @@ class PotentialSurfaceManager(PropertyManager):
         if new._surf is not None:
             new._surf = new._surf.transform(transf)
         if new._derivs is not None:
-            raise Exception(new._derivs)
+            # raise Exception(new._derivs)
             # print([x.shape for x in new._derivs])
             new._derivs = new._transform_derivatives(new._derivs, transf)
         return new
