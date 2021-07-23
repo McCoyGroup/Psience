@@ -88,8 +88,9 @@ class StructuralProperties:
         com = cls.get_prop_center_of_mass(coords, masses)
         coords = coords - com[..., np.newaxis, :]
 
-        masses = masses.copy()
-        masses[masses < 0] = np.inf
+        real_spots = masses > 0 # allow for dropping out dummy atoms
+        coords = coords[..., real_spots, :]
+        masses = masses[real_spots]
 
         d = np.zeros(coords.shape[:-1] + (3, 3), dtype=float)
         diag = nput.vec_dots(coords, coords)
@@ -255,6 +256,13 @@ class StructuralProperties:
             masses = masses[sel]
             ref = ref[..., sel, :]
 
+        real_pos = masses > 0
+        og_coords = coords
+        coords = coords[..., real_pos, :]
+        masses = masses[real_pos,]
+        og_ref = ref
+        ref = ref[..., real_pos, :]
+
         planar_ref = np.allclose(ref[:, 2], 0., atol=1.0e-8)
         if not planar_ref:
             # generate pair-wise product matrix
@@ -279,11 +287,10 @@ class StructuralProperties:
         dets = np.linalg.det(rot)
         rot[..., :, 2] /= dets[..., np.newaxis]  # ensure we have true rotation matrices
 
-
         # dets = np.linalg.det(rot)
         # raise ValueError(dets)
 
-        return rot, (ref, ref_com, ref_axes), (coords, com, pax_axes)
+        return rot, (og_ref, ref_com, ref_axes), (og_coords, com, pax_axes)
 
     @classmethod
     def get_eckart_embedding_data(cls, masses, ref, coords, sel=None):
@@ -1115,6 +1122,62 @@ class PropertyManager(metaclass=abc.ABCMeta):
         :rtype:
         """
         raise NotImplementedError("abstract base class")
+    @staticmethod
+    def _insert_derivative_zeros(derivs, where, extra_shape=0):
+        """
+        Inserts zeros into derivative terms to account for
+        the insertion of dummy atoms into a system
+
+        :param derivs:
+        :type derivs:
+        :param where:
+        :type where:
+        :param extra_shape:
+        :type extra_shape:
+        :return:
+        :rtype:
+        """
+
+        n_coords = derivs[0].shape[0]
+        if isinstance(where, (int, np.integer)):
+            where = [where]
+        for d in derivs:
+            # we reshape the derivs to the right shape
+            # and insert zeros
+            new_derivs = []
+            for i, d in enumerate(derivs):
+                if d is None:
+                    new_derivs.append(d)
+                elif isinstance(d, (int, float, np.integer, np.floating)):
+                    new_derivs.append(d)
+                else:
+                    shp = d.shape
+                    # print(">>", shp)
+                    for j in range(d.ndim - extra_shape):
+                        # print(j, d.shape[j])
+                        if d.shape[j] == n_coords:
+                            target_shape = (
+                                    d.shape[:j] +
+                                    (
+                                        d.shape[j] // 3,
+                                        3
+                                    ) +
+                                    d.shape[j + 1:]
+                            )
+                            new_shape = (
+                                    d.shape[:j] +
+                                    (
+                                        (d.shape[j] // 3 + len(where)) * 3,
+                                    ) +
+                                    d.shape[j + 1:]
+                            )
+                            reshape_d = np.reshape(d, target_shape)
+                            reshape_d = np.insert(reshape_d, where, 0, axis=j)
+                            d = reshape_d.reshape(new_shape)
+                    new_derivs.append(d)
+
+        return new_derivs
+
     @abc.abstractmethod
     def delete_atoms(self, where):
         """
@@ -1296,8 +1359,6 @@ class DipoleSurfaceManager(PropertyManager):
             self._numerical_derivs = None
             self._derivs = derivatives
 
-
-
     def load(self):
         if self._surf is not None:
             return self.surface
@@ -1408,7 +1469,13 @@ class DipoleSurfaceManager(PropertyManager):
         :rtype:
         """
         if all(a == "X" for a in atoms):
-            raise NotImplementedError("haven't added dummy atom insertion")
+            new = self.copy()
+            dip_mom = self.derivatives[0]
+            new.derivatives = (
+                    (dip_mom,) +
+                    tuple(self._insert_derivative_zeros(self.derivatives[1:], where, extra_shape=1))
+            )
+            return new
         else:
             raise NotImplementedError("don't know how to insert non-dummy atoms")
     def delete_atoms(self, where):
@@ -1568,7 +1635,12 @@ class PotentialSurfaceManager(PropertyManager):
         :return:
         :rtype:
         """
-        raise NotImplementedError("Incomplete interface")
+        if all(a == "X" for a in atoms):
+            new = self.copy()
+            new.derivatives = self._insert_derivative_zeros(self.derivatives, where, extra_shape=0)
+            return new
+        else:
+            raise NotImplementedError("don't know how to insert non-dummy atoms")
     def delete_atoms(self, where):
         """
         Handles the deletion from the structure
@@ -1628,7 +1700,8 @@ class NormalModesManager(PropertyManager):
             ))
         self._modes = modes
     #TODO: need to be careful about transition states...
-    def load_normal_modes(self, file=None, rephase=True):
+    recalc_normal_mode_tolerance = 1.0e-8
+    def load_normal_modes(self, file=None, rephase=True, recalculate=False):
         """
         Loads potential derivatives from a file (or from `source_file` if set)
 
@@ -1683,13 +1756,31 @@ class NormalModesManager(PropertyManager):
 
             modes = MolecularNormalModes(self.mol, modes, inverse=modes.T, freqs=freqs)
 
-            try:
-                phases = self.get_fchk_normal_mode_rephasing(modes)
-            except NotImplementedError:
-                pass
-            else:
-                if phases is not None:
-                    modes = modes.rescale(phases)
+            if rephase:
+                try:
+                    phases = self.get_fchk_normal_mode_rephasing(modes)
+                except NotImplementedError:
+                    pass
+                else:
+                    if phases is not None:
+                        modes = modes.rescale(phases)
+
+            if recalculate:
+                fcs = self.mol.potential_surface.force_constants
+                new_modes = MolecularNormalModes.from_force_constants(self.mol, fcs, self.mol.atoms)
+                new_old_phases = np.dot(modes.matrix.T, new_modes.matrix)
+                old_old_phases = np.dot(modes.matrix.T, modes.matrix)
+                new_new_phases = np.dot(new_modes.matrix.T, new_modes.matrix)
+
+                if not np.allclose(
+                        np.diag(new_new_phases),
+                        np.diag(old_old_phases),
+                    atol=self.recalc_normal_mode_tolerance
+                ):
+                    raise ValueError("normal modes from Gaussian are normalized differently than normal modes from diagonalizing G...?")
+
+                phases = np.sign(np.diag(new_old_phases) / np.diag(old_old_phases))
+                modes = new_modes.rescale(phases)
 
             return modes
         elif ext == ".log":
@@ -1791,7 +1882,16 @@ class NormalModesManager(PropertyManager):
         :return:
         :rtype:
         """
-        raise NotImplementedError("Incomplete interface")
+        import copy
+        new = self.copy()
+
+        modes = new.modes
+        new_basis = modes.basis.insert(0, where)
+        modes = copy.copy(modes)
+        modes.basis = new_basis
+        new.modes = modes
+
+        return new
     def delete_atoms(self, where):
         """
         Handles the deletion from the structure

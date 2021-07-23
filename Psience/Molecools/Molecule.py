@@ -31,6 +31,7 @@ class Molecule(AbstractMolecule):
                  atoms,
                  coords,
                  bonds=None,
+                 masses=None,
                  name=None,
                  zmatrix=None,
                  obmol=None,
@@ -76,6 +77,7 @@ class Molecule(AbstractMolecule):
         """
         # convert "atoms" into list of atom data
         self._ats = [AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms]
+        self._mass = masses
 
         coords = CoordinateSet(coords, CartesianCoordinates3D)
 
@@ -96,10 +98,6 @@ class Molecule(AbstractMolecule):
 
         self._src = source_file
 
-        self.pes = PotentialSurfaceManager(self,
-                                           surface=potential_surface,
-                                           derivatives=potential_derivatives
-                                           )
         self.ext_mol = OpenBabelMolManager(self, obmol)
         self._dips = DipoleSurfaceManager(self,
                                                    surface=dipole_surface,
@@ -222,7 +220,10 @@ class Molecule(AbstractMolecule):
         return tuple(a["Symbol"] for a in self._ats)
     @property
     def masses(self):
-        return np.array([a["Mass"] for a in self._ats])
+        if self._mass is None:
+            return np.array([a["Mass"] for a in self._ats])
+        else:
+            return self._mass
     @property
     def bonds(self):
         if self._bonds is None and self.guess_bonds:
@@ -263,6 +264,12 @@ class Molecule(AbstractMolecule):
     def insert_atoms(self, atoms, coords, where, handle_properties=True):
         new = self.copy()
 
+        #awkwardly these need to come first...?
+        if handle_properties:
+            new.normal_modes = new.normal_modes.insert_atoms(atoms, coords, where)
+            new.dipole_surface = new.dipole_surface.insert_atoms(atoms, coords, where)
+            new.potential_surface = new.potential_surface.insert_atoms(atoms, coords, where)
+
         new._coords = np.insert(new.coords, where, coords,
                                 axis=1 if self.multiconfig else 0
                                 )
@@ -270,11 +277,13 @@ class Molecule(AbstractMolecule):
                              where,
                              [AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms]
                              )
+        if new._mass is not None:
+            new._mass = np.insert(np.array(new._mass),
+                             where,
+                             [AtomData[atom]["Mass"] if isinstance(atom, (int, np.integer, str)) else atom["Mass"] for atom in atoms]
+                             )
+
         new.coords.system = MolecularCartesianCoordinateSystem(new)
-        if handle_properties:
-            new.dipole_surface = new.dipole_surface.insert_atoms(atoms, coords, where)
-            new.pes = new.pes.insert_atoms(atoms, coords, where)
-            new.normal_modes = new.normal_modes.insert_atoms(atoms, coords, where)
 
         return new
 
@@ -342,12 +351,12 @@ class Molecule(AbstractMolecule):
         new = copy.copy(self)
         # but we also need to do some stuff where we store objects that
         # reference the molecule
-        new.potential_surface = new.pes.copy()
+        new.normal_modes = new.normal_modes.copy()
+        new.normal_modes.set_molecule(new)
+        new.potential_surface = new.potential_surface.copy()
         new.potential_surface.set_molecule(new)
         new.dipole_surface = new.dipole_surface.copy()
         new.dipole_surface.set_molecule(new)
-        new.normal_modes = new.normal_modes.copy()
-        new.normal_modes.set_molecule(new)
         new.ext_mol = new.ext_mol.copy()
         new.ext_mol.set_molecule(new)
         return new
@@ -634,14 +643,17 @@ class Molecule(AbstractMolecule):
         from McUtils.GaussianInterface import GaussianFChkReader
         with GaussianFChkReader(file) as gr:
             parse = gr.parse(
-                ['Coordinates', 'AtomicNumbers', 'Integer atomic weights']
+                ['Coordinates', 'AtomicNumbers', 'Integer atomic weights', "Real atomic weights"]
             )
         nums = parse["AtomicNumbers"]
         wts = parse['Integer atomic weights']
+        masses = parse["Real atomic weights"]
+
         # print(nums, wts)
         mol = cls(
             [AtomData[a]["Symbol"] + str(b) for a, b in zip(nums, wts)],
             parse["Coordinates"],
+            masses=masses,
             **opts
         )
         return mol

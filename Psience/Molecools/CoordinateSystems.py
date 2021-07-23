@@ -569,6 +569,7 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
         if ordering is not None:
             opts['ordering'] = ordering[3:] - 3
         if strip_dummies:
+            # raise Exception("wwwwaaaaaaaaat")
             dummies = [0, 1, 2] + [x + 3 for x in molecule.dummy_positions]  # add on axes
         elif strip_embedding:
             dummies = [0, 1, 2]
