@@ -41,6 +41,9 @@ class MolecularVibrations:
     @property
     def basis(self):
         return self._basis
+    @basis.setter
+    def basis(self, basis):
+        self._basis = basis
     @property
     def molecule(self):
         return self._mol
@@ -407,6 +410,38 @@ class MolecularNormalModes(CoordinateSystem):
             origin=orig,
             freqs=self.freqs
         )
+
+    def insert(self, val, where):
+        """
+        Inserts values into the appropriate positions in the mode matrix
+
+        :param val:
+        :type val:
+        :param where:
+        :type where:
+        :return:
+        :rtype:
+        """
+        mat = self.matrix.reshape((self.matrix.shape[0] // 3, 3, self.matrix.shape[1]))
+        mat = np.insert(mat, where, val, axis=0)
+        mat = np.reshape(mat, (-1, mat.shape[2]))
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(self.matrix)
+        # plt.ArrayPlot(mat).show()
+        inv = self.inverse.reshape((self.inverse.shape[0], self.inverse.shape[1] // 3, 3))
+        inv = np.insert(inv, where, val, axis=1)
+        inv = np.reshape(inv, (inv.shape[0], -1))
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(self.inverse)
+        # plt.ArrayPlot(inv).show()
+
+        return type(self)(
+            self.molecule, mat,
+            name=self.name, freqs=self.freqs,
+            internal=self.in_internals, origin=self._origin,
+            basis=self.basis, inverse=inv
+        )
+
 
     def rescale(self, scaling_factors):
         """

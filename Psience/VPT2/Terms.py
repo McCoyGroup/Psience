@@ -148,7 +148,9 @@ class ExpansionTerms:
                  parallelizer=None,
                  checkpointer=None,
                  numerical_jacobians=True,
-                 eckart_embed=True
+                 eckart_embed=True,
+                 strip_dummies=False,
+                 strip_embedding=False
                  ):
         """
         :param molecule: the molecule we're doing the expansion for
@@ -162,11 +164,11 @@ class ExpansionTerms:
         """
         self._terms = None
         self.molecule = molecule
-        dummies = self.molecule.dummy_positions
-        dummy_comp = np.setdiff1d(np.arange(molecule.num_atoms), dummies)
+        self.strip_dummies=strip_dummies
+        self.strip_embedding=strip_embedding
         self.internal_coordinates = molecule.internal_coordinates
         self.coords = molecule.coords
-        self.masses = molecule.masses[dummy_comp] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        self.masses = molecule.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         if modes is None:
             modes = molecule.normal_modes.modes
         if undimensionalize:
@@ -194,6 +196,14 @@ class ExpansionTerms:
             checkpointer = NullCheckpointer()
         self.checkpointer = checkpointer
 
+    @property
+    def num_atoms(self):
+        if self.strip_dummies:
+            n = np.sum(self.masses > 0, dtype=int)
+        else:
+            n = len(self.masses)
+        return n
+
     def undimensionalize(self, masses, modes):
         L = modes.matrix.T
         freqs = modes.freqs
@@ -204,8 +214,13 @@ class ExpansionTerms:
         modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
         return modes
 
-    @staticmethod
-    def _tripmass(masses):
+    zero_mass_term=1.0
+    def _tripmass(self, masses):
+        if self.strip_dummies:
+            masses = masses[masses > 0]
+        else:
+            masses = masses.copy()
+            masses[masses < 0] = self.zero_mass_term
         return np.broadcast_to(masses[np.newaxis, :], (3, len(masses))).T.flatten()
 
     def get_terms(self, order=None):
@@ -245,8 +260,8 @@ class ExpansionTerms:
             # print(weights, weighted.array)
         return weighted
 
-    internal_fd_mesh_spacing = 1.0e-2
-    internal_fd_stencil = None
+    internal_fd_mesh_spacing = 1.0e-3
+    internal_fd_stencil = 9
     def get_int_jacobs(self, jacs):
         intcds = self.internal_coordinates
         ccoords = self.coords
@@ -268,16 +283,19 @@ class ExpansionTerms:
                                                                  all_numerical=self.all_numerical,
                                                                  converter_options=dict(
                                                                      reembed=self.reembed,
-                                                                     # strip_dummies=True
+                                                                     strip_dummies=self.strip_dummies
                                                                  ),
                                                                  parallelizer=par
                                                                  )]
+                # np.set_printoptions
+                # with np.printoptions(linewidth=1e8, threshold=1e8, floatmode='fixed', precision=10):
+                #     raise Exception(str(np.round(new_jacs[0].reshape(9, 9)[(3, 6, 7), :], 12)))
             self._cached_jacobians[self.molecule]['int'] = new_jacs
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
 
-    cartesian_fd_mesh_spacing = 1.0e-5
-    cartesian_fd_stencil = None
+    cartesian_fd_mesh_spacing = 1.0e-3
+    cartesian_fd_stencil = 9
     cartesian_analytic_deriv_order = 1
     def get_cart_jacobs(self, jacs):
         intcds = self.internal_coordinates
@@ -301,7 +319,7 @@ class ExpansionTerms:
                                                           stencil=self.cartesian_fd_stencil,
                                                           # all_numerical=True,
                                                           analytic_deriv_order=self.cartesian_analytic_deriv_order,
-                                                          # converter_options=dict(strip_dummies=True),
+                                                          converter_options=dict(strip_dummies=self.strip_dummies),
                                                           parallelizer=par
                                                           )
                 ]
@@ -326,8 +344,16 @@ class ExpansionTerms:
 
     def inertial_frame_derivatives(self):
 
-        mass = np.sqrt(self.masses)
-        carts = mass[:, np.newaxis] * self.molecule.coords  # mass-weighted Cartesian coordinates
+        if self.strip_dummies:
+            real_pos = self.masses > 0
+            mass = self.masses[real_pos]
+            crds = self.molecule.coords[real_pos, :]
+        else:
+            mass = self.masses.copy()
+            mass[mass < 0] = self.zero_mass_term
+            crds = self.molecule.coords
+        mass = np.sqrt(mass)
+        carts = mass[:, np.newaxis] * crds  # mass-weighted Cartesian coordinates
 
         ### compute basic inertia tensor derivatives
         # first derivs are computed as a full (nAt, 3, I_rows (3), I_cols (3)) tensor
@@ -612,9 +638,9 @@ class ExpansionTerms:
                 internal_jacobs = _
 
                 # we'll strip off the embedding coords just in case
-                embedding_coords = [0, 1, 2, 4, 5, 8]
-                good_coords = np.setdiff1d(np.arange(3*len(self.masses)), embedding_coords)
-                good_coords = np.arange(3*len(self.masses))
+                if self.strip_embedding:
+                    embedding_coords = [0, 1, 2, 4, 5, 8]
+                    good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
 
                 # Need to then mass weight
                 masses = self.masses
@@ -628,8 +654,9 @@ class ExpansionTerms:
                         _.append(x)
                     else:
                         x = x * internal_weighting
-                        for j in range(i+1):
-                            x = np.take(x, good_coords, axis=j)
+                        if self.strip_embedding:
+                            for j in range(i+1):
+                                x = np.take(x, good_coords, axis=j)
                         _.append(x)
                 internal_jacobs = _
 
@@ -680,9 +707,9 @@ class ExpansionTerms:
                 cartesian_jacobs = _
 
                 # we'll strip off the embedding coords just in case
-                embedding_coords = [0, 1, 2, 4, 5, 8]
-                # good_coords = np.setdiff1d(np.arange(3*len(self.masses)), embedding_coords)
-                good_coords = np.arange(3*len(self.masses))
+                if self.strip_embedding:
+                    embedding_coords = [0, 1, 2, 4, 5, 8]
+                    good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
 
                 # Need to then mass weight
                 masses = self.masses
@@ -697,7 +724,8 @@ class ExpansionTerms:
                         _.append(x)
                     else:
                         x = x / cartesian_weighting
-                        x = np.take(x, good_coords, axis=-1)
+                        if self.strip_embedding:
+                            x = np.take(x, good_coords, axis=-1)
                         _.append(x)
                     mc = np.expand_dims(mc, 0)
                     cartesian_weighting = cartesian_weighting * mc
@@ -753,7 +781,9 @@ class ExpansionTerms:
                     "ModesByCartesians" not in current_cache
                     or len(current_cache["ModesByCartesians"]) < len(cartesian_jacobs)
             ):
-                QY_derivs = TensorDerivativeConverter(cartesian_jacobs, [QR] + [0]*(len(cartesian_jacobs) - 1)).convert(order=len(cartesian_jacobs), check_arrays=True)
+                QY_derivs = TensorDerivativeConverter(cartesian_jacobs,
+                                                      [QR] + [0]*(len(cartesian_jacobs) - 1)
+                                                      ).convert(order=len(cartesian_jacobs), check_arrays=True)
                 current_cache["ModesByCartesians"] = QY_derivs
 
             # transf_data = {
@@ -887,7 +917,7 @@ class PotentialTerms(ExpansionTerms):
             thirds = derivs[2] if len(derivs) > 2 else None
             fourths = derivs[3] if len(derivs) > 3 else None
 
-        n = len(masses)
+        n = self.num_atoms
         modes_n = len(self.modes.freqs)
         internals_n = 3 * n - 6
         coord_n = 3 * n
@@ -1162,7 +1192,7 @@ class PotentialTerms(ExpansionTerms):
                         "WARNING: gradient norm is {n}",
                         n = np.linalg.norm(grad)
                     )
-                    grad = np.zeros(grad.shape)
+            grad = np.zeros(grad.shape)
 
             V_derivs = [grad] + list(self.v_derivs[1:])
 
@@ -1219,7 +1249,7 @@ class PotentialTerms(ExpansionTerms):
                         raise PerturbationTheoryException(
                             (
                                 "Internal normal mode Hessian differs from Cartesian normal mode Hessian."
-                                " Cartesian frequencies are {}, internals are {}.\n"
+                                " Cartesian frequencies are \n{}\n, internals are \n{}\n"
                                 " This often indicates issues with the derivatives.\n"
                                 " (YQ min/max: {} {} generally in the 10s for well-behaved systems)\n"
                                 " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)"
