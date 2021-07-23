@@ -9,7 +9,7 @@ from_file: method
 ```
 <a id="Psience.Molecools.Molecule.Molecule.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, atoms, coords, bonds=None, name=None, zmatrix=None, obmol=None, dipole_surface=None, dipole_derivatives=None, potential_surface=None, potential_derivatives=None, normal_modes=None, source_file=None, guess_bonds=True, charge=None, **metadata): 
+__init__(self, atoms, coords, bonds=None, masses=None, name=None, zmatrix=None, obmol=None, dipole_surface=None, dipole_derivatives=None, potential_surface=None, potential_derivatives=None, normal_modes=None, source_file=None, guess_bonds=True, charge=None, **metadata): 
 ```
 
 - `atoms`: `Iterable[str]`

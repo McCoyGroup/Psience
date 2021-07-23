@@ -1478,11 +1478,15 @@ class VPT2Tests(TestCase):
         [5425.603, 5174.665]
     ])
     }
-    @debugTest
+    @validationTest
     def test_HOHVPTInternals(self):
 
         tag = 'HOH Internals'
         file_name = "HOH_freq.fchk"
+
+        # raise Exception(
+        #     Molecule.from_file(TestManager.test_data("HOH_freq.fchk")).moments_of_inertia
+        # )
 
         internals = [
             [0, -1, -1, -1],
@@ -1501,20 +1505,6 @@ class VPT2Tests(TestCase):
 
         gaussian_energies = self.gaussian_data['HOH']['zpe']
         gaussian_freqs = self.gaussian_data['HOH']['freqs']
-
-        """
-        State Energies:
-          0 0 0 4681.555 4605.955        -        - 
-          0 0 1        -        - 3937.525 3744.737 
-          0 1 0        -        - 3803.300 3621.995 
-          1 0 0        -        - 1622.286 1572.725 
-          0 0 2        -        - 7875.049 7391.393 
-          0 2 0        -        - 7606.599 7155.885 
-          2 0 0        -        - 3244.571 3117.430 
-          0 1 1        -        - 7740.824 7200.366 
-          1 0 1        -        - 5559.810 5294.413 
-          1 1 0        -        - 5425.585 5174.691
-        """
 
         self.run_PT_test(
             tag,
@@ -1551,7 +1541,7 @@ class VPT2Tests(TestCase):
             n_modes = len(mode_selection)
         states = self.get_states(3, n_modes)
 
-        print_report = False
+        print_report = True
 
         gaussian_energies = self.gaussian_data['HOH']['zpe']
         gaussian_freqs = self.gaussian_data['HOH']['freqs']
@@ -1564,13 +1554,13 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
-            verbose=True,
+            log=False,
+            verbose=False,
             print_report=print_report,
             calculate_intensities=True
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians(self):
 
         tag = 'HOH Cartesians'
@@ -2254,7 +2244,7 @@ class VPT2Tests(TestCase):
             [2440.278, 2404.805]
         ])
     }
-    @debugTest
+    @validationTest
     def test_OCHHVPTInternals(self):
 
         tag = 'OCHH Internals'
@@ -2300,7 +2290,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesians(self):
 
         tag = 'OCHH Cartesians'
@@ -2317,6 +2307,69 @@ class VPT2Tests(TestCase):
 
         gaussian_energies = self.gaussian_data['OCHH']['zpe']
         gaussian_freqs = self.gaussian_data['OCHH']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 1
+        gaussian_tolerance = 100
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            calculate_intensities=True,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance
+        )
+
+    @validationTest
+    def test_OCHHVPTInternalsDummy(self):
+
+        tag = 'OCHH Internals'
+        file_name = TestManager.test_data("OCHH_freq.fchk")
+
+        mol = Molecule.from_file(file_name)  # .get_embedded_molecule()
+        o_pos = 0
+        c_pos = 1
+        h_pos = 2
+
+        normal = -nput.vec_crosses(
+            mol.coords[o_pos] - mol.coords[c_pos],
+            mol.coords[h_pos] - mol.coords[c_pos],
+            normalize=True
+        )
+
+        mol = mol.insert_atoms("X", mol.coords[c_pos] + 5 * normal, c_pos+1, handle_properties=True)
+
+        # Dummy somehow broken...
+        mol.zmatrix = [
+            [0, -1, -1, -1],  # O
+            [1,  0, -1, -1],  # C
+            [2,  1,  0, -1],  # X
+            [3,  1,  0,  2],  # H
+            [4,  1,  0,  2],  # H
+        ]
+
+        internals = None
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['OCHH']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHH']['freqs']
+
+        # ExpansionTerms.cartesian_analytic_deriv_order = 0
+        # ExpansionTerms.cartesian_fd_mesh_spacing = 1.0e-3
+        # ExpansionTerms.cartesian_fd_stencil = 9
 
         print_report = True
         nielsen_tolerance = 1
@@ -3074,7 +3127,7 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @validationTest
+    @debugTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
@@ -3111,6 +3164,7 @@ class VPT2Tests(TestCase):
         # from Psience.VPT2 import PotentialTerms
         # PotentialTerms.hessian_tolerance = None
         ExpansionTerms.cartesian_analytic_deriv_order = 0
+        # ExpansionTerms.cartesian_fd_mesh_spacing = 1.0e-7
         self.run_PT_test(
             tag,
             file_name,
@@ -3126,7 +3180,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @inactiveTest
+    @debugTest
     def test_HOONOVPTInternalsDummy(self):
 
         tag = 'HOONO Internals'
@@ -3142,51 +3196,60 @@ class VPT2Tests(TestCase):
             normalize=True
         )
 
-        mol = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 3, handle_properties=False)
+        mol = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=True)
 
-        # internals = [
-        #     [0, -1, -1, -1],  # H
-        #     [1,  0, -1, -1],  # O
-        #     [2,  1,  0, -1],  # O
-        #     [3,  2,  1,  0],  # N
-        #     [4,  3,  2,  0]  # O
-        # ]
+        # Dummy doing nothing
         # mol.zmatrix = [
-        #     [0, -1, -1, -1],  # H
-        #     [1,  0, -1, -1],  # O
-        #     [2,  1,  0, -1],  # O
-        #     [3,  2,  1,  0],  # X
-        #     [4,  2,  1,  3],  # N
-        #     [5,  4,  2,  3]   # O
+        #     [1, -1, -1, -1],
+        #     [2,  1, -1, -1],
+        #     [3,  2,  1, -1],
+        #     [0,  1,  2,  3],
+        #     [4,  3,  2,  1],
+        #     [5,  2,  1,  3]
         # ]
+
+        # #Dummy somehow broken...
+        # mol.zmatrix = [
+        #     [1, -1, -1, -1],  # O
+        #     [2,  1, -1, -1],  # O
+        #     [3,  2,  1, -1],  # N
+        #     [5,  2,  1,  3],  # X
+        #     [0,  1,  2,  5],  # H
+        #     [4,  3,  2,  5]   # O
+        # ]
+        # ExpansionTerms.cartesian_analytic_deriv_order = 0
+
+        # # With only ref to H somehow clean...
+        # mol.zmatrix = [
+        #     [1, -1, -1, -1],  # O
+        #     [2,  1, -1, -1],  # O
+        #     [3,  2,  1, -1],  # N
+        #     [5,  2,  1,  3],  # X
+        #     [0,  1,  2,  5],  # H
+        #     [4,  3,  2,  1]   # O
+        # ]
+        # ExpansionTerms.cartesian_analytic_deriv_order = 0
+
+        # # Broken when O refs dummy...?
+        # mol.zmatrix = [
+        #     [1, -1, -1, -1],  # O
+        #     [2,  1, -1, -1],  # O
+        #     [3,  2,  1, -1],  # N
+        #     [5,  2,  1,  3],  # X
+        #     [0,  1,  2,  3],  # H
+        #     [4,  3,  2,  5]   # O
+        # ]
+        # ExpansionTerms.cartesian_analytic_deriv_order = 0
+
+        ## Fine if O defined against original OO pair...?
         mol.zmatrix = [
             [1, -1, -1, -1],  # O
             [2,  1, -1, -1],  # O
-            [4,  2,  1, -1],  # N
-            [3,  2,  1,  4],  # X
-            [0,  1,  2,  3],  # H
-            [5,  4,  2,  3]   # O
+            [5,  2,  1, -1],  # X
+            [3,  2,  1,  5],  # N
+            [4,  1,  2,  5],  # O
+            [0,  1,  2,  5],  # H
         ]
-        # mol.zmatrix = [
-        #     [1, -1, -1, -1],  # O
-        #     [2,  1, -1, -1],  # O
-        #     [4,  2,  1, -1],  # N
-        #     [3,  2,  1,  4],  # X
-        #     [0,  1,  2,  3],  # H
-        #     [5,  4,  2,  3]   # O
-        # ]
-
-        # raise Exception(mol.internal_coordinates)
-        # mol.zmatrix = [
-        #     [1, -1, -1, -1],  # O
-        #     [2,  1, -1, -1],  # O
-        #     [4,  2,  1, -1],  # N
-        #     [3,  2,  1,  4],  # X
-        #     [0,  1,  2,  3],  # H
-        #     [5,  4,  2,  3]  # O
-        # ]
-
-        # raise Exception(mol.normal_modes.modes.freqs*UnitsData.convert("Hartrees", "Wavenumbers"))
 
         n_atoms = 5
         n_modes = 3 * n_atoms - 6
@@ -3199,10 +3262,9 @@ class VPT2Tests(TestCase):
         gaussian_freqs = self.gaussian_data['HOONO']['freqs']
 
         print_report = True
-        nielsen_tolerance = 10
+        nielsen_tolerance = None
         gaussian_tolerance = 10
 
-        ExpansionTerms.cartesian_analytic_deriv_order = 0
         internals = None
         self.run_PT_test(
             tag,
@@ -3215,8 +3277,20 @@ class VPT2Tests(TestCase):
             log=True,
             verbose=True,
             print_report=print_report,
+            calculate_intensities=True,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
+            , state_space_filters = {
+                # (2, 0): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1],
+                # ).apply_selection_rules([[]]), # get energies right
+                (1, 1): BasisStateSpace(
+                    HarmonicOscillatorProductBasis(n_modes),
+                    states[:1]
+                ).apply_selection_rules([[-1], [], [1]])
+
+            }
         )
     @validationTest
     def test_HOONOVPTInternalsEmbed(self):
@@ -3263,7 +3337,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @validationTest
+    @debugTest
     def test_HOONOVPTCartesians(self):
 
         tag = 'HOONO Cartesians'
@@ -3330,13 +3404,24 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=False,
             verbose=False,
-            print_x=True,
+            print_x=False,
             calculate_intensities=True,
             degeneracies=degeneracies,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
             pre_wfns_script=pre_wfns_script
+            , state_space_filters = {
+                # (2, 0): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1],
+                # ).apply_selection_rules([[]]), # get energies right
+                (1, 1): BasisStateSpace(
+                    HarmonicOscillatorProductBasis(n_modes),
+                    states[:1]
+                ).apply_selection_rules([[-1], [], [1]])
+
+            }
             # zero_element_warning=False
 
         )
@@ -3385,7 +3470,7 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
-            print_x=True
+            # print_x=True
             # zero_element_warning=False
 
         )

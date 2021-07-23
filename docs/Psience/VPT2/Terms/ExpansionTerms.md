@@ -3,10 +3,11 @@ Base class for kinetic, potential, and dipole derivative terms
 
 ### Properties and Methods
 ```python
+zero_mass_term: float
 internal_fd_mesh_spacing: float
-internal_fd_stencil: NoneType
+internal_fd_stencil: int
 cartesian_fd_mesh_spacing: float
-cartesian_fd_stencil: NoneType
+cartesian_fd_stencil: int
 cartesian_analytic_deriv_order: int
 internal_by_cartesian_order: int
 cartesian_by_internal_order: int
@@ -14,7 +15,7 @@ jacobian_warning_threshold: float
 ```
 <a id="Psience.VPT2.Terms.ExpansionTerms.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule, modes=None, mode_selection=None, undimensionalize=True, logger=None, parallelizer=None, checkpointer=None, numerical_jacobians=True, eckart_embed=True): 
+__init__(self, molecule, modes=None, mode_selection=None, undimensionalize=True, logger=None, parallelizer=None, checkpointer=None, numerical_jacobians=True, eckart_embed=True, strip_dummies=False, strip_embedding=False): 
 ```
 
 - `molecule`: `Molecule`
@@ -25,6 +26,12 @@ __init__(self, molecule, modes=None, mode_selection=None, undimensionalize=True,
     >the selection of modes to use
 - `undimensionalize`: `bool`
     >whether or not we need to do some units fuckery on the modes
+
+<a id="Psience.VPT2.Terms.ExpansionTerms.num_atoms" class="docs-object-method">&nbsp;</a>
+```python
+@property
+num_atoms(self): 
+```
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.undimensionalize" class="docs-object-method">&nbsp;</a>
 ```python

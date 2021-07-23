@@ -56,6 +56,18 @@ embed(self, frame):
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.insert" class="docs-object-method">&nbsp;</a>
+```python
+insert(self, val, where): 
+```
+Inserts values into the appropriate positions in the mode matrix
+- `val`: `Any`
+    >No description...
+- `where`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.rescale" class="docs-object-method">&nbsp;</a>
 ```python
 rescale(self, scaling_factors): 
