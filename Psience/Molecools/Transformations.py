@@ -5,6 +5,7 @@ Then it layers some common transformations on top of that
 from .MoleculeInterface import AbstractMolecule
 from McUtils.Coordinerds import CoordinateSet, CoordinateTransform
 
+__all__ = ["MolecularTransformation"]
 __reload_hook__ = [".MoleculeInterface"]
 
 class MolecularTransformation(CoordinateTransform):
@@ -24,7 +25,7 @@ class MolecularTransformation(CoordinateTransform):
             else:
                 new.coords = CoordinateSet(new_coords)
         elif isinstance(mol, CoordinateTransform):
-            new = super().__call__(mol, shift=shift)
+            new = type(self)(self, mol)#, shift=shift)
         else:
             new = super().apply(mol, shift=shift)
         return new

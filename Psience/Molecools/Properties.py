@@ -6,7 +6,7 @@ import numpy as np, scipy.sparse as sp, itertools as ip, os, abc
 import McUtils.Numputils as nput
 from McUtils.Coordinerds import CoordinateSet
 from McUtils.ExternalPrograms import OpenBabelInterface
-from McUtils.GaussianInterface import GaussianFChkReader
+from McUtils.GaussianInterface import GaussianFChkReader, GaussianFChkReaderException
 from McUtils.Data import AtomData, UnitsData, BondData
 from McUtils.Zachary import FiniteDifferenceDerivative
 
@@ -23,7 +23,7 @@ __all__ = [
     "NormalModesManager"
 ]
 
-__reload_hook__ = [".MoleculeInterface", '.Vibrations']
+__reload_hook__ = [".MoleculeInterface", '.Vibrations', '.Transformations']
 
 class MolecularPropertyError(Exception):
     """
@@ -1391,7 +1391,7 @@ class DipoleSurfaceManager(PropertyManager):
             num_derivs = parse[keys[3]]
             num_grad = num_derivs.first_derivatives
             num_secs = num_derivs.second_derivatives
-        except GaussianFChkReader.GaussianFChkReaderException:
+        except GaussianFChkReaderException:
             keys = ['DipoleMoment', 'DipoleDerivatives']
             with GaussianFChkReader(file) as gr:
                 parse = gr.parse(keys)
@@ -1536,7 +1536,6 @@ class PotentialSurfaceManager(PropertyManager):
         ext = ext.lower()
 
         if ext == ".fchk":
-            from McUtils.GaussianInterface import GaussianFChkReader
             keys= ['Gradient', 'ForceConstants', 'ForceDerivatives']
             with GaussianFChkReader(file) as gr:
                 parse = gr.parse(keys, default=None)
@@ -1720,7 +1719,6 @@ class NormalModesManager(PropertyManager):
         ext = ext.lower()
 
         if ext == ".fchk":
-            from McUtils.GaussianInterface import GaussianFChkReader
             with GaussianFChkReader(file) as gr:
                 parse = gr.parse(
                     ['Real atomic weights', 'VibrationalModes', 'ForceConstants', 'VibrationalData']
@@ -1803,7 +1801,6 @@ class NormalModesManager(PropertyManager):
         :return:
         :rtype:
         """
-        from .Vibrations import MolecularNormalModes, MolecularVibrations
 
         if self.mol.source_file is not None:
             vibs = MolecularVibrations(self.mol, self.load_normal_modes())

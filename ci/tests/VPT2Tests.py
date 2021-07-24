@@ -359,14 +359,14 @@ class VPT2Tests(TestCase):
         #             else:
         #                 degeneracies[i] = [s]
 
-    def print_energy_block(self, tag, wfns, states, zpe, freqs, real_fmt='{:>12.5f}', dash_fmt='{:>12}'):
+    def print_energy_block(self, tag, wfns, states, zpe, freqs, real_fmt='{:>12.5f}'):
 
         if wfns is not None:
             print(
                 tag,
                 wfns.format_energies_table(
                     states=states, zpe=zpe, freqs=freqs,
-                    real_fmt=real_fmt, dash_fmt=dash_fmt).replace(
+                    real_fmt=real_fmt).replace(
                     "\n", "\n  "
                 ),
                 sep="\n  "
@@ -376,7 +376,7 @@ class VPT2Tests(TestCase):
                 tag,
                 PerturbationTheoryWavefunctions._format_energies_table(
                     states, zpe, freqs,
-                    real_fmt=real_fmt, dash_fmt=dash_fmt
+                    real_fmt=real_fmt
                 ).replace(
                     "\n", "\n  "
                 ),
@@ -1692,6 +1692,49 @@ class VPT2Tests(TestCase):
         )
 
     @validationTest
+    def test_HOHVPTCartesiansSubspace(self):
+
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = [1, 2]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        print_report = True
+
+        gaussian_energies = None# self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = None# self.gaussian_data['HOH']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_report=print_report,
+            calculate_intensities=True,
+            print_x=False
+            # , chunk_size=200
+            # zero_order_energy_corrections = [
+            #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
+            # ],
+            # , memory_constrained=True
+            # , state_space_terms=((1, 0), (2, 0))
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
+        )
+
+    @validationTest
     def test_HOHVPTCartesians4thOrder(self):
 
         import warnings
@@ -2264,7 +2307,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @validationTest
+    @debugTest
     def test_OCHHVPTCartesians(self):
 
         tag = 'OCHH Cartesians'
@@ -2440,21 +2483,21 @@ class VPT2Tests(TestCase):
         #         ])
         # # raise Exception(degeneracies)
 
-        from McUtils.GaussianInterface import GaussianLogReader
-        with GaussianLogReader(TestManager.test_data('OCHH_freq_16.log')) as reader:
-            sort_spec = np.flip([4, 0, 1, 2, 5, 3])
-            x = reader.parse("XMatrix")["XMatrix"][np.ix_(sort_spec, sort_spec)]
-            # raise Exception(x)
-        def pre_wfns_script(hammer, states):
-            harm, corrs = hammer.get_Nielsen_energies(states, x_mat=x)
-            harm = harm * self.h2w
-            anharms = harm + corrs
-            # print(states)
-            print(np.column_stack([
-                harm[1:] - harm[0],
-                anharms[1:] - anharms[0]
-            ]))
-        pre_wfns_script = None
+        # from McUtils.GaussianInterface import GaussianLogReader
+        # with GaussianLogReader(TestManager.test_data('OCHH_freq_16.log')) as reader:
+        #     sort_spec = np.flip([4, 0, 1, 2, 5, 3])
+        #     x = reader.parse("XMatrix")["XMatrix"][np.ix_(sort_spec, sort_spec)]
+        #     # raise Exception(x)
+        # def pre_wfns_script(hammer, states):
+        #     harm, corrs = hammer.get_Nielsen_energies(states, x_mat=x)
+        #     harm = harm * self.h2w
+        #     anharms = harm + corrs
+        #     # print(states)
+        #     print(np.column_stack([
+        #         harm[1:] - harm[0],
+        #         anharms[1:] - anharms[0]
+        #     ]))
+        # pre_wfns_script = None
 
         degeneracies = self.get_degenerate_polyad_space(
             states,
@@ -2487,12 +2530,13 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
-            pre_wfns_script=pre_wfns_script,
+            # pre_wfns_script=pre_wfns_script,
             log=True,
             verbose=True,
             calculate_intensities=True,
             gaussian_tolerance=gaussian_tolerance,
-            degeneracies=degeneracies
+            degeneracies=degeneracies,
+            gaussian_resonance_handling=True
             # , allow_post_PT_calc=False
             # , invert_x=True
             # , modify_degenerate_perturbations=True
@@ -3101,7 +3145,7 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @debugTest
+    @validationTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
@@ -3147,14 +3191,14 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
-            verbose=True,
+            log=False,
+            verbose=False,
             calculate_intensities=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @debugTest
+    @validationTest
     def test_HOONOVPTInternalsDummy(self):
 
         tag = 'HOONO Internals'
@@ -3248,8 +3292,8 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
-            verbose=True,
+            log=False,
+            verbose=False,
             print_report=print_report,
             calculate_intensities=True,
             nielsen_tolerance=nielsen_tolerance,
@@ -3311,7 +3355,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @debugTest
+    @validationTest
     def test_HOONOVPTCartesians(self):
 
         tag = 'HOONO Cartesians'
@@ -3365,7 +3409,7 @@ class VPT2Tests(TestCase):
         #             states.append(p)
 
         degeneracies = None
-        print_report = False
+        print_report = True
         nielsen_tolerance = 10 if degeneracies is None else 500
         gaussian_tolerance = 10 if degeneracies is not None else 50
         self.run_PT_test(

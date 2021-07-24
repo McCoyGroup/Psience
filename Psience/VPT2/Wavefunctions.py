@@ -874,7 +874,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 writer.writerows([padding + x for x in coupled_state_blocks])
 
     @classmethod
-    def _format_energies_table(cls, states, zpe, freqs, real_fmt='{:>12.5f}', dash_fmt='{:>12}'):
+    def _format_energies_table(cls, states, zpe, freqs, real_fmt='{:>12.5f}'):
 
         n_modes = len(states[0])
 
@@ -884,16 +884,24 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         ncols = freqs.shape[1] if len(freqs.shape) > 0 else 1
         states_fmt = '{:<1.0f} ' * n_modes
         padding = len(states_fmt.format(*[0 for _ in range(n_modes)]))
-        bar = "  Harmonic Anharmonic"
+        num_digits = len(real_fmt.format(0))
+        dash_fmt = '{:>' + str(num_digits) + "}"
+        htag = "Harmonic"; hpad = (num_digits - len(htag))
+        atag = "Anharmonic"; apad = (num_digits - len(atag))
+        bar = (
+                (" " * hpad if hpad > 0 else "") + htag
+                + " "
+                + (" " * apad if apad > 0 else "") + atag
+                )
         if zpe is not None:
             header = ["State" + " " * (padding - len("State")) + bar + " " + bar]
             header += [
                 " " * padding
-                + " " * (len("  Harmonic") - 3) + "ZPE"
-                + " " + " " * (len("Anharmonic") - 3) + "ZPE"
+                + " " * (num_digits - 3) + "ZPE"
+                + " " + " " * (num_digits - 3) + "ZPE"
                 + " "
-                + " " * (len("  Harmonic") - 9) + "Frequency"
-                + " " + " " * (len("Anharmonic") - 9) + "Frequency"
+                + " " * (num_digits - 9) + "Frequency"
+                + " " + " " * (num_digits - 9) + "Frequency"
             ]
             zpe_fmt = (real_fmt + " ") * ncols + (dash_fmt + " ") * ncols
             freq_fmt = (dash_fmt + " ") * ncols + (real_fmt + " ") * ncols
@@ -907,8 +915,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             header = ["State" + " " * (padding - len("State")) + bar]
             header += [
                 " " * padding
-                + " " * (len("  Harmonic") - 9) + "Frequency"
-                + " " + " " * (len("Anharmonic") - 9) + "Frequency"
+                + " " * (num_digits - 9) + "Frequency"
+                + " " + " " * (num_digits - 9) + "Frequency"
             ]
             freq_fmt = ncols + (real_fmt + " ") * ncols
             lines = [
@@ -923,7 +931,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         ])
 
 
-    def format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}', dash_fmt='{:>12}'):
+    def format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'):
         # simple utility function pulled from the unit tests
 
         if states is None:
@@ -945,13 +953,11 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             states,
             zpe,
             freqs,
-            real_fmt=real_fmt,
-            dash_fmt=dash_fmt
+            real_fmt=real_fmt
         )
 
 
-
-    def format_intensities_table(self):
+    def format_intensities_table(self, real_fmt="{:>12.5f}"):
         # simple utility function pulled from the unit tests
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -966,22 +972,33 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         harm_freqs = harm_engs - harm_engs[0]
         harm_ints = self.zero_order_intensities
 
+
         n_modes = self.corrs.total_basis.ndim
         padding = np.max([len(str("0 " * n_modes)), 1]) + 1
-        bar = "Frequency    Intensity"
+
+
+        num_digits = len(real_fmt.format(0))
+        ftag = "Frequency"; fpad = (num_digits - len(ftag))
+        itag = "Intensity"; ipad = (num_digits - len(itag))
+        bar = (
+            (" " * fpad if fpad > 0 else "") + ftag
+            + " "
+            + (" " * ipad if ipad > 0 else "") + itag
+        )
+
         spacer = "    "
         report = (
-                         " " * (padding + 2) + " " * (len("Frequency") - 2) + "Harmonic" + " " * (
-                             len("    Intensity") + 2 - len("Harmonic")) + spacer + " " * (
-                                     len("Frequency") - 2) + "Anharmonic\n"
-                                                             "State" + " " * (padding - 3) + bar + spacer + bar + "\n"
+                    " " * (padding + 2) + " " * (num_digits - 2) + "Harmonic" +
+                    " " * (num_digits - len("Harmonic")) + spacer
+                    + " " * (num_digits - 2) + "Anharmonic\n"
+                    + "State" + " " * (padding - 3) + bar + spacer + bar + "\n"
                  ) + "\n".join(
             (
                 (
                         "  " + ("{:<1.0f} " * n_modes) + " "
-                        + "{:>12.5f} {:>12.5f}"
+                        + real_fmt + " " + real_fmt
                         + spacer
-                        + "{:>12.5f} {:>12.5f}"
+                        + real_fmt + " " + real_fmt
                 ).format(*s, hf, hi, f, i)
                 for s, hf, hi, f, i in zip(states[1:], harm_freqs[1:], harm_ints[1:], freqs[1:], ints[1:])
             ))
