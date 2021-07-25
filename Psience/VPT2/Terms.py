@@ -1659,41 +1659,23 @@ class DipoleTerms(ExpansionTerms):
                                                   ],
                                                   values_name="U"
                                                   ).convert(order=order)  # , check_arrays=True)
+                terms = list(terms)
+                if order > 3:
+                    v3 = terms[2]
+                    if self.mixed_derivs:  # and intcds is None:
+                        # Gaussian gives slightly different constants
+                        # depending on whether the analytic or numerical derivs
+                        # were transformed
+                        for i in range(v3.shape[0]):
+                            # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = (v3[i, :, :] + v3[:, i, :] + v3[:, :, i])/3
+                            v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
+
             else:
                 terms = TensorDerivativeConverter(x_derivs, u_derivs).convert(order=order)  # , check_arrays=True)
 
+
             mu[coord] = (self.derivs[0][coord],) + tuple(terms)
 
-            # u_derivs = (grad[..., coord], seconds[..., coord], thirds[..., coord])
-            # # raise Exception(intcds, self.mixed_derivs)
-            # if intcds is not None and self.mixed_derivs:
-            #     xQ, xQQ, xQQQ, xQQQQ = [DumbTensor(x) for x in x_derivs]
-            #     u1, u2, u3 = [DumbTensor(u) for u in u_derivs]
-            #
-            #     v1 = (xQ@u1).t
-            #     v2 = xQ.dot(u2, axes=[[1, 1]]).t + xQQ.dot(u1, axes=[[2, 0]]).t
-            #
-            #     # rather than do the naive total transformation, for numerical stability reasons
-            #     # we'll want to directly apply xQQ since we have YQ QY _should_ be the identity
-            #     # but is not since we're working in a subspace
-            #     v3_1 = xQQQ.dot(u1, axes=[[3, 0]]).t
-            #
-            #     v3_2 = xQQ.dot(u2, axes=[[2, 1]]).t
-            #     v3_2 = 1/6 * sum(v3_2.transpose(p) for p in ip.permutations([0, 1, 2]))
-            #
-            #     # raise Exception(v3_2 - v3_2.transpose([1, 2, 0]))
-            #
-            #     v3_3 = xQ.dot(u3, axes=[[1, 2]]).t
-            #     # for p in ip.permutations([0, 1, 2]):
-            #     #     # we don't have enough data to actually determine anything where i!=j!=k
-            #     #     v3_3[p] = 0.
-            #     v3 = v3_1 + v3_2 + v3_3
-            #
-            # else:
-            #     u1, u2, u3 = u_derivs
-            #     v1 = np.tensordot(xQ, u1, axes=[1, 0])
-            #     v2 = np.tensordot(xQ, u2, axes=[1, 1])
-            #     v3 = np.tensordot(xQ, u3, axes=[1, 2])
 
         try:
             self.checkpointer['dipole_terms'] = mu

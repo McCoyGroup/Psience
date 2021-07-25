@@ -2307,7 +2307,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesians(self):
 
         tag = 'OCHH Cartesians'
@@ -3673,7 +3673,6 @@ class VPT2Tests(TestCase):
     #endregion Methane
 
     #region Water Clusters
-
     gaussian_data['WaterDimer'] = {
         'zpe': [10133.860, 9909.756],
         'freqs': np.array([
@@ -3770,7 +3769,6 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-
     @validationTest
     def test_WaterDimerVPTInternals(self):
 
@@ -3870,6 +3868,95 @@ class VPT2Tests(TestCase):
         )
 
     @validationTest
+    def test_WaterDimerVPTInternalsDummy(self):
+        # Borked up somehow...
+
+        tag = 'Water Dimer Internals'
+        file_name = TestManager.test_data("water_dimer_freq.fchk")
+
+        COM = -3
+        A = -2
+        C = -1
+        X = 1000
+        LHF = 0
+        LO = 1
+        SH = 2
+
+        mol = Molecule.from_file(file_name)  # .get_embedded_molecule()
+
+        normal = -nput.vec_crosses(
+            mol.coords[LO] - mol.coords[SH],
+            mol.coords[LHF] - mol.coords[SH],
+            normalize=True
+        )
+
+        mol = mol.insert_atoms("X", mol.coords[SH] + 5 * normal, SH + 1, handle_properties=True)
+
+        Z = 3
+        RO = 3 + 1
+        RH1 = 4 + 1
+        RH2 = 5 + 1
+
+        # Dummy somehow broken...
+        mol.zmatrix = [
+            [LHF,   X,   X,    X],
+            [LO,  LHF,   X,    X],
+            [SH,   LO,  LHF,   X],
+            [ Z,   SH,  LHF,  LO],
+            [RO,   LO,    Z, LHF],
+            [RH1,  RO,   SH, LHF],
+            [RH2,  RO,  RH1, LHF]
+        ]
+
+        # mol.plot()[0].show()
+
+        n_atoms = 6
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)  # [:6]
+
+        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
+
+        # chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
+        print_report = True
+        nielsen_tolerance = None
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            mol,
+            None,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_profile=False,
+            # profile_filter='Combinatorics/Permutations',
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            calculate_intensities=True
+            # , checkpoint=chk
+            , use_cached_representations=False
+            , state_space_filters={
+                # (2, 0): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1],
+                # ).apply_selection_rules([[]]), # get energies right
+                (1, 1): BasisStateSpace(
+                    HarmonicOscillatorProductBasis(n_modes),
+                    states[:1]
+                ).apply_selection_rules([[-1], [], [1]])
+
+            }
+            # , parallelized=True
+        )
+
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -3901,7 +3988,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=False,
             verbose=False,
-            print_profile=False,
+            print_profile=True,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
