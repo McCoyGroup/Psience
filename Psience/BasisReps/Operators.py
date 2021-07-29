@@ -368,7 +368,8 @@ class Operator:
 
     def _calculate_single_pop_elements(self, inds, funcs, states, sel_rules,
                                        check_orthogonality=True,
-                                       use_sel_rule_filtering=False
+                                       use_sel_rule_filtering=False,
+                                       use_sel_sum_filtering=False
                                        ):
         """
         Calculates terms for a single product operator.
@@ -404,6 +405,11 @@ class Operator:
                 states, non_orthog = states.apply_sel_rules_along(sel_rules, uinds)
                 if len(non_orthog) > 0:
                     states, non_orthog_2 = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)
+                    non_orthog = non_orthog[non_orthog_2]
+            elif use_sel_sum_filtering and sel_rules is not None:
+                states, non_orthog = states.apply_sel_sums(sel_rules, inds)
+                if len(non_orthog) > 0:
+                    states, non_orthog_2 = states.apply_non_orthogonality(inds)  # , max_inds=self.fdim)
                     non_orthog = non_orthog[non_orthog_2]
             else:
                 states, non_orthog = states.apply_non_orthogonality(inds)#, max_inds=self.fdim)

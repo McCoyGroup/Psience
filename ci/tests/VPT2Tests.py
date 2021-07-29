@@ -1566,10 +1566,11 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=False,
+            log=True,
             verbose=False,
             print_report=print_report,
             calculate_intensities=True,
+            print_profile=False,
             print_x=False
             # , chunk_size=200
             # zero_order_energy_corrections = [
@@ -1630,6 +1631,123 @@ class VPT2Tests(TestCase):
                     HarmonicOscillatorProductBasis(n_modes),
                     states[:1]
                 ).apply_selection_rules([[-1], [], [1]])
+
+            }
+            # target_property_rules=([0], [
+            #     [-1,  0, 1],
+            #     [-2,  0, 2],
+            #     [-3, -1, 1, 3],
+            # ])
+            # zero_order_energy_corrections = [
+            #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
+            # ],
+            # , memory_constrained=True
+            # , state_space_terms=((1, 0), (2, 0))
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
+        )
+
+    @debugTest
+    def test_HOHVPTCartesiansSubsample(self):
+
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)[:3]
+
+        print_report = False
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        # import McUtils.Misc as mcmisc
+        #
+        # with mcmisc.without_numba():
+        # os.remove(os.path.expanduser('~/hoh.hdf5'))
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_report=print_report,
+            calculate_intensities=True,
+            print_profile=False,
+            print_x=False
+            # , chunk_size=200
+            # zero_order_energy_corrections = [
+            #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
+            # ],
+            # , memory_constrained=True
+            # , state_space_terms=((1, 0), (2, 0))
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
+        )
+
+    @debugTest
+    def test_HOHVPTCartesiansSubsampleFiltered(self):
+
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)[:3]
+
+        print_report = False
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        # import McUtils.Misc as mcmisc
+        #
+        # with mcmisc.without_numba():
+        # os.remove(os.path.expanduser('~/hoh.hdf5'))
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_report=print_report,
+            calculate_intensities=True,
+            state_space_filters={
+                # (2, 0): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1],
+                # ).apply_selection_rules([[]]), # get energies right
+                # (1, 1): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1]
+                # ).apply_selection_rules([[-1], [], [1]])
+                (1, 1): BasisStateSpace(
+                    HarmonicOscillatorProductBasis(n_modes),
+                    self.get_states(3, n_modes)
+                )
+                # (1, 1): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1]
+                # ).apply_selection_rules([[], [1], [1, 1], [2]])
 
             }
             # target_property_rules=([0], [
@@ -3956,7 +4074,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -3988,7 +4106,61 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=False,
             verbose=False,
-            print_profile=True,
+            print_profile=False,
+            # profile_filter='Combinatorics/Permutations',
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            calculate_intensities=True
+            # , checkpoint=chk
+            , use_cached_representations=False
+            # , state_space_filters={
+            #     # (2, 0): BasisStateSpace(
+            #     #     HarmonicOscillatorProductBasis(n_modes),
+            #     #     states[:1],
+            #     # ).apply_selection_rules([[]]), # get energies right
+            #     (1, 1): BasisStateSpace(
+            #         HarmonicOscillatorProductBasis(n_modes),
+            #         states[:1]
+            #     ).apply_selection_rules([[-1], [], [1]])
+            #
+            # }
+            # , parallelized=True
+        )
+
+    @debugTest
+    def test_WaterDimerVPTCartesiansRestrictedSpace(self):
+        # the high-frequency stuff agrees with Gaussian, but not the low-freq
+
+        tag = 'Water Dimer Cartesians'
+        file_name = "water_dimer_freq.fchk"
+
+        internals = None
+
+        n_atoms = 6
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)[:20]
+
+        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 50
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_profile=False,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
@@ -4001,10 +4173,7 @@ class VPT2Tests(TestCase):
                 #     HarmonicOscillatorProductBasis(n_modes),
                 #     states[:1],
                 # ).apply_selection_rules([[]]), # get energies right
-                (1, 1): BasisStateSpace(
-                    HarmonicOscillatorProductBasis(n_modes),
-                    states[:1]
-                ).apply_selection_rules([[-1], [], [1]])
+                (1, 1): BasisStateSpace(HarmonicOscillatorProductBasis(n_modes), self.get_states(3, n_modes))
 
             }
             # , parallelized=True
@@ -4227,7 +4396,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=True,
-            print_profile=False,
+            print_profile=True,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
@@ -4236,10 +4405,6 @@ class VPT2Tests(TestCase):
             # , checkpoint=chk
             , use_cached_representations=False
             , state_space_filters={
-                # (2, 0): BasisStateSpace(
-                #     HarmonicOscillatorProductBasis(n_modes),
-                #     states[:1],
-                # ).apply_selection_rules([[]]), # get energies right
                 (1, 1): BasisStateSpace(
                     HarmonicOscillatorProductBasis(n_modes),
                     states[:1]

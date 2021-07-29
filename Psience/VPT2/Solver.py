@@ -1432,7 +1432,8 @@ class PerturbationTheorySolver:
                 # so that we can make sure we calculate any pieces that
                 # need to be calculated
                 if filter_space is not None:
-                    new = new.intersection(filter_space)
+                    new = new.take_states(filter_space.to_single().take_unique())
+
 
                 spaces[op] = (
                     {proj:b},
@@ -1461,8 +1462,9 @@ class PerturbationTheorySolver:
                                                   track_excitations=not self.memory_constrained,
                                                   parallelizer=self.parallelizer, logger=logger
                                                   )
+
                     if filter_space is not None:
-                        new = new.intersection(filter_space)
+                        new = new.take_states(filter_space.to_single().take_unique())
 
                     cur = cur.union(new)
                     projections[proj] = b
@@ -1488,8 +1490,17 @@ class PerturbationTheorySolver:
                                                           track_excitations = not self.memory_constrained,
                                                           parallelizer=self.parallelizer, logger=logger
                                                           )
+
                         if filter_space is not None:
-                            new_new = new_new.intersection(filter_space)
+                            # if isinstance(filter_space, SelectionRuleStateSpace):
+                            #     if len(filter_space.representative_space) < len(new_new.representative_space):
+                            #         if filter_space.full_basis is None:
+                            #             filter_space.full_basis = new_new.full_basis
+                            #         new_new = filter_space#.take_states(new_new.to_single().take_unique())
+                            #     else:
+                            #         new_new = new_new.take_states(filter_space.to_single().take_unique())
+                            # else:
+                            new_new = new_new.take_states(filter_space.to_single().take_unique())
 
                         # next we add the new stuff to the cache
                         cur = cur.union(new_new)
@@ -1508,6 +1519,7 @@ class PerturbationTheorySolver:
                         b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True) # just some type fuckery
                         new = cur.intersection(b_sels, handle_subspaces=False)
                         new = new.to_single().take_unique()
+
         else:
             raise TypeError("don't know what to do with {} and {}".format(a, b))
 

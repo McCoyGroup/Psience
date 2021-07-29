@@ -56,7 +56,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
     # we make use of explicitly narrowed dtypes
     # to cut down on the memory footprint
     excitations_dtype = np.dtype('int8')
-    indices_dtype = np.dtype('int64')
+    indices_dtype = np.dtype('uint64')
 
     def __init__(self, basis):
         """
@@ -1848,6 +1848,12 @@ class BasisMultiStateSpace(AbstractStateSpace):
     @property
     def full_basis(self):
         return self.representative_space.full_basis
+    @full_basis.setter
+    def full_basis(self, b):
+        self.representative_space.full_basis = b
+        for s in self.spaces.flat:
+            s.full_basis = b
+
 
     @property
     def ndim(self):
@@ -2238,7 +2244,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         self._base_space.check_indices()
         super().check_indices()
 
-    def take_states(self, states):
+    def take_states(self, states,
+                    track_excitations=True,
+                    track_indices=True
+                    ):
         """
         Takes the intersection of each held space and the specified states
         :param states:
@@ -2247,14 +2256,14 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
 
-        def take_inter(space, states=states):
-            # try:
-                return space.take_states(states)
-            # except:
-            #     raise ValueError(space, len(self.spaces[0]), self.spaces[0], self.spaces.shape)
 
         # if self.spaces.ndim == 1:
-        new_spaces = [s.take_states(states) for s in self.spaces.flat]
+        new_spaces = [
+                s.take_states(states,
+                                    track_excitations=track_excitations,
+                                    track_indices=track_indices
+                                    ) for s in self.spaces.flat
+                      ]
         ret_spaces = np.full(len(new_spaces), None, dtype=object)
         for i,s in enumerate(new_spaces):
             ret_spaces[i] = s
@@ -2262,7 +2271,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         # else:
         #     new_spaces = np.apply_along_axis(take_inter, -1, self.spaces)
 
-        return type(self)(self._base_space, new_spaces)
+        return type(self)(self.representative_space, new_spaces)
     def take_subspace(self, states):
         """
         Takes the intersection of each held space and the specified states
@@ -3019,7 +3028,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         return type(self)(new_rep, new_spaces)
 
-    def intersection(self, other, handle_subspaces=True, use_indices=False):
+    def intersection(self, other, handle_subspaces=True, use_indices=False,
+                     track_excitations=True,
+                     track_indices=True
+                     ):
         """
         Returns an intersected self and other
 
@@ -3031,6 +3043,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         if self.representative_space.full_basis is not None:
             track_excitations = False
+
 
         if not isinstance(other, SelectionRuleStateSpace):
             raise TypeError("intersection with {} only defined over subclasses of {}".format(
@@ -3765,6 +3778,53 @@ class BraKetSpace:
 
         return self.take_subspace(sel), sel
 
+
+    @staticmethod
+    # @mcmisc.jit(nopython=True)
+    def _get_sum_sels(rule_sums, bras, kets):
+        bra_sums = np.sum(bras, axis=0)#, dtype='int64')
+        ket_sums = np.sum(kets, axis=0)#, dtype='int64')
+        # bra_output_sums = bra_sums[:, np.newaxis] + rule_sums[np.newaxis, :]
+        # usums = np.unique(bra_output_sums.flatten())
+        # all this fuckery just to make Numba work...
+        usums = bra_sums[0] + rule_sums
+        for b in bra_sums[1:]:
+            usums = np.concatenate((usums, b + rule_sums))#, dtype='int64')
+        usums = np.unique(usums)
+        usums = usums[usums >= 0]
+
+        # now we do an iterated OR by doing
+        # an iterated AND to check that states
+        # _don't_ work
+        doesnt_work = np.full(len(bra_sums), True)
+        for u in usums:
+            doesnt_work[doesnt_work] = ket_sums[doesnt_work] != u
+        sel = np.where(np.logical_not(doesnt_work))[0]
+
+        return sel
+
+    def apply_sel_sums(self, rules, inds):
+        """
+        We reckon it's fast enough to just determine if the number
+        of quanta in the bra is compatible with the number of
+        quanta in the ket...
+
+        :param rules:
+        :type rules:
+        :param inds:
+        :type inds:
+        :return:
+        :rtype:
+        """
+        rule_sums = np.array([np.sum(x, dtype=int) for x in rules])
+        sel = self._get_sum_sels(
+            rule_sums,
+            self.state_pairs[0][inds],
+            self.state_pairs[1][inds]
+        )
+
+        return self.take_subspace(sel), sel
+
     def apply_sel_rules(self, rules):
         """
         Applies selections rules
@@ -3821,7 +3881,6 @@ class BraKetSpace:
         # raise Exception(ket_splits)
 
         return [type(self)(b, k) for b,k in zip(bra_splits, ket_splits)]
-
 
     def concatenate(self, other):
         return type(self)(
