@@ -923,11 +923,9 @@ class PotentialTerms(ExpansionTerms):
         coord_n = 3 * n
 
         if len(derivs) > 2 and self.mode_sel is not None and thirds.shape[0] == internals_n:
-            # TODO: need to handle more cases of input formats...
             thirds = thirds[(self.mode_sel,)]
 
         if len(derivs) > 3 and self.mode_sel is not None and fourths.shape[0] == internals_n:
-            # TODO: need to handle more cases of input formats...
             if not isinstance(self.mode_sel, slice):
                 fourths = fourths[np.ix_(self.mode_sel, self.mode_sel)]
             else:
@@ -1177,6 +1175,11 @@ class PotentialTerms(ExpansionTerms):
             else:
                 terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order, check_arrays=True)
 
+            # import json, os
+            # with open(os.path.expanduser("~/Desktop/hoono_cubics.json"), "w+") as dump:
+            #     json.dump(terms[2].tolist(), dump)
+            # raise Exception("...")
+
             # raise Exception("V3", terms[2])
             # raise Exception("V4", terms[3])
 
@@ -1263,6 +1266,16 @@ class PotentialTerms(ExpansionTerms):
 
         terms = terms[1:]
 
+        if order > 2:
+            v3 = terms[1]
+            if self.mixed_derivs:# and intcds is None:
+                # Gaussian gives slightly different constants
+                # depending on whether the analytic or numerical derivs
+                # were transformed
+                for i in range(v3.shape[0]):
+                    # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = (v3[i, :, :] + v3[:, i, :] + v3[:, :, i])/3
+                    v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
+
         if order > 3:
             v4 = terms[2]
             if self.mixed_derivs:# and intcds is None:
@@ -1270,6 +1283,7 @@ class PotentialTerms(ExpansionTerms):
                 # at this point, then, we should be able to fill in the terms we know are missing
                 if not isinstance(v4, np.ndarray):
                     v4 = v4.asarray()
+                terms[2] = v4
                 for i in range(v4.shape[0]):
                     v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
 
@@ -1408,19 +1422,27 @@ class DipoleTerms(ExpansionTerms):
         Makes sure all of the dipole moments are clean and ready to rotate
         """
 
-        mom, grad, seconds, thirds = derivs
-        try:
-            grad = grad.array
-        except AttributeError:
-            pass
+        if len(derivs) == 4:
+            mom, grad, seconds, thirds = derivs
+            try:
+                grad = grad.array
+            except AttributeError:
+                pass
+        else:
+            mom = derivs[0]
+            grad = derivs[1]
+            seconds = derivs[2] if len(derivs) > 2 else None
+            thirds = derivs[3] if len(derivs) > 3 else None
 
         n = len(masses)
         modes_n = len(self.modes.freqs)
         internals_n = 3 * n - 6
         coord_n = 3 * n
 
+        if len(derivs) > 2 and self.mode_sel is not None and seconds.shape[0] == internals_n:
+            seconds = seconds[(self.mode_sel,)]
+
         if self.mode_sel is not None and thirds.shape[0] == internals_n:
-            # TODO: need to handle more cases of input formats...
             if not isinstance(self.mode_sel, slice):
                 thirds = thirds[np.ix_(self.mode_sel, self.mode_sel)]
             else:
@@ -1442,7 +1464,8 @@ class DipoleTerms(ExpansionTerms):
                 )
 
         if (
-                seconds.shape != (modes_n, coord_n, 3)
+                len(derivs) > 2
+                and seconds.shape != (modes_n, coord_n, 3)
                 and seconds.shape != (modes_n, internals_n, 3)
                 and seconds.shape != (modes_n, modes_n, 3)
                 and seconds.shape != (coord_n, coord_n, 3)
@@ -1464,7 +1487,9 @@ class DipoleTerms(ExpansionTerms):
             )
 
         if (
-                thirds.shape != (modes_n, modes_n, coord_n, 3)
+
+                len(derivs) > 3
+                and thirds.shape != (modes_n, modes_n, coord_n, 3)
                 and thirds.shape != (modes_n, modes_n, internals_n, 3)
                 and thirds.shape != (modes_n, modes_n, modes_n, 3)
                 and thirds.shape != (coord_n, coord_n, coord_n, 3)
@@ -1485,6 +1510,24 @@ class DipoleTerms(ExpansionTerms):
                 )
             )
 
+        for i in range(4, len(derivs)):
+            if (
+                    derivs[i].shape != (coord_n,) * (i+1) + (3,)
+                    and derivs[i].shape != (internals_n,) * (i+1) + (3,)
+            ):
+                raise PerturbationTheoryException(
+                    "{0}.{1}: dimension of {2}th dipole derivative array {3} is not ({4})".format(
+                        type(self).__name__,
+                        "_canonicalize_derivs",
+                        i+1,
+                        derivs[i].shape,
+                        ", ".join(str(x) for x in [
+                            (coord_n,) * (i + 1) + (3,),
+                            (internals_n,) * (i+1) + (3,)
+                        ])
+                    )
+                )
+
         # We need to mass-weight the pure cartesian derivs
         # & undimensionalize the ones in terms of normal modes
 
@@ -1497,57 +1540,80 @@ class DipoleTerms(ExpansionTerms):
         elif grad.shape == (modes_n, 3):
             grad = grad / f_conv[:, np.newaxis]
 
-        if seconds.shape == (modes_n, coord_n, 3):
-            # raise Exception('wat')
-            if self.mixed_derivs is None:
-                self.mixed_derivs = True
-            undimension_2 = (
-                    f_conv[:, np.newaxis, np.newaxis]
-                    * m_conv[np.newaxis, :, np.newaxis]
-            )
-        elif seconds.shape == (coord_n, coord_n, 3):
-            if self.mixed_derivs is None:
-                self.mixed_derivs = False
-            undimension_2 = (
-                    m_conv[:, np.newaxis, np.newaxis]
-                    * m_conv[np.newaxis, :, np.newaxis]
-                    * m_conv[np.newaxis, np.newaxis, :]
-            )
-        else:
-            undimension_2 = 1
-        seconds = seconds / undimension_2
+        all_derivs = [mom, grad]
+        if len(derivs) > 2:
+            if seconds.shape == (modes_n, coord_n, 3):
+                # raise Exception('wat')
+                if self.mixed_derivs is None:
+                    self.mixed_derivs = True
+                undimension_2 = (
+                        f_conv[:, np.newaxis, np.newaxis]
+                        * m_conv[np.newaxis, :, np.newaxis]
+                )
+            elif seconds.shape == (coord_n, coord_n, 3):
+                if self.mixed_derivs is None:
+                    self.mixed_derivs = False
+                undimension_2 = (
+                        m_conv[:, np.newaxis, np.newaxis]
+                        * m_conv[np.newaxis, :, np.newaxis]
+                        * m_conv[np.newaxis, np.newaxis, :]
+                )
+            else:
+                undimension_2 = 1
+            seconds = seconds / undimension_2
+            all_derivs.append(seconds)
 
-        if thirds.shape == (modes_n, modes_n, coord_n, 3):
-            if self.mixed_derivs is None:
-                self.mixed_derivs = True
-            undimension_3 = (
-                    f_conv[:, np.newaxis, np.newaxis, np.newaxis]
-                    * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
-                    * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
-            )
-        elif thirds.shape == (coord_n, coord_n, coord_n, 3):
-            if self.mixed_derivs is None:
-                self.mixed_derivs = False
-            undimension_3 = (
-                    m_conv[:, np.newaxis, np.newaxis]
-                    * m_conv[np.newaxis, :, np.newaxis]
-                    * m_conv[np.newaxis, np.newaxis, :]
-            )
-        elif thirds.shape == (modes_n, modes_n, modes_n, 3):
-            if self.mixed_derivs is None:
-                self.mixed_derivs = False
-            undimension_3 = (
-                    f_conv[:, np.newaxis, np.newaxis]
-                    * f_conv[np.newaxis, :, np.newaxis]
-                    * f_conv[np.newaxis, np.newaxis, :]
-            )
-        else:
-            if self.mixed_derivs is None:
-                self.mixed_derivs = False
-            undimension_3 = 1
-        thirds = thirds / undimension_3
+        if len(derivs) > 3:
 
-        return mom, grad, seconds, thirds
+            if thirds.shape == (modes_n, modes_n, coord_n, 3):
+                if self.mixed_derivs is None:
+                    self.mixed_derivs = True
+                undimension_3 = (
+                        f_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                        * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                        * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
+                )
+            elif thirds.shape == (coord_n, coord_n, coord_n, 3):
+                if self.mixed_derivs is None:
+                    self.mixed_derivs = False
+                undimension_3 = (
+                        m_conv[:, np.newaxis, np.newaxis]
+                        * m_conv[np.newaxis, :, np.newaxis]
+                        * m_conv[np.newaxis, np.newaxis, :]
+                )
+            elif thirds.shape == (modes_n, modes_n, modes_n, 3):
+                if self.mixed_derivs is None:
+                    self.mixed_derivs = False
+                undimension_3 = (
+                        f_conv[:, np.newaxis, np.newaxis]
+                        * f_conv[np.newaxis, :, np.newaxis]
+                        * f_conv[np.newaxis, np.newaxis, :]
+                )
+            else:
+                if self.mixed_derivs is None:
+                    self.mixed_derivs = False
+                undimension_3 = 1
+            thirds = thirds / undimension_3
+            all_derivs.append(thirds)
+
+        for i in range(4, len(derivs)):
+            term = derivs[i]
+            if term.shape == (coord_n,) * (i + 1) + (3,):
+                undimension = m_conv
+                mc = m_conv
+                for j in range(i):
+                    mc = np.expand_dims(mc, 0)
+                    undimension = np.expand_dims(undimension, -1) * mc
+            elif term.shape != (internals_n,) * (i + 1) + (3,):
+                undimension = f_conv
+                fc = f_conv
+                for j in range(i):
+                    fc = np.expand_dims(fc, 0)
+                    undimension = np.expand_dims(undimension, -1) * fc
+            undimension = np.expand_dims(undimension, -1) # for the three components
+            all_derivs.append(term / undimension)
+
+        return all_derivs
 
     def get_terms(self, order=None):
 
@@ -1593,41 +1659,23 @@ class DipoleTerms(ExpansionTerms):
                                                   ],
                                                   values_name="U"
                                                   ).convert(order=order)  # , check_arrays=True)
+                terms = list(terms)
+                if order > 3:
+                    v3 = terms[2]
+                    if self.mixed_derivs:  # and intcds is None:
+                        # Gaussian gives slightly different constants
+                        # depending on whether the analytic or numerical derivs
+                        # were transformed
+                        for i in range(v3.shape[0]):
+                            # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = (v3[i, :, :] + v3[:, i, :] + v3[:, :, i])/3
+                            v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
+
             else:
                 terms = TensorDerivativeConverter(x_derivs, u_derivs).convert(order=order)  # , check_arrays=True)
 
+
             mu[coord] = (self.derivs[0][coord],) + tuple(terms)
 
-            # u_derivs = (grad[..., coord], seconds[..., coord], thirds[..., coord])
-            # # raise Exception(intcds, self.mixed_derivs)
-            # if intcds is not None and self.mixed_derivs:
-            #     xQ, xQQ, xQQQ, xQQQQ = [DumbTensor(x) for x in x_derivs]
-            #     u1, u2, u3 = [DumbTensor(u) for u in u_derivs]
-            #
-            #     v1 = (xQ@u1).t
-            #     v2 = xQ.dot(u2, axes=[[1, 1]]).t + xQQ.dot(u1, axes=[[2, 0]]).t
-            #
-            #     # rather than do the naive total transformation, for numerical stability reasons
-            #     # we'll want to directly apply xQQ since we have YQ QY _should_ be the identity
-            #     # but is not since we're working in a subspace
-            #     v3_1 = xQQQ.dot(u1, axes=[[3, 0]]).t
-            #
-            #     v3_2 = xQQ.dot(u2, axes=[[2, 1]]).t
-            #     v3_2 = 1/6 * sum(v3_2.transpose(p) for p in ip.permutations([0, 1, 2]))
-            #
-            #     # raise Exception(v3_2 - v3_2.transpose([1, 2, 0]))
-            #
-            #     v3_3 = xQ.dot(u3, axes=[[1, 2]]).t
-            #     # for p in ip.permutations([0, 1, 2]):
-            #     #     # we don't have enough data to actually determine anything where i!=j!=k
-            #     #     v3_3[p] = 0.
-            #     v3 = v3_1 + v3_2 + v3_3
-            #
-            # else:
-            #     u1, u2, u3 = u_derivs
-            #     v1 = np.tensordot(xQ, u1, axes=[1, 0])
-            #     v2 = np.tensordot(xQ, u2, axes=[1, 1])
-            #     v3 = np.tensordot(xQ, u3, axes=[1, 2])
 
         try:
             self.checkpointer['dipole_terms'] = mu

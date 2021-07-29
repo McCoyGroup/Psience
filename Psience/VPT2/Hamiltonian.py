@@ -530,13 +530,10 @@ class PerturbationTheoryHamiltonian:
 
     def get_Nielsen_xmatrix(self):
 
-        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
-        # TODO: figure out WTF the units on this have to be...
-
-        freqs = self.modes.freqs
-        if self.mode_selection is not None:
-            freqs = freqs[self.mode_selection,]
+        # freqs = self.modes.freqs
+        # if self.mode_selection is not None:
+        #     freqs = freqs[self.mode_selection,]
+        freqs = np.diag(self.V_terms[0])
         v3 = self.V_terms[1]
         v4 = self.V_terms[2]
 
