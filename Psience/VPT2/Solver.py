@@ -1492,15 +1492,12 @@ class PerturbationTheorySolver:
                                                           )
 
                         if filter_space is not None:
-                            # if isinstance(filter_space, SelectionRuleStateSpace):
-                            #     if len(filter_space.representative_space) < len(new_new.representative_space):
-                            #         if filter_space.full_basis is None:
-                            #             filter_space.full_basis = new_new.full_basis
-                            #         new_new = filter_space#.take_states(new_new.to_single().take_unique())
-                            #     else:
-                            #         new_new = new_new.take_states(filter_space.to_single().take_unique())
-                            # else:
-                            new_new = new_new.take_states(filter_space.to_single().take_unique())
+                            if not isinstance(filter_space, (BasisStateSpace, BasisMultiStateSpace)):
+                                filter_space = BasisStateSpace(new_new.basis, filter_space)
+                            if not isinstance(filter_space, SelectionRuleStateSpace):
+                                filter_space = filter_space.to_single().take_unique()
+                                filter_space = SelectionRuleStateSpace(filter_space, [], ignore_shapes=True)
+                            new_new = new_new.intersection(filter_space, handle_subspaces=False)
 
                         # next we add the new stuff to the cache
                         cur = cur.union(new_new)
