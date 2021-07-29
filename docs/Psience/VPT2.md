@@ -385,14 +385,14 @@ class VPT2Tests(TestCase):
         #             else:
         #                 degeneracies[i] = [s]
 
-    def print_energy_block(self, tag, wfns, states, zpe, freqs, real_fmt='{:>12.5f}', dash_fmt='{:>12}'):
+    def print_energy_block(self, tag, wfns, states, zpe, freqs, real_fmt='{:>12.5f}'):
 
         if wfns is not None:
             print(
                 tag,
                 wfns.format_energies_table(
                     states=states, zpe=zpe, freqs=freqs,
-                    real_fmt=real_fmt, dash_fmt=dash_fmt).replace(
+                    real_fmt=real_fmt).replace(
                     "\n", "\n  "
                 ),
                 sep="\n  "
@@ -402,7 +402,7 @@ class VPT2Tests(TestCase):
                 tag,
                 PerturbationTheoryWavefunctions._format_energies_table(
                     states, zpe, freqs,
-                    real_fmt=real_fmt, dash_fmt=dash_fmt
+                    real_fmt=real_fmt
                 ).replace(
                     "\n", "\n  "
                 ),
@@ -1592,10 +1592,11 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=False,
+            log=True,
             verbose=False,
             print_report=print_report,
             calculate_intensities=True,
+            print_profile=False,
             print_x=False
             # , chunk_size=200
             # zero_order_energy_corrections = [
@@ -1672,6 +1673,123 @@ class VPT2Tests(TestCase):
             # , watson=False
         )
 
+    @debugTest
+    def test_HOHVPTCartesiansSubsample(self):
+
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)[:3]
+
+        print_report = False
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        # import McUtils.Misc as mcmisc
+        #
+        # with mcmisc.without_numba():
+        # os.remove(os.path.expanduser('~/hoh.hdf5'))
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_report=print_report,
+            calculate_intensities=True,
+            print_profile=False,
+            print_x=False
+            # , chunk_size=200
+            # zero_order_energy_corrections = [
+            #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
+            # ],
+            # , memory_constrained=True
+            # , state_space_terms=((1, 0), (2, 0))
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
+        )
+
+    @debugTest
+    def test_HOHVPTCartesiansSubsampleFiltered(self):
+
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)[:3]
+
+        print_report = False
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        # import McUtils.Misc as mcmisc
+        #
+        # with mcmisc.without_numba():
+        # os.remove(os.path.expanduser('~/hoh.hdf5'))
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_report=print_report,
+            calculate_intensities=True,
+            state_space_filters={
+                # (2, 0): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1],
+                # ).apply_selection_rules([[]]), # get energies right
+                # (1, 1): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1]
+                # ).apply_selection_rules([[-1], [], [1]])
+                (1, 1): BasisStateSpace(
+                    HarmonicOscillatorProductBasis(n_modes),
+                    self.get_states(3, n_modes)
+                )
+                # (1, 1): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1]
+                # ).apply_selection_rules([[], [1], [1, 1], [2]])
+
+            }
+            # target_property_rules=([0], [
+            #     [-1,  0, 1],
+            #     [-2,  0, 2],
+            #     [-3, -1, 1, 3],
+            # ])
+            # zero_order_energy_corrections = [
+            #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
+            # ],
+            # , memory_constrained=True
+            # , state_space_terms=((1, 0), (2, 0))
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
+        )
+
     @validationTest
     def test_HOHVPTCartesiansEmbdeddd(self):
 
@@ -1715,6 +1833,49 @@ class VPT2Tests(TestCase):
             log=True,
             verbose=True,
             calculate_intensities=True
+        )
+
+    @validationTest
+    def test_HOHVPTCartesiansSubspace(self):
+
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = [1, 2]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)
+
+        print_report = True
+
+        gaussian_energies = None# self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = None# self.gaussian_data['HOH']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_report=print_report,
+            calculate_intensities=True,
+            print_x=False
+            # , chunk_size=200
+            # zero_order_energy_corrections = [
+            #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
+            # ],
+            # , memory_constrained=True
+            # , state_space_terms=((1, 0), (2, 0))
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
         )
 
     @validationTest
@@ -2466,21 +2627,21 @@ class VPT2Tests(TestCase):
         #         ])
         # # raise Exception(degeneracies)
 
-        from McUtils.GaussianInterface import GaussianLogReader
-        with GaussianLogReader(TestManager.test_data('OCHH_freq_16.log')) as reader:
-            sort_spec = np.flip([4, 0, 1, 2, 5, 3])
-            x = reader.parse("XMatrix")["XMatrix"][np.ix_(sort_spec, sort_spec)]
-            # raise Exception(x)
-        def pre_wfns_script(hammer, states):
-            harm, corrs = hammer.get_Nielsen_energies(states, x_mat=x)
-            harm = harm * self.h2w
-            anharms = harm + corrs
-            # print(states)
-            print(np.column_stack([
-                harm[1:] - harm[0],
-                anharms[1:] - anharms[0]
-            ]))
-        pre_wfns_script = None
+        # from McUtils.GaussianInterface import GaussianLogReader
+        # with GaussianLogReader(TestManager.test_data('OCHH_freq_16.log')) as reader:
+        #     sort_spec = np.flip([4, 0, 1, 2, 5, 3])
+        #     x = reader.parse("XMatrix")["XMatrix"][np.ix_(sort_spec, sort_spec)]
+        #     # raise Exception(x)
+        # def pre_wfns_script(hammer, states):
+        #     harm, corrs = hammer.get_Nielsen_energies(states, x_mat=x)
+        #     harm = harm * self.h2w
+        #     anharms = harm + corrs
+        #     # print(states)
+        #     print(np.column_stack([
+        #         harm[1:] - harm[0],
+        #         anharms[1:] - anharms[0]
+        #     ]))
+        # pre_wfns_script = None
 
         degeneracies = self.get_degenerate_polyad_space(
             states,
@@ -2513,12 +2674,13 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
-            pre_wfns_script=pre_wfns_script,
+            # pre_wfns_script=pre_wfns_script,
             log=True,
             verbose=True,
             calculate_intensities=True,
             gaussian_tolerance=gaussian_tolerance,
-            degeneracies=degeneracies
+            degeneracies=degeneracies,
+            gaussian_resonance_handling=True
             # , allow_post_PT_calc=False
             # , invert_x=True
             # , modify_degenerate_perturbations=True
@@ -3127,7 +3289,7 @@ class VPT2Tests(TestCase):
         ])
     }
     #Paper
-    @debugTest
+    @validationTest
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
@@ -3173,14 +3335,14 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
-            verbose=True,
+            log=False,
+            verbose=False,
             calculate_intensities=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @debugTest
+    @validationTest
     def test_HOONOVPTInternalsDummy(self):
 
         tag = 'HOONO Internals'
@@ -3274,8 +3436,8 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
-            verbose=True,
+            log=False,
+            verbose=False,
             print_report=print_report,
             calculate_intensities=True,
             nielsen_tolerance=nielsen_tolerance,
@@ -3337,7 +3499,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @debugTest
+    @validationTest
     def test_HOONOVPTCartesians(self):
 
         tag = 'HOONO Cartesians'
@@ -3391,7 +3553,7 @@ class VPT2Tests(TestCase):
         #             states.append(p)
 
         degeneracies = None
-        print_report = False
+        print_report = True
         nielsen_tolerance = 10 if degeneracies is None else 500
         gaussian_tolerance = 10 if degeneracies is not None else 50
         self.run_PT_test(
@@ -3655,7 +3817,6 @@ class VPT2Tests(TestCase):
     #endregion Methane
 
     #region Water Clusters
-
     gaussian_data['WaterDimer'] = {
         'zpe': [10133.860, 9909.756],
         'freqs': np.array([
@@ -3752,7 +3913,6 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-
     @validationTest
     def test_WaterDimerVPTInternals(self):
 
@@ -3852,6 +4012,95 @@ class VPT2Tests(TestCase):
         )
 
     @validationTest
+    def test_WaterDimerVPTInternalsDummy(self):
+        # Borked up somehow...
+
+        tag = 'Water Dimer Internals'
+        file_name = TestManager.test_data("water_dimer_freq.fchk")
+
+        COM = -3
+        A = -2
+        C = -1
+        X = 1000
+        LHF = 0
+        LO = 1
+        SH = 2
+
+        mol = Molecule.from_file(file_name)  # .get_embedded_molecule()
+
+        normal = -nput.vec_crosses(
+            mol.coords[LO] - mol.coords[SH],
+            mol.coords[LHF] - mol.coords[SH],
+            normalize=True
+        )
+
+        mol = mol.insert_atoms("X", mol.coords[SH] + 5 * normal, SH + 1, handle_properties=True)
+
+        Z = 3
+        RO = 3 + 1
+        RH1 = 4 + 1
+        RH2 = 5 + 1
+
+        # Dummy somehow broken...
+        mol.zmatrix = [
+            [LHF,   X,   X,    X],
+            [LO,  LHF,   X,    X],
+            [SH,   LO,  LHF,   X],
+            [ Z,   SH,  LHF,  LO],
+            [RO,   LO,    Z, LHF],
+            [RH1,  RO,   SH, LHF],
+            [RH2,  RO,  RH1, LHF]
+        ]
+
+        # mol.plot()[0].show()
+
+        n_atoms = 6
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)  # [:6]
+
+        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
+
+        # chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
+        print_report = True
+        nielsen_tolerance = None
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            mol,
+            None,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_profile=False,
+            # profile_filter='Combinatorics/Permutations',
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            calculate_intensities=True
+            # , checkpoint=chk
+            , use_cached_representations=False
+            , state_space_filters={
+                # (2, 0): BasisStateSpace(
+                #     HarmonicOscillatorProductBasis(n_modes),
+                #     states[:1],
+                # ).apply_selection_rules([[]]), # get energies right
+                (1, 1): BasisStateSpace(
+                    HarmonicOscillatorProductBasis(n_modes),
+                    states[:1]
+                ).apply_selection_rules([[-1], [], [1]])
+
+            }
+            # , parallelized=True
+        )
+
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -3891,15 +4140,66 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
+            # , state_space_filters={
+            #     # (2, 0): BasisStateSpace(
+            #     #     HarmonicOscillatorProductBasis(n_modes),
+            #     #     states[:1],
+            #     # ).apply_selection_rules([[]]), # get energies right
+            #     (1, 1): BasisStateSpace(
+            #         HarmonicOscillatorProductBasis(n_modes),
+            #         states[:1]
+            #     ).apply_selection_rules([[-1], [], [1]])
+            #
+            # }
+            # , parallelized=True
+        )
+
+    @debugTest
+    def test_WaterDimerVPTCartesiansRestrictedSpace(self):
+        # the high-frequency stuff agrees with Gaussian, but not the low-freq
+
+        tag = 'Water Dimer Cartesians'
+        file_name = "water_dimer_freq.fchk"
+
+        internals = None
+
+        n_atoms = 6
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(3, n_modes)[:20]
+
+        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 50
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_profile=False,
+            # profile_filter='Combinatorics/Permutations',
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            calculate_intensities=True
+            # , checkpoint=chk
+            , use_cached_representations=False
             , state_space_filters={
                 # (2, 0): BasisStateSpace(
                 #     HarmonicOscillatorProductBasis(n_modes),
                 #     states[:1],
                 # ).apply_selection_rules([[]]), # get energies right
-                (1, 1): BasisStateSpace(
-                    HarmonicOscillatorProductBasis(n_modes),
-                    states[:1]
-                ).apply_selection_rules([[-1], [], [1]])
+                (1, 1): BasisStateSpace(HarmonicOscillatorProductBasis(n_modes), self.get_states(3, n_modes))
 
             }
             # , parallelized=True
@@ -4122,7 +4422,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=True,
-            print_profile=False,
+            print_profile=True,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
@@ -4131,10 +4431,6 @@ class VPT2Tests(TestCase):
             # , checkpoint=chk
             , use_cached_representations=False
             , state_space_filters={
-                # (2, 0): BasisStateSpace(
-                #     HarmonicOscillatorProductBasis(n_modes),
-                #     states[:1],
-                # ).apply_selection_rules([[]]), # get energies right
                 (1, 1): BasisStateSpace(
                     HarmonicOscillatorProductBasis(n_modes),
                     states[:1]

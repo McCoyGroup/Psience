@@ -62,7 +62,7 @@ check_indices(self):
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.take_states" class="docs-object-method">&nbsp;</a>
 ```python
-take_states(self, states): 
+take_states(self, states, track_excitations=True, track_indices=True): 
 ```
 Takes the intersection of each held space and the specified states
 - `states`: `Any`
@@ -155,7 +155,7 @@ Returns a merged version of self and other, adding
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.intersection" class="docs-object-method">&nbsp;</a>
 ```python
-intersection(self, other, handle_subspaces=True, use_indices=False): 
+intersection(self, other, handle_subspaces=True, use_indices=False, track_excitations=True, track_indices=True): 
 ```
 Returns an intersected self and other
 - `other`: `SelectionRuleStateSpace`

@@ -9,7 +9,7 @@ keep_indices: bool
 StateSpaceSpec: EnumMeta
 StateSpaceCache: type
 excitations_dtype: dtype[int8]
-indices_dtype: dtype[int64]
+indices_dtype: dtype[uint64]
 from_state: method
 get_states_with_quanta: method
 ```

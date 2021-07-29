@@ -102,6 +102,20 @@ Takes the bra-ket pairs that are non-orthogonal under the indices `inds`
 apply_sel_rules_along(self, rules, inds, permute=True, dim=None): 
 ```
 
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.apply_sel_sums" class="docs-object-method">&nbsp;</a>
+```python
+apply_sel_sums(self, rules, inds): 
+```
+We reckon it's fast enough to just determine if the number
+        of quanta in the bra is compatible with the number of
+        quanta in the ket...
+- `rules`: `Any`
+    >No description...
+- `inds`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.apply_sel_rules" class="docs-object-method">&nbsp;</a>
 ```python
 apply_sel_rules(self, rules): 
