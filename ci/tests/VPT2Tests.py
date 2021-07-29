@@ -1566,7 +1566,7 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
+            log=False,
             verbose=False,
             print_report=print_report,
             calculate_intensities=True,
@@ -1623,24 +1623,8 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             calculate_intensities=True,
             state_space_filters={
-                # (2, 0): BasisStateSpace(
-                #     HarmonicOscillatorProductBasis(n_modes),
-                #     states[:1],
-                # ).apply_selection_rules([[]]), # get energies right
                 (1, 1): self.get_states(3, n_modes)
             }
-            # target_property_rules=([0], [
-            #     [-1,  0, 1],
-            #     [-2,  0, 2],
-            #     [-3, -1, 1, 3],
-            # ])
-            # zero_order_energy_corrections = [
-            #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
-            # ],
-            # , memory_constrained=True
-            # , state_space_terms=((1, 0), (2, 0))
-            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
-            # , watson=False
         )
 
     @validationTest
@@ -4050,7 +4034,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes)#[:6]
+        states = self.get_states(4, n_modes)#[:6]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -4066,7 +4050,52 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=False,
+            log=True,
+            verbose=False,
+            print_profile=False,
+            # profile_filter='Combinatorics/Permutations',
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            calculate_intensities=True
+            # , checkpoint=chk
+            , use_cached_representations=False
+            # , state_space_filters={
+            #     (1, 1): self.get_states(3, n_modes)
+            # }
+        )
+
+    @debugTest
+    def test_WaterDimerVPTCartesiansFiltered(self):
+        # the high-frequency stuff agrees with Gaussian, but not the low-freq
+
+        tag = 'Water Dimer Cartesians'
+        file_name = "water_dimer_freq.fchk"
+
+        internals = None
+
+        n_atoms = 6
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(4, n_modes)  # [:6]
+
+        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 50
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
             verbose=False,
             print_profile=False,
             # profile_filter='Combinatorics/Permutations',
@@ -4082,7 +4111,50 @@ class VPT2Tests(TestCase):
         )
 
     @debugTest
-    def test_WaterDimerVPTCartesiansRestrictedSpace(self):
+    def test_WaterDimerVPTCartesiansSubterms(self):
+        # the high-frequency stuff agrees with Gaussian, but not the low-freq
+
+        tag = 'Water Dimer Cartesians'
+        file_name = "water_dimer_freq.fchk"
+
+        internals = None
+
+        n_atoms = 6
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = self.get_states(4, n_modes)  # [:6]
+
+        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
+
+        print_report = True
+        nielsen_tolerance = 50
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=False,
+            print_profile=False,
+            # profile_filter='Combinatorics/Permutations',
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            calculate_intensities=True
+            # , checkpoint=chk
+            , use_cached_representations=False
+            , state_space_terms=((1, 0), (2, 0))
+        )
+
+    @debugTest
+    def test_WaterDimerVPTCartesiansRestrictedFilter(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
         tag = 'Water Dimer Cartesians'
@@ -4111,7 +4183,7 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=False,
+            log=True,
             verbose=False,
             print_profile=False,
             # profile_filter='Combinatorics/Permutations',
