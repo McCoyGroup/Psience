@@ -974,7 +974,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     term_keys.append("<{i}|M({k})|{j}>".format(i=i, j=j, k=k))
 
         # print(len(terms), [len(x) for x in terms])
-        terms = np.array(terms)
+        terms = np.array(terms).T
 
         nels = len(padding_fmt.format(real_fmt.format(0)))
         header_fmt = "{:<" + str(nels) + "}"
