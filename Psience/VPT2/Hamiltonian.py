@@ -116,7 +116,10 @@ class PerturbationTheoryHamiltonian:
                                     logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
 
         self._input_coriolis = coriolis_terms
-        if coriolis_coupling and (self.molecule.internal_coordinates is None):
+        if (
+                coriolis_coupling and
+                (self.molecule.internal_coordinates is None or CoriolisTerm.backpropagate_internals)
+        ):
             self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection,
                                       logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
         else:
