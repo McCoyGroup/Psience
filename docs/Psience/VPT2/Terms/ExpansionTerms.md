@@ -3,6 +3,8 @@ Base class for kinetic, potential, and dipole derivative terms
 
 ### Properties and Methods
 ```python
+backpropagate_internals: bool
+mixed_derivative_handling_mode: str
 zero_mass_term: float
 internal_fd_mesh_spacing: float
 internal_fd_stencil: int
@@ -138,6 +140,17 @@ cartesian_modes_by_internal_modes(self):
 <a id="Psience.VPT2.Terms.ExpansionTerms.get_cartesian_modes_by_internal_modes" class="docs-object-method">&nbsp;</a>
 ```python
 get_cartesian_modes_by_internal_modes(self, order=None): 
+```
+
+<a id="Psience.VPT2.Terms.ExpansionTerms.internal_modes_by_cartesian_modes" class="docs-object-method">&nbsp;</a>
+```python
+@property
+internal_modes_by_cartesian_modes(self): 
+```
+
+<a id="Psience.VPT2.Terms.ExpansionTerms.get_internal_modes_by_cartesian_modes" class="docs-object-method">&nbsp;</a>
+```python
+get_internal_modes_by_cartesian_modes(self, order=None): 
 ```
 
 ### Examples

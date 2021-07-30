@@ -150,6 +150,16 @@ Generates a breakdown of the terms that contribute to the intensity
 format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'): 
 ```
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_property_matrices" class="docs-object-method">&nbsp;</a>
+```python
+format_property_matrices(self, states, prop_corrs, real_fmt='{:>.8e}', padding_fmt='{:>16}'): 
+```
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_dipole_contribs_tables" class="docs-object-method">&nbsp;</a>
+```python
+format_dipole_contribs_tables(self): 
+```
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_intensities_table" class="docs-object-method">&nbsp;</a>
 ```python
 format_intensities_table(self, real_fmt='{:>12.5f}'): 
