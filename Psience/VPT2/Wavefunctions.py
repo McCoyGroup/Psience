@@ -841,13 +841,11 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             intensity_table = []
             for i, s in enumerate(states):
                 f = freqs[i]
-
                 ints = [b['intensities'][i] for b in bds.values()]
                 intensity_table.append([s, f] + ints)
             writer.writerows([padding + x for x in intensity_table])
 
             for k, b in bds.items():
-
                 corr_block = [[k]]
                 corrs = b['corrections']
                 corr_keys = ["<gs^({0})|mu^({2})|es^({1})>".format(*lab) for lab in corrs['keys']]
@@ -956,6 +954,61 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             real_fmt=real_fmt
         )
 
+    def format_property_matrices(self, states, prop_corrs, real_fmt="{:>.8e}", padding_fmt='{:>16}'):
+
+        # reshape data so it's one big matrix...
+        order = len(prop_corrs)
+        term_keys = []
+        terms = []
+        for q in range(order):  # total quanta
+            for pq in prop_corrs[q]:
+                if len(pq) > 1:
+                    raise NotImplementedError(
+                        "don't know what to do when more than one starting state (got {})".format(
+                            len(pq)
+                        )
+                    )
+                terms.append(pq[0])
+            for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
+                if i + j + k == q:
+                    term_keys.append("<{i}|M({k})|{j}>".format(i=i, j=j, k=k))
+
+        # print(len(terms), [len(x) for x in terms])
+        terms = np.array(terms)
+
+        nels = len(padding_fmt.format(real_fmt.format(0)))
+        header_fmt = "{:<" + str(nels) + "}"
+        header = " ".join(header_fmt.format(k) for k in term_keys)
+
+        n_modes = self.corrs.total_basis.ndim
+        padding = np.max([len(str("0 " * n_modes)), 1]) + 1
+        header = "State" + " " * (padding - 3) + header
+
+        n_terms = len(term_keys)
+        prop_mat = header + "\n" + "\n".join(
+            "  " + ("{:<1.0f} " * n_modes).format(*s) +
+            " ".join(padding_fmt.format(real_fmt.format(ll)) for ll in l)
+            for s, l in zip(states, terms)
+        )
+
+        return prop_mat
+
+    def format_dipole_contribs_tables(self):
+
+        states = self.corrs.states.excitations
+        corrs = self.transition_moment_corrections
+        mats = []
+        for a in range(3):
+            prop = [x[a] for x in corrs]
+            if a == 0:
+                mats.append("X Dipole Terms")
+            elif a == 1:
+                mats.append("Y Dipole Terms")
+            elif a == 2:
+                mats.append("Z Dipole Terms")
+            mats.append(self.format_property_matrices(states, prop))
+
+        return "\n".join(mats)
 
     def format_intensities_table(self, real_fmt="{:>12.5f}"):
         # simple utility function pulled from the unit tests
@@ -972,10 +1025,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         harm_freqs = harm_engs - harm_engs[0]
         harm_ints = self.zero_order_intensities
 
-
         n_modes = self.corrs.total_basis.ndim
         padding = np.max([len(str("0 " * n_modes)), 1]) + 1
-
 
         num_digits = len(real_fmt.format(0))
         ftag = "Frequency"; fpad = (num_digits - len(ftag))

@@ -2,7 +2,7 @@
 Stores all of the terms used inside the VPT2 representations
 """
 
-import numpy as np, functools as fp, itertools as ip, time
+import numpy as np, functools as fp, itertools as ip, time, enum
 
 from McUtils.Numputils import SparseArray, levi_cevita3, vec_tensordot, vec_outer
 from McUtils.Data import UnitsData
@@ -134,10 +134,31 @@ class DumbTensor:
         b = item.stop
         return self.shift([a, b])
 
+class MixedDerivativeHandlingModes(enum.Enum):
+    Unhandled = "unhandled"
+    Numerical = "numerical"
+    Analytical = "analytical"
+    Averaged = "averaged"
+
+class JacobianKeys(enum.Enum):
+    CartesiansByInternals = "CartesiansByInternals"
+    InternalsByCartesians = "InternalsByCartesians"
+    InternalsByCartesianModes = "InternalsByModes"
+    CartesianModesByInternals = "ModesByInternals"
+    CartesiansByInternalModes = "CartesiansByModes"
+    InternalModesByCartesians = "ModesByCartesians"
+    CartesianModesByInternalModes = "CartesianModesByInternalModes"
+    InternalModesByCartesianModes = "InternalModesByCartesianModes"
+
 class ExpansionTerms:
     """
     Base class for kinetic, potential, and dipole derivative terms
     """
+
+    backpropagate_internals = False # just a flag that can be set to use Cartesian results _but_ do it with
+                                   # terms backpropagated from the internals
+    mixed_derivative_handling_mode = "numerical"
+
     _cached_jacobians = {}
     def __init__(self,
                  molecule,
@@ -195,6 +216,8 @@ class ExpansionTerms:
         if checkpointer is None:
             checkpointer = NullCheckpointer()
         self.checkpointer = checkpointer
+        if not isinstance(self.mixed_derivative_handling_mode, MixedDerivativeHandlingModes):
+            self.mixed_derivative_handling_mode = MixedDerivativeHandlingModes(self.mixed_derivative_handling_mode)
 
     @property
     def num_atoms(self):
@@ -214,7 +237,7 @@ class ExpansionTerms:
         modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
         return modes
 
-    zero_mass_term=1.0
+    zero_mass_term=1e7
     def _tripmass(self, masses):
         if self.strip_dummies:
             masses = masses[masses > 0]
@@ -577,8 +600,8 @@ class ExpansionTerms:
 
         if (
                 current_cache is None
-                or len(current_cache["CartesiansByInternals"]) < cartesian_by_internal_order
-                or len(current_cache["InternalsByCartesians"]) < internal_by_cartesian_order
+                or len(current_cache[JacobianKeys.CartesiansByInternals]) < cartesian_by_internal_order
+                or len(current_cache[JacobianKeys.InternalsByCartesians]) < internal_by_cartesian_order
         ):
 
             if current_cache is None:
@@ -595,8 +618,8 @@ class ExpansionTerms:
                 )
 
             if (
-                    "CartesiansByInternals" not in current_cache
-                    or len(current_cache["CartesiansByInternals"]) < cartesian_by_internal_order
+                    JacobianKeys.CartesiansByInternals not in current_cache
+                    or len(current_cache[JacobianKeys.CartesiansByInternals]) < cartesian_by_internal_order
             ):
                 # For speed reasons we've introduced class-level caching of these terms
                 if self.logger is not None:
@@ -660,15 +683,15 @@ class ExpansionTerms:
                         _.append(x)
                 internal_jacobs = _
 
-                current_cache["CartesiansByInternals"] = internal_jacobs
+                current_cache[JacobianKeys.CartesiansByInternals] = internal_jacobs
 
 
             else:
-                internal_jacobs = current_cache["CartesiansByInternals"]
+                internal_jacobs = current_cache[JacobianKeys.CartesiansByInternals]
 
             if (
-                    "InternalsByCartesians" not in current_cache
-                    or len(current_cache["InternalsByCartesians"]) < internal_by_cartesian_order
+                    JacobianKeys.InternalsByCartesians not in current_cache
+                    or len(current_cache[JacobianKeys.InternalsByCartesians]) < internal_by_cartesian_order
             ):
                 if self.logger is not None:
                     start = time.time()
@@ -731,69 +754,83 @@ class ExpansionTerms:
                     cartesian_weighting = cartesian_weighting * mc
                 cartesian_jacobs = _
 
-                current_cache["InternalsByCartesians"] = cartesian_jacobs
+                current_cache[JacobianKeys.InternalsByCartesians] = cartesian_jacobs
             else:
-                cartesian_jacobs = current_cache["InternalsByCartesians"]
+                cartesian_jacobs = current_cache[JacobianKeys.InternalsByCartesians]
 
             QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
             YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
 
-            if "InternalsByModes" not in current_cache:
-                RQ, = TensorDerivativeConverter([YQ], cartesian_jacobs).convert(order=1)#, check_arrays=True)
-                current_cache["InternalsByModes"] = [RQ]
+            if JacobianKeys.InternalsByCartesianModes not in current_cache:
+                RQ_derivs = TensorDerivativeConverter(
+                    [YQ] + [0]*(len(cartesian_jacobs) - 1),
+                    cartesian_jacobs
+                ).convert(order=len(cartesian_jacobs))#, check_arrays=True)
+                current_cache[JacobianKeys.InternalsByCartesianModes] = RQ_derivs
             else:
-                RQ, = current_cache["InternalsByModes"]
+                RQ_derivs = current_cache[JacobianKeys.InternalsByCartesianModes]
 
-            if "ModesByInternals" not in current_cache:
-                QR, = TensorDerivativeConverter(internal_jacobs, [QY]).convert(order=1)#, check_arrays=True)
-                current_cache["ModesByInternals"] = [QR]
+            if JacobianKeys.CartesianModesByInternals not in current_cache:
+                QR_derivs = TensorDerivativeConverter(
+                    internal_jacobs,
+                    [QY] + [0]*(len(internal_jacobs) - 1)
+                ).convert(order=len(internal_jacobs))
+                current_cache[JacobianKeys.CartesianModesByInternals] = QR_derivs
             else:
-                QR, = current_cache["ModesByInternals"]
+                QR_derivs = current_cache[JacobianKeys.CartesianModesByInternals]
 
             if (
-                    "CartesiansByModes" not in current_cache
-                    or len(current_cache["CartesiansByModes"]) < len(internal_jacobs)
+                    JacobianKeys.CartesiansByInternalModes not in current_cache
+                    or len(current_cache[JacobianKeys.CartesiansByInternalModes]) < len(internal_jacobs)
             ):
                 x_derivs = internal_jacobs#(YR, YRR, YRRR, YRRRR)
-                Q_derivs = [RQ] + [0]*(len(internal_jacobs) - 1)
+                Q_derivs = RQ_derivs[:1] + [0]*(len(internal_jacobs) - 1)
                 YQ_derivs = TensorDerivativeConverter(Q_derivs, x_derivs,
                                                       jacobians_name='Q',
                                                       values_name='X'
-                                                      ).convert(order=len(internal_jacobs), check_arrays=True)
-
-                qQ_derivs = TensorDerivativeConverter(YQ_derivs, [QY] + [0] * (len(internal_jacobs) - 1),
-                                                      jacobians_name='Yq',
-                                                      values_name='qY'
                                                       ).convert(order=len(internal_jacobs), check_arrays=True)
                 # self._get_tensor_derivs(
                 #     YQ_derivs, (QY, 0, 0, 0),
                 #     mixed_XQ=False
                 # )
 
-                current_cache["CartesiansByModes"] = YQ_derivs
-                current_cache["CartesianModesByInternalModes"] = qQ_derivs
-
-                # "CartesiansByModes": [YQ, YQQ, YQQQ, YQQQQ],
-                # "ModesByCartesians": [QY, QYY, QYYY],
-                # "CartesianModesByInternalModes": [qQ, qQQ, qQQQ, qQQQQ]
+                current_cache[JacobianKeys.CartesiansByInternalModes] = YQ_derivs
 
             if (
-                    "ModesByCartesians" not in current_cache
-                    or len(current_cache["ModesByCartesians"]) < len(cartesian_jacobs)
+
+                    JacobianKeys.CartesianModesByInternalModes not in current_cache
+                    or len(current_cache[JacobianKeys.CartesianModesByInternalModes]) < len(internal_jacobs)
             ):
+                YQ_derivs = current_cache[JacobianKeys.CartesiansByInternalModes]
+                qQ_derivs = TensorDerivativeConverter(YQ_derivs, [QY] + [0] * (len(internal_jacobs) - 1),
+                                                      jacobians_name='Yq',
+                                                      values_name='qY'
+                                                      ).convert(order=len(internal_jacobs), check_arrays=True)
+                current_cache[JacobianKeys.CartesianModesByInternalModes] = qQ_derivs
+
+            if (
+                    JacobianKeys.InternalModesByCartesians not in current_cache
+                    or len(current_cache[JacobianKeys.InternalModesByCartesians]) < len(cartesian_jacobs)
+            ):
+                QR = QR_derivs[0]
                 QY_derivs = TensorDerivativeConverter(cartesian_jacobs,
                                                       [QR] + [0]*(len(cartesian_jacobs) - 1)
                                                       ).convert(order=len(cartesian_jacobs), check_arrays=True)
-                current_cache["ModesByCartesians"] = QY_derivs
+                current_cache[JacobianKeys.InternalModesByCartesians] = QY_derivs
 
-            # transf_data = {
-            #     "CartesiansByInternals": internal_jacobs,
-            #     "InternalsByCartesians": cartesian_jacobs,#[RY, RYY, RYYY],
-            #     "InternalsByModes": [RQ],
-            #     "CartesiansByModes": [YQ, YQQ, YQQQ, YQQQQ],
-            #     "ModesByCartesians": [QY, QYY, QYYY],
-            #     "CartesianModesByInternalModes": [qQ, qQQ, qQQQ, qQQQQ]
-            # }
+            if (
+
+                    JacobianKeys.InternalModesByCartesianModes not in current_cache
+                    or len(current_cache[JacobianKeys.InternalModesByCartesianModes]) < len(internal_jacobs)
+            ):
+                RQ_derivs = current_cache[JacobianKeys.InternalsByCartesianModes]
+                QR = QR_derivs[0]
+                Qq_derivs = TensorDerivativeConverter(RQ_derivs,
+                                                      [QR] + [0] * (len(internal_jacobs) - 1),
+                                                      jacobians_name='Yq',
+                                                      values_name='qY'
+                                                      ).convert(order=len(RQ_derivs))
+                current_cache[JacobianKeys.InternalModesByCartesianModes] = Qq_derivs
 
             self._cached_transforms[self.molecule] = current_cache
             try:
@@ -814,53 +851,66 @@ class ExpansionTerms:
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=order,
             internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
-        )['CartesiansByModes']
+        )[JacobianKeys.CartesiansByInternalModes]
         if order is not None:
             base = base[:order]
         return base
 
     @property
     def modes_by_cartesians(self):
-        return self.get_coordinate_transforms()['ModesByCartesians']
+        return self.get_coordinate_transforms()[JacobianKeys.InternalModesByCartesians]
     def get_modes_by_cartesians(self, order=None):
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=None if order is None else min(order, self.cartesian_by_internal_order),
             internal_by_cartesian_order=order
-        )['ModesByCartesians']
+        )[JacobianKeys.InternalModesByCartesians]
         if order is not None:
             base = base[:order]
         return base
     @property
     def cartesians_by_internals(self):
-        return self.get_coordinate_transforms()['CartesiansByInternals']
+        return self.get_coordinate_transforms()[JacobianKeys.CartesiansByInternals]
     def get_cartesians_by_internals(self, order=None):
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=order,
             internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
-        )['CartesiansByInternals']
+        )[JacobianKeys.CartesiansByInternals]
         if order is not None:
             base = base[:order]
         return base
     @property
     def internals_by_cartesians(self):
-        return self.get_coordinate_transforms()['InternalsByCartesians']
+        return self.get_coordinate_transforms()[JacobianKeys.InternalsByCartesians]
     def get_internals_by_cartesians(self, order=None):
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=None if order is None else min(order, self.cartesian_by_internal_order),
             internal_by_cartesian_order=order
-        )['InternalsByCartesians']
+        )[JacobianKeys.InternalsByCartesians]
         if order is not None:
             base = base[:order]
         return base
 
     @property
     def cartesian_modes_by_internal_modes(self):
-        return self.get_coordinate_transforms()['CartesianModesByInternalModes']
+        return self.get_coordinate_transforms()[JacobianKeys.CartesianModesByInternalModes]
     def get_cartesian_modes_by_internal_modes(self, order=None):
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=None if order is None else min(order, self.cartesian_by_internal_order),
             internal_by_cartesian_order=order
-        )['CartesianModesByInternalModes']
+        )[JacobianKeys.CartesianModesByInternalModes]
+        if order is not None:
+            base = base[:order]
+        return base
+
+    @property
+    def internal_modes_by_cartesian_modes(self):
+        return self.get_coordinate_transforms()[JacobianKeys.InternalModesByCartesianModes]
+
+    def get_internal_modes_by_cartesian_modes(self, order=None):
+        base = self.get_coordinate_transforms(
+            cartesian_by_internal_order=order,
+            internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
+        )[JacobianKeys.InternalModesByCartesianModes]
         if order is not None:
             base = base[:order]
         return base
@@ -1175,14 +1225,6 @@ class PotentialTerms(ExpansionTerms):
             else:
                 terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order, check_arrays=True)
 
-            # import json, os
-            # with open(os.path.expanduser("~/Desktop/hoono_cubics.json"), "w+") as dump:
-            #     json.dump(terms[2].tolist(), dump)
-            # raise Exception("...")
-
-            # raise Exception("V3", terms[2])
-            # raise Exception("V4", terms[3])
-
         else:
             x_derivs = self.get_cartesians_by_modes(order=order-1)
             # raise Exception(x_derivs[1])
@@ -1207,8 +1249,7 @@ class PotentialTerms(ExpansionTerms):
                 # since the normal modes are expressed over
                 # different sets of coordinates the fourth mixed deriv
                 # terms need to be partially corrected
-                QY, = self.get_modes_by_cartesians(1)
-                qQQ = np.tensordot(x_derivs[1], QY, axes=[2, 0])
+                qQ, qQQ = self.get_cartesian_modes_by_internal_modes(2)
                 f43 = np.tensordot(qQQ, V_derivs[2], axes=[2, 0])
                 fourths = V_derivs[3] + f43
                 V_derivs = V_derivs[:3] + [fourths]
@@ -1264,28 +1305,66 @@ class PotentialTerms(ExpansionTerms):
                             )
                         )
 
-        terms = terms[1:]
-
         if order > 2:
-            v3 = terms[1]
+            v3 = terms[2]
             if self.mixed_derivs:# and intcds is None:
                 # Gaussian gives slightly different constants
                 # depending on whether the analytic or numerical derivs
                 # were transformed
-                for i in range(v3.shape[0]):
-                    # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = (v3[i, :, :] + v3[:, i, :] + v3[:, :, i])/3
-                    v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
+                if self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
+                    for i in range(v3.shape[0]):
+                        if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
+                            v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
+                        elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                            v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[:, :, i]
+                        elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
+                            v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = np.average(
+                                [
+                                    v3[i, :, :], v3[:, i, :], v3[:, :, i]
+                                ],
+                                axis=0
+                            )
+                        else:
+                            raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(self.mixed_derivative_handling_mode))
 
         if order > 3:
-            v4 = terms[2]
+            v4 = terms[3]
             if self.mixed_derivs:# and intcds is None:
                 # we assume we only got second derivs in Q_i Q_i
                 # at this point, then, we should be able to fill in the terms we know are missing
                 if not isinstance(v4, np.ndarray):
                     v4 = v4.asarray()
-                terms[2] = v4
+                terms[3] = v4
                 for i in range(v4.shape[0]):
-                    v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+                    if (
+                            self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
+                            or self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Unhandled
+                    ):
+                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+                    elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[:, :, i, i]
+                    elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
+                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = np.average(
+                            [
+                                v4[:, :, i, i],
+                                v4[i, i, :, :]
+                                ],
+                            axis=0
+                        )
+                    else:
+                        raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(self.mixed_derivative_handling_mode))
+
+        if intcds is not None and self.backpropagate_internals:
+            # need to internal mode terms and
+            # convert them back to Cartesian mode ones...
+            Qq_derivs = self.get_internal_modes_by_cartesian_modes(len(terms) - 1)
+            terms = TensorDerivativeConverter(
+                Qq_derivs + [0], # pad for the zeroed out gradient term
+                terms
+            ).convert(order=order)
+
+        # drop the gradient term as that is all zeros
+        terms = terms[1:]
 
         try:
             self.checkpointer['potential_terms'] = terms
@@ -1321,7 +1400,7 @@ class KineticTerms(ExpansionTerms):
         dot = DumbTensor._dot
         shift = DumbTensor._shift
         intcds = self.internal_coordinates
-        if intcds is None:
+        if intcds is None or self.backpropagate_internals:
             # this is nice because it eliminates a lot of terms in the expansion
             J = self.modes.matrix
             G = dot(J, J, axes=[[0, 0]])
@@ -1329,7 +1408,6 @@ class KineticTerms(ExpansionTerms):
                 terms = [G]
             else:
                 terms = [G] + [0]*(order)
-
         else:
             # should work this into the new layout
             QY_derivs = self.get_modes_by_cartesians(order=order+1)
@@ -1368,15 +1446,6 @@ class KineticTerms(ExpansionTerms):
             #         + dot(YQ, dot(YQ, QYY, QYY, axes=[[-1, 0], [1, 1]]), axes=[[1, 2]]).transpose((0, 1, 3, 2))
             #         # + dot(YQ, dot(YQ, dot(QYY, QYY, axes=[[0, 0]]), axes=[[-1, 0]]), axes=[[1, 2]])
             # )
-
-            # raise Exception([G, GQ, GQQ])
-
-            import os, json
-            with open(os.path.expanduser("~/Desktop/new_dimer_G.json"), "w+") as dump:
-                json.dump(
-                    [terms[0].tolist(), terms[1].tolist(), terms[2].tolist()],
-                    dump
-                )
 
         G_terms = terms
         try:
@@ -1543,7 +1612,6 @@ class DipoleTerms(ExpansionTerms):
         all_derivs = [mom, grad]
         if len(derivs) > 2:
             if seconds.shape == (modes_n, coord_n, 3):
-                # raise Exception('wat')
                 if self.mixed_derivs is None:
                     self.mixed_derivs = True
                 undimension_2 = (
@@ -1640,8 +1708,7 @@ class DipoleTerms(ExpansionTerms):
             mu_derivs = self.derivs[1:]
 
             if len(mu_derivs) > 2:
-                QY, = self.get_modes_by_cartesians(1)
-                qQQ = np.tensordot(x_derivs[1], QY, axes=[2, 0])
+                qQ, qQQ =  self.get_cartesian_modes_by_internal_modes(2)
                 f43 = np.tensordot(qQQ, mu_derivs[1], axes=[2, 0])
                 mu_derivs = list(mu_derivs)
                 mu_derivs[2] = mu_derivs[2] + f43
@@ -1660,15 +1727,69 @@ class DipoleTerms(ExpansionTerms):
                                                   values_name="U"
                                                   ).convert(order=order)  # , check_arrays=True)
                 terms = list(terms)
-                if order > 3:
+                if order > 1:
+                    v2 = terms[1]
+                    if self.mixed_derivs:  # and intcds is None:
+                        # Gaussian gives slightly different constants
+                        # depending on whether the analytic or numerical derivs
+                        # were transformed
+                        if self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
+                            for i in range(v2.shape[0]):
+                                if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
+                                    v2[i, :] = v2[:, i] = v2[:, i]
+                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                                    v2[i, :] = v2[:, i] = v2[i, :]
+                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
+                                    v2[i, :] = v2[:, i] = np.average(
+                                        [
+                                            v2[i, :], v2[:, i]
+                                        ],
+                                        axis=0
+                                    )
+                                else:
+                                    raise ValueError(
+                                        "don't know what to do with `mixed_derivative_handling_mode` {} ".format(
+                                            self.mixed_derivative_handling_mode
+                                        )
+                                    )
+
+                if order > 2:
                     v3 = terms[2]
                     if self.mixed_derivs:  # and intcds is None:
                         # Gaussian gives slightly different constants
                         # depending on whether the analytic or numerical derivs
                         # were transformed
-                        for i in range(v3.shape[0]):
-                            # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = (v3[i, :, :] + v3[:, i, :] + v3[:, :, i])/3
-                            v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
+                        # TODO: zero out the ill-defined terms
+                        if self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
+                            for i in range(v3.shape[0]):
+                                if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
+                                    v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
+                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                                    # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
+                                    raise NotImplementedError("don't use broken term stuff...")
+                                    v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[:, :, i]
+                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
+                                    v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = np.average(
+                                        [
+                                            v3[i, :, :], v3[:, i, :], v3[:, :, i]
+                                        ],
+                                        axis=0
+                                    )
+                                else:
+                                    raise ValueError(
+                                        "don't know what to do with `mixed_derivative_handling_mode` {} ".format(
+                                            self.mixed_derivative_handling_mode
+                                        )
+                                    )
+
+                if intcds is not None and self.backpropagate_internals:
+                    # need to internal mode terms and
+                    # convert them back to Cartesian mode ones...
+                    Qq_derivs = self.get_internal_modes_by_cartesian_modes(len(terms))
+                    terms = TensorDerivativeConverter(
+                        Qq_derivs,
+                        terms
+                    ).convert(order=len(terms))
 
             else:
                 terms = TensorDerivativeConverter(x_derivs, u_derivs).convert(order=order)  # , check_arrays=True)
@@ -1764,7 +1885,7 @@ class PotentialLikeTerm(KineticTerms):
     def get_terms(self, order=None, logger=None):
 
         ics = self.internal_coordinates
-        if ics is None:
+        if self.backpropagate_internals or ics is None:
 
             if order > 0:
                 raise ValueError("currently only have Watson term up to 0 order")
