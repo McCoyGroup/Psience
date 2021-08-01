@@ -1010,6 +1010,36 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
         return "\n".join(mats)
 
+    def format_energy_corrections_table(self, real_fmt="{:>12.5f}"):
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        states = self.corrs.states.excitations
+        e_corrs = self.corrs.all_energy_corrs #ordered like (state, order, corr_list)
+        order = len(e_corrs[0])
+        term_keys = []
+        for k in range(1, order):
+            if e_corrs[0][k] is not None: # from odd order terms...
+                for i in range(0, k):
+                    term_keys.append("<0|dH({j})|{i}>".format(j=k-i, i=i))
+        terms = h2w * np.array([np.concatenate([y for y in x if y is not None]) for x in e_corrs])
+
+        nels = len(real_fmt.format(0))
+        header_fmt = "{:<" + str(nels) + "}"
+        header = " ".join(header_fmt.format(k) for k in term_keys)
+
+        n_modes = self.corrs.total_basis.ndim
+        padding = np.max([len(str("0 " * n_modes)), 1]) + 1
+        header = "State" + " " * (padding - 3) + header
+
+        prop_mat = header + "\n" + "\n".join(
+            "  " + ("{:<1.0f} " * n_modes).format(*s) +
+            " ".join(real_fmt.format(ll) for ll in l)
+            for s, l in zip(states, terms)
+        )
+
+        return prop_mat
+
+
     def format_intensities_table(self, real_fmt="{:>12.5f}"):
         # simple utility function pulled from the unit tests
 

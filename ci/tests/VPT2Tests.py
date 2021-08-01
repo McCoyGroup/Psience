@@ -433,6 +433,8 @@ class VPT2Tests(TestCase):
         my_freqs = np.column_stack([harm_freq, freqs])
 
         if print_report:
+            print("Energy Corrections:")
+            print(wfns.format_energy_corrections_table())
             self.print_energy_block("State Energies:", wfns, states, my_energies, my_freqs)
 
         if internals is None and nielsen_tolerance is not None:
@@ -1256,16 +1258,13 @@ class VPT2Tests(TestCase):
                                                function_shape=((None, None), 0),
                                                mesh_spacing=1e-3,
                                                stencil=7,
-                                               parallelizer=MultiprocessingParallelizer()  # verbose=True)
+                                               # parallelizer=MultiprocessingParallelizer()  # verbose=True)
                                                ).derivatives(mol.coords)
 
-        # raise Exception()
 
-        import time
-        start = time.time()
-        mol.potential_derivatives = deriv_gen.derivative_tensor([1, 2 , 3, 4, 5, 6])
-        end = time.time()
-        print('getting input derivs took {:.3f}s'.format(end - start))
+        # with BlockProfiler():
+        mol.potential_derivatives = deriv_gen.derivative_tensor([1, 2, 3, 4, 5, 6])
+            # raise Exception("wheee")
         # raise Exception([x.shape for x in mol.potential_derivatives])
 
         # we rigorously zero out small terms for
@@ -4237,7 +4236,11 @@ class VPT2Tests(TestCase):
             # , checkpoint=chk
             , use_cached_representations=False
             , state_space_filters={
-                (1, 1): self.get_states(3, n_modes)
+                (1, 1): self.get_states(3, n_modes),
+                (2, 0): (
+                    self.get_states(2, n_modes),
+                    (None, [[]])  # selection rules to apply to remainder
+                )
             }
         )
 
@@ -4524,7 +4527,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes, target_modes=[-1, -2, -3, -4, -5, -6]) # [:6]
+        states = self.get_states(3, n_modes)#, target_modes=[-1, -2, -3, -4, -5, -6]) # [:6]
         # raise Exception(states)
 
         gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
@@ -4542,7 +4545,7 @@ class VPT2Tests(TestCase):
             gaussian_energies,
             gaussian_freqs,
             log=True,
-            verbose=True,
+            verbose=False,
             print_profile=True,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
@@ -4552,11 +4555,14 @@ class VPT2Tests(TestCase):
             # , checkpoint=chk
             , use_cached_representations=False
             , state_space_filters={
-
-                (1, 1): self.get_states(3, n_modes)
-
+                (1, 1): self.get_states(3, n_modes),
+                (2, 0): (
+                    self.get_states(2, n_modes),
+                    (None, [[]])  # selection rules to apply to remainder
+                )
             }
             # , parallelized=True
+            # , processes=5
         )
 
     #endregion Water Clusters
