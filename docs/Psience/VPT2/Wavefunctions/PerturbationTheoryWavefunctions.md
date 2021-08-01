@@ -160,6 +160,11 @@ format_property_matrices(self, states, prop_corrs, real_fmt='{:>.8e}', padding_f
 format_dipole_contribs_tables(self): 
 ```
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_energy_corrections_table" class="docs-object-method">&nbsp;</a>
+```python
+format_energy_corrections_table(self, real_fmt='{:>12.5f}'): 
+```
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_intensities_table" class="docs-object-method">&nbsp;</a>
 ```python
 format_intensities_table(self, real_fmt='{:>12.5f}'): 

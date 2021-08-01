@@ -10,7 +10,7 @@ from_state: method
 ```
 <a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, hamiltonians, states, coupled_states, total_basis, energy_corrs, wfn_corrections, degenerate_states=None, degenerate_transformation=None, degenerate_energies=None): 
+__init__(self, hamiltonians, states, coupled_states, total_basis, energy_corrs, wfn_corrections, all_energy_corrections=None, degenerate_states=None, degenerate_transformation=None, degenerate_energies=None): 
 ```
 
 - `hamiltonians`: `Iterable[SparseArray]`

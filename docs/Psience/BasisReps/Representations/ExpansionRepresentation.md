@@ -64,7 +64,7 @@ selection_rule_steps(self):
 
 <a id="Psience.BasisReps.Representations.ExpansionRepresentation.get_transformed_space" class="docs-object-method">&nbsp;</a>
 ```python
-get_transformed_space(self, space, parallelizer=None, logger=None, **opts): 
+get_transformed_space(self, space, rules=None, parallelizer=None, logger=None, **opts): 
 ```
 Returns the state space obtained by using the
         held operators to transform `space`
