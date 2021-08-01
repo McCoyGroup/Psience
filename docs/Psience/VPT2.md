@@ -463,39 +463,40 @@ class VPT2Tests(TestCase):
             print(wfns.format_energy_corrections_table())
             self.print_energy_block("State Energies:", wfns, states, my_energies, my_freqs)
 
-        if internals is None and nielsen_tolerance is not None:
-            # Energies from Nielsen expressions
-            e_harm, e_corr, x = hammer.get_Nielsen_energies(states, return_split=True)
-            if print_x:
-                with np.printoptions(linewidth=10000000):  # infinite line width basically...
-                    print("="*25 + "X-Matrix:" + "="*25,
-                          repr(x * h2w).strip("array()").replace("       ", " "),
-                          "=" * 50,
-                          sep="\n"
-                          )
+        if print_diffs:
+            if internals is None and nielsen_tolerance is not None:
+                # Energies from Nielsen expressions
+                e_harm, e_corr, x = hammer.get_Nielsen_energies(states, return_split=True)
+                if print_x:
+                    with np.printoptions(linewidth=10000000):  # infinite line width basically...
+                        print("="*25 + "X-Matrix:" + "="*25,
+                              repr(x * h2w).strip("array()").replace("       ", " "),
+                              "=" * 50,
+                              sep="\n"
+                              )
 
-            e_corr = np.sum(e_corr, axis=0)
-            energies = h2w * (e_harm + e_corr)
-            zero_ord = h2w * e_harm
+                e_corr = np.sum(e_corr, axis=0)
+                energies = h2w * (e_harm + e_corr)
+                zero_ord = h2w * e_harm
 
-            nielsen_engs = np.array([zero_ord[0], energies[0]])
-            nielsen_freqs = np.column_stack([zero_ord[1:] - zero_ord[0], energies[1:] - energies[0]])
+                nielsen_engs = np.array([zero_ord[0], energies[0]])
+                nielsen_freqs = np.column_stack([zero_ord[1:] - zero_ord[0], energies[1:] - energies[0]])
 
-            if print_report:
-                self.print_energy_block("Nielsen Energies:", None, states, nielsen_engs, nielsen_freqs)
+                if print_report:
+                    self.print_energy_block("Nielsen Energies:", None, states, nielsen_engs, nielsen_freqs)
 
-            if print_diffs:
-                self.print_energy_block("Nielsen Difference Energies:", None, states, my_energies - nielsen_engs,
-                                        my_freqs - nielsen_freqs)
+                if print_diffs:
+                    self.print_energy_block("Nielsen Difference Energies:", None, states, my_energies - nielsen_engs,
+                                            my_freqs - nielsen_freqs)
 
-        if gaussian_freqs is not None:
-            ns = min(len(freqs), len(gaussian_freqs))
-            if print_report:
-                self.print_energy_block("Reference Energies:", None, states, gaussian_energies, gaussian_freqs[:ns])
+            if gaussian_freqs is not None:
+                ns = min(len(freqs), len(gaussian_freqs))
+                if print_report:
+                    self.print_energy_block("Reference Energies:", None, states, gaussian_energies, gaussian_freqs[:ns])
 
-            if print_diffs:
-                self.print_energy_block("Reference Difference Energies:", None, states, my_energies - gaussian_energies,
-                                        my_freqs[:ns] - gaussian_freqs[:ns])
+                if print_diffs:
+                    self.print_energy_block("Reference Difference Energies:", None, states, my_energies - gaussian_energies,
+                                            my_freqs[:ns] - gaussian_freqs[:ns])
 
         if calculate_intensities:
             engs = h2w * wfns.energies
@@ -508,7 +509,8 @@ class VPT2Tests(TestCase):
 
             print_specs = True
             if print_specs:
-                print(wfns.format_dipole_contribs_tables())
+                if print_report:
+                    print(wfns.format_dipole_contribs_tables())
                 print(wfns.format_intensities_table())
                 # n_modes= wfns.corrs.total_basis.ndim
                 # padding = np.max([len(str("0 " * n_modes)), 1]) + 1
@@ -4541,7 +4543,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @validationTest
+    @debugTest
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"
@@ -4553,13 +4555,14 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = self.get_states(3, n_modes)#, target_modes=[-1, -2, -3, -4, -5, -6]) # [:6]
+        states = self.get_states(4, n_modes)#, target_modes=[-1, -2, -3, -4, -5, -6]) # [:6]
         # raise Exception(states)
 
         gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = None#self.gaussian_data['WaterDimer']['freqs']
 
-        print_report = True
+        print_report = False
+        print_diffs = False
         nielsen_tolerance = 50
         gaussian_tolerance = 50
         self.run_PT_test(
@@ -4572,9 +4575,10 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=False,
-            print_profile=True,
+            print_profile=False,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
+            print_diffs=print_diffs,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
             calculate_intensities=True
