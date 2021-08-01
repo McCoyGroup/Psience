@@ -10,6 +10,7 @@ __all__ = [
 import numpy as np, itertools as ip, scipy.sparse as sp, time, gc
 
 from McUtils.Numputils import SparseArray
+import McUtils.Numputils as nput
 from McUtils.Scaffolding import Logger, NullLogger
 
 from .Operators import Operator
@@ -82,6 +83,7 @@ class Representation:
             self.operator.clear_cache()
         elif hasattr(self.compute, 'clear_cache'):
             self.compute.clear_cache()
+        gc.collect()
     def _compute_op_els(self, inds, check_orthogonality=True):
         return self.operator.get_elements(inds, check_orthogonality=check_orthogonality)
 
@@ -400,6 +402,140 @@ class Representation:
 
         return self.array.dot(other)
 
+    from memory_profiler import profile
+    @profile
+    def _build_rep_matrix(self, row_inds, col_inds, N, sub, method='unique'):
+
+        if method == 'low_mem':
+            # logger.log_print("building upper/triangle indices...")
+            # upper triangle of indices
+            utri_pos = np.where(row_inds < col_inds)[0]
+            diag_pos = np.where(row_inds == col_inds)
+            if len(diag_pos) > 0:
+                diag_pos = diag_pos[0]
+
+            utri_rows = row_inds[utri_pos]
+            utri_cols = col_inds[utri_pos]
+            if len(utri_pos) + len(diag_pos) < len(row_inds):
+                ltri_pos = np.setdiff1d(np.arange(len(row_inds)),
+                                        np.concatenate([utri_pos, diag_pos])
+                                        )
+
+                # ltri_rows = row_inds[ltri_pos]
+
+                # this was originally just np.unique but the memory
+                # for constructing the sort arrays got large?
+                # remove dupes by focusing on col inds first
+                ltri_cols = col_inds[ltri_pos]
+                col_grps = nput.group_by(ltri_pos, ltri_cols)[0]
+                unduped_pos = []
+                utri_rem_rows = np.full(len(utri_rows), True) # we build a mask to cut down on duplicate tests
+                for k,idx in zip(*col_grps):
+                    possible_matches = np.where(utri_rows[utri_rem_rows] == k)
+                    if len(possible_matches) > 0:
+                        possible_matches = possible_matches[0]
+                        # now we match corresponding upper-triangle cols against lower-tri rows
+                        utri_test_cols = utri_cols[utri_rem_rows][possible_matches]
+                        # we mask out the matched positions so we don't test
+                        # them on later iterations
+                        utri_rem_rows[utri_rem_rows][possible_matches] = False
+
+                        # we assume no duplicates at this point
+                        # so we just test the utri_test_cols against
+                        # the different column vals to see if we have
+                        # any dupes
+
+                        good_spots = np.where(
+                            np.all(
+                                utri_test_cols[np.newaxis, :] != row_inds[idx][:, np.newaxis],
+                                axis=1
+                                )
+                        )
+                        # print(good_spots.shape, len(idx))
+                        # print(idx)
+                        if len(good_spots) > 0:
+                            good_spots = good_spots[0]
+                            unduped_pos.append(idx[good_spots])
+                    else: # no upper-triangle rows matched this lower-triangle column
+                        unduped_pos.append(idx)
+
+                ltri_pos = np.concatenate(unduped_pos)
+
+                tri_pos = np.concatenate([utri_pos, ltri_pos], axis=0)
+
+            else:
+                tri_pos = utri_pos
+
+            tri_rows = row_inds[tri_pos]
+            tri_cols = col_inds[tri_pos]
+            tri_vals = sub[tri_pos]
+
+            up_tri = np.array([tri_rows, tri_cols]).T
+            lo_tri = np.array([tri_cols, tri_rows]).T
+
+            if len(diag_pos) > 0: # diags can get duped...somehow
+                _, wtf_pos = np.unique(row_inds[diag_pos], return_index=True)
+                diag_pos = diag_pos[np.sort(wtf_pos)]
+
+            diag_inds = row_inds[diag_pos]
+            diag_vals = sub[diag_pos]
+            diag = np.array([diag_inds, diag_inds]).T
+
+            full_inds = np.concatenate([up_tri, lo_tri, diag], axis=0)
+            full_dat = np.concatenate([tri_vals, tri_vals, diag_vals], axis=0)
+
+        elif method == 'unique':
+
+            # upper triangle of indices
+            up_tri = np.array([row_inds, col_inds]).T
+            # lower triangle is made by transposition
+            low_tri = np.array([col_inds, row_inds]).T
+            # but now we need to remove the duplicates, because many sparse matrix implementations
+            # will sum up any repeated elements
+            full_inds = np.concatenate([up_tri, low_tri])
+            full_dat = np.concatenate([sub, sub], axis=0)
+
+            _, idx = np.unique(full_inds, axis=0, return_index=True)
+            sidx = np.sort(idx)
+            full_inds = full_inds[sidx]
+            full_dat = full_dat[sidx]
+
+        else:
+            raise ValueError('bad method {}'.format(method))
+
+        # N = len(total_space)
+        if full_dat.ndim > 1:
+            # need to tile the inds enough times to cover the shape of full_dat
+            # _, inds = np.unique(full_inds, axis=0, return_index=True)
+            # sidx = np.sort(inds)
+            # full_inds = full_inds[sidx]
+            # full_dat = full_dat[sidx]
+
+            ext_shape = full_dat.shape[1:]
+            shape = (N, N) + ext_shape
+            full_dat = np.moveaxis(full_dat, 0, -1).flatten()
+
+            rows, cols = full_inds.T
+            full_inds = np.empty(
+                (2 + len(ext_shape), len(full_dat)),
+                dtype=int
+            )
+            block_size = len(rows)
+            # create a tensor of indices that will be used to appropriately tile
+            # the system
+            ind_tensor = np.moveaxis(np.indices(ext_shape), 0, -1).reshape(-1, len(ext_shape))
+            for n, idx in enumerate(ind_tensor):
+                s, e = n * block_size, (n + 1) * block_size
+                full_inds[0, s:e] = rows
+                full_inds[1, s:e] = cols
+                for j, x in enumerate(idx):
+                    full_inds[2 + j, s:e] = x
+        else:
+            full_inds = full_inds.T
+            shape = (N, N)
+
+        return SparseArray.from_data((full_dat, full_inds), shape=shape)
+
     def get_representation_matrix(self,
                                   coupled_space,
                                   total_space,
@@ -408,7 +544,8 @@ class Representation:
                                   logger=None,
                                   zero_element_warning=True,
                                   clear_sparse_caches=True,
-                                  clear_operator_caches=True
+                                  clear_operator_caches=True,
+                                  assume_symmetric=True
                                   ):
         """
         Actively constructs a perturbation theory Hamiltonian representation
@@ -420,6 +557,9 @@ class Representation:
         :return:
         :rtype:
         """
+
+        if not assume_symmetric:
+            raise NotImplementedError("don't have non-symmetric representations implemented")
 
         if logger is None:
             logger = self.logger
@@ -437,10 +577,10 @@ class Representation:
             sub = self.get_brakets(m_pairs, check_orthogonality=not diagonal)
             if isinstance(sub, SparseArray):
                 sub = sub.asarray()
-            if clear_operator_caches:
-                self.clear_cache()
             if clear_sparse_caches:
                 SparseArray.clear_cache()
+            if clear_operator_caches:
+                self.clear_cache()
         else:
             logger.log_print('no states to couple!')
             sub = 0
@@ -470,49 +610,13 @@ class Representation:
             if diagonal and coupled_space is total_space: # fast shortcut
                 sub = SparseArray.from_diag(sub)
             else:
+                # logger.log_print("finding row/column indices...")
                 # figure out the appropriate inds for this data in the sparse representation
                 row_inds = total_space.find(m_pairs.bras)
                 col_inds = total_space.find(m_pairs.kets)
-
-                # upper triangle of indices
-                up_tri = np.array([row_inds, col_inds]).T
-                # lower triangle is made by transposition
-                low_tri = np.array([col_inds, row_inds]).T
-                # but now we need to remove the duplicates, because many sparse matrix implementations
-                # will sum up any repeated elements
-                full_inds = np.concatenate([up_tri, low_tri])
-                full_dat = np.concatenate([sub, sub], axis=0)
-
-                _, idx = np.unique(full_inds, axis=0, return_index=True)
-                sidx = np.sort(idx)
-                full_inds = full_inds[sidx]
-                full_dat = full_dat[sidx]
-
-                if full_dat.ndim > 1:
-                    # need to tile the inds enough times to cover the shape of full_dat
-                    ext_shape = full_dat.shape[1:]
-                    shape = (N, N) + ext_shape
-                    full_dat = np.moveaxis(full_dat, 0, -1).flatten()
-                    rows, cols = full_inds.T
-                    full_inds = np.empty(
-                        (2 + len(ext_shape), len(full_dat)),
-                        dtype=int
-                    )
-                    block_size = len(rows)
-                    # create a tensor of indices that will be used to appropriately tile
-                    # the system
-                    ind_tensor = np.moveaxis(np.indices(ext_shape), 0, -1).reshape(-1, len(ext_shape))
-                    for n, idx in enumerate(ind_tensor):
-                        s, e = n*block_size, (n+1)*block_size
-                        full_inds[0, s:e] = rows
-                        full_inds[1, s:e] = cols
-                        for j,x in enumerate(idx):
-                            full_inds[2+j, s:e] = x
-                else:
-                    full_inds = full_inds.T
-                    shape = (N, N)
-
-                sub = SparseArray.from_data((full_dat, full_inds), shape=shape)
+                N = len(total_space)
+                del m_pairs # free up memory _before_ building the matrix
+                sub = self._build_rep_matrix(row_inds, col_inds, N, sub)
 
         return sub
 
