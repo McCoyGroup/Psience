@@ -755,7 +755,7 @@ class ExpansionRepresentation(Representation):
                 self._selection_rule_steps = _
         return self._selection_rule_steps
 
-    def get_transformed_space(self, space, parallelizer=None, logger=None, **opts):
+    def get_transformed_space(self, space, rules=None, parallelizer=None, logger=None, **opts):
         """
         Returns the state space obtained by using the
         held operators to transform `space`
@@ -772,7 +772,9 @@ class ExpansionRepresentation(Representation):
 
         # we take a union of all transformation rules and just apply that
         # if possible
-        if self.selection_rules is not None:
+        if rules is not None:
+            ooooh_shiz = space.apply_selection_rules(rules, parallelizer=parallelizer, logger=logger, **opts)
+        elif self.selection_rules is not None:
             ooooh_shiz = space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger, **opts)
         else:
             spaces = [r.get_transformed_space(space, parallelizer=parallelizer, logger=logger, **opts) for r in self.computers]

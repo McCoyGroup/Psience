@@ -2943,9 +2943,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             track_excitations = False
 
         if not isinstance(other, SelectionRuleStateSpace):
-            raise TypeError("union with {} only defined over subclasses of {}".format(
+            raise TypeError("union with {} only defined over subclasses of {} (got {})".format(
                 type(self).__name__,
-                SelectionRuleStateSpace.__name__
+                SelectionRuleStateSpace.__name__,
+                other
             ))
 
         if self.basis != other.basis:

@@ -529,12 +529,12 @@ class Operator:
         :rtype:
         """
 
-        # parallelizer.print("calling...")
         inds = parallelizer.scatter(inds)
-        # parallelizer.print(inds.shape)
-        # parallelizer.print(inds.shape)
         dump = self._get_pop_sequential(inds, idx, save_to_disk=False, check_orthogonality=check_orthogonality)
+        parallelizer.print("gathering inds of shape {}".format(inds.shape))
         res = parallelizer.gather(dump)
+        if isinstance(res, np.ndarray):
+            parallelizer.print("got res of shape {}".format(res.shape))
         # parallelizer.print(res)
         if parallelizer.on_main:
             res = self._load_arrays(res)
@@ -567,9 +567,9 @@ class Operator:
             mapped_inds, inverse = self.filter_symmetric_indices(inds)
             if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
                 self.logger.log_print("evaluating {nel} elements over {nind} unique indices using {cores} processes".format(
-                    nel = len(idx),
-                    nind = len(mapped_inds),
-                    cores = parallelizer.nproc
+                    nel=len(idx),
+                    nind=len(mapped_inds),
+                    cores=parallelizer.nproc
                 ))
                 res = self._get_pop_parallel(mapped_inds, idx, parallelizer, check_orthogonality=check_orthogonality)
             else:
@@ -592,7 +592,7 @@ class Operator:
         return res
 
     @Parallelizer.worker_restricted
-    def _worker_get_elements(self, idx, parallelizer=None):
+    def _worker_get_elements(self, idx, parallelizer=None, check_orthogonality=True):
         """
 
         :param idx:
@@ -604,7 +604,7 @@ class Operator:
         """
         # worker threads only need to do a small portion of the work
         # and actually inherit most of their info from the parent process
-        self._get_pop_parallel(None, idx, parallelizer)
+        self._get_pop_parallel(None, idx, parallelizer, check_orthogonality=True)
 
     def _get_elements(self, inds, idx, full_inds=None, parallelizer=None, check_orthogonality=True):
         """
@@ -622,7 +622,8 @@ class Operator:
         self._worker_get_elements(idx, parallelizer=parallelizer, check_orthogonality=check_orthogonality)
         return self._main_get_elements(inds, idx, parallelizer=parallelizer, check_orthogonality=check_orthogonality)
 
-    def get_elements(self, idx, parallelizer=None,
+    def get_elements(self, idx,
+                     parallelizer=None,
                      check_orthogonality=True,
                      memory_constrained=False
                      # need to work in further cache clearing to account for mem. constraints

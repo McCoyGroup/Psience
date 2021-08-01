@@ -256,6 +256,7 @@ class PerturbationTheoryCorrections:
                  total_basis,
                  energy_corrs,
                  wfn_corrections,
+                 all_energy_corrections=None,
                  degenerate_states=None,
                  degenerate_transformation=None,
                  degenerate_energies=None
@@ -285,6 +286,7 @@ class PerturbationTheoryCorrections:
         self.coupled_states = coupled_states
         self.total_basis = total_basis
         self.energy_corrs = energy_corrs
+        self.all_energy_corrs = all_energy_corrections
         self.wfn_corrections = wfn_corrections
         self.degenerate_states = degenerate_states
         self.degenerate_transf = degenerate_transformation
@@ -308,6 +310,7 @@ class PerturbationTheoryCorrections:
         coupled_states = states['coupled_states']
         total_basis = states['total_states']
         energy_corrs = corrections['energies']
+        all_energy_corrs = corrections['energy_corrections'] if 'energy_corrections' in corrections else None
         wfn_corrections = corrections['wavefunctions']
         if 'degenerate_states' in states:
             degenerate_states = states['degenerate_states']
@@ -331,6 +334,7 @@ class PerturbationTheoryCorrections:
             total_basis,
             energy_corrs,
             wfn_corrections,
+            all_energy_corrections=all_energy_corrs,
             degenerate_states=degenerate_states,
             degenerate_transformation=degenerate_transf,
             degenerate_energies=degenerate_energies
@@ -1382,6 +1386,129 @@ class PerturbationTheorySolver:
             contracted = self.proj.get_transformed_space(wtf1)
             return contracted
 
+    def _could_be_a_space(self, test): # nasty checking code that I don't want to redupe all the time
+        if isinstance(test, (BasisStateSpace, BasisMultiStateSpace)):
+            return True
+        else:
+            try:
+                lt = len(test)
+            except TypeError:
+                return False
+
+            if lt > 0 and isinstance(test[0], (int, np.integer)):
+                return True
+            else:
+                try:
+                    lt = len(test[0])
+                except TypeError:
+                    return False
+                if lt > 0 and isinstance(test[0][0], (int, np.integer)):
+                    return True
+                else:
+                    return False
+
+    def _could_be_rules(self, test):
+        # selection rule options
+        if test is None:
+            return True
+
+        try:
+            lt = len(test)
+        except TypeError:
+            return False
+
+        if lt == 0:
+            return True
+
+        try:
+            lt = len(test[0])
+        except TypeError:
+            return False
+
+        return (
+                lt == 0
+                or isinstance(lt[0], (int, np.integer))
+        )
+
+    def _could_be_a_prefilter(self, test):
+        return (
+            test is None
+            or self._could_be_a_space(test)
+            or (
+                    len(test) == 2 and
+                    test[0] is None or self._could_be_a_space(test[0])
+                    and self._could_be_rules(test[1])
+            )
+        )
+
+    def _apply_transformation_with_filters(self, a, b, filter_space, **opts):
+
+        if filter_space is not None:
+            if isinstance(filter_space, dict):
+                prefilters = filter_space['pre'] if 'pre' in filter_space else None
+                postfilter = filter_space['post'] if 'post' in filter_space else None
+            else:
+                prefilters = filter_space
+                postfilter = None
+        else:
+            prefilters = None
+            postfilter = None
+
+        if prefilters is not None:
+            # this means we are able to filter _before_ we apply the selection rules
+            # which we do by iteratively breaking the space to transform up into
+            # chunks that match the prefilters and applying the associated selection
+            # rules
+
+            new = None # the new space we will slowly build
+            b_remainder = b
+
+            # check to see if we were only passed a single prefilter
+            if self._could_be_a_prefilter(prefilters):
+                prefilters = (prefilters,)
+
+            for n, filter_space in enumerate(prefilters):
+                if filter_space is None or self._could_be_a_space(filter_space):
+                    filter_rules = None
+                else:
+                    filter_space, filter_rules = filter_space
+
+                if filter_space is not None:
+                    if not isinstance(filter_space, (BasisStateSpace, BasisMultiStateSpace)):
+                        filter_space = BasisStateSpace(b.basis, filter_space)
+                    if isinstance(filter_space, SelectionRuleStateSpace):
+                        filter_space = filter_space.to_single().take_unique()
+
+                # take the intersection/remainder
+                if filter_space is None:
+                    b = b_remainder
+                    b_remainder = None
+                else:
+                    b = b_remainder.intersection(filter_space)
+                    if n < len(prefilters): # just a cheap opt...
+                        b_remainder = b_remainder.difference(filter_space)
+
+                if len(b) > 0:
+                    if new is None:
+                        new = a.get_transformed_space(b, rules=filter_rules, **opts)
+                    else:
+                        new = new.union(
+                            a.get_transformed_space(b, rules=filter_rules, **opts)
+                        )
+
+        else:  # no prefilters
+            new = a.get_transformed_space(b, **opts)
+
+        if new is not None: # possible to have None if we had to do no work
+            if postfilter is not None:
+                if not isinstance(postfilter, (BasisStateSpace, BasisMultiStateSpace)):
+                    postfilter = BasisStateSpace(b.basis, postfilter)
+                if isinstance(postfilter, SelectionRuleStateSpace):
+                    postfilter = postfilter.to_single().take_unique()
+                new = new.take_states(postfilter)
+
+        return new
+
     def _get_new_coupled_space(self, a, b, spaces=None, ret_space=True, filter_space=None):
         """
         A symbolic version of the dot product appropriate for getting
@@ -1419,22 +1546,19 @@ class PerturbationTheorySolver:
             raise NotImplementedError("we shouldn't be here")
             new = a * b
         elif isinstance(a, self.ProjectionOperatorWrapper):
+            # uhhh...
             new = a.get_transformed_space(b, parallelizer=self.parallelizer, logger=logger)
         elif isinstance(a, (self.ProjectedOperator, Representation)):
             cur = spaces[op] #type: SelectionRuleStateSpace
             proj = None if not isinstance(a, self.ProjectedOperator) else a.proj
             if cur is None:
 
-                if filter_space is not None:
-                    if not isinstance(filter_space, (BasisStateSpace, BasisMultiStateSpace)):
-                        filter_space = BasisStateSpace(b.basis, filter_space)
-                    if isinstance(filter_space, SelectionRuleStateSpace):
-                        filter_space = filter_space.to_single().take_unique()
-                    b = b.intersection(filter_space)
+                new = self._apply_transformation_with_filters(
+                    a, b, filter_space,
+                    track_excitations= not self.memory_constrained,
+                    parallelizer=self.parallelizer, logger=logger
+                )
 
-                new = a.get_transformed_space(b, parallelizer=self.parallelizer, logger=logger)
-                # b.check_indices()
-                # new.check_indices()
                 # we track not only the output SelectionRuleStateSpace
                 # but also which projection operators have been applied
                 # so that we can make sure we calculate any pieces that
@@ -1464,20 +1588,11 @@ class PerturbationTheorySolver:
                     # means we can't determine which parts we have and have not calculated
                     # so we calculate everything and associate it to proj
 
-                    if filter_space is not None:
-                        if not isinstance(filter_space, (BasisStateSpace, BasisMultiStateSpace)):
-                            filter_space = BasisStateSpace(b.basis, filter_space)
-                        if isinstance(filter_space, SelectionRuleStateSpace):
-                            filter_space = filter_space.to_single().take_unique()
-                        b = b.intersection(filter_space)
-
-                    new = a.get_transformed_space(b,
-                                                  track_excitations=not self.memory_constrained,
-                                                  parallelizer=self.parallelizer, logger=logger
-                                                  )
-
-                    if filter_space is not None:
-                        new = new.take_states(filter_space.to_single().take_unique())
+                    new = self._apply_transformation_with_filters(
+                        a, b, filter_space,
+                        track_excitations=not self.memory_constrained,
+                        parallelizer=self.parallelizer, logger=logger
+                    )
 
                     cur = cur.union(new)
                     projections[proj] = b
@@ -1500,29 +1615,27 @@ class PerturbationTheorySolver:
                         existing = cur.intersection(b_sels, handle_subspaces=False)
                         # and now we do extra transformations where we need to
 
-                        if filter_space is not None:
-                            if not isinstance(filter_space, (BasisStateSpace, BasisMultiStateSpace)):
-                                filter_space = BasisStateSpace(diffs.basis, filter_space)
-                            if isinstance(filter_space, SelectionRuleStateSpace):
-                                filter_space = filter_space.to_single().take_unique()
-                            diffs = diffs.intersection(filter_space)
 
                         if len(diffs) > 0:
-                            new_new = a.get_transformed_space(diffs,
-                                                              track_excitations = not self.memory_constrained,
-                                                              parallelizer=self.parallelizer, logger=logger
-                                                              )
+                            new_new = self._apply_transformation_with_filters(
+                                a, diffs, filter_space,
+                                track_excitations=not self.memory_constrained,
+                                parallelizer=self.parallelizer, logger=logger
+                            )
 
-                            # next we add the new stuff to the cache
-                            cur = cur.union(new_new)
-                            projections[proj] = rep_space.union(diffs)
-                            spaces[op] = (projections, cur)
-
-                            # TODO: find a way to make this not cause memory spikes...
-                            if ret_space:
-                                new = existing.union(new_new).to_single(track_excitations=not self.memory_constrained).take_unique()
-                            else:
+                            if new_new is None:
                                 new = b
+                            else:
+                                # next we add the new stuff to the cache
+                                cur = cur.union(new_new)
+                                projections[proj] = rep_space.union(diffs)
+                                spaces[op] = (projections, cur)
+
+                                # TODO: find a way to make this not cause memory spikes...
+                                if ret_space:
+                                    new = existing.union(new_new).to_single(track_excitations=not self.memory_constrained).take_unique()
+                                else:
+                                    new = b
                         else:
                             new = b
 
@@ -1942,14 +2055,10 @@ class PerturbationTheorySolver:
         # checkpointer['indices'] = self.total_state_space
         with checkpointer:
 
-            # import McUtils.Plots as plt
-            # for r in perturbations:
-            #     wat = plt.ArrayPlot(r.asarray())
-            # wat.show()
-
             all_energies = np.zeros((len(states), order + 1))
             all_overlaps = np.zeros((len(states), order + 1))
             all_corrs = np.zeros((len(states), order + 1, N))
+            all_energy_corrs = np.full((len(states), order + 1), None, dtype=object)
 
             with logger.block(tag="applying PT"):
                 logger.log_print(
@@ -1984,7 +2093,7 @@ class PerturbationTheorySolver:
                         for n in deg_group.indices:
                             d2 = deg_group.take_states([n])
                             d2.deg_find_inds = None
-                            energies, overlaps, corrs = self.apply_VPT_equations(n, deg_group,
+                            energies, overlaps, corrs, ecorrs = self.apply_VPT_equations(n, deg_group,
                                                                                  None, None, None, None,
                                                                                  allow_PT_degs=False,
                                                                                  non_zero_cutoff=non_zero_cutoff,
@@ -1993,6 +2102,7 @@ class PerturbationTheorySolver:
 
                             res_index = states.find(n)
                             all_energies[res_index] = energies
+                            all_energy_corrs[res_index] = ecorrs
                             all_corrs[res_index] = corrs
                             all_overlaps[res_index] = overlaps
                 else:
@@ -2011,7 +2121,7 @@ class PerturbationTheorySolver:
                             deg_engs = zero_order_states = subspaces = main_subspace = [None]
 
                         for n, de, zo, s in zip(deg_group.indices, deg_engs, zero_order_states, subspaces):
-                            energies, overlaps, corrs = self.apply_VPT_equations(n, deg_group, de, zo, main_subspace, s,
+                            energies, overlaps, corrs, ecorrs = self.apply_VPT_equations(n, deg_group, de, zo, main_subspace, s,
                                                                                  allow_PT_degs=self.allow_sakurai_degs,
                                                                                  non_zero_cutoff=non_zero_cutoff,
                                                                                  perturbations=perturbations
@@ -2019,6 +2129,7 @@ class PerturbationTheorySolver:
 
                             res_index = states.find(n)
                             all_energies[res_index] = energies
+                            all_energy_corrs[res_index] = ecorrs
                             all_corrs[res_index] = corrs
                             all_overlaps[res_index] = overlaps
 
@@ -2094,6 +2205,7 @@ class PerturbationTheorySolver:
                 },
                 {
                     "energies": all_energies,
+                    'energy_corrections':all_energy_corrs,
                     "wavefunctions": corr_mats,
                     "degenerate_transformation": None,
                     "degenerate_energies": None
@@ -2211,6 +2323,7 @@ class PerturbationTheorySolver:
 
         energies = np.zeros((order + 1,), dtype=float)
         overlaps = np.zeros((order + 1,), dtype=float)
+        energy_corrs = [None] * (order + 1)
         corrs = np.zeros((order + 1, len(total_state_space)), dtype=float)  # can I make this less expensive in general?
 
         # find the state index in the coupled subspace
@@ -2251,6 +2364,7 @@ class PerturbationTheorySolver:
                 if ignore_odd_orders and k % 2 == 1:
                     if verbose:
                         self.logger.log_print('Skipping order {k} for the energy (assumed to be 0)', k=k)
+                    energy_terms = None
                     Ek = 0
                 # elif ignore_odd_orders: # Tried to get the 2n + 1 trick working but...it doesn't work?
                 #     Ek = (
@@ -2283,6 +2397,7 @@ class PerturbationTheorySolver:
                             k=k
                         )
                     Ek = np.sum(energy_terms)
+                energy_corrs[k] = energy_terms
                 energies[k] = Ek
                 #   <n^(0)|n^(k)> = -1/2 sum(<n^(i)|n^(k-i)>, i=1...k-1)
                 #         |n^(k)> = sum(Pi_n (En^(k-i) - H^(k-i)) |n^(i)>, i=0...k-1) + <n^(0)|n^(k)> |n^(0)>
@@ -2323,7 +2438,7 @@ class PerturbationTheorySolver:
                             state_index, ov, ov_parts
                         ))
 
-        return energies, overlaps, corrs
+        return energies, overlaps, corrs, energy_corrs
     def apply_VPT_deg_equations(self,
                                 state_index,
                                 degenerate_space_indices,
@@ -2342,7 +2457,7 @@ class PerturbationTheorySolver:
         :rtype:
         """
 
-        # raise NotImplementedError("need to check this...")
+        raise NotImplementedError("this is no longer relevant")
 
         n = state_index
         e_vec_full = self.zero_order_energies
