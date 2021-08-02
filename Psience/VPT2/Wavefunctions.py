@@ -301,8 +301,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
                 with self.logger.block(tag="building {}".format(h)):
                     start = time.time()
-                    sub = h.get_representation_matrix(m_pairs, self.corrs.total_basis, zero_element_warning=False,
-                                                      remove_duplicates=False) # expect zeros in M(3)?
+                    sub = h.get_representation_matrix(m_pairs, self.corrs.total_basis
+                                                      , zero_element_warning=False # expect zeros in M(3)?
+                                                      , remove_duplicates=False
+                                                      )
                     end = time.time()
                     self.logger.log_print('took {t:.3f}s...', t=end - start)
                 # sub = generate_rep(h, m_pairs)
