@@ -40,6 +40,11 @@ __len__(self):
 __repr__(self): 
 ```
 
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.remove_duplicates" class="docs-object-method">&nbsp;</a>
+```python
+remove_duplicates(self, assume_symmetric=True): 
+```
+
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.load_space_diffs" class="docs-object-method">&nbsp;</a>
 ```python
 load_space_diffs(self): 
