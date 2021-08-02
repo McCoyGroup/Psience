@@ -157,7 +157,7 @@ class ExpansionTerms:
 
     backpropagate_internals = False # just a flag that can be set to use Cartesian results _but_ do it with
                                    # terms backpropagated from the internals
-    mixed_derivative_handling_mode = "numerical"
+    mixed_derivative_handling_mode = "unhandled"
 
     _cached_jacobians = {}
     def __init__(self,

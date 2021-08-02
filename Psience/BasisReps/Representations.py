@@ -625,7 +625,6 @@ class Representation:
                 N = len(total_space)
                 del m_pairs # free up memory _before_ building the matrix
 
-
                 # del full_inds_filter
 
                 logger.log_print("constructing full row/col index array...")
@@ -633,9 +632,7 @@ class Representation:
                 # first_bits = sidx[sidx < ninds]
                 # last_bits = sidx[sidx >= ninds] - ninds
 
-                diag_inds = row_inds[row_inds == col_inds]
-
-                utri = row_inds < col_inds
+                utri = row_inds != col_inds
                 full_inds = np.array([
                     np.concatenate([row_inds, col_inds[utri]]),
                     np.concatenate([col_inds, row_inds[utri]])
