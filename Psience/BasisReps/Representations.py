@@ -614,26 +614,85 @@ class Representation:
             else:
                 logger.log_print("finding row/column indices...")
                 # figure out the appropriate inds for this data in the sparse representation
-                row_inds = total_space.find(m_pairs.bras)
-                col_inds = total_space.find(m_pairs.kets)
+                row_inds = total_space.find(m_pairs.bras).astype('uint64')
+                col_inds = total_space.find(m_pairs.kets).astype('uint64')
                 N = len(total_space)
                 del m_pairs # free up memory _before_ building the matrix
 
+                # logger.log_print("constructing full row/col index array...")
+                # # but now we need to remove the duplicates, because many sparse matrix implementations
+                # # will sum up any repeated elements
+
+                logger.log_print("getting unique index pairs...")
+                full_inds_filter = np.concatenate([
+                    row_inds*N + col_inds,
+                    col_inds*N + row_inds,
+                    ]) # this might overflow?........
+                _, idx = np.unique(full_inds_filter, axis=0, return_index=True)
+                sidx = np.sort(idx)
+
+                # full_inds_test = np.array([
+                #     np.concatenate([row_inds, col_inds]),
+                #     np.concatenate([col_inds, row_inds])
+                # ]).T
+                # _, idx2 = np.unique(full_inds_test, axis=0, return_index=True)
+                # sidx2 = np.sort(idx2)
+
+                # diffs = np.where(sidx != sidx2)
+                # if len(diffs) > 0:
+                #     if len(diffs[0]) > 0:
+                #         raise Exception(
+                #             N,
+                #             full_inds[sidx2[diffs]],
+                #             full_inds_filter[sidx[diffs]]
+                #         )
+                #
+
+                del full_inds_filter
 
                 logger.log_print("constructing full row/col index array...")
-                # but now we need to remove the duplicates, because many sparse matrix implementations
-                # will sum up any repeated elements
-                full_inds = np.array([np.concatenate([row_inds, col_inds]), np.concatenate([col_inds, row_inds])]).T
+                ninds = len(row_inds)
+                first_bits = sidx[sidx < ninds]
+                last_bits = sidx[sidx >= ninds] - ninds
+
+                full_inds = np.array([
+                    np.concatenate([row_inds[first_bits], col_inds[last_bits]]),
+                    np.concatenate([col_inds[first_bits], row_inds[last_bits]])
+                ]).T
+
+                # full_inds3 = np.array([
+                #     np.concatenate([row_inds, col_inds]),
+                #     np.concatenate([col_inds, row_inds])
+                # ]).T
+                # sidx3 = np.concatenate([first_bits, last_bits + ninds])
+                # full_inds3 = full_inds3[sidx3]
+
+                # diff_spots = np.any(full_inds3 != full_inds, axis=1)
+                # if np.any(diff_spots):
+                #     raise Exception(len(first_bits), len(row_inds), len(last_bits),
+                #                     np.where(diff_spots)[0][0],
+                #                     full_inds3[diff_spots],
+                #                     full_inds[diff_spots]
+                #                     )
+
+                # full_inds2 = full_inds_test[sidx]
+                #
+                # diff_spots = np.any(full_inds2 != full_inds, axis=1)
+                # if np.any(diff_spots):
+                #     raise Exception(len(first_bits), len(row_inds), len(last_bits),
+                #                     np.where(diff_spots)[0][0],
+                #                     last_bits,
+                #                     col_inds[0], row_inds[0],
+                #                     full_inds_test[len(row_inds)],
+                #                     full_inds2[diff_spots],
+                #                     full_inds[diff_spots]
+                #                     )
 
                 del row_inds
                 del col_inds
 
-                logger.log_print("getting unique index pairs...")
-                _, idx = np.unique(full_inds, axis=0, return_index=True)
-                sidx = np.sort(idx)
-
-                logger.log_print("subsampling indices...")
-                full_inds = full_inds[sidx]
+                # logger.log_print("subsampling indices...")
+                # full_inds = full_inds[sidx]
 
                 logger.log_print("getting vals array...")
                 full_dat = np.concatenate([sub, sub], axis=0) # there's gotta be a way to not build the full intermediate...?
