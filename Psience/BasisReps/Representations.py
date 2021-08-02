@@ -625,7 +625,6 @@ class Representation:
                 # will sum up any repeated elements
                 full_inds = np.array([np.concatenate([row_inds, col_inds]), np.concatenate([col_inds, row_inds])]).T
 
-                del sub
                 del row_inds
                 del col_inds
 
@@ -638,6 +637,7 @@ class Representation:
 
                 logger.log_print("getting vals array...")
                 full_dat = np.concatenate([sub, sub], axis=0) # there's gotta be a way to not build the full intermediate...?
+                del sub
                 full_dat = full_dat[sidx]
 
                 # N = len(total_space)
