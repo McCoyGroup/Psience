@@ -612,25 +612,32 @@ class Representation:
             if diagonal and coupled_space is total_space: # fast shortcut
                 sub = SparseArray.from_diag(sub)
             else:
-                # logger.log_print("finding row/column indices...")
+                logger.log_print("finding row/column indices...")
                 # figure out the appropriate inds for this data in the sparse representation
                 row_inds = total_space.find(m_pairs.bras)
                 col_inds = total_space.find(m_pairs.kets)
                 N = len(total_space)
                 del m_pairs # free up memory _before_ building the matrix
 
+
+                logger.log_print("constructing full row/col index array...")
                 # but now we need to remove the duplicates, because many sparse matrix implementations
                 # will sum up any repeated elements
                 full_inds = np.array([np.concatenate([row_inds, col_inds]), np.concatenate([col_inds, row_inds])]).T
-                full_dat = np.concatenate([sub, sub], axis=0)
 
                 del sub
                 del row_inds
                 del col_inds
 
+                logger.log_print("getting unique index pairs...")
                 _, idx = np.unique(full_inds, axis=0, return_index=True)
                 sidx = np.sort(idx)
+
+                logger.log_print("subsampling indices...")
                 full_inds = full_inds[sidx]
+
+                logger.log_print("getting vals array...")
+                full_dat = np.concatenate([sub, sub], axis=0) # there's gotta be a way to not build the full intermediate...?
                 full_dat = full_dat[sidx]
 
                 # N = len(total_space)
@@ -641,10 +648,13 @@ class Representation:
                     # full_inds = full_inds[sidx]
                     # full_dat = full_dat[sidx]
 
+                    logger.log_print("making data multi-dim...")
                     ext_shape = full_dat.shape[1:]
                     shape = (N, N) + ext_shape
                     full_dat = np.moveaxis(full_dat, 0, -1).flatten()
 
+
+                    logger.log_print("populating index array...")
                     rows, cols = full_inds.T
                     full_inds = np.empty(
                         (2 + len(ext_shape), len(full_dat)),
@@ -664,6 +674,7 @@ class Representation:
                     full_inds = full_inds.T
                     shape = (N, N)
 
+                logger.log_print("building sparse tensor...")
                 sub = SparseArray.from_data((full_dat, full_inds), shape=shape)
 
         return sub
