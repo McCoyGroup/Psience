@@ -3275,6 +3275,38 @@ class BraKetSpace:
     def __repr__(self):
         return "{}(nstates={})".format(type(self).__name__, len(self))
 
+
+    def remove_duplicates(self, assume_symmetric=True):
+
+        if not assume_symmetric:
+            raise NotImplementedError("only symmetric stuff currently implemented")
+        else:
+            # reduce indices so we only have the upper triangle
+            row_inds = self.bras.indices
+            col_inds = self.kets.indices
+            final_row_inds = np.concatenate([row_inds, col_inds])
+            final_col_inds = np.concatenate([col_inds, row_inds])
+            upper_tri_sel = np.where(final_row_inds <= final_col_inds)[0]
+
+            # deduplicate the index pairs in the array
+            dedupe_inds = np.array([
+                final_row_inds[upper_tri_sel],
+                final_col_inds[upper_tri_sel]
+                # np.concatenate([col_inds, row_inds])
+            ]).T
+            _, idx = np.unique(dedupe_inds, axis=0, return_index=True)
+            sidx = np.sort(idx)
+            unique_utri_sel = upper_tri_sel[sidx]
+
+            # map this back to the original states they came from...
+            ninds = len(row_inds)
+            og_sel = unique_utri_sel[unique_utri_sel < ninds]
+            flip_sel = unique_utri_sel[unique_utri_sel >= ninds] - ninds
+
+            full_sel = np.concatenate([og_sel, flip_sel])
+
+            return self.take_subspace(full_sel)
+
     def load_space_diffs(self):
         if self._state_diffs is None:
             self._state_diffs = self.state_pairs[1] - self.state_pairs[0]

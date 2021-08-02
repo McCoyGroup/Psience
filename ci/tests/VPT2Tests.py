@@ -1598,7 +1598,7 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=False,
+            log=True,
             verbose=False,
             print_report=print_report,
             calculate_intensities=True,
