@@ -204,6 +204,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     order-1
                 ))
 
+            inds = inds.remove_duplicates(assume_symmetric=True)
+
             return inds
 
         if all(
@@ -223,7 +225,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     m3_inds = get_states(m3, 2)
                     with self.logger.block(tag="building {h}".format(h=m3)):
                         rep_inds[3] = m3_inds
-                        rep_3 = m3.get_representation_matrix(rep_inds[3], self.corrs.total_basis)
+                        rep_3 = m3.get_representation_matrix(rep_inds[3], self.corrs.total_basis, remove_duplicates=False)
                 mu_terms.append(rep_3)
                 # mu_terms = mu_terms + [rep_3]
         else:
@@ -299,7 +301,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
                 with self.logger.block(tag="building {}".format(h)):
                     start = time.time()
-                    sub = h.get_representation_matrix(m_pairs, self.corrs.total_basis, zero_element_warning=False) # expect zeros in M(3)?
+                    sub = h.get_representation_matrix(m_pairs, self.corrs.total_basis, zero_element_warning=False,
+                                                      remove_duplicates=False) # expect zeros in M(3)?
                     end = time.time()
                     self.logger.log_print('took {t:.3f}s...', t=end - start)
                 # sub = generate_rep(h, m_pairs)
