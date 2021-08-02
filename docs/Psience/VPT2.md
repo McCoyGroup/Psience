@@ -4223,7 +4223,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
