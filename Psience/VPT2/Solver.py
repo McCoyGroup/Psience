@@ -387,7 +387,7 @@ class PerturbationTheoryCorrections:
             verbose=self.verbose
         )
 
-    def operator_representation(self, operator_expansion, order=None, subspace=None, contract=True):
+    def operator_representation(self, operator_expansion, order=None, subspace=None, contract=True, operator_symbol="A"):
         """
         Generates the representation of the operator in the basis of stored states
 
@@ -453,7 +453,7 @@ class PerturbationTheoryCorrections:
                         op.append(subrep)
 
                     if logger is not None and self.verbose:
-                        with logger.block(tag="<{a}|A({c})|{b}>".format(a=a, c=c, b=b)):
+                        with logger.block(tag="<{a}|{A}({c})|{b}>".format(A=operator_symbol, a=a, c=c, b=b)):
                             if isinstance(subrep, SparseArray):
                                 subrep = subrep.asarray()
                             logger.log_print(str(subrep).splitlines())
@@ -1412,17 +1412,17 @@ class PerturbationTheorySolver:
             except TypeError:
                 return False
 
-            if lt > 0 and isinstance(test[0], (int, np.integer)):
-                return True
-            else:
-                try:
-                    lt = len(test[0])
-                except TypeError:
-                    return False
-                if lt > 0 and isinstance(test[0][0], (int, np.integer)):
+            try:
+                if lt > 0 and isinstance(test[0], (int, np.integer)):
                     return True
                 else:
-                    return False
+                    lt = len(test[0])
+                    if lt > 0 and isinstance(test[0][0], (int, np.integer)):
+                        return True
+                    else:
+                        return False
+            except TypeError:
+                return False
 
     def _could_be_rules(self, test):
         # selection rule options
@@ -2864,14 +2864,14 @@ class PerturbationTheorySolver:
             # ]
             H_nd = [
                 x.asarray() if isinstance(x, SparseArray) else x
-                for x in subcorrs.operator_representation(subhams, subspace=deg_group)
+                for x in subcorrs.operator_representation(subhams, subspace=deg_group, operator_symbol="H")
             ]
 
         else:
             subhams = self.representations
             H_nd = [
                 x.asarray() if isinstance(x, SparseArray) else x
-                for x in corrs.operator_representation(subhams)
+                for x in corrs.operator_representation(subhams, operator_symbol="H")
             ]
         return H_nd
     def get_degenerate_rotation(self, deg_group, corrs):
