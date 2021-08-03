@@ -2644,7 +2644,7 @@ class VPT2Tests(TestCase):
         )
 
     @debugTest
-    def test_OCHHVPTCartesiansDegenerateFiltered(self):
+    def test_OCHHVPTCartesiansDegenerateSubsampleFiltered(self):
 
         tag = 'OCHH Cartesians'
         file_name = "OCHH_freq.fchk"
@@ -2657,14 +2657,20 @@ class VPT2Tests(TestCase):
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
         states = self.get_states(4, n_modes)
+        np.random.seed(0)
+        subsel = np.unique(np.random.randint(10, len(states), 10))
+        states = states[:1] + [states[s] for s in subsel] + states[3:5]
 
         degeneracies = self.get_degenerate_polyad_space(
             states,
             [
-                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
-                , [[0, 0, 1, 0, 0, 0], [0, 0, 0, 1, 0, 0]]
+                # [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]],
+                [[0, 0, 1, 0, 0, 0], [0, 0, 0, 1, 0, 0]],
             ]
         )
+        degeneracies = [
+            [[0, 1, 1, 0, 1, 0], [0, 1, 0, 1, 1, 0]]
+            ]
         degeneracies = [np.array(x).tolist() for x in degeneracies]
         states = np.array(states).tolist()
         flat_degs = []
@@ -2679,6 +2685,11 @@ class VPT2Tests(TestCase):
 
         gaussian_energies = self.gaussian_data['OCHH']['zpe']
         gaussian_freqs = self.gaussian_data['OCHH']['freqs']
+
+        # assert [0, 1, 1, 0, 1, 0] in filter_space
+        # assert [0, 1, 0, 1, 1, 0] in filter_space
+        # sorter = np.argsort(HarmonicOscillatorProductBasis(n_modes).ravel_state_inds(filter_space))
+        # filter_space = [filter_space[s] for s in sorter]
 
         print_report = True
         nielsen_tolerance = None
@@ -2696,21 +2707,33 @@ class VPT2Tests(TestCase):
             # pre_wfns_script=pre_wfns_script,
             log=True,
             verbose=True,
-            calculate_intensities=False,
+            calculate_intensities=True,
             gaussian_tolerance=gaussian_tolerance,
             degeneracies=degeneracies,
             gaussian_resonance_handling=False
             # these filters work fine for _three_ quantum resonances it seems?
             # as we push out of that space though I think I need more stuff?
-            # , state_space_filters={
-            #
-            #     (1, 1): self.get_states(3, n_modes),
-            #     (2, 0): (
-            #         np.unique(self.get_states(2, n_modes) + flat_degs, axis=0),
-            #         (None, [[]])  # selection rules to apply to remainder
-            #     )
-            #
-            # }
+            , state_space_filters={
+                (1, 1): np.unique(
+                    flat_degs + (
+                        self.get_states(3, n_modes)
+                        if all(x.tolist() in states for x in self.get_states(2, n_modes))
+                        else self.get_states(4, n_modes)
+                    ),
+                    axis=0
+                ),
+                (2, 0): (
+                    np.unique(
+                        flat_degs + (
+                            self.get_states(2, n_modes)
+                            if all(x.tolist() in states for x in self.get_states(2, n_modes))
+                            else self.get_states(2, n_modes) + self.get_states(4, n_modes)[len(self.get_states(3, n_modes)):]
+                        ),
+                        axis=0
+                    ),
+                    (None, [[]])  # selection rules to apply to remainder
+                )
+            }
             # , allow_post_PT_calc=False
             # , invert_x=True
             # , modify_degenerate_perturbations=True
