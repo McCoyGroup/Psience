@@ -7,6 +7,12 @@ import numpy as np
 from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
 
 
+class VPTSystem:
+    def __init__(self, src):
+        ...
+
+
+
 class VPTRunner:
     """
     A helper class to make it easier to run jobs
