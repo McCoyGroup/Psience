@@ -259,7 +259,9 @@ class PerturbationTheoryCorrections:
                  all_energy_corrections=None,
                  degenerate_states=None,
                  degenerate_transformation=None,
-                 degenerate_energies=None
+                 degenerate_energies=None,
+                 logger=None,
+                 verbose=False
                  ):
         """
         :param hamiltonians:
@@ -291,13 +293,16 @@ class PerturbationTheoryCorrections:
         self.degenerate_states = degenerate_states
         self.degenerate_transf = degenerate_transformation
         self.degenerate_energies = degenerate_energies
+        self.logger = logger
+        self.verbose = verbose
 
     @classmethod
     def from_dicts(cls,
-                 states,
-                 corrections,
-                 hamiltonians
-                 ):
+                   states,
+                   corrections,
+                   hamiltonians,
+                   **opts
+                   ):
         """
         :param states: a dict with the states described by the corrections, the set of states coupled, and the size of the overall basis
         :type states: dict
@@ -337,7 +342,8 @@ class PerturbationTheoryCorrections:
             all_energy_corrections=all_energy_corrs,
             degenerate_states=degenerate_states,
             degenerate_transformation=degenerate_transf,
-            degenerate_energies=degenerate_energies
+            degenerate_energies=degenerate_energies,
+            **opts
         )
 
     @property
@@ -376,10 +382,12 @@ class PerturbationTheoryCorrections:
             # not sure what to do with all this...
             degenerate_states=self.degenerate_states,
             degenerate_transformation=self.degenerate_transf,
-            degenerate_energies=self.degenerate_energies
+            degenerate_energies=self.degenerate_energies,
+            logger=self.logger,
+            verbose=self.verbose
         )
 
-    def operator_representation(self, operator_expansion, order=None, subspace=None):
+    def operator_representation(self, operator_expansion, order=None, subspace=None, contract=True):
         """
         Generates the representation of the operator in the basis of stored states
 
@@ -420,11 +428,14 @@ class PerturbationTheoryCorrections:
 
         # generalizes the dot product so that we can use 0 as a special value...
         dot = PerturbationTheorySolver._safe_dot
+        logger = self.logger
+        logger = None if logger is None or isinstance(logger, NullLogger) else logger
 
         # does the dirty work of acutally applying the rep...
-        reps = [np.zeros(1)] * order
+        reps = [[] for _ in range(order)]
         for k in range(order):
-            op = None
+            tags = []
+            op = []
             # apply each thing up to requested order...
             for a in range(k+1): # if k == 2: a=0, a=1, a=2
                 for b in range(k-a+1): # if k==2, a==0: b=0, b=1, b=2; a==1: b=0, b=1
@@ -433,16 +444,22 @@ class PerturbationTheoryCorrections:
                     if isinstance(rop, (int, float, np.integer, np.floating)): # constant reps...
                         if rop != 0: # cheap easy check
                             subrep = rop * dot(wfn_corrs[a], wfn_corrs[b].T)
-                            if op is None:
-                                op = subrep
-                            else:
-                                op += subrep
+                            op.append(subrep)
+                        else:
+                            subrep = 0
+                            op.append(0)
                     else:
                         subrep = dot(dot(wfn_corrs[a], rop), wfn_corrs[b].T)
-                        if op is None:
-                            op = subrep
-                        else:
-                            op += subrep
+                        op.append(subrep)
+
+                    if logger is not None and self.verbose:
+                        with logger.block(tag="<{a}|A({c})|{b}>".format(a=a, c=c, b=b)):
+                            if isinstance(subrep, SparseArray):
+                                subrep = subrep.asarray()
+                            logger.log_print(str(subrep).splitlines())
+
+            if contract:
+                op = sum(op)
             reps[k] = op
 
         return reps
@@ -2211,6 +2228,8 @@ class PerturbationTheorySolver:
                     "degenerate_energies": None
                 },
                 perturbations # we probably want to ditch this for memory reasons...
+                , logger=self.logger
+                , verbose=self.verbose
             )
 
             try:
