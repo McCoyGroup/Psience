@@ -10,7 +10,7 @@ from_state: method
 ```
 <a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, hamiltonians, states, coupled_states, total_basis, energy_corrs, wfn_corrections, all_energy_corrections=None, degenerate_states=None, degenerate_transformation=None, degenerate_energies=None): 
+__init__(self, hamiltonians, states, coupled_states, total_basis, energy_corrs, wfn_corrections, all_energy_corrections=None, degenerate_states=None, degenerate_transformation=None, degenerate_energies=None, logger=None, verbose=False): 
 ```
 
 - `hamiltonians`: `Iterable[SparseArray]`
@@ -62,7 +62,7 @@ Takes only those elements that are in space
 
 <a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.operator_representation" class="docs-object-method">&nbsp;</a>
 ```python
-operator_representation(self, operator_expansion, order=None, subspace=None): 
+operator_representation(self, operator_expansion, order=None, subspace=None, contract=True): 
 ```
 Generates the representation of the operator in the basis of stored states
 - `operator_expansion`: `Iterable[float] | Iterable[np.ndarray]`
