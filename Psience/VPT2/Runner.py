@@ -310,7 +310,7 @@ class VPTRunner:
     @classmethod
     def get_states(cls, n_quanta, n_modes, target_modes=None, only_target_modes=False):
         if isinstance(n_quanta, int):
-            n_quanta = range(n_quanta)
+            n_quanta = range(n_quanta+1)
         whee = [np.flip(x) for x in BasisStateSpace.from_quanta(
             HarmonicOscillatorProductBasis(n_modes),
             n_quanta
@@ -360,7 +360,7 @@ class VPTRunner:
         return [g for g in groups if len(g) > 1]
 
     @classmethod
-    def get_state_space_filter(cls, n_modes, target='wavefunctions'):
+    def get_state_space_filter(cls, states, n_modes, target='wavefunctions'):
         """
 
     > H(1): SelectionRuleStateSpace(ogstates=114, nstates=30481, basis=HOBasis(dim=12))
@@ -377,24 +377,27 @@ class VPTRunner:
         elif target == 'intensities':
             return {
                     (1, 1): (
-                        cls.get_states(3, n_modes),
+                        cls.get_states(1, n_modes),
                         (
-                            cls.get_states(4, n_modes),
+                            cls.get_states([2, 3], n_modes),
                             [
                                 x for x in HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x")
                                 if sum(x) in [-1, 1]
                             ]
                         )
-                    ),
+                    ) if any(sum(s) == 3 for s in states) else cls.get_states(2, n_modes),
                     (2, 0): (
-                        cls.get_states(2, n_modes),
+                        cls.get_states(1, n_modes),
                         (
-                            cls.get_states(4, n_modes)[len(cls.get_states(3, n_modes)):],
+                            cls.get_states([3], n_modes),
                             [
                                 x for x in HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x", "x")
                                 if sum(x) in [-2, 0]#, 2]
                             ]
                         ),
+                        (None, [[]])  # selection rules to apply to remainder
+                    ) if any(sum(s) == 3 for s in states) else (
+                        cls.get_states(1, n_modes),
                         (None, [[]])  # selection rules to apply to remainder
                     )
             }
