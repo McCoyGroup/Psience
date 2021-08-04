@@ -148,7 +148,7 @@ class VPT2Tests(TestCase):
                 hammer = PerturbationTheoryHamiltonian(
                     mol_spec,
                     mode_selection=mode_selection,
-                    log=log,
+                    logger=log,
                     parallelizer=parallelizer,
                     checkpoint=checkpoint,
                     operator_chunk_size=chunk_size,

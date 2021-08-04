@@ -1,5 +1,6 @@
 
 import numpy as np, itertools, time, gc
+from scipy import linalg as slalg
 
 from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger
@@ -1439,13 +1440,14 @@ class PerturbationTheorySolver:
 
         try:
             lt = len(test[0])
+            res = (
+                    lt == 0
+                    or isinstance(test[0][0], (int, np.integer))
+            )
         except TypeError:
             return False
 
-        return (
-                lt == 0
-                or isinstance(lt[0], (int, np.integer))
-        )
+        return res
 
     def _could_be_a_prefilter(self, test):
         return (
@@ -2039,7 +2041,7 @@ class PerturbationTheorySolver:
 
     #region Apply Equations
 
-    def get_corrections(self, non_zero_cutoff=1.0e-14):
+    def get_corrections(self, non_zero_cutoff=1.0e-14, check_overlap=True):
         """
         Applies the perturbation theory equations to obtain
         corrections to the wave functions and energies
@@ -2137,18 +2139,31 @@ class PerturbationTheorySolver:
                         else:
                             deg_engs = zero_order_states = subspaces = main_subspace = [None]
 
-                        for n, de, zo, s in zip(deg_group.indices, deg_engs, zero_order_states, subspaces):
+                        res_inds = states.find(deg_group.indices)
+                        for n, res_index, de, zo, s in zip(deg_group.indices, res_inds, deg_engs, zero_order_states, subspaces):
                             energies, overlaps, corrs, ecorrs = self.apply_VPT_equations(n, deg_group, de, zo, main_subspace, s,
                                                                                  allow_PT_degs=self.allow_sakurai_degs,
                                                                                  non_zero_cutoff=non_zero_cutoff,
                                                                                  perturbations=perturbations
                                                                                  )
 
-                            res_index = states.find(n)
                             all_energies[res_index] = energies
                             all_energy_corrs[res_index] = ecorrs
                             all_corrs[res_index] = corrs
                             all_overlaps[res_index] = overlaps
+
+                        # now we reorthogonalize degenerate states
+                        if not self.intermediate_normalization:
+                            for k in range(1, order+1):
+                                for i, (n, x) in enumerate(zip(res_inds, deg_inds)):
+                                    for m, y in zip(res_inds[i + 1:], deg_inds[i+1:]):
+                                        onn = -1 / 2 * np.sum(np.dot(all_corrs[n][i], all_corrs[n][k - i]) for i in range(1, k))
+                                        onm = -1 / 2 * np.sum(np.dot(all_corrs[n][i], all_corrs[m][k - i]) for i in range(1, k))
+                                        omm = -1 / 2 * np.sum(np.dot(all_corrs[m][i], all_corrs[m][k - i]) for i in range(1, k))
+                                        all_corrs[n][k][x] = onn
+                                        all_corrs[n][k][y] = onm
+                                        all_corrs[m][k][x] = onm
+                                        all_corrs[m][k][y] = omm
 
                 end = time.time()
                 logger.log_print(
@@ -2239,6 +2254,9 @@ class PerturbationTheorySolver:
                 }
             except KeyError:
                 pass
+
+            with self.logger.block(tag="overlap matrix"):
+                self.logger.log_print(str(np.sum(corrs.get_overlap_matrices(), axis=0)).splitlines())
 
         return corrs
 
@@ -2618,12 +2636,6 @@ class PerturbationTheorySolver:
 
         overlaps[0] = 1
 
-        # eval_wf_bits(1)
-        # eval_wf_bits(2)
-        # raise Exception(piV)#dot(projV, corrs[1])[D])
-        # c1 = corrs[1].copy()
-        # c1[D] = 0.
-        # raise Exception(dot(c1, c1))
 
         def drop_D(vec):
             vec = vec.copy()
@@ -2899,7 +2911,7 @@ class PerturbationTheorySolver:
         # import McUtils.Plots as plt
         # plt.TensorPlot(np.array(H_nd)).show()
         H_nd = np.sum(H_nd, axis=0)
-
+        overlaps = np.sum(subdegs.get_overlap_matrices(), axis=0)
 
         with logger.block(tag="non-degenerate Hamiltonian"):
             logger.log_print(
