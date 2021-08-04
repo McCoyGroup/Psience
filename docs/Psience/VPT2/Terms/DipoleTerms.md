@@ -4,7 +4,7 @@
 ### Properties and Methods
 <a id="Psience.VPT2.Terms.DipoleTerms.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule, derivatives=None, mixed_derivs=None, modes=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None): 
+__init__(self, molecule, derivatives=None, mixed_derivs=None, modes=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, **opts): 
 ```
 
 - `molecule`: `Molecule`

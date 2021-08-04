@@ -2,22 +2,9 @@
 Base class for kinetic, potential, and dipole derivative terms
 
 ### Properties and Methods
-```python
-backpropagate_internals: bool
-mixed_derivative_handling_mode: str
-zero_mass_term: float
-internal_fd_mesh_spacing: float
-internal_fd_stencil: int
-cartesian_fd_mesh_spacing: float
-cartesian_fd_stencil: int
-cartesian_analytic_deriv_order: int
-internal_by_cartesian_order: int
-cartesian_by_internal_order: int
-jacobian_warning_threshold: float
-```
 <a id="Psience.VPT2.Terms.ExpansionTerms.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule, modes=None, mode_selection=None, undimensionalize=True, logger=None, parallelizer=None, checkpointer=None, numerical_jacobians=True, eckart_embed=True, strip_dummies=False, strip_embedding=False): 
+__init__(self, molecule, modes=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, undimensionalize=True, numerical_jacobians=True, eckart_embed=True, strip_dummies=False, strip_embedding=False, mixed_derivative_handling_mode='numerical', backpropagate_internals=False, zero_mass_term=10000000.0, internal_fd_mesh_spacing=0.001, internal_fd_stencil=9, cartesian_fd_mesh_spacing=0.001, cartesian_fd_stencil=9, cartesian_analytic_deriv_order=1, internal_by_cartesian_order=3, cartesian_by_internal_order=4, jacobian_warning_threshold=10000.0): 
 ```
 
 - `molecule`: `Molecule`

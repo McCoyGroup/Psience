@@ -10,7 +10,7 @@ from_fchk: method
 ```
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, mixed_derivs=None, potential_derivatives=None, coriolis_coupling=True, include_pseudopotential=True, parallelizer=None, log=None, checkpoint=None, operator_chunk_size=None, selection_rules=None, potential_terms=None, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None): 
+__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, coriolis_coupling=True, include_pseudopotential=True, potential_terms=None, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None, selection_rules=None, operator_chunk_size=None, logger=None, checkpoint=None, parallelizer=None, **expansion_options): 
 ```
 
 - `molecule`: `Molecule`
@@ -25,7 +25,7 @@ __init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, mi
     >whether to add coriolis coupling if not in internals
 - `parallelizer`: `Parallelizer`
     >parallelism manager
-- `log`: `str | Logger`
+- `logger`: `str | Logger`
     >log file or logger to write to
 - `checkpoint`: `str | Checkpointer`
     >checkpoint file or checkpointer to store intermediate results

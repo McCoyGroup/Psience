@@ -163,7 +163,7 @@ Does the dirty work of doing the VPT iterative equations.
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.get_corrections" class="docs-object-method">&nbsp;</a>
 ```python
-get_corrections(self, non_zero_cutoff=1e-14): 
+get_corrections(self, non_zero_cutoff=1e-14, check_overlap=True): 
 ```
 Applies the perturbation theory equations to obtain
         corrections to the wave functions and energies

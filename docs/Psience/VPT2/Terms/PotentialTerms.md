@@ -2,15 +2,9 @@
 A helper class that can transform the derivatives of the potential from Cartesian to normal coordinates
 
 ### Properties and Methods
-```python
-check_input_force_constants: bool
-hessian_tolerance: float
-grad_tolerance: float
-freq_tolerance: float
-```
 <a id="Psience.VPT2.Terms.PotentialTerms.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule, mixed_derivs=None, modes=None, potential_derivatives=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None): 
+__init__(self, molecule, mixed_derivs=None, modes=None, potential_derivatives=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, check_input_force_constants=True, hessian_tolerance=0.0001, grad_tolerance=0.0001, freq_tolerance=0.002, **opts): 
 ```
 
 - `molecule`: `Molecule`
