@@ -2257,8 +2257,8 @@ class PerturbationTheorySolver:
             except KeyError:
                 pass
 
-            with self.logger.block(tag="overlap matrix"):
-                self.logger.log_print(str(np.sum(corrs.get_overlap_matrices(), axis=0)).splitlines())
+            # with self.logger.block(tag="overlap matrix"):
+            #     self.logger.log_print(str(np.sum(corrs.get_overlap_matrices(), axis=0)).splitlines())
 
         return corrs
 
