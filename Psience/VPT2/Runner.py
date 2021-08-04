@@ -361,6 +361,17 @@ class VPTRunner:
 
     @classmethod
     def get_state_space_filter(cls, n_modes, target='wavefunctions'):
+        """
+
+    > H(1): SelectionRuleStateSpace(ogstates=114, nstates=30481, basis=HOBasis(dim=12))
+    > H(2): SelectionRuleStateSpace(ogstates=36, nstates=26719, basis=HOBasis(dim=12))
+        :param n_modes:
+        :type n_modes:
+        :param target:
+        :type target:
+        :return:
+        :rtype:
+        """
         if target == 'wavefunctions':
             return None
         elif target == 'intensities':
@@ -368,7 +379,7 @@ class VPTRunner:
                     (1, 1): (
                         cls.get_states(3, n_modes),
                         (
-                            cls.get_states(4, n_modes)[len(cls.get_states(3, n_modes)):],
+                            cls.get_states(4, n_modes),
                             [
                                 x for x in HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x")
                                 if sum(x) in [-1, 1]
@@ -381,7 +392,7 @@ class VPTRunner:
                             cls.get_states(4, n_modes)[len(cls.get_states(3, n_modes)):],
                             [
                                 x for x in HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x", "x")
-                                if sum(x) in [-2, 0, 2]
+                                if sum(x) in [-2, 0]#, 2]
                             ]
                         ),
                         (None, [[]])  # selection rules to apply to remainder

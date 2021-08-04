@@ -3993,7 +3993,7 @@ class VPT2Tests(TestCase):
         states = VPTRunner.get_states(4, n_modes)  # [:6]
 
         np.random.seed(0)
-        subsel = np.unique(np.random.randint(len(VPTRunner.get_states(3, n_modes)), len(states), 10))
+        subsel = np.unique(np.random.randint(len(VPTRunner.get_states(3, n_modes)), len(states), 20))
         states =  VPTRunner.get_states(2, n_modes) + [states[s] for s in subsel]
 
         degeneracies = VPTRunner.get_degenerate_polyad_space(
@@ -4248,8 +4248,6 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    
-
     @validationTest
     def test_WaterDimerVPTCartesiansHarmonic(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
@@ -4316,7 +4314,14 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(4, n_modes)#, target_modes=[-1, -2, -3, -4, -5, -6]) # [:6]
+        states = VPTRunner.get_states(3, n_modes)
+
+        states = VPTRunner.get_states(4, n_modes)  # [:6]
+
+        np.random.seed(0)
+        subsel = np.unique(np.random.randint(len(VPTRunner.get_states(3, n_modes)), len(states), 20))
+        subsel2 = np.unique(np.random.randint(len(VPTRunner.get_states(2, n_modes)), len(VPTRunner.get_states(3, n_modes))-1, 20))
+        states = VPTRunner.get_states(2, n_modes) + [states[s] for s in subsel2]  + [states[s] for s in subsel]
         # raise Exception(states)
 
         gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']
@@ -4345,13 +4350,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters={
-                (1, 1): VPTRunner.get_states(3, n_modes),
-                (2, 0): (
-                    VPTRunner.get_states(2, n_modes),
-                    (None, [[]])  # selection rules to apply to remainder
-                )
-            }
+            , state_space_filters= VPTRunner.get_state_space_filter(n_modes, 'intensities')
             # , parallelized=True
             # , processes=5
         )

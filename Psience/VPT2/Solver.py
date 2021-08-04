@@ -1502,10 +1502,12 @@ class PerturbationTheorySolver:
                 if filter_space is None:
                     b = b_remainder
                     b_remainder = None
-                else:
+                elif len(b_remainder) > 0:
                     b = b_remainder.intersection(filter_space)
                     if n < len(prefilters): # just a cheap opt...
                         b_remainder = b_remainder.difference(filter_space)
+                else:
+                    b = b_remainder
 
                 if len(b) > 0:
                     if new is None:
