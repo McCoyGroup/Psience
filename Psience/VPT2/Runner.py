@@ -320,7 +320,7 @@ class VPTRunner:
                 p for p in whee if sum(p) == 0 or any(p[i] > 0 for i in target_modes)
             ]
             if only_target_modes:
-                whee = [p for p in whee if not all(j in target_modes or x == 0 for j,x in enumerate(p))]
+                whee = [p for p in whee if all(j in target_modes or x == 0 for j,x in enumerate(p))]
         return whee
 
     @classmethod
