@@ -308,7 +308,7 @@ class VPTRunner:
         self.pt_opts = PerturbationTheoryOptions() if perturbation_theory_options is None else perturbation_theory_options
 
     @classmethod
-    def get_states(cls, n_quanta, n_modes, target_modes=None):
+    def get_states(cls, n_quanta, n_modes, target_modes=None, only_target_modes=False):
         if isinstance(n_quanta, int):
             n_quanta = range(n_quanta)
         whee = [np.flip(x) for x in BasisStateSpace.from_quanta(
@@ -319,6 +319,8 @@ class VPTRunner:
             whee = [
                 p for p in whee if sum(p) == 0 or any(p[i] > 0 for i in target_modes)
             ]
+            if only_target_modes:
+                whee = [p for p in whee if not all(j in target_modes or x == 0 for j,x in enumerate(p))]
         return whee
 
     @classmethod
