@@ -155,23 +155,61 @@ class ExpansionTerms:
     Base class for kinetic, potential, and dipole derivative terms
     """
 
-    backpropagate_internals = False # just a flag that can be set to use Cartesian results _but_ do it with
-                                   # terms backpropagated from the internals
-    mixed_derivative_handling_mode = "unhandled"
+    # backpropagate_internals = False # just a flag that can be set to use Cartesian results _but_ do it with
+    #                                # terms backpropagated from the internals
+    # mixed_derivative_handling_mode = "unhandled"
+    # undimensionalize_normal_modes = True
+    # numerical_jacobians = True
+    # eckart_embed_derivatives = True
+    # strip_dummy_atoms = False
+    # strip_embedding_coordinates = False
 
+    # so they can be tracked/propagated up more easily
+    __props__ = (
+        "logger",
+        "parallelizer",
+        "checkpointer",
+        "undimensionalize",
+        "numerical_jacobians",
+        "eckart_embed",
+        "strip_dummies",
+        "strip_embedding",
+        "mixed_derivative_handling_mode",
+        "backpropagate_internals",
+        "zero_mass_term",
+        "internal_fd_mesh_spacing",
+        "internal_fd_stencil",
+        "cartesian_fd_mesh_spacing",
+        "cartesian_fd_stencil",
+        "cartesian_analytic_deriv_order",
+        "internal_by_cartesian_order",
+        "cartesian_by_internal_order",
+        "jacobian_warning_threshold"
+    )
     _cached_jacobians = {}
     def __init__(self,
                  molecule,
                  modes=None,
                  mode_selection=None,
-                 undimensionalize=True,
                  logger=None,
                  parallelizer=None,
                  checkpointer=None,
+                 undimensionalize=True,
                  numerical_jacobians=True,
                  eckart_embed=True,
                  strip_dummies=False,
-                 strip_embedding=False
+                 strip_embedding=False,
+                 mixed_derivative_handling_mode="numerical",
+                 backpropagate_internals=False,
+                 zero_mass_term=1e7,
+                 internal_fd_mesh_spacing=1.0e-3,
+                 internal_fd_stencil=9,
+                 cartesian_fd_mesh_spacing=1.0e-3,
+                 cartesian_fd_stencil=9,
+                 cartesian_analytic_deriv_order=1,
+                 internal_by_cartesian_order=3,
+                 cartesian_by_internal_order=4,
+                 jacobian_warning_threshold=1e4
                  ):
         """
         :param molecule: the molecule we're doing the expansion for
@@ -185,13 +223,29 @@ class ExpansionTerms:
         """
         self._terms = None
         self.molecule = molecule
-        self.strip_dummies=strip_dummies
-        self.strip_embedding=strip_embedding
+
+        self.strip_dummies = strip_dummies
+        self.strip_embedding = strip_embedding
+        self.backpropagate_internals = backpropagate_internals
+
+        self.zero_mass_term = zero_mass_term
+
+        self.internal_fd_mesh_spacing = internal_fd_mesh_spacing
+        self.internal_fd_stencil = internal_fd_stencil
+        self.cartesian_fd_mesh_spacing = cartesian_fd_mesh_spacing
+        self.cartesian_fd_stencil = cartesian_fd_stencil
+        self.cartesian_analytic_deriv_order = cartesian_analytic_deriv_order
+
+        self.internal_by_cartesian_order = internal_by_cartesian_order
+        self.cartesian_by_internal_order = cartesian_by_internal_order
+        self.jacobian_warning_threshold = jacobian_warning_threshold
+
         self.internal_coordinates = molecule.internal_coordinates
         self.coords = molecule.coords
         self.masses = molecule.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         if modes is None:
             modes = molecule.normal_modes.modes
+
         if undimensionalize:
             self.raw_modes = modes
             modes = self.undimensionalize(self.masses, modes.basis)
@@ -216,8 +270,9 @@ class ExpansionTerms:
         if checkpointer is None:
             checkpointer = NullCheckpointer()
         self.checkpointer = checkpointer
-        if not isinstance(self.mixed_derivative_handling_mode, MixedDerivativeHandlingModes):
-            self.mixed_derivative_handling_mode = MixedDerivativeHandlingModes(self.mixed_derivative_handling_mode)
+
+        if not isinstance(mixed_derivative_handling_mode, MixedDerivativeHandlingModes):
+            self.mixed_derivative_handling_mode = MixedDerivativeHandlingModes(mixed_derivative_handling_mode)
 
     @property
     def num_atoms(self):
@@ -237,7 +292,6 @@ class ExpansionTerms:
         modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
         return modes
 
-    zero_mass_term=1e7
     def _tripmass(self, masses):
         if self.strip_dummies:
             masses = masses[masses > 0]
@@ -283,8 +337,6 @@ class ExpansionTerms:
             # print(weights, weighted.array)
         return weighted
 
-    internal_fd_mesh_spacing = 1.0e-3
-    internal_fd_stencil = 9
     def get_int_jacobs(self, jacs):
         intcds = self.internal_coordinates
         ccoords = self.coords
@@ -317,9 +369,6 @@ class ExpansionTerms:
             exist_jacs = new_jacs
         return [exist_jacs[j-1] for j in jacs]
 
-    cartesian_fd_mesh_spacing = 1.0e-3
-    cartesian_fd_stencil = 9
-    cartesian_analytic_deriv_order = 1
     def get_cart_jacobs(self, jacs):
         intcds = self.internal_coordinates
         ccoords = self.coords
@@ -581,9 +630,6 @@ class ExpansionTerms:
         return V_Q, V_QQ, V_QQQ, V_QQQQ
 
     _cached_transforms = {}
-    internal_by_cartesian_order=3
-    cartesian_by_internal_order=4
-    jacobian_warning_threshold=1e4
     def get_coordinate_transforms(self,
                                   internal_by_cartesian_order=None,
                                   cartesian_by_internal_order=None,
@@ -919,6 +965,13 @@ class PotentialTerms(ExpansionTerms):
     """
     A helper class that can transform the derivatives of the potential from Cartesian to normal coordinates
     """
+    __props__ = ExpansionTerms.__props__ + (
+        "potential_derivatives",
+        "check_input_force_constants",
+        "hessian_tolerance",
+        "grad_tolerance",
+        "freq_tolerance"
+    )
     def __init__(self,
                  molecule,
                  mixed_derivs=None,
@@ -927,7 +980,12 @@ class PotentialTerms(ExpansionTerms):
                  mode_selection=None,
                  logger=None,
                  parallelizer=None,
-                 checkpointer=None
+                 checkpointer=None,
+                 check_input_force_constants=True,
+                 hessian_tolerance=1.0e-4,
+                 grad_tolerance=1.0e-4,
+                 freq_tolerance=2e-3,
+                 **opts
                  ):
         """
         :param molecule: the molecule that will supply the potential derivatives
@@ -939,14 +997,22 @@ class PotentialTerms(ExpansionTerms):
         :param mode_selection: the subset of normal modes to use
         :type mode_selection: None | Iterable[int]
         """
+
         super().__init__(molecule, modes, mode_selection=mode_selection,
-                         logger=logger, parallelizer=parallelizer, checkpointer=checkpointer)
+                         logger=logger, parallelizer=parallelizer, checkpointer=checkpointer,
+                         **opts
+                         )
         if potential_derivatives is None:
             potential_derivatives = molecule.potential_surface.derivatives
+
+        self.check_input_force_constants=check_input_force_constants
+        self.hessian_tolerance = hessian_tolerance
+        self.grad_tolerance = grad_tolerance
+        self.freq_tolerance = freq_tolerance
+
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
         self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, potential_derivatives)
 
-    check_input_force_constants=True
     def _canonicalize_derivs(self, freqs, masses, derivs):
 
         if len(derivs) == 3:
@@ -1186,9 +1252,6 @@ class PotentialTerms(ExpansionTerms):
 
         return all_derivs
 
-    hessian_tolerance=1.0e-4
-    grad_tolerance=1.0e-4
-    freq_tolerance=2e-3
     def get_terms(self, order=None, logger=None):
 
         if logger is None:
@@ -1354,6 +1417,17 @@ class PotentialTerms(ExpansionTerms):
                     else:
                         raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(self.mixed_derivative_handling_mode))
 
+            # import os, json
+            # with open(os.path.expanduser("~/Desktop/dimer_v4.json"), "w+") as dmp:
+            #     json.dump(v4.tolist(), dmp)
+            # raise Exception("break")
+                    # # zero-out ill-defined terms
+                    # for j in range(v4.shape[1]):
+                    #     for k in range(v4.shape[2]):
+                    #         for l in range(v4.shape[3]):
+                    #             if i != j and i != k and j != k:
+                    #                 v4[i, j, k, l] = 0.
+
         if intcds is not None and self.backpropagate_internals:
             # need to internal mode terms and
             # convert them back to Cartesian mode ones...
@@ -1390,7 +1464,17 @@ class PotentialTerms(ExpansionTerms):
 class KineticTerms(ExpansionTerms):
     """Represents the KE coefficients"""
 
-    g_derivative_threshold = 1e-3
+    __props__ = ExpansionTerms.__props__ + (
+        'g_derivative_threshold',
+    )
+    def __init__(self,
+                 molecule,
+                 g_derivative_threshold=1e-3,
+                 **opts
+                 ):
+        super().__init__(molecule, **opts)
+        self.g_derivative_threshold = g_derivative_threshold
+
     def get_terms(self, order=None, logger=None):
 
         if logger is None:
@@ -1464,7 +1548,8 @@ class DipoleTerms(ExpansionTerms):
                  mode_selection=None,
                  logger=None,
                  parallelizer=None,
-                 checkpointer=None
+                 checkpointer=None,
+                 **opts
                  ):
         """
         :param molecule: the molecule that will supply the dipole derivatives
@@ -1478,7 +1563,9 @@ class DipoleTerms(ExpansionTerms):
         """
         self.derivs = None
         super().__init__(molecule, modes=modes, mode_selection=mode_selection,
-                         logger=logger, parallelizer=parallelizer, checkpointer=checkpointer)
+                         logger=logger, parallelizer=parallelizer, checkpointer=checkpointer,
+                         **opts
+                         )
         self.mixed_derivs = mixed_derivs
         if self.mixed_derivs is None:
             self.mixed_derivs = mixed_derivs
@@ -1763,7 +1850,7 @@ class DipoleTerms(ExpansionTerms):
                         if self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
                             for i in range(v3.shape[0]):
                                 if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
-                                    v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
+                                    v3[i, i, :] = v3[i, :, i] = v3[:, i, i] = v3[i, i, :]
                                 elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
                                     # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
                                     raise NotImplementedError("don't use broken term stuff...")
@@ -1781,6 +1868,11 @@ class DipoleTerms(ExpansionTerms):
                                             self.mixed_derivative_handling_mode
                                         )
                                     )
+                                # # zero-out ill-defined terms
+                                # for j in range(v3.shape[1]):
+                                #     for k in range(v3.shape[2]):
+                                #         if i != j and i != k and j != k:
+                                #             v3[i, j, k] = 0
 
                 if intcds is not None and self.backpropagate_internals:
                     # need to internal mode terms and

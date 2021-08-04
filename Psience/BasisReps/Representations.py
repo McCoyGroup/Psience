@@ -690,6 +690,9 @@ class Representation:
                         full_inds[1, s:e] = cols
                         for j, x in enumerate(idx):
                             full_inds[2 + j, s:e] = x
+                    del rows
+                    del cols
+
                 else:
                     full_inds = full_inds.T
                     shape = (N, N)

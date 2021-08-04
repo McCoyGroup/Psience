@@ -5,7 +5,7 @@ Provides support for build perturbation theory Hamiltonians
 import numpy as np, itertools, time
 
 from McUtils.Numputils import SparseArray, vec_outer
-from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer
+from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer, ParameterManager
 from McUtils.Parallelizers import Parallelizer
 from McUtils.Combinatorics import CompleteSymmetricGroupSpace
 
@@ -15,13 +15,14 @@ from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStat
 from .Common import PerturbationTheoryException
 from .Terms import PotentialTerms, KineticTerms, CoriolisTerm, PotentialLikeTerm
 from .Solver import PerturbationTheorySolver, PerturbationTheoryCorrections
+from .Wavefunctions import PerturbationTheoryWavefunctions
 
 __all__ = [
     'PerturbationTheoryHamiltonian',
     'PerturbationTheoryCorrections'
 ]
 
-__reload_hook__ = [ "..BasisReps" , '.Terms', ".Solver", "..Molecools", ]
+__reload_hook__ = [ "..BasisReps" , "..Molecools", '.Terms', ".Solver", ".Wavefunctions" ]
 
 
 class PerturbationTheoryHamiltonian:
@@ -37,19 +38,19 @@ class PerturbationTheoryHamiltonian:
                  n_quanta=None,
                  modes=None,
                  mode_selection=None,
-                 mixed_derivs=None,
                  potential_derivatives=None,
                  coriolis_coupling=True,
                  include_pseudopotential=True,
-                 parallelizer=None,
-                 log=None,
-                 checkpoint=None,
-                 operator_chunk_size=None,
-                 selection_rules=None,
                  potential_terms=None,
                  kinetic_terms=None,
                  coriolis_terms=None,
-                 pseudopotential_terms=None
+                 pseudopotential_terms=None,
+                 selection_rules=None,
+                 operator_chunk_size=None,
+                 logger=None,
+                 checkpoint=None,
+                 parallelizer=None,
+                 **expansion_options
                  ):
         """
         :param molecule: the molecule on which we're doing perturbation theory
@@ -64,20 +65,20 @@ class PerturbationTheoryHamiltonian:
         :type coriolis_coupling: bool
         :param parallelizer: parallelism manager
         :type parallelizer: Parallelizer
-        :param log: log file or logger to write to
-        :type log: str | Logger
+        :param logger: log file or logger to write to
+        :type logger: str | Logger
         :param checkpoint: checkpoint file or checkpointer to store intermediate results
         :type checkpoint: str | Checkpointer
         """
 
-        if isinstance(log, Logger):
-            self.logger = log
-        elif log is True:
+        if isinstance(logger, Logger):
+            self.logger = logger
+        elif logger is True:
             self.logger = Logger()
-        elif log is False:
+        elif logger is False:
             self.logger = NullLogger()
         else:
-            self.logger = Logger(log)
+            self.logger = Logger(logger)
 
         if parallelizer is None:
             parallelizer = "VPT"
@@ -100,28 +101,39 @@ class PerturbationTheoryHamiltonian:
         mode_n = modes.basis.matrix.shape[1] if mode_selection is None else len(mode_selection)
         self.mode_n = mode_n
         if n_quanta is None:
+            # This is a basically a historical option. We keep it but there's really no reason.
             n_quanta = 15 # dunno yet how I want to handle this since it should really be defined by the order of state requested...
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
         self.modes = modes
         self.mode_selection = mode_selection
 
-        self._input_potential = potential_terms
-        self.V_terms = PotentialTerms(self.molecule, modes=modes, mode_selection=mode_selection,
-                                      potential_derivatives=potential_derivatives, mixed_derivs=mixed_derivs,
-                                      logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
+        expansion_options['logger'] = self.logger
+        expansion_options['parallelizer'] = self.parallelizer
+        expansion_options['logger'] = self.logger
+        expansion_params = ParameterManager(expansion_options)
 
+        self._input_potential = potential_terms
+        self.V_terms = PotentialTerms(self.molecule,
+                                      modes=modes, mode_selection=mode_selection,
+                                      potential_derivatives=potential_derivatives,
+                                      **expansion_params.filter(PotentialTerms)
+                                      )
 
         self._input_kinetic = kinetic_terms
         self.G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection,
-                                    logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
+                                    **expansion_params.filter(KineticTerms)
+                                    )
 
         self._input_coriolis = coriolis_terms
         if (
                 coriolis_coupling and
-                (self.molecule.internal_coordinates is None or CoriolisTerm.backpropagate_internals)
+                (self.molecule.internal_coordinates is None or (
+                        'backpropagate_internals' in expansion_options and expansion_options['backpropagate_internals']
+                ))
         ):
             self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection,
-                                      logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
+                                               **expansion_params.filter(CoriolisTerm)
+                                               )
         else:
             # raise Exception(self.molecule.internal_coordinates)
             self.coriolis_terms = None
@@ -129,7 +141,8 @@ class PerturbationTheoryHamiltonian:
         self._input_pseudopotential = pseudopotential_terms
         if include_pseudopotential:
             self.pseudopotential_term = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
-                                          logger=self.logger, parallelizer=self.parallelizer, checkpointer=self.checkpointer)
+                                                          **expansion_params.filter(PotentialLikeTerm)
+                                                          )
         else:
             self.pseudopotential_term = None
 
@@ -831,8 +844,6 @@ class PerturbationTheoryHamiltonian:
         # print([self.V_terms[i] for i in range(5)])
 
         with self.checkpointer:
-
-            from .Wavefunctions import PerturbationTheoryWavefunctions
 
             with self.logger.block(tag='Computing PT corrections:', printoptions={'linewidth':int(1e8)}):
 

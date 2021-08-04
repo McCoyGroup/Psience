@@ -11,11 +11,11 @@ from McUtils.Data import UnitsData
 from ..BasisReps import BasisStateSpace, SelectionRuleStateSpace, BasisMultiStateSpace, SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction, BraKetSpace
 
 from .Terms import DipoleTerms
-from .Hamiltonian import PerturbationTheoryCorrections
+from .Solver import PerturbationTheoryCorrections
 
 __all__ = [
     'PerturbationTheoryWavefunction',
-    'PerturbationTheoryWavefunctions',
+    'PerturbationTheoryWavefunctions'
 ]
 
 
@@ -1005,15 +1005,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         mats = []
         for a in range(3):
             prop = [x[a] for x in corrs]
-            if a == 0:
-                mats.append("X Dipole Terms")
-            elif a == 1:
-                mats.append("Y Dipole Terms")
-            elif a == 2:
-                mats.append("Z Dipole Terms")
             mats.append(self.format_property_matrices(states, prop))
 
-        return "\n".join(mats)
+        return mats
 
     def format_energy_corrections_table(self, real_fmt="{:>12.5f}"):
 
