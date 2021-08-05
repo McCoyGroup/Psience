@@ -1,5 +1,8 @@
 name: PsienceTests
-on: workflow_dispatch
+on:
+  push:
+    branches:
+      - edit
 
 jobs:
   test:

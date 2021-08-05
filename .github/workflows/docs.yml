@@ -1,5 +1,8 @@
 name: PsienceDocs
-on: workflow_dispatch
+on:
+  push:
+    branches:
+      - edit
 
 jobs:
   docs:
