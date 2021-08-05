@@ -1,0 +1,7 @@
+# action.yml
+name: 'Build docs'
+description: 'Builds docs'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args: ['docs']
