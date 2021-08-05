@@ -1,8 +1,5 @@
 name: PsienceCI
-on:
-  push:
-    branches:
-      - edit
+on: workflow_dispatch
 
 jobs:
   ci:
