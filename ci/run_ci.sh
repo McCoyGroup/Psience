@@ -29,6 +29,7 @@ fi
 if [[ "$branch" = "edit" ]]; then
   # build docs and push
   PYTHONPATH=/home python3 Psience/ci/build_docs.py
+  mv Psience/ci/docs .
   cd Psience
   git add -A
   git diff-index --quiet HEAD || git commit -m "Built out docs"
