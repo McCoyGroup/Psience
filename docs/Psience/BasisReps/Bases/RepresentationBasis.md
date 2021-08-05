@@ -68,14 +68,13 @@ __repr__(self):
 ```python
 p(self, n): 
 ```
-Generates the momentum matrix up to n-quanta
-
+Generates the momentum matrix up to n-quanta.
         There's one big subtlety to what we're doing here, which is that
           for efficiency reasons we return an entirely real matrix
         The reason for that is we assumed people would mostly use it in the context
           of stuff like pp, pQp, or pQQp, in which case the imaginary part pulls out
           and becomes a negative sign
-        We actually use this assumption across _all_ of our representations
+        We actually use this assumption across _all_ of our representations.
 - `n`: `Any`
     >No description...
 - `:returns`: `_`
