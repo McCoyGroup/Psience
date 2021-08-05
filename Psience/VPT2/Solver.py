@@ -682,6 +682,7 @@ class PerturbationTheorySolver:
                 return 0
             else:
                 return super().__getitem__(item)
+
     @property
     def representations(self):
         """
@@ -691,6 +692,9 @@ class PerturbationTheorySolver:
         if self._reps is None:
             self._reps = self.PastIndexableTuple(self.get_VPT_representations())
         return self._reps
+    @representations.setter
+    def representations(self, reps):
+        self._reps = reps
 
     @property
     def degenerate_spaces(self):

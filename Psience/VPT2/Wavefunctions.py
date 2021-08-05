@@ -726,7 +726,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
     def _oscillator_strengths(self, tms):
 
-        print(tms)
         gs_tms = np.array([tms[i][0] for i in range(3)]).T
         osc = np.linalg.norm(gs_tms, axis=1) ** 2
         return osc
