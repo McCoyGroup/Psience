@@ -12,26 +12,26 @@ We have documentation for these packages:
 Each page _should_ support examples, but unfortunately most do not, simply because writing that kind of thing by hand is time consuming.
 If you see a page without examples, help us out!
 Even though these pages are automatically generated, you can add examples to them by putting a file in the appropriate _examples_ slot and rebuilding the docs by simply making a commit.
-Similarly, if you see something that you think should be improved, you can either edit the docstrings in the source or let us know about the deficiency here [issues](https://github.com/{github_username}/{main_package_name}/issues/new?title=Documentation%20Improvement%20Needed).
+Similarly, if you see something that you think should be improved, you can either edit the docstrings in the source or let us know about the deficiency here [issues](https://github.com/{gh_username}/{gh_repo}/issues/new?title=Documentation%20Improvement%20Needed).
 
 ##### Examples
 
 To contribute an example for a page at 
 
 ```
-https://mccoygroup.github.io/Psience/Molecools/Molecule.html
+https://mccoygroup.github.io/{gh_repo}/Molecools/Molecule.html
 ```
 
 you'll either add the appropriate file by going to 
 
 ```
-https://github.com/McCoyGroup/Psience/new/gh-pages?filename=docs/examples/Molecools/Molecule.md
+https://github.com/{gh_username}/{gh_repo}/new/{gh_branch}?filename=docs/examples/Molecools/Molecule.md
 ```
 
 or edit the existing one by going to 
 
 ```
-https://github.com/McCoyGroup/References/edit/gh-pages/docs/examples/Molecools/Molecule.md
+https://github.com/{gh_username}/{gh_repo}/edit/{gh_branch}/docs/examples/Molecools/Molecule.md
 ```
 
 ##### Documentation
@@ -44,16 +44,16 @@ To do so you'd first note that in the breadcrumb we have
 Psience / Molecools
 ```
 
-So you'd go to [https://github.com/McCoyGroup/Psience/Molecools](https://github.com/McCoyGroup/Psience/Molecools) & then notice that there is a package called `Molecule.py`.
-Then, clicking on the package's edit link ( [McCoyGroup/Psience/edit/master/Molecools/Molecule.py](https://github.com/{github_username}/{main_package_name}/edit/edit/Molecools/Molecule.py) ) you can navigate to where `Molecule` is defined and edit that.
+So you'd go to [https://github.com/{gh_username}/{gh_repo}/Molecools](https://github.com/McCoyGroup/Psience/Molecools) & then notice that there is a package called `Molecule.py`.
+Then, clicking on the package's edit link ( [{gh_username}/{gh_repo}/edit/{gh_branch}/Molecools/Molecule.py](https://github.com/{gh_username}/{gh_repo}/edit/{gh_branch}/Molecools/Molecule.py) ) you can navigate to where `Molecule` is defined and edit that.
 Alternately, if you know the line number in the source file, you can link directly to that line in the source and then people can use the GitHub UI.
 
-After editing, you'll need to rerun the site build via the [GitHub Action](https://github.com/{github_username}/{main_package_name}/actions?query=workflow%3A%22McBuild+site%22) we set up.
+After editing, you'll need to rerun the site build via the [GitHub Action](https://github.com/{gh_username}/{gh_repo}/actions?query=workflow%3A%22McBuild+site%22) we set up.
 
 ##### Templates
 
 The documentation build makes use of a template system to generate its Markdown pages.
-In particular, it uses the files [here](https://github.com/{github_username}/{main_package_name}/tree/gh-pages/docs/templates) to make this work, where the following hiearchy is used:
+In particular, it uses the files [here](https://github.com/{gh_username}/{gh_repo}/tree/{gh_branch}/docs/templates) to make this work, where the following hiearchy is used:
 * `index.md` is used for this main index page
 * `module.md` is used for modules
 * `class.md` is used for classes
@@ -62,7 +62,7 @@ In particular, it uses the files [here](https://github.com/{github_username}/{ma
 * `object.md` is used for objects with a `__name__` parameter
 
 You can also add custom templates for pages, if you feel they need more information than the auto-generator can provide.
-To do so, we'll add to the file path in the [templates](https://github.com/{github_username}/{main_package_name}/tree/gh-pages/docs/templates) directory of the documentation.
+To do so, we'll add to the file path in the [templates](https://github.com/{gh_username}/{gh_repo}/tree/gh-pages/docs/templates) directory of the documentation.
 
 For the `McUtils.GaussianInterface` example from before, to edit the template we would have
 

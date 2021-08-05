@@ -10,8 +10,8 @@
 
 ___
 
-[Edit Examples](https://github.com/{github_username}/{main_package_name}/edit/gh-pages/ci/examples/{url}) or 
-[Create New Examples](https://github.com/{github_username}/{main_package_name}/new/gh-pages/?filename=ci/examples/{url}) <br/>
-[Edit Template](https://github.com/{github_username}/{main_package_name}/edit/gh-pages/ci/docs/{url}) or 
-[Create New Template](https://github.com/{github_username}/{main_package_name}/new/gh-pages/?filename=ci/docs/templates/{url}) <br/>
-[Edit Docstrings](https://github.com/{github_username}/{package_name}/edit/master/{file_url}?message=Update%20Docs)
+[Edit Examples](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url}) or 
+[Create New Examples](https://github.com/{gh_username}/{gh_repo}/new/gh-pages/?filename=ci/examples/{url}) <br/>
+[Edit Template](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/docs/{url}) or 
+[Create New Template](https://github.com/{gh_username}/{gh_repo}/new/gh-pages/?filename=ci/docs/templates/{url}) <br/>
+[Edit Docstrings](https://github.com/{github_username}/{gh_repo}/edit/{gh_branch}/{file_url}?message=Update%20Docs)
