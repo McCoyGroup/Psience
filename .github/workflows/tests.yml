@@ -12,7 +12,6 @@ jobs:
         with:
           ref: edit
       - name: Test
-        uses: ./ci # Uses an action in the root directory
+        uses: ./.github/actions/tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        args: [ 'tests' ]
