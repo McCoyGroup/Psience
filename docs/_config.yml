@@ -1,0 +1,64 @@
+# Setup McCoy Group config
+title: Psience
+description: Documentation for the Psience python package
+url: "https://mccoygroup.github.io/Psience" # the base hostname & protocol for your site, e.g. http://example.com
+icon: favicon.png
+github_username:  McCoyGroup
+main_package_name: Psience
+footer_text: >-
+  Brought to you by the McCoy Group at the University of Washington
+#sitemap_depth: 2
+links:
+  - url: https://sites.uw.edu/mccoygrp/
+    title: Group Website
+  - url: https://github.com/McCoyGroup
+    title: GitHub
+  - url: https://stackoverflow.com/c/mccoygroup/questions
+    title: Stack Overflow
+
+# Build settings
+markdown: kramdown
+remote_theme: McCoyGroup/finx
+plugins:
+  - jekyll-feed
+  - jekyll-include-cache
+  - jekyll-optional-front-matter
+  - jekyll-seo-tag
+relative_links:
+  enabled: true
+
+
+collections:
+  docs:
+    output: true
+
+defaults:
+  - scope:
+      path: "" # an empty string here means all files in the project
+    values:
+      layout: "post"
+  - scope:
+      path: "index.html|about.html|404.html|search.html"
+    values:
+      layout: "page"
+  - scope:
+      path: "docs"
+      type: "pages"
+    values:
+      optional_scripts: true
+      annotations_type: "docs"
+      custom_styles: "docs"
+      layout: "docs"
+
+
+# Exclude from processing
+exclude:
+  - examples
+  - templates
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
