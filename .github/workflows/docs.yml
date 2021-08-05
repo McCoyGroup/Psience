@@ -15,6 +15,6 @@ jobs:
         with:
           ref: edit
       - name: Document
-        uses: ./ci/docs # Uses an action in the root directory
+        uses: ./ci/docs.yml # Uses an action in the root directory
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
