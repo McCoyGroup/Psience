@@ -414,18 +414,20 @@ class VPT2Tests(TestCase):
                                             my_freqs[:ns] - gaussian_freqs[:ns])
 
         if calculate_intensities:
-            engs = h2w * wfns.energies
-            freqs = engs - engs[0]
             ints = wfns.intensities
-
-            harm_engs = h2w * wfns.zero_order_energies
-            harm_freqs = harm_engs - harm_engs[0]
-            harm_ints = wfns.zero_order_intensities
-
             print_specs = True
             if print_specs:
+                if wfns.degenerate_transformation is not None:
+                    print("Deperturbed Results")
+                    if print_report:
+                        for a, m in zip(["X", "Y", "Z"], wfns.format_deperturbed_dipole_contribs_tables()):
+                            print("{} Dipole Contributions".format(a))
+                            print(m)
+                    print(wfns.format_deperturbed_intensities_table())
+                    print("Degenerate Results")
+
                 if print_report:
-                    for a,m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
+                    for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
                         print("{} Dipole Contributions".format(a))
                         print(m)
                 print(wfns.format_intensities_table())
@@ -1373,7 +1375,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians(self):
 
         tag = 'HOH Cartesians'
@@ -2320,7 +2322,7 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['OCHH']['zpe']
         gaussian_freqs = self.gaussian_data['OCHH']['freqs']
 
-        print_report = False
+        print_report = True
         nielsen_tolerance = None
         gaussian_tolerance = 1
         self.run_PT_test(
@@ -3994,7 +3996,7 @@ class VPT2Tests(TestCase):
 
         np.random.seed(0)
         subsel = np.unique(np.random.randint(len(VPTRunner.get_states(2, n_modes)), len(states), 20))
-        states =  VPTRunner.get_states(1, n_modes) + [states[s] for s in subsel]
+        states = VPTRunner.get_states(1, n_modes) + [states[s] for s in subsel]
 
         degeneracies = VPTRunner.get_degenerate_polyad_space(
             states,
@@ -4038,7 +4040,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            , state_space_filters=VPTRunner.get_state_space_filter(n_modes, 'intensities')
         )
 
     @validationTest
@@ -4294,7 +4296,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @debugTest
+    @validationTest
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"
