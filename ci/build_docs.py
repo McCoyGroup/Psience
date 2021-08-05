@@ -2,7 +2,7 @@ from Peeves.Doc import *
 import os, sys
 
 root = os.path.dirname(os.path.dirname(__file__))
-target = os.path.join(root, "ci", "docs")
+target = os.path.join(root, "docs")
 sys.path.insert(0, root)
 doc_config = {
     "config": {
@@ -23,7 +23,7 @@ doc_config = {
     "root": root,
     "target": target,
     "readme": os.path.join(root, "README.md"),
-    'templates_directory': os.path.join(target, 'templates'),
-    'examples_directory': os.path.join(target, 'examples')
+    'templates_directory': os.path.join(root, 'ci', 'templates'),
+    'examples_directory': os.path.join(root, 'ci', 'examples')
 }
 DocBuilder(**doc_config).build()
