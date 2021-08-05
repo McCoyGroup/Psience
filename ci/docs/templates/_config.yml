@@ -28,6 +28,29 @@ relative_links:
   enabled: true
 
 
+collections:
+  docs:
+    output: true
+
+defaults:
+  - scope:
+      path: "" # an empty string here means all files in the project
+    values:
+      layout: "post"
+  - scope:
+      path: "index.html|about.html|404.html|search.html"
+    values:
+      layout: "page"
+  - scope:
+      path: "docs"
+      type: "pages"
+    values:
+      optional_scripts: true
+      annotations_type: "docs"
+      custom_styles: "docs"
+      layout: "docs"
+
+
 # Exclude from processing
 exclude:
   - examples
