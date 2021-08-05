@@ -42,7 +42,7 @@ if [[ "$run_test" == "true" ]]; then
 fi
 
 
-if [["$build_docs" == "true"]]; then
+if [[ "$build_docs" == "true" ]]; then
   if [[ "$branch" = "edit" ]]; then
     # build docs and push
     PYTHONPATH=/home python3 Psience/ci/build_docs.py
