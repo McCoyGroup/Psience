@@ -23,7 +23,7 @@ doc_config = {
     "root": root,
     "target": target,
     "readme": os.path.join(root, "README.md"),
-    'templates_directory': os.path.join(root, 'ci', 'templates'),
-    'examples_directory': os.path.join(root, 'ci', 'examples')
+    'templates_directory': os.path.join(root, 'ci', 'docs', 'templates'),
+    'examples_directory': os.path.join(root, 'ci',  'docs', 'examples')
 }
 DocBuilder(**doc_config).build()
