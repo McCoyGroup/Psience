@@ -1,8 +1,8 @@
-name: PsienceCI
+name: PsienceDocs
 on: workflow_dispatch
 
 jobs:
-  ci:
+  docs:
     runs-on: ubuntu-latest
     steps:
       # To use this repository's private action,
