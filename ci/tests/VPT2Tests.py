@@ -3932,7 +3932,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4292,7 +4292,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @debugTest
+    @validationTest
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"
