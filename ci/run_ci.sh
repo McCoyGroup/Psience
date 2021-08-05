@@ -46,7 +46,7 @@ if [[ "$build_docs" == "true" ]]; then
   if [[ "$branch" = "edit" ]]; then
     # build docs and push
     PYTHONPATH=/home python3 Psience/ci/build_docs.py
-    rm -rf Psience/docs
+#    rm -rf Psience/docs
     cp -r Psience/ci/docs Psience/
     cd Psience
     git add -A
