@@ -9,7 +9,7 @@ If you'd like to contribute, first off, thanks! But, before you hop in:
 
 2. Visuals never hurt, either, and you should almost always have at least some kind of example on your pages.
 
-3. Proof-reading would be great. Comments and places for improvement would also be great. Our [issues page](https://github.com/McCoyGroup/References/issues) is a good place to leave comments & you can even tag a specific grad student as the person who should look into the topic (if you know who to tag).
+3. Proof-reading would be great. Comments and places for improvement would also be great. Our [issues page](https://github.com/{gh_username}/{gh_repo}/issues) is a good place to leave comments & you can even tag a specific grad student as the person who should look into the topic (if you know who to tag).
 
 4. If you run into a blank page, but think you can write the reference, write it! Then let other people know so they can proof-read what you wrote, too. No one has perfect first drafts.
 
@@ -651,13 +651,13 @@ To make it easy to edit files, we're providing a standardized footer at the bott
 
 ```markdown
 ---
-[Edit on GitHub](https://github.com/McCoyGroup/References/edit/gh-pages/References/McCoy%20Group%20Code%20Academy/<Path/To/Page.md>)
+[Edit on GitHub](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/References/McCoy%20Group%20Code%20Academy/<Path/To/Page.md>)
 ```
 
 <div class="card-body out-block" markdown="1">
 
 ---
-[Edit on GitHub](https://github.com/McCoyGroup/References/edit/gh-pages/References/McCoy%20Group%20Code%20Academy/<Path/To/Page.md>)
+[Edit on GitHub](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/References/McCoy%20Group%20Code%20Academy/<Path/To/Page.md>)
 
 </div>
 </div>
@@ -671,7 +671,7 @@ Got questions? Ask them on the [McCoy Group Stack Overflow](https://stackoverflo
 {: .alert .alert-info}
 
 ---
-[Edit on GitHub](https://github.com/McCoyGroup/References/edit/gh-pages/References/McCoy%20Group%20Code%20Academy/<Path/To/Page.md>)
+[Edit on GitHub](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/References/McCoy%20Group%20Code%20Academy/<Path/To/Page.md>)
 ```
 
 <div class="card-body out-block" markdown="1">
@@ -680,7 +680,7 @@ Got questions? Ask them on the [McCoy Group Stack Overflow](https://stackoverflo
 {: .alert .alert-info}
 
 ---
-[Edit on GitHub](https://github.com/McCoyGroup/References/edit/gh-pages/References/McCoy%20Group%20Code%20Academy/<Path/To/Page.md>)
+[Edit on GitHub](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/References/McCoy%20Group%20Code%20Academy/<Path/To/Page.md>)
 
 </div>
 </div>
@@ -690,12 +690,12 @@ If we want to give external people places to report issues, we can provide a lin
 <div class="card in-out-block" markdown="1">
 
 ```markdown
-Find an issue? [Report it!](https://github.com/McCoyGroup/References/issues/new)
+Find an issue? [Report it!](https://github.com/{gh_username}/{gh_repo}/issues/new)
 {: .alert .alert-warning}
 ```
 <div class="card-body out-block" markdown="1">
 
-Find an issue? [Report it!](https://github.com/McCoyGroup/References/issues/new)
+Find an issue? [Report it!](https://github.com/{gh_username}/{gh_repo}/issues/new)
 {: .alert .alert-warning}
 
 </div>
@@ -871,13 +871,13 @@ This will look like
 
 ```markdown
 ...<br/>
-[EDIT](https://github.com/McCoyGroup/References/edit/gh-pages/path/to/file.md)
+[EDIT](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/path/to/file.md)
 {: .alert .alert-warning}
 ```
 <div class="card-body out-block" markdown="1">
 
 ...<br/>
-[EDIT](https://github.com/McCoyGroup/References/edit/gh-pages/path/to/file.md)
+[EDIT](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/path/to/file.md)
 {: .alert .alert-warning}
 </div>
 </div>
@@ -1019,4 +1019,4 @@ This thing is super useful, and allows you to specify an image, or description, 
 [<sup>1</sup>]: #fn1
 [<sup>2</sup>]: #fn2
 
-[Edit on GitHub](https://github.com/McCoyGroup/References/edit/gh-pages/Contributing.md)
+[Edit on GitHub](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/Contributing.md)
