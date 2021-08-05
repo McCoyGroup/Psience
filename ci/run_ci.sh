@@ -47,7 +47,7 @@ if [[ "$build_docs" == "true" ]]; then
     # build docs and push
     PYTHONPATH=/home python3 Psience/ci/build_docs.py
     rm -rf Psience/docs
-    mv Psience/ci/docs Psience/
+    cp Psience/ci/docs Psience/
     cd Psience
     git add -A
     git diff-index --quiet HEAD || git commit -m "Built out docs"
