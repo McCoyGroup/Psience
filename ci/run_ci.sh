@@ -15,7 +15,7 @@ git config user.email ${GITHUB_ACTOR}@users.noreply.github.com
 repo="https://$GITHUB_ACTOR:$GITHUB_TOKEN@github.com/McCoyGroup/Psience.git"
 git checkout gh-pages
 git pull
-git merge $branch
+git merge -X theirs $branch
 git push -u $repo gh-pages
 ## run the test script
 cd /home
@@ -47,7 +47,7 @@ if [[ "$build_docs" == "true" ]]; then
     # build docs and push
     PYTHONPATH=/home python3 Psience/ci/build_docs.py
     rm -rf Psience/docs
-    mv Psience/ci/docs Psience/
+    cp Psience/ci/docs Psience/
     cd Psience
     git add -A
     git diff-index --quiet HEAD || git commit -m "Built out docs"
