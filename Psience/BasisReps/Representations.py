@@ -534,7 +534,7 @@ class Representation:
             full_inds = full_inds.T
             shape = (N, N)
 
-        return SparseArray.from_data((full_dat, full_inds), shape=shape)
+        return SparseArray.from_data((full_dat, full_inds), shape=shape, cache_block_data=False)
 
     # from memory_profiler import profile
     # @profile
@@ -698,7 +698,9 @@ class Representation:
                     shape = (N, N)
 
                 logger.log_print("building sparse tensor...")
-                sub = SparseArray.from_data((full_dat, full_inds), shape=shape)
+                gc.collect() # might help just enough to fix things...?
+                # another attempt
+                sub = SparseArray.from_data((full_dat, full_inds), shape=shape, cache_block_data=False)
 
         return sub
 

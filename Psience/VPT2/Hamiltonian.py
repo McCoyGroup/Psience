@@ -787,15 +787,13 @@ class PerturbationTheoryHamiltonian:
 
         h_reps = self.get_perturbations(expansion_order)
 
-        if not isinstance(states, BasisStateSpace):
-            states = BasisStateSpace(self.basis, states)
+        if memory_constrained is None:
+            memory_constrained = states.ndim > 20 if memory_constrained is None else memory_constrained
 
         if use_full_basis and states.full_basis is None:
             states = BasisStateSpace(self.basis, states.indices,
                                      mode=BasisStateSpace.StateSpaceSpec.Indices,
-                                     full_basis=CompleteSymmetricGroupSpace(states.ndim,
-                                                                            memory_constrained=states.ndim > 20 if memory_constrained is None else memory_constrained
-                                                                            )
+                                     full_basis=CompleteSymmetricGroupSpace(states.ndim, memory_constrained)
                                      )
 
         # if memory_constrained is True:
@@ -860,6 +858,12 @@ class PerturbationTheoryHamiltonian:
                     eord=order if expansion_order is None else expansion_order
                 )
 
+                if not isinstance(states, BasisStateSpace):
+                    states = BasisStateSpace(self.basis, states)
+
+                if memory_constrained is None:
+                    memory_constrained = states.ndim > 20 if memory_constrained is None else memory_constrained
+
                 solver = self.get_solver(
                     states,
                     degeneracies=degeneracies,
@@ -875,6 +879,9 @@ class PerturbationTheoryHamiltonian:
                 )
 
                 corrs = solver.apply_VPT()
+
+                if memory_constrained:
+                    solver.representations = None
 
         return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs,
                                                modes=self.modes,

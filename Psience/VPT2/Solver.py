@@ -581,6 +581,7 @@ class PerturbationTheorySolver:
                  degenerate_states=None,
                  zero_order_energy_corrections=None,
                  memory_constrained=False,
+                 keep_hamiltonians=None,
                  logger=None,
                  verbose=False,
                  parallelizer=None,
@@ -646,6 +647,7 @@ class PerturbationTheorySolver:
         self.zero_element_warning = zero_element_warning
 
         self.memory_constrained=memory_constrained
+        self.keep_hamiltonians=keep_hamiltonians
 
         self._coupled_states = coupled_states
         self._total_space = total_space
@@ -680,6 +682,7 @@ class PerturbationTheorySolver:
                 return 0
             else:
                 return super().__getitem__(item)
+
     @property
     def representations(self):
         """
@@ -689,6 +692,9 @@ class PerturbationTheorySolver:
         if self._reps is None:
             self._reps = self.PastIndexableTuple(self.get_VPT_representations())
         return self._reps
+    @representations.setter
+    def representations(self, reps):
+        self._reps = reps
 
     @property
     def degenerate_spaces(self):
@@ -751,6 +757,12 @@ class PerturbationTheorySolver:
                 deg_engs, deg_transf = self.apply_post_PT_variational_calc(degenerate_states, corrs)
                 corrs.degenerate_energies = deg_engs
                 corrs.degenerate_transf = deg_transf
+
+        if (
+                self.keep_hamiltonians is None and self.memory_constrained
+                or (self.keep_hamiltonians is not None and not self.keep_hamiltonians)
+        ):
+            corrs.hams = None # just to allow the memory to be freed
 
         return corrs
 
