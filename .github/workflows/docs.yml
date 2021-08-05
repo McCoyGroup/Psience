@@ -1,8 +1,5 @@
 name: PsienceCI
-on:
-  push:
-    branches:
-      - edit
+on: workflow_dispatch
 
 jobs:
   ci:
@@ -15,6 +12,6 @@ jobs:
         with:
           ref: edit
       - name: Document
-        uses: ./ci/docs.yml # Uses an action in the root directory
+        uses: ./.github/actions/docs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

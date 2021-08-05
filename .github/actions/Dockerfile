@@ -32,6 +32,4 @@ RUN \
     cd /home/Psience && \
     git checkout edit
 
-
-
 ENTRYPOINT ["/bin/bash", "/home/Psience/ci/run_ci.sh"]
