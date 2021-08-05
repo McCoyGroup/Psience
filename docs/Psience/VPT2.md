@@ -445,18 +445,20 @@ class VPT2Tests(TestCase):
                                             my_freqs[:ns] - gaussian_freqs[:ns])
 
         if calculate_intensities:
-            engs = h2w * wfns.energies
-            freqs = engs - engs[0]
             ints = wfns.intensities
-
-            harm_engs = h2w * wfns.zero_order_energies
-            harm_freqs = harm_engs - harm_engs[0]
-            harm_ints = wfns.zero_order_intensities
-
             print_specs = True
             if print_specs:
+                if wfns.degenerate_transformation is not None:
+                    print("Deperturbed Results")
+                    if print_report:
+                        for a, m in zip(["X", "Y", "Z"], wfns.format_deperturbed_dipole_contribs_tables()):
+                            print("{} Dipole Contributions".format(a))
+                            print(m)
+                    print(wfns.format_deperturbed_intensities_table())
+                    print("Degenerate Results")
+
                 if print_report:
-                    for a,m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
+                    for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
                         print("{} Dipole Contributions".format(a))
                         print(m)
                 print(wfns.format_intensities_table())
@@ -2351,7 +2353,7 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['OCHH']['zpe']
         gaussian_freqs = self.gaussian_data['OCHH']['freqs']
 
-        print_report = False
+        print_report = True
         nielsen_tolerance = None
         gaussian_tolerance = 1
         self.run_PT_test(
@@ -3961,7 +3963,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -3975,11 +3977,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(4, n_modes)#[:6]
-
-        np.random.seed(0)
-        subsel = np.unique(np.random.randint(len(VPTRunner.get_states(3, n_modes)), len(states), 10))
-        states = VPTRunner.get_states(2, n_modes) + [states[s] for s in subsel]
+        states = VPTRunner.get_states(3, n_modes)#[:6]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -3996,7 +3994,7 @@ class VPT2Tests(TestCase):
             gaussian_energies,
             gaussian_freqs,
             log=True,
-            verbose=True,
+            verbose=False,
             print_profile=False,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
@@ -4025,7 +4023,7 @@ class VPT2Tests(TestCase):
 
         np.random.seed(0)
         subsel = np.unique(np.random.randint(len(VPTRunner.get_states(2, n_modes)), len(states), 20))
-        states =  VPTRunner.get_states(1, n_modes) + [states[s] for s in subsel]
+        states = VPTRunner.get_states(1, n_modes) + [states[s] for s in subsel]
 
         degeneracies = VPTRunner.get_degenerate_polyad_space(
             states,
@@ -4069,7 +4067,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            , state_space_filters=VPTRunner.get_state_space_filter(n_modes, 'intensities')
         )
 
     @validationTest
@@ -4340,10 +4338,10 @@ class VPT2Tests(TestCase):
 
         states = VPTRunner.get_states(3, n_modes)  # [:6]
 
-        np.random.seed(0)
-        subsel = np.unique(np.random.randint(len(VPTRunner.get_states(2, n_modes)), len(states), 20))
-        subsel2 = np.unique(np.random.randint(len(VPTRunner.get_states(1, n_modes)), len(VPTRunner.get_states(2, n_modes))-1, 20))
-        states = VPTRunner.get_states(1, n_modes) + [states[s] for s in subsel2]  + [states[s] for s in subsel]
+        # np.random.seed(0)
+        # subsel = np.unique(np.random.randint(len(VPTRunner.get_states(2, n_modes)), len(states), 20))
+        # subsel2 = np.unique(np.random.randint(len(VPTRunner.get_states(1, n_modes)), len(VPTRunner.get_states(2, n_modes))-1, 20))
+        # states = VPTRunner.get_states(1, n_modes) + [states[s] for s in subsel2]  + [states[s] for s in subsel]
         # raise Exception(states)
 
         gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']

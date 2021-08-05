@@ -19,6 +19,18 @@ __init__(self, mol, basis, corrections, modes=None, mode_selection=None, logger=
 - `corrections`: `PerturbationTheoryCorrections`
     >the corrections to the terms
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.degenerate_transformation" class="docs-object-method">&nbsp;</a>
+```python
+@property
+degenerate_transformation(self): 
+```
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_energies" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_energies(self): 
+```
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.energies_to_order" class="docs-object-method">&nbsp;</a>
 ```python
 energies_to_order(self, order): 
@@ -82,6 +94,15 @@ Computes the transition moments between wavefunctions stored in the object
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_transition_moments" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_transition_moments(self): 
+```
+Computes the transition moments between wavefunctions stored in the object
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.transition_moment_corrections" class="docs-object-method">&nbsp;</a>
 ```python
 @property
@@ -91,10 +112,28 @@ Computes the transition moment corrections between wavefunctions stored in the o
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_transition_moment_corrections" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_transition_moment_corrections(self): 
+```
+Computes the transition moment corrections between wavefunctions stored in the object
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.oscillator_strengths" class="docs-object-method">&nbsp;</a>
 ```python
 @property
 oscillator_strengths(self): 
+```
+Computes the oscillator strengths for transitions from the ground state to the other states
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_oscillator_strengths" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_oscillator_strengths(self): 
 ```
 Computes the oscillator strengths for transitions from the ground state to the other states
 - `:returns`: `_`
@@ -114,6 +153,15 @@ oscillator_strengths_to_order(self, order):
 ```python
 @property
 intensities(self): 
+```
+Computes the intensities for transitions from the ground state to the other states
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_intensities" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_intensities(self): 
 ```
 Computes the intensities for transitions from the ground state to the other states
 - `:returns`: `_`
@@ -160,6 +208,11 @@ format_property_matrices(self, states, prop_corrs, real_fmt='{:>.8e}', padding_f
 format_dipole_contribs_tables(self): 
 ```
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_deperturbed_dipole_contribs_tables" class="docs-object-method">&nbsp;</a>
+```python
+format_deperturbed_dipole_contribs_tables(self): 
+```
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_energy_corrections_table" class="docs-object-method">&nbsp;</a>
 ```python
 format_energy_corrections_table(self, real_fmt='{:>12.5f}'): 
@@ -168,6 +221,11 @@ format_energy_corrections_table(self, real_fmt='{:>12.5f}'):
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_intensities_table" class="docs-object-method">&nbsp;</a>
 ```python
 format_intensities_table(self, real_fmt='{:>12.5f}'): 
+```
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_deperturbed_intensities_table" class="docs-object-method">&nbsp;</a>
+```python
+format_deperturbed_intensities_table(self, real_fmt='{:>12.5f}'): 
 ```
 
 ### Examples
