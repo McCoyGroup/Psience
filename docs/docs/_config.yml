@@ -1,0 +1,42 @@
+# Documentation theme
+title: Psience Documentation
+url: "https://mccoygroup.github.io/Psience/" # the base hostname & protocol for your site, e.g. http://example.com
+github_username: McCoyGroup
+footer_text: >-
+  Brought to you by the McCoy Group
+sitemap_depth: 2
+icon: assets/favicon.png
+
+# Build settings
+markdown: kramdown
+remote_theme: McCoyGroup/finx
+plugins:
+  - jekyll-feed
+  - jekyll-include-cache
+  - jekyll-optional-front-matter
+  - jekyll-seo-tag
+
+collections:
+  docs:
+    output: true
+
+defaults:
+  - scope:
+      path: "" # an empty string here means all files in the project
+    values:
+      layout: "post"
+  - scope:
+      path: "index.html|about.html|404.html|search.html"
+    values:
+      layout: "page"
+  - scope:
+      path: "docs"
+      type: "pages"
+    values:
+      optional_scripts: true
+      annotations_type: "docs"
+      custom_styles: "docs"
+      layout: "docs"
+
+relative_links:
+  enabled: true
