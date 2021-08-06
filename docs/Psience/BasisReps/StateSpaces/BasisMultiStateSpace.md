@@ -5,9 +5,6 @@ Each of these state spaces is nominally independent of the rest, allowing for co
 efficiency later down the line.
 
 ### Properties and Methods
-```python
-from_state: method
-```
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, spaces): 
@@ -31,6 +28,11 @@ Just a way to index the space but with type checking
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.to_state" class="docs-object-method">&nbsp;</a>
 ```python
 to_state(self, serializer=None): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.from_state" class="docs-object-method">&nbsp;</a>
+```python
+from_state(data, serializer=None): 
 ```
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.representative_space" class="docs-object-method">&nbsp;</a>

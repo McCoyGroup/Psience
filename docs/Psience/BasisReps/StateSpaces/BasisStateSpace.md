@@ -4,10 +4,6 @@ Useful largely to provide consistent, unambiguous representations of multiple st
 the different representation-generating methods in the code base.
 
 ### Properties and Methods
-```python
-from_state: method
-from_quanta: method
-```
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, basis, states, full_basis=None, mode=None): 
@@ -28,6 +24,11 @@ check_indices(self):
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.to_state" class="docs-object-method">&nbsp;</a>
 ```python
 to_state(self, serializer=None): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.from_state" class="docs-object-method">&nbsp;</a>
+```python
+from_state(data, serializer=None): 
 ```
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.indices" class="docs-object-method">&nbsp;</a>
@@ -51,6 +52,19 @@ Returns held excitations
     >No description...
 - `:returns`: `_`
     >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisStateSpace.from_quanta" class="docs-object-method">&nbsp;</a>
+```python
+from_quanta(basis, quants): 
+```
+Returns states with `quants` quanta of excitation
+        using the basis `basis`
+- `basis`: `RepresentationBasis`
+    >No description...
+- `quants`: `int | Iterable[int]`
+    >set of integers
+- `:returns`: `_`
+    >BasisStateSpace
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.get_mode" class="docs-object-method">&nbsp;</a>
 ```python

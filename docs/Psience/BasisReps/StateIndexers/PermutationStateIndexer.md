@@ -8,9 +8,6 @@ numbers of states. Unlikely to exhaust the max integers available for most
 systems.
 
 ### Properties and Methods
-```python
-from_state: method
-```
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, ndim): 
@@ -19,6 +16,11 @@ __init__(self, ndim):
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.to_state" class="docs-object-method">&nbsp;</a>
 ```python
 to_state(self, serializer=None): 
+```
+
+<a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.from_state" class="docs-object-method">&nbsp;</a>
+```python
+from_state(data, serializer=None): 
 ```
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.to_indices" class="docs-object-method">&nbsp;</a>

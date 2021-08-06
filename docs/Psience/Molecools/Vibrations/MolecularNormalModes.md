@@ -5,7 +5,6 @@ work with normal mode coordinates + some convenience functions for generating an
 ### Properties and Methods
 ```python
 name: str
-from_force_constants: method
 ```
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.__init__" class="docs-object-method">&nbsp;</a>
 ```python
@@ -77,6 +76,32 @@ Rescales each mode in the expansion matrix
 - `scaling_factors`: `Any`
     >No description...
 - `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.from_force_constants" class="docs-object-method">&nbsp;</a>
+```python
+from_force_constants(molecule, fcs, atoms=None, masses=None, mass_units='AtomicMassUnits', inverse_mass_matrix=False, remove_transrot=True, normalize=False, **opts): 
+```
+Generates normal modes from the specified force constants
+- `molecule`: `AbstractMolecule`
+    >No description...
+- `fcs`: `np.ndarray`
+    >force constants array
+- `atoms`: `Iterable[str]`
+    >atom list
+- `masses`: `Iterable[float]`
+    >mass list
+- `mass_units`: `str`
+    >units for the masses...not clear if this is useful or a distraction
+- `inverse_mass_matrix`: `bool`
+    >whether or not we have G or G^-1 (default: `False`)
+- `remove_transrot`: `bool`
+    >whether or not to remove the translations and rotations (default: `True`)
+- `normalize`: `bool`
+    >whether or not to normalize the modes (default: `True`)
+- `opts`: `Any`
+    >No description...
+- `:returns`: `MolecularNormalModes`
     >No description...
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.__getitem__" class="docs-object-method">&nbsp;</a>

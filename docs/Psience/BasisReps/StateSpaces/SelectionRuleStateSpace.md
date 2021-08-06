@@ -4,9 +4,7 @@ This really should have been called `TransformedStateSpace` but I am dumb
 
 ### Properties and Methods
 ```python
-from_state: method
 direct_sum_chunk_size: int
-from_rules: method
 ```
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
@@ -23,6 +21,11 @@ __init__(self, init_space, excitations, selection_rules=None, ignore_shapes=Fals
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.to_state" class="docs-object-method">&nbsp;</a>
 ```python
 to_state(self, serializer=None): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.from_state" class="docs-object-method">&nbsp;</a>
+```python
+from_state(data, serializer=None): 
 ```
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.as_indices" class="docs-object-method">&nbsp;</a>
@@ -140,6 +143,22 @@ Filters representation indices by the allowed #quantum changes.
 - `q_changes`: `Any`
     >No description...
 - `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.from_rules" class="docs-object-method">&nbsp;</a>
+```python
+from_rules(space, selection_rules, target_dimensions=None, filter_space=None, iterations=1, method='new', parallelizer=None, chunk_size=None, logger=None, track_excitations=True, track_indices=True, full_basis=None): 
+```
+
+- `space`: `BasisStateSpace | BasisMultiStateSpace`
+    >initial space to which to apply the transformations
+- `selection_rules`: `Iterable[Iterable[int]]`
+    >different possible transformations
+- `iterations`: `int`
+    >number of times to apply the transformations
+- `filter_space`: `BasisStateSpace | None`
+    >a space within which all generated `BasisStateSpace` objects must be contained
+- `:returns`: `SelectionRuleStateSpace`
     >No description...
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.union" class="docs-object-method">&nbsp;</a>

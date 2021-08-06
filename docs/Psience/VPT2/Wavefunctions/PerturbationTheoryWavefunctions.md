@@ -5,7 +5,6 @@ These things are fed the first and second order corrections
 ```python
 TermHolder: type
 DipolePartitioningMethod: EnumMeta
-write_CSV_breakdown: method
 ```
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.__init__" class="docs-object-method">&nbsp;</a>
 ```python
@@ -190,6 +189,18 @@ generate_intensity_breakdown(self, include_wavefunctions=True):
 ```
 Generates a breakdown of the terms that contribute to the intensity
         Returns in a format that can be directly exported to JSON if desired.
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.write_CSV_breakdown" class="docs-object-method">&nbsp;</a>
+```python
+write_CSV_breakdown(file, intensity_breakdown, padding=None): 
+```
+Writes an intensity breakdown to a CSV by annoyingly flattening all the arrays
+- `file`: `Any`
+    >No description...
+- `intensity_breakdown`: `Any`
+    >No description...
 - `:returns`: `_`
     >No description...
 

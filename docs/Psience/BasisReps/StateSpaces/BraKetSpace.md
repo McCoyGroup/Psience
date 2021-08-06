@@ -6,7 +6,6 @@ the connections between states.
 
 ### Properties and Methods
 ```python
-from_indices: method
 OrthogoIndexerTrie: type
 CachingOrthogonalIndexCalculator: type
 OrthogonalIndexSparseCalculator: type
@@ -28,6 +27,11 @@ __init__(self, bra_space, ket_space):
 ```python
 @property
 state_pairs(self): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.from_indices" class="docs-object-method">&nbsp;</a>
+```python
+from_indices(inds, basis=None, quanta=None): 
 ```
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.__len__" class="docs-object-method">&nbsp;</a>

@@ -4,10 +4,6 @@ Currently basically no fancier than a regular surface (although with convenient 
 stuff could come
 
 ### Properties and Methods
-```python
-from_log_file: method
-from_fchk_file: method
-```
 <a id="Psience.Data.Surfaces.DipoleSurface.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, mu_x, mu_y, mu_z): 
@@ -25,10 +21,35 @@ __init__(self, mu_x, mu_y, mu_z):
 get_log_values(log_file, keys=('StandardCartesianCoordinates', 'DipoleMoments')): 
 ```
 
+<a id="Psience.Data.Surfaces.DipoleSurface.from_log_file" class="docs-object-method">&nbsp;</a>
+```python
+from_log_file(log_file, coord_transf, keys=('StandardCartesianCoordinates', 'DipoleMoments'), tol=0.001, **opts): 
+```
+Loads dipoles from a Gaussian log file and builds a dipole surface by interpolating.
+        Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
+        to furnish a function that'll take a set of Cartesian coordinates and convert them to "scan" coordinates.
+        Coordinerds can be helpful with this, as it provides a convenient syntax for Cartesian <-> ZMatrix conversions
+- `log_file`: `str`
+    >a Gaussian log file to pull from
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.Data.Surfaces.DipoleSurface.get_fchk_values" class="docs-object-method">&nbsp;</a>
 ```python
 get_fchk_values(fchk_file): 
 ```
+
+<a id="Psience.Data.Surfaces.DipoleSurface.from_fchk_file" class="docs-object-method">&nbsp;</a>
+```python
+from_fchk_file(fchk_file, **opts): 
+```
+Loads dipoles from a Gaussian formatted checkpoint file and builds a dipole surface via a linear approximation
+- `fchk_file`: `Any`
+    >a Gaussian fchk file to pull from
+- `log_file`: `str`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.Data.Surfaces.DipoleSurface.__call__" class="docs-object-method">&nbsp;</a>
 ```python

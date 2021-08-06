@@ -5,9 +5,6 @@ Will before too long be split into a PerturbationTheoryHandler and a Perturbatio
 where the Hamiltonian just implements the split of the perturbation and the Handler manages the equations.
 
 ### Properties and Methods
-```python
-from_fchk: method
-```
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, coriolis_coupling=True, include_pseudopotential=True, potential_terms=None, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None, selection_rules=None, operator_chunk_size=None, logger=None, checkpoint=None, parallelizer=None, **expansion_options): 
@@ -29,6 +26,20 @@ __init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, po
     >log file or logger to write to
 - `checkpoint`: `str | Checkpointer`
     >checkpoint file or checkpointer to store intermediate results
+
+<a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.from_fchk" class="docs-object-method">&nbsp;</a>
+```python
+from_fchk(file, internals=None, mode_selection=None, **kw): 
+```
+
+- `file`: `str`
+    >fchk file to load from
+- `internals`: `Iterable[Iterable[int]]`
+    >internal coordinate specification as a Z-matrix ordering
+- `n_quanta`: `int | Iterable[int]`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.H0" class="docs-object-method">&nbsp;</a>
 ```python

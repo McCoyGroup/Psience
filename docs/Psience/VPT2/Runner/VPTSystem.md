@@ -3,10 +3,6 @@ Provides a little helper for setting up the input
 system for a VPT job
 
 ### Properties and Methods
-```python
-load_molecule_from_spec: method
-from_harmonic_scan: method
-```
 <a id="Psience.VPT2.Runner.VPTSystem.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, mol, internals=None, modes=None, mode_selection=None, potential_derivatives=None, dipole_derivatives=None): 
@@ -29,6 +25,16 @@ __init__(self, mol, internals=None, modes=None, mode_selection=None, potential_d
 ```python
 @property
 nmodes(self): 
+```
+
+<a id="Psience.VPT2.Runner.VPTSystem.load_molecule_from_spec" class="docs-object-method">&nbsp;</a>
+```python
+load_molecule_from_spec(spec): 
+```
+
+<a id="Psience.VPT2.Runner.VPTSystem.from_harmonic_scan" class="docs-object-method">&nbsp;</a>
+```python
+from_harmonic_scan(scan_array): 
 ```
 
 ### Examples

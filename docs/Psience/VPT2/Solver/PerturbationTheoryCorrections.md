@@ -3,11 +3,6 @@ Represents a set of corrections from perturbation theory.
 Can be used to correct other operators in the basis of the original calculation.
 
 ### Properties and Methods
-```python
-from_dicts: method
-loadz: method
-from_state: method
-```
 <a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, hamiltonians, states, coupled_states, total_basis, energy_corrs, wfn_corrections, all_energy_corrections=None, degenerate_states=None, degenerate_transformation=None, degenerate_energies=None, logger=None, verbose=False): 
@@ -31,6 +26,18 @@ __init__(self, hamiltonians, states, coupled_states, total_basis, energy_corrs, 
     >No description...
 - `degenerate_energies`: `None | np.ndarray`
     >No description...
+
+<a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.from_dicts" class="docs-object-method">&nbsp;</a>
+```python
+from_dicts(states, corrections, hamiltonians, **opts): 
+```
+
+- `states`: `dict`
+    >a dict with the states described by the corrections, the set of states coupled, and the size of the overall basis
+- `corrections`: `dict`
+    >the corrections generated, including the corrections for the energies, wavefunctions, and a transformation from degenerate PT
+- `hamiltonians`: `Iterable[np.ndarray]`
+    >the set of Hamiltonian matrices used as an expansion
 
 <a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.degenerate" class="docs-object-method">&nbsp;</a>
 ```python
@@ -88,9 +95,19 @@ Returns the overlap matrices for the set of corrections
 savez(self, file): 
 ```
 
+<a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.loadz" class="docs-object-method">&nbsp;</a>
+```python
+loadz(file): 
+```
+
 <a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.to_state" class="docs-object-method">&nbsp;</a>
 ```python
 to_state(self, serializer=None): 
+```
+
+<a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.from_state" class="docs-object-method">&nbsp;</a>
+```python
+from_state(data, serializer=None): 
 ```
 
 ### Examples

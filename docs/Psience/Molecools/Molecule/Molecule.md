@@ -2,11 +2,6 @@
 General purpose 'Molecule' class where the 'Molecule' need not be a molecule at all
 
 ### Properties and Methods
-```python
-from_zmat: method
-from_pybel: method
-from_file: method
-```
 <a id="Psience.Molecools.Molecule.Molecule.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, atoms, coords, bonds=None, masses=None, name=None, zmatrix=None, obmol=None, dipole_surface=None, dipole_derivatives=None, potential_surface=None, potential_derivatives=None, normal_modes=None, source_file=None, guess_bonds=True, charge=None, **metadata): 
@@ -405,6 +400,36 @@ get_embedded_molecule(self, ref=None, embed_properties=True):
 Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
         a principle-axis embedded Molecule
 - `:returns`: `Molecule`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.from_zmat" class="docs-object-method">&nbsp;</a>
+```python
+from_zmat(zmat, **opts): 
+```
+Little z-matrix importer
+- `zmat`: `str | tuple`
+    >No description...
+- `:returns`: `Molecule`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.from_pybel" class="docs-object-method">&nbsp;</a>
+```python
+from_pybel(mol, **opts): 
+```
+
+- `mol`: `pybel.mol`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.Molecule.Molecule.from_file" class="docs-object-method">&nbsp;</a>
+```python
+from_file(file, mode=None, **opts): 
+```
+In general we'll delegate to pybel except for like Fchk and Log files
+- `file`: `Any`
+    >No description...
+- `:returns`: `_`
     >No description...
 
 <a id="Psience.Molecools.Molecule.Molecule.plot" class="docs-object-method">&nbsp;</a>

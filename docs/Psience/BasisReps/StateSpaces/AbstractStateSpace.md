@@ -10,8 +10,6 @@ StateSpaceSpec: EnumMeta
 StateSpaceCache: type
 excitations_dtype: dtype[int8]
 indices_dtype: dtype[uint64]
-from_state: method
-get_states_with_quanta: method
 ```
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
@@ -27,6 +25,16 @@ to_state(self, serializer=None):
 ```
 Provides just the state that is needed to
         serialize the object
+- `serializer`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.from_state" class="docs-object-method">&nbsp;</a>
+```python
+from_state(state, serializer=None): 
+```
+Loads from the stored state
 - `serializer`: `Any`
     >No description...
 - `:returns`: `_`
@@ -249,6 +257,16 @@ Drops a subset of the state dimensions
 - `sel`: `Any`
     >No description...
 - `:returns`: `AbstractStateSpace`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.get_states_with_quanta" class="docs-object-method">&nbsp;</a>
+```python
+get_states_with_quanta(n, ndim): 
+```
+Returns the states with number of quanta equal to n
+- `quanta`: `Any`
+    >No description...
+- `:returns`: `_`
     >No description...
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.to_single" class="docs-object-method">&nbsp;</a>

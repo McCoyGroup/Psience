@@ -8,9 +8,6 @@ TODO: The idea is good, but calculating what is "in" the array and what is "out"
       We'll need to test to see how slow
 
 ### Properties and Methods
-```python
-identity_from_space: method
-```
 <a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, initial_basis, initial_vals=None, column_space=None, symmetric=True): 
@@ -40,6 +37,18 @@ Returns the basis for the matrix rep
 brakets(self): 
 ```
 Returns the BraKetSpace for the held indices
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix.identity_from_space" class="docs-object-method">&nbsp;</a>
+```python
+identity_from_space(space, column_space=None): 
+```
+Returns a StateSpaceMatrix where the diagonal is filled with 1s
+- `space`: `Any`
+    >No description...
+- `column_space`: `Any`
+    >No description...
 - `:returns`: `_`
     >No description...
 

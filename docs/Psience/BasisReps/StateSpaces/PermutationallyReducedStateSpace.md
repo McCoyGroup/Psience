@@ -4,10 +4,6 @@ permutationally equivalent operations, making many operations
 dramatically faster
 
 ### Properties and Methods
-```python
-from_space: method
-get_equivalent_permutations: method
-```
 <a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, basis, class_reps, perms): 
@@ -20,6 +16,21 @@ __init__(self, basis, class_reps, perms):
 ```python
 to_equivalence_class_space(self): 
 ```
+
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.from_space" class="docs-object-method">&nbsp;</a>
+```python
+from_space(original_space): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.get_equivalent_permutations" class="docs-object-method">&nbsp;</a>
+```python
+get_equivalent_permutations(exc): 
+```
+
+- `exc`: `np.ndarray`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.permutation_direct_product" class="docs-object-method">&nbsp;</a>
 ```python

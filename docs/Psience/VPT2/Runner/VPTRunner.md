@@ -3,9 +3,6 @@ A helper class to make it easier to run jobs by making the inputs/options
 clear and making it easier to customize run options
 
 ### Properties and Methods
-```python
-run_simple: method
-```
 <a id="Psience.VPT2.Runner.VPTRunner.__init__" class="docs-object-method">&nbsp;</a>
 ```python
 __init__(self, system, states, hamiltonian_options=None, solver_options=None, runtime_options=None): 
@@ -39,6 +36,11 @@ Prints a bunch of formatted output data from a PT run
     >No description...
 - `:returns`: `_`
     >No description...
+
+<a id="Psience.VPT2.Runner.VPTRunner.run_simple" class="docs-object-method">&nbsp;</a>
+```python
+run_simple(system, states, target_property=None, **opts): 
+```
 
 ### Examples
 
