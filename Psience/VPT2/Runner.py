@@ -230,6 +230,11 @@ class VPTStateSpace:
 
         return [g for g in groups if len(g) > 1]
 
+    def get_filter(self, target_property, order=2):
+        return self.get_state_space_filter(self.state_list,
+                                           target=target_property,
+                                           order=order
+                                           )
     @classmethod
     def get_state_space_filter(cls, states, n_modes=None, order=2, target='wavefunctions'):
         """
@@ -733,29 +738,36 @@ class VPTRunner:
     def run_simple(cls,
                    system,
                    states,
+                   target_property=None,
                    **opts
                    ):
 
-        opts = ParameterManager(opts)
-        sys = VPTSystem(system, **opts.filter(VPTSystem))
+        par = ParameterManager(opts)
+        sys = VPTSystem(system, **par.filter(VPTSystem))
         if isinstance(states, int) or isinstance(states[0], int):
             states = VPTStateSpace.from_system_and_quanta(
                 sys,
                 states,
-                **opts.filter(VPTStateSpace)
+                **par.filter(VPTStateSpace)
             )
         else:
             states = VPTStateSpace(
                 states,
-                **opts.filter(VPTStateSpace)
+                **par.filter(VPTStateSpace)
             )
+
+        order = 2 if 'order' not in opts.keys() else opts['order']
+        if target_property is None and order == 2:
+            target_property = 'intensities'
+        if target_property is not None and 'state_space_filters' not in opts:
+            opts['state_space_filters'] = states.get_filter(target_property, order=order)
 
         runner = cls(
             sys,
             states,
-            hamiltonian_options=VPTHamiltonianOptions(**opts.filter(VPTHamiltonianOptions)),
-            runtime_options=VPTRuntimeOptions(**opts.filter(VPTRuntimeOptions)),
-            solver_options=VPTSolverOptions(**opts.filter(VPTHamiltonianOptions))
+            hamiltonian_options=VPTHamiltonianOptions(**par.filter(VPTHamiltonianOptions)),
+            runtime_options=VPTRuntimeOptions(**par.filter(VPTRuntimeOptions)),
+            solver_options=VPTSolverOptions(**par.filter(VPTHamiltonianOptions))
         )
 
         runner.print_tables()
