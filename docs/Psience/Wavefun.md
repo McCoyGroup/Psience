@@ -18,4 +18,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/Wavefun.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/Wavefun.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/Wavefun.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Wavefun/__init__.py?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Wavefun/__init__.py?message=Update%20Docs)
