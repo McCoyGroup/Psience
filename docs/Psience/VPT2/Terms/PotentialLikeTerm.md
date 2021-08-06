@@ -1,1 +1,18 @@
+## <a id="Psience.VPT2.Terms.PotentialLikeTerm">PotentialLikeTerm</a>
+This accounts for the potential-like term.
+In Cartesian diplacement modes this is the Watson U.
+In proper internals, this is the V' term.
+
+### Properties and Methods
 No template ;_;
+
+### Examples
+
+
+___
+
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/VPT2/Terms/PotentialLikeTerm.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/VPT2/Terms/PotentialLikeTerm.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/VPT2/Terms/PotentialLikeTerm.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Terms/PotentialLikeTerm.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/VPT2/Terms.py?message=Update%20Docs)

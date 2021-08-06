@@ -1,1 +1,18 @@
+## <a id="Psience.BasisReps.StateSpaces.PermutationallyReducedTransformedSpace">PermutationallyReducedTransformedSpace</a>
+A specialized wrapper that overloads some key operations so that they
+can be done more efficiently with permutationally reduced spaces.
+Currently just delegates getting brakets
+
+### Properties and Methods
 No template ;_;
+
+### Examples
+
+
+___
+
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedTransformedSpace.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedTransformedSpace.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedTransformedSpace.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedTransformedSpace.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/BasisReps/StateSpaces.py?message=Update%20Docs)
