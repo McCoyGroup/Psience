@@ -1858,9 +1858,15 @@ class VPT2Tests(TestCase):
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             3,
-            logger=True,
-            target_property='intensities'
+            logger=True
         )
+
+        system = VPTSystem(TestManager.test_data(file_name))
+        states = VPTStateSpace.from_system_and_quanta(system, 3)
+        pt_opts = VPTSolverOptions(state_space_filters=states.get_filter("intensities"))
+        run_opts = VPTRuntimeOptions(logger=True)
+        runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
+        runner.print_tables()
 
     gaussian_data['HOD'] = {
         'zpe': np.array([4052.912, 3994.844]),
