@@ -1844,8 +1844,10 @@ class VPT2Tests(TestCase):
 
         print_diffs = True
         if print_diffs:
-            self.print_energy_block("Difference Energies:", states, my_energies - gaussian_energies,
-                                    my_freqs[:ns] - gaussian_freqs[:ns])
+            self.print_energy_block("Difference Energies:", states,
+                                    my_energies - gaussian_energies,
+                                    my_freqs[:ns] - gaussian_freqs[:ns]
+                                    )
 
         self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), 1.5)
 
@@ -1856,7 +1858,8 @@ class VPT2Tests(TestCase):
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             3,
-            logger=True
+            logger=True,
+            target_property='intensities'
         )
 
     gaussian_data['HOD'] = {
