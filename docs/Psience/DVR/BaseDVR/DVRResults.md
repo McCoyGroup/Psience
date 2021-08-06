@@ -29,6 +29,8 @@ Simple plotting function for the potential.
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/DVR/BaseDVR/DVRResults.md) or 

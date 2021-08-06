@@ -40,6 +40,8 @@ Computes the probability density of the current wavefunction
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/Wavefun/Wavefunctions/Wavefunction.md) or 

@@ -231,6 +231,8 @@ format_deperturbed_intensities_table(self, real_fmt='{:>12.5f}'):
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.md) or 

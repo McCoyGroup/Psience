@@ -40,6 +40,8 @@ Colbert-Miller kinetic energy for the [0, pi] range
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/DVR/ColbertMiller/PolarDVR.md) or 

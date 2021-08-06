@@ -13,6 +13,8 @@ Allows different methods to provide their own concrete implementation details
 
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/Wavefun/Wavefunctions.md) or 

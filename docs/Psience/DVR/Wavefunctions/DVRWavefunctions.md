@@ -75,6 +75,8 @@ Computes the probability density of the set of wavefunctions
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/DVR/Wavefunctions/DVRWavefunctions.md) or 

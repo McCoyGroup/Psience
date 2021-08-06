@@ -158,6 +158,8 @@ get_breakdown(self, states, coupled_states=None, degeneracies=None, order=2):
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.md) or 

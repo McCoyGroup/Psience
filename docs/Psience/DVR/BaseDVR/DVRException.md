@@ -7,6 +7,8 @@ Base exception class for working with DVRs
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/DVR/BaseDVR/DVRException.md) or 

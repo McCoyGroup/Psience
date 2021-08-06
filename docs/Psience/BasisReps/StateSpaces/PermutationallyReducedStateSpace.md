@@ -98,6 +98,8 @@ Returns a subsample of the space with some dimensions
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) or 

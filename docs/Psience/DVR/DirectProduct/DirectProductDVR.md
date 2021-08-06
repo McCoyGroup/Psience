@@ -53,6 +53,8 @@ Computes the N-dimensional kinetic energy
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/DVR/DirectProduct/DirectProductDVR.md) or 

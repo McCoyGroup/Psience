@@ -92,6 +92,8 @@ Takes a slice of the modes
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/Molecools/Vibrations/MolecularNormalModes.md) or 

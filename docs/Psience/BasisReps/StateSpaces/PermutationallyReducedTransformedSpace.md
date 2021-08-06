@@ -15,6 +15,8 @@ Returns the SelectionRuleStateSpace for the equivalence classes
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedTransformedSpace.md) or 

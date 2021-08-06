@@ -10,6 +10,8 @@ __init__(self, r_max, divs, **base_opts):
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/DVR/DirectProduct/SphericalDVR.md) or 

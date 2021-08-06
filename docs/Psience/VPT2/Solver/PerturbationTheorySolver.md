@@ -258,6 +258,8 @@ get_degenerate_rotation(self, deg_group, corrs):
 ### Examples
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/VPT2/Solver/PerturbationTheorySolver.md) or 
