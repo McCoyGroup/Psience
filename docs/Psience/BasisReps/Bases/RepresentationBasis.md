@@ -7,37 +7,37 @@ Requires concrete implementations of the position and momentum operators.
 name: str
 selection_rules_mapping: dict
 ```
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

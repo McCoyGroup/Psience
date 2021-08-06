@@ -11,25 +11,25 @@ TODO: The idea is good, but calculating what is "in" the array and what is "out"
 ```python
 identity_from_space: method
 ```
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

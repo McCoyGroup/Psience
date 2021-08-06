@@ -5,17 +5,17 @@ This will be more progressively more tightly meshed with RepresentationBasis in 
 but for now I just want to provide the scaffolding so that I can build off of it.
 
 ### Properties and Methods
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

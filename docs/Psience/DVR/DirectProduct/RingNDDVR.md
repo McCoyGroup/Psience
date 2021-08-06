@@ -2,7 +2,7 @@
 Provides an ND-DVR for products of periodic (0, 2Pi) ranges
 
 ### Properties and Methods
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

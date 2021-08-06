@@ -5,13 +5,13 @@ Mirrors the standard Cartesian coordinate system in _almost_ all regards, but fo
 ```python
 name: str
 ```
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

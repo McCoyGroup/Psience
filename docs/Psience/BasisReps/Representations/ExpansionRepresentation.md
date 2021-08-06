@@ -2,27 +2,27 @@
 Provides support for terms that look like `1/2 pGp + 1/2 dV/dQdQ QQ` by computing each term on its own
 
 ### Properties and Methods
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

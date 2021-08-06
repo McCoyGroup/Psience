@@ -3,11 +3,11 @@ Very simple indexer that takes a set of states and indexes based on that.
 Needs some testing to make sure everything works as cleanly as hoped.
 
 ### Properties and Methods
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

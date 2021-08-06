@@ -4,7 +4,7 @@ In Cartesian diplacement modes this is the Watson U.
 In proper internals, this is the V' term.
 
 ### Properties and Methods
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

@@ -7,9 +7,9 @@ Provides convenient access to dipole data + a unified interface to things like e
 from_log_file: method
 from_fchk_file: method
 ```
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

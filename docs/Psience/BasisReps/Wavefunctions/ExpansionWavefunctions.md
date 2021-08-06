@@ -9,7 +9,7 @@ but `AnalyticWavefunctions` wasn't really designed for that, so I need to go bac
 that binding is going to be managed.
 
 ### Properties and Methods
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

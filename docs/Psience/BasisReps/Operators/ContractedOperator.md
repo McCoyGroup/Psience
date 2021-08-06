@@ -4,13 +4,13 @@ expanding them out as the pure operator component that depends on the basis stat
 and doing the appropriate tensor contractions with the expansion coefficients (i.e. `G` or `dG/dQ`)
 
 ### Properties and Methods
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

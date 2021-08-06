@@ -4,7 +4,7 @@ can be done more efficiently with permutationally reduced spaces.
 Currently just delegates getting brakets
 
 ### Properties and Methods
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

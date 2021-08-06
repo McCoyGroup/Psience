@@ -2,7 +2,7 @@
 Provides an ND-DVR over different domains
 
 ### Properties and Methods
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 

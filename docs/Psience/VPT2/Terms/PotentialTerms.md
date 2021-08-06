@@ -2,9 +2,9 @@
 A helper class that can transform the derivatives of the potential from Cartesian to normal coordinates
 
 ### Properties and Methods
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
-No template ;_;
+/home/Peeves/Peeves/Doc/templates/method.md
 
 ### Examples
 
