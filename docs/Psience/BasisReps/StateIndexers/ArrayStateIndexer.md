@@ -6,13 +6,25 @@ provides the appropriate indices in that space
 ```python
 from_state: method
 ```
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateIndexers.ArrayStateIndexer.__init__" class="docs-object-method">&nbsp;</a>
+```python
+__init__(self, dims): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateIndexers.ArrayStateIndexer.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateIndexers.ArrayStateIndexer.to_indices" class="docs-object-method">&nbsp;</a>
+```python
+to_indices(self, states): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateIndexers.ArrayStateIndexer.from_indices" class="docs-object-method">&nbsp;</a>
+```python
+from_indices(self, indices): 
+```
 
 ### Examples
 

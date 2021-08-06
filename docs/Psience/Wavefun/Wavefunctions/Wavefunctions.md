@@ -3,17 +3,41 @@ An object representing a set of wavefunctions.
 Provides concrete, but potentially inefficient methods for doing all the wavefunction ops.
 
 ### Properties and Methods
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Wavefun.Wavefunctions.Wavefunctions.__init__" class="docs-object-method">&nbsp;</a>
+```python
+__init__(self, energies=None, wavefunctions=None, indices=None, wavefunction_class=None, **opts): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Wavefun.Wavefunctions.Wavefunctions.get_wavefunctions" class="docs-object-method">&nbsp;</a>
+```python
+get_wavefunctions(self, which): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Wavefun.Wavefunctions.Wavefunctions.__getitem__" class="docs-object-method">&nbsp;</a>
+```python
+__getitem__(self, item): 
+```
+Returns a single Wavefunction object
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Wavefun.Wavefunctions.Wavefunctions.__iter__" class="docs-object-method">&nbsp;</a>
+```python
+__iter__(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Wavefun.Wavefunctions.Wavefunctions.frequencies" class="docs-object-method">&nbsp;</a>
+```python
+frequencies(self, start_at=0): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Wavefun.Wavefunctions.Wavefunctions.plot" class="docs-object-method">&nbsp;</a>
+```python
+plot(self, figure=None, graphics_class=None, plot_style=None, **opts): 
+```
+Plots all of the wavefunctions on one set of axes
+- `opts`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 ### Examples
 

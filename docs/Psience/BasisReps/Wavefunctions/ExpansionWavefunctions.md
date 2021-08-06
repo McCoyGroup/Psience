@@ -9,7 +9,19 @@ but `AnalyticWavefunctions` wasn't really designed for that, so I need to go bac
 that binding is going to be managed.
 
 ### Properties and Methods
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.Wavefunctions.ExpansionWavefunctions.__init__" class="docs-object-method">&nbsp;</a>
+```python
+__init__(self, energies, coefficients, basis_wfns, **ops): 
+```
+
+- `energies`: `Iterable[float]`
+    >energies for the stored wavefunctions
+- `coefficients`: `Iterable[Iterable[float]]`
+    >expansion coefficients
+- `basis_wfns`: `Wavefunctions`
+    >wavefunctions to use as the basis for the expansion
+- `ops`: `Any`
+    >extra options for feeding through to `Wavefunctions`
 
 ### Examples
 

@@ -7,21 +7,87 @@ work with normal mode coordinates + some convenience functions for generating an
 name: str
 from_force_constants: method
 ```
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.__init__" class="docs-object-method">&nbsp;</a>
+```python
+__init__(self, molecule, coeffs, name=None, freqs=None, internal=False, origin=None, basis=None, inverse=None): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+- `molecule`: `AbstractMolecule`
+    >No description...
+- `coeffs`: `Any`
+    >No description...
+- `name`: `Any`
+    >No description...
+- `freqs`: `Any`
+    >No description...
+- `internal`: `Any`
+    >No description...
+- `origin`: `Any`
+    >No description...
+- `basis`: `Any`
+    >No description...
+- `inverse`: `Any`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.molecule" class="docs-object-method">&nbsp;</a>
+```python
+@property
+molecule(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.to_internals" class="docs-object-method">&nbsp;</a>
+```python
+to_internals(self, intcrds=None, dYdR=None, dRdY=None): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.origin" class="docs-object-method">&nbsp;</a>
+```python
+@property
+origin(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.embed" class="docs-object-method">&nbsp;</a>
+```python
+embed(self, frame): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+- `frame`: `MolecularTransformation`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.insert" class="docs-object-method">&nbsp;</a>
+```python
+insert(self, val, where): 
+```
+Inserts values into the appropriate positions in the mode matrix
+- `val`: `Any`
+    >No description...
+- `where`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.rescale" class="docs-object-method">&nbsp;</a>
+```python
+rescale(self, scaling_factors): 
+```
+Rescales each mode in the expansion matrix
+        by the passed `scaling_factors`
+- `scaling_factors`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.__getitem__" class="docs-object-method">&nbsp;</a>
+```python
+__getitem__(self, item): 
+```
+Takes a slice of the modes
+- `item`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 ### Examples
 

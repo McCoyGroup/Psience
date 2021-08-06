@@ -5,13 +5,35 @@ Mirrors the standard Cartesian coordinate system in _almost_ all regards, but fo
 ```python
 name: str
 ```
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.CoordinateSystems.MolecularCartesianCoordinateSystem.__init__" class="docs-object-method">&nbsp;</a>
+```python
+__init__(self, molecule, converter_options=None, **opts): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+- `molecule`: `AbstractMolecule`
+    >No description...
+- `converter_options`: `Any`
+    >No description...
+- `opts`: `Any`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.CoordinateSystems.MolecularCartesianCoordinateSystem.pre_convert" class="docs-object-method">&nbsp;</a>
+```python
+pre_convert(self, system): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.CoordinateSystems.MolecularCartesianCoordinateSystem.set_embedding" class="docs-object-method">&nbsp;</a>
+```python
+set_embedding(self): 
+```
+Sets up the embedding options...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.Molecools.CoordinateSystems.MolecularCartesianCoordinateSystem.jacobian" class="docs-object-method">&nbsp;</a>
+```python
+jacobian(self, coords, system, strip_dummies=None, converter_options=None, analytic_deriv_order=None, **kwargs): 
+```
 
 ### Examples
 

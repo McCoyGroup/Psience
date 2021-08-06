@@ -11,13 +11,39 @@ systems.
 ```python
 from_state: method
 ```
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.__init__" class="docs-object-method">&nbsp;</a>
+```python
+__init__(self, ndim): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.to_indices" class="docs-object-method">&nbsp;</a>
+```python
+to_indices(self, states): 
+```
+Finds the appropriate integer partitioning for each state
+- `states`: `np.ndarray`
+    >2D array of states as excitations
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.from_indices" class="docs-object-method">&nbsp;</a>
+```python
+from_indices(self, indices, check=False): 
+```
+Inverts the index calculation.
+        First determines what number of quanta the index corresponds to,
+        then which integer partition, and finally just loops through the unique
+        permutations of the partition to get the right one.
+        This is not assured to be a fast process in any way.
+- `indices`: `Iterable[int]`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 ### Examples
 

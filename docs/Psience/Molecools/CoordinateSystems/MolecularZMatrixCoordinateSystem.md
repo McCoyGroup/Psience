@@ -5,17 +5,44 @@ Mirrors the standard ZMatrix coordinate system in _almost_ all regards, but forc
 ```python
 name: str
 ```
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.__init__" class="docs-object-method">&nbsp;</a>
+```python
+__init__(self, molecule, converter_options=None, **opts): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+- `molecule`: `AbstractMolecule`
+    >No description...
+- `converter_options`: `Any`
+    >No description...
+- `opts`: `Any`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.origins" class="docs-object-method">&nbsp;</a>
+```python
+@property
+origins(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.axes" class="docs-object-method">&nbsp;</a>
+```python
+@property
+axes(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.pre_convert" class="docs-object-method">&nbsp;</a>
+```python
+pre_convert(self, system): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.set_embedding" class="docs-object-method">&nbsp;</a>
+```python
+set_embedding(self): 
+```
+
+<a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.jacobian" class="docs-object-method">&nbsp;</a>
+```python
+jacobian(self, *args, reembed=None, strip_dummies=None, converter_options=None, **kwargs): 
+```
 
 ### Examples
 

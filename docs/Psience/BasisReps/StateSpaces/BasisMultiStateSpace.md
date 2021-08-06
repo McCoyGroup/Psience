@@ -8,53 +8,189 @@ efficiency later down the line.
 ```python
 from_state: method
 ```
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__init__" class="docs-object-method">&nbsp;</a>
+```python
+__init__(self, spaces): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+- `spaces`: `Iterable`
+    >array of `BasisStateSpace` objects
+- `selection_rules`: `np.ndarray`
+    >array of rules used to generate the subspace
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_space" class="docs-object-method">&nbsp;</a>
+```python
+get_space(self, item): 
+```
+Just a way to index the space but with type checking
+- `item`: `Any`
+    >No description...
+- `:returns`: `BasisStateSpace`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.representative_space" class="docs-object-method">&nbsp;</a>
+```python
+@property
+representative_space(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.basis" class="docs-object-method">&nbsp;</a>
+```python
+@property
+basis(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.full_basis" class="docs-object-method">&nbsp;</a>
+```python
+@property
+full_basis(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.ndim" class="docs-object-method">&nbsp;</a>
+```python
+@property
+ndim(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__iter__" class="docs-object-method">&nbsp;</a>
+```python
+__iter__(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.flat" class="docs-object-method">&nbsp;</a>
+```python
+@property
+flat(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_mode" class="docs-object-method">&nbsp;</a>
+```python
+get_mode(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.as_indices" class="docs-object-method">&nbsp;</a>
+```python
+as_indices(self): 
+```
+Pulls the full set of indices out of all of the
+        held spaces and returns them as a flat vector
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.as_excitations" class="docs-object-method">&nbsp;</a>
+```python
+as_excitations(self): 
+```
+Pulls the full set excitations out of all of the
+        held spaces and returns them as a flat vector
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.check_indices" class="docs-object-method">&nbsp;</a>
+```python
+check_indices(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.to_single" class="docs-object-method">&nbsp;</a>
+```python
+to_single(self, track_excitations=True, track_indices=True): 
+```
+Condenses the multi state space down to
+        a single BasisStateSpace
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.take_states" class="docs-object-method">&nbsp;</a>
+```python
+take_states(self, states, track_excitations=True, track_indices=True): 
+```
+Takes the intersection of each held space and the specified states
+- `states`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.take_subspace" class="docs-object-method">&nbsp;</a>
+```python
+take_subspace(self, sel, track_excitations=True, track_indices=True): 
+```
+Takes the specified states, making sure each held space
+        only contains states in `sel`
+- `sel`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.take_subdimensions" class="docs-object-method">&nbsp;</a>
+```python
+take_subdimensions(self, inds): 
+```
+Takes the subdimensions from each space
+- `inds`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.drop_states" class="docs-object-method">&nbsp;</a>
+```python
+drop_states(self, states): 
+```
+Take the difference of each held space and the specified states
+- `states`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.drop_subspace" class="docs-object-method">&nbsp;</a>
+```python
+drop_subspace(self, sel): 
+```
+Takes the specified states, making sure each held space
+        only contains states in `sel`
+- `sel`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.drop_subdimensions" class="docs-object-method">&nbsp;</a>
+```python
+drop_subdimensions(self, inds): 
+```
+Takes the subdimensions from each space
+- `inds`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__repr__" class="docs-object-method">&nbsp;</a>
+```python
+__repr__(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__getitem__" class="docs-object-method">&nbsp;</a>
+```python
+__getitem__(self, item): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a>
+```python
+get_representation_indices(self, freqs=None, freq_threshold=None, other=None, selection_rules=None, return_filter=False): 
+```
+Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
+        in this state space.
+        Basically just takes all pairs of indices.
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_representation_brakets" class="docs-object-method">&nbsp;</a>
+```python
+get_representation_brakets(self, freqs=None, freq_threshold=None, other=None, selection_rules=None, filter=None, return_filter=False): 
+```
 
 ### Examples
 

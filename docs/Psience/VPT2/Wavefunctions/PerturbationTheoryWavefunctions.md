@@ -7,69 +7,226 @@ TermHolder: type
 DipolePartitioningMethod: EnumMeta
 write_CSV_breakdown: method
 ```
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.__init__" class="docs-object-method">&nbsp;</a>
+```python
+__init__(self, mol, basis, corrections, modes=None, mode_selection=None, logger=None, operator_settings=None): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+- `mol`: `Molecule`
+    >the molecule the wavefunction is for
+- `basis`: `SimpleProductBasis`
+    >the basis the expansion is being done in
+- `corrections`: `PerturbationTheoryCorrections`
+    >the corrections to the terms
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.degenerate_transformation" class="docs-object-method">&nbsp;</a>
+```python
+@property
+degenerate_transformation(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_energies" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_energies(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.energies_to_order" class="docs-object-method">&nbsp;</a>
+```python
+energies_to_order(self, order): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.order" class="docs-object-method">&nbsp;</a>
+```python
+@property
+order(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.expectation" class="docs-object-method">&nbsp;</a>
+```python
+expectation(self, operator, other): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.zero_order_energies" class="docs-object-method">&nbsp;</a>
+```python
+@property
+zero_order_energies(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.get_M0" class="docs-object-method">&nbsp;</a>
+```python
+get_M0(self, mu_0): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.get_M1" class="docs-object-method">&nbsp;</a>
+```python
+get_M1(self, mu_1): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.get_M2" class="docs-object-method">&nbsp;</a>
+```python
+get_M2(self, mu_2): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.get_M3" class="docs-object-method">&nbsp;</a>
+```python
+get_M3(self, mu_3): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.dipole_terms" class="docs-object-method">&nbsp;</a>
+```python
+@property
+dipole_terms(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.dipole_partitioning" class="docs-object-method">&nbsp;</a>
+```python
+@property
+dipole_partitioning(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.transition_moments" class="docs-object-method">&nbsp;</a>
+```python
+@property
+transition_moments(self): 
+```
+Computes the transition moments between wavefunctions stored in the object
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_transition_moments" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_transition_moments(self): 
+```
+Computes the transition moments between wavefunctions stored in the object
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.transition_moment_corrections" class="docs-object-method">&nbsp;</a>
+```python
+@property
+transition_moment_corrections(self): 
+```
+Computes the transition moment corrections between wavefunctions stored in the object
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_transition_moment_corrections" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_transition_moment_corrections(self): 
+```
+Computes the transition moment corrections between wavefunctions stored in the object
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.oscillator_strengths" class="docs-object-method">&nbsp;</a>
+```python
+@property
+oscillator_strengths(self): 
+```
+Computes the oscillator strengths for transitions from the ground state to the other states
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_oscillator_strengths" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_oscillator_strengths(self): 
+```
+Computes the oscillator strengths for transitions from the ground state to the other states
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.oscillator_strengths_to_order" class="docs-object-method">&nbsp;</a>
+```python
+oscillator_strengths_to_order(self, order): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+- `tms`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.intensities" class="docs-object-method">&nbsp;</a>
+```python
+@property
+intensities(self): 
+```
+Computes the intensities for transitions from the ground state to the other states
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_intensities" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_intensities(self): 
+```
+Computes the intensities for transitions from the ground state to the other states
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.intensities_to_order" class="docs-object-method">&nbsp;</a>
+```python
+intensities_to_order(self, order): 
+```
+Computes the intensities for transitions from the ground state to the other states
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.zero_order_intensities" class="docs-object-method">&nbsp;</a>
+```python
+@property
+zero_order_intensities(self): 
+```
+Computes the harmonic intensities for transitions from the ground state to the other states
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.generate_intensity_breakdown" class="docs-object-method">&nbsp;</a>
+```python
+generate_intensity_breakdown(self, include_wavefunctions=True): 
+```
+Generates a breakdown of the terms that contribute to the intensity
+        Returns in a format that can be directly exported to JSON if desired.
+- `:returns`: `_`
+    >No description...
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_energies_table" class="docs-object-method">&nbsp;</a>
+```python
+format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_property_matrices" class="docs-object-method">&nbsp;</a>
+```python
+format_property_matrices(self, states, prop_corrs, real_fmt='{:>.8e}', padding_fmt='{:>16}'): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_dipole_contribs_tables" class="docs-object-method">&nbsp;</a>
+```python
+format_dipole_contribs_tables(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_deperturbed_dipole_contribs_tables" class="docs-object-method">&nbsp;</a>
+```python
+format_deperturbed_dipole_contribs_tables(self): 
+```
 
-/home/Peeves/Peeves/Doc/templates/method.md
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_energy_corrections_table" class="docs-object-method">&nbsp;</a>
+```python
+format_energy_corrections_table(self, real_fmt='{:>12.5f}'): 
+```
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_intensities_table" class="docs-object-method">&nbsp;</a>
+```python
+format_intensities_table(self, real_fmt='{:>12.5f}'): 
+```
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_deperturbed_intensities_table" class="docs-object-method">&nbsp;</a>
+```python
+format_deperturbed_intensities_table(self, real_fmt='{:>12.5f}'): 
+```
 
 ### Examples
 
