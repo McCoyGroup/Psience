@@ -1878,6 +1878,16 @@ class VPT2Tests(TestCase):
 
         self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), 1.5)
 
+    @debugTest
+    def test_HOHVTPRunner(self):
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            logger=True
+        )
+
     gaussian_data['HOD'] = {
         'zpe': np.array([4052.912, 3994.844]),
         'freqs': np.array([

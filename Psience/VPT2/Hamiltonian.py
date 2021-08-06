@@ -799,9 +799,11 @@ class PerturbationTheoryHamiltonian:
         # if memory_constrained is True:
         #     memory_constrained = False
 
+        if 'degenerate_states' not in opts:
+            opts['degenerate_states'] = degeneracies
+
         return PerturbationTheorySolver(h_reps, states,
                                           order=order,
-                                          degenerate_states=degeneracies,
                                           logger=self.logger,
                                           checkpointer=self.checkpointer,
                                           parallelizer=self.parallelizer,
