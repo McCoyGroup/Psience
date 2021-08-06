@@ -19,6 +19,11 @@ and pertubation theory computations
   - [PerturbationTheorySolver](VPT2/Solver/PerturbationTheorySolver.md)
   - [PerturbationTheoryCorrections](VPT2/Solver/PerturbationTheoryCorrections.md)
   - [VPTRunner](VPT2/Runner/VPTRunner.md)
+  - [VPTSystem](VPT2/Runner/VPTSystem.md)
+  - [VPTStateSpace](VPT2/Runner/VPTStateSpace.md)
+  - [VPTHamiltonianOptions](VPT2/Runner/VPTHamiltonianOptions.md)
+  - [VPTRuntimeOptions](VPT2/Runner/VPTRuntimeOptions.md)
+  - [VPTSolverOptions](VPT2/Runner/VPTSolverOptions.md)
 
 ### Examples:
 
@@ -487,35 +492,6 @@ class VPT2Tests(TestCase):
         if gaussian_freqs is not None:
             self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), gaussian_tolerance)
 
-    def profile_block(self, block):
-
-        pr = cProfile.Profile()
-        pr.enable()
-        exc = None
-        res = None
-        try:
-            res = block()
-        except Exception as e:
-            # we're gonna just throw errors to trace how the program is performing
-            # we want to catch this error for later re-throwing, though
-            exc = e
-        finally:
-            pr.disable()
-        s = io.StringIO()
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats(50)
-        ps.print_stats(50)
-        stat_block = s.getvalue()
-        usr = os.path.expanduser('~')
-        stat_block = stat_block.replace(
-            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-            ""
-        )
-        stat_block = stat_block.replace(
-            os.path.join(usr, "Documents/UW/Research/Development"), ""
-        )
-        return exc, stat_block, res
 
     def write_intensity_breakdown(self, s, all_wfns, plot_spec, write_wavefunctions=True):
         """
@@ -649,7 +625,7 @@ class VPT2Tests(TestCase):
         mode_selection = [-1]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(4, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(4, n_modes)
 
         print_report = True
         reference_energies = self.analytic_data['Morse3500/50']['zpe']
@@ -769,7 +745,7 @@ class VPT2Tests(TestCase):
         mode_selection = [-1]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(4, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(4, n_modes)
 
         print_report = False
         reference_energies = self.analytic_data['Morse3500/50']['zpe']
@@ -963,7 +939,7 @@ class VPT2Tests(TestCase):
         mode_selection = [-2, -1]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(4, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(4, n_modes)
 
         print_report = True
         reference_energies = self.analytic_data['Morse3500/50+3000/100']['zpe']
@@ -1117,7 +1093,7 @@ class VPT2Tests(TestCase):
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
 
-        # states = VPTRunner.get_states(5, n_modes)
+        # states = VPTStateSpace.get_state_list_from_quanta(5, n_modes)
         states = [
             [0, 0],
             [0, 1],
@@ -1207,7 +1183,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = False
 
@@ -1242,7 +1218,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = False
 
@@ -1297,7 +1273,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = True
 
@@ -1339,7 +1315,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = True
 
@@ -1381,7 +1357,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = True
 
@@ -1415,7 +1391,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = True
 
@@ -1467,7 +1443,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = False
 
@@ -1506,7 +1482,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)[:3]
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)[:3]
 
         print_report = False
 
@@ -1554,7 +1530,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)[:3]
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)[:3]
 
         print_report = False
 
@@ -1605,7 +1581,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = False
 
@@ -1643,7 +1619,7 @@ class VPT2Tests(TestCase):
         mode_selection = [1, 2]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = True
 
@@ -1690,7 +1666,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = True
 
@@ -1736,7 +1712,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = True
 
@@ -1777,16 +1753,16 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         basis = HarmonicOscillatorProductBasis(n_modes)
         coupled_states = [
-            # BasisStateSpace(basis, VPTRunner.get_states(20, n_modes)).apply_selection_rules(
+            # BasisStateSpace(basis, VPTStateSpace.get_state_list_from_quanta(20, n_modes)).apply_selection_rules(
             #     basis.selection_rules("x", "x", "x")
             # ),
-            VPTRunner.get_states(15, n_modes),
-            VPTRunner.get_states(15, n_modes)
-            # BasisStateSpace(basis, VPTRunner.get_states(20, n_modes)).apply_selection_rules(
+            VPTStateSpace.get_state_list_from_quanta(15, n_modes),
+            VPTStateSpace.get_state_list_from_quanta(15, n_modes)
+            # BasisStateSpace(basis, VPTStateSpace.get_state_list_from_quanta(20, n_modes)).apply_selection_rules(
             #     basis.selection_rules("x", "x", "x", "x")
             # )
         ]
@@ -1824,7 +1800,7 @@ class VPT2Tests(TestCase):
 
         basis = HarmonicOscillatorProductBasis(3)
 
-        states = VPTRunner.get_states(6, 3)
+        states = VPTStateSpace.get_state_list_from_quanta(6, 3)
 
         wfns = self.get_VPT2_wfns(
             "HOH_freq.fchk",
@@ -1847,16 +1823,16 @@ class VPT2Tests(TestCase):
             # , order=4
             # degeneracies=100/self.h2w # any pair of states within 100 wavenumbers can be treated as degenerate
             # , coupled_states = [
-            #     BasisStateSpace(basis, VPTRunner.get_states(12, 3)).apply_selection_rules(
+            #     BasisStateSpace(basis, VPTStateSpace.get_state_list_from_quanta(12, 3)).apply_selection_rules(
             #         basis.selection_rules("x", "x", "x")
             #     ),
-            #     BasisStateSpace(basis, VPTRunner.get_states(12, 3)).apply_selection_rules(
+            #     BasisStateSpace(basis, VPTStateSpace.get_state_list_from_quanta(12, 3)).apply_selection_rules(
             #         basis.selection_rules("x", "x", "x", "x")
             #     )
             # ]
             # , coupled_states=[
-            #     BasisStateSpace(basis, VPTRunner.get_states(12, 3)),
-            #     BasisStateSpace(basis, VPTRunner.get_states(12, 3))
+            #     BasisStateSpace(basis, VPTStateSpace.get_state_list_from_quanta(12, 3)),
+            #     BasisStateSpace(basis, VPTStateSpace.get_state_list_from_quanta(12, 3))
             # ]
             # , v3=0
             # , v4=0
@@ -1900,10 +1876,23 @@ class VPT2Tests(TestCase):
 
         print_diffs = True
         if print_diffs:
-            self.print_energy_block("Difference Energies:", states, my_energies - gaussian_energies,
-                                    my_freqs[:ns] - gaussian_freqs[:ns])
+            self.print_energy_block("Difference Energies:", states,
+                                    my_energies - gaussian_energies,
+                                    my_freqs[:ns] - gaussian_freqs[:ns]
+                                    )
 
         self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), 1.5)
+
+    @debugTest
+    def test_HOHVTPRunner(self):
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            logger=True,
+            target_property='intensities'
+        )
 
     gaussian_data['HOD'] = {
         'zpe': np.array([4052.912, 3994.844]),
@@ -1936,7 +1925,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = False
 
@@ -1967,7 +1956,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = False
 
@@ -2016,7 +2005,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = False
 
@@ -2047,7 +2036,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = False
 
@@ -2121,7 +2110,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['OCHH']['zpe']
         gaussian_freqs = self.gaussian_data['OCHH']['freqs']
@@ -2162,7 +2151,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['OCHH']['zpe']
         gaussian_freqs = self.gaussian_data['OCHH']['freqs']
@@ -2221,7 +2210,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['OCHH']['zpe']
         gaussian_freqs = self.gaussian_data['OCHH']['freqs']
@@ -2262,7 +2251,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['OCHH']['zpe']
         gaussian_freqs = self.gaussian_data['OCHH']['freqs']
@@ -2300,7 +2289,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         # nt_spec = np.array([
         #     [0, 0, 0, 0, 0, 1],
@@ -2387,10 +2376,10 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(4, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(4, n_modes)
         np.random.seed(0)
-        subsel = np.unique(np.random.randint(len(VPTRunner.get_states(3, n_modes)), len(states), 10))
-        states = states[:1] + [states[s] for s in subsel] + VPTRunner.get_states(2, n_modes)[1:]
+        subsel = np.unique(np.random.randint(len(VPTStateSpace.get_state_list_from_quanta(3, n_modes)), len(states), 10))
+        states = states[:1] + [states[s] for s in subsel] + VPTStateSpace.get_state_list_from_quanta(2, n_modes)[1:]
 
         degeneracies = VPTRunner.get_degenerate_polyad_space(
             states,
@@ -2465,7 +2454,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         # nt_spec = np.array([
         #     [0, 0, 0, 0, 0, 1],
@@ -2592,7 +2581,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['OCHD']['zpe']
         gaussian_freqs = self.gaussian_data['OCHD']['freqs']
@@ -2626,7 +2615,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['OCHD']['zpe']
         gaussian_freqs = self.gaussian_data['OCHD']['freqs']
@@ -2699,7 +2688,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['OCHT']['zpe']
         gaussian_freqs = self.gaussian_data['OCHT']['freqs']
@@ -2733,7 +2722,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['OCHT']['zpe']
         gaussian_freqs = self.gaussian_data['OCHT']['freqs']
@@ -2753,43 +2742,6 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
             , log=True
-            # , print_profile=True
-        )
-
-    @inactiveTest
-    def test_OCHTVPTCartesiansDegenerate(self):
-
-        tag = 'OCHT Cartesians'
-        file_name = "OCHT_freq.fchk"
-
-        internals = None
-
-        n_atoms = 4
-        n_modes = 3 * n_atoms - 6
-        mode_selection = None  # [5, 4, 3]
-        if mode_selection is not None and len(mode_selection) < n_modes:
-            n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
-
-        gaussian_energies = self.gaussian_data['OCHT']['zpe']
-        gaussian_freqs = self.gaussian_data['OCHT']['freqs']
-
-        print_report = False
-        nielsen_tolerance=1
-        gaussian_tolerance=50
-        self.run_PT_test(
-            tag,
-            file_name,
-            internals,
-            mode_selection,
-            states,
-            gaussian_energies,
-            gaussian_freqs,
-            print_report=print_report,
-            nielsen_tolerance=nielsen_tolerance,
-            gaussian_tolerance=gaussian_tolerance
-            , log=True
-            , degeneracies=degeneracies
             # , print_profile=True
         )
 
@@ -2811,7 +2763,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         # internals = [
         #     [0, -1, -1, -1],  # H
@@ -2915,7 +2867,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['HOONO']['zpe']
         gaussian_freqs = self.gaussian_data['HOONO']['freqs']
@@ -2953,7 +2905,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = None#self.gaussian_data['HOONO']['zpe']
         gaussian_freqs = None#self.gaussian_data['HOONO']['freqs']
@@ -3061,7 +3013,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         # internals = [
         #     [0, -1, -1, -1],  # H
@@ -3179,7 +3131,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['HOONO']['zpe']
         gaussian_freqs = self.gaussian_data['HOONO']['freqs']
@@ -3226,7 +3178,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['HOONO']['zpe']
         gaussian_freqs = self.gaussian_data['HOONO']['freqs']
@@ -3263,7 +3215,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['HOONO']['zpe']
         gaussian_freqs = self.gaussian_data['HOONO']['freqs']
@@ -3316,7 +3268,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['HOONO']['zpe']
         gaussian_freqs = self.gaussian_data['HOONO']['freqs']
@@ -3356,7 +3308,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         # internals = [
         #     [0, -1, -1, -1],  # H
@@ -3443,7 +3395,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['HOONO']['zpe']
         gaussian_freqs = self.gaussian_data['HOONO']['freqs']
@@ -3581,7 +3533,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         gaussian_energies = self.gaussian_data['CH2DT']['zpe']
         gaussian_freqs = self.gaussian_data['CH2DT']['freqs']
@@ -3759,7 +3711,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)  # [:6]
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)  # [:6]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -3847,7 +3799,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)  # [:6]
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)  # [:6]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -3928,7 +3880,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)  # [:6]
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)  # [:6]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -3973,7 +3925,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)#[:6]
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)#[:6]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -4015,11 +3967,11 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)  # [:6]
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)  # [:6]
 
         np.random.seed(0)
-        subsel = np.unique(np.random.randint(len(VPTRunner.get_states(2, n_modes)), len(states), 20))
-        states = VPTRunner.get_states(1, n_modes) + [states[s] for s in subsel]
+        subsel = np.unique(np.random.randint(len(VPTStateSpace.get_state_list_from_quanta(2, n_modes)), len(states), 20))
+        states = VPTStateSpace.get_state_list_from_quanta(1, n_modes) + [states[s] for s in subsel]
 
         degeneracies = VPTRunner.get_degenerate_polyad_space(
             states,
@@ -4080,7 +4032,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(3, n_modes)  # [:6]
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)  # [:6]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -4123,7 +4075,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(2, n_modes)[:5]
+        states = VPTStateSpace.get_state_list_from_quanta(2, n_modes)[:5]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -4167,7 +4119,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(2, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(2, n_modes)
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -4205,7 +4157,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(2, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(2, n_modes)
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -4242,7 +4194,7 @@ class VPT2Tests(TestCase):
         mode_selection = [-3, -2, -1]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(2, n_modes)  # [:6]
+        states = VPTStateSpace.get_state_list_from_quanta(2, n_modes)  # [:6]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -4287,7 +4239,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTRunner.get_states(2, n_modes)#[:6]
+        states = VPTStateSpace.get_state_list_from_quanta(2, n_modes)#[:6]
 
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
@@ -4332,12 +4284,12 @@ class VPT2Tests(TestCase):
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
 
-        states = VPTRunner.get_states(3, n_modes)  # [:6]
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)  # [:6]
 
         # np.random.seed(0)
-        # subsel = np.unique(np.random.randint(len(VPTRunner.get_states(2, n_modes)), len(states), 20))
-        # subsel2 = np.unique(np.random.randint(len(VPTRunner.get_states(1, n_modes)), len(VPTRunner.get_states(2, n_modes))-1, 20))
-        # states = VPTRunner.get_states(1, n_modes) + [states[s] for s in subsel2]  + [states[s] for s in subsel]
+        # subsel = np.unique(np.random.randint(len(VPTStateSpace.get_state_list_from_quanta(2, n_modes)), len(states), 20))
+        # subsel2 = np.unique(np.random.randint(len(VPTStateSpace.get_state_list_from_quanta(1, n_modes)), len(VPTStateSpace.get_state_list_from_quanta(2, n_modes))-1, 20))
+        # states = VPTStateSpace.get_state_list_from_quanta(1, n_modes) + [states[s] for s in subsel2]  + [states[s] for s in subsel]
         # raise Exception(states)
 
         gaussian_energies = None#self.gaussian_data['WaterDimer']['zpe']

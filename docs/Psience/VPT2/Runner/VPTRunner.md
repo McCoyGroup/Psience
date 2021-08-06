@@ -4,26 +4,20 @@ clear and making it easier to customize run options
 
 ### Properties and Methods
 ```python
-InputSystem: type
-HamiltonianOptions: type
-RuntimeOptions: type
-PerturbationTheoryOptions: type
-get_states: method
-get_degenerate_polyad_space: method
-get_state_space_filter: method
+run_simple: method
 ```
 <a id="Psience.VPT2.Runner.VPTRunner.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, system, hamiltonian_options=None, perturbation_theory_options=None, runtime_options=None): 
+__init__(self, system, states, hamiltonian_options=None, solver_options=None, runtime_options=None): 
 ```
 
-- `system`: `InputSystem`
+- `system`: `VPTSystem`
     >the system to run perturbation theory on
-- `hamiltonian_options`: `HamiltonianOptions`
+- `hamiltonian_options`: `VPTHamiltonianOptions`
     >options to configure the Hamiltonian
-- `perturbation_theory_options`: `PerturbationTheoryOptions`
+- `solver_options`: `VPTSolverOptions`
     >options to configure the way the perturbation theory is applied
-- `runtime_options`: `RuntimeOptions`
+- `runtime_options`: `VPTRuntimeOptions`
     >options to configure the way the code runs
 
 <a id="Psience.VPT2.Runner.VPTRunner.get_Hamiltonian" class="docs-object-method">&nbsp;</a>
@@ -38,7 +32,7 @@ get_wavefunctions(self):
 
 <a id="Psience.VPT2.Runner.VPTRunner.print_tables" class="docs-object-method">&nbsp;</a>
 ```python
-print_tables(self, wfns=None): 
+print_tables(self, wfns=None, file=None): 
 ```
 Prints a bunch of formatted output data from a PT run
 - `wfns`: `Any`
