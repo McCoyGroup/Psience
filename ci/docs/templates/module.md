@@ -10,6 +10,8 @@
 
 {examples}
 
+{tests}
+
 ___
 
 [Edit Examples](https://github.com/{gh_username}/{gh_repo}/edit/{gh_branch}/ci/examples/{url}) or 
