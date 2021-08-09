@@ -5,6 +5,7 @@ A little package of utilities for setting up/running VPT jobs
 import numpy as np, sys
 
 from McUtils.Scaffolding import ParameterManager
+from McUtils.Zachary import FiniteDifferenceDerivative
 
 from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
 from ..Molecools import Molecule
@@ -32,10 +33,12 @@ class VPTSystem:
         "mode_selection",
         "potential_derivatives",
         "dipole_derivatives",
+        "dummy_atoms"
     )
     def __init__(self,
                  mol,
                  internals=None,
+                 dummy_atoms=None,
                  modes=None,
                  mode_selection=None,
                  potential_derivatives=None,
@@ -56,31 +59,44 @@ class VPTSystem:
         :type dipole_derivatives: Iterable[np.ndarray]
         """
         if not isinstance(mol, Molecule):
-            mol = self.load_molecule_from_spec(mol)
+            mol = Molecule.from_spec(mol)
         if internals is not None:
+            if dummy_atoms is not None:
+                dummy_specs = []
+                for where, coord_spec in dummy_atoms:
+                    if any(isinstance(x, (float, np.floating)) for x in coord_spec):
+                        pos = coord_spec
+                    else:
+                        ref_1, ref_2, ref_3 = coord_spec
+                        a = mol.coords[ref_1] - mol.coords[ref_2]
+                        b = mol.coords[ref_3] - mol.coords[ref_2]
+                        c = np.cross(a, b)
+                        pos = mol.coords[ref_2] + 2 * c / np.linalg.norm(c)
+                    dummy_specs.append([where, pos])
+                mol = mol.insert_atoms(["X"]*len(dummy_atoms), [d[1] for d in dummy_specs], [d[0] for d in dummy_specs])
             mol.zmatrix = internals
         self.mol = mol
         if modes is not None:
-            self.mol.normal_modes = modes
+            self.mol.normal_modes.modes = modes
         if mode_selection is not None:
             self.mol.normal_modes.modes = self.mol.normal_modes.modes[mode_selection]
         if potential_derivatives is not None:
-            self.potential_derivatives = potential_derivatives
+            self.mol.potential_derivatives = potential_derivatives
         if dipole_derivatives is not None:
-            self.dipole_derivatives = dipole_derivatives
+            self.mol.dipole_derivatives = dipole_derivatives
 
     @property
     def nmodes(self):
         return len(self.mol.normal_modes.modes.freqs)
 
-    @classmethod
-    def load_molecule_from_spec(cls, spec):
-        if isinstance(spec, str):
-            mol = Molecule.from_file(spec)
-        else:
-            raise NotImplementedError("don't have molecule loading from spec {}".format(spec))
-
-        return mol
+    def get_potential_derivatives(self, potential_function, order=2, **fd_opts):
+        deriv_gen = FiniteDifferenceDerivative(potential_function,
+                                               function_shape=((None, None), 0),
+                                               stencil=5 + order,
+                                               mesh_spacing=1e-3,
+                                               **fd_opts
+                                               ).derivatives(self.mol.coords)
+        self.mol.potential_derivatives = deriv_gen.derivative_tensor(list(range(1, order+3)))
 
     @classmethod
     def from_harmonic_scan(cls, scan_array):
@@ -101,6 +117,14 @@ class VPTStateSpace:
                  ):
         self.state_list = states
         self.degenerate_states = self.build_degenerate_state_spaces(degeneracy_specs)
+        if self.degenerate_states is not None:
+            self.degenerate_states = [np.array(x).tolist() for x in self.degenerate_states]
+            states = np.array(self.state_list).tolist()
+            for pair in self.degenerate_states:
+                for p in pair:
+                    if p not in states:
+                        states.append(p)
+            self.state_list = states
 
     @classmethod
     def from_system_and_quanta(cls, system, quanta, target_modes=None, only_target_modes=False, **opts):
@@ -302,7 +326,7 @@ class VPTHamiltonianOptions:
     """
 
     __props__ = (
-         "coriolis_coupling",
+         "include_coriolis_coupling",
          "include_pseudopotential",
          "potential_terms",
          "kinetic_terms",
@@ -332,7 +356,7 @@ class VPTHamiltonianOptions:
     )
 
     def __init__(self,
-                 coriolis_coupling=None,
+                 include_coriolis_coupling=None,
                  include_pseudopotential=None,
                  potential_terms=None,
                  kinetic_terms=None,
@@ -361,8 +385,8 @@ class VPTHamiltonianOptions:
                  g_derivative_threshold=None
                  ):
         """
-        :param coriolis_coupling: whether or not to include Coriolis coupling in Cartesian normal mode calculation
-        :type coriolis_coupling: bool
+        :param include_coriolis_coupling: whether or not to include Coriolis coupling in Cartesian normal mode calculation
+        :type include_coriolis_coupling: bool
         :param include_pseudopotential: whether or not to include the pseudopotential/Watson term
         :type include_pseudopotential: bool
         :param potential_terms: explicit values for the potential terms (e.g. from analytic models)
@@ -413,7 +437,7 @@ class VPTHamiltonianOptions:
         :type g_derivative_threshold: float
         """
         all_opts = dict(
-            coriolis_coupling=coriolis_coupling,
+            include_coriolis_coupling=include_coriolis_coupling,
             include_pseudopotential=include_pseudopotential,
             potential_terms=potential_terms,
             kinetic_terms=kinetic_terms,
@@ -688,7 +712,7 @@ class VPTRunner:
             **self.runtime_opts.solver_opts
         )
 
-    def print_tables(self, wfns=None, file=None):
+    def print_tables(self, wfns=None, file=None, print_intensities=True, sep_char="=", sep_len=100):
         """
         Prints a bunch of formatted output data from a PT run
 
@@ -704,35 +728,54 @@ class VPTRunner:
         if file is None:
             file = sys.stdout
 
-        print("Energy Corrections:", file=file)
-        print(wfns.format_energy_corrections_table(), file=file)
-        if wfns.degenerate_transformation is not None:
-            print("Deperturbed Energies:", file=file)
-            print(wfns.format_deperturbed_energies_table(), file=file)
-            print("Degenerate Energies:", file=file)
-            print(wfns.format_energies_table(), file=file)
-        else:
-            print("States Energies:", file=file)
-            print(wfns.format_energies_table(), file=file)
+        def print_label(label, file=file, **opts):
+            lablen = len(label) + 2
+            split_l = int(np.floor((sep_len - lablen)/2))
+            split_r = int(np.ceil((sep_len - lablen)/2))
+            print(sep_char*split_l, label, sep_char*split_r, **opts, file=file)
+        def print_footer(label=None, file=file, **opts):
+            print(sep_char*sep_len, **opts, file=file)
 
-        ints = wfns.intensities #
+        print_label("Energy Corrections")
+        print(wfns.format_energy_corrections_table(), file=file)
+        print_footer()
         if wfns.degenerate_transformation is not None:
-            print("Deperturbed IR Data:", file=file)
-            for a, m in zip(["X", "Y", "Z"], wfns.format_deperturbed_dipole_contribs_tables()):
-                print("{} Dipole Contributions".format(a), file=file)
-                print(m, file=file)
-            print(wfns.format_deperturbed_intensities_table(), file=file)
-            print("Degenerate IR Data:", file=file)
-            for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
-                print("{} Dipole Contributions".format(a), file=file)
-                print(m, file=file)
-            print(wfns.format_intensities_table(), file=file)
+            print_label("Deperturbed Energies")
+            print(wfns.format_deperturbed_energies_table(), file=file)
+            print_footer()
+            print_label("Degenerate Energies")
+            print(wfns.format_energies_table(), file=file)
+            print_footer()
         else:
-            print("IR Data:", file=file)
-            for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
-                print("{} Dipole Contributions".format(a), file=file)
-                print(m, file=file)
-            print(wfns.format_intensities_table(), file=file)
+            print_label("States Energies")
+            print(wfns.format_energies_table(), file=file)
+            print_footer()
+
+        if print_intensities:
+            ints = wfns.intensities #
+            if wfns.degenerate_transformation is not None:
+                print_label("Deperturbed IR Data:")
+                for a, m in zip(["X", "Y", "Z"], wfns.format_deperturbed_dipole_contribs_tables()):
+                    print_label("{} Dipole Contributions".format(a))
+                    print(m, file=file)
+                    print_footer()
+                print(wfns.format_deperturbed_intensities_table(), file=file)
+                print_footer()
+                print_label("Degenerate IR Data")
+                for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
+                    print_label("{} Dipole Contributions".format(a))
+                    print(m, file=file)
+                print_footer()
+                print(wfns.format_intensities_table(), file=file)
+                print_footer()
+            else:
+                print_label("IR Data", file=file)
+                for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
+                    print_label("{} Dipole Contributions".format(a))
+                    print(m, file=file)
+                    print_footer()
+                print(wfns.format_intensities_table(), file=file)
+                print_footer()
 
     @classmethod
     def run_simple(cls,

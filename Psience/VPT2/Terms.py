@@ -1153,7 +1153,7 @@ class PotentialTerms(ExpansionTerms):
         if self.freq_tolerance is not None and self.check_input_force_constants:
 
             xQ2 = self.modes.inverse
-            _, v2x,  =  TensorDerivativeConverter((xQ2, 0), (grad, fcs)).convert(order=2)
+            _, v2x = TensorDerivativeConverter((xQ2, 0), (grad, fcs)).convert(order=2)
 
             real_freqs = np.diag(v2x)
             nominal_freqs = self.modes.freqs

@@ -1019,6 +1019,31 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             real_fmt=real_fmt
         )
 
+    def format_deperturbed_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'):
+        # simple utility function pulled from the unit tests
+
+        if states is None:
+            states = self.corrs.states.excitations
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        harm_engs = self.zero_order_energies * h2w
+        engs = self.deperturbed_energies * h2w
+        if zpe is None and np.all(states[0] == 0):
+            zpe = [harm_engs[0], engs[0]]
+
+        if freqs is None:
+            harm_freq = harm_engs[1:] - harm_engs[0]
+            anh_freqs = engs[1:] - engs[0]
+            freqs = np.column_stack([harm_freq, anh_freqs])
+
+        return self._format_energies_table(
+            states,
+            zpe,
+            freqs,
+            real_fmt=real_fmt
+        )
+
     def format_property_matrices(self, states, prop_corrs, real_fmt="{:>.8e}", padding_fmt='{:>16}'):
 
         # reshape data so it's one big matrix...
