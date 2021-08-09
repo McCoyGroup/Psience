@@ -267,8 +267,10 @@ class MolecularNormalModes(CoordinateSystem):
         :param inverse:
         :type inverse:
         """
+        coeffs = np.asanyarray(coeffs)
         if freqs is None:
             freqs = np.diag(coeffs.T@coeffs)
+        freqs = np.asanyarray(freqs)
         if inverse is None:
             if freqs is not None:
                 inverse = coeffs.T/freqs[:, np.newaxis]

@@ -158,7 +158,7 @@ class VPT2Tests(TestCase):
                     coriolis_terms=coriolis_terms,
                     pseudopotential_terms=pseudopotential_terms,
                     include_pseudopotential=False if watson is False else True,
-                    coriolis_coupling=False if coriolis is False else True
+                    include_coriolis_coupling=False if coriolis is False else True
                 )
 
             if pre_run_script is not None:
@@ -2534,7 +2534,7 @@ class VPT2Tests(TestCase):
         new_mat = np.array([symm, asym]).T
         modes.basis.matrix = new_mat
         modes.basis.inverse = new_mat.T
-        ham = PerturbationTheoryHamiltonian(mol, modes=modes, n_quanta=50, coriolis_coupling=False, include_pseudo_potential=False)
+        ham = PerturbationTheoryHamiltonian(mol, modes=modes, n_quanta=50, include_coriolis_coupling=False, include_pseudo_potential=False)
 
         # mode_selection=[-1, -2]
         # ham = PerturbationTheoryHamiltonian(mol, mode_selection=mode_selection, n_quanta=50)

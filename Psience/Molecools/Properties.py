@@ -1678,10 +1678,28 @@ class NormalModesManager(PropertyManager):
     @modes.setter
     def modes(self, modes):
         if not isinstance(modes, MolecularVibrations):
+            modes = self.construct_normal_modes(modes)
+        if not isinstance(modes, MolecularVibrations):
             raise TypeError("`modes` must be {}".format(
                 MolecularVibrations.__name__
             ))
         self._modes = modes
+
+    def construct_normal_modes(self, modes):
+        if isinstance(modes, dict):
+            modes = modes.copy()
+            coeffs = modes['matrix']
+            del modes['matrix']
+            modes = MolecularNormalModes(self.mol, coeffs, **modes)
+        elif not isinstance(modes, MolecularNormalModes):
+            raise ValueError("don't know how to construct `{}` from {}".format(
+                MolecularNormalModes.__name__,
+                modes
+            ))
+        if isinstance(modes, MolecularNormalModes):
+            modes = MolecularVibrations(self.mol, modes)
+
+        return modes
 
     def load(self):
         return self._modes

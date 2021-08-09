@@ -104,8 +104,8 @@ class Molecule(AbstractMolecule):
                                                    derivatives=dipole_derivatives
                                                    )
         self._pes = PotentialSurfaceManager(self,
-                                                   surface=dipole_surface,
-                                                   derivatives=dipole_derivatives
+                                                   surface=potential_surface,
+                                                   derivatives=potential_derivatives
                                                    )
 
         self._normal_modes = NormalModesManager(self, normal_modes=normal_modes)
@@ -693,7 +693,58 @@ class Molecule(AbstractMolecule):
             else:
                 mol = next(pybel.readfile(mode, file))
                 return cls.from_pybel(mol)
+
+    @classmethod
+    def _infer_spec_format(cls, spec):
+        if isinstance(spec, str):
+            return 'file'
+
+        fmt = None
+        try:
+            atoms = spec[0]
+            if all(isinstance(a, str) for a in atoms):
+                return 'standard'
+        except:
+            pass
+
+        if fmt is None:
+            raise ValueError("don't know how to build a molecule from spec {}".format(spec))
+
+    @classmethod
+    def from_spec(cls, spec):
+        fmt = cls._infer_spec_format(spec)
+        if fmt == 'file':
+            return cls.from_file(spec)
+        elif fmt == 'standard':
+            atoms = spec[0]
+            coords = spec[1]
+            if len(spec) == 2:
+                opts = {}
+            elif len(spec) == 3:
+                opts = spec[2]
+            else:
+                raise ValueError("too many arguments in {} to build {}".format(spec, cls.__name__))
+            return cls(atoms, coords, **opts)
+        elif fmt == 'zmat':
+            if isinstance(spec[0], str):
+                opts = {}
+                zmat = spec
+            else:
+                if len(spec) == 1:
+                    opts = {}
+                    zmat = spec[0]
+                elif len(spec) == 2:
+                    opts = spec[1]
+                    zmat = spec[0]
+                else:
+                    raise ValueError("too many arguments in {} to build {}".format(spec, cls.__name__))
+            return cls.from_zmat(zmat, **opts)
+        else:
+            raise NotImplementedError("don't have {} loading from format {} for spec {}".format(cls.__name__, fmt, spec))
+
     #endregion
+
+
 
     #region Visualization
     def plot(self,

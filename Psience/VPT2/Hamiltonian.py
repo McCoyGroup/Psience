@@ -39,7 +39,7 @@ class PerturbationTheoryHamiltonian:
                  modes=None,
                  mode_selection=None,
                  potential_derivatives=None,
-                 coriolis_coupling=True,
+                 include_coriolis_coupling=True,
                  include_pseudopotential=True,
                  potential_terms=None,
                  kinetic_terms=None,
@@ -61,8 +61,8 @@ class PerturbationTheoryHamiltonian:
         :type modes: None | MolecularNormalModes
         :param mode_selection: the subset of modes to use when doing expansions
         :type mode_selection: None | Iterable[int]
-        :param coriolis_coupling: whether to add coriolis coupling if not in internals
-        :type coriolis_coupling: bool
+        :param include_coriolis_coupling: whether to add coriolis coupling if not in internals
+        :type include_coriolis_coupling: bool
         :param parallelizer: parallelism manager
         :type parallelizer: Parallelizer
         :param logger: log file or logger to write to
@@ -126,7 +126,7 @@ class PerturbationTheoryHamiltonian:
 
         self._input_coriolis = coriolis_terms
         if (
-                coriolis_coupling and
+                include_coriolis_coupling and
                 (self.molecule.internal_coordinates is None or (
                         'backpropagate_internals' in expansion_options and expansion_options['backpropagate_internals']
                 ))
