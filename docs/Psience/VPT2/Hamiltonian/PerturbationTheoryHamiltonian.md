@@ -7,7 +7,7 @@ where the Hamiltonian just implements the split of the perturbation and the Hand
 ### Properties and Methods
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, coriolis_coupling=True, include_pseudopotential=True, potential_terms=None, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None, selection_rules=None, operator_chunk_size=None, logger=None, checkpoint=None, parallelizer=None, **expansion_options): 
+__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, include_coriolis_coupling=True, include_pseudopotential=True, potential_terms=None, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None, selection_rules=None, operator_chunk_size=None, logger=None, checkpoint=None, parallelizer=None, **expansion_options): 
 ```
 
 - `molecule`: `Molecule`
@@ -18,7 +18,7 @@ __init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, po
     >the set of modes to use as the basis
 - `mode_selection`: `None | Iterable[int]`
     >the subset of modes to use when doing expansions
-- `coriolis_coupling`: `bool`
+- `include_coriolis_coupling`: `bool`
     >whether to add coriolis coupling if not in internals
 - `parallelizer`: `Parallelizer`
     >parallelism manager

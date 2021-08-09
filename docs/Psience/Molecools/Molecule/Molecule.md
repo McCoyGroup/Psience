@@ -432,6 +432,11 @@ In general we'll delegate to pybel except for like Fchk and Log files
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.Molecools.Molecule.Molecule.from_spec" class="docs-object-method">&nbsp;</a>
+```python
+from_spec(spec): 
+```
+
 <a id="Psience.Molecools.Molecule.Molecule.plot" class="docs-object-method">&nbsp;</a>
 ```python
 plot(self, *geometries, figure=None, bond_radius=0.1, atom_radius_scaling=0.25, atom_style=None, bond_style=None, mode='fast', objects=False, **plot_ops): 

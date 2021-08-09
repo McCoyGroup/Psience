@@ -209,6 +209,11 @@ Writes an intensity breakdown to a CSV by annoyingly flattening all the arrays
 format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'): 
 ```
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_deperturbed_energies_table" class="docs-object-method">&nbsp;</a>
+```python
+format_deperturbed_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'): 
+```
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_property_matrices" class="docs-object-method">&nbsp;</a>
 ```python
 format_property_matrices(self, states, prop_corrs, real_fmt='{:>.8e}', padding_fmt='{:>16}'): 

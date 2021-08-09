@@ -5,7 +5,7 @@ system for a VPT job
 ### Properties and Methods
 <a id="Psience.VPT2.Runner.VPTSystem.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, mol, internals=None, modes=None, mode_selection=None, potential_derivatives=None, dipole_derivatives=None): 
+__init__(self, mol, internals=None, dummy_atoms=None, modes=None, mode_selection=None, potential_derivatives=None, dipole_derivatives=None): 
 ```
 
 - `mol`: `str | Molecule`
@@ -27,9 +27,9 @@ __init__(self, mol, internals=None, modes=None, mode_selection=None, potential_d
 nmodes(self): 
 ```
 
-<a id="Psience.VPT2.Runner.VPTSystem.load_molecule_from_spec" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Runner.VPTSystem.get_potential_derivatives" class="docs-object-method">&nbsp;</a>
 ```python
-load_molecule_from_spec(spec): 
+get_potential_derivatives(self, potential_function, order=2, **fd_opts): 
 ```
 
 <a id="Psience.VPT2.Runner.VPTSystem.from_harmonic_scan" class="docs-object-method">&nbsp;</a>

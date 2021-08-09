@@ -239,6 +239,7 @@ class VPT2Tests(TestCase):
                               , intermediate_normalization=False
                               , state_space_iterations=None
                               , zero_element_warning = False
+                              , hamiltonian_options=None
                               , **solver_opts
                               ):
         if parallelized:
@@ -253,13 +254,16 @@ class VPT2Tests(TestCase):
         if direct_sum_chunk_size is not None:
             BasisStateSpace.direct_sum_chunk_size = direct_sum_chunk_size
 
+        if hamiltonian_options is None:
+            hamiltonian_options = {}
+
         with parallelizer:
             if isinstance(mol_spec, str):
                 hammer = PerturbationTheoryHamiltonian.from_fchk(
                     TestManager.test_data(mol_spec),
                     internals=internals,
                     mode_selection=mode_selection,
-                    log=log,
+                    logger=log,
                     parallelizer=parallelizer,
                     checkpoint=checkpoint,
                     operator_chunk_size=chunk_size,
@@ -269,7 +273,8 @@ class VPT2Tests(TestCase):
                     coriolis_terms=coriolis_terms,
                     pseudopotential_terms=pseudopotential_terms,
                     include_pseudopotential=False if watson is False else True,
-                    coriolis_coupling=False if coriolis is False else True
+                    include_coriolis_coupling=False if coriolis is False else True,
+                    **hamiltonian_options
                 )
             else:
                 hammer = PerturbationTheoryHamiltonian(
@@ -285,7 +290,8 @@ class VPT2Tests(TestCase):
                     coriolis_terms=coriolis_terms,
                     pseudopotential_terms=pseudopotential_terms,
                     include_pseudopotential=False if watson is False else True,
-                    coriolis_coupling=False if coriolis is False else True
+                    include_coriolis_coupling=False if coriolis is False else True,
+                    **hamiltonian_options
                 )
 
             if pre_run_script is not None:
@@ -469,6 +475,7 @@ class VPT2Tests(TestCase):
                     calculate_intensities=False,
                     print_x=False,
                     invert_x=False,
+                    hamiltonian_options=None,
                     **opts
                     ):
         with BlockProfiler(tag, print_res=print_profile, mode=profiling_mode, inactive=not print_profile):#, filter=profile_filter):
@@ -480,6 +487,7 @@ class VPT2Tests(TestCase):
                 pre_run_script=pre_wfns_script,
                 mode_selection=mode_selection
                 , log=log,
+                hamiltonian_options=hamiltonian_options,
                 **opts
             )
         if post_wfns_script is not None:
@@ -800,8 +808,8 @@ class VPT2Tests(TestCase):
             ["O", "H", "H"],
             np.array([
                 [0.000000, 0.000000, 0.000000],
-                [re_1, 0.000000, 0.000000],
-                [0.000000, re_2, 0.000000],
+                [    re_1, 0.000000, 0.000000],
+                [0.000000,     re_2, 0.000000],
             ]),
             zmatrix=internals,
             guess_bonds=False,
@@ -810,8 +818,7 @@ class VPT2Tests(TestCase):
         masses = mol.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
 
         w2h = UnitsData.convert("Wavenumbers", "Hartrees")
-        w1 = 3500 * w2h;
-        wx1 = 50 * w2h
+        w1 = 3500 * w2h; wx1 = 50 * w2h
         mu_1 = (1 / masses[0] + 1 / masses[1]) ** (-1)
         De_1 = (w1 ** 2) / (4 * wx1)
         a_1 = np.sqrt(2 * mu_1 * wx1)
@@ -1110,7 +1117,7 @@ class VPT2Tests(TestCase):
             [13000.000, 12100.000]
         ])
     }
-    @validationTest
+    @debugTest
     def test_TwoMorseCartesiansAndBendNonDeg(self):
 
         import warnings
@@ -1121,8 +1128,10 @@ class VPT2Tests(TestCase):
 
         # Set up system
 
-        re_1 = 0.9575
-        re_2 = 0.9575
+
+        cm2borr = UnitsData.convert("Angstroms", "BohrRadius")
+        re_1 = 0.9575 * cm2borr
+        re_2 = 0.9575 * cm2borr
         b_e = np.deg2rad(104.5)
         internals = [
             [0, -1, -1, -1],
@@ -1172,15 +1181,15 @@ class VPT2Tests(TestCase):
 
 
         # with BlockProfiler():
-        mol.potential_derivatives = deriv_gen.derivative_tensor([1, 2, 3, 4, 5, 6])
+        mol.potential_derivatives = deriv_gen.derivative_tensor([1, 2, 3, 4])#, 5, 6])
             # raise Exception("wheee")
         # raise Exception([x.shape for x in mol.potential_derivatives])
 
         # we rigorously zero out small terms for
         # numerical stability
-        mat = mol.normal_modes.modes.basis.matrix
-        bad_spots = np.where(np.abs(mat) < 1e-14)
-        mat[bad_spots] = 0.
+        # mat = mol.normal_modes.modes.basis.matrix
+        # bad_spots = np.where(np.abs(mat) < 1e-14)
+        # mat[bad_spots] = 0.
 
         n_atoms = 3
         n_modes = 3 * n_atoms - 6
@@ -1225,8 +1234,8 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             # ignore_odd_order=False,
             intermediate_normalization=False,
-            order=4,
-            expansion_order=4
+            order=2,
+            expansion_order=2
             , kinetic_terms=[
                 None,
                 None,
@@ -1561,7 +1570,7 @@ class VPT2Tests(TestCase):
             verbose=False,
             print_report=print_report,
             calculate_intensities=True,
-            state_space_filters=VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
     @validationTest
@@ -1653,7 +1662,7 @@ class VPT2Tests(TestCase):
             verbose=False,
             print_report=print_report,
             calculate_intensities=True,
-            state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
     @validationTest
@@ -1978,8 +1987,8 @@ class VPT2Tests(TestCase):
 
         self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), 1.5)
 
-    @debugTest
-    def test_HOHVTPRunner(self):
+    @validationTest
+    def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
         VPTRunner.run_simple(
@@ -2374,7 +2383,7 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
-            state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
     @validationTest
@@ -2531,7 +2540,7 @@ class VPT2Tests(TestCase):
             gaussian_resonance_handling=False
             # these filters work fine for _three_ quantum resonances it seems?
             # as we push out of that space though I think I need more stuff?
-            , state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , allow_post_PT_calc=False
             # , invert_x=True
             # , modify_degenerate_perturbations=True
@@ -3154,7 +3163,8 @@ class VPT2Tests(TestCase):
             calculate_intensities=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
-            gaussian_tolerance=gaussian_tolerance
+            gaussian_tolerance=gaussian_tolerance,
+            hamiltonian_options=dict(cartesian_analytic_deriv_order=0)
         )
     @validationTest
     def test_HOONOVPTInternalsDummy(self):
@@ -3256,7 +3266,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
-            , state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
     @validationTest
     def test_HOONOVPTInternalsEmbed(self):
@@ -3344,7 +3354,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
             pre_wfns_script=pre_wfns_script
-            , state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # zero_element_warning=False
 
         )
@@ -3480,7 +3490,7 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
-            state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
 
         )
     @validationTest
@@ -3551,7 +3561,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance,
             pre_wfns_script=pre_wfns_script,
             gaussian_resonance_handling=False,
-            state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # zero_element_warning=False
 
         )
@@ -3839,7 +3849,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , parallelized=True
         )
 
@@ -3929,7 +3939,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , parallelized=True
         )
 
@@ -4008,7 +4018,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , parallelized=True
         )
 
@@ -4052,7 +4062,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
     @validationTest
@@ -4116,7 +4126,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters=VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
     @validationTest
@@ -4202,7 +4212,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters = VPTRunner.get_state_space_filter(states, n_modes, 'intensities')
+            , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, 'intensities')
             # , parallelized=True
         )
 
@@ -4322,7 +4332,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters = VPTRunner.get_state_space_filter(n_modes, 'intensities')
+            , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , parallelized=True
         )
 
@@ -4368,7 +4378,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters=VPTRunner.get_state_space_filter(states, n_modes, 'intensities')
+            , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, 'intensities')
             # , parallelized=True
         )
 
@@ -4419,7 +4429,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters= VPTRunner.get_state_space_filter(states, n_modes, 'intensities')
+            , state_space_filters= VPTStateSpace.get_state_space_filter(states, n_modes, 'intensities')
             # , parallelized=True
             # , processes=5
         )
