@@ -42,6 +42,7 @@ class VPTSystem:
                  modes=None,
                  mode_selection=None,
                  potential_derivatives=None,
+                 potential_function=None,
                  dipole_derivatives=None
                  ):
         """
@@ -78,12 +79,15 @@ class VPTSystem:
         self.mol = mol
         if modes is not None:
             self.mol.normal_modes.modes = modes
-        if mode_selection is not None:
-            self.mol.normal_modes.modes = self.mol.normal_modes.modes[mode_selection]
         if potential_derivatives is not None:
             self.mol.potential_derivatives = potential_derivatives
+        elif potential_function is not None:
+            self.get_potential_derivatives(potential_function)
         if dipole_derivatives is not None:
             self.mol.dipole_derivatives = dipole_derivatives
+
+        if mode_selection is not None:
+            self.mol.normal_modes.modes = self.mol.normal_modes.modes[mode_selection]
 
     @property
     def nmodes(self):
@@ -702,11 +706,17 @@ class VPTRunner:
             **self.runtime_opts.ham_opts
         )
 
+    @property
+    def hamiltonian(self):
+        if self._ham is None:
+            self._ham = self.get_Hamiltonian()
+        return self._ham
+
     def get_wavefunctions(self):
         pt_opts = self.pt_opts.opts.copy()
         if 'degenerate_states' not in pt_opts:
             pt_opts['degenerate_states'] = self.states.degenerate_states
-        return self.get_Hamiltonian().get_wavefunctions(
+        return self.hamiltonian.get_wavefunctions(
             self.states.state_list,
             **pt_opts,
             **self.runtime_opts.solver_opts
@@ -813,4 +823,31 @@ class VPTRunner:
             solver_options=VPTSolverOptions(**par.filter(VPTHamiltonianOptions))
         )
 
-        runner.print_tables()
+        logger = runner.hamiltonian.logger
+        with logger.block(tag="Running Perturbation Theory"):
+            with logger.block(tag="States"):
+                logger.log_print(
+                    states.state_list,
+                    message_prepper=lambda a:str(np.array(a)).splitlines()
+                )
+            with logger.block(tag="Degeneracies"):
+                if states.degenerate_states is None:
+                    logger.log_print("None")
+                else:
+                    for x in states.degenerate_states:
+                        logger.log_print(
+                            x,
+                            message_prepper=lambda a:str(np.array(a)).splitlines()
+                        )
+            with logger.block(tag="Hamiltonian Options"):
+                for k,v in runner.ham_opts.opts.items():
+                    logger.log_print("{k}: {v}", k=k, v=v)
+            with logger.block(tag="Solver Options"):
+                opts = runner.pt_opts.opts
+                for k,v in opts.items():
+                    logger.log_print("{k}: {v}", k=k, v=v)
+            with logger.block(tag="Runtime Options"):
+                opts = dict(runner.runtime_opts.ham_opts, **runner.runtime_opts.solver_opts)
+                for k,v in opts.items():
+                    logger.log_print("{k}: {v}", k=k, v=v)
+            runner.print_tables()
