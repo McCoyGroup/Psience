@@ -652,6 +652,24 @@ class VPTSolverOptions:
 
         self.opts = real_opts
 
+    @staticmethod
+    def get_zero_order_energies(corrected_fundamental_freqs, states):
+        """
+
+        :param corrected_fundamental_freqs:
+        :type corrected_fundamental_freqs:
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+        corrected_fundamental_freqs = np.asanyarray(corrected_fundamental_freqs)
+
+        return [
+            (s, np.dot(np.array(s) + 1 / 2, corrected_fundamental_freqs))
+            for s in states
+        ]
+
 class VPTRunner:
     """
     A helper class to make it easier to run jobs by making the inputs/options
@@ -792,6 +810,7 @@ class VPTRunner:
                    system,
                    states,
                    target_property=None,
+                   corrected_fundamental_frequencies=None,
                    **opts
                    ):
 
@@ -813,7 +832,13 @@ class VPTRunner:
         if target_property is None and order == 2:
             target_property = 'intensities'
         if target_property is not None and 'state_space_filters' not in opts:
-            opts['state_space_filters'] = states.get_filter(target_property, order=order)
+            par.ops['state_space_filters'] = states.get_filter(target_property, order=order)
+
+        if corrected_fundamental_frequencies is not None and 'zero_order_energy_corrections' not in opts:
+            par.ops['zero_order_energy_corrections'] = VPTSolverOptions.get_zero_order_energies(
+                corrected_fundamental_frequencies,
+                states.state_list
+            )
 
         runner = cls(
             sys,
@@ -841,13 +866,13 @@ class VPTRunner:
                         )
             with logger.block(tag="Hamiltonian Options"):
                 for k,v in runner.ham_opts.opts.items():
-                    logger.log_print("{k}: {v}", k=k, v=v)
+                    logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
             with logger.block(tag="Solver Options"):
                 opts = runner.pt_opts.opts
                 for k,v in opts.items():
-                    logger.log_print("{k}: {v}", k=k, v=v)
+                    logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
             with logger.block(tag="Runtime Options"):
                 opts = dict(runner.runtime_opts.ham_opts, **runner.runtime_opts.solver_opts)
                 for k,v in opts.items():
-                    logger.log_print("{k}: {v}", k=k, v=v)
+                    logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
             runner.print_tables()
