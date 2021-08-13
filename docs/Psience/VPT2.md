@@ -1996,7 +1996,7 @@ class VPT2Tests(TestCase):
 
         self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
@@ -2646,6 +2646,19 @@ class VPT2Tests(TestCase):
             , allow_post_PT_calc=False
             # , invert_x=True
             # , modify_degenerate_perturbations=True
+        )
+
+    @debugTest
+    def test_OCHHVPTRunner(self):
+
+        file_name = "OCHH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            logger=True,
+            degeneracy_specs=[
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            ]
         )
 
     gaussian_data['OCHD'] = {
@@ -4225,7 +4238,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesiansParallel(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
