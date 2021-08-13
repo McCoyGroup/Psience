@@ -2146,7 +2146,9 @@ class PerturbationTheorySolver:
                     D.deg_find_inds = total_state_space.find(D)
                 deg_inds = D.deg_find_inds
                 if len(D) > 1:
-                    logger.log_print('Degenerate space: {D}', preformatter=lambda:{"D":D.indices},
+                    logger.log_print('Degenerate space: {D}',
+                                          D=D,
+                                          preformatter=logger.preformat_keys({"D":lambda D:D.indices}),
                                           log_level=logger.LogLevel.Debug
                                           )
             E0 = e_vec_full[n_ind]

@@ -1869,7 +1869,7 @@ class VPT2Tests(TestCase):
 
         self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), 1.5)
 
-    @debugTest
+    @validationTest
     def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
@@ -1886,7 +1886,7 @@ class VPT2Tests(TestCase):
         runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
         runner.print_tables()
 
-    @debugTest
+    @validationTest
     def test_HOHVPTRunnerShifted(self):
 
         file_name = "HOH_freq.fchk"
@@ -1895,6 +1895,26 @@ class VPT2Tests(TestCase):
             3,
             logger=True,
             corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/self.h2w
+        )
+
+    @validationTest
+    def test_GetDegenerateSpaces(self):
+
+        base_states = [
+            [0, 0, 1],
+            [0, 1, 0],
+            [0, 2, 1],
+            [0, 4, 0]
+        ]
+
+        degenerate_states = VPTStateSpace.get_degenerate_polyad_space(
+            base_states,
+            [
+                [
+                    [0, 2, 0],
+                    [0, 0, 1]
+                ]
+            ],
         )
 
     gaussian_data['HOD'] = {
@@ -2279,7 +2299,7 @@ class VPT2Tests(TestCase):
             state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
-    @validationTest
+    @debugTest
     def test_OCHHVPTCartesiansDegenerate(self):
 
         tag = 'OCHH Cartesians'
@@ -2323,7 +2343,7 @@ class VPT2Tests(TestCase):
         #     ]))
         # pre_wfns_script = None
 
-        degeneracies = VPTRunner.get_degenerate_polyad_space(
+        degeneracies = VPTStateSpace.get_degenerate_polyad_space(
             states,
             [
                 [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
@@ -2384,7 +2404,7 @@ class VPT2Tests(TestCase):
         subsel = np.unique(np.random.randint(len(VPTStateSpace.get_state_list_from_quanta(3, n_modes)), len(states), 10))
         states = states[:1] + [states[s] for s in subsel] + VPTStateSpace.get_state_list_from_quanta(2, n_modes)[1:]
 
-        degeneracies = VPTRunner.get_degenerate_polyad_space(
+        degeneracies = VPTStateSpace.get_degenerate_polyad_space(
             states,
             [
                 # [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]],
@@ -2490,7 +2510,7 @@ class VPT2Tests(TestCase):
 
         pre_wfns_script = None
 
-        degeneracies = VPTRunner.get_degenerate_polyad_space(
+        degeneracies = VPTStateSpace.get_degenerate_polyad_space(
             states,
             [
                 [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
@@ -3990,7 +4010,7 @@ class VPT2Tests(TestCase):
         subsel = np.unique(np.random.randint(len(VPTStateSpace.get_state_list_from_quanta(2, n_modes)), len(states), 20))
         states = VPTStateSpace.get_state_list_from_quanta(1, n_modes) + [states[s] for s in subsel]
 
-        degeneracies = VPTRunner.get_degenerate_polyad_space(
+        degeneracies = VPTStateSpace.get_degenerate_polyad_space(
             states,
             [
                 # [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]],
