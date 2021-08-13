@@ -113,7 +113,7 @@ class VPTStateSpace:
     """
 
     __props__ = (
-        "degeneracy_specs"
+        "degeneracy_specs",
     )
     def __init__(self,
                  states,
@@ -584,10 +584,10 @@ class VPTSolverOptions:
                  state_space_terms=None,
                  state_space_filters=None,
                  allow_post_PT_calc=None,
-                 modify_degenerate_perturbations=False,
-                 gaussian_resonance_handling=False,
-                 ignore_odd_order_energies=False,
-                 intermediate_normalization=False,
+                 modify_degenerate_perturbations=None,
+                 gaussian_resonance_handling=None,
+                 ignore_odd_order_energies=None,
+                 intermediate_normalization=None,
                  zero_element_warning=None,
                  degenerate_states=None,
                  zero_order_energy_corrections=None,
@@ -795,7 +795,7 @@ class VPTRunner:
                    **opts
                    ):
 
-        par = ParameterManager(opts)
+        par = ParameterManager(**opts)
         sys = VPTSystem(system, **par.filter(VPTSystem))
         if isinstance(states, int) or isinstance(states[0], int):
             states = VPTStateSpace.from_system_and_quanta(
