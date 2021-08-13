@@ -531,10 +531,10 @@ class Operator:
 
         inds = parallelizer.scatter(inds)
         dump = self._get_pop_sequential(inds, idx, save_to_disk=False, check_orthogonality=check_orthogonality)
-        parallelizer.print("gathering inds of shape {}".format(inds.shape))
+        parallelizer.print("gathering inds of shape {}".format(inds.shape), log_level=parallelizer.logger.LogLevel.Debug)
         res = parallelizer.gather(dump)
         if isinstance(res, np.ndarray):
-            parallelizer.print("got res of shape {}".format(res.shape))
+            parallelizer.print("got res of shape {}".format(res.shape), log_level=parallelizer.logger.LogLevel.Debug)
         # parallelizer.print(res)
         if parallelizer.on_main:
             res = self._load_arrays(res)
@@ -659,11 +659,12 @@ class Operator:
                 parallelizer = self.parallelizer
 
             if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
-                parallelizer.printer = self.logger.log_print
+                # parallelizer.printer = self.logger.log_print
+                max_nproc = len(inds.flatten())
                 elem_chunk = parallelizer.run(self._get_elements, None, idx,
                                               check_orthogonality=check_orthogonality,
                                               main_kwargs={'full_inds': inds},
-                                              comm=None if len(inds) >= parallelizer.nprocs else list(range(len(inds)))
+                                              comm=None if max_nproc >= parallelizer.nprocs else list(range(max_nproc))
                                               )
             else:
                 elem_chunk = self._main_get_elements(inds, idx, parallelizer=None,
@@ -764,8 +765,6 @@ class Operator:
         :return:
         :rtype:
         """
-
-        # raise Exception(inds)
 
         res = np.apply_along_axis(self._calculate_single_transf,
                                   -1, inds, self.funcs, base_space, self.selection_rules
@@ -973,7 +972,8 @@ class ContractedOperator(Operator):
     and doing the appropriate tensor contractions with the expansion coefficients (i.e. `G` or `dG/dQ`)
     """
 
-    def __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None,
+    def __init__(self, coeffs, funcs, quanta,
+                 prod_dim=None, axes=None, symmetries=None,
                  selection_rules=None,
                  selection_rule_steps=None,
                  zero_threshold=1.0e-14,

@@ -777,7 +777,6 @@ class PerturbationTheoryHamiltonian:
                    allow_post_PT_calc=True,
                    ignore_odd_order_energies=True,
                    use_full_basis=True,
-                   verbose=False,
                    order=2,
                    expansion_order=None,
                    memory_constrained=None,
@@ -810,7 +809,6 @@ class PerturbationTheoryHamiltonian:
                                           allow_post_PT_calc=allow_post_PT_calc,
                                           memory_constrained=memory_constrained,
                                           ignore_odd_order_energies=ignore_odd_order_energies,
-                                          verbose=verbose,
                                           target_property_rules=target_property_rules,
                                           **opts
                                           )
@@ -821,7 +819,6 @@ class PerturbationTheoryHamiltonian:
                           allow_post_PT_calc=True,
                           ignore_odd_order_energies=True,
                           use_full_basis=True,
-                          verbose=False,
                           order=2,
                           expansion_order=None,
                           memory_constrained=None,
@@ -873,7 +870,6 @@ class PerturbationTheoryHamiltonian:
                     ignore_odd_order_energies=ignore_odd_order_energies,
                     use_full_basis=use_full_basis,
                     memory_constrained=memory_constrained,
-                    verbose=verbose,
                     order=order,
                     expansion_order=expansion_order,
                     target_property_rules=target_property_rules,
@@ -972,7 +968,6 @@ class PerturbationTheoryHamiltonian:
                              ignore_odd_order_energies=True,
                              zero_element_warning=True,
                              state_space_iterations=None,
-                             verbose=False,
                              order=2
                              ):
         """
@@ -1000,8 +995,7 @@ class PerturbationTheoryHamiltonian:
                                       intermediate_normalization=intermediate_normalization,
                                       ignore_odd_order_energies=ignore_odd_order_energies,
                                       zero_element_warning=zero_element_warning,
-                                      state_space_iterations=state_space_iterations,
-                                      verbose=verbose
+                                      state_space_iterations=state_space_iterations
                                       )
 
         expansion = self._invert_action_expansion_tensors(wfns.corrs.states, wfns.energies, order)

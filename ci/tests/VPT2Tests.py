@@ -115,12 +115,19 @@ class VPT2Tests(TestCase):
                               , hamiltonian_options=None
                               , **solver_opts
                               ):
+        if log is True:
+            if verbose:
+                log = Logger(log_level=LogLevel.All)
+            else:
+                log = Logger()
         if parallelized:
-            pverb = verbose == 'all'
-            parallelizer = MultiprocessingParallelizer(verbose=pverb,
-                                                       processes=processes,
-                                                       initialization_timeout=initialization_timeout
-                                                       )
+            parallelizer = MultiprocessingParallelizer(
+                       logger=log,
+                       processes=processes,
+                       initialization_timeout=initialization_timeout
+                       )
+            # with parallelizer:
+            #     raise Exception(parallelizer.comm, len(parallelizer.comm.locations))
         else:
             parallelizer = SerialNonParallelizer()
 
@@ -224,7 +231,6 @@ class VPT2Tests(TestCase):
                                             , zero_element_warning = zero_element_warning
                                             , intermediate_normalization=intermediate_normalization
                                             , state_space_iterations=state_space_iterations
-                                            , verbose=verbose
                                             , **solver_opts
                                             )
 
@@ -336,6 +342,7 @@ class VPT2Tests(TestCase):
                     print_report=False,
                     print_diffs=True,
                     log=False,
+                    verbose=False,
                     energy_order=None,
                     nielsen_tolerance=1,
                     gaussian_tolerance=1,
@@ -351,6 +358,8 @@ class VPT2Tests(TestCase):
                     hamiltonian_options=None,
                     **opts
                     ):
+        if log and verbose:
+            log = Logger(log_level=LogLevel.All)
         with BlockProfiler(tag, print_res=print_profile, mode=profiling_mode, inactive=not print_profile):#, filter=profile_filter):
             wfns, hammer = self.get_VPT2_wfns_and_ham(
                 mol_spec,
@@ -990,7 +999,7 @@ class VPT2Tests(TestCase):
             [13000.000, 12100.000]
         ])
     }
-    @debugTest
+    @validationTest
     def test_TwoMorseCartesiansAndBendNonDeg(self):
 
         import warnings
@@ -1250,7 +1259,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta([0, 3], n_modes)
 
         print_report = True
 
@@ -2336,7 +2345,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             # pre_wfns_script=pre_wfns_script,
             log=True,
-            verbose=True,
+            verbose='all',
             calculate_intensities=True,
             gaussian_tolerance=gaussian_tolerance,
             degeneracies=degeneracies,
@@ -4089,7 +4098,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTCartesiansParallel(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4120,7 +4129,7 @@ class VPT2Tests(TestCase):
             gaussian_energies,
             gaussian_freqs,
             log=True,
-            verbose=True,
+            verbose=False,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance

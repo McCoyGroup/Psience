@@ -702,6 +702,12 @@ class VPTRunner:
             **self.runtime_opts.ham_opts
         )
 
+    @property
+    def hamiltonian(self):
+        if self._ham is None:
+            self._ham = self.get_Hamiltonian()
+        return self._ham
+
     def get_wavefunctions(self):
         pt_opts = self.pt_opts.opts.copy()
         if 'degenerate_states' not in pt_opts:
@@ -813,4 +819,31 @@ class VPTRunner:
             solver_options=VPTSolverOptions(**par.filter(VPTHamiltonianOptions))
         )
 
-        runner.print_tables()
+        logger = runner.hamiltonian.logger
+        with logger.block(tag="Running Perturbation Theory"):
+            with logger.block(tag="States"):
+                logger.log_print(
+                    states.state_list,
+                    message_prepper=lambda a:str(np.array(a)).splitlines()
+                )
+            with logger.block(tag="Degeneracies"):
+                if states.degenerate_states is None:
+                    logger.log_print("None")
+                else:
+                    for x in states.degenerate_states:
+                        logger.log_print(
+                            x,
+                            message_prepper=lambda a:str(np.array(a)).splitlines()
+                        )
+            with logger.block(tag="Hamiltonian Options"):
+                for k,v in runner.ham_opts.opts.items():
+                    logger.log_print("{k}: {v}", k=k, v=v)
+            with logger.block(tag="Solver Options"):
+                opts = runner.pt_opts.opts
+                for k,v in opts.items():
+                    logger.log_print("{k}: {v}", k=k, v=v)
+            with logger.block(tag="Runtime Options"):
+                opts = dict(runner.runtime_opts.ham_opts, **runner.runtime_opts.solver_opts)
+                for k,v in opts.items():
+                    logger.log_print("{k}: {v}", k=k, v=v)
+            runner.print_tables()
