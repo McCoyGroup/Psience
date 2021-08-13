@@ -41,6 +41,18 @@ __init__(self, order=2, expansion_order=None, coupled_states=None, total_space=N
 - `zero_order_energy_corrections`: `dict`
     >energies to use for the zero-order states instead of the diagonal of `H(0)`
 
+<a id="Psience.VPT2.Runner.VPTSolverOptions.get_zero_order_energies" class="docs-object-method">&nbsp;</a>
+```python
+get_zero_order_energies(corrected_fundamental_freqs, states): 
+```
+
+- `corrected_fundamental_freqs`: `Any`
+    >No description...
+- `states`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 ### Examples
 
 

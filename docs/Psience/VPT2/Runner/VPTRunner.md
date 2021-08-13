@@ -45,7 +45,7 @@ Prints a bunch of formatted output data from a PT run
 
 <a id="Psience.VPT2.Runner.VPTRunner.run_simple" class="docs-object-method">&nbsp;</a>
 ```python
-run_simple(system, states, target_property=None, **opts): 
+run_simple(system, states, target_property=None, corrected_fundamental_frequencies=None, **opts): 
 ```
 
 ### Examples
