@@ -42,6 +42,7 @@ class VPTSystem:
                  modes=None,
                  mode_selection=None,
                  potential_derivatives=None,
+                 potential_function=None,
                  dipole_derivatives=None
                  ):
         """
@@ -78,12 +79,15 @@ class VPTSystem:
         self.mol = mol
         if modes is not None:
             self.mol.normal_modes.modes = modes
-        if mode_selection is not None:
-            self.mol.normal_modes.modes = self.mol.normal_modes.modes[mode_selection]
         if potential_derivatives is not None:
             self.mol.potential_derivatives = potential_derivatives
+        elif potential_function is not None:
+            self.get_potential_derivatives(potential_function)
         if dipole_derivatives is not None:
             self.mol.dipole_derivatives = dipole_derivatives
+
+        if mode_selection is not None:
+            self.mol.normal_modes.modes = self.mol.normal_modes.modes[mode_selection]
 
     @property
     def nmodes(self):
@@ -712,7 +716,7 @@ class VPTRunner:
         pt_opts = self.pt_opts.opts.copy()
         if 'degenerate_states' not in pt_opts:
             pt_opts['degenerate_states'] = self.states.degenerate_states
-        return self.get_Hamiltonian().get_wavefunctions(
+        return self.hamiltonian.get_wavefunctions(
             self.states.state_list,
             **pt_opts,
             **self.runtime_opts.solver_opts
