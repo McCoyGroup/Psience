@@ -133,12 +133,12 @@ Converts the input state specs into proper `BasisStateSpace` specs that
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_solver" class="docs-object-method">&nbsp;</a>
 ```python
-get_solver(self, states, degeneracies=None, allow_post_PT_calc=True, ignore_odd_order_energies=True, use_full_basis=True, verbose=False, order=2, expansion_order=None, memory_constrained=None, target_property_rules=None, **opts): 
+get_solver(self, states, degeneracies=None, allow_post_PT_calc=True, ignore_odd_order_energies=True, use_full_basis=True, order=2, expansion_order=None, memory_constrained=None, target_property_rules=None, **opts): 
 ```
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_wavefunctions" class="docs-object-method">&nbsp;</a>
 ```python
-get_wavefunctions(self, states, degeneracies=None, allow_post_PT_calc=True, ignore_odd_order_energies=True, use_full_basis=True, verbose=False, order=2, expansion_order=None, memory_constrained=None, target_property_rules=None, **opts): 
+get_wavefunctions(self, states, degeneracies=None, allow_post_PT_calc=True, ignore_odd_order_energies=True, use_full_basis=True, order=2, expansion_order=None, memory_constrained=None, target_property_rules=None, **opts): 
 ```
 Gets a set of `PerturbationTheoryWavefunctions` from the perturbations defined by the Hamiltonian
 - `states`: `BasisStateSpace | Iterable[int] | Iterable[Iterable[int]]`
@@ -152,7 +152,7 @@ Gets a set of `PerturbationTheoryWavefunctions` from the perturbations defined b
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_action_expansion" class="docs-object-method">&nbsp;</a>
 ```python
-get_action_expansion(self, coupled_states=None, degeneracies=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, intermediate_normalization=False, ignore_odd_order_energies=True, zero_element_warning=True, state_space_iterations=None, verbose=False, order=2): 
+get_action_expansion(self, coupled_states=None, degeneracies=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, intermediate_normalization=False, ignore_odd_order_energies=True, zero_element_warning=True, state_space_iterations=None, order=2): 
 ```
 Gets the expansion of the energies in terms of Miller's "classical actions" by
         doing just enough PT to invert the matrix

@@ -22,6 +22,12 @@ __init__(self, system, states, hamiltonian_options=None, solver_options=None, ru
 get_Hamiltonian(self): 
 ```
 
+<a id="Psience.VPT2.Runner.VPTRunner.hamiltonian" class="docs-object-method">&nbsp;</a>
+```python
+@property
+hamiltonian(self): 
+```
+
 <a id="Psience.VPT2.Runner.VPTRunner.get_wavefunctions" class="docs-object-method">&nbsp;</a>
 ```python
 get_wavefunctions(self): 

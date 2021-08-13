@@ -12,7 +12,7 @@ ProjectedOperator: type
 ```
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, perturbations, states, coupled_states=None, order=2, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, state_space_filters=None, target_property_rules=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, gaussian_resonance_handling=False, ignore_odd_order_energies=False, intermediate_normalization=False, zero_element_warning=True, degenerate_states=None, zero_order_energy_corrections=None, memory_constrained=False, keep_hamiltonians=None, logger=None, verbose=False, parallelizer=None, checkpointer=None, checkpoint_keys=None, use_cached_representations=True, use_cached_basis=True): 
+__init__(self, perturbations, states, coupled_states=None, order=2, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, state_space_filters=None, target_property_rules=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, gaussian_resonance_handling=False, ignore_odd_order_energies=False, intermediate_normalization=False, zero_element_warning=True, degenerate_states=None, zero_order_energy_corrections=None, memory_constrained=False, keep_hamiltonians=None, logger=None, parallelizer=None, checkpointer=None, checkpoint_keys=None, use_cached_representations=True, use_cached_basis=True): 
 ```
 
 - `perturbations`: `Iterable[Representation]`
@@ -163,7 +163,7 @@ Does the dirty work of doing the VPT iterative equations.
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.get_corrections" class="docs-object-method">&nbsp;</a>
 ```python
-get_corrections(self, non_zero_cutoff=1e-14, check_overlap=True): 
+get_corrections(self, non_zero_cutoff=None, check_overlap=True): 
 ```
 Applies the perturbation theory equations to obtain
         corrections to the wave functions and energies
@@ -172,7 +172,7 @@ Applies the perturbation theory equations to obtain
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.apply_VPT_equations" class="docs-object-method">&nbsp;</a>
 ```python
-apply_VPT_equations(self, state_index, degenerate_space_indices, degenerate_energies, zero_order_state, degenerate_subspace, degenerate_subsubspace, perturbations=None, allow_PT_degs=None, ignore_odd_orders=None, intermediate_normalization=None, non_zero_cutoff=1e-14): 
+apply_VPT_equations(self, state_index, degenerate_space_indices, degenerate_energies, zero_order_state, degenerate_subspace, degenerate_subsubspace, perturbations=None, allow_PT_degs=None, ignore_odd_orders=None, intermediate_normalization=None, non_zero_cutoff=None): 
 ```
 Applies VPT equations, dispatching based on how many
         degeneracies we need to handle
@@ -193,11 +193,9 @@ Applies VPT equations, dispatching based on how many
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.apply_VPT_nondeg_equations" class="docs-object-method">&nbsp;</a>
 ```python
-apply_VPT_nondeg_equations(self, state_index, deg_group, perturbations=None, non_zero_cutoff=1e-14, check_overlap=True, intermediate_normalization=False, ignore_odd_orders=False): 
+apply_VPT_nondeg_equations(self, state_index, deg_group, perturbations=None, non_zero_cutoff=None, check_overlap=True, intermediate_normalization=False, ignore_odd_orders=False): 
 ```
 Does the dirty work of doing the VPT iterative equations.
-        Needs to be adapted to include the two types of degeneracies that can
-        be introduced in Sakurai's approach.
 - `:returns`: `_`
     >No description...
 

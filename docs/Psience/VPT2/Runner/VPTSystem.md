@@ -5,7 +5,7 @@ system for a VPT job
 ### Properties and Methods
 <a id="Psience.VPT2.Runner.VPTSystem.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, mol, internals=None, dummy_atoms=None, modes=None, mode_selection=None, potential_derivatives=None, dipole_derivatives=None): 
+__init__(self, mol, internals=None, dummy_atoms=None, modes=None, mode_selection=None, potential_derivatives=None, potential_function=None, dipole_derivatives=None): 
 ```
 
 - `mol`: `str | Molecule`
