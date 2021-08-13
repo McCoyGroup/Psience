@@ -113,7 +113,7 @@ class VPTStateSpace:
     """
 
     __props__ = (
-        "degeneracy_specs"
+        "degeneracy_specs",
     )
     def __init__(self,
                  states,
@@ -795,7 +795,7 @@ class VPTRunner:
                    **opts
                    ):
 
-        par = ParameterManager(opts)
+        par = ParameterManager(**opts)
         sys = VPTSystem(system, **par.filter(VPTSystem))
         if isinstance(states, int) or isinstance(states[0], int):
             states = VPTStateSpace.from_system_and_quanta(
