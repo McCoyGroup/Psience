@@ -820,7 +820,7 @@ class VPTRunner:
             states,
             hamiltonian_options=VPTHamiltonianOptions(**par.filter(VPTHamiltonianOptions)),
             runtime_options=VPTRuntimeOptions(**par.filter(VPTRuntimeOptions)),
-            solver_options=VPTSolverOptions(**par.filter(VPTHamiltonianOptions))
+            solver_options=VPTSolverOptions(**par.filter(VPTSolverOptions))
         )
 
         logger = runner.hamiltonian.logger
