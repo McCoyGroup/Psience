@@ -1869,7 +1869,7 @@ class VPT2Tests(TestCase):
 
         self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), 1.5)
 
-    @validationTest
+    @debugTest
     def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
@@ -1885,6 +1885,17 @@ class VPT2Tests(TestCase):
         run_opts = VPTRuntimeOptions(logger=True)
         runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
         runner.print_tables()
+
+    @debugTest
+    def test_HOHVPTRunnerShifted(self):
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            logger=True,
+            corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/self.h2w
+        )
 
     gaussian_data['HOD'] = {
         'zpe': np.array([4052.912, 3994.844]),
@@ -2521,7 +2532,7 @@ class VPT2Tests(TestCase):
             # , modify_degenerate_perturbations=True
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTRunner(self):
 
         file_name = "OCHH_freq.fchk"
