@@ -265,7 +265,7 @@ class ExpansionTerms:
             logger = NullLogger()
         self.logger = logger
         if parallelizer is None:
-            parallelizer = Parallelizer.get_default()
+            parallelizer = Parallelizer.lookup(None)
         self.parallelizer = parallelizer
         if checkpointer is None:
             checkpointer = NullCheckpointer()
@@ -435,8 +435,10 @@ class ExpansionTerms:
 
         nAt = carts.shape[0]
         nY = nAt * 3
-        I0Y_21 = np.reshape(np.eye(3), (9,))[np.newaxis, :, np.newaxis] * carts[:, np.newaxis,
-                                                                          :]  # a flavor of outer product
+        I0Y_21 = (
+                np.reshape(np.eye(3), (9,))[np.newaxis, :, np.newaxis]
+                * carts[:, np.newaxis, :]
+        ) # a flavor of outer product
         I0Y_21 = I0Y_21.reshape((nAt, 3, 3, 3))
         I0Y_2 = (I0Y_21 + I0Y_21.transpose((0, 1, 3, 2)))
         I0Y = 2 * I0Y_1 - I0Y_2

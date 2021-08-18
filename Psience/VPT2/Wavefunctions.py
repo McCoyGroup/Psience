@@ -6,6 +6,7 @@ import numpy as np, itertools as ip, time, enum
 
 from McUtils.Numputils import SparseArray
 import McUtils.Numputils as nput
+from McUtils.Scaffolding import ParameterManager
 from McUtils.Data import UnitsData
 
 from ..BasisReps import BasisStateSpace, SelectionRuleStateSpace, BasisMultiStateSpace, SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction, BraKetSpace
@@ -59,7 +60,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                  modes=None,
                  mode_selection=None,
                  logger=None,
-                 operator_settings=None
+                 operator_settings=None,
+                 expansion_options=None
                  ):
         """
         :param mol: the molecule the wavefunction is for
@@ -79,6 +81,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         self._dipole_terms = None
         self._dipole_partitioning = self.DipolePartitioningMethod.Standard
         self.logger = logger
+        if expansion_options is None:
+            expansion_options = {}
+        self.expansion_options = expansion_options
         self.operator_settings = operator_settings if operator_settings is not None else {}
         self._order = None
         super().__init__(
@@ -601,9 +606,16 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     @property
     def dipole_terms(self):
         if self._dipole_terms is None:
-            self._dipole_terms = self.TermHolder(DipoleTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection).get_terms())
+            self._dipole_terms = self.TermHolder(
+                DipoleTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection,
+                            **ParameterManager(self.expansion_options).filter(DipoleTerms)
+                            ).get_terms()
+            )
         elif not isinstance(self._dipole_terms, self.TermHolder):
-            self._dipole_terms = self.TermHolder(DipoleTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection, derivatives=self._dipole_terms).get_terms())
+            self._dipole_terms = self.TermHolder(DipoleTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection, derivatives=self._dipole_terms,
+                                                             **ParameterManager(self.expansion_options).filter(DipoleTerms)
+                                                             ).get_terms()
+                                                 )
         return self._dipole_terms
 
     @dipole_terms.setter
