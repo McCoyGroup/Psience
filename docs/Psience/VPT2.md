@@ -1435,8 +1435,6 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['HOH']['zpe']
         gaussian_freqs = self.gaussian_data['HOH']['freqs']
 
-        ExpansionTerms.backpropagate_internals = True
-
         self.run_PT_test(
             tag,
             file_name,
@@ -1445,6 +1443,7 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
+            hamiltonian_options = {"backpropagate_internals":True},
             log=False,
             verbose=False,
             print_report=print_report,
@@ -2426,7 +2425,7 @@ class VPT2Tests(TestCase):
             state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesiansDegenerate(self):
 
         tag = 'OCHH Cartesians'
@@ -3968,8 +3967,6 @@ class VPT2Tests(TestCase):
         gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
         gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
 
-        ExpansionTerms.backpropagate_internals = True
-
         # chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
         print_report = True
         nielsen_tolerance = 50
@@ -3985,6 +3982,7 @@ class VPT2Tests(TestCase):
             log=True,
             verbose=False,
             print_profile=False,
+            hamiltonian_options = {"backpropagate_internals":True},
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
@@ -4075,7 +4073,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4301,6 +4299,7 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             log=True,
             verbose=False,
+            print_profile=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance

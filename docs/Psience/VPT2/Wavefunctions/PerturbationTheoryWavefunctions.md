@@ -8,7 +8,7 @@ DipolePartitioningMethod: EnumMeta
 ```
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, mol, basis, corrections, modes=None, mode_selection=None, logger=None, operator_settings=None): 
+__init__(self, mol, basis, corrections, modes=None, mode_selection=None, logger=None, operator_settings=None, expansion_options=None): 
 ```
 
 - `mol`: `Molecule`
