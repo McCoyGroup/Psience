@@ -24,7 +24,6 @@ __all__ = [
 
 __reload_hook__ = [ "..BasisReps" , "..Molecools", '.Terms', ".Solver", ".Wavefunctions" ]
 
-
 class PerturbationTheoryHamiltonian:
     """
     Represents the main Hamiltonian used in the perturbation theory calculation.
@@ -109,7 +108,6 @@ class PerturbationTheoryHamiltonian:
 
         expansion_options['logger'] = self.logger
         expansion_options['parallelizer'] = self.parallelizer
-        expansion_options['logger'] = self.logger
         expansion_params = ParameterManager(expansion_options)
 
         self._input_potential = potential_terms
@@ -151,6 +149,8 @@ class PerturbationTheoryHamiltonian:
         self._selection_rules = selection_rules
 
         self.basis = HarmonicOscillatorProductBasis(self.n_quanta)
+
+        self.expansion_options = expansion_options
 
         self.operator_settings = {
             'chunk_size': operator_chunk_size,
@@ -885,7 +885,8 @@ class PerturbationTheoryHamiltonian:
                                                modes=self.modes,
                                                mode_selection=self.mode_selection,
                                                logger=self.logger,
-                                               operator_settings=self.operator_settings
+                                               operator_settings=self.operator_settings,
+                                               expansion_options=self.expansion_options
                                                )
 
     @classmethod
