@@ -1538,6 +1538,54 @@ class VPT2Tests(TestCase):
             # , watson=False
         )
 
+    @debugTest
+    def test_HOHVPTCartesiansOnly2Quanta(self):
+
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = VPTStateSpace.get_state_list_from_quanta([0, 2], n_modes)
+
+        print_report = True
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        # import McUtils.Misc as mcmisc
+        #
+        # with mcmisc.without_numba():
+        # os.remove(os.path.expanduser('~/hoh.hdf5'))
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=True,
+            verbose=False,
+            print_report=print_report,
+            calculate_intensities=True,
+            print_profile=False,
+            print_x=False
+            # , chunk_size=200
+            # zero_order_energy_corrections = [
+            #     [(0, 1, 0), 5500 * UnitsData.convert("Wavenumbers", "Hartrees")]
+            # ],
+            # , memory_constrained=True
+            # , state_space_terms=((1, 0), (2, 0))
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
+        )
+
     @validationTest
     def test_HOHVPTCartesiansFiltered(self):
 
@@ -4073,7 +4121,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
