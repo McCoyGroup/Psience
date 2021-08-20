@@ -44,9 +44,14 @@ Gets states up to `n_quanta` over `n_modes`
 build_degenerate_state_spaces(self, degeneracy_specs): 
 ```
 
+- `degeneracy_specs`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Runner.VPTStateSpace.get_degenerate_polyad_space" class="docs-object-method">&nbsp;</a>
 ```python
-get_degenerate_polyad_space(states, polyadic_pairs, max_quanta=None): 
+get_degenerate_polyad_space(states, polyadic_pairs, max_quanta=None, extra_groups=None): 
 ```
 Gets degenerate spaces by using pairs of transformation rules to
         take an input state and connect it to other degenerate states
