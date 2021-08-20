@@ -198,10 +198,32 @@ class VPTStateSpace:
             )
         except TypeError:
             return False
+
     def build_degenerate_state_spaces(self, degeneracy_specs):
+        """
+
+        :param degeneracy_specs:
+        :type degeneracy_specs:
+        :return:
+        :rtype:
+        """
+
         n_modes = len(self.state_list[0])
         if degeneracy_specs is None:
             return None
+        elif isinstance(degeneracy_specs, dict):
+            # dispatch on mode
+            degeneracy_specs = degeneracy_specs.copy()
+            if 'polyads' in degeneracy_specs:
+                polyads = degeneracy_specs['polyads']
+                del degeneracy_specs['polyads']
+                return self.get_degenerate_polyad_space(
+                    self.state_list,
+                    polyads,
+                    **degeneracy_specs
+                )
+            else:
+                NotImplementedError("couldn't infer degenerate space construction mode from spec {}".format(degeneracy_specs))
         elif all(self._is_polyad_rule(d, n_modes) for d in degeneracy_specs):
             return self.get_degenerate_polyad_space(
                 self.state_list,
@@ -210,7 +232,7 @@ class VPTStateSpace:
         else:
             raise NotImplementedError("don't know what to do with degeneracy spec {}".format(degeneracy_specs))
     @classmethod
-    def get_degenerate_polyad_space(cls, states, polyadic_pairs, max_quanta=None):
+    def get_degenerate_polyad_space(cls, states, polyadic_pairs, max_quanta=None, extra_groups=None):
         """
         Gets degenerate spaces by using pairs of transformation rules to
         take an input state and connect it to other degenerate states
@@ -224,11 +246,16 @@ class VPTStateSpace:
         :return:
         :rtype:
         """
+
+        # TODO: would be good to speed this up with some sets & state hashing
+        #       rather than just using lists and list containment
+
+
         # we build a graph of connected states by the polyadic rules
         polyadic_pairs = np.asanyarray(polyadic_pairs)
         states = np.array(states)
         poss_degs = [[] for _ in states]
-        check_list = states.tolist()
+        check_list = states.tolist() #type: list
         for n, s in enumerate(states):  # build list-of-lists structure
             for i, nt_spec in enumerate(polyadic_pairs):
                 if np.all(s - nt_spec[0] >= 0):
@@ -251,6 +278,22 @@ class VPTStateSpace:
                     # else:
                     #     poss_degs[idx].append(slist)
                     poss_degs[n].append(new)
+
+        if extra_groups is not None:
+            for g in extra_groups:
+                for s in g:
+                    try:
+                        idx = check_list.index(s)
+                    except IndexError:
+                        check_list.append(s)
+                        poss_degs.append([])
+                    else:
+                        poss_degs[idx].extend([x for x in g if x not in poss_degs[idx]])
+                        break
+                else:
+                    raise ValueError("no state in {} is in the base degeneracy check list".format(
+                        g
+                    ))
 
         # raise Exception(poss_degs)
 
