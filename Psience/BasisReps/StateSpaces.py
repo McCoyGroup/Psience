@@ -3270,7 +3270,12 @@ class BraKetSpace:
         )
 
     def __len__(self):
-        return len(self.state_pairs[0][0])
+        if len(self.state_pairs) > 0:
+            if len(self.state_pairs[0]) == 0:
+                return 0
+            return len(self.state_pairs[0][0])
+        else:
+            return 0
 
     def __repr__(self):
         return "{}(nstates={})".format(type(self).__name__, len(self))
@@ -3705,10 +3710,11 @@ class BraKetSpace:
             self.bras.take_subspace(sel),
             self.kets.take_subspace(sel)
         )
-        sub.state_pairs = (
-            self.state_pairs[0][:, sel],
-            self.state_pairs[1][:, sel]
-        )
+        if len(self) > 0:
+            sub.state_pairs = (
+                self.state_pairs[0][:, sel],
+                self.state_pairs[1][:, sel]
+            )
         return sub
 
     def take_subdimensions(self, inds):
