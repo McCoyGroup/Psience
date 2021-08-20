@@ -1411,7 +1411,7 @@ class VPT2Tests(TestCase):
             # , watson=False
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesiansOnly2Quanta(self):
 
         tag = 'HOH Cartesians'
@@ -2610,6 +2610,33 @@ class VPT2Tests(TestCase):
             degeneracy_specs=[
                 [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
             ]
+        )
+
+    @debugTest
+    def test_OCHHVPTRunner(self):
+
+        file_name = "OCHH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            logger=True,
+            degeneracy_specs=[
+                    [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+                ]
+        )
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            logger=True,
+            degeneracy_specs={
+                "polyads": [
+                    [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+                ],
+                "extra_groups":[
+                    [[0, 2, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1]]
+                ]
+            }
         )
 
     gaussian_data['OCHD'] = {
