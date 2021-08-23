@@ -588,10 +588,10 @@ class Representation:
             if clear_operator_caches:
                 self.clear_cache()
         else:
-            logger.log_print('no states to couple!')
+            logger.log_print('no states to couple!', log_level=logger.LogLevel.Debug)
             sub = 0
 
-        logger.log_print("constructing sparse representation...")
+        logger.log_print("constructing sparse representation...", log_level=logger.LogLevel.Debug)
 
         N = len(total_space)
         if isinstance(sub, (int, np.integer, np.floating, float)):
@@ -618,7 +618,7 @@ class Representation:
             else:
                 # we assume duplicates were removed earlier
 
-                logger.log_print("finding row/column indices...")
+                logger.log_print("finding row/column indices...", log_level=logger.LogLevel.Debug)
                 # figure out the appropriate inds for this data in the sparse representation
                 row_inds = total_space.find(m_pairs.bras)
                 col_inds = total_space.find(m_pairs.kets)
@@ -627,7 +627,7 @@ class Representation:
 
                 # del full_inds_filter
 
-                logger.log_print("constructing full row/col index array...")
+                logger.log_print("constructing full row/col index array...", log_level=logger.LogLevel.Debug)
                 # ninds = len(row_inds)
                 # first_bits = sidx[sidx < ninds]
                 # last_bits = sidx[sidx >= ninds] - ninds
@@ -654,7 +654,7 @@ class Representation:
                 # logger.log_print("subsampling indices...")
                 # full_inds = full_inds[sidx]
 
-                logger.log_print("getting vals array...")
+                logger.log_print("getting vals array...", log_level=logger.LogLevel.Debug)
 
                 full_dat = np.concatenate([sub, sub[utri]], axis=0)
                 del sub
@@ -668,13 +668,13 @@ class Representation:
                     # full_inds = full_inds[sidx]
                     # full_dat = full_dat[sidx]
 
-                    logger.log_print("making data multi-dim...")
+                    logger.log_print("making data multi-dim...", log_level=logger.LogLevel.Debug)
                     ext_shape = full_dat.shape[1:]
                     shape = (N, N) + ext_shape
                     full_dat = np.moveaxis(full_dat, 0, -1).flatten()
 
 
-                    logger.log_print("populating index array...")
+                    logger.log_print("populating index array...", log_level=logger.LogLevel.Debug)
                     rows, cols = full_inds.T
                     full_inds = np.empty(
                         (2 + len(ext_shape), len(full_dat)),
@@ -697,10 +697,10 @@ class Representation:
                     full_inds = full_inds.T
                     shape = (N, N)
 
-                logger.log_print("building sparse tensor...")
+                logger.log_print("building sparse tensor...", log_level=logger.LogLevel.Debug)
                 gc.collect() # might help just enough to fix things...?
                 # another attempt
-                sub = SparseArray.from_data((full_dat, full_inds), shape=shape, cache_block_data=False)
+                sub = SparseArray.from_data((full_dat, full_inds), shape=shape, cache_block_data=False, logger=logger)
 
         return sub
 
@@ -727,15 +727,15 @@ class Representation:
         m_pairs = coupled_space.get_representation_brakets()
 
         if len(m_pairs) > 0:
-            logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
+            logger.log_print(["coupled space dimension {d}"], d=len(m_pairs), log_level=logger.LogLevel.Debug)
             sub = self[m_pairs]
             if clear_sparse_caches:
                 SparseArray.clear_cache()
         else:
-            logger.log_print('no states to couple!')
+            logger.log_print('no states to couple!', log_level=logger.LogLevel.Debug)
             sub = 0
 
-        logger.log_print("constructing sparse representation...")
+        logger.log_print("constructing sparse representation...", log_level=logger.LogLevel.Debug)
 
         N = len(total_space)
         if isinstance(sub, (int, np.integer, np.floating, float)):
