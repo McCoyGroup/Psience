@@ -18,6 +18,8 @@ __all__ = [
     "PerturbationTheoryCorrections"
 ]
 
+#TODO: add state space filter object
+
 class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
     @classmethod
@@ -386,7 +388,45 @@ class PerturbationTheoryCorrections:
             logger=self.logger
         )
 
-    def operator_representation(self, operator_expansion, order=None, subspace=None, contract=True, operator_symbol="A"):
+    @staticmethod
+    def _fmt_operator_rep(full_ops, operator_symbol, conversion, real_fmt="{:>.8e}", padding_fmt='{:>16}'):
+        tag_line = None
+        rep_lines = None
+
+        for (a, b, c), subrep in full_ops:
+            if isinstance(subrep, SparseArray):
+                subrep = subrep.asarray()
+
+            if conversion is not None:
+                subrep = subrep * conversion
+
+            subrep_lines = [
+                " ".join(padding_fmt.format(real_fmt.format(e)) for e in line)
+                for line in subrep
+            ]
+            line_len = len(subrep_lines[0])
+
+            if rep_lines is None:
+                rep_lines = subrep_lines
+            else:
+                rep_lines = [x + " " + y for x,y in zip(rep_lines, subrep_lines)]
+
+            tag_fmt = "{:<" + str(line_len) + "}"
+            base_tag=tag_fmt.format("<{a}|{A}({c})|{b}>".format(A=operator_symbol, a=a, c=c, b=b))
+            if tag_line is None:
+                tag_line = base_tag
+            else:
+                tag_line += " " + base_tag
+
+        # we want to return a line list so the logger can add any prefixes it needs
+        rep_lines.insert(0, tag_line)
+        return rep_lines
+
+
+    def operator_representation(self, operator_expansion, order=None, subspace=None, contract=True,
+                                logger_symbol="A",
+                                logger_conversion=None
+                                ):
         """
         Generates the representation of the operator in the basis of stored states
 
@@ -432,6 +472,7 @@ class PerturbationTheoryCorrections:
 
         # does the dirty work of acutally applying the rep...
         reps = [[] for _ in range(order)]
+        full_ops = []
         for k in range(order):
             tags = []
             op = []
@@ -451,15 +492,16 @@ class PerturbationTheoryCorrections:
                         subrep = dot(dot(wfn_corrs[a], rop), wfn_corrs[b].T)
                         op.append(subrep)
 
-                    if logger is not None:
-                        with logger.block(tag=("<{a}|{A}({c})|{b}>", dict(A=operator_symbol, a=a, c=c, b=b))):
-                            if isinstance(subrep, SparseArray):
-                                subrep = subrep.asarray()
-                            logger.log_print(subrep, message_prepper=logger.split_lines)
+                    full_ops.append([
+                        (a, b, c),
+                        subrep
+                    ])
 
             if contract:
                 op = sum(op)
             reps[k] = op
+
+        logger.log_print(full_ops, logger_symbol, logger_conversion, message_prepper=self._fmt_operator_rep)
 
         return reps
 
@@ -2512,6 +2554,22 @@ class PerturbationTheorySolver:
     #endregion
 
     #region Handle Post-PT Variational Stuff
+    @staticmethod
+    def _fmt_depert_engs(total_state_space, base_energies):
+
+        def fmt(*a):
+            ndim = len(total_state_space.excitations[0])
+            fmt_str = "{:.0f} " * ndim + " {:12.4f}"
+
+            return ["Deperturbed States/Energies:"] + [
+                fmt_str.format(*s, e)
+                for s, e in zip(
+                    total_state_space.excitations,
+                    UnitsData.convert("Hartrees", "Wavenumbers") * base_energies
+                )
+            ]
+
+        return fmt
     def apply_post_PT_variational_calc(self, degenerate_states, corrs):
         """
         Applies degenerate perturbation theory by building a representation
@@ -2542,12 +2600,7 @@ class PerturbationTheorySolver:
         logger = NullLogger() if self.logger is None else self.logger
         logger.log_print(
             None,
-            message_prepper=lambda *a: ["Deperturbed States/Energies:"] + str(
-                np.column_stack([
-                    total_state_space.excitations,
-                    np.round(UnitsData.convert("Hartrees", "Wavenumbers") * base_energies).astype(int)
-                ])
-            ).splitlines()
+            message_prepper=self._fmt_depert_engs(total_state_space, base_energies)
         )
 
         # this will be built from a series of block-diagonal matrices
@@ -2647,14 +2700,14 @@ class PerturbationTheorySolver:
             # ]
             H_nd = [
                 x.asarray() if isinstance(x, SparseArray) else x
-                for x in subcorrs.operator_representation(subhams, subspace=deg_group, operator_symbol="H")
+                for x in subcorrs.operator_representation(subhams, subspace=deg_group, logger_symbol="H")
             ]
 
         else:
             subhams = self.representations
             H_nd = [
                 x.asarray() if isinstance(x, SparseArray) else x
-                for x in corrs.operator_representation(subhams, operator_symbol="H")
+                for x in corrs.operator_representation(subhams, logger_symbol="H", logger_conversion=UnitsData.convert("Hartrees", "Wavenumbers"))
             ]
         return H_nd
     def get_degenerate_rotation(self, deg_group, corrs):

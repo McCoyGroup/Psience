@@ -2628,7 +2628,7 @@ class VPT2Tests(TestCase):
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             3,
-            logger=True,
+            logger=Logger(log_level=Logger.LogLevel.All),
             degeneracy_specs={
                 "polyads": [
                     [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]

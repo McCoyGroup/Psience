@@ -349,9 +349,13 @@ class PerturbationTheoryHamiltonian:
             if T is None:
                 T = self.G_terms[o]
             V = self._input_potential[o] if self._input_potential is not None and len(
-                self._input_potential) > o else None
+                self._input_potential
+            ) > o else None
             if V is None:
                 V = self.V_terms[o]
+
+            self.logger.log_print("V({o}) = {V}", o=o, V=V, log_level=self.logger.LogLevel.Never)
+            self.logger.log_print("T({o}) = {T}", o=o, T=T, log_level=self.logger.LogLevel.Never)
 
             p_expansion = ['p'] + ['x'] * o + ['p']
             v_expansion = ['x'] * (o + 2)
@@ -380,7 +384,9 @@ class PerturbationTheoryHamiltonian:
                 if self.coriolis_terms is not None or self._input_coriolis is not None:
                     Z = self._input_coriolis[oz] if self._input_coriolis is not None and len(self._input_coriolis) > oz else None
                     if Z is None:
-                        Z = np.sum(self.coriolis_terms[oz], axis=0)
+                        Z = self.coriolis_terms[oz]
+                        for ax in range(oz + 1):
+                            Z = np.sum(Z, axis=0)
 
                     z_exp = ['x', 'p'] + ['x' for _ in range(oz)] + ['x', 'p']
                     self._expansions[o] += iphase * self.basis.representation(*z_exp,
@@ -388,6 +394,8 @@ class PerturbationTheoryHamiltonian:
                                                                               name='Coriolis({})'.format(oz),
                                                                               **self.operator_settings
                                                                               )
+
+                    self.logger.log_print("Z({o}) = {Z}", o=oz, Z=Z, log_level=self.logger.LogLevel.Never)
 
                 if self.pseudopotential_term is not None or self._input_pseudopotential is not None:
                     U = self._input_pseudopotential[oz] if self._input_pseudopotential is not None and len(self._input_pseudopotential) > oz else None
@@ -399,6 +407,8 @@ class PerturbationTheoryHamiltonian:
                                                                              name="V'({})".format(oz),
                                                                              **self.operator_settings
                                                                              )
+
+                    self.logger.log_print("U({o}) = {U}", o=oz, U=U, log_level=self.logger.LogLevel.Never)
 
             if self._selection_rules is not None and len(self._selection_rules) > o-1:
                 self._expansions[o].selection_rules = self._selection_rules[o-1]
