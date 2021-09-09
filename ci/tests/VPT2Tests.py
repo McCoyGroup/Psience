@@ -1259,7 +1259,7 @@ class VPT2Tests(TestCase):
         mode_selection = None  # [5, 4, 3]
         if mode_selection is not None and len(mode_selection) < n_modes:
             n_modes = len(mode_selection)
-        states = VPTStateSpace.get_state_list_from_quanta([0, 3], n_modes)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
 
         print_report = True
 
@@ -1682,12 +1682,57 @@ class VPT2Tests(TestCase):
             # , watson=False
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTCartesians4thOrder(self):
 
-        import warnings
-        np.seterr(all='raise')
-        warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
+        tag = 'HOH Cartesians'
+        file_name = "HOH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
+
+        print_report = True
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        # import McUtils.Misc as mcmisc
+        #
+        # with mcmisc.without_numba():
+        # os.remove(os.path.expanduser('~/hoh.hdf5'))
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            order=4,
+            expansion_order=2,
+            print_report=print_report
+            , hamiltonian_options=dict(
+                allow_higher_dipole_terms=True,
+                # coordinate_derivatives={
+                #     "int":[None, None, None, 0, 0],
+                #     "cart":[None, None, None, 0, 0]
+                # }
+            )
+            , calculate_intensities=True
+            # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
+            # , watson=False
+        )
+
+    @validationTest
+    def test_HOHVPTCartesians4thOrderKE(self):
 
         tag = 'HOH Cartesians'
         file_name = "HOH_freq.fchk"
@@ -1721,15 +1766,66 @@ class VPT2Tests(TestCase):
             log=True,
             verbose=True,
             order=4,
-            expansion_order=2,
+            expansion_order=4,
+            hamiltonian_options=dict(
+                allow_higher_potential_terms=True,
+                allow_higher_dipole_terms=True
+            ),
             print_report=print_report,
             calculate_intensities=True
             # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
             # , watson=False
         )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTInternals4thOrder(self):
+
+        tag = 'HOH Internals'
+        file_name = "HOH_freq.fchk"
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
+
+        print_report = True
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            order=4,
+            expansion_order=2,
+            print_report=print_report
+            , hamiltonian_options=dict(
+                allow_higher_dipole_terms=True,
+                # coordinate_derivatives={
+                #     "int":[None, None, None, 0, 0],
+                #     "cart":[None, None, None, 0, 0]
+                # }
+            )
+            , calculate_intensities=True
+        )
+
+    @validationTest
+    def test_HOHVPTInternals4thOrderKE(self):
 
         tag = 'HOH Internals'
         file_name = "HOH_freq.fchk"
@@ -1763,67 +1859,17 @@ class VPT2Tests(TestCase):
             log=True,
             verbose=True,
             order=4,
-            expansion_order=2,
+            expansion_order=4,
+            hamiltonian_options=dict(
+                allow_higher_potential_terms=True,
+                allow_higher_dipole_terms=True,
+                # coordinate_derivatives={
+                #     "int":[None, None, None, 0, 0],
+                #     "cart":[None, None, None, 0, 0]
+                # }
+            ),
             print_report=print_report,
             calculate_intensities=True
-        )
-
-    @inactiveTest
-    def test_HOTVPTCartesians4thOrder(self):
-
-        tag = 'HOT Cartesians'
-        file_name = "HOT_freq.fchk"
-
-        internals = [
-            [0, -1, -1, -1],
-            [1, 0, -1, -1],
-            [2, 0, 1, -1]
-        ]
-        internals = None
-
-        n_atoms = 3
-        n_modes = 3 * n_atoms - 6
-        mode_selection = None  # [5, 4, 3]
-        if mode_selection is not None and len(mode_selection) < n_modes:
-            n_modes = len(mode_selection)
-        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
-
-        basis = HarmonicOscillatorProductBasis(n_modes)
-        coupled_states = [
-            # BasisStateSpace(basis, VPTStateSpace.get_state_list_from_quanta(20, n_modes)).apply_selection_rules(
-            #     basis.selection_rules("x", "x", "x")
-            # ),
-            VPTStateSpace.get_state_list_from_quanta(15, n_modes),
-            VPTStateSpace.get_state_list_from_quanta(15, n_modes)
-            # BasisStateSpace(basis, VPTStateSpace.get_state_list_from_quanta(20, n_modes)).apply_selection_rules(
-            #     basis.selection_rules("x", "x", "x", "x")
-            # )
-        ]
-        # coupled_states=None
-
-        print_report = True
-        log = True
-        nielsen_tolerance = None
-        order = 4
-
-        gaussian_energies = self.gaussian_data['HOT']['zpe']
-        gaussian_freqs = self.gaussian_data['HOT']['freqs']
-
-        self.run_PT_test(
-            tag,
-            file_name,
-            internals,
-            mode_selection,
-            states,
-            gaussian_energies,
-            gaussian_freqs,
-            order=order,
-            nielsen_tolerance=nielsen_tolerance,
-            log=log,
-            print_report=print_report
-            # , energy_order=2
-            , coupled_states=coupled_states
-            , intermediate_normalization=True
         )
 
     @inactiveTest
@@ -2612,8 +2658,8 @@ class VPT2Tests(TestCase):
             ]
         )
 
-    @debugTest
-    def test_OCHHVPTRunner(self):
+    @validationTest
+    def test_OCHHVPTRunnerPolyadExtended(self):
 
         file_name = "OCHH_freq.fchk"
         VPTRunner.run_simple(

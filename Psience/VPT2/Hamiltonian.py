@@ -41,6 +41,7 @@ class PerturbationTheoryHamiltonian:
                  include_coriolis_coupling=True,
                  include_pseudopotential=True,
                  potential_terms=None,
+                 allow_higher_potential_terms=False,
                  kinetic_terms=None,
                  coriolis_terms=None,
                  pseudopotential_terms=None,
@@ -114,6 +115,7 @@ class PerturbationTheoryHamiltonian:
         self.V_terms = PotentialTerms(self.molecule,
                                       modes=modes, mode_selection=mode_selection,
                                       potential_derivatives=potential_derivatives,
+                                      allow_higher_potential_terms=allow_higher_potential_terms,
                                       **expansion_params.filter(PotentialTerms)
                                       )
 
@@ -385,8 +387,10 @@ class PerturbationTheoryHamiltonian:
                     Z = self._input_coriolis[oz] if self._input_coriolis is not None and len(self._input_coriolis) > oz else None
                     if Z is None:
                         Z = self.coriolis_terms[oz]
-                        for ax in range(oz + 1):
+                        for ax in range(2):
                             Z = np.sum(Z, axis=0)
+
+                        # raise Exception(Z)
 
                     z_exp = ['x', 'p'] + ['x' for _ in range(oz)] + ['x', 'p']
                     self._expansions[o] += iphase * self.basis.representation(*z_exp,
