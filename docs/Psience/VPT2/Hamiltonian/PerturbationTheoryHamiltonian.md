@@ -7,7 +7,7 @@ where the Hamiltonian just implements the split of the perturbation and the Hand
 ### Properties and Methods
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, include_coriolis_coupling=True, include_pseudopotential=True, potential_terms=None, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None, selection_rules=None, operator_chunk_size=None, logger=None, checkpoint=None, parallelizer=None, **expansion_options): 
+__init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, include_coriolis_coupling=True, include_pseudopotential=True, potential_terms=None, allow_higher_potential_terms=False, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None, selection_rules=None, operator_chunk_size=None, logger=None, checkpoint=None, parallelizer=None, **expansion_options): 
 ```
 
 - `molecule`: `Molecule`

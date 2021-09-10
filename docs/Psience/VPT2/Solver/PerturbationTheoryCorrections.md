@@ -69,7 +69,7 @@ Takes only those elements that are in space
 
 <a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.operator_representation" class="docs-object-method">&nbsp;</a>
 ```python
-operator_representation(self, operator_expansion, order=None, subspace=None, contract=True, operator_symbol='A'): 
+operator_representation(self, operator_expansion, order=None, subspace=None, contract=True, logger_symbol='A', logger_conversion=None): 
 ```
 Generates the representation of the operator in the basis of stored states
 - `operator_expansion`: `Iterable[float] | Iterable[np.ndarray]`

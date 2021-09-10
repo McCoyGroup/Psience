@@ -14,7 +14,7 @@ get_zetas(self):
 
 <a id="Psience.VPT2.Terms.CoriolisTerm.get_terms" class="docs-object-method">&nbsp;</a>
 ```python
-get_terms(self, order=None): 
+get_terms(self, order=None, J=0): 
 ```
 
 ### Examples

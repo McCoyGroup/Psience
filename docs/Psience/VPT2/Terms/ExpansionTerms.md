@@ -4,7 +4,7 @@ Base class for kinetic, potential, and dipole derivative terms
 ### Properties and Methods
 <a id="Psience.VPT2.Terms.ExpansionTerms.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, molecule, modes=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, undimensionalize=True, numerical_jacobians=True, eckart_embed=True, strip_dummies=False, strip_embedding=False, mixed_derivative_handling_mode='numerical', backpropagate_internals=False, zero_mass_term=10000000.0, internal_fd_mesh_spacing=0.001, internal_fd_stencil=9, cartesian_fd_mesh_spacing=0.001, cartesian_fd_stencil=9, cartesian_analytic_deriv_order=1, internal_by_cartesian_order=3, cartesian_by_internal_order=4, jacobian_warning_threshold=10000.0): 
+__init__(self, molecule, modes=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, undimensionalize=True, numerical_jacobians=True, eckart_embed=True, strip_dummies=False, strip_embedding=False, mixed_derivative_handling_mode='numerical', backpropagate_internals=False, zero_mass_term=10000000.0, internal_fd_mesh_spacing=0.001, internal_fd_stencil=9, cartesian_fd_mesh_spacing=0.001, cartesian_fd_stencil=9, cartesian_analytic_deriv_order=1, internal_by_cartesian_order=3, cartesian_by_internal_order=4, jacobian_warning_threshold=10000.0, coordinate_transformations=None, coordinate_derivatives=None): 
 ```
 
 - `molecule`: `Molecule`
@@ -67,6 +67,11 @@ inertial_frame(self):
 <a id="Psience.VPT2.Terms.ExpansionTerms.inertial_frame_derivatives" class="docs-object-method">&nbsp;</a>
 ```python
 inertial_frame_derivatives(self): 
+```
+
+<a id="Psience.VPT2.Terms.ExpansionTerms.moment_of_inertia_derivs" class="docs-object-method">&nbsp;</a>
+```python
+moment_of_inertia_derivs(self, order): 
 ```
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.get_coordinate_transforms" class="docs-object-method">&nbsp;</a>

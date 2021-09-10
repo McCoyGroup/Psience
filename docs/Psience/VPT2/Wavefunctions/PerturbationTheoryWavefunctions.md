@@ -72,6 +72,11 @@ get_M2(self, mu_2):
 get_M3(self, mu_3): 
 ```
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.get_Mi" class="docs-object-method">&nbsp;</a>
+```python
+get_Mi(self, i, mu): 
+```
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.dipole_terms" class="docs-object-method">&nbsp;</a>
 ```python
 @property
