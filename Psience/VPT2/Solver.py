@@ -82,9 +82,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
                     else:
                         raise NotImplementedError("unsure what to do with degeneracy spec {}".format(degenerate_states))
-
                 else:
-
                     def _is_degenerate_NT_spec(spec):
                         test1 = isinstance(spec, np.ndarray) and spec.dtype == np.dtype(int)
                         if test1:
@@ -187,7 +185,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         for i,g in enumerate(groups):
             # g = np.sort(np.array(g))
             if not isinstance(g, BasisStateSpace):
-                g =  BasisStateSpace(states.basis, np.array(g), mode=BasisStateSpace.StateSpaceSpec.Indices, full_basis=full_basis)
+                g = BasisStateSpace(states.basis, np.array(g), mode=BasisStateSpace.StateSpaceSpec.Indices, full_basis=full_basis)
             ugh[i] = g
             # if len(g) > 1:
             #     raise Exception(ugh[i].indices, g, ugh[i].excitations,
@@ -1285,7 +1283,7 @@ class PerturbationTheorySolver:
             # rules
 
             new = None # the new space we will slowly build
-            b_remainder = b
+            b_remainder = b #.as_sorted()
 
             # check to see if we were only passed a single prefilter
             if self._could_be_a_prefilter(prefilters):
@@ -1309,6 +1307,10 @@ class PerturbationTheorySolver:
                     b_remainder = None
                 elif len(b_remainder) > 0:
                     b = b_remainder.intersection(filter_space)
+                    # print(">>> ", a)
+                    # print(b_remainder.indices)
+                    # print("?? b", b.indices)
+                    # print("?? f", filter_space.indices)
                     if n < len(prefilters): # just a cheap opt...
                         b_remainder = b_remainder.difference(filter_space)
                 else:
@@ -1622,6 +1624,7 @@ class PerturbationTheorySolver:
                                  )
                                  )
                     )
+
                 with self.logger.block(tag='getting states for order {k}'.format(k=k)):
                     corrs[k] = sum(corrs[i] for i in range(0, k)) # this all in here from energies
                     for i in range(0, k):
@@ -1636,6 +1639,9 @@ class PerturbationTheorySolver:
                                     dot(H[k - i], corrs[i], ret_space=False,
                                                     filter_space=filter_spaces[(k-i, i)] if filter_spaces is not None and (k-i, i) in filter_spaces else None
                                                     )
+        else:
+            raise NotImplementedError("property filters not here yet")
+
         # else:
         #     # indicates we were given target property terms to work with so rather
         #     # than just allowing us to recursively build up we use the selection

@@ -743,7 +743,7 @@ class BasisSetTests(TestCase):
 
         self.assertTrue((orthog_1 == orthog_2).all())
 
-    @debugTest
+    @validationTest
     def test_NewSelRulesFilterCalcs(self):
 
         n = 15
@@ -849,6 +849,49 @@ class BasisSetTests(TestCase):
     #endregion
 
     #region State spaces
+
+    @debugTest
+    def test_StateSpaceIntersections(self):
+
+        basis = HarmonicOscillatorProductBasis(6)
+
+        np.random.seed(0)
+        subinds = np.random.random_integers(0, 100, 20)
+
+        subspace = BasisStateSpace(basis, subinds)
+
+        subsubinds = np.random.choice(subinds, 5, replace=False)
+        filter_inds = np.unique(
+            np.concatenate([
+                subsubinds,
+                np.random.random_integers(0, 100, 30)
+            ])
+        )
+
+        filter_space = BasisStateSpace(basis, filter_inds)
+
+        inter_space = subspace.intersection(filter_space)
+
+        self.assertEquals(list(np.sort(inter_space.indices)), list(np.intersect1d(filter_inds, subinds)))
+
+        subinds = np.array([12, 78, 0, 11, 10, 9])
+        subspace = BasisStateSpace(basis, subinds, mode=BasisStateSpace.StateSpaceSpec.Indices)
+        exc = subspace.excitations
+        subspace = BasisStateSpace(basis, exc, mode=BasisStateSpace.StateSpaceSpec.Excitations)
+
+        filter_inds = np.array([0, 6, 5, 4, 3, 2, 1])
+        filter_space = BasisStateSpace(basis, filter_inds)
+
+        inter_space = subspace.intersection(filter_space)
+
+        self.assertEquals(
+            list(np.sort(inter_space.indices)),
+            list(np.intersect1d(filter_inds, subinds))
+        )
+
+
+
+
     @validationTest
     def test_StateConnections(self):
 

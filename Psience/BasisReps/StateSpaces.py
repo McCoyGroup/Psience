@@ -793,7 +793,7 @@ class BasisStateSpace(AbstractStateSpace):
             if self._sort_uinds is not None:
                 new._uinds = where_map[new._uinds]
 
-        if track_excitations and self.has_excitations():
+        if track_excitations and self.has_excitations:
             new.excitations = self.excitations[indexer,]
             if self._exc_indexer is not None:
                 # we relate the old sorting to the new sorting by
@@ -1426,7 +1426,10 @@ class BasisStateSpace(AbstractStateSpace):
                                              )
             else:
                 if sort:
-                    new = self.take_states(new_inds,
+                    new = self.take_unique(
+                        track_excitations=track_excitations,
+                        track_indices=track_indices
+                    ).take_states(new_inds,
                                              track_excitations=track_excitations,
                                              track_indices=track_indices
                                            )
@@ -1435,10 +1438,13 @@ class BasisStateSpace(AbstractStateSpace):
                     new._sort_uinds = np.arange(len(new_inds))
                     return new
                 else:
-                    new = self.take_subspace(x_inds,
-                                             track_excitations=track_excitations,
-                                             track_indices=track_indices
-                                             )
+                    new = self.take_unique(
+                        track_excitations=track_excitations,
+                        track_indices=track_indices
+                    ).take_subspace(x_inds,
+                                    track_excitations=track_excitations,
+                                    track_indices=track_indices
+                                    )
                     new._uinds = np.arange(len(new_inds))
                     return new
         else:
@@ -1472,10 +1478,13 @@ class BasisStateSpace(AbstractStateSpace):
                     )
             else:
                 new_inds = np.sort(new_inds)
-                new = self.take_subspace(new_inds, assume_sorted=True,
-                                             track_excitations=track_excitations,
-                                             track_indices=track_indices
-                                         )
+                new = self.take_unique(
+                        track_excitations=track_excitations,
+                        track_indices=track_indices
+                    ).take_subspace(new_inds,
+                                     track_excitations=track_excitations,
+                                     track_indices=track_indices
+                                     )
                 new._uinds = np.arange(len(new_inds))
                 return new
 

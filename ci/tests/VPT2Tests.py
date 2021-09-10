@@ -1682,7 +1682,7 @@ class VPT2Tests(TestCase):
             # , watson=False
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTCartesians4thOrder(self):
 
         tag = 'HOH Cartesians'
@@ -1777,7 +1777,7 @@ class VPT2Tests(TestCase):
             # , watson=False
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTInternals4thOrder(self):
 
         tag = 'HOH Internals'
@@ -2474,9 +2474,119 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance,
             degeneracies=degeneracies,
             gaussian_resonance_handling=True
-            # , allow_post_PT_calc=False
-            # , invert_x=True
-            # , modify_degenerate_perturbations=True
+            , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
+        )
+
+    @debugTest
+    def test_OCHHVPTCartesiansNonDegenerateSubsample2(self):
+
+        tag = 'OCHH Cartesians'
+        file_name = "OCHH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = VPTStateSpace.get_state_list_from_quanta([0, 2], n_modes)[:5]
+
+        degeneracies = VPTStateSpace.get_degenerate_polyad_space(
+            states,
+            [
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            ]
+        )
+        degeneracies = [np.array(x).tolist() for x in degeneracies]
+        states = np.array(states).tolist()
+        for pair in degeneracies:
+            for p in pair:
+                if p not in states:
+                    states.append(p)
+
+        degeneracies = None
+
+        gaussian_energies = self.gaussian_data['OCHH']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHH']['freqs']
+
+        print_report = True
+        nielsen_tolerance = None
+        gaussian_tolerance = 1
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            # pre_wfns_script=pre_wfns_script,
+            log=True,
+            verbose='all',
+            calculate_intensities=True,
+            gaussian_tolerance=gaussian_tolerance,
+            degeneracies=degeneracies,
+            gaussian_resonance_handling=True
+            , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
+        )
+
+    @debugTest
+    def test_OCHHVPTCartesiansDegenerateSubsample2(self):
+
+        tag = 'OCHH Cartesians'
+        file_name = "OCHH_freq.fchk"
+
+        internals = None
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = VPTStateSpace.get_state_list_from_quanta([0, 2], n_modes)[:5]
+
+        degeneracies = VPTStateSpace.get_degenerate_polyad_space(
+            states,
+            [
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            ]
+        )
+        degeneracies = [np.array(x).tolist() for x in degeneracies]
+        states = np.array(states).tolist()
+        for pair in degeneracies:
+            for p in pair:
+                if p not in states:
+                    states.append(p)
+
+        # degeneracies = None
+
+        gaussian_energies = self.gaussian_data['OCHH']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHH']['freqs']
+
+        print_report = True
+        nielsen_tolerance = None
+        gaussian_tolerance = 1
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            # pre_wfns_script=pre_wfns_script,
+            log=True,
+            verbose='all',
+            calculate_intensities=True,
+            gaussian_tolerance=gaussian_tolerance,
+            degeneracies=degeneracies,
+            gaussian_resonance_handling=True
+            , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
     @validationTest
