@@ -16,6 +16,7 @@ __all__ = [
     "VPTRunner",
     "VPTSystem",
     "VPTStateSpace",
+    "VPTStateMaker",
     "VPTHamiltonianOptions",
     "VPTRuntimeOptions",
     "VPTSolverOptions"
@@ -32,6 +33,8 @@ class VPTSystem:
         "modes",
         "mode_selection",
         "potential_derivatives",
+        "potential_function",
+        "order",
         "dipole_derivatives",
         "dummy_atoms"
     )
@@ -43,6 +46,7 @@ class VPTSystem:
                  mode_selection=None,
                  potential_derivatives=None,
                  potential_function=None,
+                 order=2,
                  dipole_derivatives=None
                  ):
         """
@@ -82,7 +86,7 @@ class VPTSystem:
         if potential_derivatives is not None:
             self.mol.potential_derivatives = potential_derivatives
         elif potential_function is not None:
-            self.get_potential_derivatives(potential_function)
+            self.get_potential_derivatives(potential_function, order=order)
         if dipole_derivatives is not None:
             self.mol.dipole_derivatives = dipole_derivatives
 
@@ -385,7 +389,6 @@ class VPTStateSpace:
                 (1, 1): ([],),
                 (2, 0): (None, [[]])
             }
-
 
 class VPTHamiltonianOptions:
     """
@@ -943,3 +946,38 @@ class VPTRunner:
                 for k,v in opts.items():
                     logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
             runner.print_tables()
+
+class VPTStateMaker:
+    """
+    A tiny but useful class to make states based on their quanta
+    of excitation
+    """
+
+    def __init__(self, ndim, mode='low-high'):
+        self.ndim = ndim
+        self.mode = mode
+
+    def make_state(self, *specs, mode=None):
+
+        if mode is None:
+            mode = self.mode
+
+        state = [0] * self.ndim
+        for s in specs:
+            if isinstance(s, (int, np.integer)):
+                i = s
+                q = 1
+            else:
+                i,q = s
+            if mode == 'low-high':
+                state[-i] = q
+            elif mode == 'high-low':
+                state[i-1] = q
+            elif mode == 'normal':
+                state[i] = q
+            else:
+                raise ValueError("don't know what to do with filling mode '{}'".format(mode))
+        return state
+
+    def __call__(self, *specs, mode=None):
+        return self.make_state(*specs, mode=mode)

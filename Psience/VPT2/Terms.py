@@ -184,7 +184,9 @@ class ExpansionTerms:
         "cartesian_analytic_deriv_order",
         "internal_by_cartesian_order",
         "cartesian_by_internal_order",
-        "jacobian_warning_threshold"
+        "jacobian_warning_threshold",
+        "coordinate_transformations",
+        "coordinate_derivatives",
     )
     _cached_jacobians = {}
     def __init__(self,
@@ -209,7 +211,9 @@ class ExpansionTerms:
                  cartesian_analytic_deriv_order=1,
                  internal_by_cartesian_order=3,
                  cartesian_by_internal_order=4,
-                 jacobian_warning_threshold=1e4
+                 jacobian_warning_threshold=1e4,
+                 coordinate_transformations=None,
+                 coordinate_derivatives=None,
                  ):
         """
         :param molecule: the molecule we're doing the expansion for
@@ -270,6 +274,12 @@ class ExpansionTerms:
         if checkpointer is None:
             checkpointer = NullCheckpointer()
         self.checkpointer = checkpointer
+
+        if coordinate_derivatives is not None:
+            self._cached_jacobians[molecule] = coordinate_derivatives
+
+        if coordinate_transformations is not None:
+            self._cached_transforms[molecule] = coordinate_transformations
 
         if not isinstance(mixed_derivative_handling_mode, MixedDerivativeHandlingModes):
             self.mixed_derivative_handling_mode = MixedDerivativeHandlingModes(mixed_derivative_handling_mode)
@@ -349,24 +359,29 @@ class ExpansionTerms:
             }
         exist_jacs = self._cached_jacobians[self.molecule]['int']
         max_jac = max(jacs)
-        if max_jac > len(exist_jacs):
-            need_jacs = [x+1 for x in range(0, max_jac)]
+        need_jacs = [x+1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
+        if len(need_jacs) > 0:
             with Parallelizer.lookup(self.parallelizer) as par:
-                new_jacs = [x.squeeze() for x in intcds.jacobian(carts, need_jacs,
-                                                                 mesh_spacing=self.internal_fd_mesh_spacing,
-                                                                 stencil=self.internal_fd_stencil,
-                                                                 all_numerical=self.all_numerical,
-                                                                 converter_options=dict(
-                                                                     reembed=self.reembed,
-                                                                     strip_dummies=self.strip_dummies
-                                                                 ),
-                                                                 parallelizer=par
-                                                                 )]
+                new_jacs = [
+                    x.squeeze() if isinstance(x, np.ndarray) else x
+                    for x in intcds.jacobian(carts, need_jacs,
+                                             mesh_spacing=self.internal_fd_mesh_spacing,
+                                             stencil=self.internal_fd_stencil,
+                                             all_numerical=self.all_numerical,
+                                             converter_options=dict(
+                                                 reembed=self.reembed,
+                                                 strip_dummies=self.strip_dummies
+                                             ),
+                                             parallelizer=par
+                                             )]
                 # np.set_printoptions
                 # with np.printoptions(linewidth=1e8, threshold=1e8, floatmode='fixed', precision=10):
                 #     raise Exception(str(np.round(new_jacs[0].reshape(9, 9)[(3, 6, 7), :], 12)))
-            self._cached_jacobians[self.molecule]['int'] = new_jacs
-            exist_jacs = new_jacs
+            for j,v in zip(need_jacs, new_jacs):
+                for d in range(j-len(exist_jacs)):
+                    exist_jacs.append(None)
+                exist_jacs[j-1] = v
+
         return [exist_jacs[j-1] for j in jacs]
 
     def get_cart_jacobs(self, jacs):
@@ -381,12 +396,12 @@ class ExpansionTerms:
             }
         exist_jacs = self._cached_jacobians[self.molecule]['cart']
         max_jac = max(jacs)
-        # print("C", jacs, max_jac, len(exist_jacs))
-        if max_jac > len(exist_jacs):
+        need_jacs = [x+1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
+        if len(need_jacs) > 0:
             with Parallelizer.lookup(self.parallelizer) as par:
-                need_jacs = [x + 1 for x in range(0, max_jac)]
                 new_jacs = [
-                    x.squeeze() for x in ccoords.jacobian(internals, need_jacs,
+                    x.squeeze() if isinstance(x, np.ndarray) else x
+                    for x in ccoords.jacobian(internals, need_jacs,
                                                           mesh_spacing=self.cartesian_fd_mesh_spacing,
                                                           stencil=self.cartesian_fd_stencil,
                                                           # all_numerical=True,
@@ -396,8 +411,11 @@ class ExpansionTerms:
                                                           )
                 ]
 
-                self._cached_jacobians[self.molecule]['cart'] = new_jacs
-                exist_jacs = new_jacs
+                for j, v in zip(need_jacs, new_jacs):
+                    for d in range(j - len(exist_jacs)):
+                        exist_jacs.append(None)
+                    exist_jacs[j - 1] = v
+
         return [exist_jacs[j-1] for j in jacs]
 
     @property
@@ -456,6 +474,31 @@ class ExpansionTerms:
 
         return [I0Y, I0YY]
 
+    def moment_of_inertia_derivs(self, order):
+
+        B_e, _ = self.inertial_frame
+        YQ = self.modes.inverse  # derivatives of Q with respect to the Cartesians
+        u_0 = 2 * np.diag(B_e) # reconstruct inertia tensor
+
+        if order > 0:
+            IdY, _ = self.inertial_frame_derivatives()  # only ever two of these
+            IdQ = np.tensordot(YQ, IdY, axes=[1, 0])
+            A = np.tensordot(IdQ, u_0, axes=[2, 0])
+
+        all_derivs = [u_0]
+        for i in range(order):
+            # take original term and multiply in a . u_0
+            u = all_derivs[-1]
+            u = np.moveaxis(np.tensordot(u, A, axes=[1, 1]), -1, 1)
+            all_derivs.append(u)
+
+        # then add in the binomial expansion temrs
+        for i,u in enumerate(all_derivs):
+            all_derivs[i] = (-1)**i * (i+1) / (2**i) * u
+
+        return all_derivs
+
+    # Old, don't think I need anymore...
     @classmethod
     def _get_tensor_derivs(cls, x_derivs, V_derivs, order=4, mixed_XQ=False, mixed_terms=False):
         """
@@ -836,7 +879,7 @@ class ExpansionTerms:
                 YQ_derivs = TensorDerivativeConverter(Q_derivs, x_derivs,
                                                       jacobians_name='Q',
                                                       values_name='X'
-                                                      ).convert(order=len(internal_jacobs), check_arrays=True)
+                                                      ).convert(order=len(internal_jacobs))#, check_arrays=True)
                 # self._get_tensor_derivs(
                 #     YQ_derivs, (QY, 0, 0, 0),
                 #     mixed_XQ=False
@@ -853,7 +896,7 @@ class ExpansionTerms:
                 qQ_derivs = TensorDerivativeConverter(YQ_derivs, [QY] + [0] * (len(internal_jacobs) - 1),
                                                       jacobians_name='Yq',
                                                       values_name='qY'
-                                                      ).convert(order=len(internal_jacobs), check_arrays=True)
+                                                      ).convert(order=len(internal_jacobs))#, check_arrays=True)
                 current_cache[JacobianKeys.CartesianModesByInternalModes] = qQ_derivs
 
             if (
@@ -863,7 +906,7 @@ class ExpansionTerms:
                 QR = QR_derivs[0]
                 QY_derivs = TensorDerivativeConverter(cartesian_jacobs,
                                                       [QR] + [0]*(len(cartesian_jacobs) - 1)
-                                                      ).convert(order=len(cartesian_jacobs), check_arrays=True)
+                                                      ).convert(order=len(cartesian_jacobs))#, check_arrays=True)
                 current_cache[JacobianKeys.InternalModesByCartesians] = QY_derivs
 
             if (
@@ -874,7 +917,7 @@ class ExpansionTerms:
                 RQ_derivs = current_cache[JacobianKeys.InternalsByCartesianModes]
                 QR = QR_derivs[0]
                 Qq_derivs = TensorDerivativeConverter(RQ_derivs,
-                                                      [QR] + [0] * (len(internal_jacobs) - 1),
+                                                      [QR] + [0] * (len(RQ_derivs) - 1),
                                                       jacobians_name='Yq',
                                                       values_name='qY'
                                                       ).convert(order=len(RQ_derivs))
@@ -984,6 +1027,7 @@ class PotentialTerms(ExpansionTerms):
                  parallelizer=None,
                  checkpointer=None,
                  check_input_force_constants=True,
+                 allow_higher_potential_terms=False,
                  hessian_tolerance=1.0e-4,
                  grad_tolerance=1.0e-4,
                  freq_tolerance=2e-3,
@@ -1014,6 +1058,7 @@ class PotentialTerms(ExpansionTerms):
 
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
         self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, potential_derivatives)
+        self.allow_higher_potential_terms=allow_higher_potential_terms
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
 
@@ -1266,6 +1311,9 @@ class PotentialTerms(ExpansionTerms):
         else:
             order += 2
 
+        if self.allow_higher_potential_terms and len(self.v_derivs) < order:
+            self.v_derivs = tuple(self.v_derivs) + (0,) * order
+
         grad = self.v_derivs[0]
         # hess = self.v_derivs[1]
 
@@ -1284,11 +1332,10 @@ class PotentialTerms(ExpansionTerms):
 
             if self.mixed_derivs:
                 terms = TensorDerivativeConverter(x_derivs, V_derivs, mixed_terms=[
-                    [None, self.v_derivs[2]], # dVdQXX
-                    [None, self.v_derivs[3]]  # dVdQQXX
-                ]).convert(order=order, check_arrays=True)
+                    [None, v] for v in self.v_derivs[2:]
+                ]).convert(order=order)#, check_arrays=True)
             else:
-                terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order, check_arrays=True)
+                terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
 
         else:
             x_derivs = self.get_cartesians_by_modes(order=order-1)
@@ -1307,7 +1354,7 @@ class PotentialTerms(ExpansionTerms):
             V_derivs = [grad] + list(self.v_derivs[1:])
 
             if self.mixed_derivs:
-                if order > 4:
+                if order > 4 and not self.allow_higher_potential_terms:
                     raise ValueError("don't currently have things tested for expansions beyond 4th V derivatives with mixed derivatives") #TODO: relax this once we have more flexible input determination
                 # terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=True, mixed_XQ=self.mixed_derivs)
 
@@ -1317,19 +1364,18 @@ class PotentialTerms(ExpansionTerms):
                 qQ, qQQ = self.get_cartesian_modes_by_internal_modes(2)
                 f43 = np.tensordot(qQQ, V_derivs[2], axes=[2, 0])
                 fourths = V_derivs[3] + f43
-                V_derivs = V_derivs[:3] + [fourths]
+                V_derivs = V_derivs[:3] + [fourths] + V_derivs[4:]
 
                 terms = TensorDerivativeConverter(x_derivs, V_derivs,
                                                   mixed_terms=[
-                                                      [None, V_derivs[2]],  # dVdQXX
-                                                      [None, V_derivs[3]]  # dVdQQXX
+                                                      [None, v] for v in V_derivs[2:]
                                                   ]
-                                                  ).convert(order=order, check_arrays=True)
+                                                  ).convert(order=order)  # , check_arrays=True)
             else:
-                terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order, check_arrays=True)
+                terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
 
             xQ2 = self.modes.inverse
-            _, v2x,  =  TensorDerivativeConverter((xQ2, 0), V_derivs).convert(order=2, check_arrays=True)#self._get_tensor_derivs((xQ2, 0, 0, 0), V_derivs, order=2, mixed_XQ=False)
+            _, v2x,  =  TensorDerivativeConverter((xQ2, 0), V_derivs).convert(order=2)#, check_arrays=True)#self._get_tensor_derivs((xQ2, 0, 0, 0), V_derivs, order=2, mixed_XQ=False)
 
             if self.hessian_tolerance is not None:
                 v2 = terms[1]
@@ -1943,31 +1989,39 @@ class CoriolisTerm(ExpansionTerms):
 
         return z
 
-    def get_terms(self, order=None):
+    def get_terms(self, order=None, J=0):
 
-        if order > 0:
-            raise ValueError("Only have coriolis up to order 0 for now")
+        if J > 0:
+            raise NotImplementedError("currently only have VibRot term for J=0")
 
-        zeta_inert, B_e = self.get_zetas_and_momi()
+        zeta_inert, _ = self.get_zetas_and_momi()
+        inert_derivs = self.moment_of_inertia_derivs(order)
 
         # now we include the frequency dimensioning that comes from the q and p terms in Pi = Zeta*qipj
         freqs = self.freqs
         freq_term = np.sqrt(freqs[np.newaxis, :] / freqs[:, np.newaxis])
         zeta_inert = zeta_inert * freq_term[np.newaxis]
 
+        terms = []
         coriolis = (
-                           zeta_inert[:, :, :, np.newaxis, np.newaxis] # ij
-                           * zeta_inert[:, np.newaxis, np.newaxis, :, :] # kl
+                           zeta_inert[np.newaxis, :, :, :, np.newaxis, np.newaxis] # ij
+                           * zeta_inert[:, np.newaxis, np.newaxis, np.newaxis, :, :] # kl
         )
+        for d in inert_derivs: # expansion of reciprocal inertia tensor
+            d = np.expand_dims(d, [2, 3, -1, -2])
+            term = d / 2 * coriolis
+            terms.append(term)
 
-        corr = B_e[:, np.newaxis, np.newaxis, np.newaxis, np.newaxis] * coriolis
+            # add coordinates for `q`
+            coriolis = np.expand_dims(coriolis, -3)
+
 
         try:
-            self.checkpointer['coriolis_terms'] = (corr[0], corr[1], corr[2])
+            self.checkpointer['coriolis_terms'] = terms
         except KeyError:
             pass
 
-        return [[corr[0], corr[1], corr[2]]]
+        return terms
 
 class PotentialLikeTerm(KineticTerms):
     """
@@ -1981,11 +2035,9 @@ class PotentialLikeTerm(KineticTerms):
         ics = self.internal_coordinates
         if self.backpropagate_internals or ics is None:
 
-            if order > 0:
-                raise ValueError("currently only have Watson term up to 0 order")
-            B_e, eigs = self.inertial_frame
-            wat = -2*sum(B_e)
-            wat_terms = [wat]
+            wat_terms = self.moment_of_inertia_derivs(order)
+            for i,d in enumerate(wat_terms):
+                wat_terms[i] = -2*np.sum(d[(0, 1, 2), (0, 1, 2), ...], axis=0)
 
         else:
             ### transform inertia derivs into mode derivs
@@ -1994,7 +2046,7 @@ class PotentialLikeTerm(KineticTerms):
             I0_derivs = self.inertial_frame_derivatives() # only ever two of these
             if order > 0:
                 I0_derivs = I0_derivs + [0]*order
-            I0Q_derivs = TensorDerivativeConverter(YQ_derivs, I0_derivs).convert(check_arrays=True)
+            I0Q_derivs = TensorDerivativeConverter(YQ_derivs, I0_derivs).convert()#check_arrays=True)
 
             ### pull already computed G-matrix derivs
             G_terms = super().get_terms(order=2+order, logger=NullLogger())
@@ -2011,19 +2063,32 @@ class PotentialLikeTerm(KineticTerms):
 
             # we skip the gamma term from Pickett altogether because it never directly
             # enters, instead only ever being treated as detIdQ - detGdQ
-            gamdQ = (detI.dQ()/detI + -1*detG.dQ()/detG).simplify(check_arrays=True)
-            gamdQQ = gamdQ.dQ().simplify(check_arrays=True)
+            gamdQ = (detI.dQ()/detI + -1*detG.dQ()/detG).simplify()#check_arrays=True)
+            gamdQ.name = "dQ(gam)"
+            gamdQQ = gamdQ.dQ().simplify()#check_arrays=True)
+
+            v_term_1 = g_terms.QX(0).dot(gamdQQ, [1, 2], [1, 2])
+            v_term_2 = g_terms.QX(1).dot(gamdQ, 3, 1).tr()
+            v_term_3 = 1/4 * gamdQ.dot(gamdQ.dot(g_terms.QX(0), 1, 1), 1, 1)
 
             v0 = (
-                    g_terms.QX(0).dot(gamdQQ, [1, 2], [1, 2])
-                    + g_terms.QX(1).dot(gamdQ, 3, 1).tr()
-                    + 1/4 * gamdQ.dot(gamdQ.dot(g_terms.QX(0), 1, 1), 1, 1)
+                    v_term_1
+                    + v_term_2
+                    + v_term_3
             )
 
-            wat_terms = [v0]
+            wat_exprs = [v0]
             for i in range(1, order+1):
-                wat_terms.append(wat_terms[-1].dQ())
-            wat_terms = [w.array for w in wat_terms]
+                wat_exprs.append(wat_exprs[-1].dQ().simplify())
+
+            wat_terms = []
+            for i,w in enumerate(wat_exprs):
+                try:
+                    arr = w.array
+                except TensorDerivativeConverter.TensorExpansionError:
+                    raise ValueError("failed to construct U({})".format(i))
+                else:
+                    wat_terms.append(arr)
 
         try:
             self.checkpointer['psuedopotential_terms'] = wat_terms
