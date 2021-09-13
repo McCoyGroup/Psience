@@ -1990,6 +1990,61 @@ class VPT2Tests(TestCase):
             corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/self.h2w
         )
 
+    @debugTest
+    def test_HOHVPTRunner3rd(self):
+        """
+        test that runner works for 3rd order PT, too
+
+        :return:
+        :rtype:
+        """
+
+        """
+        
+        ::> non-degenerate Hamiltonian (internals order 3)
+          > [[8348    3  -24]
+          >  [   3 8223   47]
+          >  [ -24   47 7731]]
+        <::
+    
+        ::> non-degenerate Hamiltonian (internals order 4)
+          > [[8407   23  -24]
+          >  [  23 8278   47]
+          >  [ -24   47 7731]]
+        <::
+
+        ::> non-degenerate Hamiltonian (cartesians order 3)
+          > [[8338    0    0]
+          >  [   0 8206   49]
+          >  [   0   49 7720]]
+        <::
+
+        ::> non-degenerate Hamiltonian (cartesians order 4)
+          > [[8385    0    0]
+          >  [   0 8254   49]
+          >  [   0   49 7705]]
+        <::
+        
+        """
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            logger=True,
+            order=3,
+            internals=[
+                [1, -1, -1, -1],
+                [0,  1, -1, -1],
+                [2,  1,  0, -1]
+            ],
+            expansion_order=2,
+            degeneracy_specs=[
+                [[0, 0, 1], [2, 0, 0]],
+                [[0, 1, 0], [2, 0, 0]],
+            ]
+        )
+
     @validationTest
     def test_GetDegenerateSpaces(self):
 
@@ -2477,7 +2532,7 @@ class VPT2Tests(TestCase):
             , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesiansNonDegenerateSubsample2(self):
 
         tag = 'OCHH Cartesians'
@@ -2533,7 +2588,7 @@ class VPT2Tests(TestCase):
             , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesiansDegenerateSubsample2(self):
 
         tag = 'OCHH Cartesians'

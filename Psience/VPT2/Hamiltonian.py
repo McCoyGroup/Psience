@@ -895,12 +895,15 @@ class PerturbationTheoryHamiltonian:
                 if memory_constrained:
                     solver.representations = None
 
+        expansion_options = self.expansion_options.copy()
+        expansion_options['expansion_order'] = expansion_order
+
         return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs,
                                                modes=self.modes,
                                                mode_selection=self.mode_selection,
                                                logger=self.logger,
                                                operator_settings=self.operator_settings,
-                                               expansion_options=self.expansion_options
+                                               expansion_options=expansion_options
                                                )
 
     @classmethod

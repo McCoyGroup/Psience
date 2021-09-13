@@ -360,7 +360,11 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
 
         if order is None:
-            order = self.order
+            order = (
+                self.order
+                if 'expansion_order' not in self.expansion_options or self.expansion_options['expansion_order'] is None else
+                self.expansion_options['expansion_order']
+            )
 
         logger = self.logger
         with logger.block(tag="Calculating intensities:", printoptions={'linewidth':int(1e8)}):
