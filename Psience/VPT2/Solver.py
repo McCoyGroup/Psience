@@ -391,9 +391,21 @@ class PerturbationTheoryCorrections:
         tag_line = None
         rep_lines = None
 
+        op_dim = None
+
         for (a, b, c), subrep in full_ops:
             if isinstance(subrep, SparseArray):
                 subrep = subrep.asarray()
+            elif isinstance(subrep, (int, float, np.integer, np.floating)):
+                if subrep == 0:
+                    if op_dim is None:
+                        raise ValueError("was lazy and haven't filled operator dim yet...")
+                    subrep = np.zeros(op_dim)
+                else:
+                    raise ValueError("don't know what to do with representation '{}'".format(subrep))
+
+            if op_dim is None:
+                op_dim = subrep.shape
 
             if conversion is not None:
                 subrep = subrep * conversion
