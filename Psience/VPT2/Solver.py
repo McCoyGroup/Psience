@@ -925,7 +925,11 @@ class PerturbationTheorySolver:
             non_zero_cutoff = Settings.non_zero_cutoff
         zero_checks = np.where(np.abs(e_vec) < non_zero_cutoff)[0]
         if len(zero_checks) > 0:
-            bad_vec = np.concatenate([[E0], e_vec_full[zero_checks]])
+            if isinstance(E0, (int, float, np.integer, np.floating)):
+                Et = [E0]
+            else:
+                Et = E0
+            bad_vec = np.concatenate([Et, e_vec_full[zero_checks]])
             if len(zero_checks) > 10:
                 raise ValueError(
                     "degeneracies encountered: states {} and {} other states are degenerate (average energy: {} stddev: {})".format(

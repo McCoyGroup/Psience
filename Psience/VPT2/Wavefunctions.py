@@ -363,7 +363,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             order = (
                 self.order
                 if 'expansion_order' not in self.expansion_options or self.expansion_options['expansion_order'] is None else
-                self.expansion_options['expansion_order']
+                self.expansion_options['expansion_order'] + 1
             )
 
         logger = self.logger

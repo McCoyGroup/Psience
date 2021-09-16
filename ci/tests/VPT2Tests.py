@@ -2000,50 +2000,138 @@ class VPT2Tests(TestCase):
         """
 
         """
-        
-        ::> non-degenerate Hamiltonian (internals order 3)
-          > [[8348    3  -24]
-          >  [   3 8223   47]
-          >  [ -24   47 7731]]
-        <::
-    
-        ::> non-degenerate Hamiltonian (internals order 4)
-          > [[8407   23  -24]
-          >  [  23 8278   47]
-          >  [ -24   47 7731]]
-        <::
-
-        ::> non-degenerate Hamiltonian (cartesians order 3)
-          > [[8338    0    0]
-          >  [   0 8206   49]
-          >  [   0   49 7720]]
-        <::
-
-        ::> non-degenerate Hamiltonian (cartesians order 4)
-          > [[8385    0    0]
-          >  [   0 8254   49]
-          >  [   0   49 7705]]
-        <::
-        
-        """
+            > <0|H(0)|0>                        <0|H(1)|0>                        <0|H(0)|1>                        <1|H(0)|0>                        <0|H(2)|0>                        <0|H(1)|1>                        <0|H(0)|2>                        <1|H(1)|0>                        <1|H(0)|1>                        <2|H(0)|0>                       
+    >   8.48486324e+03   0.00000000e+00   0.00000000e+00   7.30156817e+01   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   1.83279339e+02   0.00000000e+00  -4.62346634e+02   0.00000000e+00  -6.73315524e+02   0.00000000e+00  -4.62346634e+02   0.00000000e+00   1.80897768e+03   0.00000000e+00  -6.73315524e+02   0.00000000e+00
+    >   0.00000000e+00   7.92616968e+03   7.30156817e+01   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00  -1.22419751e+02   0.00000000e+00  -8.34575513e+01   0.00000000e+00  -8.76477093e+01   0.00000000e+00  -8.34575513e+01   0.00000000e+00   2.58752970e+02   0.00000000e+00  -8.76477093e+01
+    ::> non-degenerate Hamiltonian
+      > [[8206   73]
+      >  [  73 7720]]
+    <::
+    """
 
         file_name = "HOH_freq.fchk"
-        VPTRunner.run_simple(
-            TestManager.test_data(file_name),
-            3,
-            logger=True,
-            order=3,
-            internals=[
-                [1, -1, -1, -1],
-                [0,  1, -1, -1],
-                [2,  1,  0, -1]
-            ],
-            expansion_order=2,
-            degeneracy_specs=[
-                [[0, 0, 1], [2, 0, 0]],
-                [[0, 1, 0], [2, 0, 0]],
-            ]
-        )
+
+        logger=Logger()
+        with logger.block(tag="Internals 2nd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1,  0, -1, -1],
+                    [2,  0,  1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Internals 3rd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1,  0, -1, -1],
+                    [2,  0,  1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Internals 2nd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1, 0, -1, -1],
+                    [2, 0, 1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Internals 3rd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1, 0, -1, -1],
+                    [2, 0, 1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 2nd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 3rd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 2nd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 3rd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
 
     @validationTest
     def test_GetDegenerateSpaces(self):

@@ -1048,8 +1048,6 @@ class PotentialTerms(ExpansionTerms):
                          logger=logger, parallelizer=parallelizer, checkpointer=checkpointer,
                          **opts
                          )
-        if potential_derivatives is None:
-            potential_derivatives = molecule.potential_surface.derivatives
 
         self.check_input_force_constants=check_input_force_constants
         self.hessian_tolerance = hessian_tolerance
@@ -1057,8 +1055,19 @@ class PotentialTerms(ExpansionTerms):
         self.freq_tolerance = freq_tolerance
 
         self.mixed_derivs = mixed_derivs # we can figure this out from the shape in the future
-        self.v_derivs = self._canonicalize_derivs(self.freqs, self.masses, potential_derivatives)
+        self._input_derivs = potential_derivatives
+        self._v_derivs = None #
         self.allow_higher_potential_terms=allow_higher_potential_terms
+
+    @property
+    def v_derivs(self):
+
+        if self._v_derivs is None:
+            if self._input_derivs is None:
+                self._input_derivs = self.molecule.potential_surface.derivatives
+            self._v_derivs = self._canonicalize_derivs(self.freqs, self.masses, self._input_derivs)
+
+        return self._v_derivs
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
 
@@ -2079,7 +2088,7 @@ class PotentialLikeTerm(KineticTerms):
 
             wat_exprs = [v0]
             for i in range(1, order+1):
-                wat_exprs.append(wat_exprs[-1].dQ().simplify())
+                wat_exprs.append(wat_exprs[-1].dQ())#.simplify())
 
             wat_terms = []
             for i,w in enumerate(wat_exprs):
