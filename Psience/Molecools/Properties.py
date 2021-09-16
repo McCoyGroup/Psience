@@ -1691,6 +1691,8 @@ class NormalModesManager(PropertyManager):
             coeffs = modes['matrix']
             del modes['matrix']
             modes = MolecularNormalModes(self.mol, coeffs, **modes)
+        elif isinstance(modes, np.ndarray):
+            modes = MolecularNormalModes(self.mol, modes)
         elif not isinstance(modes, MolecularNormalModes):
             raise ValueError("don't know how to construct `{}` from {}".format(
                 MolecularNormalModes.__name__,
