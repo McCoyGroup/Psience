@@ -807,7 +807,8 @@ class VPTRunner:
             **self.runtime_opts.solver_opts
         )
 
-    def print_tables(self, wfns=None, file=None, print_intensities=True, sep_char="=", sep_len=100):
+    @classmethod
+    def print_output_tables(cls, wfns=None, file=None, print_intensities=True, sep_char="=", sep_len=100):
         """
         Prints a bunch of formatted output data from a PT run
 
@@ -816,9 +817,6 @@ class VPTRunner:
         :return:
         :rtype:
         """
-
-        if wfns is None:
-            wfns = self.get_wavefunctions()
 
         if file is None:
             file = sys.stdout
@@ -871,6 +869,22 @@ class VPTRunner:
                     print_footer()
                 print(wfns.format_intensities_table(), file=file)
                 print_footer()
+
+    def print_tables(self, wfns=None, file=None, print_intensities=True, sep_char="=", sep_len=100):
+        """
+        Prints a bunch of formatted output data from a PT run
+
+        :param wfns:
+        :type wfns:
+        :return:
+        :rtype:
+        """
+
+        if wfns is None:
+            wfns = self.get_wavefunctions()
+
+        self.print_output_tables(wfns=wfns, file=file,
+                                 print_intensities=print_intensities, sep_char=sep_char, sep_len=sep_len)
 
     @classmethod
     def run_simple(cls,
