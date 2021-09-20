@@ -2579,11 +2579,24 @@ class PerturbationTheorySolver:
     @staticmethod
     def _fmt_depert_engs(total_state_space, base_energies):
 
-        def fmt(*a):
-            ndim = len(total_state_space.excitations[0])
+        def fmt(*a, base_energies=base_energies):
+            states = total_state_space.excitations
+            state_sums = np.sum(total_state_space.excitations, axis=1)
+            gs_pos = np.where(state_sums == 0)
+            label = "Deperturbed States/Energies:"
+            if len(gs_pos) > 0:
+                label = "Deperturbed States/Frequencies:"
+                gs_pos = gs_pos[0]
+                if len(gs_pos) > 0:
+                    gs_pos = gs_pos[0]
+                gs_eng = base_energies[gs_pos]
+                base_energies = base_energies - gs_eng
+                base_energies[gs_pos] = gs_eng
+
+            ndim = len(states[0])
             fmt_str = "{:.0f} " * ndim + " {:12.4f}"
 
-            return ["Deperturbed States/Energies:"] + [
+            return [label] + [
                 fmt_str.format(*s, e)
                 for s, e in zip(
                     total_state_space.excitations,

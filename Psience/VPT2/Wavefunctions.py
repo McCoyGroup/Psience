@@ -805,7 +805,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             self.deperturbed_transition_moment_corrections[0][x][0][0] for x in range(3)
         ]).T
         osc = np.linalg.norm(tm, axis=1) ** 2
-        units = 3.554206329390961e6
+        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
         return units * (eng - eng[0]) * osc
 
     def generate_intensity_breakdown(self, include_wavefunctions=True):
