@@ -33,6 +33,16 @@ hamiltonian(self):
 get_wavefunctions(self): 
 ```
 
+<a id="Psience.VPT2.Runner.VPTRunner.print_output_tables" class="docs-object-method">&nbsp;</a>
+```python
+print_output_tables(wfns=None, file=None, print_intensities=True, sep_char='=', sep_len=100): 
+```
+Prints a bunch of formatted output data from a PT run
+- `wfns`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Runner.VPTRunner.print_tables" class="docs-object-method">&nbsp;</a>
 ```python
 print_tables(self, wfns=None, file=None, print_intensities=True, sep_char='=', sep_len=100): 
