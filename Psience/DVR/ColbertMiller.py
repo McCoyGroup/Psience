@@ -85,7 +85,7 @@ class CartesianDVR(BaseDVR):
             row_inds = row_rng[:-i]
             val = hb / dx * (-1) ** (i) / i
             p[row_inds, col_inds] = val
-            p[col_inds, row_inds] = val
+            p[col_inds, row_inds] = -val
 
         return p
 
