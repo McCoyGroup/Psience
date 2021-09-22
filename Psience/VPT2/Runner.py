@@ -410,6 +410,7 @@ class VPTHamiltonianOptions:
          "strip_embedding_coordinates",
          "mixed_derivative_handling_mode",
          "backpropagate_internals",
+         "direct_propagate_cartesians",
          "zero_mass_term",
          "internal_fd_mesh_spacing",
          "internal_fd_stencil",
