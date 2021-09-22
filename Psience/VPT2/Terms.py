@@ -176,6 +176,7 @@ class ExpansionTerms:
         "strip_embedding",
         "mixed_derivative_handling_mode",
         "backpropagate_internals",
+        "direct_propagate_cartesians",
         "zero_mass_term",
         "internal_fd_mesh_spacing",
         "internal_fd_stencil",
@@ -203,6 +204,7 @@ class ExpansionTerms:
                  strip_embedding=False,
                  mixed_derivative_handling_mode="numerical",
                  backpropagate_internals=False,
+                 direct_propagate_cartesians=False,
                  zero_mass_term=1e7,
                  internal_fd_mesh_spacing=1.0e-3,
                  internal_fd_stencil=9,
@@ -231,6 +233,7 @@ class ExpansionTerms:
         self.strip_dummies = strip_dummies
         self.strip_embedding = strip_embedding
         self.backpropagate_internals = backpropagate_internals
+        self.direct_propagate_cartesians = direct_propagate_cartesians
 
         self.zero_mass_term = zero_mass_term
 
@@ -894,7 +897,7 @@ class ExpansionTerms:
             ):
                 YQ_derivs = current_cache[JacobianKeys.CartesiansByInternalModes]
                 qQ_derivs = TensorDerivativeConverter(YQ_derivs, [QY] + [0] * (len(internal_jacobs) - 1),
-                                                      jacobians_name='Yq',
+                                                      jacobians_name='YQ',
                                                       values_name='qY'
                                                       ).convert(order=len(internal_jacobs))#, check_arrays=True)
                 current_cache[JacobianKeys.CartesianModesByInternalModes] = qQ_derivs
@@ -918,8 +921,8 @@ class ExpansionTerms:
                 QR = QR_derivs[0]
                 Qq_derivs = TensorDerivativeConverter(RQ_derivs,
                                                       [QR] + [0] * (len(RQ_derivs) - 1),
-                                                      jacobians_name='Yq',
-                                                      values_name='qY'
+                                                      jacobians_name='Rq',
+                                                      values_name='qR'
                                                       ).convert(order=len(RQ_derivs))
                 current_cache[JacobianKeys.InternalModesByCartesianModes] = Qq_derivs
 
@@ -1068,6 +1071,9 @@ class PotentialTerms(ExpansionTerms):
             self._v_derivs = self._canonicalize_derivs(self.freqs, self.masses, self._input_derivs)
 
         return self._v_derivs
+    @v_derivs.setter
+    def v_derivs(self, v):
+        self._v_derivs = v
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
 
@@ -1324,24 +1330,33 @@ class PotentialTerms(ExpansionTerms):
             self.v_derivs = tuple(self.v_derivs) + (0,) * order
 
         grad = self.v_derivs[0]
+        if self.grad_tolerance is not None:
+            if np.linalg.norm(grad) > self.grad_tolerance:
+                # add some logger stuff...
+                logger.log_print(
+                    "WARNING: gradient norm is {n}",
+                    n=np.linalg.norm(grad)
+                )
+        grad = np.zeros(grad.shape)
+
+        V_derivs = [grad] + list(self.v_derivs[1:])
         # hess = self.v_derivs[1]
 
         # raise Exception([x.shape for x in self.v_derivs])
 
         # Use the Molecule's coordinates which know about their embedding by default
         intcds = self.internal_coordinates
-        if intcds is None:
+        if intcds is None or self.direct_propagate_cartesians:
             # this is nice because it eliminates most of the terms in the expansion
             xQ = self.modes.inverse
 
             x_derivs = [xQ] + [0] * (order-1)
-            V_derivs = self.v_derivs
 
             # terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=False, mixed_XQ=self.mixed_derivs)
 
             if self.mixed_derivs:
                 terms = TensorDerivativeConverter(x_derivs, V_derivs, mixed_terms=[
-                    [None, v] for v in self.v_derivs[2:]
+                    [None, v] for v in V_derivs[2:]
                 ]).convert(order=order)#, check_arrays=True)
             else:
                 terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
@@ -1350,17 +1365,6 @@ class PotentialTerms(ExpansionTerms):
             x_derivs = self.get_cartesians_by_modes(order=order-1)
             # raise Exception(x_derivs[1])
             x_derivs = list(x_derivs) + [0] # gradient term never matters
-
-            if self.grad_tolerance is not None:
-                if np.linalg.norm(grad) > self.grad_tolerance:
-                    # add some logger stuff...
-                    logger.log_print(
-                        "WARNING: gradient norm is {n}",
-                        n = np.linalg.norm(grad)
-                    )
-            grad = np.zeros(grad.shape)
-
-            V_derivs = [grad] + list(self.v_derivs[1:])
 
             if self.mixed_derivs:
                 if order > 4 and not self.allow_higher_potential_terms:
@@ -1474,17 +1478,6 @@ class PotentialTerms(ExpansionTerms):
                     else:
                         raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(self.mixed_derivative_handling_mode))
 
-            # import os, json
-            # with open(os.path.expanduser("~/Desktop/dimer_v4.json"), "w+") as dmp:
-            #     json.dump(v4.tolist(), dmp)
-            # raise Exception("break")
-                    # # zero-out ill-defined terms
-                    # for j in range(v4.shape[1]):
-                    #     for k in range(v4.shape[2]):
-                    #         for l in range(v4.shape[3]):
-                    #             if i != j and i != k and j != k:
-                    #                 v4[i, j, k, l] = 0.
-
         if intcds is not None and self.backpropagate_internals:
             # need to internal mode terms and
             # convert them back to Cartesian mode ones...
@@ -1493,6 +1486,20 @@ class PotentialTerms(ExpansionTerms):
                 Qq_derivs + [0], # pad for the zeroed out gradient term
                 terms
             ).convert(order=order)
+        elif intcds is not None and self.direct_propagate_cartesians:
+            # need to internal mode terms and
+            # convert them back to Cartesian mode ones...
+            qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(terms) - 1)
+            terms = TensorDerivativeConverter(
+                qQ_derivs + [0],  # pad for the zeroed out gradient term
+                terms
+            ).convert(order=order)
+
+        # import McUtils.Plots as plt
+        # plt.TensorPlot(UnitsData.convert("Hartrees", "Wavenumbers")*terms[3], plot_style=dict(
+        #     vmin=-1000,
+        #     vmax=1000
+        # )).show()
 
         # drop the gradient term as that is all zeros
         terms = terms[1:]
@@ -1841,7 +1848,7 @@ class DipoleTerms(ExpansionTerms):
 
         # Use the Molecule's coordinates which know about their embedding by default
         intcds = self.internal_coordinates
-        if intcds is None:# or not self.non_degenerate:
+        if intcds is None or self.direct_propagate_cartesians:# or not self.non_degenerate:
             # this is nice because it eliminates most of terms in the expansion
             xQ = self.modes.inverse
             x_derivs = [xQ] + [0] * (order-1)
@@ -1937,6 +1944,12 @@ class DipoleTerms(ExpansionTerms):
                     Qq_derivs = self.get_internal_modes_by_cartesian_modes(len(terms))
                     terms = TensorDerivativeConverter(
                         Qq_derivs,
+                        terms
+                    ).convert(order=len(terms))
+                elif intcds is not None and self.direct_propagate_cartesians:
+                    qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(terms))
+                    terms = TensorDerivativeConverter(
+                        qQ_derivs,
                         terms
                     ).convert(order=len(terms))
 
@@ -2046,7 +2059,7 @@ class PotentialLikeTerm(KineticTerms):
 
             wat_terms = self.moment_of_inertia_derivs(order)
             for i,d in enumerate(wat_terms):
-                wat_terms[i] = -2*np.sum(d[(0, 1, 2), (0, 1, 2), ...], axis=0)
+                wat_terms[i] = -np.sum(d[(0, 1, 2), (0, 1, 2), ...], axis=0)
 
         else:
             ### transform inertia derivs into mode derivs
