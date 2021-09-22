@@ -1452,6 +1452,50 @@ class VPT2Tests(TestCase):
         )
 
     @validationTest
+    def test_HOHVPTInternalsDirect(self):
+
+        tag = 'HOH Internals'
+        file_name = "HOH_freq.fchk"
+
+        # raise Exception(
+        #     Molecule.from_file(TestManager.test_data("HOH_freq.fchk")).moments_of_inertia
+        # )
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 0, 1, -1]
+        ]
+
+        n_atoms = 3
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
+
+        print_report = True
+
+        gaussian_energies = self.gaussian_data['HOH']['zpe']
+        gaussian_freqs = self.gaussian_data['HOH']['freqs']
+
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            hamiltonian_options = {"direct_propagate_cartesians": True},
+            log=False,
+            verbose=False,
+            print_report=print_report,
+            calculate_intensities=True
+        )
+
+
+    @validationTest
     def test_HOHVPTInternalsEmbedded(self):
 
         tag = 'HOH Cartesians'
@@ -2118,7 +2162,7 @@ class VPT2Tests(TestCase):
             corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/self.h2w
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTRunner3rd(self):
         """
         test that runner works for 3rd order PT, too
@@ -2127,17 +2171,9 @@ class VPT2Tests(TestCase):
         :rtype:
         """
 
-        """
-            > <0|H(0)|0>                        <0|H(1)|0>                        <0|H(0)|1>                        <1|H(0)|0>                        <0|H(2)|0>                        <0|H(1)|1>                        <0|H(0)|2>                        <1|H(1)|0>                        <1|H(0)|1>                        <2|H(0)|0>                       
-    >   8.48486324e+03   0.00000000e+00   0.00000000e+00   7.30156817e+01   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   1.83279339e+02   0.00000000e+00  -4.62346634e+02   0.00000000e+00  -6.73315524e+02   0.00000000e+00  -4.62346634e+02   0.00000000e+00   1.80897768e+03   0.00000000e+00  -6.73315524e+02   0.00000000e+00
-    >   0.00000000e+00   7.92616968e+03   7.30156817e+01   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00  -1.22419751e+02   0.00000000e+00  -8.34575513e+01   0.00000000e+00  -8.76477093e+01   0.00000000e+00  -8.34575513e+01   0.00000000e+00   2.58752970e+02   0.00000000e+00  -8.76477093e+01
-    ::> non-degenerate Hamiltonian
-      > [[8206   73]
-      >  [  73 7720]]
-    <::
-    """
-
         file_name = "HOH_freq.fchk"
+
+        handling_mode="unhandled"
 
         logger=Logger()
         with logger.block(tag="Internals 2nd Order triad"):
@@ -2230,6 +2266,7 @@ class VPT2Tests(TestCase):
                 logger=logger,
                 order=3,
                 expansion_order=2,
+                mixed_derivative_handling_mode=handling_mode,
                 degeneracy_specs=[
                     [[0, 0, 1], [2, 0, 0]],
                     [[0, 1, 0], [2, 0, 0]],
@@ -2517,12 +2554,65 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
+            log=False,
             verbose=True,
             calculate_intensities=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
-            gaussian_tolerance=gaussian_tolerance
+            gaussian_tolerance=gaussian_tolerance,
+            hamiltonian_options={
+                "mixed_derivative_handling_mode":"unhandled"
+            }
+        )
+
+    @validationTest
+    def test_OCHHVPTInternalsDirectProp(self):
+
+        tag = 'OCHH Internals'
+        file_name = "OCHH_freq.fchk"
+
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  1,  0, -1],
+            [3,  1,  0,  2]
+        ]
+
+        n_atoms = 4
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)
+
+        gaussian_energies = self.gaussian_data['OCHH']['zpe']
+        gaussian_freqs = self.gaussian_data['OCHH']['freqs']
+
+        # ExpansionTerms.cartesian_analytic_deriv_order = 0
+        # ExpansionTerms.cartesian_fd_mesh_spacing = 1.0e-3
+        # ExpansionTerms.cartesian_fd_stencil = 9
+
+        print_report = True
+        nielsen_tolerance = 1
+        gaussian_tolerance = 100
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=True,
+            calculate_intensities=True,
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            hamiltonian_options={
+                "direct_propagate_cartesians":True,
+                "mixed_derivative_handling_mode":"unhandled"
+                                 }
         )
 
     @validationTest
@@ -2554,7 +2644,7 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
+            log=False,
             verbose=True,
             calculate_intensities=True,
             print_report=print_report,
@@ -3139,6 +3229,14 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
+    """
+      0 0 0 0 0 1    3061.70147     95.24194      2937.42073     67.88355
+      0 0 0 0 1 0    2977.64050     69.29750      2820.54966     64.51113
+      0 0 0 1 0 0    1727.08265     63.79277      1695.15657     65.45991
+      0 0 1 0 0 0    1527.04080     11.12160      1493.14023      9.38237
+      0 1 0 0 0 0    1252.16397      9.69252      1231.36414     10.16233
+      1 0 0 0 0 0    1188.11376      7.01998      1166.70422      7.00896
+      """
     @validationTest
     def test_OCHDVPTCartesians(self):
 
@@ -4192,7 +4290,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTInternals(self):
 
         """
@@ -4266,7 +4364,7 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
+            log=False,
             verbose=True,
             print_profile=False,
             # profile_filter='Combinatorics/Permutations',
@@ -4369,6 +4467,95 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
+    @debugTest
+    def test_WaterDimerVPTInternalsDirectProp(self):
+
+        """
+      1          1           0        0.000000    0.000000    0.000000
+      2          8           0        0.000000    0.000000    0.960485
+      3          1           0        0.938795    0.000000    1.199654
+      4          8           0        2.745004    0.000000    1.930528
+      5          1           0        2.858217    0.761260    2.508248
+      6          1           0        2.858217   -0.761260    2.508248
+      """
+
+        tag = 'Water Dimer Internals'
+        file_name = "water_dimer_freq.fchk"
+
+        COM = -3
+        A = -2
+        C = -1
+        X = 1000
+        LHF = 0
+        LO = 1
+        SH = 2
+        RO = 3
+        RH1 = 4
+        RH2 = 5
+        # internals = [
+        #     [LHF,  X,   X,   X],
+        #     [LO, LHF,   X,   X],
+        #     [SH,  LO, LHF,   X],
+        #     [RH2, SH,  LO, LHF], # get out of plane
+        #     [RO,  LO, RH2, LHF],
+        #     [RH1, RO, RH2, LHF]
+        # ]
+
+        # internals = [
+        #     [LHF,   X,   X,   X],
+        #     [LO,  LHF,   X,   X],
+        #     [SH,   LO, LHF,   X],
+        #     [RO,   LO,  SH, LHF],
+        #     [RH1,  RO,  LO, LHF],
+        #     [RH2,  RO, RH1,  LO]
+        # ]
+
+        internals = [
+            [LHF, X, X, X],
+            [LO, LHF, X, X],
+            [SH, LO, LHF, X],
+            [RO, LO, LHF, C],
+            [RH1, RO, SH, LHF],
+            [RH2, RO, RH1, LHF]
+        ]
+
+        n_atoms = 6
+        n_modes = 3 * n_atoms - 6
+        mode_selection = None  # [5, 4, 3]
+        if mode_selection is not None and len(mode_selection) < n_modes:
+            n_modes = len(mode_selection)
+        states = VPTStateSpace.get_state_list_from_quanta(3, n_modes)  # [:6]
+
+        gaussian_energies = self.gaussian_data['WaterDimer']['zpe']
+        gaussian_freqs = self.gaussian_data['WaterDimer']['freqs']
+
+        # chk = os.path.expanduser('~/Desktop/dimer_chk2.hdf5')
+        print_report = True
+        nielsen_tolerance = 50
+        gaussian_tolerance = 50
+        self.run_PT_test(
+            tag,
+            file_name,
+            internals,
+            mode_selection,
+            states,
+            gaussian_energies,
+            gaussian_freqs,
+            log=False,
+            verbose=False,
+            print_profile=False,
+            hamiltonian_options={"direct_propagate_cartesians": True},
+            # profile_filter='Combinatorics/Permutations',
+            print_report=print_report,
+            nielsen_tolerance=nielsen_tolerance,
+            gaussian_tolerance=gaussian_tolerance,
+            calculate_intensities=True
+            # , checkpoint=chk
+            , use_cached_representations=False
+            , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
+            # , parallelized=True
+        )
+
     @validationTest
     def test_WaterDimerVPTInternalsDummy(self):
         # Borked up somehow...
@@ -4448,7 +4635,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4478,7 +4665,7 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=True,
+            log=False,
             verbose=False,
             print_profile=False,
             # profile_filter='Combinatorics/Permutations',
