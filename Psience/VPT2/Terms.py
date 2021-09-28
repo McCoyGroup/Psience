@@ -891,7 +891,6 @@ class ExpansionTerms:
                 current_cache[JacobianKeys.CartesiansByInternalModes] = YQ_derivs
 
             if (
-
                     JacobianKeys.CartesianModesByInternalModes not in current_cache
                     or len(current_cache[JacobianKeys.CartesianModesByInternalModes]) < len(internal_jacobs)
             ):
@@ -915,7 +914,7 @@ class ExpansionTerms:
             if (
 
                     JacobianKeys.InternalModesByCartesianModes not in current_cache
-                    or len(current_cache[JacobianKeys.InternalModesByCartesianModes]) < len(internal_jacobs)
+                    or len(current_cache[JacobianKeys.InternalModesByCartesianModes]) < len(cartesian_jacobs)
             ):
                 RQ_derivs = current_cache[JacobianKeys.InternalsByCartesianModes]
                 QR = QR_derivs[0]
@@ -1338,7 +1337,6 @@ class PotentialTerms(ExpansionTerms):
                     n=np.linalg.norm(grad)
                 )
         grad = np.zeros(grad.shape)
-
         V_derivs = [grad] + list(self.v_derivs[1:])
         # hess = self.v_derivs[1]
 
@@ -1346,7 +1344,11 @@ class PotentialTerms(ExpansionTerms):
 
         # Use the Molecule's coordinates which know about their embedding by default
         intcds = self.internal_coordinates
-        if intcds is None or self.direct_propagate_cartesians:
+        direct_prop = (
+                self.direct_propagate_cartesians
+                and not (isinstance(self.direct_propagate_cartesians, str) and self.direct_propagate_cartesians == 'dipoles')
+        )
+        if intcds is None or direct_prop:
             # this is nice because it eliminates most of the terms in the expansion
             xQ = self.modes.inverse
 
@@ -1486,7 +1488,7 @@ class PotentialTerms(ExpansionTerms):
                 Qq_derivs + [0], # pad for the zeroed out gradient term
                 terms
             ).convert(order=order)
-        elif intcds is not None and self.direct_propagate_cartesians:
+        elif intcds is not None and direct_prop:
             # need to internal mode terms and
             # convert them back to Cartesian mode ones...
             qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(terms) - 1)
@@ -1494,6 +1496,47 @@ class PotentialTerms(ExpansionTerms):
                 qQ_derivs + [0],  # pad for the zeroed out gradient term
                 terms
             ).convert(order=order)
+
+            xQ2 = self.modes.inverse
+            _, v2x, = TensorDerivativeConverter((xQ2, 0), V_derivs).convert(order=2)  # , check_arrays=True)#self._get_tensor_derivs((xQ2, 0, 0, 0), V_derivs, order=2, mixed_XQ=False)
+            if self.hessian_tolerance is not None:
+                v2 = terms[1]
+                v2_diff = v2 - v2x
+                if np.max(np.abs(v2_diff)) > self.hessian_tolerance:
+                    new_freqs = np.diag(v2) * UnitsData.convert("Hartrees", "Wavenumbers")
+                    old_freqs = np.diag(v2x) * UnitsData.convert("Hartrees", "Wavenumbers")
+                    zero_pos_new = np.where(np.abs(new_freqs) < 1.0e-10)
+                    zero_pos_old = np.where(np.abs(old_freqs) < 1.0e-10)
+                    if len(zero_pos_new) > 0 and (
+                            len(zero_pos_old) == 0
+                            or len(zero_pos_old[0]) != len(zero_pos_new[0])
+                    ):
+                        raise PerturbationTheoryException(
+                            (
+                                "Encountered zero frequencies in internal normal mode Hessian that aren't in Cartesian normal mode Hessian."
+                                " Cartesian frequencies are \n{}\n but internals are \n{}\n"
+                                " This often indicates a planar dihedral angle where the derivatives are ill-defined.\n"
+                                " Try using dummy atoms to create a proper 3D structure.\n"
+                            ).format(
+                                old_freqs,
+                                new_freqs
+                            )
+                        )
+                    else:
+                        raise PerturbationTheoryException(
+                            (
+                                "Internal normal mode Hessian differs from Cartesian normal mode Hessian."
+                                " Cartesian frequencies are \n{}\n, internals are \n{}\n"
+                                " This often indicates issues with the derivatives.\n"
+                                " (YQ min/max: {} {} generally in the 10s for well-behaved systems)\n"
+                                " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)"
+                            ).format(
+                                old_freqs,
+                                new_freqs,
+                                np.min(x_derivs[0]), np.max(x_derivs[0]),
+                                np.min(x_derivs[1]), np.max(x_derivs[1])
+                            )
+                        )
 
         # import McUtils.Plots as plt
         # plt.TensorPlot(UnitsData.convert("Hartrees", "Wavenumbers")*terms[3], plot_style=dict(
@@ -1848,7 +1891,11 @@ class DipoleTerms(ExpansionTerms):
 
         # Use the Molecule's coordinates which know about their embedding by default
         intcds = self.internal_coordinates
-        if intcds is None or self.direct_propagate_cartesians:# or not self.non_degenerate:
+        direct_prop = (
+                self.direct_propagate_cartesians
+                and not (isinstance(self.direct_propagate_cartesians, str) and self.direct_propagate_cartesians == 'potential')
+        )
+        if intcds is None or direct_prop:# or not self.non_degenerate:
             # this is nice because it eliminates most of terms in the expansion
             xQ = self.modes.inverse
             x_derivs = [xQ] + [0] * (order-1)
@@ -1946,7 +1993,7 @@ class DipoleTerms(ExpansionTerms):
                         Qq_derivs,
                         terms
                     ).convert(order=len(terms))
-                elif intcds is not None and self.direct_propagate_cartesians:
+                elif intcds is not None and direct_prop:
                     qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(terms))
                     terms = TensorDerivativeConverter(
                         qQ_derivs,

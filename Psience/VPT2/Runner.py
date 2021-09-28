@@ -6,6 +6,7 @@ import numpy as np, sys
 
 from McUtils.Scaffolding import ParameterManager
 from McUtils.Zachary import FiniteDifferenceDerivative
+from McUtils.Combinatorics import PermutationRelationGraph
 
 from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
 from ..Molecools import Molecule
@@ -251,78 +252,8 @@ class VPTStateSpace:
         :rtype:
         """
 
-        # TODO: would be good to speed this up with some sets & state hashing
-        #       rather than just using lists and list containment
-
-
-        # we build a graph of connected states by the polyadic rules
-        polyadic_pairs = np.asanyarray(polyadic_pairs)
-        states = np.array(states)
-        poss_degs = [[] for _ in states]
-        check_list = states.tolist() #type: list
-        for n, s in enumerate(states):  # build list-of-lists structure
-            for i, nt_spec in enumerate(polyadic_pairs):
-                if np.all(s - nt_spec[0] >= 0):
-                    new = (s - nt_spec[0] + nt_spec[1]).tolist()
-                    if max_quanta is not None and sum(new) > max_quanta:
-                        continue
-                    if new not in check_list:
-                        check_list.append(new)
-                        poss_degs.append([])
-                    # else:
-                    #     poss_degs[idx].append(slist)
-                    poss_degs[n].append(new)
-                elif np.all(s - nt_spec[1] >= 0):
-                    new = (s - nt_spec[1] + nt_spec[0]).tolist()
-                    if max_quanta is not None and sum(new) > max_quanta:
-                        continue
-                    if new not in check_list:
-                        check_list.append(new)
-                        poss_degs.append([])
-                    # else:
-                    #     poss_degs[idx].append(slist)
-                    poss_degs[n].append(new)
-
-        if extra_groups is not None:
-            for g in extra_groups:
-                for s in g:
-                    try:
-                        idx = check_list.index(s)
-                    except IndexError:
-                        check_list.append(s)
-                        poss_degs.append([])
-                    else:
-                        poss_degs[idx].extend([x for x in g if x not in poss_degs[idx]])
-                        break
-                else:
-                    raise ValueError("no state in {} is in the base degeneracy check list".format(
-                        g
-                    ))
-
-        # raise Exception(poss_degs)
-
-        # from the populated lists build the real connection graph
-        groups = [[] for _ in check_list]
-        new_checks = []
-        # loop through the total set of states we've with degeneracies
-        for i, s1 in enumerate(check_list):
-            if s1 not in new_checks: # we'll build a degenerate group for this one
-                new_checks.append(s1) # tag the node as visited
-                # populate degenerate group
-                groups[i].append(s1)
-                groups[i].extend(poss_degs[i])
-
-                # check for collisions with remaining nodes
-                for s2, p in zip(check_list[i + 1:], poss_degs[i + 1:]):
-                    if s2 not in new_checks:
-                        if (
-                                s2 in poss_degs[i] # checked state is in current group
-                                or s1 in p or any(x in p for x in poss_degs[i]) # any current state is in the checked group
-                        ):
-                            new_checks.append(s2)
-                            if s2 not in groups[i]:
-                                groups[i].append(s2)
-                            groups[i].extend(x for x in p if x not in groups[i])
+        graph = PermutationRelationGraph(polyadic_pairs)
+        groups = graph.build_state_graph(states, max_sum=max_quanta, extra_groups=extra_groups)
 
         return [g for g in groups if len(g) > 1]
 
