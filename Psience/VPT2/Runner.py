@@ -256,8 +256,8 @@ class VPTStateSpace:
         groups = graph.build_state_graph(states,
                                          extra_groups=extra_groups,
                                          max_sum=max_quanta,
-                                         max_iterations=max_iterations, 
-                                         raise_iteration_error=not require_converged
+                                         max_iterations=max_iterations,
+                                         raise_iteration_error=require_converged
                                          )
 
         return [g for g in groups if len(g) > 1]
