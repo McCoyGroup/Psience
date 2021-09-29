@@ -2515,7 +2515,7 @@ class VPT2Tests(TestCase):
             [2440.278, 2404.805]
         ])
     }
-    @debugTest
+    @validationTest
     def test_OCHHVPTInternals(self):
 
         tag = 'OCHH Internals'
@@ -2561,7 +2561,7 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTInternalsDirectProp(self):
 
         tag = 'OCHH Internals'
@@ -2659,7 +2659,7 @@ class VPT2Tests(TestCase):
             }
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesians(self):
 
         tag = 'OCHH Cartesians'
