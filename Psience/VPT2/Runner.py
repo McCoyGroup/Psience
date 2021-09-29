@@ -237,7 +237,7 @@ class VPTStateSpace:
         else:
             raise NotImplementedError("don't know what to do with degeneracy spec {}".format(degeneracy_specs))
     @classmethod
-    def get_degenerate_polyad_space(cls, states, polyadic_pairs, max_quanta=None, extra_groups=None):
+    def get_degenerate_polyad_space(cls, states, polyadic_pairs, max_quanta=None, max_iterations=2, require_converged=False, extra_groups=None):
         """
         Gets degenerate spaces by using pairs of transformation rules to
         take an input state and connect it to other degenerate states
@@ -253,7 +253,12 @@ class VPTStateSpace:
         """
 
         graph = PermutationRelationGraph(polyadic_pairs)
-        groups = graph.build_state_graph(states, max_sum=max_quanta, extra_groups=extra_groups)
+        groups = graph.build_state_graph(states,
+                                         extra_groups=extra_groups,
+                                         max_sum=max_quanta,
+                                         max_iterations=max_iterations, 
+                                         raise_iteration_error=not require_converged
+                                         )
 
         return [g for g in groups if len(g) > 1]
 
