@@ -902,7 +902,7 @@ class VPTRunner:
                 for k,v in opts.items():
                     logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
 
-            runner.print_tables(wfns=wfns)
+            runner.print_tables()
 
 class VPTStateMaker:
     """
