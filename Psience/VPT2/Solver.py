@@ -18,8 +18,6 @@ __all__ = [
     "PerturbationTheoryCorrections"
 ]
 
-#TODO: add state space filter object
-
 class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
     @classmethod
@@ -252,7 +250,6 @@ class PerturbationTheoryCorrections:
 
     """
     def __init__(self,
-                 hamiltonians,
                  states,
                  coupled_states,
                  total_basis,
@@ -265,8 +262,6 @@ class PerturbationTheoryCorrections:
                  logger=None
                  ):
         """
-        :param hamiltonians:
-        :type hamiltonians: Iterable[SparseArray]
         :param states:
         :type states: BasisStateSpace
         :param coupled_states:
@@ -284,7 +279,6 @@ class PerturbationTheoryCorrections:
         :param degenerate_energies:
         :type degenerate_energies: None | np.ndarray
         """
-        self.hams = hamiltonians
         self.states = states
         self.coupled_states = coupled_states
         self.total_basis = total_basis
@@ -308,8 +302,6 @@ class PerturbationTheoryCorrections:
         :type states: dict
         :param corrections: the corrections generated, including the corrections for the energies, wavefunctions, and a transformation from degenerate PT
         :type corrections: dict
-        :param hamiltonians: the set of Hamiltonian matrices used as an expansion
-        :type hamiltonians: Iterable[np.ndarray]
         """
         state_space = states['states']
         coupled_states = states['coupled_states']
@@ -333,7 +325,6 @@ class PerturbationTheoryCorrections:
             degenerate_energies = None
 
         return cls(
-            hamiltonians,
             state_space,
             coupled_states,
             total_basis,
@@ -373,7 +364,6 @@ class PerturbationTheoryCorrections:
         new_states = self.states.find(space)
         # raise Exception(new_states)
         return type(self)(
-            self.hams,
             self.states.take_states(space),
             self.coupled_states.take_states(space),
             self.total_basis,
@@ -544,8 +534,7 @@ class PerturbationTheoryCorrections:
             coupled_states=self.coupled_states,
             total_states=self.total_basis,
             energies=self.energy_corrs,
-            wavefunctions=self.wfn_corrections,
-            hamiltonians=self.hams
+            wavefunctions=self.wfn_corrections
         )
         if self.degenerate_states is not None:
             keys['degenerate_states'] = self.degenerate_states
@@ -580,7 +569,6 @@ class PerturbationTheoryCorrections:
             total_states=self.total_basis,
             energies=self.energy_corrs,
             wavefunctions=self.wfn_corrections,
-            hamiltonians=self.hams,
             degenerate_states=self.degenerate_states,
             degenerate_transformations=self.degenerate_transf,
             degenerate_energies=self.degenerate_energies
@@ -603,6 +591,219 @@ class PerturbationTheoryCorrections:
             },
             data['hamiltonians'] # we probably want to ditch this for memory reasons...
         )
+
+class PerturbationTheoryStateSpaceFilter:
+    """
+    Provides an easier constructor for the VPT state space filters
+    """
+    def __init__(self, input_space, prefilters, postfilters):
+        """
+        :param input_space:
+        :type input_space: BasisStateSpace
+        :param prefilters:
+        :type prefilters:
+        :param postfilters:
+        :type postfilters:
+        """
+
+        self.input_space = input_space
+        self._prefilters = None
+        self._raw_prefilters = prefilters
+        self._postfilters = postfilters
+
+    @classmethod
+    def from_data(cls, input_space, data):
+        """
+        Works to canonicalize inputs and initialize appropriately from there
+
+        :param data:
+        :type data:
+        :return:
+        :rtype:
+        """
+
+        if data is None:
+            return None
+        elif isinstance(data, dict):
+            if not all(isinstance(v, cls) for v in data.values()):
+                cls._from_old_style_rules(input_space, data)
+            else:
+                return data
+        else:
+            return cls.from_rules(input_space, *data)
+
+    @classmethod
+    def _from_old_style_rules(cls, input_space, rules):
+        """
+        Builds a set of filter spaces from a dict keyed by Hamiltonian/wfn pairs
+        and giving prefilters/postfilters
+
+        :param rules:
+        :type rules:
+        :return:
+        :rtype:
+        """
+        new_rules = []
+        for k,v in rules.items():
+            if not isinstance(v, dict):
+                v = {'prefilters':v}
+            new_rules.append(dict({'order':k[0]+k[1], 'expansion_term':k[0]}, **v))
+
+        return cls.from_rules(input_space, *new_rules)
+
+
+    @classmethod
+    def from_rules(cls, input_space, *rules):
+        """
+        Builds a set of filter spaces from dicts of rules
+
+        :param rules:
+        :type rules:
+        :return:
+        :rtype:
+        """
+
+        filters = {}
+        for r in rules:
+            if not isinstance(r, dict):
+                raise ValueError("filter rule must be a dict with `order`, `expansion_term`"
+                                 ", and one or both of `prefilters` and `postfilter` for keys")
+            for k in ["order", "expansion_term"]:
+                if k not in r:
+                    raise ValueError("filter rule needs `order`, `expansion_term`"
+                                     ", and one or both of `prefilters` and `postfilter` for keys")
+            if 'prefilters' not in r and 'postfilter' not in r:
+                raise ValueError("filter rule needs one or both of `prefilters` and `postfilter` for keys")
+
+            h_term = r['expansion_term']
+            y_term = r['order'] - h_term
+
+            filters[(h_term, y_term)] = cls(
+                input_space,
+                r['prefilters'] if 'prefilters' in r else None,
+                r['postfilter'] if 'postfilter' in r else None
+            )
+
+        return filters
+
+    @property
+    def prefilters(self):
+        if self._prefilters is None:
+            self._prefilters = self.canonicalize_prefilters(self.input_space.basis,
+                                                            self._raw_prefilters)
+        return self._prefilters
+
+    def _could_be_a_space(self, test): # nasty checking code that I don't want to redupe all the time
+        if isinstance(test, (BasisStateSpace, BasisMultiStateSpace)):
+            return True
+        else:
+            try:
+                lt = len(test)
+            except TypeError:
+                return False
+
+            try:
+                if lt > 0 and isinstance(test[0], (int, np.integer)):
+                    return True
+                else:
+                    lt = len(test[0])
+                    if lt > 0 and isinstance(test[0][0], (int, np.integer)):
+                        return True
+                    else:
+                        return False
+            except TypeError:
+                return False
+
+    def _could_be_rules(self, test):
+        # selection rule options
+        if test is None:
+            return True
+
+        try:
+            lt = len(test)
+        except TypeError:
+            return False
+
+        if lt == 0:
+            return True
+
+        try:
+            lt = len(test[0])
+            res = (
+                    lt == 0
+                    or isinstance(test[0][0], (int, np.integer))
+            )
+        except TypeError:
+            return False
+
+        return res
+
+    def _could_be_a_prefilter(self, test):
+        return (
+            test is None
+            or self._could_be_a_space(test)
+            or (
+                    len(test) == 2 and
+                    test[0] is None or self._could_be_a_space(test[0])
+                    and self._could_be_rules(test[1])
+            )
+        )
+
+    def canonicalize_prefilters(self, basis, prefilters):
+        """
+        Puts the prefilters in canonical form...
+
+        :param basis:
+        :type basis:
+        :param prefilters:
+        :type prefilters:
+        :return:
+        :rtype:
+        """
+
+        if prefilters is None:
+            return None
+
+        if self._could_be_a_prefilter(prefilters):
+            prefilters = (prefilters,)
+
+        final_filters = []
+        for n, filter_space in enumerate(prefilters):
+            if filter_space is None or self._could_be_a_space(filter_space):
+                filter_rules = None
+            else:
+                filter_space, filter_rules = filter_space
+
+            if filter_space is not None:
+                if isinstance(filter_space, (int, np.integer)):
+                    filter_space = BasisStateSpace.from_quanta(
+                        self.input_space.basis,
+                        (filter_space,)
+                    )
+                elif isinstance(filter_space, (list, tuple)) and all(
+                        isinstance(f, (int, np.integer)) for f in filter_space
+                ):
+                    filter_space = BasisStateSpace.from_quanta(
+                        self.input_space.basis,
+                        filter_space
+                    )
+                if not isinstance(filter_space, (BasisStateSpace, BasisMultiStateSpace)):
+                    filter_space = BasisStateSpace(basis, filter_space)
+                if isinstance(filter_space, SelectionRuleStateSpace):
+                    filter_space = filter_space.to_single().take_unique()
+
+            final_filters.append([filter_space, filter_rules])
+
+        return final_filters
+
+    @classmethod
+    def from_property_rules(cls,
+                            initial_space, target_space,
+                            property_rules, order=2
+                            ):
+
+
+        raise NotImplementedError("bleeh")
 
 class PerturbationTheorySolver:
     """
@@ -635,6 +836,7 @@ class PerturbationTheorySolver:
                  logger=None,
                  parallelizer=None,
                  checkpointer=None,
+                 results=None,
                  checkpoint_keys=None,
                  use_cached_representations=True,
                  use_cached_basis=True
@@ -659,6 +861,8 @@ class PerturbationTheorySolver:
         :type parallelizer:
         :param checkpointer:
         :type checkpointer:
+        :param results:
+        :type results:
         """
 
         # if memory_constrained:
@@ -669,12 +873,13 @@ class PerturbationTheorySolver:
         self.order = order
         self.state_space_iterations=state_space_iterations
         self.state_space_terms=state_space_terms
-        self.state_space_filters=state_space_filters
+        self.state_space_filters=PerturbationTheoryStateSpaceFilter.from_data(states, state_space_filters)
         self.target_property_rules=target_property_rules
 
         self.logger = logger
         self.parallelizer = parallelizer
         self.checkpointer = checkpointer
+        self.results = results
         self.checkpoint_keys = checkpoint_keys
         self.use_cached_representations=use_cached_representations
         self.use_cached_basis=use_cached_basis
@@ -806,11 +1011,11 @@ class PerturbationTheorySolver:
                 corrs.degenerate_energies = deg_engs
                 corrs.degenerate_transf = deg_transf
 
-        if (
-                self.keep_hamiltonians is None and self.memory_constrained
-                or (self.keep_hamiltonians is not None and not self.keep_hamiltonians)
-        ):
-            corrs.hams = None # just to allow the memory to be freed
+        # if (
+        #         self.keep_hamiltonians is None and self.memory_constrained
+        #         or (self.keep_hamiltonians is not None and not self.keep_hamiltonians)
+        # ):
+        #     corrs.hams = None # just to allow the memory to be freed
 
         return corrs
 
@@ -835,7 +1040,7 @@ class PerturbationTheorySolver:
                         H = checkpointer['representations']
                     else:
                         H = None
-                except KeyError:
+                except (OSError, KeyError):
                     H = None
                 if H is None:
                     self.logger.log_print('failed to load, building instead...')
@@ -963,7 +1168,7 @@ class PerturbationTheorySolver:
                     try:
                         if self.use_cached_basis:
                             self._coupled_states = self.checkpointer['coupled_states']
-                    except KeyError:
+                    except (OSError, KeyError):
                         self._coupled_states = None
                     if self._coupled_states is None:
                         self.logger.log_print('fail to load, building instead...')
@@ -1282,12 +1487,9 @@ class PerturbationTheorySolver:
     def _apply_transformation_with_filters(self, a, b, filter_space, **opts):
 
         if filter_space is not None:
-            if isinstance(filter_space, dict):
-                prefilters = filter_space['pre'] if 'pre' in filter_space else None
-                postfilter = filter_space['post'] if 'post' in filter_space else None
-            else:
-                prefilters = filter_space
-                postfilter = None
+            prefilters = filter_space.prefilters
+            print(prefilters)
+            postfilter = filter_space.postfilter
         else:
             prefilters = None
             postfilter = None
@@ -1301,21 +1503,7 @@ class PerturbationTheorySolver:
             new = None # the new space we will slowly build
             b_remainder = b #.as_sorted()
 
-            # check to see if we were only passed a single prefilter
-            if self._could_be_a_prefilter(prefilters):
-                prefilters = (prefilters,)
-
-            for n, filter_space in enumerate(prefilters):
-                if filter_space is None or self._could_be_a_space(filter_space):
-                    filter_rules = None
-                else:
-                    filter_space, filter_rules = filter_space
-
-                if filter_space is not None:
-                    if not isinstance(filter_space, (BasisStateSpace, BasisMultiStateSpace)):
-                        filter_space = BasisStateSpace(b.basis, filter_space)
-                    if isinstance(filter_space, SelectionRuleStateSpace):
-                        filter_space = filter_space.to_single().take_unique()
+            for n, (filter_space, filter_rules) in enumerate(prefilters):
 
                 # take the intersection/remainder
                 if filter_space is None:
@@ -2078,13 +2266,25 @@ class PerturbationTheorySolver:
                 , logger=self.logger
             )
 
-            try:
-                checkpointer['corrections'] = {
-                    'energies': all_energies,
-                    'wavefunctions': corr_mats
-                }
-            except KeyError:
-                pass
+            if self.results is None:
+                try:
+                    checkpointer['corrections'] = {
+                        'energies': all_energies,
+                        'wavefunctions': corr_mats
+                    }
+                except KeyError:
+                    pass
+            else:
+                with self.results:
+                    try:
+                        self.results['corrections'] = {
+                            "states": states.excitations,
+                            "total_states": total_states.excitations,
+                            'energies': all_energies,
+                            'wavefunctions': corr_mats
+                        }
+                    except KeyError:
+                        pass
 
             # with self.logger.block(tag="overlap matrix"):
             #     self.logger.log_print(str(np.sum(corrs.get_overlap_matrices(), axis=0)).splitlines())

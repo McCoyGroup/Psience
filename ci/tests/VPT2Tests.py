@@ -3045,7 +3045,7 @@ class VPT2Tests(TestCase):
             ]
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTRunnerPolyadExtended(self):
 
         file_name = "OCHH_freq.fchk"
@@ -4206,7 +4206,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @validationTest
+    @debugTest
     def test_WaterDimerVPTInternals(self):
 
         """
@@ -4258,6 +4258,15 @@ class VPT2Tests(TestCase):
             [RH2,  RO,  RH1, LHF]
         ]
 
+        internals = [
+            [LHF,  X,   X,   X],
+            [LO, LHF,   X,   X],
+            [SH,  LO, LHF,   X],
+            [RH2, SH,  LO, LHF], # get out of plane
+            [RO,  LO, RH2, LHF],
+            [RH1, RO, RH2, LHF]
+        ]
+
         n_atoms = 6
         n_modes = 3 * n_atoms - 6
         mode_selection = None  # [5, 4, 3]
@@ -4280,8 +4289,8 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=False,
-            verbose=True,
+            log=True,
+            verbose=False,
             print_profile=False,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
@@ -4292,6 +4301,7 @@ class VPT2Tests(TestCase):
             , use_cached_representations=False
             , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , parallelized=True
+            , hamiltonian_options={'cartesian_analytic_deriv_order':0}
         )
 
     @validationTest

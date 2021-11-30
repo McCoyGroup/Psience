@@ -15,41 +15,40 @@ from .Terms import DipoleTerms
 from .Solver import PerturbationTheoryCorrections
 
 __all__ = [
-    'PerturbationTheoryWavefunction',
+    # 'PerturbationTheoryWavefunction',
     'PerturbationTheoryWavefunctions'
 ]
 
 
-class PerturbationTheoryWavefunction(ExpansionWavefunction):
-    """
-    These things are fed the first and second order corrections
-    """
-
-    def __init__(self, mol, basis, corrections):
-        """
-        :param mol: the molecule the wavefunction is for
-        :type mol: Molecule
-        :param basis: the basis the expansion is being done in
-        :type basis: RepresentationBasis
-        :param corrections: the corrections to the terms
-        :type corrections: PerturbationTheoryCorrections
-        """
-        self.mol = mol
-        self.corrs = corrections
-        self.rep_basis = basis
-        super().__init__(self.corrs.energies, self.corrs.wavefunctions, None)
-
-    @property
-    def order(self):
-        return self.corrs.order
-
-    def expectation(self, operator, other):
-        return NotImplemented
-
-    @property
-    def zero_order_energy(self):
-        return self.corrs.energies[0]
-
+# class PerturbationTheoryWavefunction(ExpansionWavefunction):
+#     """
+#     These things are fed the first and second order corrections
+#     """
+#
+#     def __init__(self, mol, basis, corrections):
+#         """
+#         :param mol: the molecule the wavefunction is for
+#         :type mol: Molecule
+#         :param basis: the basis the expansion is being done in
+#         :type basis: RepresentationBasis
+#         :param corrections: the corrections to the terms
+#         :type corrections: PerturbationTheoryCorrections
+#         """
+#         self.mol = mol
+#         self.corrs = corrections
+#         self.rep_basis = basis
+#         super().__init__(self.corrs.energies, self.corrs.wavefunctions, None)
+#
+#     @property
+#     def order(self):
+#         return self.corrs.order
+#
+#     def expectation(self, operator, other):
+#         return NotImplemented
+#
+#     @property
+#     def zero_order_energy(self):
+#         return self.corrs.energies[0]
 
 class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     """
@@ -90,6 +89,31 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             self.corrs.energies,
             self.corrs.wfn_corrections,
             None
+        )
+
+    def to_state(self, serializer=None):
+        keys = dict(
+            corrections=self.corrs,
+            molecule=self.mol,
+            modes=self.modes,
+            mode_selection=self.mode_selection,
+            basis=self.rep_basis,
+            expansion_options=self.expansion_options,
+            operator_settings=self.operator_settings,
+            logger=self.logger
+        )
+        return keys
+
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(
+            serializer.deserialize(data['molecule']),
+            serializer.deserialize(data['basis']), serializer.deserialize(data['corrections']),
+            modes=serializer.deserialize(data['modes']),
+            mode_selection=serializer.deserialize(data['mode_selection']),
+            logger=serializer.deserialize(data['logger']),
+            operator_settings=serializer.deserialize(data['operator_settings']),
+            expansion_options=serializer.deserialize(data['expansion_options'])
         )
 
     @property

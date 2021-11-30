@@ -449,6 +449,7 @@ class Molecule(AbstractMolecule):
         if self._ints is None and self._zmat is not None:
             zms = MolecularZMatrixCoordinateSystem(self, ordering=self._zmat)
             # print(zms)
+            # print(zms, self.coords, self.coords.system.converter(zms))
             self._ints = self.coords.convert(zms)
         return self._ints
     @property
