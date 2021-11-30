@@ -413,6 +413,8 @@ class ExpansionTerms:
                                                           parallelizer=par
                                                           )
                 ]
+                if need_jacs[0] > self.cartesian_analytic_deriv_order:
+                    new_jacs = new_jacs[self.cartesian_analytic_deriv_order:]
 
                 for j, v in zip(need_jacs, new_jacs):
                     for d in range(j - len(exist_jacs)):
@@ -711,6 +713,7 @@ class ExpansionTerms:
                     a=self.internal_coordinates.system.converter_options["axes_labels"]
                 )
 
+            # fill out
             if (
                     JacobianKeys.CartesiansByInternals not in current_cache
                     or len(current_cache[JacobianKeys.CartesiansByInternals]) < cartesian_by_internal_order
@@ -722,8 +725,8 @@ class ExpansionTerms:
                         "Getting d^nX/dR^n up to order {o}...",
                         o=cartesian_by_internal_order
                     )
-                internal_jacobs = self.get_int_jacobs(list(range(1, cartesian_by_internal_order+1)))
-                for i,x in enumerate(internal_jacobs):
+                cart_by_internal_jacobs = self.get_int_jacobs(list(range(1, cartesian_by_internal_order+1)))
+                for i,x in enumerate(cart_by_internal_jacobs):
                     bad_spots = np.where(np.abs(x) > self.jacobian_warning_threshold)
                     bad_bad_spots = bad_spots # so we don't lose it
                     if len(bad_spots) > 0: # numpy fuckery
@@ -747,12 +750,16 @@ class ExpansionTerms:
                 # The finite difference preserves too much shape by default
                 _contract_dim = DumbTensor._contract_dim
                 _ = []
-                for i,x in enumerate(internal_jacobs):
-                    if isinstance(x, int):
+                for i,x in enumerate(cart_by_internal_jacobs):
+                    if isinstance(x, int) or x.ndim == 2+i:
                         _.append(x)
                     elif x.ndim > 2+i:
                         _.append(_contract_dim(x, 2+i))
-                internal_jacobs = _
+                    else:
+                        raise ValueError("bad shape for Cartesian by internal jacobian {} ({})".format(
+                            i, x.shape
+                        ))
+                cart_by_internal_jacobs = _
 
                 # we'll strip off the embedding coords just in case
                 if self.strip_embedding:
@@ -765,7 +772,7 @@ class ExpansionTerms:
                 # mass weight the derivs w.r.t internals
                 internal_weighting = mass_conv
                 _ = []
-                for i, x in enumerate(internal_jacobs):
+                for i, x in enumerate(cart_by_internal_jacobs):
                     internal_weighting = np.expand_dims(internal_weighting, 0)
                     if isinstance(x, int):
                         _.append(x)
@@ -775,13 +782,12 @@ class ExpansionTerms:
                             for j in range(i+1):
                                 x = np.take(x, good_coords, axis=j)
                         _.append(x)
-                internal_jacobs = _
+                cart_by_internal_jacobs = _
 
-                current_cache[JacobianKeys.CartesiansByInternals] = internal_jacobs
-
+                current_cache[JacobianKeys.CartesiansByInternals] = cart_by_internal_jacobs
 
             else:
-                internal_jacobs = current_cache[JacobianKeys.CartesiansByInternals]
+                cart_by_internal_jacobs = current_cache[JacobianKeys.CartesiansByInternals]
 
             if (
                     JacobianKeys.InternalsByCartesians not in current_cache
@@ -793,9 +799,9 @@ class ExpansionTerms:
                         "Getting d^nR/dX^n up to order {o}...",
                         o=internal_by_cartesian_order
                     )
-                cartesian_jacobs = self.get_cart_jacobs(list(range(1, internal_by_cartesian_order + 1)))
-                m = np.max([np.max(np.abs(x)) for x in cartesian_jacobs])
-                for i,x in enumerate(cartesian_jacobs):
+                int_by_cartesian_jacobs = self.get_cart_jacobs(list(range(1, internal_by_cartesian_order + 1)))
+                m = np.max([np.max(np.abs(x)) for x in int_by_cartesian_jacobs])
+                for i,x in enumerate(int_by_cartesian_jacobs):
                     bad_spots = np.where(np.abs(x) > self.jacobian_warning_threshold)
                     bad_bad_spots = bad_spots # so we don't lose it
                     if len(bad_spots) > 0: # numpy fuckery
@@ -814,14 +820,20 @@ class ExpansionTerms:
                         t=round(end-start, 3)
                     )
 
+                # raise Exception([x.shape for x in int_by_cartesian_jacobs])
+
                 _contract_dim = DumbTensor._contract_dim
                 _ = []
-                for i,x in enumerate(cartesian_jacobs):
-                    if isinstance(x, int):
+                for i,x in enumerate(int_by_cartesian_jacobs):
+                    if isinstance(x, int) or x.ndim == 2+i:
                         _.append(x)
                     elif x.ndim > 2+i:
                         _.append(_contract_dim(x, 2+i))
-                cartesian_jacobs = _
+                    else:
+                        raise ValueError("bad shape for internal by Cartesian jacobian {} ({})".format(
+                            i, x.shape
+                        ))
+                int_by_cartesian_jacobs = _
 
                 # we'll strip off the embedding coords just in case
                 if self.strip_embedding:
@@ -835,7 +847,7 @@ class ExpansionTerms:
                 cartesian_weighting = mass_conv
                 mc = mass_conv
                 _ = []
-                for i, x in enumerate(cartesian_jacobs):
+                for i, x in enumerate(int_by_cartesian_jacobs):
                     cartesian_weighting = np.expand_dims(cartesian_weighting, -1)#[..., np.newaxis]
                     if isinstance(x, int):
                         _.append(x)
@@ -846,43 +858,49 @@ class ExpansionTerms:
                         _.append(x)
                     mc = np.expand_dims(mc, 0)
                     cartesian_weighting = cartesian_weighting * mc
-                cartesian_jacobs = _
+                int_by_cartesian_jacobs = _
 
-                current_cache[JacobianKeys.InternalsByCartesians] = cartesian_jacobs
+                current_cache[JacobianKeys.InternalsByCartesians] = int_by_cartesian_jacobs
             else:
-                cartesian_jacobs = current_cache[JacobianKeys.InternalsByCartesians]
+                int_by_cartesian_jacobs = current_cache[JacobianKeys.InternalsByCartesians]
 
             QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
             YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
 
-            if JacobianKeys.InternalsByCartesianModes not in current_cache:
+            if (
+                    JacobianKeys.InternalsByCartesianModes not in current_cache
+                    or len(current_cache[JacobianKeys.InternalsByCartesianModes]) < internal_by_cartesian_order
+            ):
                 RQ_derivs = TensorDerivativeConverter(
-                    [YQ] + [0]*(len(cartesian_jacobs) - 1),
-                    cartesian_jacobs
-                ).convert(order=len(cartesian_jacobs))#, check_arrays=True)
+                    [YQ] + [0]*(len(int_by_cartesian_jacobs) - 1),
+                    int_by_cartesian_jacobs
+                ).convert(order=len(int_by_cartesian_jacobs))#, check_arrays=True)
                 current_cache[JacobianKeys.InternalsByCartesianModes] = RQ_derivs
             else:
                 RQ_derivs = current_cache[JacobianKeys.InternalsByCartesianModes]
 
-            if JacobianKeys.CartesianModesByInternals not in current_cache:
+            if (
+                    JacobianKeys.CartesianModesByInternals not in current_cache
+                    or len(current_cache[JacobianKeys.CartesianModesByInternals]) < cartesian_by_internal_order
+            ):
                 QR_derivs = TensorDerivativeConverter(
-                    internal_jacobs,
-                    [QY] + [0]*(len(internal_jacobs) - 1)
-                ).convert(order=len(internal_jacobs))
+                    cart_by_internal_jacobs,
+                    [QY] + [0]*(len(cart_by_internal_jacobs) - 1)
+                ).convert(order=len(cart_by_internal_jacobs))
                 current_cache[JacobianKeys.CartesianModesByInternals] = QR_derivs
             else:
                 QR_derivs = current_cache[JacobianKeys.CartesianModesByInternals]
 
             if (
                     JacobianKeys.CartesiansByInternalModes not in current_cache
-                    or len(current_cache[JacobianKeys.CartesiansByInternalModes]) < len(internal_jacobs)
+                    or len(current_cache[JacobianKeys.CartesiansByInternalModes]) < len(cart_by_internal_jacobs)
             ):
-                x_derivs = internal_jacobs#(YR, YRR, YRRR, YRRRR)
-                Q_derivs = RQ_derivs[:1] + [0]*(len(internal_jacobs) - 1)
+                x_derivs = cart_by_internal_jacobs#(YR, YRR, YRRR, YRRRR)
+                Q_derivs = RQ_derivs[:1] + [0]*(len(cart_by_internal_jacobs) - 1)
                 YQ_derivs = TensorDerivativeConverter(Q_derivs, x_derivs,
                                                       jacobians_name='Q',
                                                       values_name='X'
-                                                      ).convert(order=len(internal_jacobs))#, check_arrays=True)
+                                                      ).convert(order=len(cart_by_internal_jacobs))#, check_arrays=True)
                 # self._get_tensor_derivs(
                 #     YQ_derivs, (QY, 0, 0, 0),
                 #     mixed_XQ=False
@@ -892,29 +910,28 @@ class ExpansionTerms:
 
             if (
                     JacobianKeys.CartesianModesByInternalModes not in current_cache
-                    or len(current_cache[JacobianKeys.CartesianModesByInternalModes]) < len(internal_jacobs)
+                    or len(current_cache[JacobianKeys.CartesianModesByInternalModes]) < len(cart_by_internal_jacobs)
             ):
                 YQ_derivs = current_cache[JacobianKeys.CartesiansByInternalModes]
-                qQ_derivs = TensorDerivativeConverter(YQ_derivs, [QY] + [0] * (len(internal_jacobs) - 1),
+                qQ_derivs = TensorDerivativeConverter(YQ_derivs, [QY] + [0] * (len(cart_by_internal_jacobs) - 1),
                                                       jacobians_name='YQ',
                                                       values_name='qY'
-                                                      ).convert(order=len(internal_jacobs))#, check_arrays=True)
+                                                      ).convert(order=len(cart_by_internal_jacobs))#, check_arrays=True)
                 current_cache[JacobianKeys.CartesianModesByInternalModes] = qQ_derivs
 
             if (
                     JacobianKeys.InternalModesByCartesians not in current_cache
-                    or len(current_cache[JacobianKeys.InternalModesByCartesians]) < len(cartesian_jacobs)
+                    or len(current_cache[JacobianKeys.InternalModesByCartesians]) < len(int_by_cartesian_jacobs)
             ):
                 QR = QR_derivs[0]
-                QY_derivs = TensorDerivativeConverter(cartesian_jacobs,
-                                                      [QR] + [0]*(len(cartesian_jacobs) - 1)
-                                                      ).convert(order=len(cartesian_jacobs))#, check_arrays=True)
+                QY_derivs = TensorDerivativeConverter(int_by_cartesian_jacobs,
+                                                      [QR] + [0]*(len(int_by_cartesian_jacobs) - 1)
+                                                      ).convert(order=len(int_by_cartesian_jacobs))#, check_arrays=True)
                 current_cache[JacobianKeys.InternalModesByCartesians] = QY_derivs
 
             if (
-
                     JacobianKeys.InternalModesByCartesianModes not in current_cache
-                    or len(current_cache[JacobianKeys.InternalModesByCartesianModes]) < len(cartesian_jacobs)
+                    or len(current_cache[JacobianKeys.InternalModesByCartesianModes]) < len(int_by_cartesian_jacobs)
             ):
                 RQ_derivs = current_cache[JacobianKeys.InternalsByCartesianModes]
                 QR = QR_derivs[0]
@@ -926,10 +943,11 @@ class ExpansionTerms:
                 current_cache[JacobianKeys.InternalModesByCartesianModes] = Qq_derivs
 
             self._cached_transforms[self.molecule] = current_cache
-            try:
-                self.checkpointer['coordinate_transforms'] = current_cache
-            except KeyError:
-                pass
+            with self.checkpointer:
+                try:
+                    self.checkpointer['coordinate_transforms'] = {k.value:v for k,v in current_cache.items()}
+                except (OSError, KeyError):
+                    pass
 
         return current_cache#self._cached_transforms[self.molecule]
 
@@ -946,6 +964,12 @@ class ExpansionTerms:
             internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
         )[JacobianKeys.CartesiansByInternalModes]
         if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'CartesiansByInternalModes',
+                    len(base),
+                    order
+                ))
             base = base[:order]
         return base
 
@@ -958,6 +982,12 @@ class ExpansionTerms:
             internal_by_cartesian_order=order
         )[JacobianKeys.InternalModesByCartesians]
         if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'InternalModesByCartesians',
+                    len(base),
+                    order
+                ))
             base = base[:order]
         return base
     @property
@@ -969,6 +999,12 @@ class ExpansionTerms:
             internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
         )[JacobianKeys.CartesiansByInternals]
         if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'CartesiansByInternals',
+                    len(base),
+                    order
+                ))
             base = base[:order]
         return base
     @property
@@ -980,6 +1016,12 @@ class ExpansionTerms:
             internal_by_cartesian_order=order
         )[JacobianKeys.InternalsByCartesians]
         if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'InternalsByCartesians',
+                    len(base),
+                    order
+                ))
             base = base[:order]
         return base
 
@@ -988,10 +1030,16 @@ class ExpansionTerms:
         return self.get_coordinate_transforms()[JacobianKeys.CartesianModesByInternalModes]
     def get_cartesian_modes_by_internal_modes(self, order=None):
         base = self.get_coordinate_transforms(
-            cartesian_by_internal_order=None if order is None else min(order, self.cartesian_by_internal_order),
-            internal_by_cartesian_order=order
+            cartesian_by_internal_order=order,
+            internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
         )[JacobianKeys.CartesianModesByInternalModes]
         if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'CartesianModesByInternalModes',
+                    len(base),
+                    order
+                ))
             base = base[:order]
         return base
 
@@ -1001,10 +1049,16 @@ class ExpansionTerms:
 
     def get_internal_modes_by_cartesian_modes(self, order=None):
         base = self.get_coordinate_transforms(
-            cartesian_by_internal_order=order,
-            internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
+            cartesian_by_internal_order=None if order is None else min(order, self.cartesian_by_internal_order),
+            internal_by_cartesian_order=order
         )[JacobianKeys.InternalModesByCartesianModes]
         if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'InternalModesByCartesianModes',
+                    len(base),
+                    order
+                ))
             base = base[:order]
         return base
 
@@ -1549,7 +1603,7 @@ class PotentialTerms(ExpansionTerms):
 
         try:
             self.checkpointer['potential_terms'] = terms
-        except KeyError:
+        except (OSError, KeyError):
             pass
 
         new_freqs = np.diag(terms[0])
@@ -1611,7 +1665,7 @@ class KineticTerms(ExpansionTerms):
             J = term_getter.XV(1)
             G_terms = [J.dot(J, 1, 1)]
             for i in range(1, order+1):
-                g_cur = G_terms[-1].dQ().simplify()
+                g_cur = G_terms[-1].dQ()#.simplify()
                 G_terms.append(g_cur)
             terms = [x.array for x in G_terms]
 
@@ -1641,7 +1695,7 @@ class KineticTerms(ExpansionTerms):
         G_terms = terms
         try:
             self.checkpointer['gmatrix_terms'] = G_terms
-        except KeyError:
+        except (OSError, KeyError):
             pass
 
         return G_terms
@@ -2007,10 +2061,11 @@ class DipoleTerms(ExpansionTerms):
             mu[coord] = (self.derivs[0][coord],) + tuple(terms)
 
 
-        try:
-            self.checkpointer['dipole_terms'] = mu
-        except KeyError:
-            pass
+        with self.checkpointer:
+            try:
+                self.checkpointer['dipole_terms'] = {'x':mu[0], 'y':mu[1], 'z':mu[2]}
+            except (OSError, KeyError):
+                pass
 
         return mu
 
@@ -2087,7 +2142,7 @@ class CoriolisTerm(ExpansionTerms):
 
         try:
             self.checkpointer['coriolis_terms'] = terms
-        except KeyError:
+        except (OSError, KeyError):
             pass
 
         return terms
@@ -2115,10 +2170,13 @@ class PotentialLikeTerm(KineticTerms):
             I0_derivs = self.inertial_frame_derivatives() # only ever two of these
             if order > 0:
                 I0_derivs = I0_derivs + [0]*order
-            I0Q_derivs = TensorDerivativeConverter(YQ_derivs, I0_derivs).convert()#check_arrays=True)
+            I0Q_derivs = TensorDerivativeConverter(YQ_derivs, I0_derivs).convert(order=2+order)#check_arrays=True)
 
             ### pull already computed G-matrix derivs
+            # try:
             G_terms = super().get_terms(order=2+order, logger=NullLogger())
+            # except:
+            #     raise Exception(2+order)
 
             g_terms = TensorExpansionTerms(G_terms[1:], None, base_qx=G_terms[0], q_name='G')
             detG = g_terms.QX(0).det()
@@ -2161,7 +2219,7 @@ class PotentialLikeTerm(KineticTerms):
 
         try:
             self.checkpointer['psuedopotential_terms'] = wat_terms
-        except KeyError:
+        except (OSError, KeyError):
             pass
 
         return wat_terms

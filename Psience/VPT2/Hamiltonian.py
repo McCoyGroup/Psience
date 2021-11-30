@@ -108,6 +108,7 @@ class PerturbationTheoryHamiltonian:
         self.mode_selection = mode_selection
 
         expansion_options['logger'] = self.logger
+        expansion_options['checkpointer'] = self.checkpointer
         expansion_options['parallelizer'] = self.parallelizer
         expansion_params = ParameterManager(expansion_options)
 
@@ -837,6 +838,7 @@ class PerturbationTheoryHamiltonian:
                           expansion_order=None,
                           memory_constrained=None,
                           target_property_rules=None,
+                          results=None,
                           **opts
                           ):
         """
@@ -877,6 +879,11 @@ class PerturbationTheoryHamiltonian:
                 if memory_constrained is None:
                     memory_constrained = states.ndim > 20 if memory_constrained is None else memory_constrained
 
+                if results is None:
+                    results = NullCheckpointer(None)
+                elif isinstance(results, str):
+                    results = Checkpointer.from_file(results)
+
                 solver = self.get_solver(
                     states,
                     degeneracies=degeneracies,
@@ -887,6 +894,7 @@ class PerturbationTheoryHamiltonian:
                     order=order,
                     expansion_order=expansion_order,
                     target_property_rules=target_property_rules,
+                    results=results,
                     **opts
                 )
 

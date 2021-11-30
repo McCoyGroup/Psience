@@ -4,7 +4,7 @@ A little package of utilities for setting up/running VPT jobs
 
 import numpy as np, sys
 
-from McUtils.Scaffolding import ParameterManager
+from McUtils.Scaffolding import ParameterManager, Checkpointer
 from McUtils.Zachary import FiniteDifferenceDerivative
 from McUtils.Combinatorics import PermutationRelationGraph
 
@@ -289,7 +289,7 @@ class VPTStateSpace:
                 n_modes = len(states[0])
 
         if order != 2:
-            raise ValueError("state space filters only implemented at second order")
+            raise ValueError("state space filters currently only implemented at second order")
 
         if target == 'wavefunctions':
             return None
@@ -494,6 +494,7 @@ class VPTRuntimeOptions:
         "logger",
         "verbose",
         "checkpoint",
+        "results",
         "memory_constrained",
         "checkpoint_keys",
         "use_cached_representations",
@@ -504,6 +505,7 @@ class VPTRuntimeOptions:
                  logger=None,
                  verbose=None,
                  checkpoint=None,
+                 results=None,
                  parallelizer=None,
                  memory_constrained=None,
                  checkpoint_keys=None,
@@ -547,6 +549,7 @@ class VPTRuntimeOptions:
             memory_constrained=memory_constrained,
             verbose=verbose,
             checkpoint_keys=checkpoint_keys,
+            results=results,
             use_cached_representations=use_cached_representations,
             use_cached_basis=use_cached_basis
         )
@@ -898,7 +901,8 @@ class VPTRunner:
                 opts = dict(runner.runtime_opts.ham_opts, **runner.runtime_opts.solver_opts)
                 for k,v in opts.items():
                     logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
-            runner.print_tables()
+
+            runner.print_tables(wfns=wfns)
 
 class VPTStateMaker:
     """
