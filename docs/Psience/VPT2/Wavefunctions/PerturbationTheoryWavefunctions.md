@@ -18,6 +18,16 @@ __init__(self, mol, basis, corrections, modes=None, mode_selection=None, logger=
 - `corrections`: `PerturbationTheoryCorrections`
     >the corrections to the terms
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.to_state" class="docs-object-method">&nbsp;</a>
+```python
+to_state(self, serializer=None): 
+```
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.from_state" class="docs-object-method">&nbsp;</a>
+```python
+from_state(data, serializer=None): 
+```
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.degenerate_transformation" class="docs-object-method">&nbsp;</a>
 ```python
 @property

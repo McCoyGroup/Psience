@@ -5,11 +5,9 @@ Can be used to correct other operators in the basis of the original calculation.
 ### Properties and Methods
 <a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, hamiltonians, states, coupled_states, total_basis, energy_corrs, wfn_corrections, all_energy_corrections=None, degenerate_states=None, degenerate_transformation=None, degenerate_energies=None, logger=None): 
+__init__(self, states, coupled_states, total_basis, energy_corrs, wfn_corrections, all_energy_corrections=None, degenerate_states=None, degenerate_transformation=None, degenerate_energies=None, logger=None): 
 ```
 
-- `hamiltonians`: `Iterable[SparseArray]`
-    >No description...
 - `states`: `BasisStateSpace`
     >No description...
 - `coupled_states`: `BasisMultiStateSpace`
@@ -36,8 +34,6 @@ from_dicts(states, corrections, hamiltonians, **opts):
     >a dict with the states described by the corrections, the set of states coupled, and the size of the overall basis
 - `corrections`: `dict`
     >the corrections generated, including the corrections for the energies, wavefunctions, and a transformation from degenerate PT
-- `hamiltonians`: `Iterable[np.ndarray]`
-    >the set of Hamiltonian matrices used as an expansion
 
 <a id="Psience.VPT2.Solver.PerturbationTheoryCorrections.degenerate" class="docs-object-method">&nbsp;</a>
 ```python

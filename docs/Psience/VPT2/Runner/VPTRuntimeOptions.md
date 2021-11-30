@@ -5,7 +5,7 @@ for configuring the way the code runs
 ### Properties and Methods
 <a id="Psience.VPT2.Runner.VPTRuntimeOptions.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, operator_chunk_size=None, logger=None, verbose=None, checkpoint=None, parallelizer=None, memory_constrained=None, checkpoint_keys=None, use_cached_representations=None, use_cached_basis=None): 
+__init__(self, operator_chunk_size=None, logger=None, verbose=None, checkpoint=None, results=None, parallelizer=None, memory_constrained=None, checkpoint_keys=None, use_cached_representations=None, use_cached_basis=None): 
 ```
 
 - `operator_chunk_size`: `int`
