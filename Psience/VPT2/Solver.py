@@ -2979,7 +2979,7 @@ class PerturbationTheorySolver:
         with logger.block(tag="non-degenerate Hamiltonian"):
             logger.log_print(
                 str(
-                    np.round(H_nd_corrs * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
+                    np.round(H_nd * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
                 ).splitlines()
             )
 
