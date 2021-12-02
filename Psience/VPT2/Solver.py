@@ -2967,10 +2967,11 @@ class PerturbationTheorySolver:
         # for h in H_nd[1:]:
         #     np.fill_diagonal(h, 0.)
         H_nd = self.get_transformed_Hamiltonians(subdegs, None)
+        self.checkpointer["nondegenerate_hamiltonians"] = H_nd
         # import McUtils.Plots as plt
         # plt.TensorPlot(np.array(H_nd)).show()
         H_nd = np.sum(H_nd, axis=0)
-        overlaps = np.sum(subdegs.get_overlap_matrices(), axis=0)
+        # overlaps = np.sum(subdegs.get_overlap_matrices(), axis=0)
 
         with logger.block(tag="non-degenerate Hamiltonian"):
             logger.log_print(
@@ -2981,9 +2982,9 @@ class PerturbationTheorySolver:
 
         deg_engs, deg_transf = np.linalg.eigh(H_nd)
 
+        ov_thresh = .5
         for i in range(len(deg_transf)):
             max_ov = np.max(deg_transf[:, i] ** 2)
-            ov_thresh = .5
             if max_ov < ov_thresh:  # there must be a single mode that has more than 50% of the initial state character?
                 logger.log_print(
                     "    state {i} is more than 50% mixed",
