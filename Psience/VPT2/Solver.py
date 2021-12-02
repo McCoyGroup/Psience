@@ -2844,6 +2844,7 @@ class PerturbationTheorySolver:
         rotation_row_inds = []
         rotation_col_inds = []
 
+        ndeg_ham_corrs = []
         for group in degenerate_states:
             # we apply the degenerate PT on a group-by-group basis
             # by transforming the H reps into the non-degenerate basis
@@ -2856,7 +2857,8 @@ class PerturbationTheorySolver:
                     rotation_row_inds.append([i])
                     rotation_col_inds.append([i])
             elif len(deg_inds) > 1:
-                deg_engs, deg_rot = self.get_degenerate_rotation(group, corrs)
+                H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group, corrs)
+                ndeg_ham_corrs.append(H_nd)
                 energies[deg_inds] = deg_engs
                 rotation_vals.append(deg_rot.flatten())
                 deg_rows, deg_cols = np.array([p for p in itertools.product(deg_inds, deg_inds)]).T
@@ -2864,6 +2866,8 @@ class PerturbationTheorySolver:
                 rotation_col_inds.append(deg_cols)
             else:
                 self.logger.log_print("WARNING: got degeneracy spec that is not in total space")
+
+        self.checkpointer["nondegenerate_hamiltonians"] = ndeg_ham_corrs
 
         rotation_vals = np.concatenate(rotation_vals)
         rotation_row_inds = np.concatenate(rotation_row_inds)
@@ -2966,17 +2970,16 @@ class PerturbationTheorySolver:
         # H_nd = self.get_transformed_Hamiltonians(corrs, deg_group)
         # for h in H_nd[1:]:
         #     np.fill_diagonal(h, 0.)
-        H_nd = self.get_transformed_Hamiltonians(subdegs, None)
-        self.checkpointer["nondegenerate_hamiltonians"] = H_nd
+        H_nd_corrs = self.get_transformed_Hamiltonians(subdegs, None)
         # import McUtils.Plots as plt
         # plt.TensorPlot(np.array(H_nd)).show()
-        H_nd = np.sum(H_nd, axis=0)
+        H_nd = np.sum(H_nd_corrs, axis=0)
         # overlaps = np.sum(subdegs.get_overlap_matrices(), axis=0)
 
         with logger.block(tag="non-degenerate Hamiltonian"):
             logger.log_print(
                 str(
-                    np.round(H_nd * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
+                    np.round(H_nd_corrs * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
                 ).splitlines()
             )
 
@@ -3023,7 +3026,7 @@ class PerturbationTheorySolver:
 
         deg_transf = deg_transf[:, sorting]
 
-        return deg_engs, deg_transf
+        return H_nd_corrs, deg_engs, deg_transf
     #endregion
 
     def _martin_test(cls, h_reps, states, threshold, total_coupled_space):
