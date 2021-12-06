@@ -825,7 +825,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :return:
         :rtype:
         """
-        return self._intensities(self.deperturbed_oscillator_strengths)
+        return self._intensities(self.deperturbed_oscillator_strengths)[1]
 
     def intensities_to_order(self, order):
         """
@@ -834,7 +834,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :return:
         :rtype:
         """
-        return self._intensities(self.oscillator_strengths_to_order(order), energy_order=order)
+        return self._intensities(self.oscillator_strengths_to_order(order), energy_order=order)[1]
 
     def _intensities(self, oscs, energy_order=None):
         if energy_order is None:
@@ -932,7 +932,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 ]
                 tms = self._transition_moments(*new_mu)
                 oscs = self._oscillator_strengths(tms[0])
-                ints = self._intensities(oscs)
+                freqs, ints = self._intensities(oscs)
 
             full_corrs = self.transition_moment_corrections
             # raise Exception([np.array(x).shape for x in full_corrs])
