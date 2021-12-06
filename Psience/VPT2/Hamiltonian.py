@@ -27,9 +27,9 @@ __reload_hook__ = [ "..BasisReps" , "..Molecools", '.Terms', ".Solver", ".Wavefu
 class PerturbationTheoryHamiltonian:
     """
     Represents the main Hamiltonian used in the perturbation theory calculation.
-    Uses a harmonic oscillator basis for representing H0, H1, and H2 (and only goes up to H2 for now).
-    Will before too long be split into a PerturbationTheoryHandler and a PerturbationTheoryHamiltonian
-    where the Hamiltonian just implements the split of the perturbation and the Handler manages the equations.
+    Uses a harmonic oscillator basis for representing H0, H1, H2 etc.
+    The PT process is split into a PerturbationTheorySolver and a PerturbationTheoryHamiltonian
+    where the Hamiltonian just implements the split of the perturbation and the Solver manages the equations.
     """
 
     def __init__(self,
@@ -910,6 +910,7 @@ class PerturbationTheoryHamiltonian:
                                                modes=self.modes,
                                                mode_selection=self.mode_selection,
                                                logger=self.logger,
+                                               checkpoint=self.checkpointer,
                                                operator_settings=self.operator_settings,
                                                expansion_options=expansion_options
                                                )
