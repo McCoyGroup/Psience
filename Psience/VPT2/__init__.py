@@ -15,3 +15,5 @@ from .Solver import *; from .Solver import __all__ as exposed
 __all__ += exposed
 from .Runner import *; from .Runner import __all__ as exposed
 __all__ += exposed
+from .Analyzer import *; from .Analyzer import __all__ as exposed
+__all__ += exposed

@@ -6,12 +6,10 @@ Defines useful extended internal coordinate frames
 
 import numpy as np
 import McUtils.Numputils as nput
-
 from McUtils.Coordinerds import (
     ZMatrixCoordinateSystem, CartesianCoordinateSystem, CoordinateSystemConverter,
     ZMatrixCoordinates, CartesianCoordinates3D, CoordinateSet, CoordinateSystemConverters
 )
-
 from .MoleculeInterface import AbstractMolecule
 
 __all__ = [
@@ -453,7 +451,7 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
         return zmcs, opts
 
 MolecularCartesianToZMatrixConverter = MolecularCartesianToZMatrixConverter()
-MolecularCartesianToZMatrixConverter.register()
+MolecularCartesianToZMatrixConverter.register(CoordinateSystemConverters)
 
 class MolecularCartesianToRegularCartesianConverter(CoordinateSystemConverter):
     """

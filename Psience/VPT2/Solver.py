@@ -2269,6 +2269,8 @@ class PerturbationTheorySolver:
             if self.results is None:
                 try:
                     checkpointer['corrections'] = {
+                        "states": states.excitations,
+                        "total_states": total_states.excitations,
                         'energies': all_energies,
                         'wavefunctions': corr_mats
                     }

@@ -6,7 +6,7 @@ import numpy as np, itertools as ip, time, enum
 
 from McUtils.Numputils import SparseArray
 import McUtils.Numputils as nput
-from McUtils.Scaffolding import ParameterManager
+from McUtils.Scaffolding import ParameterManager, Checkpointer, NullCheckpointer
 from McUtils.Data import UnitsData
 
 from ..BasisReps import BasisStateSpace, SelectionRuleStateSpace, BasisMultiStateSpace, SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction, BraKetSpace
@@ -59,6 +59,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                  modes=None,
                  mode_selection=None,
                  logger=None,
+                 checkpoint=None,
+                 results=None,
                  operator_settings=None,
                  expansion_options=None
                  ):
@@ -80,6 +82,16 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         self._dipole_terms = None
         self._dipole_partitioning = self.DipolePartitioningMethod.Standard
         self.logger = logger
+        if checkpoint is None:
+            checkpoint = NullCheckpointer(None)
+        elif isinstance(checkpoint, str):
+            checkpoint = Checkpointer.from_file(checkpoint)
+        self.checkpointer = checkpoint
+        if results is None:
+            results = self.checkpointer
+        elif isinstance(checkpoint, str):
+            results = Checkpointer.from_file(checkpoint)
+        self.results = results
         if expansion_options is None:
             expansion_options = {}
         self.expansion_options = expansion_options
@@ -636,6 +648,14 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         #     (tmom_deg, transition_moment_components_deg)
         #
         # )
+        with self.checkpointer:
+            if degenerate_transformation is not None:
+                self.checkpointer["transition_moments"] = transition_moment_components_deg
+                self.checkpointer["nondegenerate_transition_moments"] = transition_moment_components
+            else:
+                self.checkpointer["transition_moments"] = transition_moment_components
+
+
         return [(tmom, transition_moment_components), (tmom_deg, transition_moment_components_deg), mu_reps, (corr_terms_lower, corr_terms_upper)]
 
     class TermHolder(tuple):
@@ -787,7 +807,15 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :return:
         :rtype:
         """
-        return self._intensities(self.oscillator_strengths)
+
+        freqs, ints = self._intensities(self.oscillator_strengths)
+        with self.results: # this really isn't the right place for this...
+            self.results['spectrum'] = (
+                freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
+                ints
+            )
+
+        return ints
 
     @property
     def deperturbed_intensities(self):
@@ -813,8 +841,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             eng = self.energies
         else:
             eng = self.energies_to_order(energy_order)
+        freqs = eng - eng[0]
         units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
-        return units * (eng - eng[0]) * oscs
+        return freqs * UnitsData.convert("Hartrees", "Wavenumbers"), units * freqs * oscs
 
     @property
     def zero_order_intensities(self):
@@ -830,7 +859,16 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         ]).T
         osc = np.linalg.norm(tm, axis=1) ** 2
         units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
-        return units * (eng - eng[0]) * osc
+        freqs = (eng - eng[0])
+        ints = units * freqs * osc
+
+        with self.results:
+            self.results['zero_order_spectrum'] = (
+                freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
+                ints
+            )
+
+        return ints
 
     def generate_intensity_breakdown(self, include_wavefunctions=True):
         """
