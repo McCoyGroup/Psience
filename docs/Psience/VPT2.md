@@ -24,6 +24,9 @@ and pertubation theory computations
   - [VPTHamiltonianOptions](VPT2/Runner/VPTHamiltonianOptions.md)
   - [VPTRuntimeOptions](VPT2/Runner/VPTRuntimeOptions.md)
   - [VPTSolverOptions](VPT2/Runner/VPTSolverOptions.md)
+  - [VPTResultsLoader](VPT2/Analyzer/VPTResultsLoader.md)
+  - [VPTResultsSource](VPT2/Analyzer/VPTResultsSource.md)
+  - [VPTAnalyzer](VPT2/Analyzer/VPTAnalyzer.md)
 
 ### Examples:
 
