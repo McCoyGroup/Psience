@@ -839,6 +839,7 @@ class PerturbationTheoryHamiltonian:
                           memory_constrained=None,
                           target_property_rules=None,
                           results=None,
+                          degenerate_transformation_layout=None,
                           **opts
                           ):
         """
@@ -912,7 +913,8 @@ class PerturbationTheoryHamiltonian:
                                                logger=self.logger,
                                                checkpoint=self.checkpointer,
                                                operator_settings=self.operator_settings,
-                                               expansion_options=expansion_options
+                                               expansion_options=expansion_options,
+                                               degenerate_transformation_layout=degenerate_transformation_layout
                                                )
 
     @classmethod
