@@ -519,33 +519,20 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             if degenerate_transformation is None:
                 degenerate_transformation = self.corrs.degenerate_transf
             if degenerate_transformation is not None:
-
-                """
-                State             Frequency    Intensity       Frequency    Intensity
-  0 0 0 0 0 1    3061.70147     95.24194      2849.46614     65.91371
-  0 0 0 0 1 0    2977.64050     69.29750      2820.54966     64.51113
-  0 0 0 1 0 0    1727.08265     63.79277      1695.15657     65.45991
-  0 0 1 0 0 0    1527.04080     11.12160      1493.14023      9.38237
-  0 1 0 0 0 0    1252.16397      9.69252      1231.36414     10.16233
-  1 0 0 0 0 0    1188.11376      7.01998      1166.70422      7.00896
-  0 0 0 0 0 2    6123.40294      0.00000      5719.55314      1.34296
-  0 0 0 0 2 0    5955.28100      0.00000      5578.18521      0.00531
-  0 0 0 2 0 0    3454.16530      0.00000      3372.18520      5.87517
-  0 0 2 0 0 0    3054.08159      0.00000      2988.75702      9.40417
-  0 2 0 0 0 0    2504.32794      0.00000      2459.66977      0.18477
-  2 0 0 0 0 0    2376.22751      0.00000      2327.65770      0.44804
-  0 0 0 0 1 1    6039.34197      0.00000      5586.29481      0.64272
-
-"""
-                # if self.degenerate_transformation_layout == "column":
-                #     degenerate_transformation = degenerate_transformation.T
+                    # raise  Exception("ugh")
+                    # degenerate_transformation = degenerate_transformation.T
 
                 if len(lower_states_input) > 1:
                     deg_transf_lower = degenerate_transformation[np.ix_(lower_states_input, lower_states_input)]
+                    if self.degenerate_transformation_layout == "column":
+                        deg_transf_lower = deg_transf_lower.T
                 else:
                     deg_transf_lower = None
                 if len(upper_states_input) > 1:
-                    deg_transf_upper = degenerate_transformation[upper_states_input, :].T
+                    if self.degenerate_transformation_layout == "column":
+                        deg_transf_upper = degenerate_transformation[:, upper_states_input]
+                    else:
+                        deg_transf_upper = degenerate_transformation[upper_states_input, :].T
                 else:
                     deg_transf_upper = None
             else:

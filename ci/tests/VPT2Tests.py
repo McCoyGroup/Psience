@@ -4206,7 +4206,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTInternals(self):
 
         """
