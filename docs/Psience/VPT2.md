@@ -2799,7 +2799,7 @@ class VPT2Tests(TestCase):
             state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
-    @validationTest
+    @debugTest
     def test_OCHHVPTCartesiansDegenerate(self):
 
         tag = 'OCHH Cartesians'
