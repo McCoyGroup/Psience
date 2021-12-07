@@ -811,7 +811,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         freqs, ints = self._intensities(self.oscillator_strengths)
         with self.results: # this really isn't the right place for this...
             self.results['spectrum'] = (
-                freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
+                freqs,
                 ints
             )
 
@@ -843,7 +843,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             eng = self.energies_to_order(energy_order)
         freqs = eng - eng[0]
         units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
-        return freqs * UnitsData.convert("Hartrees", "Wavenumbers"), units * freqs * oscs
+        return freqs, units * freqs * oscs
 
     @property
     def zero_order_intensities(self):

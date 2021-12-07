@@ -3,7 +3,7 @@ import numpy as np, itertools, time, gc
 from scipy import linalg as slalg
 
 from McUtils.Numputils import SparseArray
-from McUtils.Scaffolding import Logger, NullLogger
+from McUtils.Scaffolding import Logger, NullLogger, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer, SerialNonParallelizer
 from McUtils.Data import UnitsData
 from McUtils.Combinatorics import LatticePathGenerator
@@ -2266,7 +2266,7 @@ class PerturbationTheorySolver:
                 , logger=self.logger
             )
 
-            if self.results is None:
+            if self.results is None or isinstance(self.results, NullCheckpointer):
                 try:
                     checkpointer['corrections'] = {
                         "states": states.excitations,
@@ -2842,6 +2842,7 @@ class PerturbationTheorySolver:
 
         # this will be built from a series of block-diagonal matrices
         # so we store the relevant values and indices to compose the SparseArray
+        rotations = []
         rotation_vals = []
         rotation_row_inds = []
         rotation_col_inds = []
@@ -2861,6 +2862,7 @@ class PerturbationTheorySolver:
             elif len(deg_inds) > 1:
                 H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group, corrs)
                 ndeg_ham_corrs.append(H_nd)
+                rotations.append(deg_rot)
                 energies[deg_inds] = deg_engs
                 rotation_vals.append(deg_rot.flatten())
                 deg_rows, deg_cols = np.array([p for p in itertools.product(deg_inds, deg_inds)]).T
@@ -2869,7 +2871,27 @@ class PerturbationTheorySolver:
             else:
                 self.logger.log_print("WARNING: got degeneracy spec that is not in total space")
 
-        self.checkpointer["nondegenerate_hamiltonians"] = ndeg_ham_corrs
+        if self.results is None or isinstance(self.results, NullCheckpointer):
+            try:
+                self.checkpointer["degenerate_data"] = {
+            "states": [d.excitations for d in degenerate_states],
+            "energies": energies,
+            "hamiltonians": ndeg_ham_corrs,
+            "rotations": rotations
+        }
+            except KeyError:
+                pass
+        else:
+            with self.results:
+                try:
+                    self.results["degenerate_data"] = {
+                        "states": [d.excitations for d in degenerate_states],
+                        "energies": energies,
+                        "hamiltonians": ndeg_ham_corrs,
+                        "rotations": rotations
+                    }
+                except KeyError:
+                    pass
 
         rotation_vals = np.concatenate(rotation_vals)
         rotation_row_inds = np.concatenate(rotation_row_inds)
