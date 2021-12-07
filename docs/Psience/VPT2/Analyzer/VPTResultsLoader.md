@@ -38,6 +38,22 @@ Returns the expansion of the dipole moment
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.VPT2.Analyzer.VPTResultsLoader.basis" class="docs-object-method">&nbsp;</a>
+```python
+basis(self): 
+```
+Returns the basis for the calculation
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTResultsLoader.target_states" class="docs-object-method">&nbsp;</a>
+```python
+target_states(self): 
+```
+Returns the target states for the calculation
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.spectrum" class="docs-object-method">&nbsp;</a>
 ```python
 spectrum(self): 
@@ -54,6 +70,11 @@ Returns the corrections to the energies
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.VPT2.Analyzer.VPTResultsLoader.energies" class="docs-object-method">&nbsp;</a>
+```python
+energies(self): 
+```
+
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.wavefunction_corrections" class="docs-object-method">&nbsp;</a>
 ```python
 wavefunction_corrections(self): 
@@ -67,6 +88,40 @@ Returns the corrections to the wavefunctions
 transition_moment_corrections(self): 
 ```
 Returns the corrections to the wavefunctions
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTResultsLoader.transition_moments" class="docs-object-method">&nbsp;</a>
+```python
+transition_moments(self): 
+```
+
+<a id="Psience.VPT2.Analyzer.VPTResultsLoader.deperturbed_transition_moment_corrections" class="docs-object-method">&nbsp;</a>
+```python
+deperturbed_transition_moment_corrections(self): 
+```
+Returns the corrections to the wavefunctions
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTResultsLoader.deperturbed_transition_moments" class="docs-object-method">&nbsp;</a>
+```python
+deperturbed_transition_moments(self): 
+```
+
+<a id="Psience.VPT2.Analyzer.VPTResultsLoader.degenerate_states" class="docs-object-method">&nbsp;</a>
+```python
+degenerate_states(self): 
+```
+Returns the deperturbed Hamiltonians used to make the degenerate transform
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTResultsLoader.deperturbed_hamiltonians" class="docs-object-method">&nbsp;</a>
+```python
+deperturbed_hamiltonians(self): 
+```
+Returns the deperturbed Hamiltonians used to make the degenerate transform
 - `:returns`: `_`
     >No description...
 
