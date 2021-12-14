@@ -163,10 +163,11 @@ class VPTResultsLoader:
         raise ValueError("no dispatch")
     @spectrum.register("checkpoint")
     def _(self):
-        return DiscreteSpectrum(*self.data["spectrum"])
+        freq, ints = self.data["spectrum"]
+        return DiscreteSpectrum(freq * UnitsData.convert("Hartrees", "Wavenumbers"), ints)
     @spectrum.register("wavefunctions")
     def _(self):
-        return DiscreteSpectrum(self.data.frequencies(), self.data.intensities)
+        return DiscreteSpectrum(self.data.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers"), self.data.intensities)
 
     @property_dispatcher
     def energy_corrections(self):
@@ -264,7 +265,7 @@ class VPTResultsLoader:
     @property_dispatcher
     def degenerate_states(self):
         """
-        Returns the deperturbed Hamiltonians used to make the degenerate transform
+        Returns the deperturbed states used to make the degenerate transform
 
         :return:
         :rtype:
@@ -272,7 +273,7 @@ class VPTResultsLoader:
         raise ValueError("no dispatch")
     @degenerate_states.register("checkpoint")
     def _(self):
-        return self.data["degenerate_states"]
+        return self.data["degenerate_data"]["states"]
     @degenerate_states.register("wavefunctions")
     def _(self):
         raise NotImplementedError("missing")
@@ -288,8 +289,40 @@ class VPTResultsLoader:
         raise ValueError("no dispatch")
     @deperturbed_hamiltonians.register("checkpoint")
     def _(self):
-        return self.data["nondegenerate_hamiltonians"]
+        return self.data["degenerate_data"]["hamiltonians"]
     @transition_moment_corrections.register("wavefunctions")
+    def _(self):
+        raise NotImplementedError("missing")
+
+    @property_dispatcher
+    def degenerate_energies(self):
+        """
+        Returns the deperturbed states used to make the degenerate transform
+
+        :return:
+        :rtype:
+        """
+        raise ValueError("no dispatch")
+    @degenerate_energies.register("checkpoint")
+    def _(self):
+        return self.data["degenerate_data"]["energies"]
+    @degenerate_energies.register("wavefunctions")
+    def _(self):
+        raise NotImplementedError("missing")
+
+    @property_dispatcher
+    def degenerate_rotations(self):
+        """
+        Returns the deperturbed states used to make the degenerate transform
+
+        :return:
+        :rtype:
+        """
+        raise ValueError("no dispatch")
+    @degenerate_rotations.register("checkpoint")
+    def _(self):
+        return self.data["degenerate_states"]["rotations"]
+    @degenerate_rotations.register("wavefunctions")
     def _(self):
         raise NotImplementedError("missing")
 
@@ -332,10 +365,25 @@ class VPTAnalyzer:
         return self.loader.energy_corrections()
     @loaded_prop
     def energies(self):
-        return self.loader.energies()
+        engs = self.degenerate_energies
+        if engs is None:
+            engs = self.loader.energies()
+        return engs
     @property
     def frequencies(self):
         return self.energies - self.energies[0]
+
+    @property
+    def deperturbed_spectrum(self):
+        freqs = self.deperturbed_frequencies
+        tmom = self.deperturbed_transition_moments[0]
+        osc = np.linalg.norm(tmom, axis=0) ** 2
+        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
+        ints = units * freqs * osc
+        return DiscreteSpectrum(freqs * UnitsData.convert("Hartrees", "Wavenumbers"), ints)
+    @property
+    def deperturbed_frequencies(self):
+        return self.deperturbed_energies - self.deperturbed_energies[0]
     @loaded_prop
     def wavefunction_corrections(self):
         return self.loader.transition_moment_corrections()
@@ -354,9 +402,15 @@ class VPTAnalyzer:
     @loaded_prop
     def deperturbed_hamiltonians(self):
         return self.loader.deperturbed_hamiltonians()
+    @property
+    def deperturbed_energies(self):
+        return self.loader.energies()
     @loaded_prop
     def degenerate_states(self):
         return self.loader.degenerate_states()
+    @loaded_prop
+    def degenerate_energies(self):
+        return self.loader.degenerate_energies()
 
     def shift_and_transform_hamiltonian(self, hams, shifts):
 
@@ -384,24 +438,32 @@ class VPTAnalyzer:
             o = np.argmax(sort_transf[i, :])
             sorting[i] = o
             sort_transf[:, o] = 0.  # np.zeros(len(sort_transf))
+        # print(sorting)
 
         deg_engs = deg_engs[sorting,]
         deg_transf = deg_transf[:, sorting]
 
         return deg_engs, deg_transf
 
-    def get_shifted_transformed_transition_moments(self, deg_states, target_states, hams, shifts, tmoms):
+    def get_shifted_transformed_transition_moments(self, deg_states, target_states, hams, shifts, tmoms, handling_mode='transpose'):
 
         deg_e, deg_t = self.shift_and_transform_hamiltonian(hams, shifts)
         inds, _ = nput.find(target_states, deg_states)
         subtms = [tm[0][inds] for tm in tmoms]
 
-        return deg_e, deg_t, [np.dot(deg_t.T, tm) for tm in subtms]
+        tf = deg_t
+        if handling_mode == 'transpose':
+            tf = deg_t.T
+
+        return deg_e, deg_t, [np.dot(tf, tm) for tm in subtms]
         # full_tm =
 
-    def get_shifted_transformed_spectrum(self, zpe, deg_states, target_states, hams, shifts, tmoms):
+    def get_shifted_transformed_spectrum(self, zpe, deg_states, target_states, hams, shifts, tmoms, handling_mode='transpose'):
 
-        eng, deg_transf, deg_tmom = self.get_shifted_transformed_transition_moments(deg_states, target_states, hams, shifts, tmoms)
+        eng, deg_transf, deg_tmom = self.get_shifted_transformed_transition_moments(
+            deg_states, target_states, hams, shifts, tmoms,
+            handling_mode=handling_mode
+            )
         osc = np.linalg.norm(deg_tmom, axis=0) ** 2
         units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
         freqs = (eng - zpe)
@@ -409,9 +471,12 @@ class VPTAnalyzer:
 
         return DiscreteSpectrum(freqs * UnitsData.convert("Hartrees", "Wavenumbers"), ints), deg_transf
 
-    def shifted_transformed_spectrum(self, deg_states, hams, shifts, return_transformation=False):
+    def shifted_transformed_spectrum(self, deg_states, hams, shifts, return_transformation=False, handling_mode='transpose'):
 
-        spec, tf = self.get_shifted_transformed_spectrum(self.energies[0], deg_states, self.target_states, hams, shifts, self.deperturbed_transition_moments)
+        spec, tf = self.get_shifted_transformed_spectrum(
+            self.energies[0], deg_states, self.target_states, hams, shifts, self.deperturbed_transition_moments,
+            handling_mode=handling_mode
+            )
         if not return_transformation:
             return spec
         else:
@@ -426,9 +491,11 @@ class VPTAnalyzer:
             states = np.expand_dims(states, 0)
         inds, _ = nput.find(self.target_states, states)
 
+        freq = self.deperturbed_frequencies if data == 'deperturbed' else self.frequencies
+
         res = {'index':inds}
         if 'frequency' in keys:
-            res['frequency'] = self.frequencies[inds] * UnitsData.convert("Hartrees", "Wavenumbers")
+            res['frequency'] = freq[inds] * UnitsData.convert("Hartrees", "Wavenumbers")
         if 'max_contribs' in keys:
             raise NotImplementedError("whoops")
             res['max_contribs'] = ...
@@ -438,7 +505,7 @@ class VPTAnalyzer:
             else:
                 tm_base = self.transition_moments
             res['transition_moment'] = np.array([tm[0][inds] for tm in tm_base]).T
-            res['intensity'] = self.frequencies[inds] * np.linalg.norm(res['transition_moment'], axis=1)**2 * UnitsData.convert("OscillatorStrength", "KilometersPerMole")
+            res['intensity'] = freq[inds] * np.linalg.norm(res['transition_moment'], axis=1)**2 * UnitsData.convert("OscillatorStrength", "KilometersPerMole")
 
         new_res = []
         for i in range(len(states)):
@@ -499,6 +566,17 @@ class VPTAnalyzer:
             new_res = new_res[0]
 
         return new_res
+
+    def transition_moment_term_sums_first_order(self, states, data='deperturbed'):
+        return self.transition_moment_term_sums(
+            states,
+            terms = {
+                    'harmonic': [(0, 0, 0)],
+                    'electrical': [(0, 1, 0)],
+                    'mechanical': [(1, 0, 0), (0, 0, 1)]
+                },
+            data=data
+        )
 
     def intensity_breakdown(self, states, terms=None, data='deperturbed'):
 
