@@ -1,8 +1,15 @@
 # <a id="Psience.VPT2">Psience.VPT2</a>
     
-provides a class for doing vibrational perturbation theory in python
-builds off of resource packages to handle most of the dirty work and just does the actual potential expansions
-and pertubation theory computations
+An implementation of vibrational perturbation theory (VPT) that uses sparse matrix methods to obtain
+corrections.
+Makes heavy use of the `BasisReps` package as well as `McUtils.Coordinerds` to obtain representations
+of the corrections to the vibrational Hamiltonian.
+Is technically not restricted to VPT in a harmonic basis, but no other forms of PT are likely to
+be implemented in the near future.
+For the purposes of papers, we've been calling this implementation `PyVibPTn`
+
+The code flow is detailed below
+![pt design](/Psience/img/PyVibPTnDesign.png)
 
 ### Members:
 
@@ -4336,7 +4343,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
-    @debugTest
+    @validationTest
     def test_WaterDimerVPTInternals(self):
 
         """

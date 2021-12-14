@@ -113,7 +113,7 @@ deperturbed_transition_moments(self):
 ```python
 degenerate_states(self): 
 ```
-Returns the deperturbed Hamiltonians used to make the degenerate transform
+Returns the deperturbed states used to make the degenerate transform
 - `:returns`: `_`
     >No description...
 
@@ -122,6 +122,22 @@ Returns the deperturbed Hamiltonians used to make the degenerate transform
 deperturbed_hamiltonians(self): 
 ```
 Returns the deperturbed Hamiltonians used to make the degenerate transform
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTResultsLoader.degenerate_energies" class="docs-object-method">&nbsp;</a>
+```python
+degenerate_energies(self): 
+```
+Returns the deperturbed states used to make the degenerate transform
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTResultsLoader.degenerate_rotations" class="docs-object-method">&nbsp;</a>
+```python
+degenerate_rotations(self): 
+```
+Returns the deperturbed states used to make the degenerate transform
 - `:returns`: `_`
     >No description...
 

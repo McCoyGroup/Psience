@@ -82,6 +82,18 @@ energies(self):
 frequencies(self): 
 ```
 
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_spectrum" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_spectrum(self): 
+```
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_frequencies" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_frequencies(self): 
+```
+
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.wavefunction_corrections" class="docs-object-method">&nbsp;</a>
 ```python
 @property
@@ -130,12 +142,27 @@ Returns the deperturbed Hamiltonians used to make the degenerate transform
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_energies" class="docs-object-method">&nbsp;</a>
+```python
+@property
+deperturbed_energies(self): 
+```
+
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.degenerate_states" class="docs-object-method">&nbsp;</a>
 ```python
 @property
 degenerate_states(self): 
 ```
-Returns the deperturbed Hamiltonians used to make the degenerate transform
+Returns the deperturbed states used to make the degenerate transform
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.degenerate_energies" class="docs-object-method">&nbsp;</a>
+```python
+@property
+degenerate_energies(self): 
+```
+Returns the deperturbed states used to make the degenerate transform
 - `:returns`: `_`
     >No description...
 
@@ -146,17 +173,17 @@ shift_and_transform_hamiltonian(self, hams, shifts):
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.get_shifted_transformed_transition_moments" class="docs-object-method">&nbsp;</a>
 ```python
-get_shifted_transformed_transition_moments(self, deg_states, target_states, hams, shifts, tmoms): 
+get_shifted_transformed_transition_moments(self, deg_states, target_states, hams, shifts, tmoms, handling_mode='transpose'): 
 ```
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.get_shifted_transformed_spectrum" class="docs-object-method">&nbsp;</a>
 ```python
-get_shifted_transformed_spectrum(self, zpe, deg_states, target_states, hams, shifts, tmoms): 
+get_shifted_transformed_spectrum(self, zpe, deg_states, target_states, hams, shifts, tmoms, handling_mode='transpose'): 
 ```
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.shifted_transformed_spectrum" class="docs-object-method">&nbsp;</a>
 ```python
-shifted_transformed_spectrum(self, deg_states, hams, shifts, return_transformation=False): 
+shifted_transformed_spectrum(self, deg_states, hams, shifts, return_transformation=False, handling_mode='transpose'): 
 ```
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_data" class="docs-object-method">&nbsp;</a>
@@ -167,6 +194,11 @@ transition_data(self, states, keys=['frequency', 'transition_moment', 'intensity
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_term_sums" class="docs-object-method">&nbsp;</a>
 ```python
 transition_moment_term_sums(self, states, terms=None, data='deperturbed'): 
+```
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_term_sums_first_order" class="docs-object-method">&nbsp;</a>
+```python
+transition_moment_term_sums_first_order(self, states, data='deperturbed'): 
 ```
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.intensity_breakdown" class="docs-object-method">&nbsp;</a>
