@@ -9,7 +9,7 @@ be implemented in the near future.
 For the purposes of papers, we've been calling this implementation `PyVibPTn`
 
 The code flow is detailed below
-![pt design](/Psience/img/PyVibPTnDesign.png)
+![pt design](/Psience/img/PyVibPTnDesign.png){width:100%}
 
 ### Members:
 
@@ -2806,7 +2806,7 @@ class VPT2Tests(TestCase):
             state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
-    @debugTest
+    @validationTest
     def test_OCHHVPTCartesiansDegenerate(self):
 
         tag = 'OCHH Cartesians'
@@ -3180,6 +3180,58 @@ class VPT2Tests(TestCase):
             degeneracy_specs=[
                 [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
             ]
+        )
+
+    @debugTest
+    def test_BrHODVPTRunnerEmbedded(self):
+
+        file_name = "br_hod_tz.fchk"
+        res1 = VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            eckart_embed=True,
+            logger=False,
+            degeneracy_specs=[
+                [[0, 0, 0, 0, 0, 1], [0, 0, 0, 2, 0, 0]]
+            ]
+        )
+        res2 = VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            eckart_embed=False,
+            logger=False,
+            degeneracy_specs=[
+                [[0, 0, 0, 0, 0, 1], [0, 0, 0, 2, 0, 0]]
+            ]
+        )
+
+        self.assertTrue(np.allclose(res1.energies, res2.energies))
+        self.assertFalse(np.allclose(
+            res1.transition_moment_corrections[0],
+            res2.transition_moment_corrections[0],
+        ),
+            msg="{} like {}".format(
+                res1.transition_moment_corrections[0],
+                res2.transition_moment_corrections[0]
+            )
+        )
+        self.assertFalse(np.allclose(
+            res1.transition_moment_corrections[1],
+            res2.transition_moment_corrections[1],
+        ),
+            msg="{} like {}".format(
+                res1.transition_moment_corrections[1],
+                res2.transition_moment_corrections[1]
+            )
+        )
+        self.assertFalse(np.allclose(
+            res1.transition_moment_corrections[2],
+            res2.transition_moment_corrections[2],
+        ),
+            msg="{} like {}".format(
+                res1.transition_moment_corrections[2],
+                res2.transition_moment_corrections[2]
+            )
         )
 
     @validationTest
