@@ -37,7 +37,8 @@ class VPTSystem:
         "potential_function",
         "order",
         "dipole_derivatives",
-        "dummy_atoms"
+        "dummy_atoms",
+        "eckart_embed"
     )
     def __init__(self,
                  mol,
@@ -48,7 +49,8 @@ class VPTSystem:
                  potential_derivatives=None,
                  potential_function=None,
                  order=2,
-                 dipole_derivatives=None
+                 dipole_derivatives=None,
+                 eckart_embed=False
                  ):
         """
         :param mol: the molecule or system specification to use (doesn't really even need to be a molecule)
@@ -93,6 +95,9 @@ class VPTSystem:
 
         if mode_selection is not None:
             self.mol.normal_modes.modes = self.mol.normal_modes.modes[mode_selection]
+
+        if eckart_embed:
+            self.mol = self.mol.get_embedded_molecule()
 
     @property
     def nmodes(self):
@@ -760,57 +765,55 @@ class VPTRunner:
         :rtype:
         """
 
-        if file is None:
-            file = sys.stdout
-
-        def print_label(label, file=file, **opts):
-            lablen = len(label) + 2
-            split_l = int(np.floor((sep_len - lablen)/2))
-            split_r = int(np.ceil((sep_len - lablen)/2))
-            print(sep_char*split_l, label, sep_char*split_r, **opts, file=file)
-        def print_footer(label=None, file=file, **opts):
-            print(sep_char*sep_len, **opts, file=file)
-
-        print_label("Energy Corrections")
-        print(wfns.format_energy_corrections_table(), file=file)
-        print_footer()
-        if wfns.degenerate_transformation is not None:
-            print_label("Deperturbed Energies")
-            print(wfns.format_deperturbed_energies_table(), file=file)
-            print_footer()
-            print_label("Degenerate Energies")
-            print(wfns.format_energies_table(), file=file)
-            print_footer()
+        if wfns.logger is not None:
+            def print_block(label, *args, **kwargs):
+                with wfns.logger.block(tag=label):
+                    wfns.logger.log_print(" ".join("{}".format(x) for x in args), **kwargs)
         else:
-            print_label("States Energies")
-            print(wfns.format_energies_table(), file=file)
-            print_footer()
+            if file is None:
+                file = sys.stdout
+
+            def print_label(label, file=file, **opts):
+                lablen = len(label) + 2
+                split_l = int(np.floor((sep_len - lablen) / 2))
+                split_r = int(np.ceil((sep_len - lablen) / 2))
+                print(sep_char * split_l, label, sep_char * split_r, **opts, file=file)
+
+            def print_footer(label=None, file=file, **opts):
+                print(sep_char * sep_len, **opts, file=file)
+
+            def print_block(label, *args, file=file, **kwargs):
+                print_label(label, file=file, **kwargs)
+                print(*args, file=file, **kwargs)
+                print_footer(file=file, **kwargs)
+
+        print_block("Energy Corrections", wfns.format_energy_corrections_table())
+        if wfns.degenerate_transformation is not None:
+            print_block("Deperturbed Energies",
+                        wfns.format_deperturbed_energies_table()
+                        )
+            print_block(
+                "Degenerate Energies",
+                wfns.format_energies_table()
+            )
+        else:
+            print_block("States Energies",
+                wfns.format_energies_table()
+            )
 
         if print_intensities:
-            ints = wfns.intensities #
+            ints = wfns.intensities # to make sure they're computed before printing starts
             if wfns.degenerate_transformation is not None:
-                print_label("Deperturbed IR Data:")
                 for a, m in zip(["X", "Y", "Z"], wfns.format_deperturbed_dipole_contribs_tables()):
-                    print_label("{} Dipole Contributions".format(a))
-                    print(m, file=file)
-                    print_footer()
-                print(wfns.format_deperturbed_intensities_table(), file=file)
-                print_footer()
-                print_label("Degenerate IR Data")
-                for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
-                    print_label("{} Dipole Contributions".format(a))
-                    print(m, file=file)
-                print_footer()
-                print(wfns.format_intensities_table(), file=file)
-                print_footer()
-            else:
-                print_label("IR Data", file=file)
-                for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
-                    print_label("{} Dipole Contributions".format(a))
-                    print(m, file=file)
-                    print_footer()
-                print(wfns.format_intensities_table(), file=file)
-                print_footer()
+                    print_block("{} Deperturbed Dipole Contributions".format(a), m)
+
+                print_block("Deperturbed IR Data",
+                            wfns.format_deperturbed_intensities_table()
+                            )
+
+            for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
+                print_block("{} Dipole Contributions".format(a), m)
+            print_block("IR Data", wfns.format_intensities_table())
 
     def print_tables(self, wfns=None, file=None, print_intensities=True, sep_char="=", sep_len=100):
         """
@@ -828,6 +831,8 @@ class VPTRunner:
         self.print_output_tables(wfns=wfns, file=file,
                                  print_intensities=print_intensities, sep_char=sep_char, sep_len=sep_len)
 
+        return wfns
+
     @classmethod
     def run_simple(cls,
                    system,
@@ -836,6 +841,23 @@ class VPTRunner:
                    corrected_fundamental_frequencies=None,
                    **opts
                    ):
+
+        full_opts = (
+                VPTSystem.__props__
+                + VPTStateSpace.__props__
+                + VPTSolverOptions.__props__
+                + VPTHamiltonianOptions.__props__
+                + VPTRuntimeOptions.__props__
+                + VPTSolverOptions.__props__
+        )
+
+        misses = set(opts.keys()).difference(set(full_opts))
+        if len(misses) > 0:
+            raise ValueError("{}: options {} not valid, full listing is {}".format(
+                cls.__name__,
+                misses,
+                "\n  ".join(("",) + full_opts)
+            ))
 
         par = ParameterManager(**opts)
         sys = VPTSystem(system, **par.filter(VPTSystem))
@@ -902,7 +924,7 @@ class VPTRunner:
                 for k,v in opts.items():
                     logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
 
-            runner.print_tables()
+            return runner.print_tables()
 
 class VPTStateMaker:
     """

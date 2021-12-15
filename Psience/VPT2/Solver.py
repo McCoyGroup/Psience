@@ -501,7 +501,8 @@ class PerturbationTheoryCorrections:
                 op = sum(op)
             reps[k] = op
 
-        logger.log_print(full_ops, logger_symbol, logger_conversion, message_prepper=self._fmt_operator_rep)
+        if logger is not None:
+            logger.log_print(full_ops, logger_symbol, logger_conversion, message_prepper=self._fmt_operator_rep)
 
         return reps
 
