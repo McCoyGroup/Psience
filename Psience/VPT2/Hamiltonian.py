@@ -84,11 +84,7 @@ class PerturbationTheoryHamiltonian:
             parallelizer = "VPT"
         self.parallelizer = parallelizer
 
-        if checkpoint is None:
-            checkpoint = NullCheckpointer(None)
-        elif isinstance(checkpoint, str):
-            checkpoint = Checkpointer.from_file(checkpoint)
-        self.checkpointer = checkpoint
+        self.checkpointer = Checkpointer.build_canonical(checkpoint)
 
         if molecule is None:
             raise PerturbationTheoryException("{} requires a Molecule to do its dirty-work")

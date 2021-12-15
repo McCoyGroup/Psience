@@ -83,16 +83,13 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         self._dipole_terms = None
         self._dipole_partitioning = self.DipolePartitioningMethod.Standard
         self.logger = logger
-        if checkpoint is None:
-            checkpoint = NullCheckpointer(None)
-        elif isinstance(checkpoint, str):
-            checkpoint = Checkpointer.from_file(checkpoint)
-        self.checkpointer = checkpoint
+
+        self.checkpointer = Checkpointer.build_canonical(checkpoint)
         if results is None:
-            results = self.checkpointer
-        elif isinstance(checkpoint, str):
-            results = Checkpointer.from_file(checkpoint)
-        self.results = results
+            self.results = self.checkpointer
+        else:
+            self.results = Checkpointer.build_canonical(results)
+            
         if expansion_options is None:
             expansion_options = {}
         self.expansion_options = expansion_options
@@ -775,7 +772,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
 
         tms = self.transition_moments
-
 
         return self._oscillator_strengths(tms)
 
