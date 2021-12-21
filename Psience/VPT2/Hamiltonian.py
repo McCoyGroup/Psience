@@ -813,16 +813,16 @@ class PerturbationTheoryHamiltonian:
             opts['degenerate_states'] = degeneracies
 
         return PerturbationTheorySolver(h_reps, states,
-                                          order=order,
-                                          logger=self.logger,
-                                          checkpointer=self.checkpointer,
-                                          parallelizer=self.parallelizer,
-                                          allow_post_PT_calc=allow_post_PT_calc,
-                                          memory_constrained=memory_constrained,
-                                          ignore_odd_order_energies=ignore_odd_order_energies,
-                                          target_property_rules=target_property_rules,
-                                          **opts
-                                          )
+                                        order=order,
+                                        logger=self.logger,
+                                        checkpointer=self.checkpointer,
+                                        parallelizer=self.parallelizer,
+                                        allow_post_PT_calc=allow_post_PT_calc,
+                                        memory_constrained=memory_constrained,
+                                        ignore_odd_order_energies=ignore_odd_order_energies,
+                                        target_property_rules=target_property_rules,
+                                        **opts
+                                        )
 
     def get_wavefunctions(self,
                           states,
@@ -903,12 +903,15 @@ class PerturbationTheoryHamiltonian:
         expansion_options = self.expansion_options.copy()
         expansion_options['expansion_order'] = expansion_order
 
+        operator_settings = self.operator_settings.copy()
+        operator_settings['memory_constrained'] = memory_constrained
+
         return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs,
                                                modes=self.modes,
                                                mode_selection=self.mode_selection,
                                                logger=self.logger,
                                                checkpoint=self.checkpointer,
-                                               operator_settings=self.operator_settings,
+                                               operator_settings=operator_settings,
                                                expansion_options=expansion_options,
                                                degenerate_transformation_layout=degenerate_transformation_layout
                                                )

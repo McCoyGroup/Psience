@@ -627,7 +627,7 @@ class PerturbationTheoryStateSpaceFilter:
             return None
         elif isinstance(data, dict):
             if not all(isinstance(v, cls) for v in data.values()):
-                cls._from_old_style_rules(input_space, data)
+                return cls._from_old_style_rules(input_space, data)
             else:
                 return data
         else:
@@ -693,6 +693,10 @@ class PerturbationTheoryStateSpaceFilter:
             self._prefilters = self.canonicalize_prefilters(self.input_space.basis,
                                                             self._raw_prefilters)
         return self._prefilters
+
+    @property
+    def postfilter(self):
+        return self._postfilters
 
     def _could_be_a_space(self, test): # nasty checking code that I don't want to redupe all the time
         if isinstance(test, (BasisStateSpace, BasisMultiStateSpace)):
@@ -874,6 +878,7 @@ class PerturbationTheorySolver:
         self.order = order
         self.state_space_iterations=state_space_iterations
         self.state_space_terms=state_space_terms
+
         self.state_space_filters=PerturbationTheoryStateSpaceFilter.from_data(states, state_space_filters)
         self.target_property_rules=target_property_rules
 
@@ -1073,9 +1078,12 @@ class PerturbationTheorySolver:
                                     start = time.time()
                                     H[i + 1] = h.get_representation_matrix(cs, self.flat_total_space,
                                                                            zero_element_warning=self.zero_element_warning,
-                                                                           diagonal=False
+                                                                           diagonal=False,
+                                                                           memory_constrained=self.memory_constrained
                                                                            )
                                     h.clear_cache()
+                                    if self.memory_constrained:
+                                        H[i + 1] = H[i + 1].ascs(inplace=True) # attempt to control memory footprint...
                                     # cs.clear_cache()
                                     end = time.time()
                                     logger.log_print("took {t:.3f}s", t=end - start)
@@ -1485,11 +1493,10 @@ class PerturbationTheorySolver:
             )
         )
 
-    def _apply_transformation_with_filters(self, a, b, filter_space, **opts):
+    def _apply_transformation_with_filters(self, a, b, filter_space:PerturbationTheoryStateSpaceFilter, **opts):
 
         if filter_space is not None:
             prefilters = filter_space.prefilters
-            print(prefilters)
             postfilter = filter_space.postfilter
         else:
             prefilters = None
@@ -1512,10 +1519,6 @@ class PerturbationTheorySolver:
                     b_remainder = None
                 elif len(b_remainder) > 0:
                     b = b_remainder.intersection(filter_space)
-                    # print(">>> ", a)
-                    # print(b_remainder.indices)
-                    # print("?? b", b.indices)
-                    # print("?? f", filter_space.indices)
                     if n < len(prefilters): # just a cheap opt...
                         b_remainder = b_remainder.difference(filter_space)
                 else:

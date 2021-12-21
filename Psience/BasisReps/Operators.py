@@ -417,9 +417,12 @@ class Operator:
             non_orthog = np.arange(nstates)
 
 
+        def return_empty():
+            return sp.csr_matrix((1, nstates), dtype='float')
+
         # if none of the states are non-orthogonal...just don't calculate anything
         if len(non_orthog) == 0:
-            return sp.csr_matrix((1, nstates), dtype='float')
+            return return_empty()
         else:
             if isinstance(funcs, (list, tuple)):
                 chunk, all_sels = self._mat_prod_operator_terms(inds, funcs, states, sel_rules)
@@ -433,14 +436,14 @@ class Operator:
                 non_orthog = non_orthog[all_sels,]
 
             if chunk is None:
-                return sp.csr_matrix((1, nstates), dtype='float')
+                return return_empty()
 
             # if check_orthogonality:
             # finally we make sure that everything we're working with is
             # non-zero because it'll buy us time on dot products later
             non_zero = np.where(np.abs(chunk) >= self.zero_threshold)[0]
             if len(non_zero) == 0:
-                return sp.csr_matrix((1, nstates), dtype='float')
+                return return_empty()
             chunk = chunk[non_zero,]
             non_orthog = non_orthog[non_zero,]
 
@@ -448,7 +451,7 @@ class Operator:
                 (
                     chunk,
                     (
-                        np.zeros(len(non_zero)),
+                        np.zeros(len(non_zero), dtype='int8'),
                         non_orthog
                     )
                 ), shape=(1, nstates))
@@ -542,7 +545,10 @@ class Operator:
         return res
 
     @Parallelizer.main_restricted
-    def _main_get_elements(self, inds, idx, parallelizer=None, check_orthogonality=True):
+    def _main_get_elements(self, inds, idx,
+                           parallelizer=None,
+                           check_orthogonality=True,
+                           ):
         """
         Implementation of get_elements to be run on the main process...
 
@@ -622,21 +628,7 @@ class Operator:
         self._worker_get_elements(idx, parallelizer=parallelizer, check_orthogonality=check_orthogonality)
         return self._main_get_elements(inds, idx, parallelizer=parallelizer, check_orthogonality=check_orthogonality)
 
-    def get_elements(self, idx,
-                     parallelizer=None,
-                     check_orthogonality=True,
-                     memory_constrained=False
-                     # need to work in further cache clearing to account for mem. constraints
-                     ):
-        """
-        Calculates a subset of elements
-
-        :param idx: bra and ket states as tuples of elements
-        :type idx: BraKetSpace
-        :return:
-        :rtype:
-        """
-
+    def _split_idx(self, idx):
         if self.chunk_size is not None:
             if isinstance(idx, BraKetSpace):
                 if len(idx) > self.chunk_size:
@@ -647,13 +639,17 @@ class Operator:
                 idx_splits = [idx]
         else:
             idx_splits = [idx]
+        return idx_splits
+
+    # @profile
+    def _eval_chunks(self, inds, idx_splits,
+                     parallelizer=None,
+                     check_orthogonality=True,
+                     memory_constrained=False
+                     ):
 
         chunks = []
-        for idx in idx_splits:
-
-            inds = self.get_inner_indices()
-            if inds is None:
-                return self._get_elements(inds, idx, check_orthogonality=check_orthogonality)
+        for n, idx in enumerate(idx_splits):
 
             if parallelizer is None:
                 parallelizer = self.parallelizer
@@ -672,8 +668,16 @@ class Operator:
                                                      )
 
             idx.clear_cache()
+            idx_splits[n] = None
+            del idx
+            gc.collect()
 
             chunks.append(elem_chunk)
+
+        return chunks
+
+    # @profile
+    def _construct_elem_array(self, chunks):
 
         if all(isinstance(x, np.ndarray) for x in chunks):
             elems = np.concatenate(chunks, axis=0)
@@ -681,6 +685,39 @@ class Operator:
             elems = chunks[0].concatenate(*chunks[1:])
 
         return elems
+
+    # @profile
+    def get_elements(self, idx,
+                     parallelizer=None,
+                     check_orthogonality=True,
+                     memory_constrained=False
+                     # need to work in further cache clearing to account for mem. constraints
+                     ):
+        """
+        Calculates a subset of elements
+
+        :param idx: bra and ket states as tuples of elements
+        :type idx: BraKetSpace
+        :return:
+        :rtype:
+        """
+
+        idx_splits = self._split_idx(idx)
+
+        inds = self.get_inner_indices()
+        if inds is None:
+            return self._get_elements(inds, idx, check_orthogonality=check_orthogonality)
+
+        chunks = self._eval_chunks(inds, idx_splits,
+                                   parallelizer=parallelizer,
+                                   check_orthogonality=check_orthogonality,
+                                   memory_constrained=memory_constrained
+                                   )
+
+        import time
+        time.sleep(.5)
+
+        return self._construct_elem_array(chunks)
 
     @staticmethod
     def _get_dim_string(dims):
@@ -1071,16 +1108,7 @@ class ContractedOperator(Operator):
         if isinstance(c, (int, np.integer, float, np.floating)) and c == 0:
             return 0
 
-        if self.chunk_size is not None:
-            if isinstance(idx, BraKetSpace):
-                if len(idx) > self.chunk_size:
-                    idx_splits = idx.split(self.chunk_size)
-                else:
-                    idx_splits = [idx]
-            else:
-                idx_splits = [idx]
-        else:
-            idx_splits = [idx]
+        idx_splits = self._split_idx(idx)
 
         chunks = [self._get_element_block(idx, check_orthogonality=check_orthogonality) for idx in idx_splits]
         if all(isinstance(x, np.ndarray) for x in chunks):

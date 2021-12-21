@@ -536,7 +536,7 @@ class VPTAnalyzer:
         res = np.array(corrs).T
         return res
 
-    def transition_moment_term_sums(self, states, terms=None, data='deperturbed'):
+    def transition_moment_term_sums(self, states, terms=None, rotation=None, data='deperturbed'):
         if terms is None:
             terms = {
                 'harmonic': [(0, 0, 0)],
@@ -560,14 +560,17 @@ class VPTAnalyzer:
 
         new_res = []
         for i in range(len(states)):
-            new_res.append({k:res[k][i] for k in res.keys()})
+            if rotation is None:
+                new_res.append({k:res[k][i] for k in res.keys()})
+            else:
+                new_res.append({k:rotation@res[k][i] for k in res.keys()})
 
         if single:
             new_res = new_res[0]
 
         return new_res
 
-    def transition_moment_term_sums_first_order(self, states, data='deperturbed'):
+    def transition_moment_term_sums_first_order(self, states, rotation=None, data='deperturbed'):
         return self.transition_moment_term_sums(
             states,
             terms = {
@@ -575,6 +578,7 @@ class VPTAnalyzer:
                     'electrical': [(0, 1, 0)],
                     'mechanical': [(1, 0, 0), (0, 0, 1)]
                 },
+            rotation=rotation,
             data=data
         )
 

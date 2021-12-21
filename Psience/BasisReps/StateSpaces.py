@@ -184,7 +184,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
     def exc_indexer(self, idxer):
         self._exc_indexer = idxer
 
-    def find(self, to_search, check=True):
+    def find(self, to_search, check=True, minimal_dtype=False):
         """
         Finds the indices of a set of indices inside the space
 
@@ -206,7 +206,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         if to_search.ndim == 1:
             vals, _ = nput.find(self.indices, to_search, sorting=self.indexer, check=check)
         else:
-            vals, self._exc_indexer = nput.find(self.excitations, to_search, sorting=self._exc_indexer, check=check)
+            vals, self._exc_indexer = nput.find(self.excitations, to_search, sorting=self._exc_indexer, check=check, minimal_dtype=minimal_dtype)
 
         return vals
 
