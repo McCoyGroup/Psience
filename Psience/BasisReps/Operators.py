@@ -714,9 +714,6 @@ class Operator:
                                    memory_constrained=memory_constrained
                                    )
 
-        import time
-        time.sleep(.5)
-
         return self._construct_elem_array(chunks)
 
     @staticmethod
