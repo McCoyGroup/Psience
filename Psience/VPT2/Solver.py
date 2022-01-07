@@ -1087,6 +1087,7 @@ class PerturbationTheorySolver:
                                     # cs.clear_cache()
                                     end = time.time()
                                     logger.log_print("took {t:.3f}s", t=end - start)
+                                # raise Exception("woop")
 
                     if self.use_cached_representations:
                         try:

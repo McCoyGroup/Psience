@@ -652,16 +652,20 @@ class Representation:
                             sub = SparseArray.from_data((full_dat_map, full_inds_map),
                                                         shape=shape,
                                                         cache_block_data=False,
-                                                        logger=logger,
-                                                        layout='coo'
+                                                        logger=logger
+                                                        # layout='coo'
                                                         )
                             # sub2 = SparseArray.from_data((full_dat, full_inds), shape=shape, cache_block_data=False, logger=logger)
                             #
                             # raise Exception(np.sum(sub.asarray() - sub2.asarray()))
 
                 else:
-                    sub = SparseArray.from_data((full_dat, full_inds), shape=shape, cache_block_data=False,
-                                                logger=logger)
+
+                    sub = SparseArray.from_data((full_dat, full_inds),
+                                                shape=shape,
+                                                cache_block_data=False,
+                                                logger=logger
+                                                )
 
         return sub
 

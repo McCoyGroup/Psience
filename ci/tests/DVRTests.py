@@ -306,7 +306,7 @@ class DVRTests(TestCase):
         g_deriv = g_func.derivative(2)
 
         # Get potential
-        pot = scan_coords.potential_surface.load(coordinates=((1, 0, 2),))
+        pot = scan_coords.potential_surface.unshare(coordinates=((1, 0, 2),))
         min_pos = np.argmin(pot.base.interp_data[1])
         g_eq = g[min_pos][2, 2]
 

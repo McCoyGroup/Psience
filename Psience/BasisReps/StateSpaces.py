@@ -462,6 +462,11 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         """
         raise TypeError("{} can't be split".format(type(self).__name__))
 
+    def share(self, shared_memory_manager):
+        ...
+    def unshare(self, shared_memory_manager):
+        ...
+
 class BasisStateSpace(AbstractStateSpace):
     """
     Represents a subspace of states inside a representation basis.
@@ -3325,11 +3330,19 @@ class BraKetSpace:
         if self._state_diffs is None:
             self._state_diffs = self.state_pairs[1] - self.state_pairs[0]
 
+    aggressive_caching_enabled = True
+    preindex_trie_enabled = True
     def load_non_orthog(self,
                         use_aggressive_caching=None,
                         use_preindex_trie=None,
-                        preindex_trie_depth=None
+                        preindex_trie_depth=None,
+                        shared_memory_manager=None
                         ):
+
+        if use_aggressive_caching is None:
+            use_aggressive_caching = self.aggressive_caching_enabled
+        if use_preindex_trie is None:
+            use_preindex_trie = self.preindex_trie_enabled
         if self._orthogs is None:
 
             exc_l, exc_r = self.state_pairs
@@ -3338,13 +3351,15 @@ class BraKetSpace:
             womp = np.equal(exc_l, exc_r)
 
             if use_preindex_trie:
-                trie = self.OrthogoIndexerTrie(womp, max_depth=preindex_trie_depth)
+                # raise Exception("...")
+                trie = self.OrthogoIndexerTrie(womp, max_depth=preindex_trie_depth, shm_manager=shared_memory_manager)
             else:
                 trie = None
 
             # caching version tries very hard to be clever, non-caching version
             # only caches up to the specified trie depth
             if use_aggressive_caching:
+                # raise Exception("...")
                 self._orthogs = self.CachingOrthogonalIndexCalculator(womp, trie)
             else:
                 self._orthogs = self.OrthogonalIndexCalculator(womp, trie)
@@ -3355,12 +3370,24 @@ class BraKetSpace:
         non-orthogonal excluding some subset of indices
         """
         default_max_depth=8 # more depth means faster evals but more memory; worth getting a trade-off here
-        def __init__(self, base_orthogs, max_depth=None):
+        def __init__(self, base_orthogs, max_depth=None, shm_manager=None):
             self.orthogs = base_orthogs
             if max_depth is None:
                 max_depth = self.default_max_depth
             self.max_depth = max_depth
-            self.trie = {}#{'idx':np.arange(len(self.orthogs[0]))}
+            if shm_manager is None:
+                shm_manager = self.NonSharedMemoryShim()
+            self.trie = shm_manager.dict()
+            self.shm_manager = shm_manager
+
+        class NonSharedMemoryShim:
+            parallelizer=None
+            def dict(self, *d):
+                return dict(**d[0]) if len(d) == 1 else dict(*d)
+            def list(self, *l):
+                return list(l[0]) if len(l) == 1 else list(*l)
+            def array(self, a):
+                return np.asanyarray(a)
 
         def get_idx_terms(self, idx):
             """
@@ -3375,21 +3402,25 @@ class BraKetSpace:
             """
             trie = self.trie
             tests = self.orthogs
+            shm = self.shm_manager
+            par = self.shm_manager.parallelizer
+            if par is not None:
+                par.print('{i}', i=idx)
             if len(idx) > 1:
                 # we explicilty calculate paths of length 1 because of the memory
                 # required to store them
                 for n,i in enumerate(idx[:self.max_depth]):
                     if i not in trie:
                         if n == 0:
-                            trie[i] = {}
+                            trie[i] = shm.dict()
                         elif n == 1:
                             cur_idx = np.where(tests[idx[0]])
                             if len(cur_idx) > 0:
                                 cur_idx = cur_idx[0]
-                            trie[i] = {'idx': cur_idx[tests[i, cur_idx]]}
+                            trie[i] = shm.dict({'idx': shm.array(cur_idx[tests[i, cur_idx]])})
                         else:
                             cur_idx = trie['idx']
-                            trie[i] = {'idx': cur_idx[tests[i, cur_idx]]}
+                            trie[i] = shm.dict({'idx': shm.array(cur_idx[tests[i, cur_idx]])})
                     trie = trie[i]
 
                 return trie['idx'], idx[self.max_depth:]
@@ -3421,7 +3452,8 @@ class BraKetSpace:
         def __init__(self, eq_tests, trie):
             self.tests = eq_tests
             self.pretest = eq_tests.flatten().all()
-            self.cache = {}#MaxSizeCache()
+            self.shm_manager = trie.shm_manager
+            self.cache = self.shm_manager.dict()#MaxSizeCache()
             self.trie = trie
 
         def get_idx_comp(self, item):
@@ -3455,16 +3487,16 @@ class BraKetSpace:
                     # i.e. if we can use the current cache info to efficiently calculate the
                     # next cache bit
                     if n == len(item) - 1 and 'vals' in cache:
-                        cache[i] = {
+                        cache[i] = self.shm_manager.dict({
                             'vals':self._get_nonorthog_from_prev(cache, item)
-                        }
+                        })
                         cache = cache[i]
                     else:
                         # otherwise we just fall through
                         cache = self.cache
                         for j in item:
                             if j not in cache:
-                                cache[j] = {}
+                                cache[j] = self.shm_manager.dict()
                             cache = cache[j]
                         if self.trie is None:
                             cache['vals'] = self._pull_nonorthog(item)
@@ -3489,15 +3521,16 @@ class BraKetSpace:
                     else:
                         # directly compute as a fallback
                         if self.trie is None:
-                            cache['vals'] = self._pull_nonorthog(item)
+                            cache['vals'] = self.shm_manager.array(self._pull_nonorthog(item))
                         else:
-                            cache['vals'] = self._pull_nonorthog_trie(item, self.trie)
+                            cache['vals'] = self.shm_manager.array(self._pull_nonorthog_trie(item, self.trie))
 
             return cache['vals']
 
         def _get_nonorthog_from_next(self, cache, next_key):
             """
             Adds the restriction from next_key to the values already in cache
+
             :param cache:
             :type cache:
             :param next_key:
@@ -3506,7 +3539,7 @@ class BraKetSpace:
             :rtype:
             """
             cur_pos = cache[next_key]['vals']
-            return cur_pos[self.tests[next_key][cur_pos]]
+            return self.shm_manager.array(cur_pos[self.tests[next_key][cur_pos]])
 
         def _get_nonorthog_from_prev(self, cache, inds):
             """
@@ -3548,7 +3581,7 @@ class BraKetSpace:
                 else:
                     recalcs = self._pull_nonorthog_trie(inds, self.trie, subinds=recalc_pos)
 
-            return np.sort(np.concatenate([cur_inds, recalcs]), kind='mergesort') # this sort might kill any benefit...
+            return self.shm_manager.array(np.sort(np.concatenate([cur_inds, recalcs]), kind='mergesort')) # this sort might kill any benefit...
 
         def _pull_nonorthog(self, inds, subinds=None):
             """
@@ -3597,6 +3630,31 @@ class BraKetSpace:
             targ_val = nterms-ninds
             return np.where(out==targ_val)[0]
 
+    def share(self, shared_memory_manager):
+        """
+        Creates a shared memory version of the `BraKetSpace`
+
+        :param shared_memory_manager:
+        :type shared_memory_manager:
+        :return:
+        :rtype:
+        """
+        # self.bras = type(shared_memory_manager)(self.bras)
+        # self.bras.share()
+        # self.kets = type(shared_memory_manager)(self.kets)
+        # self.kets.share()
+        self.load_non_orthog(shared_memory_manager=None,
+                             use_aggressive_caching=False,
+                             use_preindex_trie=False,
+                             )
+        self.load_space_diffs()
+        self._state_diffs = shared_memory_manager.array(self._state_diffs)
+
+    def unshare(self, shared_memory_manager):
+        self.bras = self.bras.unshare()
+        self.kets = self.kets.unshare()
+        self._state_diffs = self._state_diffs.unshare()
+
     def clear_cache(self):
         self._orthogs = None
         self._state_diffs = None
@@ -3632,14 +3690,14 @@ class BraKetSpace:
                 cur_inds = cur_inds[self.tests[e, cur_inds]]
             return cur_inds
 
-    aggressive_caching_enabled=True
-    preindex_trie_enabled=True
+    # @profile
     def get_non_orthog(self,
                        inds,
                        assume_unique=False,
                        use_aggressive_caching=None,
                        use_preindex_trie=None,
-                       preindex_trie_depth=None
+                       preindex_trie_depth=None,
+                       shared_memory_manager=None
                        ):
         """
         Returns whether the states are non-orthogonal under the set of indices.
@@ -3650,18 +3708,14 @@ class BraKetSpace:
         :rtype:
         """
 
-        if use_aggressive_caching is None:
-            use_aggressive_caching = self.aggressive_caching_enabled
-        if use_preindex_trie is None:
-            use_preindex_trie = self.preindex_trie_enabled
-
         if not assume_unique:
             inds = np.unique(inds)
 
         self.load_non_orthog(
             use_aggressive_caching=use_aggressive_caching,
             use_preindex_trie=use_preindex_trie,
-            preindex_trie_depth=preindex_trie_depth
+            preindex_trie_depth=preindex_trie_depth,
+            shared_memory_manager=shared_memory_manager
         )
         inds = tuple(np.sort(inds))
 

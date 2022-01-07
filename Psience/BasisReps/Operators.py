@@ -220,7 +220,6 @@ class Operator:
         elif len(ind_grps) == 1:
             # totally symmetric so we can just sort and delete the dupes
             flat = np.sort(flat, axis=1)
-            return np.unique(flat, axis=0, return_inverse=True)
         else:
             # if indices are shared between groups we can't do anything about them
             # so we figure out where there are overlaps in indices
@@ -248,7 +247,20 @@ class Operator:
             symmetrized = np.concatenate(symmetriz_grps, axis=1)[:, reordering]
             flat[indep_grps] = symmetrized
 
-            return np.unique(flat, axis=0, return_inverse=True)
+        # next pull the unique indices
+        uinds_basic, inverse = np.unique(flat, axis=0, return_inverse=True)
+
+        # Finally apply a lexical sorting so that we
+        # can do as little work as possible later since work can be shared between (0,0,0) and (0,0,1) but not
+        # (1, 1, 0)
+
+        indsort = np.lexsort(uinds_basic.T)
+        # raise Exception(indsort.shape, uinds_basic.shape)
+        uinds = uinds_basic[indsort]
+        # if len(uinds) > 500:
+        #     raise Exception(inds, uinds)
+
+        return uinds, (inverse, np.argsort(indsort))
 
     def _mat_prod_operator_terms(self, inds, funcs, states, sel_rules):
         """
@@ -533,6 +545,7 @@ class Operator:
         """
 
         inds = parallelizer.scatter(inds)
+        # print(f"Num inds={len(idx)}")
         dump = self._get_pop_sequential(inds, idx, save_to_disk=False, check_orthogonality=check_orthogonality)
         parallelizer.print("gathering inds of shape {}".format(inds.shape), log_level=parallelizer.logger.LogLevel.Debug)
         res = parallelizer.gather(dump)
@@ -562,6 +575,11 @@ class Operator:
 
         # we expect this to be an iterable object that looks like
         # num_modes X [bra, ket] X quanta
+        try:
+            idx = idx.obj # shared proxy deref
+        except AttributeError:
+            pass
+
         if not isinstance(idx, BraKetSpace):
             self.logger.log_print("constructing BraKet space")
             idx = BraKetSpace.from_indices(idx, quanta=self.quanta)
@@ -570,7 +588,7 @@ class Operator:
             self.logger.log_print("evaluating identity tensor over {} elements".format(len(idx)))
             new = self._get_eye_tensor(idx)
         else:
-            mapped_inds, inverse = self.filter_symmetric_indices(inds)
+            mapped_inds, inv_dat = self.filter_symmetric_indices(inds)
             if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
                 self.logger.log_print("evaluating {nel} elements over {nind} unique indices using {cores} processes".format(
                     nel=len(idx),
@@ -585,8 +603,9 @@ class Operator:
                 ))
                 res = self._get_pop_sequential(mapped_inds, idx, check_orthogonality=check_orthogonality)
 
-            if inverse is not None:
-                res = res.flatten()[inverse]
+            if inv_dat is not None:
+                inverse, preinv = inv_dat
+                res = res.flatten()[preinv][inverse]
 
             wat = [x for y in res for x in y]
             new = sp.vstack(wat)
@@ -608,6 +627,10 @@ class Operator:
         :return:
         :rtype:
         """
+        try:
+            idx = idx.obj # shared proxy deref
+        except AttributeError:
+            pass
         # worker threads only need to do a small portion of the work
         # and actually inherit most of their info from the parent process
         self._get_pop_parallel(None, idx, parallelizer, check_orthogonality=True)
@@ -650,27 +673,36 @@ class Operator:
 
         chunks = []
         for n, idx in enumerate(idx_splits):
+            idx: BraKetSpace
 
             if parallelizer is None:
                 parallelizer = self.parallelizer
 
             if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
-                # parallelizer.printer = self.logger.log_print
-                max_nproc = len(inds.flatten())
-                elem_chunk = parallelizer.run(self._get_elements, None, idx,
-                                              check_orthogonality=check_orthogonality,
-                                              main_kwargs={'full_inds': inds},
-                                              comm=None if max_nproc >= parallelizer.nprocs else list(range(max_nproc))
-                                              )
+                with parallelizer:
+                    # parallelizer.printer = self.logger.log_print
+                    max_nproc = len(inds.flatten())
+                    # idx.load_space_diffs()
+                    idx = parallelizer.share(idx)
+                    elem_chunk = parallelizer.run(self._get_elements, None, idx,
+                                                  check_orthogonality=check_orthogonality,
+                                                  main_kwargs={'full_inds': inds},
+                                                  comm=None if max_nproc >= parallelizer.nprocs else list(range(max_nproc))
+                                                  )
+                    idx = idx.obj
+                    idx.clear_cache()
+                    idx_splits[n] = None
+                    del idx
+                    gc.collect()
             else:
                 elem_chunk = self._main_get_elements(inds, idx, parallelizer=None,
                                                      check_orthogonality=check_orthogonality
                                                      )
 
-            idx.clear_cache()
-            idx_splits[n] = None
-            del idx
-            gc.collect()
+                idx.clear_cache()
+                idx_splits[n] = None
+                del idx
+                gc.collect()
 
             chunks.append(elem_chunk)
 
@@ -705,6 +737,7 @@ class Operator:
         idx_splits = self._split_idx(idx)
 
         inds = self.get_inner_indices()
+        # print(">>>>>", inds.size)
         if inds is None:
             return self._get_elements(inds, idx, check_orthogonality=check_orthogonality)
 

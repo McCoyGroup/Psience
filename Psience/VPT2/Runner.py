@@ -684,7 +684,6 @@ class VPTSolverOptions:
             for s in states
         ]
 
-from memory_profiler import profile
 class VPTRunner:
     """
     A helper class to make it easier to run jobs by making the inputs/options
@@ -745,7 +744,6 @@ class VPTRunner:
             self._ham = self.get_Hamiltonian()
         return self._ham
 
-    @profile
     def get_wavefunctions(self):
         pt_opts = self.pt_opts.opts.copy()
         if 'degenerate_states' not in pt_opts:
