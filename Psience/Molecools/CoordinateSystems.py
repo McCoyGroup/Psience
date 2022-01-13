@@ -482,6 +482,7 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
                      reembed=False, axes_choice=None, return_derivs=None,
                      strip_dummies=False,
                      strip_embedding=True,
+                     planar_ref_tolerance=None,
                      **kwargs):
         """
         Converts from Cartesian to ZMatrix coords, attempting to preserve the embedding
@@ -539,7 +540,7 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
             ) # agree to like a ten thousandth of an angstrom
             if reembed:
                 if not return_derivs:
-                    embed_carts = molecule.embed_coords(embed_carts)
+                    embed_carts = molecule.embed_coords(embed_carts, planar_ref_tolerance=planar_ref_tolerance)
                     carts = np.concatenate([
                         carts[..., :3, :],
                         embed_carts

@@ -836,7 +836,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :return:
         :rtype:
         """
-        return self._intensities(self.deperturbed_oscillator_strengths)[1]
+        return self._dep_intensities(self.deperturbed_oscillator_strengths)[1]
 
     def intensities_to_order(self, order):
         """
@@ -846,6 +846,15 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :rtype:
         """
         return self._intensities(self.oscillator_strengths_to_order(order), energy_order=order)[1]
+
+    def _dep_intensities(self, oscs, energy_order=None):
+        if energy_order is None:
+            eng = self.deperturbed_energies
+        else:
+            raise NotImplementedError("whoops")
+        freqs = eng - eng[0]
+        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
+        return freqs, units * freqs * oscs
 
     def _intensities(self, oscs, energy_order=None):
         if energy_order is None:

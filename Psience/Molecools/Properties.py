@@ -223,8 +223,9 @@ class StructuralProperties:
         coords, com, axes = cls.get_principle_axis_embedded_coords(coords, masses)
         return coords, com, axes
 
+    planar_ref_tolerance=1e-6
     @classmethod
-    def get_eckart_rotations(cls, masses, ref, coords, sel=None, in_paf=False):
+    def get_eckart_rotations(cls, masses, ref, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
         Generates the Eckart rotation that will align ref and coords, assuming initially that `ref` and `coords` are
         in the principle axis frame
@@ -242,6 +243,9 @@ class StructuralProperties:
         if coords.ndim == 2:
             coords = np.broadcast_to(coords, (1,) + coords.shape)
 
+        if planar_ref_tolerance is None:
+            planar_ref_tolerance = cls.planar_ref_tolerance
+
         if not in_paf:
             coords, com, pax_axes = cls.get_principle_axis_embedded_coords(coords, masses)
             ref, ref_com, ref_axes = cls.get_principle_axis_embedded_coords(ref, masses)
@@ -257,13 +261,14 @@ class StructuralProperties:
             ref = ref[..., sel, :]
 
         real_pos = masses > 0
+        # print(real_pos)
         og_coords = coords
         coords = coords[..., real_pos, :]
         masses = masses[real_pos,]
         og_ref = ref
         ref = ref[..., real_pos, :]
 
-        planar_ref = np.allclose(ref[:, 2], 0., atol=1.0e-8)
+        planar_ref = np.allclose(ref[:, 2], 0., atol=planar_ref_tolerance)
         if not planar_ref:
             # generate pair-wise product matrix
             A = np.tensordot(masses / np.sum(masses),
@@ -313,7 +318,8 @@ class StructuralProperties:
     def get_prop_eckart_transformation(cls, masses, ref, coords,
                                        sel=None,
                                        inverse=False,
-                                       reset_com=False
+                                       reset_com=False,
+                                       planar_ref_tolerance=None
                                        ):
         """
         Computes Eckart transformations for a set of coordinates
@@ -335,7 +341,7 @@ class StructuralProperties:
         # else:
         #     coords = [coords]
 
-        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False)
+        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False, planar_ref_tolerance=planar_ref_tolerance)
         ref, ref_com, ref_rot = ref_stuff
         crd, crd_com, crd_rot = coord_stuff
 
@@ -362,7 +368,8 @@ class StructuralProperties:
     def get_eckart_embedded_coords(cls, masses,
                                    ref, coords,
                                    reset_com=False,
-                                   sel=None
+                                   sel=None,
+                                   planar_ref_tolerance=None
                                    ):
         """
         Embeds a set of coordinates in the reference frame
@@ -383,7 +390,7 @@ class StructuralProperties:
             masses = masses[sel]
             ref = ref[..., sel, :]
 
-        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, in_paf=False)
+        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, in_paf=False, planar_ref_tolerance=planar_ref_tolerance)
         ref, ref_com, ref_rot = ref_stuff
         crd, crd_com, crd_rot = coord_stuff
 
@@ -760,7 +767,7 @@ class MolecularProperties:
         return StructuralProperties.get_prop_principle_axis_rotation(mol.coords, mol.masses, sel=sel, inverse=inverse)
 
     @classmethod
-    def eckart_embedding_data(cls, mol, coords, sel=None):
+    def eckart_embedding_data(cls, mol, coords, sel=None, planar_ref_tolerance=None):
         """
 
         :param mol:
@@ -775,10 +782,10 @@ class MolecularProperties:
         masses = mol.masses
         ref = mol.coords
         coords = CoordinateSet(coords)
-        return StructuralProperties.get_eckart_embedding_data(masses, ref, coords, sel=sel)
+        return StructuralProperties.get_eckart_embedding_data(masses, ref, coords, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
-    def eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False):
+    def eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False, planar_ref_tolerance=None):
         """
 
         :param ref_mol: reference geometry
@@ -797,10 +804,10 @@ class MolecularProperties:
                 m1,
                 m2
             ))
-        return StructuralProperties.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse)
+        return StructuralProperties.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
-    def eckart_embedded_coords(cls, mol, coords, sel=None):
+    def eckart_embedded_coords(cls, mol, coords, sel=None, planar_ref_tolerance=None):
         """
 
         :param mol:
@@ -815,7 +822,7 @@ class MolecularProperties:
         masses = mol.masses
         ref = mol.coords
         coords = CoordinateSet(coords)
-        return StructuralProperties.get_eckart_embedded_coords(masses, ref, coords, sel=sel)
+        return StructuralProperties.get_eckart_embedded_coords(masses, ref, coords, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
     def translation_rotation_eigenvectors(cls, mol, sel=None):

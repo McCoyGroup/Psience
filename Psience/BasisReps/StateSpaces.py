@@ -3644,8 +3644,8 @@ class BraKetSpace:
         # self.kets = type(shared_memory_manager)(self.kets)
         # self.kets.share()
         self.load_non_orthog(shared_memory_manager=None,
-                             use_aggressive_caching=False,
-                             use_preindex_trie=False,
+                             use_aggressive_caching=True,
+                             use_preindex_trie=True
                              )
         self.load_space_diffs()
         self._state_diffs = shared_memory_manager.array(self._state_diffs)
