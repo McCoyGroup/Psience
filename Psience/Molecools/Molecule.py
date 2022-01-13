@@ -527,7 +527,7 @@ class Molecule(AbstractMolecule):
         """
         return self.prop('principle_axis_data')
 
-    def eckart_frame(self, mol, sel=None, inverse=False):
+    def eckart_frame(self, mol, sel=None, inverse=False, planar_ref_tolerance=None):
         """
         Gets the Eckart frame(s) for the molecule
         :param mol:
@@ -539,9 +539,9 @@ class Molecule(AbstractMolecule):
         :return:
         :rtype: MolecularTransformation
         """
-        return self.prop('eckart_transformation', mol, sel=sel, inverse=inverse)
+        return self.prop('eckart_transformation', mol, sel=sel, inverse=inverse, planar_ref_tolerance=planar_ref_tolerance)
 
-    def embed_coords(self, crds, sel=None):
+    def embed_coords(self, crds, sel=None, planar_ref_tolerance=None):
         """
         Embeds coords in the Eckart frame using `self` as a reference
         :param crds:
@@ -550,7 +550,7 @@ class Molecule(AbstractMolecule):
         :rtype:
         """
 
-        return self.prop('eckart_embedded_coords', crds, sel=sel)
+        return self.prop('eckart_embedded_coords', crds, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
     def get_embedding_data(self, crds, sel=None):
         """
         Gets the necessary data to embed crds in the Eckart frame using `self` as a reference

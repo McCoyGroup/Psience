@@ -347,6 +347,7 @@ class VPTHamiltonianOptions:
          "undimensionalize_normal_modes",
          "use_numerical_jacobians",
          "eckart_embed_derivatives",
+         "eckart_embed_planar_ref_tolerance",
          "strip_dummy_atoms",
          "strip_embedding_coordinates",
          "mixed_derivative_handling_mode",
@@ -378,6 +379,7 @@ class VPTHamiltonianOptions:
                  undimensionalize_normal_modes=None,
                  use_numerical_jacobians=None,
                  eckart_embed_derivatives=None,
+                 eckart_embed_planar_ref_tolerance=None,
                  strip_dummy_atoms=None,
                  strip_embedding_coordinates=None,
                  mixed_derivative_handling_mode=None,
@@ -460,6 +462,7 @@ class VPTHamiltonianOptions:
             undimensionalize=undimensionalize_normal_modes,
             numerical_jacobians=use_numerical_jacobians,
             eckart_embed_derivatives=eckart_embed_derivatives,
+            eckart_embed_planar_ref_tolerance=eckart_embed_planar_ref_tolerance,
             strip_dummies=strip_dummy_atoms,
             strip_embedding=strip_embedding_coordinates,
             mixed_derivative_handling_mode=mixed_derivative_handling_mode,
@@ -878,6 +881,8 @@ class VPTRunner:
             target_property = 'intensities'
         if target_property is not None and 'state_space_filters' not in opts:
             par.ops['state_space_filters'] = states.get_filter(target_property, order=order)
+
+            # print(par.ops['state_space_filters'])
 
         if corrected_fundamental_frequencies is not None and (
             'zero_order_energy_corrections' not in opts

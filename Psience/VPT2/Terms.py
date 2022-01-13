@@ -171,7 +171,8 @@ class ExpansionTerms:
         "checkpointer",
         "undimensionalize",
         "numerical_jacobians",
-        "eckart_embed",
+        "eckart_embed_derivatives",
+        "eckart_embed_planar_ref_tolerance",
         "strip_dummies",
         "strip_embedding",
         "mixed_derivative_handling_mode",
@@ -199,7 +200,8 @@ class ExpansionTerms:
                  checkpointer=None,
                  undimensionalize=True,
                  numerical_jacobians=True,
-                 eckart_embed=True,
+                 eckart_embed_derivatives=True,
+                 eckart_embed_planar_ref_tolerance=None,
                  strip_dummies=False,
                  strip_embedding=False,
                  mixed_derivative_handling_mode="numerical",
@@ -265,7 +267,8 @@ class ExpansionTerms:
         self.freqs = self.modes.freqs
         self._inert_frame = None
 
-        self.reembed=eckart_embed
+        self.reembed=eckart_embed_derivatives
+        self.reembed_tol=eckart_embed_planar_ref_tolerance
         self.all_numerical=numerical_jacobians
 
         if logger is None:
@@ -373,6 +376,7 @@ class ExpansionTerms:
                                              all_numerical=self.all_numerical,
                                              converter_options=dict(
                                                  reembed=self.reembed,
+                                                 planar_ref_tolerance=self.reembed_tol,
                                                  strip_dummies=self.strip_dummies
                                              ),
                                              parallelizer=par
@@ -726,20 +730,6 @@ class ExpansionTerms:
                         o=cartesian_by_internal_order
                     )
                 cart_by_internal_jacobs = self.get_int_jacobs(list(range(1, cartesian_by_internal_order+1)))
-                for i,x in enumerate(cart_by_internal_jacobs):
-                    bad_spots = np.where(np.abs(x) > self.jacobian_warning_threshold)
-                    bad_bad_spots = bad_spots # so we don't lose it
-                    if len(bad_spots) > 0: # numpy fuckery
-                        bad_spots = bad_spots[0]
-                    if len(bad_spots) > 0:
-                        m = np.max(np.abs(x[bad_bad_spots]))
-                        self.logger.log_print('WARNING: maximum d^{i}X/dR^{i} term is {m}. '
-                                              'This will likely mess up G-matrix terms and is probably coming from a planar structure. '
-                                              'Setting to zero, but `jacobian_warning_threshold` can be increased if this is expected',
-                                              i=i,
-                                              m=m
-                                              )
-                        x[bad_bad_spots] = 0.
                 if self.logger is not None:
                     end = time.time()
                     self.logger.log_print(
@@ -765,6 +755,27 @@ class ExpansionTerms:
                 if self.strip_embedding:
                     embedding_coords = [0, 1, 2, 4, 5, 8]
                     good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
+
+                for i, x in enumerate(cart_by_internal_jacobs):
+                    bad_spots = np.where(np.abs(x) > self.jacobian_warning_threshold)
+                    bad_bad_spots = bad_spots  # so we don't lose it
+                    if len(bad_spots) > 0:  # numpy fuckery
+                        bad_spots = bad_spots[0]
+                    if len(bad_spots) > 0:
+                        m = np.max(np.abs(x[bad_bad_spots]))
+                        self.logger.log_print('WARNING: maximum d^{i}X/dR^{i} term is {m}. '
+                                              'This will likely mess up G-matrix terms and is probably coming from a planar structure. '
+                                              'Setting to zero, but `jacobian_warning_threshold` can be increased if this is expected '
+                                              'All terms >{t} (base shape:{s}): {b}',
+                                              i=i+1,
+                                              m=m,
+                                              s=x.shape,
+                                              b=np.array(bad_bad_spots).T.tolist(),
+                                              t=self.jacobian_warning_threshold
+                                              )
+                        x[bad_bad_spots] = 0.
+                        # raise Exception(";_;")
+
 
                 # Need to then mass weight
                 masses = self.masses
@@ -800,19 +811,7 @@ class ExpansionTerms:
                         o=internal_by_cartesian_order
                     )
                 int_by_cartesian_jacobs = self.get_cart_jacobs(list(range(1, internal_by_cartesian_order + 1)))
-                m = np.max([np.max(np.abs(x)) for x in int_by_cartesian_jacobs])
-                for i,x in enumerate(int_by_cartesian_jacobs):
-                    bad_spots = np.where(np.abs(x) > self.jacobian_warning_threshold)
-                    bad_bad_spots = bad_spots # so we don't lose it
-                    if len(bad_spots) > 0: # numpy fuckery
-                        bad_spots = bad_spots[0]
-                    if len(bad_spots) > 0:
-                        m = np.max(np.abs(x[bad_bad_spots]))
-                        self.logger.log_print('WARNING: maximum d^{i}R/dX^{i} term is {m}. '
-                                              'This will likely mess up G-matrix terms and is probably coming from a planar structure. '
-                                              'Setting to zero, but `jacobian_warning_threshold` can be increased if this is expected',
-                                              i=i, m=m)
-                        x[bad_bad_spots] = 0.
+                # m = np.max([np.max(np.abs(x)) for x in int_by_cartesian_jacobs])
                 if self.logger is not None:
                     end = time.time()
                     self.logger.log_print(
@@ -839,6 +838,25 @@ class ExpansionTerms:
                 if self.strip_embedding:
                     embedding_coords = [0, 1, 2, 4, 5, 8]
                     good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
+
+                for i,x in enumerate(int_by_cartesian_jacobs):
+                    bad_spots = np.where(np.abs(x) > self.jacobian_warning_threshold)
+                    bad_bad_spots = bad_spots # so we don't lose it
+                    if len(bad_spots) > 0: # numpy fuckery
+                        bad_spots = bad_spots[0]
+                    if len(bad_spots) > 0:
+                        m = np.max(np.abs(x[bad_bad_spots]))
+                        self.logger.log_print('WARNING: maximum d^{i}R/dX^{i} term is {m}. '
+                                              'This will likely mess up G-matrix terms and is probably coming from a planar structure. '
+                                              'Setting to zero, but `jacobian_warning_threshold` can be increased if this is expected. '
+                                              'All terms >{t} (base shape:{s}): {b}',
+                                              i=i+1,
+                                              m=m,
+                                              s=x.shape,
+                                              b=np.array(bad_bad_spots).T,
+                                              t=self.jacobian_warning_threshold
+                                              )
+                        x[bad_bad_spots] = 0.
 
                 # Need to then mass weight
                 masses = self.masses
@@ -1522,7 +1540,7 @@ class PotentialTerms(ExpansionTerms):
                     ):
                         v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
                     elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
-                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[:, :, i, i]
+                        v4[i, i, :, :] = v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i]
                     elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
                         v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = np.average(
                             [
@@ -2018,12 +2036,12 @@ class DipoleTerms(ExpansionTerms):
                                     v3[i, i, :] = v3[i, :, i] = v3[:, i, i] = v3[i, i, :]
                                 elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
                                     # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
-                                    raise NotImplementedError("don't use broken term stuff...")
-                                    v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[:, :, i]
+                                    v3[i, i, :] = v3[i, :, i] = v3[:, i, i] = v3[:, i, i]
+                                    # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[:, :, i]
                                 elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
-                                    v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = np.average(
+                                    v3[i, i, :] = v3[i, :, i] = v3[:, i, i] = v3[:, i, i] = np.average(
                                         [
-                                            v3[i, :, :], v3[:, i, :], v3[:, :, i]
+                                            v3[i, i, :], v3[:, i, i]
                                         ],
                                         axis=0
                                     )

@@ -180,26 +180,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                                                      **self.operator_settings
                                                      )
 
-    def _mu_representations(self,
-                            mu,
-                            M,
-                            space,
-                            bra_spaces,
-                            ket_spaces,
-                            order,
-                            partitioning,
-                            rep_inds,
-                            allow_higher_dipole_terms=False
-                            ):
-
-        # define out reps based on partitioning style
-        if partitioning is None:
-            partitioning = self.dipole_partitioning
-        elif not isinstance(partitioning, self.DipolePartitioningMethod):
-            partitioning = self.DipolePartitioningMethod(partitioning)
-
-        # filters = [[None] * (order+1) for _ in range(ket_spaces.nstates)]
-        def get_states(m, k, order=order):
+    # @profile
+    def _get_rep_states(self, m, k, order, ket_spaces, bra_spaces):
             with self.logger.block(tag="getting coupled states for {}".format(m)):
                 start = time.time()
                 inds = None
@@ -262,6 +244,30 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             inds = inds.remove_duplicates(assume_symmetric=True)
 
             return inds
+
+    # from memory_profiler import profile
+    # @profile
+    def _mu_representations(self,
+                            mu,
+                            M,
+                            space,
+                            bra_spaces,
+                            ket_spaces,
+                            order,
+                            partitioning,
+                            rep_inds,
+                            allow_higher_dipole_terms=False
+                            ):
+
+        # define out reps based on partitioning style
+        if partitioning is None:
+            partitioning = self.dipole_partitioning
+        elif not isinstance(partitioning, self.DipolePartitioningMethod):
+            partitioning = self.DipolePartitioningMethod(partitioning)
+
+        # filters = [[None] * (order+1) for _ in range(ket_spaces.nstates)]
+        def get_states(m, k):
+            return self._get_rep_states(m, k, order, ket_spaces, bra_spaces)
 
         if all(
                     isinstance(m, (np.ndarray, SparseArray)) and m.shape == (M, M)
@@ -368,6 +374,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
         return mu_terms
 
+    # @profile
     def _transition_moments(self,
                             mu_x, mu_y, mu_z,
                             correction_terms=None,
@@ -661,7 +668,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             else:
                 self.checkpointer["transition_moments"] = transition_moment_components
 
-
         return [(tmom, transition_moment_components), (tmom_deg, transition_moment_components_deg), mu_reps, (corr_terms_lower, corr_terms_upper)]
 
     class TermHolder(tuple):
@@ -830,7 +836,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :return:
         :rtype:
         """
-        return self._intensities(self.deperturbed_oscillator_strengths)[1]
+        return self._dep_intensities(self.deperturbed_oscillator_strengths)[1]
 
     def intensities_to_order(self, order):
         """
@@ -840,6 +846,15 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :rtype:
         """
         return self._intensities(self.oscillator_strengths_to_order(order), energy_order=order)[1]
+
+    def _dep_intensities(self, oscs, energy_order=None):
+        if energy_order is None:
+            eng = self.deperturbed_energies
+        else:
+            raise NotImplementedError("whoops")
+        freqs = eng - eng[0]
+        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
+        return freqs, units * freqs * oscs
 
     def _intensities(self, oscs, energy_order=None):
         if energy_order is None:
