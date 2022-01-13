@@ -98,7 +98,7 @@ exc_indexer(self):
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.find" class="docs-object-method">&nbsp;</a>
 ```python
-find(self, to_search, check=True): 
+find(self, to_search, check=True, minimal_dtype=False): 
 ```
 Finds the indices of a set of indices inside the space
 - `to_search`: `np.ndarray | AbstractStateSpace`
@@ -288,6 +288,16 @@ Subclass overridable function to allow for spaces to be
     >No description...
 - `:returns`: `_`
     >No description...
+
+<a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.share" class="docs-object-method">&nbsp;</a>
+```python
+share(self, shared_memory_manager): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.unshare" class="docs-object-method">&nbsp;</a>
+```python
+unshare(self, shared_memory_manager): 
+```
 
 ### Examples
 

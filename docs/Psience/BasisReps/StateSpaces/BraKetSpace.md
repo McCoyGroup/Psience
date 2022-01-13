@@ -6,12 +6,12 @@ the connections between states.
 
 ### Properties and Methods
 ```python
+aggressive_caching_enabled: bool
+preindex_trie_enabled: bool
 OrthogoIndexerTrie: type
 CachingOrthogonalIndexCalculator: type
 OrthogonalIndexSparseCalculator: type
 OrthogonalIndexCalculator: type
-aggressive_caching_enabled: bool
-preindex_trie_enabled: bool
 ```
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.__init__" class="docs-object-method">&nbsp;</a>
 ```python
@@ -56,7 +56,22 @@ load_space_diffs(self):
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.load_non_orthog" class="docs-object-method">&nbsp;</a>
 ```python
-load_non_orthog(self, use_aggressive_caching=None, use_preindex_trie=None, preindex_trie_depth=None): 
+load_non_orthog(self, use_aggressive_caching=None, use_preindex_trie=None, preindex_trie_depth=None, shared_memory_manager=None): 
+```
+
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.share" class="docs-object-method">&nbsp;</a>
+```python
+share(self, shared_memory_manager): 
+```
+Creates a shared memory version of the `BraKetSpace`
+- `shared_memory_manager`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.unshare" class="docs-object-method">&nbsp;</a>
+```python
+unshare(self, shared_memory_manager): 
 ```
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.clear_cache" class="docs-object-method">&nbsp;</a>
@@ -66,7 +81,7 @@ clear_cache(self):
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.get_non_orthog" class="docs-object-method">&nbsp;</a>
 ```python
-get_non_orthog(self, inds, assume_unique=False, use_aggressive_caching=None, use_preindex_trie=None, preindex_trie_depth=None): 
+get_non_orthog(self, inds, assume_unique=False, use_aggressive_caching=None, use_preindex_trie=None, preindex_trie_depth=None, shared_memory_manager=None): 
 ```
 Returns whether the states are non-orthogonal under the set of indices.
 - `inds`: `Any`

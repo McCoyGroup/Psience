@@ -201,23 +201,17 @@ Does the dirty work of doing the VPT iterative equations.
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Solver.PerturbationTheorySolver.apply_VPT_deg_equations" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Solver.PerturbationTheorySolver.apply_VPT_2k1_rules" class="docs-object-method">&nbsp;</a>
 ```python
-apply_VPT_deg_equations(self, state_index, degenerate_space_indices, degenerate_energy, zero_order_state, degenerate_subspace, non_zero_cutoff=1e-14, check_overlap=True): 
+apply_VPT_2k1_rules(self, existing_corrs, perturbations=None): 
 ```
-Does the dirty work of doing the VPT iterative equations.
-        Needs to be adapted to include the two types of degeneracies that can
-        be introduced in Sakurai's approach.
-- `:returns`: `_`
+Apply expressions allowing for obtaining higher-order
+        corrections to the energies from lower-order corrections to the
+        wavefunctions
+- `existing_corrs`: `Any`
     >No description...
-
-<a id="Psience.VPT2.Solver.PerturbationTheorySolver.apply_VPT_second_deg_equations" class="docs-object-method">&nbsp;</a>
-```python
-apply_VPT_second_deg_equations(self, state_index, degenerate_space_indices, degenerate_energies, zero_order_state, degenerate_subspace, degenerate_subsubspace, non_zero_cutoff=1e-14, check_overlap=True): 
-```
-Does the dirty work of doing the VPT iterative equations.
-        Needs to be adapted to include the two types of degeneracies that can
-        be introduced in Sakurai's approach.
+- `perturbations`: `Any`
+    >No description...
 - `:returns`: `_`
     >No description...
 

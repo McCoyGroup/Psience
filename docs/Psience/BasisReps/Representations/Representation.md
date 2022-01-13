@@ -5,7 +5,7 @@ in high-dimensional spaces.
 ### Properties and Methods
 <a id="Psience.BasisReps.Representations.Representation.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, compute, basis, name=None, logger=None, selection_rules=None, selection_rule_steps=None): 
+__init__(self, compute, basis, name=None, logger=None, selection_rules=None, selection_rule_steps=None, memory_constrained=False): 
 ```
 
 - `compute`: `callable | Operator`
@@ -140,7 +140,7 @@ apply(self, other):
 
 <a id="Psience.BasisReps.Representations.Representation.get_representation_matrix" class="docs-object-method">&nbsp;</a>
 ```python
-get_representation_matrix(self, coupled_space, total_space, filter_space=None, diagonal=False, logger=None, zero_element_warning=True, clear_sparse_caches=True, clear_operator_caches=True, assume_symmetric=True, remove_duplicates=True): 
+get_representation_matrix(self, coupled_space, total_space, filter_space=None, diagonal=False, logger=None, zero_element_warning=True, clear_sparse_caches=True, clear_operator_caches=True, assume_symmetric=True, remove_duplicates=True, memory_constrained=None): 
 ```
 Actively constructs a perturbation theory Hamiltonian representation
 - `h`: `Any`

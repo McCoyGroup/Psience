@@ -106,7 +106,7 @@ Builds an operator based on supplied terms, remapping names where possible.
 
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.representation" class="docs-object-method">&nbsp;</a>
 ```python
-representation(self, *terms, coeffs=None, name=None, axes=None, logger=None, parallelizer=None, chunk_size=None): 
+representation(self, *terms, coeffs=None, name=None, axes=None, logger=None, parallelizer=None, chunk_size=None, memory_constrained=False): 
 ```
 Provides a representation of a product operator specified by _terms_.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.

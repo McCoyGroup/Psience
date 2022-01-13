@@ -193,12 +193,12 @@ transition_data(self, states, keys=['frequency', 'transition_moment', 'intensity
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_term_sums" class="docs-object-method">&nbsp;</a>
 ```python
-transition_moment_term_sums(self, states, terms=None, data='deperturbed'): 
+transition_moment_term_sums(self, states, terms=None, rotation=None, data='deperturbed'): 
 ```
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_term_sums_first_order" class="docs-object-method">&nbsp;</a>
 ```python
-transition_moment_term_sums_first_order(self, states, data='deperturbed'): 
+transition_moment_term_sums_first_order(self, states, rotation=None, data='deperturbed'): 
 ```
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.intensity_breakdown" class="docs-object-method">&nbsp;</a>

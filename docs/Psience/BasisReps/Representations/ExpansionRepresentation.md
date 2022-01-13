@@ -4,7 +4,7 @@ Provides support for terms that look like `1/2 pGp + 1/2 dV/dQdQ QQ` by computin
 ### Properties and Methods
 <a id="Psience.BasisReps.Representations.ExpansionRepresentation.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, coeffs, computers, basis, name=None, logger=None): 
+__init__(self, coeffs, computers, basis, name=None, logger=None, memory_constrained=False): 
 ```
 
 - `coeffs`: `Iterable[float]`

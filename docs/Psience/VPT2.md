@@ -2149,6 +2149,18 @@ class VPT2Tests(TestCase):
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             3,
+            memory_constrained=True,
+            logger=True
+        )
+
+    @validationTest
+    def test_HOHVPTRunnerFlow(self):
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            memory_constrained=True,
             logger=True
         )
 
@@ -3182,7 +3194,7 @@ class VPT2Tests(TestCase):
             ]
         )
 
-    @debugTest
+    @validationTest
     def test_BrHODVPTRunnerEmbedded(self):
 
         file_name = "br_hod_tz.fchk"
@@ -3190,7 +3202,7 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             3,
             eckart_embed=True,
-            logger=False,
+            logger=True,
             degeneracy_specs=[
                 [[0, 0, 0, 0, 0, 1], [0, 0, 0, 2, 0, 0]]
             ]
@@ -3199,7 +3211,7 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             3,
             eckart_embed=False,
-            logger=False,
+            logger=True,
             degeneracy_specs=[
                 [[0, 0, 0, 0, 0, 1], [0, 0, 0, 2, 0, 0]]
             ]
@@ -4750,7 +4762,7 @@ class VPT2Tests(TestCase):
             # , parallelized=True
         )
 
-    @validationTest
+    @validationTest #prev
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4787,7 +4799,7 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
-            calculate_intensities=True
+            calculate_intensities=False
             # , checkpoint=chk
             , use_cached_representations=False
             , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
@@ -5158,7 +5170,7 @@ class VPT2Tests(TestCase):
             calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
-            , state_space_filters= VPTStateSpace.get_state_space_filter(states, n_modes, 'intensities')
+            , state_space_filters= VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , parallelized=True
             # , processes=5
         )

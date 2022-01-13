@@ -361,7 +361,7 @@ Gets the principle axis embedded coords and embedding parameters for the molecul
 
 <a id="Psience.Molecools.Molecule.Molecule.eckart_frame" class="docs-object-method">&nbsp;</a>
 ```python
-eckart_frame(self, mol, sel=None, inverse=False): 
+eckart_frame(self, mol, sel=None, inverse=False, planar_ref_tolerance=None): 
 ```
 Gets the Eckart frame(s) for the molecule
 - `mol`: `Any`
@@ -375,7 +375,7 @@ Gets the Eckart frame(s) for the molecule
 
 <a id="Psience.Molecools.Molecule.Molecule.embed_coords" class="docs-object-method">&nbsp;</a>
 ```python
-embed_coords(self, crds, sel=None): 
+embed_coords(self, crds, sel=None, planar_ref_tolerance=None): 
 ```
 Embeds coords in the Eckart frame using `self` as a reference
 - `crds`: `Any`
