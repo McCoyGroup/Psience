@@ -3389,7 +3389,7 @@ class BraKetSpace:
             def array(self, a):
                 return np.asanyarray(a)
 
-        def get_idx_terms(self, idx):
+        def get_idx_terms(self, idx, return_array=True):
             """
             idx is a assumed sorted and since so many
             of the request idx will start with the same
@@ -3403,27 +3403,23 @@ class BraKetSpace:
             trie = self.trie
             tests = self.orthogs
             shm = self.shm_manager
-            par = self.shm_manager.parallelizer
-            if par is not None:
-                par.print('{i}', i=idx)
+            if not isinstance(idx, tuple):
+                idx = tuple(idx)
+            # par = self.shm_manager.parallelizer
+            # gotta rewrite this in terms of tuple manipulations...
             if len(idx) > 1:
-                # we explicilty calculate paths of length 1 because of the memory
+                # we always explicilty calculate paths of length 1 because of the memory
                 # required to store them
-                for n,i in enumerate(idx[:self.max_depth]):
-                    if i not in trie:
-                        if n == 0:
-                            trie[i] = shm.dict()
-                        elif n == 1:
-                            cur_idx = np.where(tests[idx[0]])
-                            if len(cur_idx) > 0:
-                                cur_idx = cur_idx[0]
-                            trie[i] = shm.dict({'idx': shm.array(cur_idx[tests[i, cur_idx]])})
-                        else:
-                            cur_idx = trie['idx']
-                            trie[i] = shm.dict({'idx': shm.array(cur_idx[tests[i, cur_idx]])})
-                    trie = trie[i]
-
-                return trie['idx'], idx[self.max_depth:]
+                if idx not in trie:
+                    cur_idx, _ = self.get_idx_terms(idx[:-1])
+                    # self.shm_manager.parallelizer.print(">>>>> {} {}".format(idx, type(cur_idx)))
+                    # self.shm_manager.parallelizer.print("   ?? {}".format(cur_idx.shape))
+                    trie[idx] = np.asanyarray(cur_idx[tests[idx[-1], cur_idx]])
+                # self.shm_manager.parallelizer.print("{} <<<<<".format(idx))
+                arr = trie[idx]
+                if return_array and not isinstance(arr, np.ndarray):
+                    arr = arr.array.copy()
+                return arr, idx[self.max_depth:]
             elif len(idx) == 1:
                 vals = np.where(tests[idx[0]])
                 if len(vals) > 0:
@@ -3477,55 +3473,93 @@ class BraKetSpace:
 
             # we first determine which sets of indices we've already
             # computed so that we can reuse that information
-            prev_cache = None
             cache = self.cache
-            for n, i in enumerate(item):
-                if i in cache:
-                    cache = cache[i]
-                else:
-                    # we check if we're only one element away from the end
-                    # i.e. if we can use the current cache info to efficiently calculate the
-                    # next cache bit
-                    if n == len(item) - 1 and 'vals' in cache:
-                        cache[i] = self.shm_manager.dict({
-                            'vals':self._get_nonorthog_from_prev(cache, item)
-                        })
-                        cache = cache[i]
-                    else:
-                        # otherwise we just fall through
-                        cache = self.cache
-                        for j in item:
-                            if j not in cache:
-                                cache[j] = self.shm_manager.dict()
-                            cache = cache[j]
-                        if self.trie is None:
-                            cache['vals'] = self._pull_nonorthog(item)
-                        else:
-                            cache['vals'] = self._pull_nonorthog_trie(item, self.trie)
-                    break
-            else:
+            if item in cache:
                 # this means we made it all the way through,
                 # so now we either check to see if we've already computed the indices
-                if 'vals' not in cache:
+                vals = cache[item]
+                if vals is None:
                     # we see if we can compute this stuff from a later term
-                    for next_key in cache.keys():
-                        if 'vals' in cache[next_key]:
+                    for j in range(len(self.tests)):
+                        subub = item + (j,)
+                        if subub in cache and cache[subub] is not None:
+                            sub = None
                             break
                     else:
-                        next_key = None
-                    if next_key is not None:
-                        cache['vals'] = self._get_nonorthog_from_next(cache, next_key)
-                    elif prev_cache is not None and 'vals' in prev_cache:
+                        subub = None
+                        sub = item[:-1]
+                    if subub is not None:
+                        cache[item] = self._get_nonorthog_from_next(cache, subub)
+                    elif sub in cache and cache[sub] is not None:
                         # we use prior info to be somewhat more efficient
-                        cache['vals'] = self._get_nonorthog_from_prev(prev_cache, item)
+                        cache[item] = self._get_nonorthog_from_prev(cache, item)
                     else:
                         # directly compute as a fallback
                         if self.trie is None:
-                            cache['vals'] = self.shm_manager.array(self._pull_nonorthog(item))
+                            cache[item] = np.asanyarray(self._pull_nonorthog(item))
                         else:
-                            cache['vals'] = self.shm_manager.array(self._pull_nonorthog_trie(item, self.trie))
+                            cache[item] = np.asanyarray(self._pull_nonorthog_trie(item, self.trie))
+            else:
+                sub = item[:-1]
+                if sub in cache and cache[sub] is not None:
+                    cache[item] = self._get_nonorthog_from_prev(cache, item)
+                else:
+                    # directly compute as a fallback
+                    if self.trie is None:
+                        cache[item] = self._pull_nonorthog(item)
+                    else:
+                        cache[item] = self._pull_nonorthog_trie(item, self.trie)
 
-            return cache['vals']
+            # for n, i in enumerate(item):
+            #     if i in cache:
+            #         cache = cache[i]
+            #     else:
+            #         # we check if we're only one element away from the end
+            #         # i.e. if we can use the current cache info to efficiently calculate the
+            #         # next cache bit
+            #         if n == len(item) - 1 and 'vals' in cache:
+            #             cache[i] = self.shm_manager.dict({
+            #                 'vals':self._get_nonorthog_from_prev(cache, item)
+            #             })
+            #             cache = cache[i]
+            #         else:
+            #             # otherwise we just fall through
+            #             cache = self.cache
+            #             for j in item:
+            #                 if j not in cache:
+            #                     cache[j] = self.shm_manager.dict()
+            #                 cache = cache[j]
+            #             if self.trie is None:
+            #                 cache['vals'] = self._pull_nonorthog(item)
+            #             else:
+            #                 cache['vals'] = self._pull_nonorthog_trie(item, self.trie)
+            #         break
+            # else:
+            #     # this means we made it all the way through,
+            #     # so now we either check to see if we've already computed the indices
+            #     if 'vals' not in cache:
+            #         # we see if we can compute this stuff from a later term
+            #         for next_key in cache.keys():
+            #             if 'vals' in cache[next_key]:
+            #                 break
+            #         else:
+            #             next_key = None
+            #         if next_key is not None:
+            #             cache['vals'] = self._get_nonorthog_from_next(cache, next_key)
+            #         elif prev_cache is not None and 'vals' in prev_cache:
+            #             # we use prior info to be somewhat more efficient
+            #             cache['vals'] = self._get_nonorthog_from_prev(prev_cache, item)
+            #         else:
+            #             # directly compute as a fallback
+            #             if self.trie is None:
+            #                 cache['vals'] = self.shm_manager.array(self._pull_nonorthog(item))
+            #             else:
+            #                 cache['vals'] = self.shm_manager.array(self._pull_nonorthog_trie(item, self.trie))
+
+            c = cache[item]
+            if not isinstance(c, np.ndarray):
+                c = c.array.copy()
+            return c
 
         def _get_nonorthog_from_next(self, cache, next_key):
             """
@@ -3538,8 +3572,10 @@ class BraKetSpace:
             :return:
             :rtype:
             """
-            cur_pos = cache[next_key]['vals']
-            return self.shm_manager.array(cur_pos[self.tests[next_key][cur_pos]])
+            cur_pos = cache[next_key]
+            if not isinstance(cur_pos, np.ndarray):
+                cur_pos = cur_pos.array.copy()
+            return np.asanyarray(cur_pos[self.tests[next_key[-1]][cur_pos]])
 
         def _get_nonorthog_from_prev(self, cache, inds):
             """
@@ -3554,7 +3590,9 @@ class BraKetSpace:
             :rtype:
             """
 
-            cur_inds = cache['vals'] # both of these are sorted
+            cur_inds = cache[inds[:-1]] # both of these are sorted
+            if not isinstance(cur_inds, np.ndarray):
+                cur_inds = cur_inds.array.copy()
             next_tests = self.tests[inds[-1]]
 
             if self.trie is not None:
@@ -3567,7 +3605,6 @@ class BraKetSpace:
 
                 for e in rest:
                     init_inds = init_inds[self.tests[e, init_inds]]
-
                 recalcs = init_inds
 
             else:
@@ -3581,7 +3618,7 @@ class BraKetSpace:
                 else:
                     recalcs = self._pull_nonorthog_trie(inds, self.trie, subinds=recalc_pos)
 
-            return self.shm_manager.array(np.sort(np.concatenate([cur_inds, recalcs]), kind='mergesort')) # this sort might kill any benefit...
+            return np.asanyarray(np.sort(np.concatenate([cur_inds, recalcs]), kind='mergesort')) # this sort might kill any benefit...
 
         def _pull_nonorthog(self, inds, subinds=None):
             """
@@ -3648,7 +3685,7 @@ class BraKetSpace:
                              use_preindex_trie=True
                              )
         self.load_space_diffs()
-        self._state_diffs = shared_memory_manager.array(self._state_diffs)
+        self._state_diffs = np.asanyarray(self._state_diffs)
 
     def unshare(self, shared_memory_manager):
         self.bras = self.bras.unshare()
