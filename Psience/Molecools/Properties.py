@@ -1874,8 +1874,8 @@ class NormalModesManager(PropertyManager):
         mode_basis = modes.matrix
         rot_analytic = np.dot(d1_analytic.T, mode_basis)
 
-        rot_analytic = np.array([x/np.linalg.norm(x) for x in rot_analytic])
-        d1_numerical = np.array([x/np.linalg.norm(x) for x in d1_numerical.T])
+        rot_analytic = np.nan_to_num(np.array([x/np.linalg.norm(x) for x in rot_analytic]), nan=0.0)
+        d1_numerical = np.nan_to_num(np.array([x/np.linalg.norm(x) for x in d1_numerical.T]), nan=0.0)
 
         # could force some orientation relative to PAX frame?
         # dot each into each other
