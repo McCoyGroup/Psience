@@ -3683,6 +3683,7 @@ class BraKetSpace:
         self.load_non_orthog(shared_memory_manager=None,
                              use_aggressive_caching=True,
                              use_preindex_trie=True
+                             # preindex_trie_depth=2
                              )
         self.load_space_diffs()
         self._state_diffs = np.asanyarray(self._state_diffs)
@@ -3696,6 +3697,11 @@ class BraKetSpace:
         self._orthogs = None
         self._state_diffs = None
         self._state_pairs = None
+
+    def free(self):
+        self.clear_cache()
+        self.bras = None
+        self.kets = None
 
     class OrthogonalIndexCalculator:
         def __init__(self, tests, trie):
