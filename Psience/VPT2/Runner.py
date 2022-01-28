@@ -12,6 +12,7 @@ from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
 from ..Molecools import Molecule
 
 from .Hamiltonian import PerturbationTheoryHamiltonian
+from .StateFilters import PerturbationTheoryStateSpaceFilter
 
 __all__ = [
     "VPTRunner",
@@ -299,6 +300,23 @@ class VPTStateSpace:
         if target == 'wavefunctions':
             return None
         elif target == 'intensities':
+            return PerturbationTheoryStateSpaceFilter.from_property_rules(
+                cls.get_state_list_from_quanta(0, n_modes),
+                states,
+                [
+                    HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x"),
+                    HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x", "x")
+                ],
+                [
+                    # (),
+                    # (),
+                    # ()
+                    HarmonicOscillatorProductBasis(n_modes).selection_rules("x"),
+                    HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x"),
+                    HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x")
+                ]
+            )
+
             return {
                     (1, 1): (
                         cls.get_state_list_from_quanta(1, n_modes),
@@ -309,7 +327,16 @@ class VPTStateSpace:
                                 if sum(x) in [-1, 1]
                             ]
                         )
-                    ) if any(sum(s) == 3 for s in states) else cls.get_state_list_from_quanta(2, n_modes),
+                    ) if any(sum(s) == 3 for s in states) else (
+                        cls.get_state_list_from_quanta(1, n_modes),
+                        (
+                            cls.get_state_list_from_quanta([2], n_modes),
+                            [
+                                x for x in HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x")
+                                if sum(x) in [-1, 1]
+                            ]
+                        )
+                    ),
                     (2, 0): (
                         cls.get_state_list_from_quanta(1, n_modes),
                         (

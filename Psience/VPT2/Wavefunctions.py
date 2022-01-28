@@ -636,10 +636,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
 
             # we calculate it explicitly like this up front in case we want to use it later since the shape
             # can be a bit confusing ([0-order, 1-ord, 2-ord], [x, y, z])
-            tmom = self._compute_tmom_to_order(transition_moment_components, order)
+            tmom = self._compute_tmom_to_order(transition_moment_components, order-1)
 
             if degenerate_transformation is not None:
-                tmom_deg = self._compute_tmom_to_order(transition_moment_components_deg, order)
+                tmom_deg = self._compute_tmom_to_order(transition_moment_components_deg, order-1)
             else:
                 tmom_deg = None
 
@@ -672,7 +672,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                 sum(ip.chain(transition_moment_components[i][j]))
                 if not isinstance(transition_moment_components[i][j], (float, int, np.floating, np.integer))
                 else transition_moment_components[i][j]
-                for i in range(order)  # correction order
+                for i in range(order+1)  # correction order
             ) for j in range(3)  # xyz
         ]
 
@@ -784,7 +784,6 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
 
         tms = self.transition_moments
-
         return self._oscillator_strengths(tms)
 
     @property
@@ -883,7 +882,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         if energy_order is None:
             eng = self.deperturbed_energies
         else:
-            raise self.energies_to_order(energy_order)
+            eng = self.energies_to_order(energy_order)
         freqs = eng - eng[0]
         units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
         return freqs, units * freqs * oscs

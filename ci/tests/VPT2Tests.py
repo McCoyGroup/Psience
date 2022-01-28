@@ -2543,6 +2543,23 @@ class VPT2Tests(TestCase):
             }
         )
 
+    # @debugTest
+    # def test_StateFilterBuild(self):
+    #
+    #     PerturbationTheoryStateSpaceFilter.from_property_rules(
+    #         [[0, 0, 0, 0, 0, 0]],
+    #         [[0, 0, 0, 0, 0, 1]],
+    #         [
+    #             HarmonicOscillatorProductBasis(6).selection_rules("x", "x", "x"),
+    #             HarmonicOscillatorProductBasis(6).selection_rules("x", "x", "x", "x")
+    #         ],
+    #         [
+    #             HarmonicOscillatorProductBasis(6).selection_rules("x"),
+    #             HarmonicOscillatorProductBasis(6).selection_rules("x", "x"),
+    #             HarmonicOscillatorProductBasis(6).selection_rules("x", "x", "x")
+    #         ]
+    #     )
+
     @validationTest
     def test_OCHHVPTCartesians(self):
 
@@ -2572,12 +2589,13 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=False,
-            verbose=True,
+            log=True,
+            verbose=False,
             calculate_intensities=True,
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
+            , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
 
     @validationTest
@@ -4655,18 +4673,54 @@ class VPT2Tests(TestCase):
             states,
             gaussian_energies,
             gaussian_freqs,
-            log=False,
+            log=True,
             verbose=False,
             print_profile=False,
             # profile_filter='Combinatorics/Permutations',
             print_report=print_report,
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance,
-            calculate_intensities=False
+            calculate_intensities=True
             # , checkpoint=chk
             , use_cached_representations=False
             , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
+
+        """
+      0 0 0 0 0 0 0 0 0 0 0 1    3935.27377     97.33660      3753.65238     58.13922
+      0 0 0 0 0 0 0 0 0 0 1 0    3915.15761    114.99756      3740.71701     84.15195
+      0 0 0 0 0 0 0 0 0 1 0 0    3813.91886     11.14760      3646.98672      8.46240
+      0 0 0 0 0 0 0 0 1 0 0 0    3718.74062    296.76286      3582.21150    185.53346
+      0 0 0 0 0 0 0 1 0 0 0 0    1650.27153     36.30532      1596.80585     40.33368
+      0 0 0 0 0 0 1 0 0 0 0 0    1629.31504     87.42837      1585.70492     69.42534
+      0 0 0 0 0 1 0 0 0 0 0 0     630.33865     91.54864       505.72865     78.09409
+      0 0 0 0 1 0 0 0 0 0 0 0     360.39520     51.44267       306.75615      0.18052
+      0 0 0 1 0 0 0 0 0 0 0 0     184.18198    152.66172       156.73958    179.32516
+      0 0 1 0 0 0 0 0 0 0 0 0     154.94039    128.25913       138.81727     53.05822
+      0 1 0 0 0 0 0 0 0 0 0 0     147.11073     64.66117       148.15947     30.89420
+      1 0 0 0 0 0 0 0 0 0 0 0     127.00718    103.95206       110.22809    106.19076
+      ...
+      1 0 1 0 1 0 0 0 0 0 0 0     642.34278      0.00000       609.82022  41250.34895
+      1 1 0 0 1 0 0 0 0 0 0 0     634.51312      0.00000       591.99559    770.54907
+      0 1 1 1 0 0 0 0 0 0 0 0     486.23310      0.00000       434.18987   1126.63040
+      1 0 1 1 0 0 0 0 0 0 0 0     466.12955      0.00000       390.57249      0.58818
+      1 1 0 1 0 0 0 0 0 0 0 0     458.29989      0.00000       414.14439   3344.43366
+      1 1 1 0 0 0 0 0 0 0 0 0     429.05831      0.00000       403.30196   9152.80195
+        """
+
+        """
+        Ran 1 test in 57.147s
+        > H(0): BasisStateSpace(nstates=455, basis=HOBasis(dim=12))
+        > H(1): SelectionRuleStateSpace(ogstates=455, nstates=255359, basis=HOBasis(dim=12))
+        > H(2): SelectionRuleStateSpace(ogstates=455, nstates=76219, basis=HOBasis(dim=12))
+        """
+
+        """
+        Ran 1 test in 59.523s
+        > H(0): BasisStateSpace(nstates=455, basis=HOBasis(dim=12))
+        > H(1): SelectionRuleStateSpace(ogstates=455, nstates=255359, basis=HOBasis(dim=12))
+        > H(2): SelectionRuleStateSpace(ogstates=455, nstates=90961, basis=HOBasis(dim=12))
+        """
 
     @validationTest
     def test_WaterDimerVPTCartesiansDegenerate(self):
@@ -5037,6 +5091,63 @@ class VPT2Tests(TestCase):
             # , parallelized=True
             # , processes=5
         )
+
+        """
+        Runtime: 1476.841s
+        > H(0): BasisStateSpace(nstates=2024, basis=HOBasis(dim=21))
+        > H(1): SelectionRuleStateSpace(ogstates=2024, nstates=4848866, basis=HOBasis(dim=21))
+        > H(2): SelectionRuleStateSpace(ogstates=2024, nstates=1133176, basis=HOBasis(dim=21))
+        
+        ::> building ExpansionRepresentation<H(2)>
+        ::> in Representation<T(2)>
+          > evaluating in BraKet space BraKetSpace(nstates=590612)
+          > took 0.000s
+        <::
+        ::> in Representation<V(2)>
+          > evaluating in BraKet space BraKetSpace(nstates=590612)
+          > evaluating 590612 elements over 10626 unique indices sequentially
+        """
+
+
+        """
+        Runtime: 1295.888s
+        > H(0): BasisStateSpace(nstates=2024, basis=HOBasis(dim=21))
+        > H(1): SelectionRuleStateSpace(ogstates=2024, nstates=4848866, basis=HOBasis(dim=21))
+        > H(2): SelectionRuleStateSpace(ogstates=2024, nstates=1340383, basis=HOBasis(dim=21))
+        
+        ::> building ExpansionRepresentation<H(2)>
+        ::> in Representation<T(2)>
+          > evaluating in BraKet space BraKetSpace(nstates=787193)
+          > took 0.000s
+        <::
+        ::> in Representation<V(2)>
+          > evaluating in BraKet space BraKetSpace(nstates=787193)
+          > evaluating 787193 elements over 10626 unique indices sequentially
+          > took 70.186s
+        <::
+        """
+
+        """
+        
+          0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1    3895.66610     98.10123      3707.13280     72.38965
+          0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0    3894.19180    107.18754      3704.05599     80.07400
+          0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0    3890.29874    103.95078      3699.18199     68.51599
+          ...
+          0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0     171.71437     93.66445       148.04435    164.87273
+          1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0     156.44682     78.12768       124.49396     71.53652
+          0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2    7791.33220      0.00000      7261.78196      0.92306
+          0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0    7788.38361      0.00000      7254.24573      0.93660
+          0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0    7780.59747      0.00000      7241.32702      0.99899
+          0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0    7282.57358      0.00000      6830.63674      0.38770
+          0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0    7264.98499      0.00000      6828.66423      0.29843
+          0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0    7149.48009      0.00000      6738.60251      0.00483
+          0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0    3316.78945      0.00000      3165.08447      0.18717
+          0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0    3268.06894      0.00000      3171.81566      0.48045
+          0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0    3261.97377      0.00000      3167.21306      1.22791
+          ...
+          1 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0     520.57961      0.00000       319.99659   9536.21904
+          1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0     512.19704      0.00000       440.86686    496.64051
+  """
 
     #endregion Water Clusters
 
