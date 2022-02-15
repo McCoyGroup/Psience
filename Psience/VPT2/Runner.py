@@ -6,11 +6,11 @@ import numpy as np, sys
 
 from McUtils.Scaffolding import ParameterManager, Checkpointer
 from McUtils.Zachary import FiniteDifferenceDerivative
-from McUtils.Combinatorics import PermutationRelationGraph
 
 from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
 from ..Molecools import Molecule
 
+from .DegeneracySpecs import DegeneracySpec
 from .Hamiltonian import PerturbationTheoryHamiltonian
 from .StateFilters import PerturbationTheoryStateSpaceFilter
 
@@ -199,17 +199,6 @@ class VPTStateSpace:
                 whee = [p for p in whee if all(j in target_modes or x == 0 for j,x in enumerate(p))]
         return whee
 
-    @staticmethod
-    def _is_polyad_rule(d, n_modes):
-        try:
-            return (
-                    len(d) == 2
-                    and len(d[0]) == n_modes
-                    and len(d[1]) == n_modes
-            )
-        except TypeError:
-            return False
-
     def build_degenerate_state_spaces(self, degeneracy_specs):
         """
 
@@ -219,54 +208,34 @@ class VPTStateSpace:
         :rtype:
         """
 
-        n_modes = len(self.state_list[0])
-        if degeneracy_specs is None:
+        spec = DegeneracySpec.from_spec(degeneracy_specs)
+        if spec is None:
             return None
-        elif isinstance(degeneracy_specs, dict):
-            # dispatch on mode
-            degeneracy_specs = degeneracy_specs.copy()
-            if 'polyads' in degeneracy_specs:
-                polyads = degeneracy_specs['polyads']
-                del degeneracy_specs['polyads']
-                return self.get_degenerate_polyad_space(
-                    self.state_list,
-                    polyads,
-                    **degeneracy_specs
-                )
-            else:
-                NotImplementedError("couldn't infer degenerate space construction mode from spec {}".format(degeneracy_specs))
-        elif all(self._is_polyad_rule(d, n_modes) for d in degeneracy_specs):
-            return self.get_degenerate_polyad_space(
-                self.state_list,
-                degeneracy_specs
-            )
         else:
-            raise NotImplementedError("don't know what to do with degeneracy spec {}".format(degeneracy_specs))
-    @classmethod
-    def get_degenerate_polyad_space(cls, states, polyadic_pairs, max_quanta=None, max_iterations=2, require_converged=False, extra_groups=None):
-        """
-        Gets degenerate spaces by using pairs of transformation rules to
-        take an input state and connect it to other degenerate states
+            return spec.get_groups(self.state_list)
 
-        :param states: the input states
-        :type states:
-        :param polyadic_pairs: the transformation rules
-        :type polyadic_pairs:
-        :param max_quanta: the max quanta to allow in connected states
-        :type max_quanta:
-        :return:
-        :rtype:
-        """
-
-        graph = PermutationRelationGraph(polyadic_pairs)
-        groups = graph.build_state_graph(states,
-                                         extra_groups=extra_groups,
-                                         max_sum=max_quanta,
-                                         max_iterations=max_iterations,
-                                         raise_iteration_error=require_converged
-                                         )
-
-        return [g for g in groups if len(g) > 1]
+        # elif isinstance(degeneracy_specs, dict):
+        #     # dispatch on mode
+        #     degeneracy_specs = degeneracy_specs.copy()
+        #     if 'polyads' in degeneracy_specs:
+        #         polyads = degeneracy_specs['polyads']
+        #         del degeneracy_specs['polyads']
+        #         return DegenerateMultiStateSpace.get_degenerate_polyad_space(
+        #             self.state_list,
+        #             polyads,
+        #             **degeneracy_specs
+        #         )
+        #     else:
+        #         NotImplementedError(
+        #             "couldn't infer degenerate space construction mode from spec {}".format(degeneracy_specs)
+        #         )
+        # elif all(DegenerateMultiStateSpace._is_polyad_rule(d, n_modes) for d in degeneracy_specs):
+        #     return DegenerateMultiStateSpace.get_degenerate_polyad_space(
+        #         self.state_list,
+        #         degeneracy_specs
+        #     )
+        # else:
+        #     raise NotImplementedError("don't know what to do with degeneracy spec {}".format(degeneracy_specs))
 
     def get_filter(self, target_property, order=2):
         return self.get_state_space_filter(self.state_list,
@@ -617,6 +586,7 @@ class VPTSolverOptions:
         "zero_element_warning",
         "degenerate_states",
         "zero_order_energy_corrections",
+        "handle_strong_couplings"
     )
     def __init__(self,
                  order=2,
@@ -634,7 +604,8 @@ class VPTSolverOptions:
                  intermediate_normalization=None,
                  zero_element_warning=None,
                  degenerate_states=None,
-                 zero_order_energy_corrections=None,
+                 handle_strong_couplings=None,
+                 zero_order_energy_corrections=None
                  ):
         """
         :param order: the order of perturbation theory to apply
@@ -677,6 +648,7 @@ class VPTSolverOptions:
             total_space=total_space,
             flat_total_space=flat_total_space,
             degenerate_states=degenerate_states,
+            handle_strong_couplings=handle_strong_couplings,
             state_space_iterations=state_space_iterations,
             state_space_terms=state_space_terms,
             state_space_filters=state_space_filters,
@@ -929,21 +901,7 @@ class VPTRunner:
         )
 
         logger = runner.hamiltonian.logger
-        with logger.block(tag="Running Perturbation Theory"):
-            with logger.block(tag="States"):
-                logger.log_print(
-                    states.state_list,
-                    message_prepper=lambda a:str(np.array(a)).splitlines()
-                )
-            with logger.block(tag="Degeneracies"):
-                if states.degenerate_states is None:
-                    logger.log_print("None")
-                else:
-                    for x in states.degenerate_states:
-                        logger.log_print(
-                            x,
-                            message_prepper=lambda a:str(np.array(a)).splitlines()
-                        )
+        with logger.block(tag="Starting Perturbation Theory Runner"):
             with logger.block(tag="Hamiltonian Options"):
                 for k,v in runner.ham_opts.opts.items():
                     logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
@@ -955,6 +913,25 @@ class VPTRunner:
                 opts = dict(runner.runtime_opts.ham_opts, **runner.runtime_opts.solver_opts)
                 for k,v in opts.items():
                     logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
+
+            with logger.block(tag="States"):
+                logger.log_print(
+                    states.state_list,
+                    message_prepper=lambda a:str(np.array(a)).splitlines()
+                )
+            with logger.block(tag="Degeneracies"):
+                if states.degenerate_states is None:
+                    logger.log_print("None")
+                else:
+                    ds = states.degenerate_states
+                    if isinstance(ds, list):
+                        for x in states.degenerate_states:
+                            logger.log_print(
+                                x,
+                                message_prepper=lambda a:str(np.array(a)).splitlines()
+                            )
+                    else:
+                        logger.log_print(str(ds))
 
             return runner.print_tables()
 

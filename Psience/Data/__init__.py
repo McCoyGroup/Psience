@@ -7,7 +7,8 @@ Not sure at this point, though.
 """
 
 
-from .Surfaces import *
-
 __all__ = []
-__all__ += Surfaces.__all__
+from .Surfaces import *; from .Surfaces import __all__ as exposed
+__all__ += exposed
+from .AnalyticModelConstructors import *; from .AnalyticModelConstructors import __all__ as exposed
+__all__ += exposed

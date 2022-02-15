@@ -521,7 +521,13 @@ class VPT2Tests(TestCase):
 
     #endregion
 
-    #region Test Systems
+    # region New Style Tests
+
+    
+
+    # endregion
+
+    #region Old Style Test Systems
 
     #region Analytic Models
 
@@ -2543,23 +2549,6 @@ class VPT2Tests(TestCase):
             }
         )
 
-    # @debugTest
-    # def test_StateFilterBuild(self):
-    #
-    #     PerturbationTheoryStateSpaceFilter.from_property_rules(
-    #         [[0, 0, 0, 0, 0, 0]],
-    #         [[0, 0, 0, 0, 0, 1]],
-    #         [
-    #             HarmonicOscillatorProductBasis(6).selection_rules("x", "x", "x"),
-    #             HarmonicOscillatorProductBasis(6).selection_rules("x", "x", "x", "x")
-    #         ],
-    #         [
-    #             HarmonicOscillatorProductBasis(6).selection_rules("x"),
-    #             HarmonicOscillatorProductBasis(6).selection_rules("x", "x"),
-    #             HarmonicOscillatorProductBasis(6).selection_rules("x", "x", "x")
-    #         ]
-    #     )
-
     @validationTest
     def test_OCHHVPTCartesians(self):
 
@@ -2596,6 +2585,7 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
             , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
+            # , nearly_degenerate_threshold=.1
         )
 
     @validationTest
@@ -3380,9 +3370,7 @@ class VPT2Tests(TestCase):
 
     #endregion Formaldehyde Analogs
 
-    #region X-HOCL
-
-
+    #region X-HOCl
 
     #Paper
     @validationTest

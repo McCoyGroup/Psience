@@ -1,7 +1,9 @@
 
 import numpy as np
 from McUtils.Numputils import SparseArray
+import McUtils.Numputils as nput
 from McUtils.Scaffolding import NullLogger, Checkpointer
+from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace
 from .Common import PerturbationTheoryException, _safe_dot
 
 __all__ = [
@@ -142,6 +144,194 @@ class PerturbationTheoryCorrections:
             degenerate_energies=self.degenerate_energies,
             logger=self.logger
         )
+
+    @classmethod
+    def create_coupling_matrix(cls, corrs,
+                               states:BasisStateSpace, flat_total_space:BasisStateSpace,
+                               nstates, order,
+                               filters=None,
+                               non_zero_cutoff=1.0e-14
+                               ):
+
+        # now we recompute reduced state spaces for use in results processing
+        # and we also convert the correction vectors to sparse representations
+        tci = flat_total_space.indices
+        N = len(tci)
+
+        is_transp = len(corrs) == order and len(corrs[0]) == nstates
+        is_sparse = isinstance(corrs[0], SparseArray) if is_transp else isinstance(corrs, SparseArray)
+        # nstates = len(all_corrs)
+
+        corr_mats = [None] * (order + 1)
+        corr_inds = [[] for i in range(nstates)]
+        for o in range(order + 1):
+            if filters is not None:
+                # we use this to check that we're only
+                # allowing transitions that our filters support
+                nquanta_rules = [
+                    v for k,v in filters.items() if sum(k) == o
+                ]
+            else:
+                nquanta_rules = None
+            non_zeros = []
+            if is_sparse:
+                if is_transp:
+                    sp_vals, sp_inds = corrs[o].block_data
+                    nonzi = np.where(np.abs(sp_vals) > non_zero_cutoff)[0]
+                    sp_vals = sp_vals[nonzi,]
+                    sp_inds = tuple(s[nonzi] for s in sp_inds)
+                    corr_mats[o] = SparseArray.from_data(
+                        (
+                            sp_vals,
+                            sp_inds
+                        ),
+                        shape=(nstates, N),
+                        cache_block_data=False
+                    )
+                    ind_keys, ind_vals = nput.group_by(sp_inds[1], sp_inds[0])[0]
+                    for i,v in zip(ind_keys, ind_vals):
+                        corr_inds[i].append(v)
+                else:
+                    raise NotImplementedError("constructing final coupling matrix from (order, nstates, N) `SparseArray` not supported")
+            else:
+                initial_quanta = np.sum(states.excitations, axis=1)
+                for i in range(nstates):
+                    if is_transp:
+                        nonzi = np.where(np.abs(corrs[o, i]) > non_zero_cutoff)[0]
+                        vals = corrs[o, i][nonzi,]
+                    else:
+                        nonzi = np.where(np.abs(corrs[i, o]) > non_zero_cutoff)[0]
+                        vals = corrs[i, o][nonzi,]
+
+                    # we attempt to filter out things that can't touch based on our filter rules
+                    target_quanta = np.sum(flat_total_space.take_subspace(nonzi).excitations, axis=1)
+                    if nquanta_rules is not None and len(nquanta_rules) > 0:
+                        # from .Solver import PerturbationTheoryStateSpaceFilter
+                        mask = None
+                        for f in nquanta_rules:
+                            # f:PerturbationTheoryStateSpaceFilter
+                            for (filter_space, filter_rules) in f.prefilters:
+                                is_in = states.take_subspace([i]).intersection(filter_space)
+                                if len(is_in) > 0:
+                                    q_diffs = target_quanta - initial_quanta[i]
+                                    poss_diffs = np.unique([sum(x) for x in filter_rules])
+                                    if mask is None:
+                                        mask = np.isin(q_diffs, poss_diffs)
+                                    else:
+                                        mask = np.logical_or(mask, np.isin(q_diffs, poss_diffs))
+                        if mask is not None:
+                            nonzi = nonzi[mask]
+                            vals = vals[mask]
+
+                    # and then we add the appropriate basis indices to the list of basis data
+                    non_zeros.append(
+                        (
+                            vals,
+                            np.column_stack([
+                                np.full(len(nonzi), i),
+                                nonzi
+                            ])
+                        )
+                    )
+
+                    corr_inds[i].append(tci[nonzi,])
+
+                # now we build the full mat rep for this level of correction
+                vals = np.concatenate([x[0] for x in non_zeros])
+                inds = np.concatenate([x[1] for x in non_zeros], axis=0).T
+                corr_mats[o] = SparseArray.from_data(
+                    (
+                        vals,
+                        inds
+                    ),
+                    shape=(nstates, N),
+                    cache_block_data=False
+                )
+
+        # now we build state reps from corr_inds
+        for i, dat in enumerate(corr_inds): #TODO: this might break with pruning...I can't really be sure at this point
+            spaces = []
+            for substates in dat:
+                _, upos = np.unique(substates, return_index=True)
+                usubs = substates[np.sort(upos)]
+                spaces.append(flat_total_space.take_states(usubs))
+            corr_inds[i] = BasisMultiStateSpace(np.array(spaces, dtype=object))
+
+        return corr_mats, corr_inds
+
+    def prune(self, threshold=.1):
+        """
+        Returns corrections with couplings less than the given cutoff set to zero
+
+        :param threshold:
+        :type threshold:
+        :return:
+        :rtype:
+        """
+
+
+
+    def find_strong_couplings(self, threshold=.1):
+        """
+        Finds positions in the expansion matrices where the couplings are too large
+
+        :param threshold:
+        :type threshold:
+        :return:
+        :rtype:
+        """
+
+        order = self.order
+        strong_couplings = {}
+        for o in range(1, order):
+            sp_vals, sp_inds = self.wfn_corrections[o].block_data
+            nonzi = np.where(np.abs(sp_vals) > threshold)[0]
+            sp_inds = tuple(s[nonzi] for s in sp_inds)
+            ind_keys, ind_vals = nput.group_by(sp_inds[1], self.states.indices[sp_inds[0]])[0]
+            # print(self.states.indices[sp_inds[0]])
+            # print(tci[sp_inds[1]])
+            for i, v in zip(ind_keys, ind_vals):
+                _, upos = np.unique(v, return_index=True)
+                usubs = v[np.sort(upos)]
+                if i not in strong_couplings:
+                    strong_couplings[i] = [None for _ in range(order)]
+                strong_couplings[i][o] = self.total_basis.take_subspace(usubs)
+
+        return strong_couplings
+
+    def format_strong_couplings_report(self, couplings=None, threshold=.1, int_fmt="{:>3.0f}", padding="{:<8}", join=True, use_excitations=True):
+        if couplings is None:
+            couplings = self.find_strong_couplings(threshold=threshold)
+
+        list_fmt = " ".join(int_fmt for _ in range(self.total_basis.ndim))
+        coupling_statements = []
+        for i,v in sorted(couplings.items(), key=lambda k:k[0]):
+            if use_excitations:
+                i = self.states.take_states([i]).excitations[0]
+                coupling_statements.append(padding.format("state:") + list_fmt.format(*i))
+                # print(v)
+                for n,l in enumerate(v):
+                    if l is not None and len(l) > 0:
+                        coupling_statements.extend(padding.format(" order {}".format(n) if j == 0 else "")+list_fmt.format(*e) for j,e in enumerate(l.excitations))
+            else:
+                coupling_statements.append(list_fmt.format(i))
+                coupling_statements.append(padding + str(v.indices))
+
+        return coupling_statements if not join else "\n".join(coupling_statements)
+
+    def collapse_strong_couplings(self, sc:dict):
+        new = {}
+        for k,v in sc.items():
+            s = None
+            for s2 in v:
+                if s2 is not None:
+                    if s is None:
+                        s = s2
+                    else:
+                        s = s.concatenate(s2)
+            new[k] = s
+        return new
+
 
     @staticmethod
     def _fmt_operator_rep(full_ops, operator_symbol, conversion, real_fmt="{:>.8e}", padding_fmt='{:>16}'):
