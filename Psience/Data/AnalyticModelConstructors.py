@@ -98,39 +98,39 @@ class OrientationVector:
             return sum(x*y for x,y in zip(self.vec, other.vec))
     @classmethod
     def rotation_matrix(cls, angle, axis:'OrientationVector'):
-        for i,v in enumerate(axis.vec):
-            if v == axis or v == -axis:
-                if i == 0:
-                    mat = [
-                        OrientationVector(sym.cos(angle), -sym.sin(angle), 0, axis.basis),
-                        OrientationVector(sym.sin(angle),  sym.cos(angle), 0, axis.basis),
-                        OrientationVector(             0,               0, 1, axis.basis)
-                    ]
-                elif i == 1:
-                    mat = [
-                        OrientationVector(sym.cos(angle), 0, -sym.sin(angle), axis.basis),
-                        OrientationVector(             0, 1,               0, axis.basis),
-                        OrientationVector(sym.sin(angle), 0,  sym.cos(angle), axis.basis)
-                    ]
-                elif i == 2:
-                    mat = [
-                        OrientationVector(1,              0,               0, axis.basis),
-                        OrientationVector(0, sym.cos(angle), -sym.sin(angle), axis.basis),
-                        OrientationVector(0, sym.sin(angle),  sym.cos(angle), axis.basis)
-                    ]
-                if v == -axis:
-                    mat = [-a for a in mat]
-        else:
-            a, b, c = axis.vec
-            cos = sym.cos(angle)
-            ncos = 1-cos
-            sin = sym.sin(angle)
-            # Base formula: vXv*(1-cos(a) + e3.a * sin(a)
-            mat = RotationMatrix(
-                OrientationVector(cos + (a**2)*ncos,  a*b*ncos - c*sin,  a*c*ncos + b*sin, axis.basis),
-                OrientationVector( a*b*ncos - c*sin, cos + (b**2)*ncos,  b*c*ncos - a*sin, axis.basis),
-                OrientationVector( a*c*ncos - b*sin,  b*c*ncos + a*sin, cos + (c**2)*ncos, axis.basis)
-            )
+        # a = list(axis.vec)
+        # if a == [1, 0, 0] or a == [-1, 0, 0]:
+        #     mat = [
+        #         OrientationVector(sym.cos(angle), -sym.sin(angle), 0, axis.basis),
+        #         OrientationVector(sym.sin(angle),  sym.cos(angle), 0, axis.basis),
+        #         OrientationVector(             0,               0, 1, axis.basis)
+        #     ]
+        #         elif i == 2:
+        #             mat = [
+        #                 OrientationVector(1,              0,               0, axis.basis),
+        #                 OrientationVector(0, sym.cos(angle), -sym.sin(angle), axis.basis),
+        #                 OrientationVector(0, sym.sin(angle),  sym.cos(angle), axis.basis)
+        #             ]
+        #         if v == -axis:
+        #             mat = [-a for a in mat]
+        # elif a == [1, 0, 0] or a == [-1, 0, 0]:
+        #     mat = [
+        #             OrientationVector(sym.cos(angle), 0, -sym.sin(angle), axis.basis),
+        #             OrientationVector(             0, 1,               0, axis.basis),
+        #             OrientationVector(sym.sin(angle), 0,  sym.cos(angle), axis.basis)
+        #         ]
+        # else:
+        #     raise Exception("...")
+        a, b, c = axis.vec
+        cos = sym.cos(angle)
+        ncos = 1-cos
+        sin = sym.sin(angle)
+        # Base formula: vXv*(1-cos(a) + e3.a * sin(a)
+        mat = RotationMatrix(
+            OrientationVector(cos + (a**2)*ncos,  a*b*ncos - c*sin,  a*c*ncos + b*sin, axis.basis),
+            OrientationVector( a*b*ncos + c*sin, cos + (b**2)*ncos,  b*c*ncos - a*sin, axis.basis),
+            OrientationVector( a*c*ncos - b*sin,  b*c*ncos + a*sin, cos + (c**2)*ncos, axis.basis)
+        )
         return mat
     def __repr__(self):
         return "{}({}, {})".format(type(self).__name__, self.vec, self.basis)
@@ -193,7 +193,11 @@ class BondVector:
                     if embedding is not None:
                         my_embedding = self.polar_components(embedding, self)
                         other_embedding = other.polar_components(embedding, other)
-                        return my_embedding.dot(other_embedding)
+                        # print("="*50)
+                        # print(self, my_embedding)
+                        # print(other, other_embedding)
+                        wat = my_embedding.dot(other_embedding).expand()
+                        return wat
                     else:
                         if match_sum == 0:
                             raise NotImplementedError("...")
@@ -252,8 +256,10 @@ class BondVector:
         #     ]
         basis = [
             BondVector(k, j),
-            BondNormal(BondVector(k, j), BondVector(i, j)),
-            BondNormal(BondNormal(BondVector(k, j), BondVector(i, j)), BondVector(j, k))
+            BondNormal(BondVector(k, j),
+                       BondNormal(BondVector(k, j), BondVector(j, i))
+                       ),
+            BondNormal(BondVector(k, j), BondVector(j, i))
             ]
         kk = vector.i
         l = vector.j
@@ -277,8 +283,11 @@ class BondVector:
                     angle = AnalyticKineticTerm.symbolic_a(j, k, i)
                 else:  # k->j
                     angle = None
+            elif l == k:
+                raise NotImplementedError("...?")
             else:  # l == i and  k == j
-                angle = sym.pi - AnalyticKineticTerm.symbolic_a(i, j, k)
+                # raise Exception(l, kk)
+                angle = -(sym.pi - AnalyticKineticTerm.symbolic_a(i, j, k))
             if angle is None:
                 components = OrientationVector(1, 0, 0, basis)
             else:
@@ -289,18 +298,15 @@ class BondVector:
             raise NotImplementedError("this shouldn't happen...")
         else: # rotation in plane and rotation out of plane
             if kk == i:
-                asign = -1
-                chob = sym.pi - AnalyticKineticTerm.symbolic_a(i, j, k)
-                angle = AnalyticKineticTerm.symbolic_a(j, i, l)
+                chob = AnalyticKineticTerm.symbolic_a(i, j, k)
+                angle = -AnalyticKineticTerm.symbolic_a(j, i, l)
                 polar = AnalyticKineticTerm.symbolic_t(k, j, i, l)
             elif kk == k:
-                asign = 1
                 chob = None
                 angle = AnalyticKineticTerm.symbolic_a(j, k, l)
                 polar = AnalyticKineticTerm.symbolic_t(i, j, k, l)
             elif kk == j: # this feels wrong...
-                raise Exception(embedding_atoms, (i, j, k))
-                asign = -1
+                raise Exception(embedding_atoms, (kk, l))
                 chob = None
                 angle = AnalyticKineticTerm.symbolic_a(j, k, l)
                 polar = AnalyticKineticTerm.symbolic_t(i, k, j, l)
@@ -308,17 +314,12 @@ class BondVector:
                 raise NotImplementedError("case: {}->{} in {}".format(kk, l, embedding_atoms))
 
             v = OrientationVector(1, 0, 0, basis)
-            # if chob is not None:
-            #     cr = OrientationVector.rotation_matrix(chob, OrientationVector(0, 0, 1, basis))
-            #     v = cr.dot(v)
             amat = OrientationVector.rotation_matrix(angle, OrientationVector(0, 0, 1, basis))
-            if asign == -1:
-                amat = -amat
             v = amat.dot(v)
             tmat = OrientationVector.rotation_matrix(polar, OrientationVector(1, 0, 0, basis))
             v = tmat.dot(v)
             if chob is not None:
-                cr = OrientationVector.rotation_matrix(-chob, OrientationVector(0, 0, 1, basis))
+                cr = OrientationVector.rotation_matrix(chob, OrientationVector(0, 0, 1, basis))
                 v = cr.dot(v)
             components = v
             # raise Exception((kk, l), embedding_atoms, components)
@@ -629,7 +630,6 @@ class AnalyticKineticTerm(AnaylticModelBase):
         a = cls.symbolic_a(i, j, k)
         l321 = cls.lam(k, j, i)
         l123 = cls.lam(i, j, k)
-        # raise Exception((-l1* + e12.dot(l2*e23)).simplify())
         return [
             1/(r12*sym.sin(a)) * (sym.cos(a)*e12 + e23),
             -l321*e12 + l123*e23,
@@ -650,12 +650,12 @@ class AnalyticKineticTerm(AnaylticModelBase):
         x123 = BondNormal(e12, e23)
         x234 = BondNormal(e23, e34)
         # raise Exception(l123)
-        return [-1*x for x in [
+        return [
             -1/(r12*sym.sin(a1)) * x123,
              l123*x123 - sym.cot(a2)/r23 * x234,
             -l234*x234 + sym.cot(a1)/r23 * x123,
              1/(r34*sym.sin(a2)) * x234
-        ]]
+        ]
     @classmethod
     def dy(cls, i, j, k, l):
         raise NotImplementedError("oops")
