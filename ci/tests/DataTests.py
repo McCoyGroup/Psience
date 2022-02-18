@@ -53,6 +53,20 @@ class DataTests(TestCase):
         pots = surf(np.arange(.5, 2, .1))
         self.assertEquals(pots.shape, ((2-.5)/.1,))
 
+    def check_expr(self, test, real, raise_error=True):
+        if not isinstance(test, int):
+            test = test.expand().simplify()
+        if not isinstance(real, int):
+            real = real.expand().simplify()
+        diff = (test - real)
+        if not isinstance(diff, int):
+            diff = diff.expand().simplify()
+        msg = "\nTest: {}\nReal: {}\nDiff: {}".format(test, real, diff)
+        if not raise_error:
+            return msg
+        else:
+            self.assertEquals(diff, 0, msg=msg)
+
     @debugTest
     def test_GmatrixElements(self):
         import sympy as sym
@@ -71,32 +85,54 @@ class DataTests(TestCase):
         sin = sym.sin; cos = sym.cos; cot = sym.cot; tan = sym.tan
         L = SymbolicCaller(AnalyticGMatrixConstructor.lam)
 
-        grr = AnalyticGMatrixConstructor.g([1, 2], [1, 2])
-        self.assertEquals(grr, 1/m[1] + 1/m[2])
-        grr = AnalyticGMatrixConstructor.g([1, 2], [1, 3])
-        self.assertEquals(grr, cos(a[2,1,3])/m[1])
-        grr = AnalyticGMatrixConstructor.g([1, 2], [3, 4])
-        self.assertEquals(grr, 0)
-        gra = AnalyticGMatrixConstructor.g([1, 2], [1, 2, 3])
-        self.assertEquals(gra, -sin(a[1,2,3])/(m[2]*r[2,3]))
-        gra = AnalyticGMatrixConstructor.g([1, 2], [1, 3, 4])
-        self.assertEquals(gra, sin(a[2,1,3])*cos(t[2,1,3,4])/(m[1]*r[1,3]))
-        # gra = AnalyticGMatrixConstructor.g([1, 2], [3, 1, 4])
-        # real = -sin(a[3, 1, 4])/m[1]*(
-        #                       1/r[1, 4]*cos(a[2, 1, 3])*sin(a[3, 1, 4])
-        #                       + L[3, 1, 4]*sin(a[2, 1, 3])*cos(t[2, 3, 1, 4])
-        #                   )
-        # raise Exception(gra)
-        # self.assertEquals(str(gra.expand().simplify().expand()), str(real.expand().simplify().expand()))
-        grt = AnalyticGMatrixConstructor.g([1, 2], [1, 2, 3, 4])
-        self.assertEquals(grt, -sin(a[1,2,3])*sin(t[1,2,3,4])*cot(a[2,3,4])/(m[2]*r[2,3]))
-        grt = AnalyticGMatrixConstructor.g([1, 2], [3, 2, 1, 4])
-        self.assertEquals(grt, 0)
-        grt = AnalyticGMatrixConstructor.g([1, 2], [1, 3, 4, 5])
-        self.assertEquals(grt, -sin(a[2,1,3])*sin(t[2,1,3,4])/(m[1]*r[1,3]*sin(a[1,3,4])))
-        grt = AnalyticGMatrixConstructor.g([1, 2], [4, 3, 1, 5])
-        real = -sin(a[2, 1, 3]) / m[1] * (
-                cot(a[1, 3, 4]) / r[1, 3] * sin(t[4, 3, 1, 2])
-                + L[5, 1, 3] * sin(t[4, 3, 1, 5] - t[4, 3, 1, 2])
-        ).expand().simplify().expand()
-        self.assertEquals(str(grt.expand()), str(real.expand()))
+
+        self.check_expr(
+            AnalyticGMatrixConstructor.g([1, 2], [1, 2]),
+            1 / m[1] + 1 / m[2]
+        )
+        self.check_expr(
+            AnalyticGMatrixConstructor.g([1, 2], [1, 3]),
+            cos(a[2,1,3])/m[1]
+        )
+        self.check_expr(
+            AnalyticGMatrixConstructor.g([1, 2], [3, 4]),
+            0
+        )
+        self.check_expr(
+            AnalyticGMatrixConstructor.g([1, 2], [1, 2, 3]),
+            -sin(a[1,2,3])/(m[2]*r[2,3])
+        )
+        self.check_expr(
+            AnalyticGMatrixConstructor.g([1, 2], [1, 3, 4]),
+            sin(a[2,1,3])*cos(t[2,1,3,4])/(m[1]*r[1,3])
+        )
+        print(
+            self.check_expr(
+                # This requires some non-automatic simplifications...
+                AnalyticGMatrixConstructor.g([1, 2], [3, 1, 4]),
+                -sin(a[3, 1, 4])/m[1]*(
+                                  1/r[1, 4]*cos(a[2, 1, 3])*sin(a[3, 1, 4])
+                                  + L[3, 1, 4]*sin(a[2, 1, 3])*cos(t[2, 3, 1, 4])
+                              ),
+                raise_error=False
+            )
+        )
+        self.check_expr(
+            AnalyticGMatrixConstructor.g([1, 2], [1, 2, 3, 4]),
+            -sin(a[1,2,3])*sin(t[1,2,3,4])*cot(a[2,3,4])/(m[2]*r[2,3])
+        )
+        self.check_expr(
+            AnalyticGMatrixConstructor.g([1, 2], [3, 2, 1, 4]),
+            0
+        )
+        self.check_expr(
+            AnalyticGMatrixConstructor.g([1, 2], [1, 3, 4, 5]),
+            -sin(a[2,1,3])*sin(t[2,1,3,4])/(m[1]*r[1,3]*sin(a[1,3,4]))
+        )
+        self.check_expr(
+            AnalyticGMatrixConstructor.g([1, 2], [4, 3, 1, 5]),
+            -sin(a[2, 1, 3]) / m[1] * (
+                    cot(a[1, 3, 4]) / r[1, 3] * sin(t[4, 3, 1, 2])
+                    + L[5, 1, 3] * sin(t[4, 3, 1, 2] - t[4, 3, 1, 5])
+            )
+        )

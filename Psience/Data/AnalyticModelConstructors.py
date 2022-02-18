@@ -149,6 +149,10 @@ class BondVector:
         self.j = j
         self.norm = norm
         self.embedding = embedding
+
+    @property
+    def direction(self):
+        return type(self)(self.i, self.j, norm=1, embedding=self.embedding)
     def __repr__(self):
         if self.norm == 1:
             return '{}({}->{})'.format(type(self).__name__, self.i, self.j)
@@ -182,48 +186,44 @@ class BondVector:
                     cos = 1
                 else:
                     cos = -1
-            else: # one shared point
-
+            elif match_sum == 0:
+                embedding = self.embedding
+                if embedding is None:
+                    embedding = other.embedding
+                if embedding is not None:  # TODO: I don't need this for match_sum == 1...
+                    my_embedding = self.polar_components(embedding, self)
+                    other_embedding = other.polar_components(embedding, other)
+                    # print("=" * 50, embedding)
+                    # print(self, my_embedding)
+                    # print(other, other_embedding)
+                    cos = my_embedding.dot(other_embedding).expand()
+                    # print(cos)
+            else:
                 if require_int:
                     return 2 + np.ravel_multi_index(match_table, (2, 2, 2, 2)) # binary encoding
+                    # we'll build a composite binary integer so we can keep a single return type
                 else:
-                    embedding = self.embedding
-                    if embedding is None:
-                        embedding = other.embedding
-                    if embedding is not None:
-                        my_embedding = self.polar_components(embedding, self)
-                        other_embedding = other.polar_components(embedding, other)
-                        # print("="*50)
-                        # print(self, my_embedding)
-                        # print(other, other_embedding)
-                        wat = my_embedding.dot(other_embedding).expand()
-                        return wat
-                    else:
-                        if match_sum == 0:
-                            raise NotImplementedError("...")
-                        else:
-                            if match_table[0]: # shared first atom
-                                i = self.j
-                                j = self.i
-                                k = other.j
-                                sign = 1
-                            elif match_table[1]: # shared first and second
-                                i = self.j
-                                j = self.i
-                                k = other.i
-                                sign = -1
-                            elif match_table[2]: # shared second and first
-                                i = self.i
-                                j = self.j
-                                k = other.j
-                                sign = -1
-                            else: # shared second atom
-                                i = self.i
-                                j = self.j
-                                k = other.i
-                                sign = 1
-                            cos = sign * sym.cos(AnalyticKineticTerm.symbolic_a(i, j, k))
-                # we'll build a composite binary integer so we can keep a single return type
+                    if match_table[0]: # shared first atom
+                        i = self.j
+                        j = self.i
+                        k = other.j
+                        sign = 1
+                    elif match_table[1]: # shared first and second
+                        i = self.j
+                        j = self.i
+                        k = other.i
+                        sign = -1
+                    elif match_table[2]: # shared second and first
+                        i = self.i
+                        j = self.j
+                        k = other.j
+                        sign = -1
+                    else: # shared second atom
+                        i = self.i
+                        j = self.j
+                        k = other.i
+                        sign = 1
+                    cos = sign * sym.cos(AnalyticKineticTerm.symbolic_a(i, j, k))
             return cos
     def dot(self, other:'BondVector'):
         if isinstance(other, BondVectorSum):
@@ -231,7 +231,8 @@ class BondVector:
                 lambda x:self.angle_cos(x) * self.norm * x.norm
             ).simplify()
         else:
-            return self.angle_cos(other) * self.norm * other.norm
+            acos = self.angle_cos(other)
+            return acos * self.norm * other.norm
     def cross(self, other):
         if isinstance(other, BondVectorSum):
             return other.distribute(
@@ -263,6 +264,7 @@ class BondVector:
             ]
         kk = vector.i
         l = vector.j
+        # print("?", (kk, l), embedding_atoms)
         sign = 1
         # given that our x is k->j we have two cases:
         #  1. all stuff inside i,j,k (simple rotations)
@@ -286,8 +288,7 @@ class BondVector:
             elif l == k:
                 raise NotImplementedError("...?")
             else:  # l == i and  k == j
-                # raise Exception(l, kk)
-                angle = -(sym.pi - AnalyticKineticTerm.symbolic_a(i, j, k))
+                angle = AnalyticKineticTerm.symbolic_a(i, j, k) - sym.pi
             if angle is None:
                 components = OrientationVector(1, 0, 0, basis)
             else:
@@ -300,130 +301,35 @@ class BondVector:
             if kk == i:
                 chob = AnalyticKineticTerm.symbolic_a(i, j, k)
                 angle = -AnalyticKineticTerm.symbolic_a(j, i, l)
+                # eij = -eji = -R(a[ijk]).ekj
                 polar = AnalyticKineticTerm.symbolic_t(k, j, i, l)
             elif kk == k:
                 chob = None
                 angle = AnalyticKineticTerm.symbolic_a(j, k, l)
                 polar = AnalyticKineticTerm.symbolic_t(i, j, k, l)
             elif kk == j: # this feels wrong...
-                raise Exception(embedding_atoms, (kk, l))
                 chob = None
-                angle = AnalyticKineticTerm.symbolic_a(j, k, l)
-                polar = AnalyticKineticTerm.symbolic_t(i, k, j, l)
+                angle = AnalyticKineticTerm.symbolic_a(k, j, l)
+                polar = AnalyticKineticTerm.symbolic_t(k, i, j, l)
             else:
                 raise NotImplementedError("case: {}->{} in {}".format(kk, l, embedding_atoms))
 
-            v = OrientationVector(1, 0, 0, basis)
+            ax = OrientationVector(1, 0, 0, basis)
+            # if chob is not None:
+            #     cr = -OrientationVector.rotation_matrix(chob, OrientationVector(0, 0, 1, basis))
+            #     ax = cr.dot(ax)
+            v = ax
             amat = OrientationVector.rotation_matrix(angle, OrientationVector(0, 0, 1, basis))
             v = amat.dot(v)
-            tmat = OrientationVector.rotation_matrix(polar, OrientationVector(1, 0, 0, basis))
+            tmat = OrientationVector.rotation_matrix(polar, ax)
             v = tmat.dot(v)
             if chob is not None:
                 cr = OrientationVector.rotation_matrix(chob, OrientationVector(0, 0, 1, basis))
                 v = cr.dot(v)
             components = v
-            # raise Exception((kk, l), embedding_atoms, components)
-        #
-        # if match_sum == 2: # totally embedded, meaning simple rotation
-        #     if kk == k:
-        #         if l == i:
-        #             components = [
-        #                 sym.cos(AnalyticKineticTerm.symbolic_a(j, k, i)),
-        #                 sym.sin(AnalyticKineticTerm.symbolic_a(j, k, i)),
-        #                 0
-        #             ]
-        #         else: # l == j
-        #             components = [
-        #                 1,
-        #                 0,
-        #                 0
-        #             ]
-        #     else: # l == i and  k == j
-        #         components = [
-        #             -sym.cos(AnalyticKineticTerm.symbolic_a(i, j, k)),
-        #             -sym.sin(AnalyticKineticTerm.symbolic_a(i, j, k)),
-        #             0
-        #         ]
-        # elif match_sum == 0: # totally detached
-        #     raise NotImplementedError("this shouldn't happen...")
-        # else: # only one component is in the group
-        #     if kk == i: # means l not in the group
-        #         ...
-        #     elif kk == j:
-        #         ...
-        #     elif kk == k:
-        #         components = [
-        #             sym.cos(AnalyticKineticTerm.symbolic_a(j, k, l)),
-        #             sym.cos(AnalyticKineticTerm.symbolic_t(i, j, k, l))
-        #               * sym.sin(AnalyticKineticTerm.symbolic_a(j, k, l)),
-        #             sym.sin(AnalyticKineticTerm.symbolic_t(i, j, k, l))
-        #         ]
-        #     else:
-        #         raise NotImplementedError("this shouldn't happen... ({} and {} in {})".format(kk, l, (i, j, k)))
-        #
-        #
-        # #
-        # #     if matches[0] and matches[1]:
-        # #         ...
-        # # if kk == k:
-        # #     if l not in (i, j, k): #ordering i, j, k, l
-        # #         components = [
-        # #             sym.cos(AnalyticKineticTerm.symbolic_a(j, k, l)),
-        # #             sym.cos(AnalyticKineticTerm.symbolic_t(i, j, k, l)) * sym.sin(AnalyticKineticTerm.symbolic_a(j, k, l)),
-        # #             sym.sin(AnalyticKineticTerm.symbolic_t(i, j, k, l))
-        # #         ]
-        # #     elif l == i:
-        # #         components = [
-        # #             sym.cos(AnalyticKineticTerm.symbolic_a(j, k, i)),
-        # #             sym.sin(AnalyticKineticTerm.symbolic_a(j, k, i)),
-        # #             0
-        # #         ]
-        # #     elif l == j:
-        # #         components = [
-        # #             1,
-        # #             0,
-        # #             0
-        # #         ]
-        # #     else:
-        # #         raise NotImplementedError("this shouldn't happen...")
-        # # elif l == i:
-        # #     if kk not in (i, j):  # ordering kk, i, j, k, l
-        # #         components = [
-        # #             sym.cos(AnalyticKineticTerm.symbolic_a(j, k, l)),
-        # #             sym.cos(AnalyticKineticTerm.symbolic_t(i, j, k, l)) * sym.sin(
-        # #                 AnalyticKineticTerm.symbolic_a(j, k, l)),
-        # #             sym.sin(AnalyticKineticTerm.symbolic_t(i, j, k, l))
-        # #         ]
-        # #     elif l == i:
-        # #         components = [
-        # #             sym.cos(AnalyticKineticTerm.symbolic_a(j, k, i)),
-        # #             sym.sin(AnalyticKineticTerm.symbolic_a(j, k, i)),
-        # #             0
-        # #         ]
-        # #     elif l == j:
-        # #         components = [
-        # #             1,
-        # #             0,
-        # #             0
-        # #         ]
-        # #     else:
-        # #         raise NotImplementedError("this shouldn't happen...")
-        # # else:
-        # #     # need to consider all cases where only one of the embedding atoms is anchored
-        # #     matches = [l in (i, j), kk in (i, j)]
-        # #     match_sum = np.sum(matches)
-        # #     elif matches[0]:
-        # #         raise Exception(l, kk, i, j, k)
-        # #         if l == i:
-        # #             ...
-        # #         else:
-        # #             ...
-        # #     elif matches[1]:
-        # #         raise NotImplementedError("we'll cover this when we get here...")
-        # #     else:
-        # #         raise NotImplementedError("this shouldn't happen...")
         if sign < 0:
             components = -components
+        # print(components)
         return components
 
 class BondNormal:
@@ -444,6 +350,9 @@ class BondNormal:
                 k = b.i if b.i not in (i, j) else b.j
                 embedding = (i, j, k)
         self.embedding = embedding
+    @property
+    def direction(self):
+        return type(self)(self.b, self.a, norm=1, embedding=self.embedding)
     def __repr__(self):
         if self.norm == 1:
             return '{}({}x{})'.format(type(self).__name__, self.a, self.b)
@@ -479,15 +388,21 @@ class BondNormal:
             alignment_1 = self.a.angle_cos(other, require_int=True)
             alignment_2 = self.b.angle_cos(other, require_int=True)
             if abs(alignment_1) == 1 or abs(alignment_2) == 1: # cross product is perpendicular to contained vector
-                return 0
+                cos = 0
             else:
                 embedding = self.embedding
                 if embedding is None:
                     embedding = other.embedding
                 if embedding is not None:
+                    # print("="*50)
+                    # print(self.direction)
+                    # print(other.direction)
                     my_embedding = self.polar_components(embedding, self)
+                    # print("!", my_embedding)
                     other_embedding = other.polar_components(embedding, other)
-                    return my_embedding.dot(other_embedding)
+                    # print("+", other_embedding.vec)
+                    cos = my_embedding.dot(other_embedding)
+                    # print(">", cos)
                 else:
                     raise NotImplementedError("{}".format(self))
                 # raise NotImplementedError('angle between vector and vector cross not symbolically useful ({} and {})'.format(
@@ -495,6 +410,7 @@ class BondNormal:
                 #     other
                 # ))
         else:
+
             alignments = [
                 self.a.angle_cos(other.a, require_int=True),
                 self.a.angle_cos(other.b, require_int=True),
@@ -521,7 +437,7 @@ class BondNormal:
                 else:
                     subalignment = self.angle_cos(other.a, require_int=True)
 
-                if abs(subalignment) == 1:
+                if abs(subalignment) == 1: # gotta be perpendicular...
                     cos = 0
                 else: # need to pull out components to return the correct dihedral...
                     if matches[0]: # shared first bond, making these atoms j and k
@@ -546,7 +462,7 @@ class BondNormal:
                         l = other.a.unshared_atom(other.b)
                     cos = sym.cos(AnalyticKineticTerm.symbolic_t(i, j, k, l))
 
-            return cos
+        return cos
     def cross(self, other):
         if isinstance(other, BondVectorSum):
             return other.distribute(
@@ -618,7 +534,7 @@ class AnalyticKineticTerm(AnaylticModelBase):
     @classmethod
     def dr(cls, i, j):
         return [
-            -BondVector(i, j),
+            BondVector(j, i),
             BondVector(i, j)
         ]
     @classmethod
@@ -646,15 +562,14 @@ class AnalyticKineticTerm(AnaylticModelBase):
         a1 = cls.symbolic_a(i, j, k)
         a2 = cls.symbolic_a(j, k, l)
         l123 = cls.lam(i, j, k)
-        l234 = cls.lam(l, k, j)
+        l432 = cls.lam(l, k, j)
         x123 = BondNormal(e12, e23)
-        x234 = BondNormal(e23, e34)
-        # raise Exception(l123)
+        x432 = BondNormal(e34, e23)
         return [
             -1/(r12*sym.sin(a1)) * x123,
-             l123*x123 - sym.cot(a2)/r23 * x234,
-            -l234*x234 + sym.cot(a1)/r23 * x123,
-             1/(r34*sym.sin(a2)) * x234
+             l123*x123 + sym.cot(a2)/r23*x432,
+             l432*x432 + sym.cot(a1)/r23*x123,
+            -1/(r34*sym.sin(a2)) * x432
         ]
     @classmethod
     def dy(cls, i, j, k, l):
@@ -692,7 +607,11 @@ class AnalyticGMatrixConstructor(AnalyticKineticTerm):
                 pass
             else:
                 # raise Exception(d1[n], d2[m])
-                g_contribs.append(1/cls.symbolic_m(i)*d1[n].dot(d2[m]))
+                a = d1[n]
+                b = d2[m]
+                # print(a, b)
+                g_contribs.append(1/cls.symbolic_m(i)*a.dot(b))
+
         g = sum(g_contribs)
         if isinstance(g, sym.Expr):
             g = g.expand().simplify().expand()#.subs(sym.Abs, sym.Id).simplify()
