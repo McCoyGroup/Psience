@@ -362,12 +362,12 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
     def get_strong_coupling_space(cls, states: BasisStateSpace, couplings: dict):
 
         indexer = SymmetricGroupGenerator(states.ndim)
-        groups = [None] * len(states)
+        groups = [None] * len(states.indices)
         for n, i in enumerate(states.indices):
             if i in couplings:
-                groups[i] = [i] + list(couplings[i].indices)
+                groups[n] = [i] + list(couplings[i].indices)
             else:
-                groups[i] = [i]
+                groups[n] = [i]
 
         groups = PermutationRelationGraph.merge_groups([(g, indexer.from_indices(g)) for g in groups])
         return [g[1] for g in groups]
@@ -444,14 +444,14 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         if degenerate_states is None:
             groups = states.split(1) #[[x] for x in states.indices]  # we're gonna loop through this later so why not destructure now...
         else:
-            groups = [[]] * len(degenerate_states)
-            deg_sets = [set(d.indices) for d in degenerate_states]
+            groups = [None] * len(degenerate_states)
+            deg_sets = [(set(d.indices),d) for d in degenerate_states]
             for x in states.indices:
-                for i, d in enumerate(deg_sets):
+                for i, (d,bs) in enumerate(deg_sets):
                     if x in d:
-                        if len(groups[i]) == 0:
-                            groups[i] = []
-                        groups[i].append(x)
+                        if groups[i] is None:
+                            groups[i] = bs.indices
+                        # groups[i].append(x)
                         break
                 else:
                     groups.append([x])

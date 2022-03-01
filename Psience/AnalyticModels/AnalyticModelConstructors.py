@@ -1,15 +1,14 @@
 
 import numpy as np
-from .Helpers import sym, AnaylticModelBase
-from .KEData import KEData
+from .Helpers import sym, AnalyticModelBase
+from ..Data import KEData
 
 __all__ = [
     'AnalyticPotentialConstructor',
-    'AnalyticGMatrixConstructor',
-    "AnalyticPseudopotentialConstructor"
+    'AnalyticKineticEnergyConstructor'
 ]
 
-class AnalyticPotentialConstructor(AnaylticModelBase):
+class AnalyticPotentialConstructor(AnalyticModelBase):
     @classmethod
     def symbolic_morse(cls, instance=None):
         """
@@ -54,8 +53,7 @@ class AnalyticPotentialConstructor(AnaylticModelBase):
         """
         return cls.harm(*cls.symbol_list(["k", "q", "qe"], instance=instance))
 
-
-class AnalyticKineticEnergyConstructor(AnaylticModelBase):
+class AnalyticKineticEnergyConstructor(AnalyticModelBase):
     """
     Provides G and V' elements from Frederick and Woywood
     """
@@ -149,3 +147,87 @@ class AnalyticKineticEnergyConstructor(AnaylticModelBase):
         if isinstance(g, sym.Expr):
             g = g.expand().simplify().expand()#.subs(sym.Abs, sym.Id).simplify()
         return g
+
+class AnalyticModel:
+    """
+    Provides a symbolic representation of an analytically evaluatable Hamiltonian
+    which can be used to get derived expressions to evaluate.
+    """
+
+    def __init__(self, coordinates, potential):
+        self.coords = coordinates
+        self._syms = None
+        self._base_g = None
+        self._g = None
+        self.pot = potential
+    @property
+    def internal_coordinates(self):
+        if self._syms is None:
+            self._load_symbols()
+        return self._syms[0]
+
+    def _load_symbols(self):
+        sym_list = []
+        sym_set = set()
+        for x in self.coords:
+            for s in x.free_symbols:
+                if s not in sym_set:
+                    sym_set.add(s)
+                    sym_list.append(s)
+        self._syms = (tuple(sym_list), tuple(self._parse_symbol(s) for s in sym_list))
+
+    def _parse_symbol(self, sym):
+        name = sym.name
+        t, a = name.split("[")
+        a = a.strip("]").split(",")
+        return (t, tuple(int(x) for x in a))
+
+    def jacobian(self):
+        ics = self.internal_coordinates
+        return [AnalyticModelBase.take_derivs(c, ics) for c in self.coords]
+    def _base_gmat(self):
+        if self._base_g is None:
+            if self._syms is None:
+                self._load_symbols()
+            symlist = self._syms[1]
+            return [[AnalyticKineticEnergyConstructor.g(a[1], b[1], coord_types=[a[0], b[0]]) for b in symlist] for a in symlist]
+        return self._base_g
+    def g(self, order=0):
+        # Gmatrix elements will basically involve taking some
+        # kind of direct product of coordinate reps
+        if self._g is None:
+            J_t = self.jacobian()
+            G = self._base_gmat()
+            def transpose(A):
+                n = len(A)
+                m = len(A[0])
+                return [[A[i][k] for i in range(n)] for k in range(m)]
+            def dot(a, b):
+                if isinstance(a[0], list): # matmul
+                    b = transpose(b)
+                    return [[dot(a[i], b[j]) for j in range(len(b))]  for i in range(len(a))]
+                else: # vector dot
+                    return sum(a*b for a,b in zip(a,b))
+            J = transpose(J_t)
+            self._g = dot(dot(J_t, G), J)
+        if order > 0:
+            raise NotImplementedError("need to handle coordinate transforms")
+            ics = self.internal_coordinates
+            for i in range(order):
+                ...
+
+
+    def v(self, order=2):
+        # we provide a Taylor series expansion of the potential
+        raise NotImplementedError("need to handle composite coordinates")
+    def vp(self, order=0):
+        raise NotImplementedError("need to handle composite coordinates")
+
+    def r(self, i, j):
+        return AnalyticModelBase.symbolic_r(i, j)
+    def a(self, i, j, k):
+        return AnalyticModelBase.symbolic_a(i, j, k)
+    def t(self, i, j, k, l):
+        return AnalyticModelBase.symbolic_t(i, j, k, l)
+    def y(self, i, j, k, l):
+        return AnalyticModelBase.symbolic_t(i, j, k, l)

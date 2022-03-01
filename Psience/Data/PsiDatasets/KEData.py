@@ -1,14 +1,14 @@
 # G-matrix and V' terms pulled from Mathematica notebook very kindly provided by John Frederick
 
-from Psience.Data.Helpers import sym, SymbolicCaller, AnaylticModelBase
+from Psience.AnalyticModels import sym, SymbolicCaller, AnalyticModelBase
 
-m = SymbolicCaller(AnaylticModelBase.symbolic_m)
-r = SymbolicCaller(AnaylticModelBase.symbolic_r)
-a = SymbolicCaller(AnaylticModelBase.symbolic_a)
-t = SymbolicCaller(AnaylticModelBase.symbolic_t)
-y = SymbolicCaller(AnaylticModelBase.symbolic_y)
+m = SymbolicCaller(AnalyticModelBase.symbolic_m)
+r = SymbolicCaller(AnalyticModelBase.symbolic_r)
+a = SymbolicCaller(AnalyticModelBase.symbolic_a)
+t = SymbolicCaller(AnalyticModelBase.symbolic_t)
+y = SymbolicCaller(AnalyticModelBase.symbolic_y)
 sin = sym.sin; cos = sym.cos; cot = sym.cot; tan = sym.tan; csc = sym.csc
-L = SymbolicCaller(AnaylticModelBase.lam)
+L = SymbolicCaller(AnalyticModelBase.lam)
 
 g = {
   (('r','r'),(1,2),(1,2)):1/m[1]+1/m[2],

@@ -1444,6 +1444,7 @@ class PerturbationTheorySolver:
                 else:
                     # loop over the degenerate sets
                     for deg_group in degenerate_states:
+                        # logger.log_print(str(deg_group.excitations))
                         # we use this to build a pertubation operator that removes
                         # then entire set of degenerate states
                         deg_inds = flat_total_space.find(deg_group)
@@ -1456,18 +1457,19 @@ class PerturbationTheorySolver:
                         else:
                             deg_engs = zero_order_states = subspaces = main_subspace = [None]
 
-                        res_inds = states.find(deg_group.indices)
+                        res_inds = states.find(deg_group.indices, missing_val=-1)
                         for n, res_index, de, zo, s in zip(deg_group.indices, res_inds, deg_engs, zero_order_states, subspaces):
-                            energies, overlaps, corrs, ecorrs = self.apply_VPT_equations(n, deg_group, de, zo, main_subspace, s,
-                                                                                 allow_PT_degs=self.allow_sakurai_degs,
-                                                                                 non_zero_cutoff=non_zero_cutoff,
-                                                                                 perturbations=perturbations
-                                                                                 )
+                            if res_index > -1:
+                                energies, overlaps, corrs, ecorrs = self.apply_VPT_equations(n, deg_group, de, zo, main_subspace, s,
+                                                                                     allow_PT_degs=self.allow_sakurai_degs,
+                                                                                     non_zero_cutoff=non_zero_cutoff,
+                                                                                     perturbations=perturbations
+                                                                                     )
 
-                            all_energies[res_index] = energies
-                            all_energy_corrs[res_index] = ecorrs
-                            all_corrs[res_index] = corrs
-                            all_overlaps[res_index] = overlaps
+                                all_energies[res_index] = energies
+                                all_energy_corrs[res_index] = ecorrs
+                                all_corrs[res_index] = corrs
+                                all_overlaps[res_index] = overlaps
 
                         # now we reorthogonalize degenerate states
                         if not self.intermediate_normalization:
@@ -1554,7 +1556,7 @@ class PerturbationTheorySolver:
                             sc = corrs.collapse_strong_couplings(sc)
                             degenerate_states = DegenerateMultiStateSpace.from_spec({'couplings':sc}, solver=self)
                             with self.logger.block(tag="Redoing PT with strong couplings handled (degs={})".format(degenerate_states)):
-                                return self._get_corrections(
+                                corrs = self._get_corrections(
                                     perturbations,
                                     states,
                                     order,
@@ -1566,6 +1568,7 @@ class PerturbationTheorySolver:
                                     handle_strong_couplings=False,
                                     non_zero_cutoff=non_zero_cutoff
                                 )
+                            return corrs
             else:
                 sc = None
 
@@ -1915,7 +1918,8 @@ class PerturbationTheorySolver:
         for group in degenerate_states:
             # we apply the degenerate PT on a group-by-group basis
             # by transforming the H reps into the non-degenerate basis
-            deg_inds = total_state_space.find(group)
+            deg_inds = total_state_space.find(group, missing_val=-1)
+            deg_inds = deg_inds[deg_inds > -1]
             if len(deg_inds) == 1 or (self.gaussian_resonance_handling and np.max(np.sum(group.excitations, axis=1)) > 2):
                 for i in deg_inds:
                     # we'll be a little bit inefficient for now and speed up later

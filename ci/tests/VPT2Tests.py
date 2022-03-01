@@ -523,7 +523,268 @@ class VPT2Tests(TestCase):
 
     # region New Style Tests
 
-    
+    # region Water Analogs
+
+    @validationTest
+    def test_HOHVPTRunner(self):
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            memory_constrained=True,
+            logger=True
+        )
+
+    @validationTest
+    def test_HOHVPTRunnerFlow(self):
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            memory_constrained=True,
+            logger=True
+        )
+
+        system = VPTSystem(TestManager.test_data(file_name))
+        states = VPTStateSpace.from_system_and_quanta(system, 3)
+        pt_opts = VPTSolverOptions(state_space_filters=states.get_filter("intensities"))
+        run_opts = VPTRuntimeOptions(logger=True)
+        runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
+        runner.print_tables()
+
+    @validationTest
+    def test_HOHVPTRunnerShifted(self):
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            logger=True,
+            corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/self.h2w
+        )
+
+    @validationTest
+    def test_HOHVPTRunner3rd(self):
+        """
+        test that runner works for 3rd order PT, too
+
+        :return:
+        :rtype:
+        """
+
+        file_name = "HOH_freq.fchk"
+
+        handling_mode="unhandled"
+
+        logger=Logger()
+        with logger.block(tag="Internals 2nd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1,  0, -1, -1],
+                    [2,  0,  1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Internals 3rd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1,  0, -1, -1],
+                    [2,  0,  1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Internals 2nd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1, 0, -1, -1],
+                    [2, 0, 1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Internals 3rd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1, 0, -1, -1],
+                    [2, 0, 1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 2nd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 3rd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                expansion_order=2,
+                mixed_derivative_handling_mode=handling_mode,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 2nd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 3rd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+    @validationTest
+    def test_GetDegenerateSpaces(self):
+
+        base_states = [
+            [0, 0, 1],
+            [0, 1, 0],
+            [0, 2, 1],
+            [0, 4, 0]
+        ]
+
+        degenerate_states = VPTStateSpace.get_degenerate_polyad_space(
+            base_states,
+            [
+                [
+                    [0, 2, 0],
+                    [0, 0, 1]
+                ]
+            ],
+        )
+
+    #endregion
+
+    @debugTest
+    def test_ClHOClRunner(self):
+        file_name = "cl_hocl.fchk"
+        state = VPTStateMaker(6)
+        COM = -3
+        A  = -2
+        C  = -1
+        _  = 1000
+        O  = 0
+        H  = 1
+        Cl = 2
+        X  = 3
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                state(),
+                state([1, 1]),
+                state([1, 2]),
+                state([1, 3]),
+                state([1, 2], [5, 1]),
+                state([1, 1], [2, 2]),
+            ],
+            degenerate_states=[
+                [
+                    [0, 0, 0, 0, 0, 2],
+                    [0, 0, 0, 0, 0, 3],
+                    [0, 1, 0, 0, 0, 2],
+                    [0, 0, 0, 0, 2, 1]
+                ]
+            ],
+            logger=True,
+            handle_strong_couplings=False
+            , internals=[
+                    [Cl,    _,    _,     _],
+                    [ O,   Cl,    _,     _],
+                    [ X,    O,   Cl,     _],
+                    [ H,    O,   Cl,    X],
+                ]
+        )
+        """
+        State             Frequency    Intensity       Frequency    Intensity
+  0 0 0 0 0 1    2709.16096   2782.25434      2241.23996   1974.94746
+  0 0 0 0 0 2    5418.32192      0.00000      4041.02878      7.39993
+  0 0 0 0 0 3    8127.48289      0.00000      5353.97246      0.16004
+  0 1 0 0 0 2    5699.88024      0.00000      4434.73451     13.94374
+  0 0 0 0 2 1    5592.48467      0.00000      4694.05104     11.62693
+  """
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     [
+        #         state(),
+        #         state([1, 1]),
+        #         state([1, 2])
+        #     ],
+        #     logger=True,
+        #     handle_strong_couplings=True
+        # )
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     3, # many more states
+        #     logger=True,
+        #     handle_strong_couplings=True
+        # )
 
     # endregion
 
@@ -2010,202 +2271,6 @@ class VPT2Tests(TestCase):
                                     )
 
         self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), 1.5)
-
-    @validationTest
-    def test_HOHVPTRunner(self):
-
-        file_name = "HOH_freq.fchk"
-        VPTRunner.run_simple(
-            TestManager.test_data(file_name),
-            3,
-            memory_constrained=True,
-            logger=True
-        )
-
-    @validationTest
-    def test_HOHVPTRunnerFlow(self):
-
-        file_name = "HOH_freq.fchk"
-        VPTRunner.run_simple(
-            TestManager.test_data(file_name),
-            3,
-            memory_constrained=True,
-            logger=True
-        )
-
-        system = VPTSystem(TestManager.test_data(file_name))
-        states = VPTStateSpace.from_system_and_quanta(system, 3)
-        pt_opts = VPTSolverOptions(state_space_filters=states.get_filter("intensities"))
-        run_opts = VPTRuntimeOptions(logger=True)
-        runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
-        runner.print_tables()
-
-    @validationTest
-    def test_HOHVPTRunnerShifted(self):
-
-        file_name = "HOH_freq.fchk"
-        VPTRunner.run_simple(
-            TestManager.test_data(file_name),
-            3,
-            logger=True,
-            corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/self.h2w
-        )
-
-    @validationTest
-    def test_HOHVPTRunner3rd(self):
-        """
-        test that runner works for 3rd order PT, too
-
-        :return:
-        :rtype:
-        """
-
-        file_name = "HOH_freq.fchk"
-
-        handling_mode="unhandled"
-
-        logger=Logger()
-        with logger.block(tag="Internals 2nd Order triad"):
-            VPTRunner.run_simple(
-                TestManager.test_data(file_name),
-                3,
-                logger=logger,
-                order=2,
-                internals=[
-                    [0, -1, -1, -1],
-                    [1,  0, -1, -1],
-                    [2,  0,  1, -1]
-                ],
-                expansion_order=2,
-                degeneracy_specs=[
-                    [[0, 0, 1], [2, 0, 0]],
-                    [[0, 1, 0], [2, 0, 0]],
-                ]
-            )
-
-        with logger.block(tag="Internals 3rd Order triad"):
-            VPTRunner.run_simple(
-                TestManager.test_data(file_name),
-                3,
-                logger=logger,
-                order=3,
-                internals=[
-                    [0, -1, -1, -1],
-                    [1,  0, -1, -1],
-                    [2,  0,  1, -1]
-                ],
-                expansion_order=2,
-                degeneracy_specs=[
-                    [[0, 0, 1], [2, 0, 0]],
-                    [[0, 1, 0], [2, 0, 0]],
-                ]
-            )
-
-        with logger.block(tag="Internals 2nd Order dyad"):
-            VPTRunner.run_simple(
-                TestManager.test_data(file_name),
-                3,
-                logger=logger,
-                order=2,
-                internals=[
-                    [0, -1, -1, -1],
-                    [1, 0, -1, -1],
-                    [2, 0, 1, -1]
-                ],
-                expansion_order=2,
-                degeneracy_specs=[
-                    [[0, 1, 0], [2, 0, 0]],
-                ]
-            )
-
-        with logger.block(tag="Internals 3rd Order dyad"):
-            VPTRunner.run_simple(
-                TestManager.test_data(file_name),
-                3,
-                logger=logger,
-                order=3,
-                internals=[
-                    [0, -1, -1, -1],
-                    [1, 0, -1, -1],
-                    [2, 0, 1, -1]
-                ],
-                expansion_order=2,
-                degeneracy_specs=[
-                    [[0, 1, 0], [2, 0, 0]],
-                ]
-            )
-
-        with logger.block(tag="Cartesians 2nd Order triad"):
-            VPTRunner.run_simple(
-                TestManager.test_data(file_name),
-                3,
-                logger=logger,
-                order=2,
-                expansion_order=2,
-                degeneracy_specs=[
-                    [[0, 0, 1], [2, 0, 0]],
-                    [[0, 1, 0], [2, 0, 0]],
-                ]
-            )
-
-        with logger.block(tag="Cartesians 3rd Order triad"):
-            VPTRunner.run_simple(
-                TestManager.test_data(file_name),
-                3,
-                logger=logger,
-                order=3,
-                expansion_order=2,
-                mixed_derivative_handling_mode=handling_mode,
-                degeneracy_specs=[
-                    [[0, 0, 1], [2, 0, 0]],
-                    [[0, 1, 0], [2, 0, 0]],
-                ]
-            )
-
-        with logger.block(tag="Cartesians 2nd Order dyad"):
-            VPTRunner.run_simple(
-                TestManager.test_data(file_name),
-                3,
-                logger=logger,
-                order=2,
-                expansion_order=2,
-                degeneracy_specs=[
-                    [[0, 1, 0], [2, 0, 0]],
-                ]
-            )
-
-        with logger.block(tag="Cartesians 3rd Order dyad"):
-            VPTRunner.run_simple(
-                TestManager.test_data(file_name),
-                3,
-                logger=logger,
-                order=3,
-                expansion_order=2,
-                degeneracy_specs=[
-                    [[0, 1, 0], [2, 0, 0]],
-                ]
-            )
-
-
-    @validationTest
-    def test_GetDegenerateSpaces(self):
-
-        base_states = [
-            [0, 0, 1],
-            [0, 1, 0],
-            [0, 2, 1],
-            [0, 4, 0]
-        ]
-
-        degenerate_states = VPTStateSpace.get_degenerate_polyad_space(
-            base_states,
-            [
-                [
-                    [0, 2, 0],
-                    [0, 0, 1]
-                ]
-            ],
-        )
 
     gaussian_data['HOD'] = {
         'zpe': np.array([4052.912, 3994.844]),

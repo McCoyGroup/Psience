@@ -1,26 +1,38 @@
 
+__all__ = [
+    "sym",
+    "SymbolicCaller",
+    "AnalyticModelBase"
+]
+
 import numpy as np
-try:
-    import sympy as sym
-except ImportError:
-    class SympyNotLoadedError(ImportError):
-        ...
-    class SympyNotLoadedStub:
-        def __getattr__(self, item):
-            raise SympyNotLoadedError("Analytic models depend on sympy, which couldn't be imported")
-    sym = SympyNotLoadedStub()
+
+class SympyShim:
+    """
+    Provides a loader that can either load sympy when requested
+    or throw an error if it can't be loaded
+    """
+    sym = None
+    @classmethod
+    def _load_sympy(self):
+        if self.sym is None:
+            import sympy as sym
+            self.sym = sym
+        return self.sym
+    def __getattr__(self, item):
+        return getattr(self._load_sympy(), item)
+sym = SympyShim()
 
 class SymbolicCaller:
     def __init__(self, sym):
         self.sym = sym
-
     def __getitem__(self, item):
         if isinstance(item, int):
             return self.sym(item)
         else:
             return self.sym(*item)
 
-class AnaylticModelBase:
+class AnalyticModelBase:
     @classmethod
     def take_derivs(cls, expr, vars):
         if isinstance(expr, list):
