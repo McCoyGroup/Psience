@@ -1,6 +1,6 @@
 
 import numpy as np, itertools, time, gc
-from scipy import linalg as slalg
+from collections import namedtuple
 
 from McUtils.Numputils import SparseArray
 from McUtils.Scaffolding import Logger, NullLogger, NullCheckpointer
@@ -9,806 +9,17 @@ from McUtils.Data import UnitsData
 from McUtils.Combinatorics import LatticePathGenerator
 
 from ..BasisReps import Representation, BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace
+
+from .StateFilters import PerturbationTheoryStateSpaceFilter
+from .DegeneracySpecs import DegenerateMultiStateSpace
 from .Common import *
+from .Corrections import *
 
 __reload_hook__ = [ "..BasisReps" ]
 
 __all__ = [
-    "PerturbationTheorySolver",
-    "PerturbationTheoryCorrections"
+    "PerturbationTheorySolver"
 ]
-
-class DegenerateMultiStateSpace(BasisMultiStateSpace):
-
-    @classmethod
-    def from_spec(cls,
-                  solver,
-                  degenerate_states,
-                  full_basis=None
-                  ):
-        """
-        Generates a DegenerateMultiStateSpace object from a number
-        of possible specs
-
-        :param solver: the actual applier of the perturbation theory which makes use of the degenerate states
-        :type solver: PerturbationTheorySolver
-        :return:
-        :rtype:
-        """
-
-        logger = solver.logger
-        H0 = solver.perts[0]
-        states = solver.states
-
-        if degenerate_states is not None:
-
-            with logger.block(tag="getting degeneracies"):
-                if isinstance(degenerate_states, dict):
-                    raise NotImplementedError("don't currently support degenerate state space generation")
-                    if 'MartinTest' in degenerate_states:
-                        martin_test = degenerate_states['MartinTest']
-                    if 'states' in degenerate_states:
-                        degenerate_states = degenerate_states['states']
-                    elif 'NT' in degenerate_states:
-                        logger.log_print(
-                            "NT vector: {s}",
-                            s=degenerate_states
-                        )
-                        degenerate_states = cls._group_states_by_nt_spec(H0, states, total_state_space,
-                                                                         degenerate_states['NT'])
-                    elif 'energy_cutoff' in degenerate_states:
-                        logger.log_print(
-                            "energy cutoff: {s}",
-                            s=degenerate_states
-                        )
-                        degenerate_states = cls._group_states_by_energy_cutoff(H0, states, total_state_space,
-                                                                               degenerate_states['energy_cutoff'])
-                    elif 'generator' in degenerate_states:
-                        logger.log_print(
-                            "callable: {s}",
-                            s=degenerate_states
-                        )
-
-                        # we assume we have some kind of callable
-                        try:
-                            degenerate_states = degenerate_states['generator'](H0, states)
-                        except (TypeError, ValueError):
-                            pass
-
-                        if not isinstance(degenerate_states[0], (BasisStateSpace, BasisMultiStateSpace)):
-                            raise NotImplementedError("can't deal with non-BasisStateSpace specs for degeneracies")
-
-                    else:
-                        raise NotImplementedError("unsure what to do with degeneracy spec {}".format(degenerate_states))
-                else:
-                    def _is_degenerate_NT_spec(spec):
-                        test1 = isinstance(spec, np.ndarray) and spec.dtype == np.dtype(int)
-                        if test1:
-                            return test1
-                        else:
-                            try:
-                                it = iter(spec)
-                            except TypeError:
-                                return False
-                            else:
-                                return all(isinstance(x, int) for x in it)
-
-                    def _is_degenerate_state_spec(spec):
-                        test1 = all(isinstance(x, (BasisStateSpace, BasisMultiStateSpace)) for x in spec)
-                        if test1:
-                            return test1
-                        else:
-                            specs = [np.asanyarray(s) for s in spec]
-                            return all(
-                                (
-                                    s.dtype == int
-                                    and (s.ndim == 2 or s.ndim == 3)
-                                ) for s in specs
-                            )
-
-                    # we dispatch on the types of degeneracy specs we support
-                    if isinstance(degenerate_states, (int, np.integer, np.floating, float)):
-                        logger.log_print(
-                            "energy cutoff: {s}",
-                            s=degenerate_states
-                        )
-                        degenerate_states = cls._group_states_by_energy_cutoff(H0, states, degenerate_states)
-                    elif _is_degenerate_NT_spec(degenerate_states):
-                        logger.log_print(
-                            "N_T vector: {s}",
-                            s=degenerate_states
-                        )
-                        degenerate_states = cls._group_states_by_nt_spec(H0, states, degenerate_states)
-                    elif _is_degenerate_state_spec(degenerate_states):
-                        if not isinstance(degenerate_states[0], (BasisStateSpace, BasisMultiStateSpace)):
-                            degenerate_states = [BasisStateSpace(states.basis, x) for x in degenerate_states]
-                    elif degenerate_states is not None:
-                        logger.log_print(
-                            "callable: {s}",
-                            s=degenerate_states
-                        )
-
-                        # we assume we have some kind of callable
-                        try:
-                            degenerate_states = degenerate_states(H0, states)
-                        except (TypeError, ValueError):
-                            pass
-
-                        if not isinstance(degenerate_states[0], (BasisStateSpace, BasisMultiStateSpace)):
-                            raise NotImplementedError("can't deal with non-BasisStateSpace specs for degeneracies")
-
-                logger.log_print(
-                    "{n} degenerate state sets found",
-                    n=len([x for x in degenerate_states if len(x) > 1]),
-                    # s=[x for x in degenerate_states if len(x) > 1]
-                )
-
-                # if martin_test:
-                #     # need to apply Martin test to every pair of states to figure out if they are truly
-                #     # going to be significantly affected by the near degeneracy
-                #     raise NotImplementedError("Don't have Martin test applying cleanly yet")
-                #     logger.log_print(
-                #         "applying Martin test with threshold {}",
-                #         thresh
-                #     )
-                #     degenerate_states = cls._martin_test(
-                #         H,
-                #         state_inds,  # state indices in the coupled_states
-                #         thresh,
-                #         total_state_space
-                #     )
-                # else:
-                #     logger.log_print(
-                #         "skipping Martin test"
-                #     )
-
-        # build groups of degenerate states for use later
-        if degenerate_states is None:
-            groups = states.split(1) #[[x] for x in states.indices]  # we're gonna loop through this later so why not destructure now...
-        else:
-            groups = [[]] * len(degenerate_states)
-            deg_sets = [set(d.indices) for d in degenerate_states]
-            for x in states.indices:
-                for i, d in enumerate(deg_sets):
-                    if x in d:
-                        if len(groups[i]) == 0:
-                            groups[i] = []
-                        groups[i].append(x)
-                        break
-                else:
-                    groups.append([x])
-
-        # now turn these into proper BasisStateSpace objects so we can work with them more easily
-        ugh = np.full(len(groups), None)
-        for i,g in enumerate(groups):
-            # g = np.sort(np.array(g))
-            if not isinstance(g, BasisStateSpace):
-                g = BasisStateSpace(states.basis, np.array(g), mode=BasisStateSpace.StateSpaceSpec.Indices, full_basis=full_basis)
-            ugh[i] = g
-            # if len(g) > 1:
-            #     raise Exception(ugh[i].indices, g, ugh[i].excitations,
-            #             states.basis.unravel_state_inds(np.arange(10)))
-
-        return cls(ugh)
-
-    @classmethod
-    def _group_states_by_energy_cutoff(cls, H0, states, cutoff):
-        """
-        :type H: Iterable[SparseArray]
-        :type states: BasisStateSpace
-        :type total_state_space: BasisMultiStateSpace
-        :type cutoff: float
-        :rtype: Iterable[BasisStateSpace]
-        """
-        # we look for states with energies within a range...
-        # so initially we pull the sets of energies
-
-        diag_inds = BraKetSpace(states, states)
-        energies = H0[diag_inds, diag_inds]
-        degenerate_groups = []
-        # then we look through the input states
-        for n, e in enumerate(energies):
-            # we only want to apply this once per degenerate group
-            # NOTE: this is a path to subtlety, since
-            #   if state a is within 50 cm^-1 of state b, and state b is within of c,
-            #   you might argue a and c are degenerate
-            #   we are wagering that states are distinct _enough_ such that this is not
-            #   an issue, but if it is a different strategy will be required
-            if all(n not in d for d in degenerate_groups):
-                e_diffs = np.abs(energies - e)
-                inds = np.where(e_diffs < cutoff)[0]
-                degenerate_groups.append(set(inds))
-        # raise Exception(degenerate_groups)
-        degenerate_groups = [states.take_subspace(np.array(list(d), dtype=int)) for d in degenerate_groups]
-        return degenerate_groups
-
-    @classmethod
-    def _group_states_by_nt_spec(cls, H, states, q_vec):
-        """
-        :type H: Iterable[SparseArray]
-        :type states: BasisStateSpace
-        :type total_state_space: BasisMultiStateSpace
-        :type cutoff: Iterable[int]
-        :rtype: Iterable[BasisStateSpace]
-        """
-        # we build the total N_t to compare against once...
-        tot_n_t = np.dot(states.excitations, q_vec)
-        degenerate_groups = {}
-        # then we look through the input states
-        for vec in states.excitations:
-            # base n_t
-            n_t = np.dot(q_vec, vec)
-            if n_t not in degenerate_groups:
-                degenerate_groups[n_t] = np.where(tot_n_t == n_t)[0]
-        degenerate_groups = [states.take_subspace(np.array(d)) for d in degenerate_groups.values()]
-        return degenerate_groups
-
-class PerturbationTheoryCorrections:
-    """
-    Represents a set of corrections from perturbation theory.
-    Can be used to correct other operators in the basis of the original calculation.
-
-    """
-    def __init__(self,
-                 states,
-                 coupled_states,
-                 total_basis,
-                 energy_corrs,
-                 wfn_corrections,
-                 all_energy_corrections=None,
-                 degenerate_states=None,
-                 degenerate_transformation=None,
-                 degenerate_energies=None,
-                 logger=None
-                 ):
-        """
-        :param states:
-        :type states: BasisStateSpace
-        :param coupled_states:
-        :type coupled_states: BasisMultiStateSpace
-        :param total_basis:
-        :type total_basis: BasisMultiStateSpace
-        :param energy_corrs:
-        :type energy_corrs: np.ndarray
-        :param wfn_corrections:
-        :type wfn_corrections: Iterable[SparseArray]
-        :param degenerate_states:
-        :type degenerate_states: None | np.ndarray
-        :param degenerate_transformation:
-        :type degenerate_transformation: None | np.ndarray
-        :param degenerate_energies:
-        :type degenerate_energies: None | np.ndarray
-        """
-        self.states = states
-        self.coupled_states = coupled_states
-        self.total_basis = total_basis
-        self.energy_corrs = energy_corrs
-        self.all_energy_corrs = all_energy_corrections
-        self.wfn_corrections = wfn_corrections
-        self.degenerate_states = degenerate_states
-        self.degenerate_transf = degenerate_transformation
-        self.degenerate_energies = degenerate_energies
-        self.logger = logger
-
-    @classmethod
-    def from_dicts(cls,
-                   states,
-                   corrections,
-                   hamiltonians,
-                   **opts
-                   ):
-        """
-        :param states: a dict with the states described by the corrections, the set of states coupled, and the size of the overall basis
-        :type states: dict
-        :param corrections: the corrections generated, including the corrections for the energies, wavefunctions, and a transformation from degenerate PT
-        :type corrections: dict
-        """
-        state_space = states['states']
-        coupled_states = states['coupled_states']
-        total_basis = states['total_states']
-        energy_corrs = corrections['energies']
-        all_energy_corrs = corrections['energy_corrections'] if 'energy_corrections' in corrections else None
-        wfn_corrections = corrections['wavefunctions']
-        if 'degenerate_states' in states:
-            degenerate_states = states['degenerate_states']
-        else:
-            degenerate_states = None
-
-        if 'degenerate_transformation' in corrections:
-            degenerate_transf = corrections['degenerate_transformation']
-        else:
-            degenerate_transf = None
-
-        if 'degenerate_energies' in corrections:
-            degenerate_energies = corrections['degenerate_energies']
-        else:
-            degenerate_energies = None
-
-        return cls(
-            state_space,
-            coupled_states,
-            total_basis,
-            energy_corrs,
-            wfn_corrections,
-            all_energy_corrections=all_energy_corrs,
-            degenerate_states=degenerate_states,
-            degenerate_transformation=degenerate_transf,
-            degenerate_energies=degenerate_energies,
-            **opts
-        )
-
-    @property
-    def degenerate(self):
-        return self.degenerate_transf is not None
-
-    @property
-    def energies(self):
-        if self.degenerate:
-            return self.degenerate_energies
-        else:
-            return np.sum(self.energy_corrs, axis=1)
-
-    @property
-    def order(self):
-        return len(self.energy_corrs[0])
-
-    def take_subspace(self, space):
-        """
-        Takes only those elements that are in space
-        :param space:
-        :type space:
-        :return:
-        :rtype:
-        """
-
-        new_states = self.states.find(space)
-        # raise Exception(new_states)
-        return type(self)(
-            self.states.take_states(space),
-            self.coupled_states.take_states(space),
-            self.total_basis,
-            self.energy_corrs[new_states],
-            [w[new_states, :] for w in self.wfn_corrections],
-            # not sure what to do with all this...
-            degenerate_states=self.degenerate_states,
-            degenerate_transformation=self.degenerate_transf,
-            degenerate_energies=self.degenerate_energies,
-            logger=self.logger
-        )
-
-    @staticmethod
-    def _fmt_operator_rep(full_ops, operator_symbol, conversion, real_fmt="{:>.8e}", padding_fmt='{:>16}'):
-        tag_line = None
-        rep_lines = None
-
-        op_dim = None
-
-        for (a, b, c), subrep in full_ops:
-            if isinstance(subrep, SparseArray):
-                subrep = subrep.asarray()
-            elif isinstance(subrep, (int, float, np.integer, np.floating)):
-                if subrep == 0:
-                    if op_dim is None:
-                        raise ValueError("was lazy and haven't filled operator dim yet...")
-                    subrep = np.zeros(op_dim)
-                else:
-                    raise ValueError("don't know what to do with representation '{}'".format(subrep))
-
-            if op_dim is None:
-                op_dim = subrep.shape
-
-            if conversion is not None:
-                subrep = subrep * conversion
-
-            subrep_lines = [
-                " ".join(padding_fmt.format(real_fmt.format(e)) for e in line)
-                for line in subrep
-            ]
-            line_len = len(subrep_lines[0])
-
-            if rep_lines is None:
-                rep_lines = subrep_lines
-            else:
-                rep_lines = [x + " " + y for x,y in zip(rep_lines, subrep_lines)]
-
-            tag_fmt = "{:<" + str(line_len) + "}"
-            base_tag=tag_fmt.format("<{a}|{A}({c})|{b}>".format(A=operator_symbol, a=a, c=c, b=b))
-            if tag_line is None:
-                tag_line = base_tag
-            else:
-                tag_line += " " + base_tag
-
-        # we want to return a line list so the logger can add any prefixes it needs
-        rep_lines.insert(0, tag_line)
-        return rep_lines
-
-
-    def operator_representation(self, operator_expansion, order=None, subspace=None, contract=True,
-                                logger_symbol="A",
-                                logger_conversion=None
-                                ):
-        """
-        Generates the representation of the operator in the basis of stored states
-
-        :param operator_expansion: the expansion of the operator
-        :type operator_expansion: Iterable[float] | Iterable[np.ndarray]
-        :param order: the order of correction to go up to
-        :type order: Iterable[float] | Iterable[np.ndarray]
-        :param subspace: the subspace of terms in which the operator expansion is defined
-        :type subspace: None | BasisStateSpace
-        :return: the set of representation matrices for this operator
-        :rtype: Iterable[np.ndarray]
-        """
-
-        mordor = self.order - 1
-        if order is None:
-            order = mordor
-        if order > mordor:
-            raise PerturbationTheoryException("{}: can't correct up to order {} when zero-order states were only corrected up to order {}".format(
-                type(self).__name__,
-                order,
-                mordor
-            ))
-        order = order + 1 # so that we actually do get up to the request order after accounting for the zeros...
-        if len(operator_expansion) < order:
-            operator_expansion = list(operator_expansion) + [0]*(order - len(operator_expansion))
-
-        # we stopped supporting indexing based on the total set of inds...
-        if subspace is None:
-            wfn_corrs = self.wfn_corrections[:order]
-        else:
-            # need to make the subspace good with the subspace in which the corrections are defined...
-            subspace_sel = self.total_basis.find(subspace, check=True)
-            wfn_corrs = []
-            # raise Exception(subspace_sel)
-            for k in range(order):
-                wfn_corrs.append(self.wfn_corrections[k][:, subspace_sel])
-        # raise Exception(wfn_corrs)
-
-        # generalizes the dot product so that we can use 0 as a special value...
-        dot = PerturbationTheorySolver._safe_dot
-        logger = self.logger
-        logger = None if logger is None or isinstance(logger, NullLogger) else logger
-
-        # does the dirty work of acutally applying the rep...
-        reps = [[] for _ in range(order)]
-        full_ops = []
-        for k in range(order):
-            tags = []
-            op = []
-            # apply each thing up to requested order...
-            for a in range(k+1): # if k == 2: a=0, a=1, a=2
-                for b in range(k-a+1): # if k==2, a==0: b=0, b=1, b=2; a==1: b=0, b=1
-                    c = k - (a + b) # a + b + c == k
-                    rop = operator_expansion[c]
-                    if isinstance(rop, (int, float, np.integer, np.floating)): # constant reps...
-                        if rop != 0: # cheap easy check
-                            subrep = rop * dot(wfn_corrs[a], wfn_corrs[b].T)
-                            op.append(subrep)
-                        else:
-                            subrep = 0
-                            op.append(0)
-                    else:
-                        subrep = dot(dot(wfn_corrs[a], rop), wfn_corrs[b].T)
-                        op.append(subrep)
-
-                    full_ops.append([
-                        (a, b, c),
-                        subrep
-                    ])
-
-            if contract:
-                op = sum(op)
-            reps[k] = op
-
-        if logger is not None:
-            logger.log_print(full_ops, logger_symbol, logger_conversion, message_prepper=self._fmt_operator_rep)
-
-        return reps
-
-    def get_overlap_matrices(self):
-        """
-        Returns the overlap matrices for the set of corrections
-        at each order of correction
-
-        :return:
-        :rtype:
-        """
-
-        wat = []
-        for k in range(2 + 1):
-            ov = None
-            for i in range(k + 1):
-                c1 = self.wfn_corrections[i].asarray()
-                c2 = self.wfn_corrections[k - i].asarray()
-                if ov is None:
-                    ov = np.dot(c1, c2.T)
-                else:
-                    ov += np.dot(c1, c2.T)
-            wat.append(ov)
-
-        return wat
-
-    def savez(self, file):
-        keys = dict(
-            states=self.states,
-            coupled_states=self.coupled_states,
-            total_states=self.total_basis,
-            energies=self.energy_corrs,
-            wavefunctions=self.wfn_corrections
-        )
-        if self.degenerate_states is not None:
-            keys['degenerate_states'] = self.degenerate_states
-        if self.degenerate_transf is not None:
-            keys['degenerate_transformation'] = self.degenerate_transf
-        if self.degenerate_energies is not None:
-            keys['degenerate_energies'] = self.degenerate_energies
-        np.savez(file, **keys)
-    @classmethod
-    def loadz(cls, file):
-        keys = np.load(file)
-        return cls.from_dicts(
-            {
-                "states":keys['states'],
-                 "coupled_states":keys['coupled_states'],
-                 "total_states":keys['total_states'],
-                 "degenerate_states":keys['degenerate_states'] if 'degenerate_states' in keys else None
-             },
-            {
-                "energies":keys['energies'],
-                "wavefunctions":keys['wavefunctions'],
-                "degenerate_transformation": keys['degenerate_transformation'] if 'degenerate_transformation' in keys else None,
-                "degenerate_energies": keys['degenerate_energies'] if 'degenerate_energies' in keys else None
-            },
-            keys['hamiltonians']
-        )
-
-    def to_state(self, serializer=None):
-        keys = dict(
-            states=self.states,
-            coupled_states=self.coupled_states,
-            total_states=self.total_basis,
-            energies=self.energy_corrs,
-            wavefunctions=self.wfn_corrections,
-            degenerate_states=self.degenerate_states,
-            degenerate_transformations=self.degenerate_transf,
-            degenerate_energies=self.degenerate_energies
-        )
-        return keys
-    @classmethod
-    def from_state(cls, data, serializer=None):
-        return cls.from_dicts(
-            {
-                "states": serializer.deserialize(data['states']),
-                "coupled_states": serializer.deserialize(data['coupled_states']),
-                "total_states": serializer.deserialize(data['coupled_states']),
-                "degenerate_states": serializer.deserialize(data['degenerate_states']),
-            },
-            {
-                "energies": data['energies'],
-                "wavefunctions": data['wavefunctions'],
-                "degenerate_transformation": data['degenerate_transformations'],
-                "degenerate_energies": data['degenerate_energies']
-            },
-            data['hamiltonians'] # we probably want to ditch this for memory reasons...
-        )
-
-class PerturbationTheoryStateSpaceFilter:
-    """
-    Provides an easier constructor for the VPT state space filters
-    """
-    def __init__(self, input_space, prefilters, postfilters):
-        """
-        :param input_space:
-        :type input_space: BasisStateSpace
-        :param prefilters:
-        :type prefilters:
-        :param postfilters:
-        :type postfilters:
-        """
-
-        self.input_space = input_space
-        self._prefilters = None
-        self._raw_prefilters = prefilters
-        self._postfilters = postfilters
-
-    @classmethod
-    def from_data(cls, input_space, data):
-        """
-        Works to canonicalize inputs and initialize appropriately from there
-
-        :param data:
-        :type data:
-        :return:
-        :rtype:
-        """
-
-        if data is None:
-            return None
-        elif isinstance(data, dict):
-            if not all(isinstance(v, cls) for v in data.values()):
-                return cls._from_old_style_rules(input_space, data)
-            else:
-                return data
-        else:
-            return cls.from_rules(input_space, *data)
-
-    @classmethod
-    def _from_old_style_rules(cls, input_space, rules):
-        """
-        Builds a set of filter spaces from a dict keyed by Hamiltonian/wfn pairs
-        and giving prefilters/postfilters
-
-        :param rules:
-        :type rules:
-        :return:
-        :rtype:
-        """
-        new_rules = []
-        for k,v in rules.items():
-            if not isinstance(v, dict):
-                v = {'prefilters':v}
-            new_rules.append(dict({'order':k[0]+k[1], 'expansion_term':k[0]}, **v))
-
-        return cls.from_rules(input_space, *new_rules)
-
-
-    @classmethod
-    def from_rules(cls, input_space, *rules):
-        """
-        Builds a set of filter spaces from dicts of rules
-
-        :param rules:
-        :type rules:
-        :return:
-        :rtype:
-        """
-
-        filters = {}
-        for r in rules:
-            if not isinstance(r, dict):
-                raise ValueError("filter rule must be a dict with `order`, `expansion_term`"
-                                 ", and one or both of `prefilters` and `postfilter` for keys")
-            for k in ["order", "expansion_term"]:
-                if k not in r:
-                    raise ValueError("filter rule needs `order`, `expansion_term`"
-                                     ", and one or both of `prefilters` and `postfilter` for keys")
-            if 'prefilters' not in r and 'postfilter' not in r:
-                raise ValueError("filter rule needs one or both of `prefilters` and `postfilter` for keys")
-
-            h_term = r['expansion_term']
-            y_term = r['order'] - h_term
-
-            filters[(h_term, y_term)] = cls(
-                input_space,
-                r['prefilters'] if 'prefilters' in r else None,
-                r['postfilter'] if 'postfilter' in r else None
-            )
-
-        return filters
-
-    @property
-    def prefilters(self):
-        if self._prefilters is None:
-            self._prefilters = self.canonicalize_prefilters(self.input_space.basis,
-                                                            self._raw_prefilters)
-        return self._prefilters
-
-    @property
-    def postfilter(self):
-        return self._postfilters
-
-    def _could_be_a_space(self, test): # nasty checking code that I don't want to redupe all the time
-        if isinstance(test, (BasisStateSpace, BasisMultiStateSpace)):
-            return True
-        else:
-            try:
-                lt = len(test)
-            except TypeError:
-                return False
-
-            try:
-                if lt > 0 and isinstance(test[0], (int, np.integer)):
-                    return True
-                else:
-                    lt = len(test[0])
-                    if lt > 0 and isinstance(test[0][0], (int, np.integer)):
-                        return True
-                    else:
-                        return False
-            except TypeError:
-                return False
-
-    def _could_be_rules(self, test):
-        # selection rule options
-        if test is None:
-            return True
-
-        try:
-            lt = len(test)
-        except TypeError:
-            return False
-
-        if lt == 0:
-            return True
-
-        try:
-            lt = len(test[0])
-            res = (
-                    lt == 0
-                    or isinstance(test[0][0], (int, np.integer))
-            )
-        except TypeError:
-            return False
-
-        return res
-
-    def _could_be_a_prefilter(self, test):
-        return (
-            test is None
-            or self._could_be_a_space(test)
-            or (
-                    len(test) == 2 and
-                    test[0] is None or self._could_be_a_space(test[0])
-                    and self._could_be_rules(test[1])
-            )
-        )
-
-    def canonicalize_prefilters(self, basis, prefilters):
-        """
-        Puts the prefilters in canonical form...
-
-        :param basis:
-        :type basis:
-        :param prefilters:
-        :type prefilters:
-        :return:
-        :rtype:
-        """
-
-        if prefilters is None:
-            return None
-
-        if self._could_be_a_prefilter(prefilters):
-            prefilters = (prefilters,)
-
-        final_filters = []
-        for n, filter_space in enumerate(prefilters):
-            if filter_space is None or self._could_be_a_space(filter_space):
-                filter_rules = None
-            else:
-                filter_space, filter_rules = filter_space
-
-            if filter_space is not None:
-                if isinstance(filter_space, (int, np.integer)):
-                    filter_space = BasisStateSpace.from_quanta(
-                        self.input_space.basis,
-                        (filter_space,)
-                    )
-                elif isinstance(filter_space, (list, tuple)) and all(
-                        isinstance(f, (int, np.integer)) for f in filter_space
-                ):
-                    filter_space = BasisStateSpace.from_quanta(
-                        self.input_space.basis,
-                        filter_space
-                    )
-                if not isinstance(filter_space, (BasisStateSpace, BasisMultiStateSpace)):
-                    filter_space = BasisStateSpace(basis, filter_space)
-                if isinstance(filter_space, SelectionRuleStateSpace):
-                    filter_space = filter_space.to_single().take_unique()
-
-            final_filters.append([filter_space, filter_rules])
-
-        return final_filters
-
-    @classmethod
-    def from_property_rules(cls,
-                            initial_space, target_space,
-                            property_rules, order=2
-                            ):
-
-
-        raise NotImplementedError("bleeh")
 
 class PerturbationTheorySolver:
     """
@@ -835,6 +46,7 @@ class PerturbationTheorySolver:
                  intermediate_normalization=False,
                  zero_element_warning=True,
                  degenerate_states=None,
+                 handle_strong_couplings=False,
                  zero_order_energy_corrections=None,
                  memory_constrained=False,
                  keep_hamiltonians=None,
@@ -895,6 +107,9 @@ class PerturbationTheorySolver:
 
         self.degeneracy_spec = degenerate_states
         self._deg_states = None
+        if handle_strong_couplings is None:
+            handle_strong_couplings = self.degeneracy_spec is None
+        self.handle_strong_couplings = handle_strong_couplings
         # self.degeneracy_mode = degeneracy_mode
         self.allow_sakurai_degs = allow_sakurai_degs
         self.allow_post_PT_calc = allow_post_PT_calc
@@ -958,7 +173,7 @@ class PerturbationTheorySolver:
     @property
     def degenerate_spaces(self):
         if self._deg_states is None:
-            self._deg_states = DegenerateMultiStateSpace.from_spec(self, self.degeneracy_spec, full_basis=self.full_basis)
+            self._deg_states = DegenerateMultiStateSpace.from_spec(self.degeneracy_spec, solver=self, full_basis=self.full_basis)
         return self._deg_states
 
     @property
@@ -995,16 +210,18 @@ class PerturbationTheorySolver:
 
         # wat = sum(self.representations)[:100, :100]
         # analytic_engs = np.linalg.eigh(wat.asarray())[0]
-        # raise Exception((analytic_engs - analytic_engs[0])*UnitsData.convert("Hartrees", "Wavenumbers"))
 
         corrs = self.get_corrections()
+        degenerate_states = corrs.degeneracies
+        # print(degenerate_states)
+        corrs = corrs.corrections
 
         # import McUtils.Plots as plt
         #
         # wat = corrs.get_overlap_matrices()
 
         # degeneracy_mode = self.degeneracy_mode
-        degenerate_states = self.degenerate_spaces
+        # degenerate_states = self.degenerate_spaces
         if (
                 self.allow_post_PT_calc
                 and degenerate_states is not None
@@ -1069,25 +286,42 @@ class PerturbationTheorySolver:
                             end = time.time()
                             logger.log_print("took {t:.3f}s", t=end - start)
                             self.perts[0].clear_cache()
+                            # if self.memory_constrained and not isinstance(self.checkpointer, NullCheckpointer):
+                            #     self.checkpointer['H[0]'] = H[0]
+                            #     H[0] = None
+                            #     gc.collect()
 
+                        # import tracemalloc
                         for i, h in enumerate(self.perts[1:]):
                             # calculate matrix elements in the coupled subspace
                             if n_spaces > i + 1:
                                 cs = self.total_state_space[i + 1]
                                 with logger.block(tag="building {}".format(h)):
                                     start = time.time()
+                                    # tracemalloc.start()
+                                    # pre = tracemalloc.take_snapshot()
                                     H[i + 1] = h.get_representation_matrix(cs, self.flat_total_space,
                                                                            zero_element_warning=self.zero_element_warning,
                                                                            diagonal=False,
                                                                            memory_constrained=self.memory_constrained
                                                                            )
                                     h.clear_cache()
-                                    if self.memory_constrained:
-                                        H[i + 1] = H[i + 1].ascs(inplace=True) # attempt to control memory footprint...
+                                    # post = tracemalloc.take_snapshot()
+                                    # for stat in post.compare_to(pre, 'lineno')[:10]:
+                                    #     print(stat)
+                                    # tracemalloc.stop()
+                                    # if self.memory_constrained:
+                                    #     if not isinstance(self.checkpointer, NullCheckpointer):
+                                    #         self.checkpointer['H[{}]'.format(i+1)] = H[i+1]
+                                    #         H[i+1] = None
+                                    #         gc.collect()
+                                    #     # H[i + 1] = H[i + 1].ascs(inplace=True) # attempt to control memory footprint...
                                     # cs.clear_cache()
                                     end = time.time()
                                     logger.log_print("took {t:.3f}s", t=end - start)
-                                # raise Exception("woop")
+                                    # raise Exception("woop")
+
+                    # raise Exception("...")
 
                     if self.use_cached_representations:
                         try:
@@ -2063,7 +1297,11 @@ class PerturbationTheorySolver:
 
     #region Apply Equations
 
-    def get_corrections(self, non_zero_cutoff=None, check_overlap=True):
+    def get_corrections(self,
+                        non_zero_cutoff=None,
+                        handle_strong_couplings=None,
+                        check_overlap=True
+                        ):
         """
         Applies the perturbation theory equations to obtain
         corrections to the wave functions and energies
@@ -2088,6 +1326,8 @@ class PerturbationTheorySolver:
         logger = self.logger
 
         degenerate_states = self.degenerate_spaces
+        if handle_strong_couplings is None:
+            handle_strong_couplings = self.handle_strong_couplings
         # degenerate_states = None,
         # degeneracy_mode = None,
         # logger = None,
@@ -2095,6 +1335,58 @@ class PerturbationTheorySolver:
 
         if non_zero_cutoff is None:
             non_zero_cutoff = Settings.non_zero_cutoff
+
+        return self._get_corrections(
+            perturbations,
+            states,
+            order,
+            flat_total_space,
+            N,
+            checkpointer,
+            logger,
+            degenerate_states,
+            handle_strong_couplings=handle_strong_couplings,
+            non_zero_cutoff=non_zero_cutoff
+        )
+
+    def _get_corrections(self,
+                         perturbations,
+                         states,
+                         order,
+                         flat_total_space,
+                         N,
+                         checkpointer,
+                         logger,
+                         degenerate_states,
+                         non_zero_cutoff=None,
+                         handle_strong_couplings=None
+                         ):
+        """
+        Just exists so we can do a recursion on this...
+
+        :param perturbations:
+        :type perturbations:
+        :param states:
+        :type states:
+        :param order:
+        :type order:
+        :param flat_total_space:
+        :type flat_total_space:
+        :param N:
+        :type N:
+        :param checkpointer:
+        :type checkpointer:
+        :param logger:
+        :type logger:
+        :param degenerate_states:
+        :type degenerate_states:
+        :param non_zero_cutoff:
+        :type non_zero_cutoff:
+        :param handle_strong_couplings:
+        :type handle_strong_couplings:
+        :return:
+        :rtype:
+        """
 
         # checkpointer['indices'] = self.total_state_space
         with checkpointer:
@@ -2104,7 +1396,7 @@ class PerturbationTheorySolver:
             all_corrs = np.zeros((len(states), order + 1, N))
             all_energy_corrs = np.full((len(states), order + 1), None, dtype=object)
 
-            with logger.block(tag="applying PT"):
+            with logger.block(tag="Applying Perturbation Theory"):
                 logger.log_print(
                     [
                         "order: {o}",
@@ -2126,7 +1418,7 @@ class PerturbationTheorySolver:
                 _ = []
                 for deg_group in degenerate_states:
                     if not hasattr(deg_group, 'indices'):
-                        deg_group = BasisStateSpace(self.flat_total_space.basis, deg_group, full_basis=self.full_basis)
+                        deg_group = BasisStateSpace(flat_total_space.basis, deg_group, full_basis=self.full_basis)
                     deg_group.deg_find_inds = None
                     _.append(deg_group)
                 degenerate_states = _
@@ -2152,6 +1444,7 @@ class PerturbationTheorySolver:
                 else:
                     # loop over the degenerate sets
                     for deg_group in degenerate_states:
+                        # logger.log_print(str(deg_group.excitations))
                         # we use this to build a pertubation operator that removes
                         # then entire set of degenerate states
                         deg_inds = flat_total_space.find(deg_group)
@@ -2164,18 +1457,19 @@ class PerturbationTheorySolver:
                         else:
                             deg_engs = zero_order_states = subspaces = main_subspace = [None]
 
-                        res_inds = states.find(deg_group.indices)
+                        res_inds = states.find(deg_group.indices, missing_val=-1)
                         for n, res_index, de, zo, s in zip(deg_group.indices, res_inds, deg_engs, zero_order_states, subspaces):
-                            energies, overlaps, corrs, ecorrs = self.apply_VPT_equations(n, deg_group, de, zo, main_subspace, s,
-                                                                                 allow_PT_degs=self.allow_sakurai_degs,
-                                                                                 non_zero_cutoff=non_zero_cutoff,
-                                                                                 perturbations=perturbations
-                                                                                 )
+                            if res_index > -1:
+                                energies, overlaps, corrs, ecorrs = self.apply_VPT_equations(n, deg_group, de, zo, main_subspace, s,
+                                                                                     allow_PT_degs=self.allow_sakurai_degs,
+                                                                                     non_zero_cutoff=non_zero_cutoff,
+                                                                                     perturbations=perturbations
+                                                                                     )
 
-                            all_energies[res_index] = energies
-                            all_energy_corrs[res_index] = ecorrs
-                            all_corrs[res_index] = corrs
-                            all_overlaps[res_index] = overlaps
+                                all_energies[res_index] = energies
+                                all_energy_corrs[res_index] = ecorrs
+                                all_corrs[res_index] = corrs
+                                all_overlaps[res_index] = overlaps
 
                         # now we reorthogonalize degenerate states
                         if not self.intermediate_normalization:
@@ -2206,50 +1500,16 @@ class PerturbationTheorySolver:
             N = len(tci)
             nstates = len(all_corrs)
 
-            corr_inds = [[] for i in range(nstates)]
-            corr_mats = [None] * (order + 1)
-
-            for o in range(order + 1):
-                non_zeros = []
-                for i, corr in enumerate(all_corrs):
-                    # we find the non-zero elements within the o level of correction for the ith state
-                    nonzi = np.where(np.abs(corr[o]) > non_zero_cutoff)[0]
-                    # then we pull these out
-                    vals = corr[o][nonzi,]
-                    # and we add the values and indices to the list
-                    non_zeros.append(
-                        (
-                            vals,
-                            np.column_stack([
-                                np.full(len(nonzi), i),
-                                nonzi
-                            ])
-                        )
-                    )
-
-                    # and then we add the appropriate basis indices to the list of basis data
-                    wat = tci[nonzi,]
-                    corr_inds[i].append(wat)
-
-                # now we build the full mat rep for this level of correction
-                vals = np.concatenate([x[0] for x in non_zeros])
-                inds = np.concatenate([x[1] for x in non_zeros], axis=0).T
-                corr_mats[o] = SparseArray.from_data(
-                    (
-                        vals,
-                        inds
-                    ),
-                    shape=(nstates, N)
-                )
-
-            # now we build state reps from corr_inds
-            for i, dat in enumerate(corr_inds):
-                spaces = []
-                for substates in dat:
-                    _, upos = np.unique(substates, return_index=True)
-                    usubs = substates[np.sort(upos)]
-                    spaces.append(flat_total_space.take_states(usubs))
-                corr_inds[i] = BasisMultiStateSpace(np.array(spaces, dtype=object))
+            corr_mats, corr_inds = PerturbationTheoryCorrections.create_coupling_matrix(
+                all_corrs,
+                states,
+                flat_total_space,
+                nstates,
+                order,
+                non_zero_cutoff=non_zero_cutoff,
+                # filters=self.state_space_filters
+                filters=None
+            )
 
             cs_states = SelectionRuleStateSpace(states, corr_inds, None)
             total_states = self.flat_total_space
@@ -2270,6 +1530,50 @@ class PerturbationTheorySolver:
                 perturbations # we probably want to ditch this for memory reasons...
                 , logger=self.logger
             )
+
+
+            if (
+                    degenerate_states is None
+                    or all(len(x) == 1 for x in degenerate_states)
+            ):
+
+                if handle_strong_couplings is True or handle_strong_couplings is False:
+                    degenerate_correction_threshold = .5
+                elif not isinstance(handle_strong_couplings, (int, float, np.integer, np.floating)):
+                    degenerate_correction_threshold=.5
+                else:
+                    degenerate_correction_threshold = handle_strong_couplings
+                    handle_strong_couplings = handle_strong_couplings > 0
+
+                sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold)
+                if len(sc) > 0:
+                    with self.logger.block(tag="Strongly coupled states (threshold={})".format(degenerate_correction_threshold)):
+                        self.logger.log_print(
+                            corrs.format_strong_couplings_report(sc, join=False)
+                        )
+
+                        if handle_strong_couplings and (sc is not None and len(sc) > 0):
+                            sc = corrs.collapse_strong_couplings(sc)
+                            degenerate_states = DegenerateMultiStateSpace.from_spec({'couplings':sc}, solver=self)
+                            with self.logger.block(tag="Redoing PT with strong couplings handled (degs={})".format(degenerate_states)):
+                                corrs = self._get_corrections(
+                                    perturbations,
+                                    states,
+                                    order,
+                                    flat_total_space,
+                                    N,
+                                    checkpointer,
+                                    logger,
+                                    degenerate_states,
+                                    handle_strong_couplings=False,
+                                    non_zero_cutoff=non_zero_cutoff
+                                )
+                            return corrs
+            else:
+                sc = None
+
+
+            # raise Exception(sc)
 
             if self.results is None or isinstance(self.results, NullCheckpointer):
                 try:
@@ -2296,7 +1600,9 @@ class PerturbationTheorySolver:
             # with self.logger.block(tag="overlap matrix"):
             #     self.logger.log_print(str(np.sum(corrs.get_overlap_matrices(), axis=0)).splitlines())
 
-        return corrs
+        return self.PTResults(corrs, degenerate_states)
+
+    PTResults = namedtuple("PTResults", ["corrections", "degeneracies"])
 
     @staticmethod
     def _safe_dot(a, b):
@@ -2612,7 +1918,8 @@ class PerturbationTheorySolver:
         for group in degenerate_states:
             # we apply the degenerate PT on a group-by-group basis
             # by transforming the H reps into the non-degenerate basis
-            deg_inds = total_state_space.find(group)
+            deg_inds = total_state_space.find(group, missing_val=-1)
+            deg_inds = deg_inds[deg_inds > -1]
             if len(deg_inds) == 1 or (self.gaussian_resonance_handling and np.max(np.sum(group.excitations, axis=1)) > 2):
                 for i in deg_inds:
                     # we'll be a little bit inefficient for now and speed up later

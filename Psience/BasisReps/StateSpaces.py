@@ -184,7 +184,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
     def exc_indexer(self, idxer):
         self._exc_indexer = idxer
 
-    def find(self, to_search, check=True, minimal_dtype=False):
+    def find(self, to_search, check=True, minimal_dtype=False, missing_val='raise'):
         """
         Finds the indices of a set of indices inside the space
 
@@ -204,9 +204,9 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         if to_search.ndim == 0:
             to_search = np.array([to_search], dtype=to_search.dtype)
         if to_search.ndim == 1:
-            vals, _ = nput.find(self.indices, to_search, sorting=self.indexer, check=check)
+            vals, _ = nput.find(self.indices, to_search, sorting=self.indexer, check=check, missing_val=missing_val)
         else:
-            vals, self._exc_indexer = nput.find(self.excitations, to_search, sorting=self._exc_indexer, check=check, minimal_dtype=minimal_dtype)
+            vals, self._exc_indexer = nput.find(self.excitations, to_search, sorting=self._exc_indexer, check=check, minimal_dtype=minimal_dtype, missing_val=missing_val)
 
         return vals
 
@@ -3683,6 +3683,7 @@ class BraKetSpace:
         self.load_non_orthog(shared_memory_manager=None,
                              use_aggressive_caching=True,
                              use_preindex_trie=True
+                             # preindex_trie_depth=2
                              )
         self.load_space_diffs()
         self._state_diffs = np.asanyarray(self._state_diffs)
@@ -3696,6 +3697,11 @@ class BraKetSpace:
         self._orthogs = None
         self._state_diffs = None
         self._state_pairs = None
+
+    def free(self):
+        self.clear_cache()
+        self.bras = None
+        self.kets = None
 
     class OrthogonalIndexCalculator:
         def __init__(self, tests, trie):

@@ -6,9 +6,10 @@ from McUtils.Plots import *
 from unittest import TestCase
 import sys, h5py, math, numpy as np
 
-class PsienceDataTests(TestCase):
+class DataTests(TestCase):
 
-    @debugTest
+    maxDiff = None
+    @validationTest
     def test_FChkFileDipoleSurface(self):
         fchk = TestManager.test_data("HOD_freq.fchk")
         surf = DipoleSurface.from_fchk_file(fchk)
@@ -23,7 +24,7 @@ class PsienceDataTests(TestCase):
             [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
         ]).shape, (2, 3))
 
-    @debugTest
+    @validationTest
     def test_LogFileDipoleSurface(self):
         log = TestManager.test_data("water_OH_scan.log")
         conv = lambda x: cartesian_to_zmatrix(
@@ -44,7 +45,7 @@ class PsienceDataTests(TestCase):
         #     [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
         # ]).shape, (2, 3))
 
-    @debugTest
+    @validationTest
     def test_LogFilePotentialSurface(self):
         log = TestManager.test_data("water_OH_scan.log")
         conv = lambda x: np.linalg.norm(x[:, 0] - x[:, 1], axis=1)

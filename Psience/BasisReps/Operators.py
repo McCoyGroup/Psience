@@ -3,6 +3,8 @@ Provides the operator representations needed when building a Hamiltonian represe
 I chose to only implement direct product operators. Not sure if we'll need a 1D base class...
 """
 
+import tracemalloc
+
 import numpy as np, scipy.sparse as sp, os, tempfile as tf, time, gc
 from collections import OrderedDict
 from McUtils.Numputils import SparseArray
@@ -546,18 +548,22 @@ class Operator:
 
         inds = parallelizer.scatter(inds)
         # print(f"Num inds={len(idx)}")
+        parallelizer.print("evaluating over inds of shape {s}", s=inds.shape, log_level=parallelizer.logger.LogLevel.Debug)
+        start = time.time()
         dump = self._get_pop_sequential(inds, idx, save_to_disk=False, check_orthogonality=check_orthogonality)
-        parallelizer.print("gathering inds of shape {}".format(inds.shape), log_level=parallelizer.logger.LogLevel.Debug)
+        end = time.time()
+        parallelizer.print("took {t:.3f}s", t=end-start, log_level=parallelizer.logger.LogLevel.Debug)
         res = parallelizer.gather(dump)
+        parallelizer.print("gather took {t:.3f}s", t=time.time()-end, log_level=parallelizer.logger.LogLevel.Debug)
         if isinstance(res, np.ndarray):
-            parallelizer.print("got res of shape {}".format(res.shape), log_level=parallelizer.logger.LogLevel.Debug)
-        # parallelizer.print(res)
+            parallelizer.print("got res of shape {s}", s=res.shape, log_level=parallelizer.logger.LogLevel.Debug)
         if parallelizer.on_main:
             res = self._load_arrays(res)
 
         return res
 
     @Parallelizer.main_restricted
+    # @profile
     def _main_get_elements(self, inds, idx,
                            parallelizer=None,
                            check_orthogonality=True,
@@ -611,7 +617,7 @@ class Operator:
             new = sp.vstack(wat)
 
         shp = inds.shape if inds is not None else ()
-        res = SparseArray.from_data(new)
+        res = SparseArray.from_data(new, cache_block_data=False)
         res = res.reshape(shp[:-1] + res.shape[-1:])
 
         return res
@@ -664,6 +670,7 @@ class Operator:
             idx_splits = [idx]
         return idx_splits
 
+    # from memory_profiler import profile
     # @profile
     def _eval_chunks(self, inds, idx_splits,
                      parallelizer=None,
@@ -671,15 +678,19 @@ class Operator:
                      memory_constrained=False
                      ):
 
+        # import tracemalloc
+        #
+        # tracemalloc.start()
+
         chunks = []
-        for n, idx in enumerate(idx_splits):
-            idx: BraKetSpace
 
-            if parallelizer is None:
-                parallelizer = self.parallelizer
+        if parallelizer is None:
+            parallelizer = self.parallelizer
+        if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
+            with parallelizer:
 
-            if parallelizer is not None and not isinstance(parallelizer, SerialNonParallelizer):
-                with parallelizer:
+                for n, idx in enumerate(idx_splits):
+                    idx: BraKetSpace
                     # parallelizer.printer = self.logger.log_print
                     max_nproc = len(inds.flatten())
                     # idx.load_space_diffs()
@@ -689,22 +700,38 @@ class Operator:
                                                   main_kwargs={'full_inds': inds},
                                                   comm=None if max_nproc >= parallelizer.nprocs else list(range(max_nproc))
                                                   )
-                    idx = idx.obj
-                    idx.clear_cache()
+                    if memory_constrained:
+                        idx = idx.obj
+                        if len(idx_splits) > 1:
+                            idx.free()
+                        else:
+                            idx.clear_cache()
+                        idx_splits[n] = None
+                        del idx
+                        gc.collect()
+
+                    chunks.append(elem_chunk)
+        else:
+
+            for n, idx in enumerate(idx_splits):
+                idx: BraKetSpace
+                elem_chunk = self._main_get_elements(inds, idx,
+                                                     parallelizer=None,
+                                                     check_orthogonality=check_orthogonality
+                                                     )
+                if memory_constrained:
+                    # self.logger.log_print("mem usage post\n{m}", m="\n".join(str(x) for x in tracemalloc.take_snapshot().statistics('lineno')))
+                    if len(idx_splits) > 1:
+                        idx.free()
+                    else:
+                        idx.clear_cache()
                     idx_splits[n] = None
                     del idx
                     gc.collect()
-            else:
-                elem_chunk = self._main_get_elements(inds, idx, parallelizer=None,
-                                                     check_orthogonality=check_orthogonality
-                                                     )
 
-                idx.clear_cache()
-                idx_splits[n] = None
-                del idx
-                gc.collect()
+                    # self.logger.log_print("mem usage freed\n{m}", m="\n".join(str(x) for x in tracemalloc.take_snapshot().statistics('lineno')))
 
-            chunks.append(elem_chunk)
+                chunks.append(elem_chunk)
 
         return chunks
 
@@ -747,7 +774,8 @@ class Operator:
                                    memory_constrained=memory_constrained
                                    )
 
-        return self._construct_elem_array(chunks)
+        arr = self._construct_elem_array(chunks)
+        return arr
 
     @staticmethod
     def _get_dim_string(dims):
@@ -1083,14 +1111,14 @@ class ContractedOperator(Operator):
                          )
         self.chunk_size = chunk_size
 
-    def _get_element_block(self, idx, parallelizer=None, check_orthogonality=True):
+    def _get_element_block(self, idx, parallelizer=None, check_orthogonality=True, memory_constrained=False):
         c = self.coeffs
         if not isinstance(c, (int, np.integer, float, np.floating)):
             # takes an (e.g.) 5-dimensional SparseTensor and turns it into a contracted 2D one
             axes = self.axes
             if axes is None:
                 axes = (tuple(range(c.ndim)),) * 2
-            subTensor = super().get_elements(idx, parallelizer=parallelizer, check_orthogonality=check_orthogonality)
+            subTensor = super().get_elements(idx, parallelizer=parallelizer, check_orthogonality=check_orthogonality, memory_constrained=memory_constrained)
 
             # we collect here to minimize the effect of memory spikes if possible
             # self.clear_cache()
@@ -1103,12 +1131,13 @@ class ContractedOperator(Operator):
                     # TODO: make this broadcasting more robust
                     contracted = c[np.newaxis, :] * subTensor.squeeze()[:, np.newaxis]
             else:
-                if len(axes[1]) > 0:
-                    contracted = subTensor.tensordot(c, axes=axes).squeeze()
-                else:
-                    # TODO: make this broadcasting more robust
-                    subTensor = subTensor.expand_dims(-1)
-                    contracted = subTensor * c[np.newaxis, :]
+                with subTensor.cache_options(enabled=False):
+                    if len(axes[1]) > 0:
+                        contracted = subTensor.tensordot(c, axes=axes).squeeze()
+                    else:
+                        # TODO: make this broadcasting more robust
+                        subTensor = subTensor.expand_dims(-1)
+                        contracted = subTensor * c[np.newaxis, :]
 
             # if self.fdim > 3:
             #     raise RuntimeError("wwwwooooof")
@@ -1125,7 +1154,7 @@ class ContractedOperator(Operator):
 
         return contracted
 
-    def get_elements(self, idx, parallelizer=None, check_orthogonality=True):
+    def get_elements(self, idx, parallelizer=None, check_orthogonality=True, memory_constrained=False):
         """
         Computes the operator values over the specified indices
 
@@ -1140,7 +1169,7 @@ class ContractedOperator(Operator):
 
         idx_splits = self._split_idx(idx)
 
-        chunks = [self._get_element_block(idx, check_orthogonality=check_orthogonality) for idx in idx_splits]
+        chunks = [self._get_element_block(idx, check_orthogonality=check_orthogonality, memory_constrained=memory_constrained) for idx in idx_splits]
         if all(isinstance(x, np.ndarray) for x in chunks):
             subchunks = [np.array([y]) if y.shape == () else y for y in chunks]
             contracted = np.concatenate(subchunks, axis=0)

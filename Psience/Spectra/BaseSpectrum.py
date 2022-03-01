@@ -3,7 +3,6 @@ Provides a general base spectrum class that can be extended to new fancy spectra
 """
 
 import numpy as np, json, abc
-
 import McUtils.Plots as plt
 
 __all__ = [

@@ -15,6 +15,8 @@ __all__ = [
     "VPTAnalyzer"
 ]
 
+__reload_hook__ = ["..Spectra"]
+
 class VPTResultsSource(enum.Enum):
     """
     Enum of sources to load PT results from
@@ -168,6 +170,24 @@ class VPTResultsLoader:
     @spectrum.register("wavefunctions")
     def _(self):
         return DiscreteSpectrum(self.data.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers"), self.data.intensities)
+
+    @property_dispatcher
+    def zero_order_spectrum(self):
+        """
+        Returns the zero-order IR spectrum calculated from perturbation theory
+
+        :return:
+        :rtype:
+        """
+        raise ValueError("no dispatch")
+    @zero_order_spectrum.register("checkpoint")
+    def _(self):
+        freq, ints = self.data["zero_order_spectrum"]
+        return DiscreteSpectrum(freq * UnitsData.convert("Hartrees", "Wavenumbers"), ints)
+    @zero_order_spectrum.register("wavefunctions")
+    def _(self):
+        return DiscreteSpectrum(self.data.deperturbed_frequencies(order=0) * UnitsData.convert("Hartrees", "Wavenumbers"),
+                                self.data.deperturbed_intensities_to_order(order=0))
 
     @property_dispatcher
     def energy_corrections(self):
@@ -373,6 +393,9 @@ class VPTAnalyzer:
     def frequencies(self):
         return self.energies - self.energies[0]
 
+    @loaded_prop
+    def zero_order_spectrum(self):
+        return self.loader.zero_order_spectrum()
     @property
     def deperturbed_spectrum(self):
         freqs = self.deperturbed_frequencies

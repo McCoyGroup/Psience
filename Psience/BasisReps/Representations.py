@@ -7,6 +7,8 @@ __all__ = [
     "ExpansionRepresentation"
 ]
 
+import tracemalloc
+
 import numpy as np, itertools as ip, scipy.sparse as sp, time, gc, tempfile as tf
 
 from McUtils.Numputils import SparseArray
@@ -77,6 +79,12 @@ class Representation:
             self.array._compute_uncached_values(self._compute, inds)
         else:
             raise ValueError("Can only compute cached values when given explicit BraKets")
+    @property
+    def chunk_size(self):
+        if self.operator is None:
+            return None
+        else:
+            return self.operator.chunk_size
 
     def clear_cache(self):
         # print(">>>>>>>>>>>>> wat", self.compute, self.operator)
@@ -86,8 +94,12 @@ class Representation:
         elif hasattr(self.compute, 'clear_cache'):
             self.compute.clear_cache()
         gc.collect()
-    def _compute_op_els(self, inds, check_orthogonality=True):
-        return self.operator.get_elements(inds, check_orthogonality=check_orthogonality)
+    def _compute_op_els(self, inds, check_orthogonality=True, memory_constrained=None):
+        res = self.operator.get_elements(inds,
+                                          check_orthogonality=check_orthogonality,
+                                          memory_constrained=self.memory_constrained if memory_constrained is None else memory_constrained
+                                          )
+        return res
 
     @property
     def diag(self):
@@ -123,7 +135,7 @@ class Representation:
                 n[negs] += self.ndims
             return n
     # @profile
-    def get_brakets(self, states, check_orthogonality=True):
+    def get_brakets(self, states, check_orthogonality=True, memory_constrained=False):
         """
         Computes term elements based on getting a BraKetSpace.
         Can directly pass element specs through, since the shape management shit
@@ -142,7 +154,7 @@ class Representation:
             states=states
         )
 
-        return self.compute(states, check_orthogonality=check_orthogonality)
+        return self.compute(states, check_orthogonality=check_orthogonality, memory_constrained=memory_constrained)
 
     def get_element(self, n, m):
         """
@@ -590,7 +602,7 @@ class Representation:
 
         if len(m_pairs) > 0:
             # logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
-            sub = self.get_brakets(m_pairs, check_orthogonality=not diagonal)
+            sub = self.get_brakets(m_pairs, check_orthogonality=not diagonal, memory_constrained=memory_constrained)
             if isinstance(sub, SparseArray):
                 sub = sub.asarray()
             if clear_sparse_caches:
@@ -634,38 +646,70 @@ class Representation:
                 full_dat = np.concatenate([sub, sub[utri]], axis=0)
                 del sub, utri
 
+                sorting = np.argsort(full_inds[:, 0])
+                np.take(full_dat, sorting, out=full_dat, axis=0, mode='clip')
+                np.take(full_inds, sorting, out=full_inds, axis=0, mode='clip')
+                del sorting
+
                 full_dat, full_inds, shape = self._handle_multidim_rep_mat(logger, full_dat, full_inds, N)
 
                 logger.log_print("building sparse tensor...", log_level=logger.LogLevel.Debug)
                 # another attempt
-                if memory_constrained:
-                    with tf.NamedTemporaryFile() as full_dat_dump:
-                        with tf.NamedTemporaryFile() as full_inds_dump:
-                            full_dat_map = np.memmap(full_dat_dump.name, dtype=full_dat.dtype, shape=full_dat.shape)
-                            full_dat_map[:] = full_dat[:]
-                            del full_dat
-
-                            full_inds_map = np.memmap(full_inds_dump.name, dtype=full_inds.dtype, shape=full_inds.shape)
-                            full_inds_map[:] = full_inds[:]
-                            del full_inds
-
-                            sub = SparseArray.from_data((full_dat_map, full_inds_map),
-                                                        shape=shape,
-                                                        cache_block_data=False,
-                                                        logger=logger
-                                                        # layout='coo'
-                                                        )
-                            # sub2 = SparseArray.from_data((full_dat, full_inds), shape=shape, cache_block_data=False, logger=logger)
-                            #
-                            # raise Exception(np.sum(sub.asarray() - sub2.asarray()))
-
-                else:
-
-                    sub = SparseArray.from_data((full_dat, full_inds),
+                # if False and memory_constrained:
+                #     with tf.NamedTemporaryFile() as full_dat_dump:
+                #         with tf.NamedTemporaryFile() as full_inds_dump:
+                #             full_dat_map = np.memmap(full_dat_dump.name, dtype=full_dat.dtype, shape=full_dat.shape)
+                #             full_dat_map[:] = full_dat[:]
+                #             del full_dat
+                #
+                #             full_inds_map = np.memmap(full_inds_dump.name, dtype=full_inds.dtype, shape=full_inds.shape)
+                #             full_inds_map[:] = full_inds[:]
+                #             del full_inds
+                #
+                #             sub = SparseArray.from_data((full_dat_map, full_inds_map),
+                #                                         shape=shape,
+                #                                         cache_block_data=False,
+                #                                         logger=logger
+                #                                         # layout='coo'
+                #                                         )
+                #             # sub2 = SparseArray.from_data((full_dat, full_inds), shape=shape, cache_block_data=False, logger=logger)
+                #             #
+                #             # raise Exception(np.sum(sub.asarray() - sub2.asarray()))
+                #
+                # else:
+                cs = self.chunk_size
+                if cs is not None:
+                    blocks = int(np.ceil(len(full_dat) / cs))
+                    sub = None
+                    for i in range(blocks):
+                        s = i*cs; e = min((i+1)*cs, len(full_dat))
+                        init = SparseArray.initializer_list(full_dat[s:e], full_inds[:, s:e])
+                        subub = SparseArray.from_data(init,
                                                 shape=shape,
                                                 cache_block_data=False,
                                                 logger=logger
+                                                , init_kwargs=dict(assume_sorted=True)
                                                 )
+                        if sub is None:
+                            sub = subub
+                        else:
+                            sub += subub
+
+                    del full_dat
+                    del full_inds
+
+                else:
+                    init = SparseArray.initializer_list(full_dat, full_inds)
+                    del full_dat
+                    del full_inds
+                    sub = SparseArray.from_data(init,
+                                                shape=shape,
+                                                cache_block_data=False,
+                                                logger=logger
+                                                , init_kwargs=dict(assume_sorted=True)
+                                                )
+                    del init
+
 
         return sub
 
@@ -707,32 +751,39 @@ class Representation:
 
         if full_dat.ndim > 1:
             # need to tile the inds enough times to cover the shape of full_dat
-            # _, inds = np.unique(full_inds, axis=0, return_index=True)
-            # sidx = np.sort(inds)
-            # full_inds = full_inds[sidx]
-            # full_dat = full_dat[sidx]
 
             logger.log_print("making data multi-dim...", log_level=logger.LogLevel.Debug)
             ext_shape = full_dat.shape[1:]
             shape = (N, N) + ext_shape
-            full_dat = np.moveaxis(full_dat, 0, -1).flatten()
+            full_dat = full_dat.flatten()
 
             logger.log_print("populating index array...", log_level=logger.LogLevel.Debug)
             rows, cols = full_inds.T
             full_inds = np.empty(
-                (2 + len(ext_shape), len(full_dat)),
+                (len(shape), len(full_dat)),
                 dtype=nput.infer_inds_dtype(len(full_dat))
             )
-            block_size = len(rows)
+
             # create a tensor of indices that will be used to appropriately tile
             # the system
+            stride = len(shape)
+            # print(len(shape), len(full_dat)/len(rows))
+            # row_repeats = np.broadcast_to(rows[:, np.newaxis], (len(rows), len(ext_shape))).flatten()
+            # del rows
+            # col_repeats = np.broadcast_to(cols[:, np.newaxis], (len(cols), len(ext_shape))).flatten()
+            # del cols
             ind_tensor = np.moveaxis(np.indices(ext_shape), 0, -1).reshape(-1, len(ext_shape))
             for n, idx in enumerate(ind_tensor):
-                s, e = n * block_size, (n + 1) * block_size
-                full_inds[0, s:e] = rows
-                full_inds[1, s:e] = cols
+                # we want this to remain sorted, so
+                # we want to tile this in such a way that
+                # all of the things associated with row 0 come first
+                # then with row 1
+                # then row 2, etc
+                # To do so, we fill with an offset of num extra columns
+                full_inds[0, n::stride] = rows
+                full_inds[1, n::stride] = cols
                 for j, x in enumerate(idx):
-                    full_inds[2 + j, s:e] = x
+                    full_inds[2 + j, n::stride] = x
             del rows
             del cols
 
@@ -939,13 +990,19 @@ class ExpansionRepresentation(Representation):
 
         return els
 
-    def get_brakets(self, states, check_orthogonality=True):
+    def get_brakets(self, states, check_orthogonality=True, memory_constrained=False):
         if not isinstance(states, BraKetSpace):
             states = BraKetSpace.from_indices(states, basis=self.basis)
-        return self._dispatch_over_expansion('get_brakets', states, check_orthogonality=check_orthogonality)
-
+        return self._dispatch_over_expansion('get_brakets', states, check_orthogonality=check_orthogonality, memory_constrained=memory_constrained)
     def get_element(self, n, m):
         return self._dispatch_over_expansion('get_element', n, m)
+    @property
+    def chunk_size(self):
+        for c in self.computers:
+            if c.chunk_size is not None:
+                return c.chunk_size
+        else:
+            return None
 
     @property
     def selection_rules(self):
