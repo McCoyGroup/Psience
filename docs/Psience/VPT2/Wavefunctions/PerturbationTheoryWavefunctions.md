@@ -18,6 +18,12 @@ __init__(self, mol, basis, corrections, modes=None, mode_selection=None, logger=
 - `corrections`: `PerturbationTheoryCorrections`
     >the corrections to the terms
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.energies" class="docs-object-method">&nbsp;</a>
+```python
+@property
+energies(self): 
+```
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.to_state" class="docs-object-method">&nbsp;</a>
 ```python
 to_state(self, serializer=None): 
@@ -163,6 +169,16 @@ oscillator_strengths_to_order(self, order):
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_oscillator_strengths_to_order" class="docs-object-method">&nbsp;</a>
+```python
+deperturbed_oscillator_strengths_to_order(self, order): 
+```
+
+- `tms`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.intensities" class="docs-object-method">&nbsp;</a>
 ```python
 @property
@@ -184,6 +200,14 @@ Computes the intensities for transitions from the ground state to the other stat
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.intensities_to_order" class="docs-object-method">&nbsp;</a>
 ```python
 intensities_to_order(self, order): 
+```
+Computes the intensities for transitions from the ground state to the other states
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_intensities_to_order" class="docs-object-method">&nbsp;</a>
+```python
+deperturbed_intensities_to_order(self, order): 
 ```
 Computes the intensities for transitions from the ground state to the other states
 - `:returns`: `_`

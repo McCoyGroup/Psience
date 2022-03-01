@@ -79,6 +79,11 @@ unshare(self, shared_memory_manager):
 clear_cache(self): 
 ```
 
+<a id="Psience.BasisReps.StateSpaces.BraKetSpace.free" class="docs-object-method">&nbsp;</a>
+```python
+free(self): 
+```
+
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.get_non_orthog" class="docs-object-method">&nbsp;</a>
 ```python
 get_non_orthog(self, inds, assume_unique=False, use_aggressive_caching=None, use_preindex_trie=None, preindex_trie_depth=None, shared_memory_manager=None): 

@@ -36,12 +36,18 @@ __add__(self, other):
 
 <a id="Psience.BasisReps.Representations.ExpansionRepresentation.get_brakets" class="docs-object-method">&nbsp;</a>
 ```python
-get_brakets(self, states, check_orthogonality=True): 
+get_brakets(self, states, check_orthogonality=True, memory_constrained=False): 
 ```
 
 <a id="Psience.BasisReps.Representations.ExpansionRepresentation.get_element" class="docs-object-method">&nbsp;</a>
 ```python
 get_element(self, n, m): 
+```
+
+<a id="Psience.BasisReps.Representations.ExpansionRepresentation.chunk_size" class="docs-object-method">&nbsp;</a>
+```python
+@property
+chunk_size(self): 
 ```
 
 <a id="Psience.BasisReps.Representations.ExpansionRepresentation.selection_rules" class="docs-object-method">&nbsp;</a>

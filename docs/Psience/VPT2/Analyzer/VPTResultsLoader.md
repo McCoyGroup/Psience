@@ -62,6 +62,14 @@ Returns the IR spectrum calculated from perturbation theory
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.VPT2.Analyzer.VPTResultsLoader.zero_order_spectrum" class="docs-object-method">&nbsp;</a>
+```python
+zero_order_spectrum(self): 
+```
+Returns the zero-order IR spectrum calculated from perturbation theory
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.energy_corrections" class="docs-object-method">&nbsp;</a>
 ```python
 energy_corrections(self): 

@@ -9,10 +9,11 @@ PastIndexableTuple: type
 StateSpaceWrapper: type
 ProjectionOperatorWrapper: type
 ProjectedOperator: type
+PTResults: type
 ```
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.__init__" class="docs-object-method">&nbsp;</a>
 ```python
-__init__(self, perturbations, states, coupled_states=None, order=2, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, state_space_filters=None, target_property_rules=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, gaussian_resonance_handling=False, ignore_odd_order_energies=False, intermediate_normalization=False, zero_element_warning=True, degenerate_states=None, zero_order_energy_corrections=None, memory_constrained=False, keep_hamiltonians=None, logger=None, parallelizer=None, checkpointer=None, results=None, checkpoint_keys=None, use_cached_representations=True, use_cached_basis=True): 
+__init__(self, perturbations, states, coupled_states=None, order=2, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, state_space_filters=None, target_property_rules=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, gaussian_resonance_handling=False, ignore_odd_order_energies=False, intermediate_normalization=False, zero_element_warning=True, degenerate_states=None, handle_strong_couplings=False, zero_order_energy_corrections=None, memory_constrained=False, keep_hamiltonians=None, logger=None, parallelizer=None, checkpointer=None, results=None, checkpoint_keys=None, use_cached_representations=True, use_cached_basis=True): 
 ```
 
 - `perturbations`: `Iterable[Representation]`
@@ -165,7 +166,7 @@ Does the dirty work of doing the VPT iterative equations.
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.get_corrections" class="docs-object-method">&nbsp;</a>
 ```python
-get_corrections(self, non_zero_cutoff=None, check_overlap=True): 
+get_corrections(self, non_zero_cutoff=None, handle_strong_couplings=None, check_overlap=True): 
 ```
 Applies the perturbation theory equations to obtain
         corrections to the wave functions and energies

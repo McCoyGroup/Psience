@@ -98,7 +98,7 @@ exc_indexer(self):
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.find" class="docs-object-method">&nbsp;</a>
 ```python
-find(self, to_search, check=True, minimal_dtype=False): 
+find(self, to_search, check=True, minimal_dtype=False, missing_val='raise'): 
 ```
 Finds the indices of a set of indices inside the space
 - `to_search`: `np.ndarray | AbstractStateSpace`

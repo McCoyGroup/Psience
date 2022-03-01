@@ -31,6 +31,12 @@ compute(self, inds, **kwargs):
 compute_cached(self, inds): 
 ```
 
+<a id="Psience.BasisReps.Representations.Representation.chunk_size" class="docs-object-method">&nbsp;</a>
+```python
+@property
+chunk_size(self): 
+```
+
 <a id="Psience.BasisReps.Representations.Representation.clear_cache" class="docs-object-method">&nbsp;</a>
 ```python
 clear_cache(self): 
@@ -56,7 +62,7 @@ dim_inds(self):
 
 <a id="Psience.BasisReps.Representations.Representation.get_brakets" class="docs-object-method">&nbsp;</a>
 ```python
-get_brakets(self, states, check_orthogonality=True): 
+get_brakets(self, states, check_orthogonality=True, memory_constrained=False): 
 ```
 Computes term elements based on getting a BraKetSpace.
         Can directly pass element specs through, since the shape management shit

@@ -82,6 +82,15 @@ energies(self):
 frequencies(self): 
 ```
 
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.zero_order_spectrum" class="docs-object-method">&nbsp;</a>
+```python
+@property
+zero_order_spectrum(self): 
+```
+Returns the zero-order IR spectrum calculated from perturbation theory
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_spectrum" class="docs-object-method">&nbsp;</a>
 ```python
 @property

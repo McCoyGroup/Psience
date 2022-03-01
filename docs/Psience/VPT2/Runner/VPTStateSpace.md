@@ -49,21 +49,6 @@ build_degenerate_state_spaces(self, degeneracy_specs):
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Runner.VPTStateSpace.get_degenerate_polyad_space" class="docs-object-method">&nbsp;</a>
-```python
-get_degenerate_polyad_space(states, polyadic_pairs, max_quanta=None, max_iterations=2, require_converged=False, extra_groups=None): 
-```
-Gets degenerate spaces by using pairs of transformation rules to
-        take an input state and connect it to other degenerate states
-- `states`: `Any`
-    >the input states
-- `polyadic_pairs`: `Any`
-    >the transformation rules
-- `max_quanta`: `Any`
-    >the max quanta to allow in connected states
-- `:returns`: `_`
-    >No description...
-
 <a id="Psience.VPT2.Runner.VPTStateSpace.get_filter" class="docs-object-method">&nbsp;</a>
 ```python
 get_filter(self, target_property, order=2): 
