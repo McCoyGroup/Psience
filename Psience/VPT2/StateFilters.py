@@ -102,6 +102,11 @@ class PerturbationTheoryStateSpaceFilter:
 
     @property
     def prefilters(self):
+        """
+
+        :return:
+        :rtype:
+        """
         if self._prefilters is None:
             self._prefilters = self.canonicalize_prefilters(self.input_space.basis,
                                                             self._raw_prefilters)
@@ -109,6 +114,11 @@ class PerturbationTheoryStateSpaceFilter:
 
     @property
     def postfilter(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self._postfilters
 
     def _could_be_a_space(self, test): # nasty checking code that I don't want to redupe all the time
@@ -222,6 +232,21 @@ class PerturbationTheoryStateSpaceFilter:
                             property_rules,
                             order=2
                             ):
+        """
+
+        :param initial_space:
+        :type initial_space:
+        :param target_space:
+        :type target_space:
+        :param perturbation_rules:
+        :type perturbation_rules:
+        :param property_rules:
+        :type property_rules:
+        :param order:
+        :type order:
+        :return:
+        :rtype:
+        """
         int_rules = cls._create_prop_rules_tree(
             initial_space,
             target_space,

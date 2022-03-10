@@ -131,21 +131,41 @@ class PerturbationTheorySolver:
         self._zo_engs = None
     @property
     def coupled_states(self):
+        """
+
+        :return:
+        :rtype:
+        """
         if self._coupled_states is None:
             self.load_state_spaces()
         return self._coupled_states
     @property
     def total_space_dim(self):
+        """
+
+        :return:
+        :rtype:
+        """
         if self._total_dim is None:
             self.load_state_spaces()
         return self._total_dim
     @property
     def flat_total_space(self):
+        """
+
+        :return:
+        :rtype:
+        """
         if self._flat_space is None:
             self.load_state_spaces()
         return self._flat_space
     @property
     def total_state_space(self):
+        """
+
+        :return:
+        :rtype:
+        """
         if self._total_space is None:
             self.load_state_spaces()
         return self._total_space
@@ -172,12 +192,20 @@ class PerturbationTheorySolver:
 
     @property
     def degenerate_spaces(self):
+        """
+        :return:
+        :rtype:
+        """
         if self._deg_states is None:
             self._deg_states = DegenerateMultiStateSpace.from_spec(self.degeneracy_spec, solver=self, full_basis=self.full_basis)
         return self._deg_states
 
     @property
     def zero_order_energies(self):
+        """
+        :return:
+        :rtype:
+        """
         if self._zo_engs is None:
             H0 = self.representations[0]
             e_vec_full = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
@@ -402,6 +430,11 @@ class PerturbationTheorySolver:
 
     #region Get Coupled Spaces
     def load_state_spaces(self):
+        """
+
+        :return:
+        :rtype:
+        """
 
         logger = self.logger
 
@@ -1978,6 +2011,15 @@ class PerturbationTheorySolver:
 
         return energies, rotations
     def drop_deg_pert_els(self, perts, deg_groups):
+        """
+
+        :param perts:
+        :type perts:
+        :param deg_groups:
+        :type deg_groups:
+        :return:
+        :rtype:
+        """
         deg_grop_inds = []
         for g in deg_groups:
             if g.deg_find_inds is None:
@@ -2021,6 +2063,15 @@ class PerturbationTheorySolver:
 
         return pert_blocks, perts
     def get_transformed_Hamiltonians(self, corrs, deg_group=None):
+        """
+
+        :param corrs:
+        :type corrs:
+        :param deg_group:
+        :type deg_group:
+        :return:
+        :rtype:
+        """
         if deg_group is not None:
             subcorrs = corrs.take_subspace(deg_group)
             inds = self.flat_total_space.find(deg_group)
@@ -2042,6 +2093,15 @@ class PerturbationTheorySolver:
             ]
         return H_nd
     def get_degenerate_rotation(self, deg_group, corrs):
+        """
+
+        :param deg_group:
+        :type deg_group:
+        :param corrs:
+        :type corrs:
+        :return:
+        :rtype:
+        """
 
         logger = self.logger
 
