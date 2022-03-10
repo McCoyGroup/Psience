@@ -143,12 +143,6 @@ class BasisSetTests(TestCase):
         xxpp1 = oppo.representation(*term)
         xxpp2 = oppo2.representation(*term)
 
-        usr = os.path.expanduser('~')
-        job_is_dumb = [
-            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-            os.path.join(usr, "Documents/UW/Research/Development")
-        ]
-
         states = (
             (0, 0, 0, 0, 0),
             (0, 1, 2, 3, 4)
@@ -285,12 +279,6 @@ class BasisSetTests(TestCase):
         xxpp2 = oppo2.representation(*term, coeffs=g1,  axes=[[0, 1, 2], [1, 0, 2]])
         # xxpp2 = xxpp2 + xxpp2
 
-        usr = os.path.expanduser('~')
-        job_is_dumb = [
-            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-            os.path.join(usr, "Documents/UW/Research/Development")
-        ]
-
         quant_states = BasisStateSpace(
             oppo,
             self.get_states(3, 3, max_quanta=10)
@@ -363,12 +351,6 @@ class BasisSetTests(TestCase):
         xxpp1 = oppo.representation(*term)
         xxpp2 = oppo2.representation(*term)
 
-        usr = os.path.expanduser('~')
-        job_is_dumb = [
-            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-            os.path.join(usr, "Documents/UW/Research/Development")
-        ]
-
         quant_states = self.get_states(4, m)
         states = oppo.ravel_state_inds(quant_states)
         # print(quant_states)
@@ -403,12 +385,6 @@ class BasisSetTests(TestCase):
         xxpp1 = oppo.representation(*term)
         xxpp2 = oppo2.representation(*term)
 
-        # usr = os.path.expanduser('~')
-        # job_is_dumb = [
-        #     os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-        #     os.path.join(usr, "Documents/UW/Research/Development")
-        # ]
-
         states = BasisStateSpace.from_quanta(oppo, range(10))
         brakets = states.get_representation_brakets()
         vals1 = xxpp1[brakets]
@@ -437,11 +413,6 @@ class BasisSetTests(TestCase):
         xxpp1 = oppo.representation(*term, coeffs=np.ones((m, m, m)))
         xxpp2 = oppo2.representation(*term, coeffs=np.ones((m, m, m)))
 
-        # usr = os.path.expanduser('~')
-        # job_is_dumb = [
-        #     os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-        #     os.path.join(usr, "Documents/UW/Research/Development")
-        # ]
 
         states = BasisStateSpace.from_quanta(oppo, range(10))
         brakets = states.get_representation_brakets()
@@ -451,10 +422,10 @@ class BasisSetTests(TestCase):
         v1 = vals1
         v2 = iphase * vals2
 
-        with JSONCheckpointer(os.path.expanduser("~/Desktop/test_terms.json")) as chk:
-            chk['XXX_exc'] = states.excitations
-            chk['XXX_3D_new'] = v1
-            chk['XXX_3D_old'] = v2
+        # with JSONCheckpointer(os.path.expanduser("~/Desktop/test_terms.json")) as chk:
+        #     chk['XXX_exc'] = states.excitations
+        #     chk['XXX_3D_new'] = v1
+        #     chk['XXX_3D_old'] = v2
 
         self.assertLess(np.max(np.abs(v1 - v2)), 2.0e-14)
 
@@ -472,12 +443,6 @@ class BasisSetTests(TestCase):
 
         xxpp1 = oppo.representation(*term)
         xxpp2 = oppo2.representation(*term)
-
-        usr = os.path.expanduser('~')
-        job_is_dumb = [
-            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-            os.path.join(usr, "Documents/UW/Research/Development")
-        ]
 
         quant_states = self.get_states(4, m)
         states = oppo.ravel_state_inds(quant_states)

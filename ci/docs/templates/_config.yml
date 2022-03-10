@@ -26,7 +26,6 @@ plugins:
 relative_links:
   enabled: true
 
-
 collections:
   docs:
     output: true
@@ -48,6 +47,11 @@ defaults:
       annotations_type: "docs"
       custom_styles: "docs"
       layout: "docs"
+      breadcrumbs:
+        num_links: 2
+        min_depth: 0
+        check_urls: false
+        url_ext: ".html"
 
 
 # Exclude from processing
