@@ -108,10 +108,20 @@ class PerturbationTheoryCorrections:
 
     @property
     def degenerate(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.degenerate_transf is not None
 
     @property
     def energies(self):
+        """
+
+        :return:
+        :rtype:
+        """
         if self.degenerate:
             return self.degenerate_energies
         else:
@@ -119,6 +129,11 @@ class PerturbationTheoryCorrections:
 
     @property
     def order(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return len(self.energy_corrs[0])
 
     def take_subspace(self, space):
@@ -152,6 +167,25 @@ class PerturbationTheoryCorrections:
                                filters=None,
                                non_zero_cutoff=1.0e-14
                                ):
+        """
+
+        :param corrs:
+        :type corrs:
+        :param states:
+        :type states:
+        :param flat_total_space:
+        :type flat_total_space:
+        :param nstates:
+        :type nstates:
+        :param order:
+        :type order:
+        :param filters:
+        :type filters:
+        :param non_zero_cutoff:
+        :type non_zero_cutoff:
+        :return:
+        :rtype:
+        """
 
         # now we recompute reduced state spaces for use in results processing
         # and we also convert the correction vectors to sparse representations
@@ -320,6 +354,13 @@ class PerturbationTheoryCorrections:
         return coupling_statements if not join else "\n".join(coupling_statements)
 
     def collapse_strong_couplings(self, sc:dict):
+        """
+
+        :param sc:
+        :type sc:
+        :return:
+        :rtype:
+        """
         new = {}
         for k,v in sc.items():
             s = None

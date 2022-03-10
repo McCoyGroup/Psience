@@ -51,12 +51,24 @@ class VPTResultsLoader:
     """
 
     def __init__(self, res, res_type=None):
+        """
+        :param res:
+        :type res:
+        :param res_type:
+        :type res_type:
+        """
         if isinstance(res, str):
             res = Checkpointer.from_file(res)
         self.data = res
         self.res_type = self.get_res_type(res) if res_type is None else res_type
 
     def get_res_type(self, res):
+        """
+        :param res:
+        :type res:
+        :return:
+        :rtype:
+        """
         if isinstance(res, PerturbationTheoryWavefunctions):
             return VPTResultsSource.Wavefunctions
         elif isinstance(res, Checkpointer):
@@ -206,6 +218,11 @@ class VPTResultsLoader:
         return self.data.corrs.energies
 
     def energies(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return np.sum(self.energy_corrections(), axis=1)
 
     @property_dispatcher
@@ -269,6 +286,11 @@ class VPTResultsLoader:
     def _(self):
         return self.data.deperturbed_transition_moment_corrections
     def deperturbed_transition_moments(self):
+        """
+
+        :return:
+        :rtype:
+        """
         transition_moment_components = self.deperturbed_transition_moment_corrections()
         order = len(transition_moment_components[0])
         tmom = np.array([
@@ -356,48 +378,108 @@ class VPTAnalyzer:
     """
 
     def __init__(self, res):
+        """
+
+        :param res:
+        :type res:
+        """
         if not isinstance(res, VPTResultsLoader):
             res = VPTResultsLoader(res)
         self.loader = res
 
     @loaded_prop
     def potential_terms(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.potential_terms()
     @loaded_prop
     def kinetic_terms(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.kinetic_terms()
     @loaded_prop
     def dipole_terms(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.dipole_terms()
 
     @loaded_prop
     def basis(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.basis()
     @loaded_prop
     def target_states(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.target_states()
 
     @loaded_prop
     def spectrum(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.spectrum()
     @loaded_prop
     def energy_corrections(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.energy_corrections()
     @loaded_prop
     def energies(self):
+        """
+
+        :return:
+        :rtype:
+        """
         engs = self.degenerate_energies
         if engs is None:
             engs = self.loader.energies()
         return engs
     @property
     def frequencies(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.energies - self.energies[0]
 
     @loaded_prop
     def zero_order_spectrum(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.zero_order_spectrum()
     @property
     def deperturbed_spectrum(self):
+        """
+
+        :return:
+        :rtype:
+        """
         freqs = self.deperturbed_frequencies
         tmom = self.deperturbed_transition_moments[0]
         osc = np.linalg.norm(tmom, axis=0) ** 2
@@ -406,36 +488,95 @@ class VPTAnalyzer:
         return DiscreteSpectrum(freqs * UnitsData.convert("Hartrees", "Wavenumbers"), ints)
     @property
     def deperturbed_frequencies(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.deperturbed_energies - self.deperturbed_energies[0]
     @loaded_prop
     def wavefunction_corrections(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.transition_moment_corrections()
     @loaded_prop
     def transition_moment_corrections(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.transition_moment_corrections()
     @loaded_prop
     def transition_moments(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.transition_moments()
     @loaded_prop
     def deperturbed_transition_moment_corrections(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.deperturbed_transition_moment_corrections()
     @loaded_prop
     def deperturbed_transition_moments(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.deperturbed_transition_moments()
     @loaded_prop
     def deperturbed_hamiltonians(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.deperturbed_hamiltonians()
     @property
     def deperturbed_energies(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.energies()
     @loaded_prop
     def degenerate_states(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.degenerate_states()
     @loaded_prop
     def degenerate_energies(self):
+        """
+
+        :return:
+        :rtype:
+        """
         return self.loader.degenerate_energies()
 
     def shift_and_transform_hamiltonian(self, hams, shifts):
+        """
+
+        :param hams:
+        :type hams:
+        :param shifts:
+        :type shifts:
+        :return:
+        :rtype:
+        """
 
         ham = sum(hams) + shifts
         deg_engs, deg_transf = np.linalg.eigh(ham)
@@ -469,6 +610,23 @@ class VPTAnalyzer:
         return deg_engs, deg_transf
 
     def get_shifted_transformed_transition_moments(self, deg_states, target_states, hams, shifts, tmoms, handling_mode='transpose'):
+        """
+
+        :param deg_states:
+        :type deg_states:
+        :param target_states:
+        :type target_states:
+        :param hams:
+        :type hams:
+        :param shifts:
+        :type shifts:
+        :param tmoms:
+        :type tmoms:
+        :param handling_mode:
+        :type handling_mode:
+        :return:
+        :rtype:
+        """
 
         deg_e, deg_t = self.shift_and_transform_hamiltonian(hams, shifts)
         inds, _ = nput.find(target_states, deg_states)
@@ -482,6 +640,25 @@ class VPTAnalyzer:
         # full_tm =
 
     def get_shifted_transformed_spectrum(self, zpe, deg_states, target_states, hams, shifts, tmoms, handling_mode='transpose'):
+        """
+
+        :param zpe:
+        :type zpe:
+        :param deg_states:
+        :type deg_states:
+        :param target_states:
+        :type target_states:
+        :param hams:
+        :type hams:
+        :param shifts:
+        :type shifts:
+        :param tmoms:
+        :type tmoms:
+        :param handling_mode:
+        :type handling_mode:
+        :return:
+        :rtype:
+        """
 
         eng, deg_transf, deg_tmom = self.get_shifted_transformed_transition_moments(
             deg_states, target_states, hams, shifts, tmoms,
@@ -495,6 +672,21 @@ class VPTAnalyzer:
         return DiscreteSpectrum(freqs * UnitsData.convert("Hartrees", "Wavenumbers"), ints), deg_transf
 
     def shifted_transformed_spectrum(self, deg_states, hams, shifts, return_transformation=False, handling_mode='transpose'):
+        """
+
+        :param deg_states:
+        :type deg_states:
+        :param hams:
+        :type hams:
+        :param shifts:
+        :type shifts:
+        :param return_transformation:
+        :type return_transformation:
+        :param handling_mode:
+        :type handling_mode:
+        :return:
+        :rtype:
+        """
 
         spec, tf = self.get_shifted_transformed_spectrum(
             self.energies[0], deg_states, self.target_states, hams, shifts, self.deperturbed_transition_moments,
@@ -506,6 +698,17 @@ class VPTAnalyzer:
             return spec, tf
 
     def transition_data(self, states, keys=['frequency', 'transition_moment', 'intensity'], data='deperturbed'):
+        """
+
+        :param states:
+        :type states:
+        :param keys:
+        :type keys:
+        :param data:
+        :type data:
+        :return:
+        :rtype:
+        """
 
         states = np.asanyarray(states)
 
@@ -560,6 +763,19 @@ class VPTAnalyzer:
         return res
 
     def transition_moment_term_sums(self, states, terms=None, rotation=None, data='deperturbed'):
+        """
+
+        :param states:
+        :type states:
+        :param terms:
+        :type terms:
+        :param rotation:
+        :type rotation:
+        :param data:
+        :type data:
+        :return:
+        :rtype:
+        """
         if terms is None:
             terms = {
                 'harmonic': [(0, 0, 0)],
@@ -594,6 +810,17 @@ class VPTAnalyzer:
         return new_res
 
     def transition_moment_term_sums_first_order(self, states, rotation=None, data='deperturbed'):
+        """
+
+        :param states:
+        :type states:
+        :param rotation:
+        :type rotation:
+        :param data:
+        :type data:
+        :return:
+        :rtype:
+        """
         return self.transition_moment_term_sums(
             states,
             terms = {
@@ -606,6 +833,17 @@ class VPTAnalyzer:
         )
 
     def intensity_breakdown(self, states, terms=None, data='deperturbed'):
+        """
+
+        :param states:
+        :type states:
+        :param terms:
+        :type terms:
+        :param data:
+        :type data:
+        :return:
+        :rtype:
+        """
 
         woop = self.transition_moment_term_sums(states, terms=terms, data=data)
         single = isinstance(woop, dict)
@@ -620,6 +858,15 @@ class VPTAnalyzer:
         return breakdowns
 
     def degenerate_coupling_element(self, state1, state2):
+        """
+
+        :param state1:
+        :type state1:
+        :param state2:
+        :type state2:
+        :return:
+        :rtype:
+        """
 
         for g,h in zip(self.degenerate_states, self.deperturbed_hamiltonians):
             try:
@@ -634,6 +881,13 @@ class VPTAnalyzer:
 
 
     def format_deperturbed_hamiltonian(self, which):
+        """
+
+        :param which:
+        :type which:
+        :return:
+        :rtype:
+        """
         with np.printoptions(linewidth=1e9):
             return str(sum(self.deperturbed_hamiltonians[which]) * UnitsData.convert("Hartrees", "Wavenumbers"))
 

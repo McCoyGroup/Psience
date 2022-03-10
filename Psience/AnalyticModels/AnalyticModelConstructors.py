@@ -9,6 +9,9 @@ __all__ = [
 ]
 
 class AnalyticPotentialConstructor(AnalyticModelBase):
+    """
+
+    """
     @classmethod
     def symbolic_morse(cls, instance=None):
         """

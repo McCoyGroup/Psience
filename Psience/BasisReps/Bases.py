@@ -38,10 +38,22 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
 
     @property
     def dimensions(self):
+        """
+        Returns the dimensions of the basis
+
+        :return:
+        :rtype:
+        """
         return (self.quanta,)
 
     @property
     def ndim(self):
+        """
+        Returns the number of dimensions of the basis
+
+        :return:
+        :rtype:
+        """
         return 1
 
     def ravel_state_inds(self, idx):
@@ -137,6 +149,20 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
 
     selection_rules_mapping = {'x': None, 'p': None, 'I': [0]}
     def operator(self, *terms, logger=None, parallelizer=None, chunk_size=None):
+        """
+        Provides an `Operator` to handle the given terms
+
+        :param terms:
+        :type terms:
+        :param logger:
+        :type logger:
+        :param parallelizer:
+        :type parallelizer:
+        :param chunk_size:
+        :type chunk_size:
+        :return:
+        :rtype:
+        """
         from .Operators import Operator
         funcs = [self.operator_mapping[f] if isinstance(f, str) else f for f in terms]
         q = (self.quanta,)
@@ -144,7 +170,8 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         return op
     def representation(self, *terms, logger=None, name=None, parallelizer=None, chunk_size=None, memory_constrained=False):
         """
-        Provides a representation of a product operator specified by 'terms'
+        Provides a representation of a product operator specified by `terms`
+
         :param terms:
         :type terms:
         :return:
@@ -328,10 +355,22 @@ class SimpleProductBasis(RepresentationBasis):
 
     @property
     def ndim(self):
+        """
+        Provides the number of dimensions of the basis
+
+        :return:
+        :rtype:
+        """
         return len(self.bases)
 
     @property
     def dimensions(self):
+        """
+        Provides the dimensions of the basis
+
+        :return:
+        :rtype:
+        """
         return self.quanta
 
     def __eq__(self, other):
@@ -345,6 +384,12 @@ class SimpleProductBasis(RepresentationBasis):
 
     @property
     def quanta(self):
+        """
+        Provides the quanta in each dimension of the basis
+
+        :return:
+        :rtype:
+        """
         return tuple(b.quanta for b in self.bases)
     @quanta.setter
     def quanta(self, n):

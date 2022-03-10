@@ -332,7 +332,7 @@ class PerturbationTheoryHamiltonian:
 
     def _get_H(self, o):
         """
-        Provides the representation for H4 in this basis
+        Provides the representation for H(i) in this basis
         """
 
         if len(self._expansions) < o + 1:
@@ -419,11 +419,25 @@ class PerturbationTheoryHamiltonian:
         return self._expansions[o]
 
     def get_perturbations(self, order):
+        """
+        Gets the `Representation` objects for the perturbations up through second order
+
+        :param order:
+        :type order:
+        :return:
+        :rtype:
+        """
         # we get a benefit from going high first
         return tuple(reversed([self._get_H(i) for i in range(order, -1, -1)]))
 
     @property
     def perturbations(self):
+        """
+        Returns `Representation` objects for the different perturbations through second order
+
+        :return:
+        :rtype:
+        """
         return self.get_perturbations(2)
 
     #region Nielsen energies
@@ -556,6 +570,12 @@ class PerturbationTheoryHamiltonian:
         return e_harm, e_anharm
 
     def get_Nielsen_xmatrix(self):
+        """
+        Provides Nielsen's X-Matrix when working in Cartesian coordinates
+
+        :return:
+        :rtype:
+        """
 
         # freqs = self.modes.freqs
         # if self.mode_selection is not None:
