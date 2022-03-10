@@ -292,6 +292,12 @@ class ExpansionTerms:
 
     @property
     def num_atoms(self):
+        """
+        Gets the number of atoms (excluding dummies if `strip_dummies` is `True`)
+
+        :return:
+        :rtype:
+        """
         if self.strip_dummies:
             n = np.sum(self.masses > 0, dtype=int)
         else:
@@ -299,6 +305,16 @@ class ExpansionTerms:
         return n
 
     def undimensionalize(self, masses, modes):
+        """
+        Removes units from normal modes
+
+        :param masses:
+        :type masses:
+        :param modes:
+        :type modes:
+        :return:
+        :rtype:
+        """
         L = modes.matrix.T
         freqs = modes.freqs
         freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
@@ -317,9 +333,25 @@ class ExpansionTerms:
         return np.broadcast_to(masses[np.newaxis, :], (3, len(masses))).T.flatten()
 
     def get_terms(self, order=None):
-        raise NotImplemented
+        """
+        Gets the terms up to the given order
+
+        :param order:
+        :type order:
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("base class")
 
     def get_term(self, t):
+        """
+        Provides the term at order `t`
+
+        :param t:
+        :type t:
+        :return:
+        :rtype:
+        """
         if self._terms is None or len(self._terms) < t+1:
             self._terms = self.get_terms(order=t)
         return self._terms[t]
@@ -354,6 +386,14 @@ class ExpansionTerms:
         return weighted
 
     def get_int_jacobs(self, jacs):
+        """
+        Gets the specified Internal->Cartesian Jacobians
+
+        :param jacs:
+        :type jacs:
+        :return:
+        :rtype:
+        """
         intcds = self.internal_coordinates
         ccoords = self.coords
         carts = ccoords.system
@@ -392,6 +432,14 @@ class ExpansionTerms:
         return [exist_jacs[j-1] for j in jacs]
 
     def get_cart_jacobs(self, jacs):
+        """
+        Gets the specified Cartesian->Internal Jacobians
+
+        :param jacs:
+        :type jacs:
+        :return:
+        :rtype:
+        """
         intcds = self.internal_coordinates
         ccoords = self.coords
         carts = ccoords.system
@@ -429,6 +477,12 @@ class ExpansionTerms:
 
     @property
     def inertial_frame(self):
+        """
+        Provides the inertial axis frame
+
+        :return:
+        :rtype:
+        """
 
         if self._inert_frame is None:
             # Need to put B in Hartree?

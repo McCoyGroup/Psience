@@ -10,10 +10,10 @@ footer_text: >-
 links:
   - url: https://sites.uw.edu/mccoygrp/
     title: Group Website
-  - url: https://github.com/McCoyGroup
+  - url: https://github.com/McCoyGroup/Psience
     title: GitHub
-  - url: https://stackoverflow.com/c/mccoygroup/questions
-    title: Stack Overflow
+  - url: https://github.com/McCoyGroup/Psience/issues/new?title=Feedback
+    title: Feedback
 
 # Build settings
 markdown: kramdown
