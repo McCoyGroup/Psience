@@ -102,9 +102,27 @@ class VPTSystem:
 
     @property
     def nmodes(self):
+        """
+        Provides the number of modes in the system
+
+        :return:
+        :rtype:
+        """
         return len(self.mol.normal_modes.modes.freqs)
 
     def get_potential_derivatives(self, potential_function, order=2, **fd_opts):
+        """
+        Computes potential derivatives for the given function through finite difference
+
+        :param potential_function:
+        :type potential_function:
+        :param order:
+        :type order:
+        :param fd_opts:
+        :type fd_opts:
+        :return:
+        :rtype:
+        """
         deriv_gen = FiniteDifferenceDerivative(potential_function,
                                                function_shape=((None, None), 0),
                                                stencil=5 + order,
@@ -201,7 +219,6 @@ class VPTStateSpace:
 
     def build_degenerate_state_spaces(self, degeneracy_specs):
         """
-
         :param degeneracy_specs:
         :type degeneracy_specs:
         :return:
@@ -238,6 +255,17 @@ class VPTStateSpace:
         #     raise NotImplementedError("don't know what to do with degeneracy spec {}".format(degeneracy_specs))
 
     def get_filter(self, target_property, order=2):
+        """
+        Obtains a state space filter for the given target property
+        using the states we want to get corrections for
+
+        :param target_property:
+        :type target_property:
+        :param order:
+        :type order:
+        :return:
+        :rtype:
+        """
         return self.get_state_space_filter(self.state_list,
                                            target=target_property,
                                            order=order
