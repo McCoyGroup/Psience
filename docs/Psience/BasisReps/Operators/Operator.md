@@ -7,6 +7,14 @@ Provides a (usually) _lazy_ representation of an operator, which allows things l
 QQQ and pQp to be calculated block-by-block.
 Crucially, the underlying basis for the operator is assumed to be orthonormal.
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 <a id="Psience.BasisReps.Operators.Operator.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, funcs, quanta, prod_dim=None, symmetries=None, selection_rules=None, selection_rule_steps=None, parallelizer=None, logger=None, zero_threshold=1e-14, chunk_size=None): 
@@ -178,12 +186,16 @@ Takes a base space as input and applies the held selection rules in semi-efficie
 - `:returns`: `tuple[SparseArray, BraKetSpace]`
     >No description...
 
+ </div>
+</div>
+
+
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/BasisReps/Operators/Operator.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/BasisReps/Operators/Operator.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/BasisReps/Operators/Operator.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/BasisReps/Operators/Operator.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/BasisReps/Operators/Operator.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/Operators/Operator.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Operators/Operator.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Operators/Operator.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L24?message=Update%20Docs)

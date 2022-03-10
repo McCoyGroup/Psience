@@ -12,13 +12,35 @@ implements arbitrary order perturbation theory with flexible coordinate choice.
 There are also a number of helper packages implementing things like a wavefunction interface, basis set representations,
 and spectrum handling.
 
-  - [Molecools](Psience/Molecools.md)
-  - [Wavefun](Psience/Wavefun.md)
-  - [DVR](Psience/DVR.md)
-  - [VPT2](Psience/VPT2.md)
-  - [Data](Psience/Data.md)
-  - [BasisReps](Psience/BasisReps.md)
-  - [Spectra](Psience/Spectra.md)
+<div class="container alert alert-secondary bg-light">
+  <div class="row">
+   <div class="col" markdown="1">
+[Molecools](Psience/Molecools.md)   
+</div>
+   <div class="col" markdown="1">
+[Wavefun](Psience/Wavefun.md)   
+</div>
+   <div class="col" markdown="1">
+[DVR](Psience/DVR.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[VPT2](Psience/VPT2.md)   
+</div>
+   <div class="col" markdown="1">
+[Data](Psience/Data.md)   
+</div>
+   <div class="col" markdown="1">
+[BasisReps](Psience/BasisReps.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Spectra](Psience/Spectra.md)   
+</div>
+</div>
+</div>
 
 
 
@@ -26,8 +48,8 @@ and spectrum handling.
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/__init__.py?message=Update%20Docs)

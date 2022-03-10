@@ -6,9 +6,19 @@
 Provides very general support for an abstract wavefunction object
 Allows different methods to provide their own concrete implementation details
 
-  - [Wavefunction](Wavefunctions/Wavefunction.md)
-  - [Wavefunctions](Wavefunctions/Wavefunctions.md)
-  - [WavefunctionException](Wavefunctions/WavefunctionException.md)
+<div class="container alert alert-secondary bg-light">
+  <div class="row">
+   <div class="col" markdown="1">
+[Wavefunction](Wavefunctions/Wavefunction.md)   
+</div>
+   <div class="col" markdown="1">
+[Wavefunctions](Wavefunctions/Wavefunctions.md)   
+</div>
+   <div class="col" markdown="1">
+[WavefunctionException](Wavefunctions/WavefunctionException.md)   
+</div>
+</div>
+</div>
 
 
 
@@ -16,8 +26,8 @@ Allows different methods to provide their own concrete implementation details
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/Wavefun/Wavefunctions.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/Wavefun/Wavefunctions.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/Wavefun/Wavefunctions.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/Wavefun/Wavefunctions.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience/Wavefun/Wavefunctions.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience/Wavefun/Wavefunctions.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience/Wavefun/Wavefunctions.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience/Wavefun/Wavefunctions.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Wavefun/Wavefunctions/__init__.py?message=Update%20Docs)

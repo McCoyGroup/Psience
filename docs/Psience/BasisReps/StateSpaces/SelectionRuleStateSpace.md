@@ -6,6 +6,14 @@
 A `BasisMultiStateSpace` subclass that is only built from applying selection rules to an initial space
 This really should have been called `TransformedStateSpace` but I am dumb
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 ```python
 direct_sum_chunk_size: int
 ```
@@ -299,12 +307,16 @@ __repr__(self):
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L3182)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L3182?message=Update%20Docs)]
 </div>
 
+ </div>
+</div>
+
+
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/BasisReps/StateSpaces/SelectionRuleStateSpace.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/BasisReps/StateSpaces/SelectionRuleStateSpace.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/BasisReps/StateSpaces/SelectionRuleStateSpace.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/BasisReps/StateSpaces/SelectionRuleStateSpace.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/BasisReps/StateSpaces/SelectionRuleStateSpace.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/StateSpaces/SelectionRuleStateSpace.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateSpaces/SelectionRuleStateSpace.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateSpaces/SelectionRuleStateSpace.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L2168?message=Update%20Docs)

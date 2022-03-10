@@ -7,6 +7,14 @@ Defines a basis state space where terms are reduced over their
 permutationally equivalent operations, making many operations
 dramatically faster
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 <a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, basis, class_reps, perms): 
@@ -152,12 +160,16 @@ Returns a subsample of the space with some dimensions
 - `:returns`: `_`
     >No description...
 
+ </div>
+</div>
+
+
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1642?message=Update%20Docs)

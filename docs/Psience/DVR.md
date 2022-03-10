@@ -6,23 +6,67 @@
 A package for doing generalized DVR in python.
 Provides and extensible DVR framework with an easy-to-write structure.
 
-  - [BaseDVR](DVR/BaseDVR/BaseDVR.md)
-  - [DVRResults](DVR/BaseDVR/DVRResults.md)
-  - [DVRException](DVR/BaseDVR/DVRException.md)
-  - [CartesianDVR](DVR/ColbertMiller/CartesianDVR.md)
-  - [RingDVR](DVR/ColbertMiller/RingDVR.md)
-  - [RadialDVR](DVR/ColbertMiller/RadialDVR.md)
-  - [PolarDVR](DVR/ColbertMiller/PolarDVR.md)
-  - [DirectProductDVR](DVR/DirectProduct/DirectProductDVR.md)
-  - [CartesianNDDVR](DVR/DirectProduct/CartesianNDDVR.md)
-  - [RingNDDVR](DVR/DirectProduct/RingNDDVR.md)
-  - [SphericalDVR](DVR/DirectProduct/SphericalDVR.md)
-  - [DVRWavefunctions](DVR/Wavefunctions/DVRWavefunctions.md)
-  - [DVRWavefunction](DVR/Wavefunctions/DVRWavefunction.md)
+<div class="container alert alert-secondary bg-light">
+  <div class="row">
+   <div class="col" markdown="1">
+[BaseDVR](DVR/BaseDVR/BaseDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[DVRResults](DVR/BaseDVR/DVRResults.md)   
+</div>
+   <div class="col" markdown="1">
+[DVRException](DVR/BaseDVR/DVRException.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[CartesianDVR](DVR/ColbertMiller/CartesianDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[RingDVR](DVR/ColbertMiller/RingDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[RadialDVR](DVR/ColbertMiller/RadialDVR.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[PolarDVR](DVR/ColbertMiller/PolarDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[DirectProductDVR](DVR/DirectProduct/DirectProductDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[CartesianNDDVR](DVR/DirectProduct/CartesianNDDVR.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[RingNDDVR](DVR/DirectProduct/RingNDDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[SphericalDVR](DVR/DirectProduct/SphericalDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[DVRWavefunctions](DVR/Wavefunctions/DVRWavefunctions.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[DVRWavefunction](DVR/Wavefunctions/DVRWavefunction.md)   
+</div>
+</div>
+</div>
 
 
 
-### Tests
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+ </div>
+<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
+
 - [1D](#1D)
 - [energies_1D](#energies_1D)
 - [energies_2D](#energies_2D)
@@ -36,7 +80,12 @@ Provides and extensible DVR framework with an easy-to-write structure.
 - [Ring2DDifferentMass](#Ring2DDifferentMass)
 - [MoleculeDVR](#MoleculeDVR)
 
-#### Setup
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
+
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
@@ -67,6 +116,10 @@ class DVRTests(TestCase):
     def cos_sin_pot(self, grid):
         return UnitsData.convert("Wavenumbers", "Hartrees")* 2500 / 8 * ((2 + np.cos(grid[..., :, 0])) * (2 + np.sin(grid[..., :, 1])) - 1)
 ```
+
+ </div>
+</div>
+
 #### <a name="1D">1D</a>
 ```python
     def test_1D(self):
@@ -392,10 +445,13 @@ class DVRTests(TestCase):
         grid.show()
 ```
 
+ </div>
+</div>
+
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/DVR.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/DVR.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/DVR.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/DVR.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience/DVR.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience/DVR.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience/DVR.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience/DVR.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/__init__.py?message=Update%20Docs)

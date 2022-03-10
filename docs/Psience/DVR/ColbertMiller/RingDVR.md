@@ -5,6 +5,14 @@
 
 Provides a DVR for working on the (0, 2Pi) range with periodicity from Colbert and Miller
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 <a id="Psience.DVR.ColbertMiller.RingDVR.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, domain=None, **opts): 
@@ -69,12 +77,146 @@ Provides the real part of the momentum for the [0, 2pi] range
 - `:returns`: `_`
     >No description...
 
+ </div>
+</div>
 
+
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+ </div>
+<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
+
+- [RingDVR1D](#RingDVR1D)
+- [RingDVR1DExplicitMass](#RingDVR1DExplicitMass)
+- [RingDVR1DCosMass](#RingDVR1DCosMass)
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
+
+Before we can run our examples we should get a bit of setup out of the way.
+Since these examples were harvested from the unit tests not all pieces
+will be necessary for all situations.
+```python
+from Peeves.TestUtils import *
+from unittest import TestCase
+from McUtils.Data import UnitsData, PotentialData
+from McUtils.Zachary import Interpolator
+import McUtils.Plots as plt
+from Psience.DVR import *
+from Psience.Molecools import Molecule
+import numpy as np
+```
+
+All tests are wrapped in a test class
+```python
+class DVRTests(TestCase):
+    def ho(self, grid, k=1):
+        return k/2*np.power(grid, 2)
+    def ho_2D(self, grid, k1=1, k2=1):
+        return k1/2*np.power(grid[:, 0], 2) + k2/2*np.power(grid[:, 1], 2)
+    def ho_3D(self, grid, k1=1, k2=1, k3=1):
+        return k1/2*np.power(grid[:, 0], 2) + k2/2*np.power(grid[:, 1], 2) + k3/2*np.power(grid[:, 2], 2)
+    def cos2D(self, grid):
+        return np.cos(grid[..., 0]) * np.cos(grid[..., 1])
+    def cos3D(self, grid):
+        return np.cos(grid[..., 0]) * np.cos(grid[..., 1]) * np.cos(grid[..., 2])
+    def cos_sin_pot(self, grid):
+        return UnitsData.convert("Wavenumbers", "Hartrees")* 2500 / 8 * ((2 + np.cos(grid[..., :, 0])) * (2 + np.sin(grid[..., :, 1])) - 1)
+```
+
+ </div>
+</div>
+
+#### <a name="RingDVR1D">RingDVR1D</a>
+```python
+    def test_RingDVR1D(self):
+        dvr_1D = RingDVR()
+        npts = 5
+        n = (5 - 1) // 2
+        res = dvr_1D.run(potential_function=np.sin,
+                         domain=(0, 2 * np.pi),
+                         divs=npts,
+                         mass=1,
+                         result='grid'
+                         )
+        self.assertTrue(np.allclose(
+            res.grid,
+            (2 * np.pi) * np.arange(1, npts + 1) / npts
+        ))
+
+        res = dvr_1D.run(potential_function=np.sin,
+                         domain=(0, 2 * np.pi),
+                         divs=5,
+                         mass=1,
+                         result='kinetic_energy'
+                         )
+        self.assertTrue(np.allclose(res.kinetic_energy,
+                                    [
+                                        [1.0, -0.5854101966249685, 8.541019662496847e-2, 8.54101966249685e-2,
+                                         -0.5854101966249681],
+                                        [-0.5854101966249685, 1.0, -0.5854101966249685, 8.541019662496847e-2,
+                                         8.54101966249685e-2],
+                                        [8.541019662496847e-2, -0.5854101966249685, 1.0, -0.5854101966249685,
+                                         8.541019662496847e-2],
+                                        [8.54101966249685e-2, 8.541019662496847e-2, -0.5854101966249685, 1.0,
+                                         -0.5854101966249685],
+                                        [-0.5854101966249681, 8.54101966249685e-2, 8.541019662496847e-2,
+                                         -0.5854101966249685, 1.0]
+                                    ]
+                                    ))
+
+        res = dvr_1D.run(potential_function=np.sin,
+                         domain=(0, 2 * np.pi),
+                         divs=5,
+                         mass=1,
+                         result='potential_energy'
+                         )
+        self.assertTrue(np.allclose(np.diag(res.potential_energy), np.sin(res.grid)))
+```
+#### <a name="RingDVR1DExplicitMass">RingDVR1DExplicitMass</a>
+```python
+    def test_RingDVR1DExplicitMass(self):
+
+        dvr_1D = RingDVR()
+        res = dvr_1D.run(potential_function=np.sin,
+                         domain=(0, 2 * np.pi),
+                         mass=1/(2*0.000197),
+                         divs=251,
+                         flavor='[0,2pi]'
+                         )
+
+        print(
+            UnitsData.convert("Hartrees", "Wavenumbers")*(
+                    res.wavefunctions[:5].energies[1:] -
+                    res.wavefunctions[:5].energies[0]
+            )
+            )
+```
+#### <a name="RingDVR1DCosMass">RingDVR1DCosMass</a>
+```python
+    def test_RingDVR1DCosMass(self):
+        dvr_1D = RingDVR()
+        res = dvr_1D.run(potential_function=np.sin,
+                         g=np.cos,
+                         g_deriv=lambda g:-np.cos(g),
+                         domain=(0, 2*np.pi),
+                         divs=251
+                         )
+        self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
+```
+
+ </div>
+</div>
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/DVR/ColbertMiller/RingDVR.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/DVR/ColbertMiller/RingDVR.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/DVR/ColbertMiller/RingDVR.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/DVR/ColbertMiller/RingDVR.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/DVR/ColbertMiller/RingDVR.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/DVR/ColbertMiller/RingDVR.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/ColbertMiller/RingDVR.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/ColbertMiller/RingDVR.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/ColbertMiller.py#L92?message=Update%20Docs)

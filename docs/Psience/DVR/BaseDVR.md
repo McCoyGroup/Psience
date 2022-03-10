@@ -5,9 +5,19 @@
     
 Redoes what was originally PyDVR but in the _right_ way using proper subclassing and abstract properties
 
-  - [BaseDVR](BaseDVR/BaseDVR.md)
-  - [DVRResults](BaseDVR/DVRResults.md)
-  - [DVRException](BaseDVR/DVRException.md)
+<div class="container alert alert-secondary bg-light">
+  <div class="row">
+   <div class="col" markdown="1">
+[BaseDVR](BaseDVR/BaseDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[DVRResults](BaseDVR/DVRResults.md)   
+</div>
+   <div class="col" markdown="1">
+[DVRException](BaseDVR/DVRException.md)   
+</div>
+</div>
+</div>
 
 
 
@@ -15,8 +25,8 @@ Redoes what was originally PyDVR but in the _right_ way using proper subclassing
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/DVR/BaseDVR.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/DVR/BaseDVR.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/DVR/BaseDVR.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/DVR/BaseDVR.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience/DVR/BaseDVR.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience/DVR/BaseDVR.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience/DVR/BaseDVR.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience/DVR/BaseDVR.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/BaseDVR/__init__.py?message=Update%20Docs)

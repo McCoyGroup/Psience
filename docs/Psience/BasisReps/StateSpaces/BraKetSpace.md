@@ -8,6 +8,14 @@ to efficiently tell it what terms it need to calculate.
 This basically just implements a bunch of stuff for generating a Graph defining
 the connections between states.
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 ```python
 aggressive_caching_enabled: bool
 preindex_trie_enabled: bool
@@ -261,12 +269,114 @@ concatenate(self, other):
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L4030)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L4030?message=Update%20Docs)]
 </div>
 
+ </div>
+</div>
 
+
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+ </div>
+<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
+
+- [HarmHam](#HarmHam)
+- [BasisRepMatrixOps](#BasisRepMatrixOps)
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
+
+Before we can run our examples we should get a bit of setup out of the way.
+Since these examples were harvested from the unit tests not all pieces
+will be necessary for all situations.
+```python
+from Peeves import Timer, BlockProfiler
+from McUtils.Scaffolding import *
+import McUtils.Plots as plt
+from McUtils.Combinatorics import CompleteSymmetricGroupSpace
+from Peeves.TestUtils import *
+from unittest import TestCase
+from Psience.BasisReps import *
+import sys, os, numpy as np
+```
+
+All tests are wrapped in a test class
+```python
+class BasisSetTests(TestCase):
+    def get_states(self, n_quanta, n_modes, max_quanta=None):
+        return [np.flip(x) for x in BasisStateSpace.from_quanta(
+            HarmonicOscillatorProductBasis(n_modes),
+            range(n_quanta)
+        ).excitations]
+```
+
+ </div>
+</div>
+
+#### <a name="HarmHam">HarmHam</a>
+```python
+    def test_HarmHam(self):
+
+        n = 10
+        m = 3
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+        G, V = [
+            np.array([[6.47886479e-03, 5.17641431e-12, -1.12922679e-12],
+                      [5.17641431e-12, 1.28034398e-02, -3.15629792e-12],
+                      [-1.12922679e-12, -3.15629792e-12, 1.76505371e-02]]),
+            np.array([[6.47886478e-03, -8.45595180e-13, -1.01327126e-11],
+                      [-8.45595549e-13, 1.28034398e-02, -4.72136245e-12],
+                      [-1.01327124e-11, -4.72136255e-12, 1.76505372e-02]])]
+
+        mommy = (1 / 2) * basis.representation('p', 'p', coeffs=G)
+        possy = (1 / 2) * basis.representation('x', 'x', coeffs=V)
+        H0 = ( mommy + possy )
+
+        states = BasisStateSpace(basis, self.get_states(2, 3, max_quanta=10), mode='excitations')
+
+        diag_inds = BraKetSpace(states, states)
+
+        # raise Exception(diag_inds.state_pairs)
+
+        diags = H0[diag_inds]
+
+        self.assertEquals(np.average(diags), 0.036932841734999985)
+```
+#### <a name="BasisRepMatrixOps">BasisRepMatrixOps</a>
+```python
+    def test_BasisRepMatrixOps(self):
+
+        n = 15 # totally meaningless these days
+        m = 4
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        mat = StateSpaceMatrix(basis)
+
+        self.assertEquals(mat.array.shape[0], 0)
+
+        states = BasisStateSpace.from_quanta(basis, range(10))
+        brakets = BraKetSpace(states, states)
+        vals = np.ones(len(brakets))
+        mat_2 = StateSpaceMatrix(brakets, vals)
+
+        def wat(state_space):
+            return np.ones(len(state_space))
+        sub_brakets = BasisStateSpace.from_quanta(basis, range(4)).get_representation_brakets()
+        mat2_vals = mat_2.compute_values(wat, sub_brakets)
+
+        self.assertEquals(mat2_vals.tolist(), mat_2[sub_brakets].tolist())
+```
+
+ </div>
+</div>
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/BasisReps/StateSpaces/BraKetSpace.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/BasisReps/StateSpaces/BraKetSpace.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/BasisReps/StateSpaces/BraKetSpace.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/BasisReps/StateSpaces/BraKetSpace.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/BasisReps/StateSpaces/BraKetSpace.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/StateSpaces/BraKetSpace.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateSpaces/BraKetSpace.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateSpaces/BraKetSpace.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L3212?message=Update%20Docs)

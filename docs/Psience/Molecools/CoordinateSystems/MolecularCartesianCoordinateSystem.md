@@ -5,6 +5,14 @@
 
 Mirrors the standard Cartesian coordinate system in _almost_ all regards, but forces an embedding
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 ```python
 name: str
 ```
@@ -52,12 +60,16 @@ jacobian(self, coords, system, strip_dummies=None, converter_options=None, analy
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/CoordinateSystems.py#L244)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/CoordinateSystems.py#L244?message=Update%20Docs)]
 </div>
 
+ </div>
+</div>
+
+
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/CoordinateSystems.py#L190?message=Update%20Docs)

@@ -8,6 +8,14 @@ Uses a harmonic oscillator basis for representing H0, H1, H2 etc.
 The PT process is split into a PerturbationTheorySolver and a PerturbationTheoryHamiltonian
 where the Hamiltonian just implements the split of the perturbation and the Solver manages the equations.
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, molecule=None, n_quanta=None, modes=None, mode_selection=None, potential_derivatives=None, include_coriolis_coupling=True, include_pseudopotential=True, potential_terms=None, allow_higher_potential_terms=False, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None, selection_rules=None, operator_chunk_size=None, logger=None, checkpoint=None, parallelizer=None, **expansion_options): 
@@ -242,12 +250,16 @@ get_breakdown(self, states, coupled_states=None, degeneracies=None, order=2):
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Hamiltonian.py#L1054)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Hamiltonian.py#L1054?message=Update%20Docs)]
 </div>
 
+ </div>
+</div>
+
+
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Hamiltonian.py#L27?message=Update%20Docs)

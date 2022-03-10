@@ -11,6 +11,14 @@ TODO: The idea is good, but calculating what is "in" the array and what is "out"
         every single time this is applied could be slow...
       We'll need to test to see how slow
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 <a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, initial_basis, initial_vals=None, column_space=None, symmetric=True): 
@@ -144,12 +152,109 @@ __repr__(self):
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L4371)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L4371?message=Update%20Docs)]
 </div>
 
+ </div>
+</div>
 
+
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+ </div>
+<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
+
+- [BasisRepMatrixOps](#BasisRepMatrixOps)
+- [ImprovedRepresentations](#ImprovedRepresentations)
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
+
+Before we can run our examples we should get a bit of setup out of the way.
+Since these examples were harvested from the unit tests not all pieces
+will be necessary for all situations.
+```python
+from Peeves import Timer, BlockProfiler
+from McUtils.Scaffolding import *
+import McUtils.Plots as plt
+from McUtils.Combinatorics import CompleteSymmetricGroupSpace
+from Peeves.TestUtils import *
+from unittest import TestCase
+from Psience.BasisReps import *
+import sys, os, numpy as np
+```
+
+All tests are wrapped in a test class
+```python
+class BasisSetTests(TestCase):
+    def get_states(self, n_quanta, n_modes, max_quanta=None):
+        return [np.flip(x) for x in BasisStateSpace.from_quanta(
+            HarmonicOscillatorProductBasis(n_modes),
+            range(n_quanta)
+        ).excitations]
+```
+
+ </div>
+</div>
+
+#### <a name="BasisRepMatrixOps">BasisRepMatrixOps</a>
+```python
+    def test_BasisRepMatrixOps(self):
+
+        n = 15 # totally meaningless these days
+        m = 4
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        mat = StateSpaceMatrix(basis)
+
+        self.assertEquals(mat.array.shape[0], 0)
+
+        states = BasisStateSpace.from_quanta(basis, range(10))
+        brakets = BraKetSpace(states, states)
+        vals = np.ones(len(brakets))
+        mat_2 = StateSpaceMatrix(brakets, vals)
+
+        def wat(state_space):
+            return np.ones(len(state_space))
+        sub_brakets = BasisStateSpace.from_quanta(basis, range(4)).get_representation_brakets()
+        mat2_vals = mat_2.compute_values(wat, sub_brakets)
+
+        self.assertEquals(mat2_vals.tolist(), mat_2[sub_brakets].tolist())
+```
+#### <a name="ImprovedRepresentations">ImprovedRepresentations</a>
+```python
+    def test_ImprovedRepresentations(self):
+        n = 15  # totally meaningless these days
+        m = 4
+        basis = HarmonicOscillatorProductBasis((n,) * m)
+
+        x_rep = basis.representation('x', coeffs=np.ones((m,)))
+        initial_space = basis.get_state_space(range(4))
+        initial_states = StateSpaceMatrix.identity_from_space(initial_space)
+
+        x = x_rep.apply(initial_states)
+        x2 = x_rep.apply(x)
+        # plt.ArrayPlot(x.array.asarray(), aspect_ratio=x.shape[0]/x.shape[1], image_size=300)
+        # plt.ArrayPlot(x2.array.asarray(), aspect_ratio=x2.shape[0]/x2.shape[1], image_size=300).show()
+
+        x2_rep = basis.representation('x', 'x', coeffs=np.ones((m, m)))
+        x22 = x2_rep.apply(initial_states)
+
+        plt.ArrayPlot(x2.array.asarray(), aspect_ratio=x2.shape[0]/x2.shape[1], image_size=200)
+        plt.ArrayPlot(x22.array.asarray(), aspect_ratio=x22.shape[0]/x22.shape[1], image_size=200).show()
+
+        self.assertTrue(np.allclose(x2.array.asarray(), x22.array.asarray()))
+```
+
+ </div>
+</div>
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/BasisReps/StateSpaces/StateSpaceMatrix.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/BasisReps/StateSpaces/StateSpaceMatrix.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/BasisReps/StateSpaces/StateSpaceMatrix.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/BasisReps/StateSpaces/StateSpaceMatrix.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/BasisReps/StateSpaces/StateSpaceMatrix.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/StateSpaces/StateSpaceMatrix.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateSpaces/StateSpaceMatrix.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateSpaces/StateSpaceMatrix.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L4043?message=Update%20Docs)

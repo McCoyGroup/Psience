@@ -7,6 +7,14 @@ Provides a unified interface to working with dipole surfaces.
 Currently basically no fancier than a regular surface (although with convenient loading functions), but dipole-specific
 stuff could come
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 <a id="Psience.Data.Surfaces.DipoleSurface.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, mu_x, mu_y, mu_z): 
@@ -88,12 +96,82 @@ Explicitly overrides the Surface-level evaluation because we know the Taylor sur
 - `:returns`: `_`
     >No description...
 
+ </div>
+</div>
 
+
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+ </div>
+<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
+
+- [FChkFileDipoleSurface](#FChkFileDipoleSurface)
+- [LogFileDipoleSurface](#LogFileDipoleSurface)
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
+
+Before we can run our examples we should get a bit of setup out of the way.
+Since these examples were harvested from the unit tests not all pieces
+will be necessary for all situations.
+```python
+from Peeves.TestUtils import *
+from Psience.Data import *
+from McUtils.Coordinerds import cartesian_to_zmatrix
+from McUtils.Plots import *
+from unittest import TestCase
+import sys, h5py, math, numpy as np
+```
+
+All tests are wrapped in a test class
+```python
+class DataTests(TestCase):
+    maxDiff = None
+```
+
+ </div>
+</div>
+
+#### <a name="FChkFileDipoleSurface">FChkFileDipoleSurface</a>
+```python
+    def test_FChkFileDipoleSurface(self):
+        fchk = TestManager.test_data("HOD_freq.fchk")
+        surf = DipoleSurface.from_fchk_file(fchk)
+        surf_center = surf.surfs[0].base.data['center']
+        self.assertIsInstance(surf_center, np.ndarray)
+        self.assertTrue(
+            np.allclose(surf(surf_center) - np.array([s.base.data['ref'] for s in surf.surfs]), 0.)
+        )
+        self.assertEquals(surf([[0, 0, 0], [1, 0, 0], [0, 1, 0]]).shape, (1, 3))
+        self.assertEquals(surf([
+            [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+            [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
+        ]).shape, (2, 3))
+```
+#### <a name="LogFileDipoleSurface">LogFileDipoleSurface</a>
+```python
+    def test_LogFileDipoleSurface(self):
+        log = TestManager.test_data("water_OH_scan.log")
+        conv = lambda x: cartesian_to_zmatrix(
+            x, ordering=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        ).coords[:, 0, 0]
+        surf = DipoleSurface.from_log_file(log, conv)
+        dips = surf(np.arange(.5, 2, .1))
+        self.assertEquals(dips.shape, ((2-.5)/.1, 3))
+```
+
+ </div>
+</div>
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/Data/Surfaces/DipoleSurface.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/Data/Surfaces/DipoleSurface.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/Data/Surfaces/DipoleSurface.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/Data/Surfaces/DipoleSurface.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/Data/Surfaces/DipoleSurface.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Data/Surfaces/DipoleSurface.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data/Surfaces/DipoleSurface.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data/Surfaces/DipoleSurface.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/Surfaces.py#L15?message=Update%20Docs)

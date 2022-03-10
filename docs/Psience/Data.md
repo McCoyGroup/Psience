@@ -9,19 +9,44 @@ That means including stuff like dipole and potential energy surfaces that know h
 Currently...well that's all we have. But wrappers for commonly-used potentials & bases could well come.
 Not sure at this point, though.
 
-  - [DipoleSurface](Data/Surfaces/DipoleSurface.md)
-  - [PotentialSurface](Data/Surfaces/PotentialSurface.md)
-  - [KEData](Data/KEData/KEData.md)
-  - [KEDataHandler](Data/KEData/KEDataHandler.md)
+<div class="container alert alert-secondary bg-light">
+  <div class="row">
+   <div class="col" markdown="1">
+[DipoleSurface](Data/Surfaces/DipoleSurface.md)   
+</div>
+   <div class="col" markdown="1">
+[PotentialSurface](Data/Surfaces/PotentialSurface.md)   
+</div>
+   <div class="col" markdown="1">
+[KEData](Data/KEData/KEData.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[KEDataHandler](Data/KEData/KEDataHandler.md)   
+</div>
+</div>
+</div>
 
 
 
-### Tests
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+ </div>
+<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
+
 - [FChkFileDipoleSurface](#FChkFileDipoleSurface)
 - [LogFileDipoleSurface](#LogFileDipoleSurface)
 - [LogFilePotentialSurface](#LogFilePotentialSurface)
 
-#### Setup
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
+
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
@@ -39,6 +64,10 @@ All tests are wrapped in a test class
 class DataTests(TestCase):
     maxDiff = None
 ```
+
+ </div>
+</div>
+
 #### <a name="FChkFileDipoleSurface">FChkFileDipoleSurface</a>
 ```python
     def test_FChkFileDipoleSurface(self):
@@ -76,10 +105,13 @@ class DataTests(TestCase):
         self.assertEquals(pots.shape, ((2-.5)/.1,))
 ```
 
+ </div>
+</div>
+
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/Data.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/Data.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/Data.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/Data.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience/Data.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience/Data.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience/Data.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience/Data.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/__init__.py?message=Update%20Docs)

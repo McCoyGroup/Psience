@@ -6,6 +6,14 @@
 A helper class to make it easier to run jobs by making the inputs/options
 clear and making it easier to customize run options
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 <a id="Psience.VPT2.Runner.VPTRunner.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, system, states, hamiltonian_options=None, solver_options=None, runtime_options=None): 
@@ -85,12 +93,287 @@ run_simple(system, states, target_property=None, corrected_fundamental_frequenci
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L866)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L866?message=Update%20Docs)]
 </div>
 
+ </div>
+</div>
 
+
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+ </div>
+<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
+
+- [HOHVPTRunner](#HOHVPTRunner)
+- [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
+- [HOHVPTRunnerShifted](#HOHVPTRunnerShifted)
+- [HOHVPTRunner3rd](#HOHVPTRunner3rd)
+- [ClHOClRunner](#ClHOClRunner)
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
+
+Before we can run our examples we should get a bit of setup out of the way.
+Since these examples were harvested from the unit tests not all pieces
+will be necessary for all situations.
+```python
+try:
+    from Peeves.TestUtils import *
+    from Peeves import BlockProfiler
+except:
+    pass
+from unittest import TestCase
+from Psience.VPT2 import *
+from Psience.Molecools import Molecule
+from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
+from McUtils.Data import UnitsData
+import McUtils.Plots as plt
+import McUtils.Numputils as nput
+from McUtils.Scaffolding import *
+from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
+from McUtils.Zachary import FiniteDifferenceDerivative
+import sys, os, numpy as np, itertools as ip
+```
+
+All tests are wrapped in a test class
+```python
+class VPT2Tests(TestCase):
+```
+
+ </div>
+</div>
+
+#### <a name="HOHVPTRunner">HOHVPTRunner</a>
+```python
+    def test_HOHVPTRunner(self):
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            memory_constrained=True,
+            logger=True
+        )
+```
+#### <a name="HOHVPTRunnerFlow">HOHVPTRunnerFlow</a>
+```python
+    def test_HOHVPTRunnerFlow(self):
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            memory_constrained=True,
+            logger=True
+        )
+
+        system = VPTSystem(TestManager.test_data(file_name))
+        states = VPTStateSpace.from_system_and_quanta(system, 3)
+        pt_opts = VPTSolverOptions(state_space_filters=states.get_filter("intensities"))
+        run_opts = VPTRuntimeOptions(logger=True)
+        runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
+        runner.print_tables()
+```
+#### <a name="HOHVPTRunnerShifted">HOHVPTRunnerShifted</a>
+```python
+    def test_HOHVPTRunnerShifted(self):
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            logger=True,
+            corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/UnitsData.convert("Hartrees", "Wavenumbers")
+        )
+```
+#### <a name="HOHVPTRunner3rd">HOHVPTRunner3rd</a>
+```python
+    def test_HOHVPTRunner3rd(self):
+        """
+        test that runner works for 3rd order PT, too
+
+        :return:
+        :rtype:
+        """
+
+        file_name = "HOH_freq.fchk"
+
+        handling_mode="unhandled"
+
+        logger=Logger()
+        with logger.block(tag="Internals 2nd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1,  0, -1, -1],
+                    [2,  0,  1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Internals 3rd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1,  0, -1, -1],
+                    [2,  0,  1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Internals 2nd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1, 0, -1, -1],
+                    [2, 0, 1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Internals 3rd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1, 0, -1, -1],
+                    [2, 0, 1, -1]
+                ],
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 2nd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 3rd Order triad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                expansion_order=2,
+                mixed_derivative_handling_mode=handling_mode,
+                degeneracy_specs=[
+                    [[0, 0, 1], [2, 0, 0]],
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 2nd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=2,
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+
+        with logger.block(tag="Cartesians 3rd Order dyad"):
+            VPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                3,
+                logger=logger,
+                order=3,
+                expansion_order=2,
+                degeneracy_specs=[
+                    [[0, 1, 0], [2, 0, 0]],
+                ]
+            )
+```
+#### <a name="ClHOClRunner">ClHOClRunner</a>
+```python
+    def test_ClHOClRunner(self):
+        file_name = "cl_hocl.fchk"
+        state = VPTStateMaker(6)
+        COM = -3
+        A  = -2
+        C  = -1
+        _  = 1000
+        O  = 0
+        H  = 1
+        Cl = 2
+        X  = 3
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                state(),
+                state([1, 1]),
+                state([1, 2]),
+                state([1, 3]),
+                state([1, 2], [5, 1]),
+                state([1, 1], [2, 2]),
+            ],
+            degenerate_states=[
+                [
+                    [0, 0, 0, 0, 0, 2],
+                    [0, 0, 0, 0, 0, 3],
+                    [0, 1, 0, 0, 0, 2],
+                    [0, 0, 0, 0, 2, 1]
+                ]
+            ],
+            logger=True,
+            handle_strong_couplings=False
+            , internals=[
+                    [Cl,    _,    _,     _],
+                    [ O,   Cl,    _,     _],
+                    [ X,    O,   Cl,     _],
+                    [ H,    O,   Cl,    X],
+                ]
+        )
+```
+
+ </div>
+</div>
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/VPT2/Runner/VPTRunner.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/VPT2/Runner/VPTRunner.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/VPT2/Runner/VPTRunner.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Runner/VPTRunner.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Runner/VPTRunner.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTRunner.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTRunner.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTRunner.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L717?message=Update%20Docs)

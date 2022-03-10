@@ -5,34 +5,106 @@
     
 BasisReps manages useful functions for generating & working with basis-set representations of data
 
-  - [RepresentationBasis](BasisReps/Bases/RepresentationBasis.md)
-  - [SimpleProductBasis](BasisReps/Bases/SimpleProductBasis.md)
-  - [Operator](BasisReps/Operators/Operator.md)
-  - [ContractedOperator](BasisReps/Operators/ContractedOperator.md)
-  - [Representation](BasisReps/Representations/Representation.md)
-  - [ExpansionRepresentation](BasisReps/Representations/ExpansionRepresentation.md)
-  - [HarmonicOscillatorBasis](BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.md)
-  - [HarmonicOscillatorProductBasis](BasisReps/HarmonicOscillator/HarmonicOscillatorProductBasis.md)
-  - [AnalyticWavefunctions](BasisReps/Wavefunctions/AnalyticWavefunctions.md)
-  - [AnalyticWavefunction](BasisReps/Wavefunctions/AnalyticWavefunction.md)
-  - [ExpansionWavefunctions](BasisReps/Wavefunctions/ExpansionWavefunctions.md)
-  - [ExpansionWavefunction](BasisReps/Wavefunctions/ExpansionWavefunction.md)
-  - [AbstractStateSpace](BasisReps/StateSpaces/AbstractStateSpace.md)
-  - [BasisStateSpace](BasisReps/StateSpaces/BasisStateSpace.md)
-  - [BasisMultiStateSpace](BasisReps/StateSpaces/BasisMultiStateSpace.md)
-  - [SelectionRuleStateSpace](BasisReps/StateSpaces/SelectionRuleStateSpace.md)
-  - [PermutationallyReducedStateSpace](BasisReps/StateSpaces/PermutationallyReducedStateSpace.md)
-  - [PermutationallyReducedTransformedSpace](BasisReps/StateSpaces/PermutationallyReducedTransformedSpace.md)
-  - [BraKetSpace](BasisReps/StateSpaces/BraKetSpace.md)
-  - [StateSpaceMatrix](BasisReps/StateSpaces/StateSpaceMatrix.md)
-  - [BaseStateIndexer](BasisReps/StateIndexers/BaseStateIndexer.md)
-  - [ArrayStateIndexer](BasisReps/StateIndexers/ArrayStateIndexer.md)
-  - [SpaceStateIndexer](BasisReps/StateIndexers/SpaceStateIndexer.md)
-  - [PermutationStateIndexer](BasisReps/StateIndexers/PermutationStateIndexer.md)
+<div class="container alert alert-secondary bg-light">
+  <div class="row">
+   <div class="col" markdown="1">
+[RepresentationBasis](BasisReps/Bases/RepresentationBasis.md)   
+</div>
+   <div class="col" markdown="1">
+[SimpleProductBasis](BasisReps/Bases/SimpleProductBasis.md)   
+</div>
+   <div class="col" markdown="1">
+[Operator](BasisReps/Operators/Operator.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[ContractedOperator](BasisReps/Operators/ContractedOperator.md)   
+</div>
+   <div class="col" markdown="1">
+[Representation](BasisReps/Representations/Representation.md)   
+</div>
+   <div class="col" markdown="1">
+[ExpansionRepresentation](BasisReps/Representations/ExpansionRepresentation.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[HarmonicOscillatorBasis](BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.md)   
+</div>
+   <div class="col" markdown="1">
+[HarmonicOscillatorProductBasis](BasisReps/HarmonicOscillator/HarmonicOscillatorProductBasis.md)   
+</div>
+   <div class="col" markdown="1">
+[AnalyticWavefunctions](BasisReps/Wavefunctions/AnalyticWavefunctions.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[AnalyticWavefunction](BasisReps/Wavefunctions/AnalyticWavefunction.md)   
+</div>
+   <div class="col" markdown="1">
+[ExpansionWavefunctions](BasisReps/Wavefunctions/ExpansionWavefunctions.md)   
+</div>
+   <div class="col" markdown="1">
+[ExpansionWavefunction](BasisReps/Wavefunctions/ExpansionWavefunction.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[AbstractStateSpace](BasisReps/StateSpaces/AbstractStateSpace.md)   
+</div>
+   <div class="col" markdown="1">
+[BasisStateSpace](BasisReps/StateSpaces/BasisStateSpace.md)   
+</div>
+   <div class="col" markdown="1">
+[BasisMultiStateSpace](BasisReps/StateSpaces/BasisMultiStateSpace.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[SelectionRuleStateSpace](BasisReps/StateSpaces/SelectionRuleStateSpace.md)   
+</div>
+   <div class="col" markdown="1">
+[PermutationallyReducedStateSpace](BasisReps/StateSpaces/PermutationallyReducedStateSpace.md)   
+</div>
+   <div class="col" markdown="1">
+[PermutationallyReducedTransformedSpace](BasisReps/StateSpaces/PermutationallyReducedTransformedSpace.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[BraKetSpace](BasisReps/StateSpaces/BraKetSpace.md)   
+</div>
+   <div class="col" markdown="1">
+[StateSpaceMatrix](BasisReps/StateSpaces/StateSpaceMatrix.md)   
+</div>
+   <div class="col" markdown="1">
+[BaseStateIndexer](BasisReps/StateIndexers/BaseStateIndexer.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[ArrayStateIndexer](BasisReps/StateIndexers/ArrayStateIndexer.md)   
+</div>
+   <div class="col" markdown="1">
+[SpaceStateIndexer](BasisReps/StateIndexers/SpaceStateIndexer.md)   
+</div>
+   <div class="col" markdown="1">
+[PermutationStateIndexer](BasisReps/StateIndexers/PermutationStateIndexer.md)   
+</div>
+</div>
+</div>
 
 
 
-### Tests
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+ </div>
+<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
+
 - [HOBasis1DX](#HOBasis1DX)
 - [HOBasis1DXX](#HOBasis1DXX)
 - [HOBasis1DPXP](#HOBasis1DPXP)
@@ -65,7 +137,12 @@ BasisReps manages useful functions for generating & working with basis-set repre
 - [TransformedReduced](#TransformedReduced)
 - [OperatorAdjacencyGraph](#OperatorAdjacencyGraph)
 
-#### Setup
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
+
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
@@ -89,6 +166,10 @@ class BasisSetTests(TestCase):
             range(n_quanta)
         ).excitations]
 ```
+
+ </div>
+</div>
+
 #### <a name="HOBasis1DX">HOBasis1DX</a>
 ```python
     def test_HOBasis1DX(self):
@@ -218,12 +299,6 @@ class BasisSetTests(TestCase):
         n_terms = len(term)
         xxpp1 = oppo.representation(*term)
         xxpp2 = oppo2.representation(*term)
-
-        usr = os.path.expanduser('~')
-        job_is_dumb = [
-            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-            os.path.join(usr, "Documents/UW/Research/Development")
-        ]
 
         states = (
             (0, 0, 0, 0, 0),
@@ -364,12 +439,6 @@ class BasisSetTests(TestCase):
         xxpp2 = oppo2.representation(*term, coeffs=g1,  axes=[[0, 1, 2], [1, 0, 2]])
         # xxpp2 = xxpp2 + xxpp2
 
-        usr = os.path.expanduser('~')
-        job_is_dumb = [
-            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-            os.path.join(usr, "Documents/UW/Research/Development")
-        ]
-
         quant_states = BasisStateSpace(
             oppo,
             self.get_states(3, 3, max_quanta=10)
@@ -443,12 +512,6 @@ class BasisSetTests(TestCase):
         xxpp1 = oppo.representation(*term)
         xxpp2 = oppo2.representation(*term)
 
-        usr = os.path.expanduser('~')
-        job_is_dumb = [
-            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-            os.path.join(usr, "Documents/UW/Research/Development")
-        ]
-
         quant_states = self.get_states(4, m)
         states = oppo.ravel_state_inds(quant_states)
         # print(quant_states)
@@ -484,12 +547,6 @@ class BasisSetTests(TestCase):
         xxpp1 = oppo.representation(*term)
         xxpp2 = oppo2.representation(*term)
 
-        # usr = os.path.expanduser('~')
-        # job_is_dumb = [
-        #     os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-        #     os.path.join(usr, "Documents/UW/Research/Development")
-        # ]
-
         states = BasisStateSpace.from_quanta(oppo, range(10))
         brakets = states.get_representation_brakets()
         vals1 = xxpp1[brakets]
@@ -519,11 +576,6 @@ class BasisSetTests(TestCase):
         xxpp1 = oppo.representation(*term, coeffs=np.ones((m, m, m)))
         xxpp2 = oppo2.representation(*term, coeffs=np.ones((m, m, m)))
 
-        # usr = os.path.expanduser('~')
-        # job_is_dumb = [
-        #     os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-        #     os.path.join(usr, "Documents/UW/Research/Development")
-        # ]
 
         states = BasisStateSpace.from_quanta(oppo, range(10))
         brakets = states.get_representation_brakets()
@@ -533,10 +585,10 @@ class BasisSetTests(TestCase):
         v1 = vals1
         v2 = iphase * vals2
 
-        with JSONCheckpointer(os.path.expanduser("~/Desktop/test_terms.json")) as chk:
-            chk['XXX_exc'] = states.excitations
-            chk['XXX_3D_new'] = v1
-            chk['XXX_3D_old'] = v2
+        # with JSONCheckpointer(os.path.expanduser("~/Desktop/test_terms.json")) as chk:
+        #     chk['XXX_exc'] = states.excitations
+        #     chk['XXX_3D_new'] = v1
+        #     chk['XXX_3D_old'] = v2
 
         self.assertLess(np.max(np.abs(v1 - v2)), 2.0e-14)
 ```
@@ -555,12 +607,6 @@ class BasisSetTests(TestCase):
 
         xxpp1 = oppo.representation(*term)
         xxpp2 = oppo2.representation(*term)
-
-        usr = os.path.expanduser('~')
-        job_is_dumb = [
-            os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
-            os.path.join(usr, "Documents/UW/Research/Development")
-        ]
 
         quant_states = self.get_states(4, m)
         states = oppo.ravel_state_inds(quant_states)
@@ -1139,10 +1185,13 @@ class BasisSetTests(TestCase):
         adj_arr = bk.adjacency_matrix(total_space=flat_total_space).toarray()
 ```
 
+ </div>
+</div>
+
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/BasisReps.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/BasisReps.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/BasisReps.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/BasisReps.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience/BasisReps.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience/BasisReps.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience/BasisReps.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience/BasisReps.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/__init__.py?message=Update%20Docs)

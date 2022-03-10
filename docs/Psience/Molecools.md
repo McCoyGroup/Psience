@@ -5,16 +5,40 @@
     
 Molecules provides wrapper utilities for working with and visualizing molecular systems
 
-  - [MolecularVibrations](Molecools/Vibrations/MolecularVibrations.md)
-  - [MolecularNormalModes](Molecools/Vibrations/MolecularNormalModes.md)
-  - [Molecule](Molecools/Molecule/Molecule.md)
-  - [MolecoolException](Molecools/Molecule/MolecoolException.md)
-  - [MolecularZMatrixCoordinateSystem](Molecools/CoordinateSystems/MolecularZMatrixCoordinateSystem.md)
-  - [MolecularCartesianCoordinateSystem](Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md)
+<div class="container alert alert-secondary bg-light">
+  <div class="row">
+   <div class="col" markdown="1">
+[MolecularVibrations](Molecools/Vibrations/MolecularVibrations.md)   
+</div>
+   <div class="col" markdown="1">
+[MolecularNormalModes](Molecools/Vibrations/MolecularNormalModes.md)   
+</div>
+   <div class="col" markdown="1">
+[Molecule](Molecools/Molecule/Molecule.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[MolecoolException](Molecools/Molecule/MolecoolException.md)   
+</div>
+   <div class="col" markdown="1">
+[MolecularZMatrixCoordinateSystem](Molecools/CoordinateSystems/MolecularZMatrixCoordinateSystem.md)   
+</div>
+   <div class="col" markdown="1">
+[MolecularCartesianCoordinateSystem](Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md)   
+</div>
+</div>
+</div>
 
 
 
-### Tests
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+ </div>
+<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
+
 - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -39,7 +63,12 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [VisualizeNormalModes](#VisualizeNormalModes)
 - [InternalCartesianJacobians](#InternalCartesianJacobians)
 
-#### Setup
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
+
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
@@ -67,6 +96,10 @@ class MolecoolsTests(TestCase):
         self.test_fchk = TestManager.test_data("water_freq.fchk")
         self.test_log_h2 = TestManager.test_data("outer_H2_scan_new.log")
 ```
+
+ </div>
+</div>
+
 #### <a name="NormalModeRephasing">NormalModeRephasing</a>
 ```python
     def test_NormalModeRephasing(self):
@@ -826,10 +859,13 @@ class MolecoolsTests(TestCase):
         self.assertTrue(np.allclose(meh12, meh22))
 ```
 
+ </div>
+</div>
+
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/Molecools.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/Molecools.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/Molecools.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/Molecools.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience/Molecools.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience/Molecools.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience/Molecools.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience/Molecools.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/__init__.py?message=Update%20Docs)

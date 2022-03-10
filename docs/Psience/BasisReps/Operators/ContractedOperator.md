@@ -7,6 +7,14 @@ Provides support for terms that look like `pGp` or `p(dG/dQ)Qp` by
 expanding them out as the pure operator component that depends on the basis states (i.e. `pp` or `pQp`)
 and doing the appropriate tensor contractions with the expansion coefficients (i.e. `G` or `dG/dQ`)
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 <a id="Psience.BasisReps.Operators.ContractedOperator.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None, selection_rules=None, selection_rule_steps=None, zero_threshold=1e-14, chunk_size=None, parallelizer=None, logger=None): 
@@ -69,12 +77,16 @@ __repr__(self):
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L1231)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L1231?message=Update%20Docs)]
 </div>
 
+ </div>
+</div>
+
+
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/BasisReps/Operators/ContractedOperator.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/BasisReps/Operators/ContractedOperator.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/BasisReps/Operators/ContractedOperator.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/BasisReps/Operators/ContractedOperator.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/BasisReps/Operators/ContractedOperator.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/Operators/ContractedOperator.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Operators/ContractedOperator.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Operators/ContractedOperator.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L1063?message=Update%20Docs)

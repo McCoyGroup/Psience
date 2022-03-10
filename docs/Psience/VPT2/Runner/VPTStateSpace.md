@@ -6,6 +6,14 @@
 Provides a helper to make it easier to set up the input
 state spaces/degenerate spaces to run the perturbation theory
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+ 
+### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
+
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
+
 <a id="Psience.VPT2.Runner.VPTStateSpace.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, states, degeneracy_specs=None): 
@@ -102,12 +110,104 @@ Gets `state_space_filters` for the input `states` targeting some property
 - `:returns`: `_`
     >No description...
 
+ </div>
+</div>
 
+
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+ </div>
+<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
+
+- [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
+- [GetDegenerateSpaces](#GetDegenerateSpaces)
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
+
+Before we can run our examples we should get a bit of setup out of the way.
+Since these examples were harvested from the unit tests not all pieces
+will be necessary for all situations.
+```python
+try:
+    from Peeves.TestUtils import *
+    from Peeves import BlockProfiler
+except:
+    pass
+from unittest import TestCase
+from Psience.VPT2 import *
+from Psience.Molecools import Molecule
+from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
+from McUtils.Data import UnitsData
+import McUtils.Plots as plt
+import McUtils.Numputils as nput
+from McUtils.Scaffolding import *
+from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
+from McUtils.Zachary import FiniteDifferenceDerivative
+import sys, os, numpy as np, itertools as ip
+```
+
+All tests are wrapped in a test class
+```python
+class VPT2Tests(TestCase):
+```
+
+ </div>
+</div>
+
+#### <a name="HOHVPTRunnerFlow">HOHVPTRunnerFlow</a>
+```python
+    def test_HOHVPTRunnerFlow(self):
+
+        file_name = "HOH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            memory_constrained=True,
+            logger=True
+        )
+
+        system = VPTSystem(TestManager.test_data(file_name))
+        states = VPTStateSpace.from_system_and_quanta(system, 3)
+        pt_opts = VPTSolverOptions(state_space_filters=states.get_filter("intensities"))
+        run_opts = VPTRuntimeOptions(logger=True)
+        runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
+        runner.print_tables()
+```
+#### <a name="GetDegenerateSpaces">GetDegenerateSpaces</a>
+```python
+    def test_GetDegenerateSpaces(self):
+
+        base_states = [
+            [0, 0, 1],
+            [0, 1, 0],
+            [0, 2, 1],
+            [0, 4, 0]
+        ]
+
+        degenerate_states = VPTStateSpace.get_degenerate_polyad_space(
+            base_states,
+            [
+                [
+                    [0, 2, 0],
+                    [0, 0, 1]
+                ]
+            ],
+        )
+```
+
+ </div>
+</div>
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/VPT2/Runner/VPTStateSpace.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/VPT2/Runner/VPTStateSpace.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/VPT2/Runner/VPTStateSpace.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Runner/VPTStateSpace.md) <br/>
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Runner/VPTStateSpace.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTStateSpace.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTStateSpace.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTStateSpace.md) <br/>
 [Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L138?message=Update%20Docs)
