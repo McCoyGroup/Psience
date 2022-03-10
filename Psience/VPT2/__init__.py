@@ -9,7 +9,7 @@ For the purposes of papers, we've been calling this implementation `PyVibPTn`
 
 The code flow is detailed below
 
-![pt design](/Psience/img/PyVibPTnDesign.png){:width=600px}
+![pt design](../../img/PyVibPTnDesign.png){:width="100%"}
 """
 
 __all__ = []
