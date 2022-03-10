@@ -53,6 +53,10 @@ coupled_states(self):
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L?message=Update%20Docs)]
 </div>
 
+
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.total_space_dim" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
@@ -61,6 +65,10 @@ total_space_dim(self):
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L?message=Update%20Docs)]
 </div>
+
+
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.flat_total_space" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -71,6 +79,10 @@ flat_total_space(self):
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L?message=Update%20Docs)]
 </div>
 
+
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.total_state_space" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
@@ -79,6 +91,10 @@ total_state_space(self):
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L?message=Update%20Docs)]
 </div>
+
+
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.representations" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -102,6 +118,10 @@ degenerate_spaces(self):
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L?message=Update%20Docs)]
 </div>
 
+
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.zero_order_energies" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
@@ -111,12 +131,16 @@ zero_order_energies(self):
 [[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L?message=Update%20Docs)]
 </div>
 
+
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.apply_VPT" class="docs-object-method">&nbsp;</a> 
 ```python
 apply_VPT(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L201)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L201?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L229)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L229?message=Update%20Docs)]
 </div>
 
 Applies perturbation theory to the held basis of states using the
@@ -129,7 +153,7 @@ Applies perturbation theory to the held basis of states using the
 get_VPT_representations(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L246)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L246?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L274)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L274?message=Update%20Docs)]
 </div>
 
 Gets the sparse representations of the passed perturbation inside the basis of coupled states.
@@ -141,15 +165,19 @@ Gets the sparse representations of the passed perturbation inside the basis of c
 load_state_spaces(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L404)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L404?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L432)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L432?message=Update%20Docs)]
 </div>
+
+
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.load_coupled_spaces" class="docs-object-method">&nbsp;</a> 
 ```python
 load_coupled_spaces(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L526)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L526?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L559)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L559?message=Update%20Docs)]
 </div>
 
 Determines which states need to be coupled at which levels of correction
@@ -162,7 +190,7 @@ Determines which states need to be coupled at which levels of correction
 get_coupled_space(self, input_state_space, degenerate_space, use_second_deg, allow_PT_degs=True, wavefunction_terms=None, spaces=None, property_filter=None, filter_spaces=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L946)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L946?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L979)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L979?message=Update%20Docs)]
 </div>
 
 Applies the VPT equations semi-symbolically, dispatching based on how many
@@ -175,7 +203,7 @@ Applies the VPT equations semi-symbolically, dispatching based on how many
 get_nondeg_coupled_space(self, input_state_space, degenerate_space=None, spaces=None, wavefunction_terms=None, property_filter=None, filter_spaces=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L985)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L985?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1018)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1018?message=Update%20Docs)]
 </div>
 
 Applies the non-degenerate equations in semi-symbolic form to determine
@@ -202,7 +230,7 @@ Applies the non-degenerate equations in semi-symbolic form to determine
 get_deg_coupled_space(self, degenerate_space, spaces=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1178)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1178?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1211)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1211?message=Update%20Docs)]
 </div>
 
 Applies the degenerate equations in semi-symbolic form to determine
@@ -215,7 +243,7 @@ Applies the degenerate equations in semi-symbolic form to determine
 get_second_deg_coupled_space(self, degenerate_space, spaces=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1234)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1234?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1267)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1267?message=Update%20Docs)]
 </div>
 
 Does the dirty work of doing the VPT iterative equations.
@@ -229,7 +257,7 @@ Does the dirty work of doing the VPT iterative equations.
 get_corrections(self, non_zero_cutoff=None, handle_strong_couplings=None, check_overlap=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1300)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1300?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1333)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1333?message=Update%20Docs)]
 </div>
 
 Applies the perturbation theory equations to obtain
@@ -242,7 +270,7 @@ Applies the perturbation theory equations to obtain
 apply_VPT_equations(self, state_index, degenerate_space_indices, degenerate_energies, zero_order_state, degenerate_subspace, degenerate_subsubspace, perturbations=None, allow_PT_degs=None, ignore_odd_orders=None, intermediate_normalization=None, non_zero_cutoff=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1625)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1625?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1658)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1658?message=Update%20Docs)]
 </div>
 
 Applies VPT equations, dispatching based on how many
@@ -267,7 +295,7 @@ Applies VPT equations, dispatching based on how many
 apply_VPT_nondeg_equations(self, state_index, deg_group, perturbations=None, non_zero_cutoff=None, check_overlap=True, intermediate_normalization=False, ignore_odd_orders=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1672)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1672?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1705)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1705?message=Update%20Docs)]
 </div>
 
 Does the dirty work of doing the VPT iterative equations.
@@ -279,7 +307,7 @@ Does the dirty work of doing the VPT iterative equations.
 apply_VPT_2k1_rules(self, existing_corrs, perturbations=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1827)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1827?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1860)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1860?message=Update%20Docs)]
 </div>
 
 Apply expressions allowing for obtaining higher-order
@@ -297,7 +325,7 @@ Apply expressions allowing for obtaining higher-order
 apply_post_PT_variational_calc(self, degenerate_states, corrs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1877)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1877?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1910)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1910?message=Update%20Docs)]
 </div>
 
 Applies degenerate perturbation theory by building a representation
@@ -320,24 +348,48 @@ Applies degenerate perturbation theory by building a representation
 drop_deg_pert_els(self, perts, deg_groups): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L1980)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L1980?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L2013)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L2013?message=Update%20Docs)]
 </div>
+
+
+- `perts`: `Any`
+    >No description...
+- `deg_groups`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.get_transformed_Hamiltonians" class="docs-object-method">&nbsp;</a> 
 ```python
 get_transformed_Hamiltonians(self, corrs, deg_group=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L2023)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L2023?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L2065)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L2065?message=Update%20Docs)]
 </div>
+
+
+- `corrs`: `Any`
+    >No description...
+- `deg_group`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 <a id="Psience.VPT2.Solver.PerturbationTheorySolver.get_degenerate_rotation" class="docs-object-method">&nbsp;</a> 
 ```python
 get_degenerate_rotation(self, deg_group, corrs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L2044)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L2044?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Solver.py#L2095)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Solver.py#L2095?message=Update%20Docs)]
 </div>
+
+
+- `deg_group`: `Any`
+    >No description...
+- `corrs`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 
 

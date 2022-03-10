@@ -1,6 +1,6 @@
 ## <a id="Psience.VPT2.Terms.PotentialLikeTerm">PotentialLikeTerm</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Terms.py#L2168)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L2168?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Terms.py#L2222)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L2222?message=Update%20Docs)]
 </div>
 
 This accounts for the potential-like term.
@@ -12,7 +12,7 @@ In proper internals, this is the V' term.
 get_terms(self, order=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Terms.py#L2175)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L2175?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Terms.py#L2229)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L2229?message=Update%20Docs)]
 </div>
 
 
@@ -23,4 +23,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/VPT2/Terms/PotentialLikeTerm.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/VPT2/Terms/PotentialLikeTerm.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Terms/PotentialLikeTerm.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L2168?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L2222?message=Update%20Docs)
