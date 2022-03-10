@@ -1,8 +1,9 @@
-# <a id="Psience.Molecools">Psience.Molecools</a>
+# <a id="Psience.Molecools">Psience.Molecools</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools)]
+</div>
     
 Molecules provides wrapper utilities for working with and visualizing molecular systems
-
-### Members:
 
   - [MolecularVibrations](Molecools/Vibrations/MolecularVibrations.md)
   - [MolecularNormalModes](Molecools/Vibrations/MolecularNormalModes.md)
@@ -11,36 +12,63 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
   - [MolecularZMatrixCoordinateSystem](Molecools/CoordinateSystems/MolecularZMatrixCoordinateSystem.md)
   - [MolecularCartesianCoordinateSystem](Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md)
 
-### Examples:
 
 
+### Tests
+- [NormalModeRephasing](#NormalModeRephasing)
+- [MolecularGMatrix](#MolecularGMatrix)
+- [ImportMolecule](#ImportMolecule)
+- [PrincipleAxisEmbedding](#PrincipleAxisEmbedding)
+- [EckartEmbed](#EckartEmbed)
+- [Eckart](#Eckart)
+- [HOONODihedral](#HOONODihedral)
+- [EckartEmbedDipoles](#EckartEmbedDipoles)
+- [EckartEmbedMolecule](#EckartEmbedMolecule)
+- [EmbeddedMolecule](#EmbeddedMolecule)
+- [AddDummyAtoms](#AddDummyAtoms)
+- [AddDummyAtomProperties](#AddDummyAtomProperties)
+- [AddDummyAtomJacobians](#AddDummyAtomJacobians)
+- [InternalCoordOrder](#InternalCoordOrder)
+- [Plotting](#Plotting)
+- [BondGuessing](#BondGuessing)
+- [Frags](#Frags)
+- [AutoZMat](#AutoZMat)
+- [HODModes](#HODModes)
+- [H2OModes](#H2OModes)
+- [RenormalizeGaussianModes](#RenormalizeGaussianModes)
+- [VisualizeNormalModes](#VisualizeNormalModes)
+- [InternalCartesianJacobians](#InternalCartesianJacobians)
 
+#### Setup
+Before we can run our examples we should get a bit of setup out of the way.
+Since these examples were harvested from the unit tests not all pieces
+will be necessary for all situations.
 ```python
-
 from Peeves.TestUtils import *
 from unittest import TestCase
 from Peeves import BlockProfiler
-
 from Psience.Molecools import Molecule, MolecularNormalModes
-# from Psience.Molecools.Transformations import MolecularTransformation
-from Psience.Data import DipoleSurface # this will be leaving Zachary very soon I think...
+from Psience.Data import DipoleSurface
 from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
 from McUtils.Plots import *
 from McUtils.Coordinerds import cartesian_to_zmatrix
 from McUtils.Data import UnitsData
 import numpy as np
 import McUtils.Numputils as nput
+```
 
+All tests are wrapped in a test class
+```python
 class MolecoolsTests(TestCase):
-
     def setUp(self):
         self.test_log_water = TestManager.test_data("water_OH_scan.log")
         self.test_log_freq = TestManager.test_data("water_freq.log")
         self.test_HOD = TestManager.test_data("HOD_freq.fchk")
         self.test_fchk = TestManager.test_data("water_freq.fchk")
         self.test_log_h2 = TestManager.test_data("outer_H2_scan_new.log")
-
-    @validationTest
+```
+#### <a name="NormalModeRephasing">NormalModeRephasing</a>
+```python
     def test_NormalModeRephasing(self):
         m_16 = Molecule.from_file(TestManager.test_data('CH2DT_freq_16.fchk'))
         m_09 = Molecule.from_file(TestManager.test_data('CH2DT_freq.fchk'))
@@ -58,8 +86,9 @@ class MolecoolsTests(TestCase):
         phase_test = np.sign(np.diag(np.dot(modes_09, rescaled_16.T)))
 
         self.assertEquals(np.sum(np.diff(phase_test)), 0)
-
-    @validationTest
+```
+#### <a name="MolecularGMatrix">MolecularGMatrix</a>
+```python
     def test_MolecularGMatrix(self):
         mol = Molecule.from_file(self.test_fchk)
         mol.zmatrix = [
@@ -70,15 +99,17 @@ class MolecoolsTests(TestCase):
         g = mol.g_matrix
 
         self.assertEquals(g.shape, (3, 3))
-
-    @validationTest
+```
+#### <a name="ImportMolecule">ImportMolecule</a>
+```python
     def test_ImportMolecule(self):
 
         n = 3 # water
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(m.atoms, ("O", "H", "H"))
-
-    @inactiveTest
+```
+#### <a name="PrincipleAxisEmbedding">PrincipleAxisEmbedding</a>
+```python
     def test_PrincipleAxisEmbedding(self):
         ref_file = TestManager.test_data("tbhp_180.fchk")
 
@@ -159,14 +190,16 @@ class MolecoolsTests(TestCase):
             rot_ref.coords,
             -mathematica_coords[:, (2, 1, 0)]
         ))
-
-    @validationTest
+```
+#### <a name="EckartEmbed">EckartEmbed</a>
+```python
     def test_EckartEmbed(self):
         m = Molecule.from_file(TestManager.test_data('HOH_freq.fchk'))
         crd = m.embed_coords(m.coords)
         self.assertTrue(np.allclose(m.coords, crd))
-
-    @validationTest
+```
+#### <a name="Eckart">Eckart</a>
+```python
     def test_Eckart(self):
         scan_file = TestManager.test_data("tbhp_030.log")
         ref_file = TestManager.test_data("tbhp_180.fchk")
@@ -240,8 +273,9 @@ class MolecoolsTests(TestCase):
                                 ref.coords
                             )
                             )
-
-    @inactiveTest
+```
+#### <a name="HOONODihedral">HOONODihedral</a>
+```python
     def test_HOONODihedral(self):
         # should be broken
 
@@ -291,8 +325,9 @@ class MolecoolsTests(TestCase):
 
 
         raise Exception(new_jacs_num[1][2], new_jacs_anal[1][2])
-
-    @inactiveTest
+```
+#### <a name="EckartEmbedDipoles">EckartEmbedDipoles</a>
+```python
     def test_EckartEmbedDipoles(self):
         scan_file = TestManager.test_data("tbhp_030.log")
         ref_file = TestManager.test_data("tbhp_180.fchk")
@@ -308,27 +343,17 @@ class MolecoolsTests(TestCase):
         carts, dips = DipoleSurface.get_log_values(scan_file, keys=("StandardCartesianCoordinates", "OptimizedDipoleMoments"))
         rot_dips = np.array([ np.dot(t.transformation_function.transform, d) for t,d in zip(transf, dips) ])
         self.assertTrue(np.allclose(np.linalg.norm(dips, axis=1)-np.linalg.norm(rot_dips, axis=1), 0.))
-
-        # ### Visualize dipole surface
-        # dists = np.linalg.norm(carts[1:, 5] - carts[1:, 6], axis=1)
-        # Graphics.default_style['image_size'] = 575
-        # g = GraphicsGrid(nrows=1, ncols=2, padding=((.075, 0), (0, .45)))
-        # p = Plot(dists, rot_dips[:, 0], figure=g[0, 0])
-        # Plot(dists, rot_dips[:, 1], figure=p)
-        # Plot(dists, rot_dips[:, 2], figure=p)
-        # p2= Plot(dists, dips[:, 0], figure=g[0, 1])
-        # Plot(dists, dips[:, 1], figure=p2)
-        # Plot(dists, dips[:, 2], figure=p2)
-        # g.show()
-
-    @validationTest
+```
+#### <a name="EckartEmbedMolecule">EckartEmbedMolecule</a>
+```python
     def test_EckartEmbedMolecule(self):
 
         ref_file = TestManager.test_data("tbhp_180.fchk")
         ref = Molecule.from_file(ref_file)
         new = ref.get_embedded_molecule()
-
-    @debugTest
+```
+#### <a name="EmbeddedMolecule">EmbeddedMolecule</a>
+```python
     def test_EmbeddedMolecule(self):
 
         file_name = TestManager.test_data("HOH_freq.fchk")
@@ -390,12 +415,9 @@ class MolecoolsTests(TestCase):
         self.assertTrue(np.allclose(norms_1, norms_2),
                         msg="(HOONO) Normal modes renomalized: {} different from {}".format(norms_1, norms_2)
         )
-
-        # raise Exception(mol1.coords, mol1.normal_modes.modes.basis.matrix.T)
-
-        # raise Exception(mol.coords, mol.normal_modes.modes.basis.matrix.T)
-
-    @validationTest
+```
+#### <a name="AddDummyAtoms">AddDummyAtoms</a>
+```python
     def test_AddDummyAtoms(self):
 
         file_name = TestManager.test_data("HOONO_freq.fchk")
@@ -442,8 +464,9 @@ class MolecoolsTests(TestCase):
         self.assertEquals(
             mol2.internal_coordinates[5, 2], -np.pi/2
         )
-
-    @validationTest
+```
+#### <a name="AddDummyAtomProperties">AddDummyAtomProperties</a>
+```python
     def test_AddDummyAtomProperties(self):
 
         file_name = TestManager.test_data("HOONO_freq.fchk")
@@ -469,8 +492,9 @@ class MolecoolsTests(TestCase):
             mol2.inertial_axes.tolist(),
             mol.inertial_axes.tolist()
         )
-
-    @validationTest
+```
+#### <a name="AddDummyAtomJacobians">AddDummyAtomJacobians</a>
+```python
     def test_AddDummyAtomJacobians(self):
 
         file_name = TestManager.test_data("HOONO_freq.fchk")
@@ -554,12 +578,9 @@ class MolecoolsTests(TestCase):
                                                        )
         self.assertEquals(jacobians[0].shape, (6, 3, 6, 3))
         self.assertEquals(jacobians[1].shape, (6, 3, 6, 3, 6, 3))
-
-        # # now test against regular stuff
-        # mol = Molecule.from_file(file_name)
-        #
-
-    @validationTest
+```
+#### <a name="InternalCoordOrder">InternalCoordOrder</a>
+```python
     def test_InternalCoordOrder(self):
         file_name = TestManager.test_data("HOONO_freq.fchk")
 
@@ -602,8 +623,9 @@ class MolecoolsTests(TestCase):
         jacs2 = mol2_ics.jacobian(mol2.coords.system, [1], all_numerical=True)[0]
 
         self.assertTrue(np.allclose(jacs[3, 0], jacs2[1, 0]))
-
-    @validationTest
+```
+#### <a name="Plotting">Plotting</a>
+```python
     def test_Plotting(self):
 
         # g = Graphics3D(
@@ -638,24 +660,27 @@ class MolecoolsTests(TestCase):
             # bond_style= { "circle_points": 24 },
             # atom_style= { "sphere_points": 24 }
             )
-        # g.show()
-
-    @inactiveTest
+```
+#### <a name="BondGuessing">BondGuessing</a>
+```python
     def test_BondGuessing(self):
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(m.bonds, [[0, 1, 1], [0, 2, 1]])
-
-    @inactiveTest
+```
+#### <a name="Frags">Frags</a>
+```python
     def test_Frags(self):
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(len(m.prop("fragments")), 1)
-
-    @inactiveTest
+```
+#### <a name="AutoZMat">AutoZMat</a>
+```python
     def test_AutoZMat(self):
         raise NotImplementedError("saddy")
         m = Molecule.from_file(self.test_fchk)
-
-    @validationTest
+```
+#### <a name="HODModes">HODModes</a>
+```python
     def test_HODModes(self):
         # oops fucked up getting D out
         m = Molecule.from_file(self.test_HOD, bonds=[[0, 1, 1], [0, 2, 1]])
@@ -665,8 +690,9 @@ class MolecoolsTests(TestCase):
             tuple(np.round(modes.freqs*UnitsData.convert("Hartrees", "Wavenumbers"))),
             (1422.0, 2810.0, 3874.0)
         )
-
-    @validationTest
+```
+#### <a name="H2OModes">H2OModes</a>
+```python
     def test_H2OModes(self):
         m = Molecule.from_file(self.test_fchk, bonds=[[0, 1, 1], [0, 2, 1]])
         modes = m.normal_modes
@@ -675,8 +701,9 @@ class MolecoolsTests(TestCase):
             tuple(np.round(modes.freqs*UnitsData.convert("Hartrees", "Wavenumbers"))),
             (1622.0, 3803.0, 3938.0)
         )
-
-    @inactiveTest
+```
+#### <a name="RenormalizeGaussianModes">RenormalizeGaussianModes</a>
+```python
     def test_RenormalizeGaussianModes(self):
 
         with GaussianFChkReader(self.test_HOD) as gr:
@@ -701,9 +728,9 @@ class MolecoolsTests(TestCase):
 
         print(np.dot(np.dot(mm.T, np.diag(masses)), mm))
         print(UnitsData.convert("Hartrees", "Wavenumbers") * np.sqrt(np.diag(np.dot(np.dot(mm.T, fcs), mm))))
-        # print(modes._basis.matrix.T.dot(m.force_constants).shape)
-
-    @validationTest
+```
+#### <a name="VisualizeNormalModes">VisualizeNormalModes</a>
+```python
     def test_VisualizeNormalModes(self):
 
         from Psience.Molecools.Vibrations import MolecularVibrations, MolecularNormalModes
@@ -747,8 +774,9 @@ class MolecoolsTests(TestCase):
             tuple(np.round(UnitsData.convert("Hartrees", "Wavenumbers")*nms.freqs, 4)),
             tuple(np.round(test_freqs, 4))
         )
-
-    @inactiveTest
+```
+#### <a name="InternalCartesianJacobians">InternalCartesianJacobians</a>
+```python
     def test_InternalCartesianJacobians(self):
         import McUtils.Plots as plt
         m = Molecule.from_file(TestManager.test_data('HOH_freq.fchk'),
@@ -796,8 +824,6 @@ class MolecoolsTests(TestCase):
 
         self.assertAlmostEquals(meh22[1, 1, 0, 0], .009235, places=6)
         self.assertTrue(np.allclose(meh12, meh22))
-
-
 ```
 
 ___

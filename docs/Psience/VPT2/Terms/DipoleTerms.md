@@ -1,11 +1,18 @@
-## <a id="Psience.VPT2.Terms.DipoleTerms">DipoleTerms</a>
+## <a id="Psience.VPT2.Terms.DipoleTerms">DipoleTerms</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Terms.py#L1721)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L1721?message=Update%20Docs)]
+</div>
 
 
-### Properties and Methods
-<a id="Psience.VPT2.Terms.DipoleTerms.__init__" class="docs-object-method">&nbsp;</a>
+
+<a id="Psience.VPT2.Terms.DipoleTerms.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, molecule, derivatives=None, mixed_derivs=None, modes=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, **opts): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Terms.py#L1722)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L1722?message=Update%20Docs)]
+</div>
+
 
 - `molecule`: `Molecule`
     >the molecule that will supply the dipole derivatives
@@ -16,20 +23,20 @@ __init__(self, molecule, derivatives=None, mixed_derivs=None, modes=None, mode_s
 - `mode_selection`: `None | Iterable[int]`
     >the subset of normal modes to use
 
-<a id="Psience.VPT2.Terms.DipoleTerms.get_terms" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Terms.DipoleTerms.get_terms" class="docs-object-method">&nbsp;</a> 
 ```python
 get_terms(self, order=None): 
 ```
-
-### Examples
-
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Terms.py#L1952)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L1952?message=Update%20Docs)]
+</div>
 
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/VPT2/Terms/DipoleTerms.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/VPT2/Terms/DipoleTerms.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/VPT2/Terms/DipoleTerms.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Terms/DipoleTerms.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py?message=Update%20Docs)
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/VPT2/Terms/DipoleTerms.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/VPT2/Terms/DipoleTerms.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/VPT2/Terms/DipoleTerms.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Terms/DipoleTerms.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L1721?message=Update%20Docs)

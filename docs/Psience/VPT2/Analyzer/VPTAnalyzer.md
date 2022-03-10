@@ -1,239 +1,489 @@
-## <a id="Psience.VPT2.Analyzer.VPTAnalyzer">VPTAnalyzer</a>
+## <a id="Psience.VPT2.Analyzer.VPTAnalyzer">VPTAnalyzer</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L375)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L375?message=Update%20Docs)]
+</div>
+
 Provides analysis tools on VPT results
 
-### Properties and Methods
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.__init__" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, res): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L380)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L380?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.potential_terms" class="docs-object-method">&nbsp;</a>
+
+- `res`: `Any`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.potential_terms" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 potential_terms(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the expansion of the potential
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.kinetic_terms" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.kinetic_terms" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 kinetic_terms(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the expansion of the kinetic energy
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.dipole_terms" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.dipole_terms" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 dipole_terms(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the expansion of the dipole moment
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.basis" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.basis" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 basis(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the basis for the calculation
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.target_states" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.target_states" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 target_states(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the target states for the calculation
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.spectrum" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 spectrum(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the IR spectrum calculated from perturbation theory
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.energy_corrections" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.energy_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 energy_corrections(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the corrections to the energies
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.energies" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.energies" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 energies(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.frequencies" class="docs-object-method">&nbsp;</a>
+
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.frequencies" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 frequencies(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.zero_order_spectrum" class="docs-object-method">&nbsp;</a>
+
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.zero_order_spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 zero_order_spectrum(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the zero-order IR spectrum calculated from perturbation theory
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_spectrum" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 deperturbed_spectrum(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_frequencies" class="docs-object-method">&nbsp;</a>
+
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_frequencies" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 deperturbed_frequencies(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.wavefunction_corrections" class="docs-object-method">&nbsp;</a>
+
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.wavefunction_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 wavefunction_corrections(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the corrections to the wavefunctions
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_corrections" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 transition_moment_corrections(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the corrections to the wavefunctions
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moments" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moments" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 transition_moments(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_transition_moment_corrections" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_transition_moment_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 deperturbed_transition_moment_corrections(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the corrections to the wavefunctions
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_transition_moments" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_transition_moments" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 deperturbed_transition_moments(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_hamiltonians" class="docs-object-method">&nbsp;</a>
+
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_hamiltonians" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 deperturbed_hamiltonians(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the deperturbed Hamiltonians used to make the degenerate transform
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_energies" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_energies" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 deperturbed_energies(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.degenerate_states" class="docs-object-method">&nbsp;</a>
+
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.degenerate_states" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 degenerate_states(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the deperturbed states used to make the degenerate transform
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.degenerate_energies" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.degenerate_energies" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 degenerate_energies(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L?message=Update%20Docs)]
+</div>
+
 Returns the deperturbed states used to make the degenerate transform
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.shift_and_transform_hamiltonian" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.shift_and_transform_hamiltonian" class="docs-object-method">&nbsp;</a> 
 ```python
 shift_and_transform_hamiltonian(self, hams, shifts): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L570)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L570?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.get_shifted_transformed_transition_moments" class="docs-object-method">&nbsp;</a>
+
+- `hams`: `Any`
+    >No description...
+- `shifts`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.get_shifted_transformed_transition_moments" class="docs-object-method">&nbsp;</a> 
 ```python
 get_shifted_transformed_transition_moments(self, deg_states, target_states, hams, shifts, tmoms, handling_mode='transpose'): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L612)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L612?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.get_shifted_transformed_spectrum" class="docs-object-method">&nbsp;</a>
+
+- `deg_states`: `Any`
+    >No description...
+- `target_states`: `Any`
+    >No description...
+- `hams`: `Any`
+    >No description...
+- `shifts`: `Any`
+    >No description...
+- `tmoms`: `Any`
+    >No description...
+- `handling_mode`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.get_shifted_transformed_spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
 get_shifted_transformed_spectrum(self, zpe, deg_states, target_states, hams, shifts, tmoms, handling_mode='transpose'): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L642)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L642?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.shifted_transformed_spectrum" class="docs-object-method">&nbsp;</a>
+
+- `zpe`: `Any`
+    >No description...
+- `deg_states`: `Any`
+    >No description...
+- `target_states`: `Any`
+    >No description...
+- `hams`: `Any`
+    >No description...
+- `shifts`: `Any`
+    >No description...
+- `tmoms`: `Any`
+    >No description...
+- `handling_mode`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.shifted_transformed_spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
 shifted_transformed_spectrum(self, deg_states, hams, shifts, return_transformation=False, handling_mode='transpose'): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L674)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L674?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_data" class="docs-object-method">&nbsp;</a>
+
+- `deg_states`: `Any`
+    >No description...
+- `hams`: `Any`
+    >No description...
+- `shifts`: `Any`
+    >No description...
+- `return_transformation`: `Any`
+    >No description...
+- `handling_mode`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_data" class="docs-object-method">&nbsp;</a> 
 ```python
 transition_data(self, states, keys=['frequency', 'transition_moment', 'intensity'], data='deperturbed'): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L700)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L700?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_term_sums" class="docs-object-method">&nbsp;</a>
+
+- `states`: `Any`
+    >No description...
+- `keys`: `Any`
+    >No description...
+- `data`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_term_sums" class="docs-object-method">&nbsp;</a> 
 ```python
 transition_moment_term_sums(self, states, terms=None, rotation=None, data='deperturbed'): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L765)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L765?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_term_sums_first_order" class="docs-object-method">&nbsp;</a>
+
+- `states`: `Any`
+    >No description...
+- `terms`: `Any`
+    >No description...
+- `rotation`: `Any`
+    >No description...
+- `data`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_term_sums_first_order" class="docs-object-method">&nbsp;</a> 
 ```python
 transition_moment_term_sums_first_order(self, states, rotation=None, data='deperturbed'): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L812)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L812?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.intensity_breakdown" class="docs-object-method">&nbsp;</a>
+
+- `states`: `Any`
+    >No description...
+- `rotation`: `Any`
+    >No description...
+- `data`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.intensity_breakdown" class="docs-object-method">&nbsp;</a> 
 ```python
 intensity_breakdown(self, states, terms=None, data='deperturbed'): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L835)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L835?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.degenerate_coupling_element" class="docs-object-method">&nbsp;</a>
+
+- `states`: `Any`
+    >No description...
+- `terms`: `Any`
+    >No description...
+- `data`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.degenerate_coupling_element" class="docs-object-method">&nbsp;</a> 
 ```python
 degenerate_coupling_element(self, state1, state2): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L860)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L860?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Analyzer.VPTAnalyzer.format_deperturbed_hamiltonian" class="docs-object-method">&nbsp;</a>
+
+- `state1`: `Any`
+    >No description...
+- `state2`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
+<a id="Psience.VPT2.Analyzer.VPTAnalyzer.format_deperturbed_hamiltonian" class="docs-object-method">&nbsp;</a> 
 ```python
 format_deperturbed_hamiltonian(self, which): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L883)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L883?message=Update%20Docs)]
+</div>
 
-### Examples
 
+- `which`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
 
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/VPT2/Analyzer/VPTAnalyzer.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/VPT2/Analyzer/VPTAnalyzer.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/VPT2/Analyzer/VPTAnalyzer.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Analyzer/VPTAnalyzer.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py?message=Update%20Docs)
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/VPT2/Analyzer/VPTAnalyzer.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/VPT2/Analyzer/VPTAnalyzer.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/VPT2/Analyzer/VPTAnalyzer.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Analyzer/VPTAnalyzer.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L375?message=Update%20Docs)

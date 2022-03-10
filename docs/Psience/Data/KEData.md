@@ -1,13 +1,12 @@
-# <a id="Psience.Data.KEData">Psience.Data.KEData</a>
+# <a id="Psience.Data.KEData">Psience.Data.KEData</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Data/KEData)]
+</div>
     
 Provides a class for handling a compiled set of atomic data
 
-### Members:
-
   - [KEData](KEData/KEData.md)
   - [KEDataHandler](KEData/KEDataHandler.md)
-
-### Examples:
 
 
 

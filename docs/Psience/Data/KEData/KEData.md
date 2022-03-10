@@ -1,7 +1,8 @@
-### <a id="Psience.Data.KEData.KEData">KEData</a>
+### <a id="Psience.Data.KEData.KEData">KEData</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/KEData/KEData/__init__.py#L)/]
+</div>
 An instance of KEDataHandler that can be used for looking up G-matrix and V' data
-
-### Examples:
 
 
 
@@ -11,4 +12,5 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/Data/KEData/KEData.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/Data/KEData/KEData.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/Data/KEData/KEData.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/KEData/KEData/__init__.py?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/KEData/KEData/__init__.py#L?message=Update%20Docs)
+

@@ -1,12 +1,19 @@
-## <a id="Psience.VPT2.Runner.VPTSolverOptions">VPTSolverOptions</a>
+## <a id="Psience.VPT2.Runner.VPTSolverOptions">VPTSolverOptions</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L594)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L594?message=Update%20Docs)]
+</div>
+
 Provides a helper to keep track of the options available
 for configuring the way the perturbation theory is applied
 
-### Properties and Methods
-<a id="Psience.VPT2.Runner.VPTSolverOptions.__init__" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Runner.VPTSolverOptions.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, order=2, expansion_order=None, coupled_states=None, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, state_space_filters=None, allow_post_PT_calc=None, modify_degenerate_perturbations=None, gaussian_resonance_handling=None, ignore_odd_order_energies=None, intermediate_normalization=None, zero_element_warning=None, degenerate_states=None, handle_strong_couplings=None, zero_order_energy_corrections=None): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L619)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L619?message=Update%20Docs)]
+</div>
+
 
 - `order`: `int`
     >the order of perturbation theory to apply
@@ -41,10 +48,14 @@ __init__(self, order=2, expansion_order=None, coupled_states=None, total_space=N
 - `zero_order_energy_corrections`: `dict`
     >energies to use for the zero-order states instead of the diagonal of `H(0)`
 
-<a id="Psience.VPT2.Runner.VPTSolverOptions.get_zero_order_energies" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Runner.VPTSolverOptions.get_zero_order_energies" class="docs-object-method">&nbsp;</a> 
 ```python
 get_zero_order_energies(corrected_fundamental_freqs, states): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L699)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L699?message=Update%20Docs)]
+</div>
+
 
 - `corrected_fundamental_freqs`: `Any`
     >No description...
@@ -53,15 +64,12 @@ get_zero_order_energies(corrected_fundamental_freqs, states):
 - `:returns`: `_`
     >No description...
 
-### Examples
-
-
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/VPT2/Runner/VPTSolverOptions.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/VPT2/Runner/VPTSolverOptions.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/VPT2/Runner/VPTSolverOptions.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Runner/VPTSolverOptions.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py?message=Update%20Docs)
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/VPT2/Runner/VPTSolverOptions.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/VPT2/Runner/VPTSolverOptions.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/VPT2/Runner/VPTSolverOptions.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Runner/VPTSolverOptions.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L594?message=Update%20Docs)

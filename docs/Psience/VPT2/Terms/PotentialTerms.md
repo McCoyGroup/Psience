@@ -1,11 +1,18 @@
-## <a id="Psience.VPT2.Terms.PotentialTerms">PotentialTerms</a>
+## <a id="Psience.VPT2.Terms.PotentialTerms">PotentialTerms</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Terms.py#L1083)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L1083?message=Update%20Docs)]
+</div>
+
 A helper class that can transform the derivatives of the potential from Cartesian to normal coordinates
 
-### Properties and Methods
-<a id="Psience.VPT2.Terms.PotentialTerms.__init__" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Terms.PotentialTerms.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, molecule, mixed_derivs=None, modes=None, potential_derivatives=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, check_input_force_constants=True, allow_higher_potential_terms=False, hessian_tolerance=0.0001, grad_tolerance=0.0001, freq_tolerance=0.002, **opts): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Terms.py#L1094)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L1094?message=Update%20Docs)]
+</div>
+
 
 - `molecule`: `Molecule`
     >the molecule that will supply the potential derivatives
@@ -16,26 +23,29 @@ __init__(self, molecule, mixed_derivs=None, modes=None, potential_derivatives=No
 - `mode_selection`: `None | Iterable[int]`
     >the subset of normal modes to use
 
-<a id="Psience.VPT2.Terms.PotentialTerms.v_derivs" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Terms.PotentialTerms.v_derivs" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 v_derivs(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Terms.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L?message=Update%20Docs)]
+</div>
 
-<a id="Psience.VPT2.Terms.PotentialTerms.get_terms" class="docs-object-method">&nbsp;</a>
+<a id="Psience.VPT2.Terms.PotentialTerms.get_terms" class="docs-object-method">&nbsp;</a> 
 ```python
 get_terms(self, order=None, logger=None): 
 ```
-
-### Examples
-
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Terms.py#L1388)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L1388?message=Update%20Docs)]
+</div>
 
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/VPT2/Terms/PotentialTerms.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/VPT2/Terms/PotentialTerms.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/VPT2/Terms/PotentialTerms.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Terms/PotentialTerms.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py?message=Update%20Docs)
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/VPT2/Terms/PotentialTerms.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/VPT2/Terms/PotentialTerms.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/VPT2/Terms/PotentialTerms.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/VPT2/Terms/PotentialTerms.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Terms.py#L1083?message=Update%20Docs)

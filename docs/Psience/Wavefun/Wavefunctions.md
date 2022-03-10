@@ -1,15 +1,14 @@
-# <a id="Psience.Wavefun.Wavefunctions">Psience.Wavefun.Wavefunctions</a>
+# <a id="Psience.Wavefun.Wavefunctions">Psience.Wavefun.Wavefunctions</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Wavefun/Wavefunctions)]
+</div>
     
 Provides very general support for an abstract wavefunction object
 Allows different methods to provide their own concrete implementation details
 
-### Members:
-
   - [Wavefunction](Wavefunctions/Wavefunction.md)
   - [Wavefunctions](Wavefunctions/Wavefunctions.md)
   - [WavefunctionException](Wavefunctions/WavefunctionException.md)
-
-### Examples:
 
 
 

@@ -1,4 +1,7 @@
-# <a id="Psience.Data">Psience.Data</a>
+# <a id="Psience.Data">Psience.Data</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Data)]
+</div>
     
 Provides core Data-related types and data structures.
 Intended to be high-level data as opposed to the lower-level stuff in `McUtils.Data`.
@@ -6,30 +9,38 @@ That means including stuff like dipole and potential energy surfaces that know h
 Currently...well that's all we have. But wrappers for commonly-used potentials & bases could well come.
 Not sure at this point, though.
 
-### Members:
-
   - [DipoleSurface](Data/Surfaces/DipoleSurface.md)
   - [PotentialSurface](Data/Surfaces/PotentialSurface.md)
   - [KEData](Data/KEData/KEData.md)
   - [KEDataHandler](Data/KEData/KEDataHandler.md)
 
-### Examples:
 
 
+### Tests
+- [FChkFileDipoleSurface](#FChkFileDipoleSurface)
+- [LogFileDipoleSurface](#LogFileDipoleSurface)
+- [LogFilePotentialSurface](#LogFilePotentialSurface)
 
+#### Setup
+Before we can run our examples we should get a bit of setup out of the way.
+Since these examples were harvested from the unit tests not all pieces
+will be necessary for all situations.
 ```python
-
 from Peeves.TestUtils import *
 from Psience.Data import *
 from McUtils.Coordinerds import cartesian_to_zmatrix
 from McUtils.Plots import *
 from unittest import TestCase
 import sys, h5py, math, numpy as np
+```
 
+All tests are wrapped in a test class
+```python
 class DataTests(TestCase):
-
     maxDiff = None
-    @validationTest
+```
+#### <a name="FChkFileDipoleSurface">FChkFileDipoleSurface</a>
+```python
     def test_FChkFileDipoleSurface(self):
         fchk = TestManager.test_data("HOD_freq.fchk")
         surf = DipoleSurface.from_fchk_file(fchk)
@@ -43,8 +54,9 @@ class DataTests(TestCase):
             [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
             [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
         ]).shape, (2, 3))
-
-    @validationTest
+```
+#### <a name="LogFileDipoleSurface">LogFileDipoleSurface</a>
+```python
     def test_LogFileDipoleSurface(self):
         log = TestManager.test_data("water_OH_scan.log")
         conv = lambda x: cartesian_to_zmatrix(
@@ -53,19 +65,9 @@ class DataTests(TestCase):
         surf = DipoleSurface.from_log_file(log, conv)
         dips = surf(np.arange(.5, 2, .1))
         self.assertEquals(dips.shape, ((2-.5)/.1, 3))
-
-        # surf_center = surf.surfs[0].base.data['center']
-        # self.assertIsInstance(surf_center, np.ndarray)
-        # self.assertTrue(
-        #     np.allclose(surf(surf_center) - np.array([s.base.data['ref'] for s in surf.surfs]), 0.)
-        # )
-        # self.assertEquals(surf([[0, 0, 0], [1, 0, 0], [0, 1, 0]]).shape, (1, 3))
-        # self.assertEquals(surf([
-        #     [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
-        #     [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
-        # ]).shape, (2, 3))
-
-    @validationTest
+```
+#### <a name="LogFilePotentialSurface">LogFilePotentialSurface</a>
+```python
     def test_LogFilePotentialSurface(self):
         log = TestManager.test_data("water_OH_scan.log")
         conv = lambda x: np.linalg.norm(x[:, 0] - x[:, 1], axis=1)

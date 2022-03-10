@@ -1,26 +1,32 @@
-## <a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunctions">AnalyticWavefunctions</a>
+## <a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunctions">AnalyticWavefunctions</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Wavefunctions.py#L87)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L87?message=Update%20Docs)]
+</div>
+
 Represents wavefunctions with analytic forms, most commonly harmonic oscillators
 
-### Properties and Methods
-<a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunctions.__init__" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunctions.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, energy_expr, wfn_expr, **ops): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Wavefunctions.py#L91)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L91?message=Update%20Docs)]
+</div>
 
-<a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunctions.get_wavefunctions" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunctions.get_wavefunctions" class="docs-object-method">&nbsp;</a> 
 ```python
 get_wavefunctions(self, which): 
 ```
-
-### Examples
-
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Wavefunctions.py#L97)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L97?message=Update%20Docs)]
+</div>
 
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/BasisReps/Wavefunctions/AnalyticWavefunctions.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/BasisReps/Wavefunctions/AnalyticWavefunctions.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/BasisReps/Wavefunctions/AnalyticWavefunctions.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/BasisReps/Wavefunctions/AnalyticWavefunctions.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py?message=Update%20Docs)
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/BasisReps/Wavefunctions/AnalyticWavefunctions.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/BasisReps/Wavefunctions/AnalyticWavefunctions.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/BasisReps/Wavefunctions/AnalyticWavefunctions.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/BasisReps/Wavefunctions/AnalyticWavefunctions.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L87?message=Update%20Docs)

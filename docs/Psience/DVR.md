@@ -1,9 +1,10 @@
-# <a id="Psience.DVR">Psience.DVR</a>
+# <a id="Psience.DVR">Psience.DVR</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/DVR)]
+</div>
     
 A package for doing generalized DVR in python.
 Provides and extensible DVR framework with an easy-to-write structure.
-
-### Members:
 
   - [BaseDVR](DVR/BaseDVR/BaseDVR.md)
   - [DVRResults](DVR/BaseDVR/DVRResults.md)
@@ -19,70 +20,86 @@ Provides and extensible DVR framework with an easy-to-write structure.
   - [DVRWavefunctions](DVR/Wavefunctions/DVRWavefunctions.md)
   - [DVRWavefunction](DVR/Wavefunctions/DVRWavefunction.md)
 
-### Examples:
 
 
+### Tests
+- [1D](#1D)
+- [energies_1D](#energies_1D)
+- [energies_2D](#energies_2D)
+- [energies_3D](#energies_3D)
+- [RingDVR1D](#RingDVR1D)
+- [RingDVR1DExplicitMass](#RingDVR1DExplicitMass)
+- [RingDVR2DExplicitMass](#RingDVR2DExplicitMass)
+- [RingDVR1DCosMass](#RingDVR1DCosMass)
+- [Ring3D](#Ring3D)
+- [Ring3DCosMass3D](#Ring3DCosMass3D)
+- [Ring2DDifferentMass](#Ring2DDifferentMass)
+- [MoleculeDVR](#MoleculeDVR)
 
+#### Setup
+Before we can run our examples we should get a bit of setup out of the way.
+Since these examples were harvested from the unit tests not all pieces
+will be necessary for all situations.
 ```python
-
 from Peeves.TestUtils import *
 from unittest import TestCase
-
 from McUtils.Data import UnitsData, PotentialData
 from McUtils.Zachary import Interpolator
 import McUtils.Plots as plt
-
 from Psience.DVR import *
 from Psience.Molecools import Molecule
 import numpy as np
+```
 
+All tests are wrapped in a test class
+```python
 class DVRTests(TestCase):
-
-    #region setup
     def ho(self, grid, k=1):
         return k/2*np.power(grid, 2)
     def ho_2D(self, grid, k1=1, k2=1):
         return k1/2*np.power(grid[:, 0], 2) + k2/2*np.power(grid[:, 1], 2)
     def ho_3D(self, grid, k1=1, k2=1, k3=1):
         return k1/2*np.power(grid[:, 0], 2) + k2/2*np.power(grid[:, 1], 2) + k3/2*np.power(grid[:, 2], 2)
-
     def cos2D(self, grid):
         return np.cos(grid[..., 0]) * np.cos(grid[..., 1])
     def cos3D(self, grid):
         return np.cos(grid[..., 0]) * np.cos(grid[..., 1]) * np.cos(grid[..., 2])
-
     def cos_sin_pot(self, grid):
         return UnitsData.convert("Wavenumbers", "Hartrees")* 2500 / 8 * ((2 + np.cos(grid[..., :, 0])) * (2 + np.sin(grid[..., :, 1])) - 1)
-    #endregion
-
-    @validationTest
+```
+#### <a name="1D">1D</a>
+```python
     def test_1D(self):
         dvr_1D = CartesianDVR(domain=(-5, 5), divs=250)
         pot = dvr_1D.run(potential_function=self.ho, result='potential_energy')
         self.assertIsInstance(pot.potential_energy, np.ndarray)
-
-    @validationTest
+```
+#### <a name="energies_1D">energies_1D</a>
+```python
     def test_energies_1D(self):
         dvr_1D = CartesianDVR()
         res = dvr_1D.run(potential_function=self.ho, domain=(-5, 5), divs=250, mass=1)
         # print(e[:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions.energies, np.ndarray)
         self.assertTrue(np.allclose(res.wavefunctions.energies[:5].tolist(), [1/2, 3/2, 5/2, 7/2, 9/2]))
-
-    @validationTest
+```
+#### <a name="energies_2D">energies_2D</a>
+```python
     def test_energies_2D(self):
         dvr_2D = CartesianNDDVR(((-5, 5, 25), (-5, 5, 25)))
         res = dvr_2D.run(potential_function=self.ho_2D, mass=1)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
-    @validationTest
+```
+#### <a name="energies_3D">energies_3D</a>
+```python
     def test_energies_3D(self):
         dvr_3D = CartesianNDDVR(((-5, 5, 25), (-5, 5, 25), (-5, 5, 25)))
         res = dvr_3D.run(potential_function=self.ho_3D, mass=1)
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
-    @validationTest
+```
+#### <a name="RingDVR1D">RingDVR1D</a>
+```python
     def test_RingDVR1D(self):
         dvr_1D = RingDVR()
         npts = 5
@@ -126,8 +143,9 @@ class DVRTests(TestCase):
                          result='potential_energy'
                          )
         self.assertTrue(np.allclose(np.diag(res.potential_energy), np.sin(res.grid)))
-
-    @validationTest
+```
+#### <a name="RingDVR1DExplicitMass">RingDVR1DExplicitMass</a>
+```python
     def test_RingDVR1DExplicitMass(self):
 
         dvr_1D = RingDVR()
@@ -144,13 +162,9 @@ class DVRTests(TestCase):
                     res.wavefunctions[:5].energies[0]
             )
             )
-        # self.assertTrue(np.allclose(
-        #     res.wavefunctions[:5].energies.tolist(), [-0.536281, 0.341958, 0.854909, 2.05781, 2.08047],
-        #     atol=.03  # different eigensolvers?
-        # ))
-        # self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
-    @validationTest
+```
+#### <a name="RingDVR2DExplicitMass">RingDVR2DExplicitMass</a>
+```python
     def test_RingDVR2DExplicitMass(self):
 
         dvr_2D = RingNDDVR((25, 25))
@@ -173,8 +187,9 @@ class DVRTests(TestCase):
         #     atol=.03  # different eigensolvers?
         # ))
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
-    @validationTest
+```
+#### <a name="RingDVR1DCosMass">RingDVR1DCosMass</a>
+```python
     def test_RingDVR1DCosMass(self):
         dvr_1D = RingDVR()
         res = dvr_1D.run(potential_function=np.sin,
@@ -184,15 +199,17 @@ class DVRTests(TestCase):
                          divs=251
                          )
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
-    @validationTest
+```
+#### <a name="Ring3D">Ring3D</a>
+```python
     def test_Ring3D(self):
         dvr_3D = RingNDDVR((15,) * 3)
         res = dvr_3D.run(mass=1, potential_function=self.cos3D)
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
-    @validationTest
+```
+#### <a name="Ring3DCosMass3D">Ring3DCosMass3D</a>
+```python
     def test_Ring3DCosMass3D(self):
         dvr_3D = RingNDDVR((15,) * 3)
 
@@ -237,8 +254,9 @@ class DVRTests(TestCase):
                          )
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
-    @debugTest
+```
+#### <a name="Ring2DDifferentMass">Ring2DDifferentMass</a>
+```python
     def test_Ring2DDifferentMass(self):
 
         dvr_2D = RingNDDVR((45, 45))
@@ -314,8 +332,9 @@ class DVRTests(TestCase):
                          )
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
-
-    @validationTest
+```
+#### <a name="MoleculeDVR">MoleculeDVR</a>
+```python
     def test_MoleculeDVR(self):
 
         scan_coords = Molecule.from_file(TestManager.test_data("water_HOH_scan.log"))
@@ -371,12 +390,6 @@ class DVRTests(TestCase):
         # wf_ploot.plot(figure=grid[0, 2]); grid[0, 2].plot_label ='HOH G-Matrix'
 
         grid.show()
-
-
-
-
-
-
 ```
 
 ___

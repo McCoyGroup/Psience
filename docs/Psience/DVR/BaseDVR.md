@@ -1,14 +1,13 @@
-# <a id="Psience.DVR.BaseDVR">Psience.DVR.BaseDVR</a>
+# <a id="Psience.DVR.BaseDVR">Psience.DVR.BaseDVR</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/DVR/BaseDVR)]
+</div>
     
 Redoes what was originally PyDVR but in the _right_ way using proper subclassing and abstract properties
-
-### Members:
 
   - [BaseDVR](BaseDVR/BaseDVR.md)
   - [DVRResults](BaseDVR/DVRResults.md)
   - [DVRException](BaseDVR/DVRException.md)
-
-### Examples:
 
 
 

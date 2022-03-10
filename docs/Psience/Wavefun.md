@@ -1,14 +1,13 @@
-# <a id="Psience.Wavefun">Psience.Wavefun</a>
+# <a id="Psience.Wavefun">Psience.Wavefun</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Wavefun)]
+</div>
     
 Wavefun provides a basic framework for working with Wavefunctions that can be subclassed and built upon
-
-### Members:
 
   - [Wavefunction](Wavefun/Wavefunctions/Wavefunction.md)
   - [Wavefunctions](Wavefun/Wavefunctions/Wavefunctions.md)
   - [WavefunctionException](Wavefun/Wavefunctions/WavefunctionException.md)
-
-### Examples:
 
 
 

@@ -1,4 +1,7 @@
-# <a id="Psience.VPT2">Psience.VPT2</a>
+# <a id="Psience.VPT2">Psience.VPT2</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2)]
+</div>
     
 An implementation of vibrational perturbation theory (VPT) that uses sparse matrix methods to obtain
 corrections.
@@ -10,10 +13,7 @@ For the purposes of papers, we've been calling this implementation `PyVibPTn`
 
 The code flow is detailed below
 
-![pt design](/Psience/img/PyVibPTnDesign.png)
-{width:100%}
-
-### Members:
+![pt design](/Psience/img/PyVibPTnDesign.png){:width=100%}
 
   - [VPTRunner](VPT2/Runner/VPTRunner.md)
   - [VPTSystem](VPT2/Runner/VPTSystem.md)
@@ -38,8 +38,7 @@ The code flow is detailed below
   - [PotentialLikeTerm](VPT2/Terms/PotentialLikeTerm.md)
   - [PerturbationTheoryStateSpaceFilter](VPT2/StateFilters/PerturbationTheoryStateSpaceFilter.md)
 
-### Examples:
-
+## Examples
 
 ### A note on input formats
 
@@ -137,47 +136,123 @@ State       Frequency    Intensity       Frequency    Intensity
 </div>
 </div>
 
-```python
+### Tests
+- [HOHVPTRunner](#HOHVPTRunner)
+- [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
+- [HOHVPTRunnerShifted](#HOHVPTRunnerShifted)
+- [HOHVPTRunner3rd](#HOHVPTRunner3rd)
+- [GetDegenerateSpaces](#GetDegenerateSpaces)
+- [ClHOClRunner](#ClHOClRunner)
+- [OneMorseCartesiansNonDeg](#OneMorseCartesiansNonDeg)
+- [OneMorseCartesiansNonDegMostlyNumerical](#OneMorseCartesiansNonDegMostlyNumerical)
+- [TwoMorseCartesiansNonDeg](#TwoMorseCartesiansNonDeg)
+- [TwoMorseCartesiansAndBendNonDeg](#TwoMorseCartesiansAndBendNonDeg)
+- [DODVPTCartesians](#DODVPTCartesians)
+- [DODVPTInternals](#DODVPTInternals)
+- [HOHVPTInternals](#HOHVPTInternals)
+- [HOHVPTInternalsBackprop](#HOHVPTInternalsBackprop)
+- [HOHVPTInternalsDirect](#HOHVPTInternalsDirect)
+- [HOHVPTInternalsEmbedded](#HOHVPTInternalsEmbedded)
+- [HOHVPTCartesians](#HOHVPTCartesians)
+- [HOHVPTCartesiansOnly2Quanta](#HOHVPTCartesiansOnly2Quanta)
+- [HOHVPTCartesiansFiltered](#HOHVPTCartesiansFiltered)
+- [HOHVPTCartesiansSubsample](#HOHVPTCartesiansSubsample)
+- [HOHVPTCartesiansSubsampleFiltered](#HOHVPTCartesiansSubsampleFiltered)
+- [HOHVPTCartesiansEmbdeddd](#HOHVPTCartesiansEmbdeddd)
+- [HOHVPTCartesiansSubspace](#HOHVPTCartesiansSubspace)
+- [HOHVPTCartesians4thOrder](#HOHVPTCartesians4thOrder)
+- [HOHVPTCartesians4thOrderKE](#HOHVPTCartesians4thOrderKE)
+- [HOHVPTInternals4thOrder](#HOHVPTInternals4thOrder)
+- [HOHVPTInternals4thOrderKE](#HOHVPTInternals4thOrderKE)
+- [HOHVPTCartesiansDegenerate](#HOHVPTCartesiansDegenerate)
+- [HODVPTInternals](#HODVPTInternals)
+- [HODVPTCartesians](#HODVPTCartesians)
+- [HOTVPTInternals](#HOTVPTInternals)
+- [HOTVPTCartesians](#HOTVPTCartesians)
+- [OCHHVPTInternals](#OCHHVPTInternals)
+- [OCHHVPTInternalsDirectProp](#OCHHVPTInternalsDirectProp)
+- [OCHHVPTInternalsBackprop](#OCHHVPTInternalsBackprop)
+- [OCHHVPTCartesians](#OCHHVPTCartesians)
+- [OCHHVPTInternalsDummy](#OCHHVPTInternalsDummy)
+- [OCHHVPTCartesiansFiltered](#OCHHVPTCartesiansFiltered)
+- [OCHHVPTCartesiansDegenerate](#OCHHVPTCartesiansDegenerate)
+- [OCHHVPTCartesiansNonDegenerateSubsample2](#OCHHVPTCartesiansNonDegenerateSubsample2)
+- [OCHHVPTCartesiansDegenerateSubsample2](#OCHHVPTCartesiansDegenerateSubsample2)
+- [OCHHVPTCartesiansDegenerateSubsampleFiltered](#OCHHVPTCartesiansDegenerateSubsampleFiltered)
+- [OCHHVPTInternalsDegenerate](#OCHHVPTInternalsDegenerate)
+- [OCHHVPTRunner](#OCHHVPTRunner)
+- [BrHODVPTRunnerEmbedded](#BrHODVPTRunnerEmbedded)
+- [OCHHVPTRunnerPolyadExtended](#OCHHVPTRunnerPolyadExtended)
+- [OCHDVPTInternals](#OCHDVPTInternals)
+- [OCHDVPTCartesians](#OCHDVPTCartesians)
+- [OCHTVPTInternals](#OCHTVPTInternals)
+- [OCHTVPTCartesians](#OCHTVPTCartesians)
+- [ClHOClVPTInternals](#ClHOClVPTInternals)
+- [ClHOClVPTInternalsDummy](#ClHOClVPTInternalsDummy)
+- [ClHOClVPTCartesians](#ClHOClVPTCartesians)
+- [HOONOVPTInternals](#HOONOVPTInternals)
+- [HOONOVPTInternalsDummy](#HOONOVPTInternalsDummy)
+- [HOONOVPTInternalsEmbed](#HOONOVPTInternalsEmbed)
+- [HOONOVPTCartesians](#HOONOVPTCartesians)
+- [HOONOVPTCartesiansEmbdedded](#HOONOVPTCartesiansEmbdedded)
+- [HOONOVPTInternalsDegenerate](#HOONOVPTInternalsDegenerate)
+- [HOONOVPTCartesiansDegenerate](#HOONOVPTCartesiansDegenerate)
+- [CH2DTVPTCartesians](#CH2DTVPTCartesians)
+- [WaterDimerVPTInternals](#WaterDimerVPTInternals)
+- [WaterDimerVPTInternalsBackprop](#WaterDimerVPTInternalsBackprop)
+- [WaterDimerVPTInternalsDirectProp](#WaterDimerVPTInternalsDirectProp)
+- [WaterDimerVPTInternalsDummy](#WaterDimerVPTInternalsDummy)
+- [WaterDimerVPTCartesians](#WaterDimerVPTCartesians)
+- [WaterDimerVPTCartesiansDegenerate](#WaterDimerVPTCartesiansDegenerate)
+- [WaterDimerVPTCartesiansSubterms](#WaterDimerVPTCartesiansSubterms)
+- [WaterDimerVPTCartesiansRestrictedFilter](#WaterDimerVPTCartesiansRestrictedFilter)
+- [WaterDimerVPTCartesiansParallel](#WaterDimerVPTCartesiansParallel)
+- [WaterDimerVPTCartesiansPararalelMemConstrained](#WaterDimerVPTCartesiansPararalelMemConstrained)
+- [WaterDimerVPTCartesiansSubspace](#WaterDimerVPTCartesiansSubspace)
+- [WaterDimerVPTCartesiansHarmonic](#WaterDimerVPTCartesiansHarmonic)
+- [WaterTrimerVPTCartesians](#WaterTrimerVPTCartesians)
+- [HOHCartesianActionExpansion](#HOHCartesianActionExpansion)
+- [OCHHCartesianActionExpansion](#OCHHCartesianActionExpansion)
+- [WaterDimerCartesianActionExpansion](#WaterDimerCartesianActionExpansion)
 
+#### Setup
+Before we can run our examples we should get a bit of setup out of the way.
+Since these examples were harvested from the unit tests not all pieces
+will be necessary for all situations.
+```python
 try:
     from Peeves.TestUtils import *
     from Peeves import BlockProfiler
 except:
     pass
 from unittest import TestCase
-
 from Psience.VPT2 import *
 from Psience.Molecools import Molecule
 from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
-
 from McUtils.Data import UnitsData
 import McUtils.Plots as plt
 import McUtils.Numputils as nput
 from McUtils.Scaffolding import *
 from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
 from McUtils.Zachary import FiniteDifferenceDerivative
-
 import sys, os, numpy as np, itertools as ip
+```
 
+All tests are wrapped in a test class
+```python
 class VPT2Tests(TestCase):
-
-    #region setup
-
-    gaussian_data = {} # storage to allow me to duplicate Gaussain data less often...
-    analytic_data = {} # same idea
-
+    gaussian_data = {}
+    analytic_data = {}
     def setUp(self):
         import warnings
         np.seterr(all='raise')
         warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
         self.h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
     def __getstate__(self):
         return {}
     def __setstate__(self, state):
         pass
-
     def save_wfns(self, file, wfns):
         """
         We save the corrections so that we can reload them later
@@ -200,14 +275,12 @@ class VPT2Tests(TestCase):
             basis,
             PerturbationTheoryCorrections.loadz(file)
         )
-
     wfn_file_dir = os.path.expanduser("~/Desktop/")
     usr = os.path.expanduser('~')
     job_is_dumb = [
         os.path.join(usr, "Documents/Python/config/python3.7/lib/python3.7/"),
         os.path.join(usr, "Documents/UW/Research/Development")
     ]
-
     def get_VPT2_wfns_and_ham(self,
                               mol_spec,
                               internals,
@@ -375,7 +448,6 @@ class VPT2Tests(TestCase):
                                             )
 
         return wfns, hammer
-
     def get_VPT2_wfns(self,
                       mol_spec,
                       internals,
@@ -451,7 +523,6 @@ class VPT2Tests(TestCase):
             , state_space_iterations=state_space_iterations
             , zero_element_warning=zero_element_warning
         )[0]
-
     def print_energy_block(self, tag, wfns, states, zpe, freqs, real_fmt='{:>12.5f}'):
 
         if wfns is not None:
@@ -475,7 +546,6 @@ class VPT2Tests(TestCase):
                 ),
                 sep="\n  "
             )
-
     def run_PT_test(self,
                     tag, mol_spec, internals, mode_selection,
                     states, gaussian_energies, gaussian_freqs,
@@ -616,8 +686,6 @@ class VPT2Tests(TestCase):
 
         if gaussian_freqs is not None:
             self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), gaussian_tolerance)
-
-
     def write_intensity_breakdown(self, s, all_wfns, plot_spec, write_wavefunctions=True):
         """
 
@@ -657,15 +725,487 @@ class VPT2Tests(TestCase):
                         else:
                             ploot = spec.plot(figure=ploot, plot_style=dict(linefmt=colors[i]))
                     ploot.show()
-            # break
+    class single_morse:
+        # mass_weights = masses[:2] / np.sum(masses[:2])
+        def __init__(self, De_1, a_1, re_1):  # , De_2, a_2, re_2, kb):
+            self.De_1 = De_1
+            self.a_1 = a_1
+            self.re_1 = re_1
 
-    #endregion
+        def __call__(self, carts):
+            # anchor_pos = np.average(carts[..., :2, :], weights=mass_weights, axis=-2)
+            r1_vecs = carts[..., 1, :] - carts[..., 0, :]
+            r1 = nput.vec_norms(r1_vecs) - self.re_1
 
-    # region New Style Tests
+            return self.De_1 * (1 - np.exp(-self.a_1 * r1)) ** 2
+    analytic_data['Morse3500/50'] = {
+        'zpe': np.array([1750.000, 1737.5000000]),
+        'freqs': np.array([
+            [ 3500.000, 3400.0000000],
+            [ 7000.000, 6700.0000000],
+            [10500.000, 9900.0000000],
 
-    # region Water Analogs
+            [14000.000, 13000.000000],
+            [17500.000, 16000.000000]
+        ])
+    }
+    class harmonically_coupled_morse:
+        # mass_weights = masses[:2] / np.sum(masses[:2])
+        def __init__(self,
+                     De_1, a_1, re_1,
+                     De_2, a_2, re_2,
+                     kb, b_e
+                     ):
+            self.De_1 = De_1
+            self.a_1 = a_1
+            self.re_1 = re_1
+            self.De_2 = De_2
+            self.a_2 = a_2
+            self.re_2 = re_2
+            self.kb = kb
+            self.b_e = b_e
 
-    @validationTest
+        def __call__(self, carts):
+            v1 = carts[..., 1, :] - carts[..., 0, :]
+            v2 = carts[..., 2, :] - carts[..., 0, :]
+            r1 = nput.vec_norms(v1) - self.re_1
+            r2 = nput.vec_norms(v2) - self.re_2
+            bend, _ = nput.vec_angles(v1, v2)
+            bend = bend - self.b_e
+
+            return (
+                    self.De_1 * (1 - np.exp(-self.a_1 * r1)) ** 2
+                    + self.De_2 * (1 - np.exp(-self.a_2 * r2)) ** 2
+                    + self.kb * bend**2
+            )
+    analytic_data['Morse3500/50+3000/100'] = {
+        'zpe': np.array([1750 + 1500, 3212.500]),
+        'freqs': np.array([
+            [ 3500.000,  3400.000],
+            [ 3000.000,  2800.000],
+            [ 7000.000,  6700.000],
+            [ 6000.000,  5400.000],
+            [ 6500.000,  6200.000],
+            [10500.000,  9900.000],
+            [ 9000.000,  7800.000],
+            [10000.000,  9500.000],
+            [ 9500.000,  8800.000],
+            [14000.000, 13000.000],
+            [12000.000, 10000.000],
+            [13500.000, 12700.000],
+            [12500.000, 11200.000],
+            [13000.000, 12100.000]
+        ])
+    }
+    analytic_data['NedModel'] = {
+        'zpe': np.array([1750 + 1500, 3212.500]),
+        'freqs': np.array([
+            [3500.000, 3400.000],
+            [3000.000, 2800.000],
+            [7000.000, 6700.000],
+            [6000.000, 5400.000],
+            [6500.000, 6200.000],
+            [10500.000, 9900.000],
+            [9000.000, 7800.000],
+            [10000.000, 9500.000],
+            [9500.000, 8800.000],
+            [14000.000, 13000.000],
+            [12000.000, 10000.000],
+            [13500.000, 12700.000],
+            [12500.000, 11200.000],
+            [13000.000, 12100.000]
+        ])
+    }
+    gaussian_data['DOD'] = {
+        'zpe': np.array([3406.854, 3366.588]),
+        'freqs': np.array([
+            [2884.314, 2779.931],
+            [2742.310, 2648.051],
+            [1187.085, 1160.758],
+
+            [5768.628, 5504.706],
+            [5484.619, 5250.472],
+            [2374.171, 2306.554],
+
+            [5626.624, 5341.492],
+            [4071.399, 3928.727],
+            [3929.395, 3798.041]
+        ])
+    }
+    gaussian_data['HOH'] = {
+        'zpe': np.array([4681.564, 4605.953]),
+        'freqs': np.array([
+        [3937.525, 3744.734],
+        [3803.300, 3621.994],
+        [1622.303, 1572.707],
+
+        [7875.049, 7391.391],
+        [7606.599, 7155.881],
+        [3244.606, 3117.366],
+
+        [7740.824, 7200.364],
+        [5559.828, 5294.379],
+        [5425.603, 5174.665]
+    ])
+    }
+    gaussian_data['HOD'] = {
+        'zpe': np.array([4052.912, 3994.844]),
+        'freqs': np.array([
+        [3873.846, 3685.815],
+        [2810.031, 2706.132],
+        [1421.946, 1383.391],
+        [7747.692, 7202.835],
+        [5620.062, 5323.917],
+        [2843.893, 2749.027],
+        [6683.877, 6377.958],
+        [5295.792, 5044.721],
+        [4231.977, 4072.407]
+    ])
+    }
+    gaussian_data['HOT'] = {
+        'zpe': np.array([3789.117, 3736.855]),
+        'freqs': np.array([
+            [3872.325, 3692.047],
+            [2357.491, 2285.849],
+            [1348.418, 1313.165],
+            [7744.651, 7214.810],
+            [4714.982, 4509.256],
+            [2696.835, 2607.130],
+            [6229.816, 5973.755],
+            [5220.743, 4987.363],
+            [3705.909, 3584.756]
+        ])
+    }
+    gaussian_data['OCHH'] = {
+        'zpe': [5866.872, 5785.953],
+        'freqs': np.array([
+            [3061.701, 2849.454],
+            [2977.640, 2820.563],
+            [1727.083, 1695.163],
+            [1527.041, 1493.139],
+            [1252.164, 1231.359],
+            [1188.114, 1166.697],
+            # 2 quanta
+            [6123.403, 5719.555],
+            [5955.281, 5578.213],
+            [3454.165, 3372.197],
+            [3054.082, 2988.763],
+            [2504.328, 2459.646],
+            [2376.227, 2327.621],
+            # mixed states
+            [6039.342, 5586.305],
+            [4788.784, 4589.165],
+            [4588.742, 4374.903],
+            [4313.865, 4114.701],
+            [4249.815, 4043.462],
+            [4704.723, 4510.744],
+            [4504.681, 4278.834],
+            [4229.804, 4043.264],
+            [4165.754, 3978.440],
+            [3254.123, 3181.610],
+            [2979.247, 2967.726],
+            [2915.196, 2854.766],
+            [2779.205, 2710.416],
+            [2715.155, 2657.682],
+            [2440.278, 2404.805]
+        ])
+    }
+    gaussian_data['OCHD'] = {
+        'zpe': [5235.162,  5171.477],
+        'freqs': np.array([
+            [3022.813, 2881.940],
+            [2221.268, 2152.210],
+            [1701.548, 1673.311],
+            [1417.539, 1388.280],
+            [1076.474, 1058.211],
+            [1030.681, 1015.305],
+            # 2 quanta
+            [6045.626, 5574.482],
+            [4442.536, 4203.337],
+            [3403.097, 3327.254],
+            [2835.078, 2744.748],
+            [2152.949, 2098.305],
+            [2061.363, 2022.956],
+            # mixed states
+            [5244.081, 4990.144],
+            [4724.361, 4529.189],
+            [4440.352, 4192.841],
+            [4099.287, 3896.226],
+            [4053.494, 3866.190],
+            [3922.817, 3809.397],
+            [3638.807, 3518.724],
+            [3297.743, 3183.261],
+            [3251.950, 3146.116],
+            [3119.087, 3060.953],
+            [2778.023, 2725.597],
+            [2732.230, 2681.778],
+            [2494.013, 2448.626],
+            [2448.220, 2403.196],
+            [2107.156, 2074.925]
+        ])
+    }
+    """
+      0 0 0 0 0 1    3061.70147     95.24194      2937.42073     67.88355
+      0 0 0 0 1 0    2977.64050     69.29750      2820.54966     64.51113
+      0 0 0 1 0 0    1727.08265     63.79277      1695.15657     65.45991
+      0 0 1 0 0 0    1527.04080     11.12160      1493.14023      9.38237
+      0 1 0 0 0 0    1252.16397      9.69252      1231.36414     10.16233
+      1 0 0 0 0 0    1188.11376      7.01998      1166.70422      7.00896
+      """
+    gaussian_data['OCHT'] = {
+        'zpe': [4970.730, 4912.805],
+        'freqs': np.array([
+            [3022.143,  2864.375],
+            [1918.480,  1859.357],
+            [1660.249,  1630.227],
+            [1399.294,  1370.966],
+            [1036.668,  1019.245],
+            [ 904.625,   892.062],
+
+            [6044.287,  5601.333],
+            [3836.959,  3677.621],
+            [3320.498,  3246.038],
+            [2798.588,  2724.050],
+            [2073.336,  2035.811],
+            [1809.250,  1778.733],
+
+            [4940.623,  4725.335],
+            [4682.392,  4497.932],
+            [4421.438,  4220.692],
+            [4058.812,  3870.413],
+            [3926.768,  3756.997],
+            [3578.729,  3474.240],
+            [3317.774,  3227.798],
+            [2955.148,  2867.701],
+            [2823.105,  2746.008],
+            [3059.543,  3000.454],
+            [2696.917,  2644.455],
+            [2564.874,  2515.823],
+            [2435.962,  2393.534],
+            [2303.919,  2263.695],
+            [1941.293,  1911.106]
+        ])
+    }
+    gaussian_data['HOONO'] = {
+        'zpe': [5144.56105, 5052.05930],
+        'freqs': np.array([
+            [3486.855,  3299.146],
+            [1568.502,  1558.272],
+            [1433.609,  1395.836],
+            [ 970.877,   947.362],
+            [ 836.395,   814.545],
+            [ 715.883,   799.170],
+            [ 524.099,   482.999],
+            [ 397.168,   371.575],
+            [ 355.733,   270.102],
+            # 2 quanta
+            [6973.711,  6378.861],
+            [3137.004,  3097.108],
+            [2867.219,  2783.602],
+            [1941.754,  1889.021],
+            [1672.790,  1622.255],
+            [1431.767,  1543.473],
+            [1048.199,   949.341],
+            [ 794.335,   736.075],
+            [ 711.467,   309.620],
+            # mixed states
+            [5055.357,  4854.609],
+            [4920.465,  4656.617],
+            [4457.732,  4250.173],
+            [4323.250,  4118.829],
+            [4202.739,  4110.476],
+            [4010.955,  3804.739],
+            [3884.023,  3672.896],
+            [3842.589,  3629.964],
+            [3002.112,  2946.860],
+            [2539.379,  2502.223],
+            [2404.897,  2371.654],
+            [2284.385,  2386.161],
+            [2092.601,  2042.056],
+            [1965.670,  1930.208],
+            [1924.236,  1833.376],
+            [2404.486,  2340.072],
+            [2270.004,  2203.572],
+            [2149.493,  2194.956],
+            [1957.709,  1884.793],
+            [1830.777,  1768.335],
+            [1789.343,  1680.838],
+            [1807.272,  1752.785],
+            [1686.760,  1737.147],
+            [1494.976,  1428.035],
+            [1368.044,  1314.186],
+            [1326.610,  1212.119],
+            [1552.278,  1609.052],
+            [1360.494,  1292.706],
+            [1233.562,  1182.927],
+            [1192.128,  1081.094],
+            [1239.983,  1265.933],
+            [1113.051,  1161.080],
+            [1071.617,  1350.184],
+            [ 921.267,   848.123],
+            [ 879.833,   706.552],
+            [ 752.901,   627.196],
+        ])
+    }
+    gaussian_data['CH2DT'] = {
+        'zpe': [8311.227, 8205.865],
+        'freqs': np.array([
+             [3206.212, 3056.426],
+             [3141.846, 3001.995],
+             [2328.234, 2246.906],
+             [1951.131, 1907.512],
+             [1445.225, 1413.150],
+             [1311.183, 1285.762],
+             [1230.305, 1205.049],
+             [1048.980, 1028.622],
+             [ 959.340,  944.038],
+
+             [6412.425, 6049.075],
+             [6283.691, 5956.951],
+             [4656.467, 4431.987],
+             [3902.262, 3737.670],
+             [2890.450, 2815.938],
+             [2622.365, 2568.324],
+             [2460.609, 2402.604],
+             [2097.961, 2053.655],
+             [1918.679, 1868.498],
+
+             [6348.058, 5946.349],
+             [5534.446, 5304.546],
+             [5157.343, 4946.234],
+             [4651.438, 4449.136],
+             [4517.395, 4325.685],
+             [4436.517, 4250.290],
+             [4255.193, 4077.953],
+             [4165.552, 3999.186],
+             [5470.079, 5252.170],
+             [5092.977, 4895.552],
+             [4587.071, 4407.847],
+             [4453.028, 4280.602],
+             [4372.150, 4204.590],
+             [4190.826, 4027.168],
+             [4101.185, 3948.975],
+             [4279.364, 4131.666],
+             [3773.459, 3657.329],
+             [3639.416, 3518.558],
+             [3558.538, 3448.813],
+             [3377.214, 3269.456],
+             [3287.573, 3183.220],
+             [3396.356, 3302.019],
+             [3262.313, 3175.698],
+             [3181.436, 3094.860],
+             [3000.111, 2904.013],
+             [2910.471, 2822.890],
+             [2756.408, 2698.844],
+             [2675.530, 2618.649],
+             [2494.205, 2435.125],
+             [2404.565, 2356.088],
+             [2541.487, 2483.423],
+             [2360.163, 2319.432],
+             [2270.522, 2230.076],
+             [2279.285, 2236.240],
+             [2189.644, 2143.874],
+             [2008.320, 1973.845]
+        ])
+    }
+    gaussian_data['WaterDimer'] = {
+        'zpe': [10133.860, 9909.756],
+        'freqs': np.array([
+         [ 3935.49,  3742.92],
+         [ 3914.94,  3752.15],
+         [ 3814.08,  3652.41],
+         [ 3718.19,  3584.14],
+         [ 1650.02,  1592.65],
+         [ 1629.21,  1585.96],
+         [  631.34,  505.605],
+         [ 362.703,  295.834],
+         [ 183.777,  141.372],
+         [ 154.306,  110.995],
+         [ 146.544,  150.517],
+         [ 127.117,   69.163],
+         [ 7870.98,  7393.56],
+         [ 7829.88,  7368.49],
+         [ 7628.16,  7224.88],
+         [ 7436.38,  7016.02],
+         [ 3300.05,  3152.47],
+         [ 3258.42,  3144.16],
+         [ 1262.68,  921.053],
+         [ 725.405,  488.907],
+         [ 367.554,  268.882],
+         [ 308.612,  207.465],
+         [ 293.089,  299.766],
+         [ 254.234,  114.677],
+         [ 7850.43,  7494.65],
+         [ 7749.57,  7239.31],
+         [ 7653.68,  7322.97],
+         [ 5585.51,  5334.87],
+         [  5564.7,   5314.4],
+         [ 4566.83,   4249.7],
+         [ 4298.19,  4016.06],
+         [ 4119.27,  3875.58],
+         [  4089.8,  3839.37],
+         [ 4082.03,  3892.36],
+         [ 4062.61,   3810.2],
+         [ 7729.02,  7402.98],
+         [ 7633.13,  7271.26],
+         [ 5564.96,  5328.22],
+         [ 5544.15,  5337.03],
+         [ 4546.28,  4261.39],
+         [ 4277.64,  4024.52],
+         [ 4098.72,  3895.81],
+         [ 4069.25,  3864.62],
+         [ 4061.48,  3903.06],
+         [ 4042.06,  3844.89],
+         [ 7532.27,  7230.66],
+         [  5464.1,  5244.06],
+         [ 5443.29,  5222.11],
+         [ 4445.42,  4159.77],
+         [ 4176.78,  3928.52],
+         [ 3997.86,  3794.28],
+         [ 3968.39,  3763.45],
+         [ 3960.62,  3844.23],
+         [  3941.2,  3692.21],
+         [ 5368.22,   5164.6],
+         [  5347.4,  5168.41],
+         [ 4349.53,  4139.08],
+         [ 4080.89,  3889.46],
+         [ 3901.97,   3739.5],
+         [  3872.5,  3704.84],
+         [ 3864.74,  3750.79],
+         [ 3845.31,   3657.1],
+         [ 3279.23,  3172.37],
+         [ 2281.36,  2107.39],
+         [ 2012.73,  1852.95],
+         [  1833.8,  1732.29],
+         [ 1804.33,  1699.13],
+         [ 1796.57,    1746.],
+         [ 1777.14,  1656.44],
+         [ 2260.55,  2094.51],
+         [ 1991.91,  1862.32],
+         [ 1812.99,  1729.35],
+         [ 1783.52,  1700.18],
+         [ 1775.76,  1736.87],
+         [ 1756.33,  1651.98],
+         [ 994.042,  745.791],
+         [ 815.116,   620.62],
+         [ 785.646,  595.362],
+         [ 777.884,  646.479],
+         [ 758.457,   525.68],
+         [ 546.479,  389.065],
+         [ 517.009,  374.506],
+         [ 509.247,  405.832],
+         [  489.82,  336.402],
+         [ 338.083,  235.655],
+         [ 330.321,  287.882],
+         [ 310.894,  207.357],
+         [  300.85,  261.693],
+         [ 281.423,   169.59],
+         [ 273.662,  201.333]
+    ])
+    }
+```
+#### <a name="HOHVPTRunner">HOHVPTRunner</a>
+```python
     def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
@@ -675,8 +1215,9 @@ class VPT2Tests(TestCase):
             memory_constrained=True,
             logger=True
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTRunnerFlow">HOHVPTRunnerFlow</a>
+```python
     def test_HOHVPTRunnerFlow(self):
 
         file_name = "HOH_freq.fchk"
@@ -693,8 +1234,9 @@ class VPT2Tests(TestCase):
         run_opts = VPTRuntimeOptions(logger=True)
         runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
         runner.print_tables()
-
-    @validationTest
+```
+#### <a name="HOHVPTRunnerShifted">HOHVPTRunnerShifted</a>
+```python
     def test_HOHVPTRunnerShifted(self):
 
         file_name = "HOH_freq.fchk"
@@ -704,8 +1246,9 @@ class VPT2Tests(TestCase):
             logger=True,
             corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/self.h2w
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTRunner3rd">HOHVPTRunner3rd</a>
+```python
     def test_HOHVPTRunner3rd(self):
         """
         test that runner works for 3rd order PT, too
@@ -839,8 +1382,9 @@ class VPT2Tests(TestCase):
                     [[0, 1, 0], [2, 0, 0]],
                 ]
             )
-
-    @validationTest
+```
+#### <a name="GetDegenerateSpaces">GetDegenerateSpaces</a>
+```python
     def test_GetDegenerateSpaces(self):
 
         base_states = [
@@ -859,10 +1403,9 @@ class VPT2Tests(TestCase):
                 ]
             ],
         )
-
-    #endregion
-
-    @debugTest
+```
+#### <a name="ClHOClRunner">ClHOClRunner</a>
+```python
     def test_ClHOClRunner(self):
         file_name = "cl_hocl.fchk"
         state = VPTStateMaker(6)
@@ -909,54 +1452,9 @@ class VPT2Tests(TestCase):
   0 1 0 0 0 2    5699.88024      0.00000      4434.73451     13.94374
   0 0 0 0 2 1    5592.48467      0.00000      4694.05104     11.62693
   """
-        # VPTRunner.run_simple(
-        #     TestManager.test_data(file_name),
-        #     [
-        #         state(),
-        #         state([1, 1]),
-        #         state([1, 2])
-        #     ],
-        #     logger=True,
-        #     handle_strong_couplings=True
-        # )
-        # VPTRunner.run_simple(
-        #     TestManager.test_data(file_name),
-        #     3, # many more states
-        #     logger=True,
-        #     handle_strong_couplings=True
-        # )
-
-    # endregion
-
-    #region Old Style Test Systems
-
-    #region Analytic Models
-
-    class single_morse:
-        # mass_weights = masses[:2] / np.sum(masses[:2])
-        def __init__(self, De_1, a_1, re_1):  # , De_2, a_2, re_2, kb):
-            self.De_1 = De_1
-            self.a_1 = a_1
-            self.re_1 = re_1
-
-        def __call__(self, carts):
-            # anchor_pos = np.average(carts[..., :2, :], weights=mass_weights, axis=-2)
-            r1_vecs = carts[..., 1, :] - carts[..., 0, :]
-            r1 = nput.vec_norms(r1_vecs) - self.re_1
-
-            return self.De_1 * (1 - np.exp(-self.a_1 * r1)) ** 2
-    analytic_data['Morse3500/50'] = {
-        'zpe': np.array([1750.000, 1737.5000000]),
-        'freqs': np.array([
-            [ 3500.000, 3400.0000000],
-            [ 7000.000, 6700.0000000],
-            [10500.000, 9900.0000000],
-
-            [14000.000, 13000.000000],
-            [17500.000, 16000.000000]
-        ])
-    }
-    @validationTest #paper
+```
+#### <a name="OneMorseCartesiansNonDeg">OneMorseCartesiansNonDeg</a>
+```python
     def test_OneMorseCartesiansNonDeg(self):
 
         import warnings
@@ -1073,8 +1571,9 @@ class VPT2Tests(TestCase):
             # ]
             # , parallelized=True
         )
-
-    @validationTest
+```
+#### <a name="OneMorseCartesiansNonDegMostlyNumerical">OneMorseCartesiansNonDegMostlyNumerical</a>
+```python
     def test_OneMorseCartesiansNonDegMostlyNumerical(self):
 
         import warnings
@@ -1193,56 +1692,9 @@ class VPT2Tests(TestCase):
             # ]
             , parallelized=True
         )
-
-    class harmonically_coupled_morse:
-        # mass_weights = masses[:2] / np.sum(masses[:2])
-        def __init__(self,
-                     De_1, a_1, re_1,
-                     De_2, a_2, re_2,
-                     kb, b_e
-                     ):
-            self.De_1 = De_1
-            self.a_1 = a_1
-            self.re_1 = re_1
-            self.De_2 = De_2
-            self.a_2 = a_2
-            self.re_2 = re_2
-            self.kb = kb
-            self.b_e = b_e
-
-        def __call__(self, carts):
-            v1 = carts[..., 1, :] - carts[..., 0, :]
-            v2 = carts[..., 2, :] - carts[..., 0, :]
-            r1 = nput.vec_norms(v1) - self.re_1
-            r2 = nput.vec_norms(v2) - self.re_2
-            bend, _ = nput.vec_angles(v1, v2)
-            bend = bend - self.b_e
-
-            return (
-                    self.De_1 * (1 - np.exp(-self.a_1 * r1)) ** 2
-                    + self.De_2 * (1 - np.exp(-self.a_2 * r2)) ** 2
-                    + self.kb * bend**2
-            )
-    analytic_data['Morse3500/50+3000/100'] = {
-        'zpe': np.array([1750 + 1500, 3212.500]),
-        'freqs': np.array([
-            [ 3500.000,  3400.000],
-            [ 3000.000,  2800.000],
-            [ 7000.000,  6700.000],
-            [ 6000.000,  5400.000],
-            [ 6500.000,  6200.000],
-            [10500.000,  9900.000],
-            [ 9000.000,  7800.000],
-            [10000.000,  9500.000],
-            [ 9500.000,  8800.000],
-            [14000.000, 13000.000],
-            [12000.000, 10000.000],
-            [13500.000, 12700.000],
-            [12500.000, 11200.000],
-            [13000.000, 12100.000]
-        ])
-    }
-    @inactiveTest
+```
+#### <a name="TwoMorseCartesiansNonDeg">TwoMorseCartesiansNonDeg</a>
+```python
     def test_TwoMorseCartesiansNonDeg(self):
 
         import warnings
@@ -1386,27 +1838,9 @@ class VPT2Tests(TestCase):
             # ]
             # , parallelized=True
         )
-
-    analytic_data['NedModel'] = {
-        'zpe': np.array([1750 + 1500, 3212.500]),
-        'freqs': np.array([
-            [3500.000, 3400.000],
-            [3000.000, 2800.000],
-            [7000.000, 6700.000],
-            [6000.000, 5400.000],
-            [6500.000, 6200.000],
-            [10500.000, 9900.000],
-            [9000.000, 7800.000],
-            [10000.000, 9500.000],
-            [9500.000, 8800.000],
-            [14000.000, 13000.000],
-            [12000.000, 10000.000],
-            [13500.000, 12700.000],
-            [12500.000, 11200.000],
-            [13000.000, 12100.000]
-        ])
-    }
-    @validationTest
+```
+#### <a name="TwoMorseCartesiansAndBendNonDeg">TwoMorseCartesiansAndBendNonDeg</a>
+```python
     def test_TwoMorseCartesiansAndBendNonDeg(self):
 
         import warnings
@@ -1542,28 +1976,9 @@ class VPT2Tests(TestCase):
             # ]
             # , parallelized=True
         )
-
-    #endregion
-
-    #region Water Analogs
-
-    gaussian_data['DOD'] = {
-        'zpe': np.array([3406.854, 3366.588]),
-        'freqs': np.array([
-            [2884.314, 2779.931],
-            [2742.310, 2648.051],
-            [1187.085, 1160.758],
-
-            [5768.628, 5504.706],
-            [5484.619, 5250.472],
-            [2374.171, 2306.554],
-
-            [5626.624, 5341.492],
-            [4071.399, 3928.727],
-            [3929.395, 3798.041]
-        ])
-    }
-    @validationTest
+```
+#### <a name="DODVPTCartesians">DODVPTCartesians</a>
+```python
     def test_DODVPTCartesians(self):
 
         tag = 'DOD Internals'
@@ -1593,8 +2008,9 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             print_report=print_report
         )
-
-    @validationTest
+```
+#### <a name="DODVPTInternals">DODVPTInternals</a>
+```python
     def test_DODVPTInternals(self):
 
         tag = 'DOD Internals'
@@ -1628,24 +2044,9 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             print_report=print_report
         )
-
-    gaussian_data['HOH'] = {
-        'zpe': np.array([4681.564, 4605.953]),
-        'freqs': np.array([
-        [3937.525, 3744.734],
-        [3803.300, 3621.994],
-        [1622.303, 1572.707],
-
-        [7875.049, 7391.391],
-        [7606.599, 7155.881],
-        [3244.606, 3117.366],
-
-        [7740.824, 7200.364],
-        [5559.828, 5294.379],
-        [5425.603, 5174.665]
-    ])
-    }
-    @validationTest
+```
+#### <a name="HOHVPTInternals">HOHVPTInternals</a>
+```python
     def test_HOHVPTInternals(self):
 
         tag = 'HOH Internals'
@@ -1686,8 +2087,9 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             calculate_intensities=True
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTInternalsBackprop">HOHVPTInternalsBackprop</a>
+```python
     def test_HOHVPTInternalsBackprop(self):
 
         tag = 'HOH Internals'
@@ -1729,8 +2131,9 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             calculate_intensities=True
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTInternalsDirect">HOHVPTInternalsDirect</a>
+```python
     def test_HOHVPTInternalsDirect(self):
 
         tag = 'HOH Internals'
@@ -1772,8 +2175,9 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             calculate_intensities=True
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTInternalsEmbedded">HOHVPTInternalsEmbedded</a>
+```python
     def test_HOHVPTInternalsEmbedded(self):
 
         tag = 'HOH Cartesians'
@@ -1812,8 +2216,9 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             calculate_intensities=True
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTCartesians">HOHVPTCartesians</a>
+```python
     def test_HOHVPTCartesians(self):
 
         tag = 'HOH Cartesians'
@@ -1860,8 +2265,9 @@ class VPT2Tests(TestCase):
             # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
             # , watson=False
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTCartesiansOnly2Quanta">HOHVPTCartesiansOnly2Quanta</a>
+```python
     def test_HOHVPTCartesiansOnly2Quanta(self):
 
         tag = 'HOH Cartesians'
@@ -1908,8 +2314,9 @@ class VPT2Tests(TestCase):
             # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
             # , watson=False
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTCartesiansFiltered">HOHVPTCartesiansFiltered</a>
+```python
     def test_HOHVPTCartesiansFiltered(self):
 
         import warnings
@@ -1951,8 +2358,9 @@ class VPT2Tests(TestCase):
             calculate_intensities=True,
             state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTCartesiansSubsample">HOHVPTCartesiansSubsample</a>
+```python
     def test_HOHVPTCartesiansSubsample(self):
 
         tag = 'HOH Cartesians'
@@ -1999,8 +2407,9 @@ class VPT2Tests(TestCase):
             # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
             # , watson=False
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTCartesiansSubsampleFiltered">HOHVPTCartesiansSubsampleFiltered</a>
+```python
     def test_HOHVPTCartesiansSubsampleFiltered(self):
 
         tag = 'HOH Cartesians'
@@ -2043,8 +2452,9 @@ class VPT2Tests(TestCase):
             calculate_intensities=True,
             state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTCartesiansEmbdeddd">HOHVPTCartesiansEmbdeddd</a>
+```python
     def test_HOHVPTCartesiansEmbdeddd(self):
 
         tag = 'HOH Cartesians'
@@ -2088,8 +2498,9 @@ class VPT2Tests(TestCase):
             verbose=True,
             calculate_intensities=True
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTCartesiansSubspace">HOHVPTCartesiansSubspace</a>
+```python
     def test_HOHVPTCartesiansSubspace(self):
 
         tag = 'HOH Cartesians'
@@ -2131,8 +2542,9 @@ class VPT2Tests(TestCase):
             # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
             # , watson=False
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTCartesians4thOrder">HOHVPTCartesians4thOrder</a>
+```python
     def test_HOHVPTCartesians4thOrder(self):
 
         tag = 'HOH Cartesians'
@@ -2180,8 +2592,9 @@ class VPT2Tests(TestCase):
             # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
             # , watson=False
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTCartesians4thOrderKE">HOHVPTCartesians4thOrderKE</a>
+```python
     def test_HOHVPTCartesians4thOrderKE(self):
 
         tag = 'HOH Cartesians'
@@ -2226,8 +2639,9 @@ class VPT2Tests(TestCase):
             # , checkpoint=os.path.expanduser('~/hoh.hdf5'),
             # , watson=False
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTInternals4thOrder">HOHVPTInternals4thOrder</a>
+```python
     def test_HOHVPTInternals4thOrder(self):
 
         tag = 'HOH Internals'
@@ -2273,8 +2687,9 @@ class VPT2Tests(TestCase):
             )
             , calculate_intensities=True
         )
-
-    @validationTest
+```
+#### <a name="HOHVPTInternals4thOrderKE">HOHVPTInternals4thOrderKE</a>
+```python
     def test_HOHVPTInternals4thOrderKE(self):
 
         tag = 'HOH Internals'
@@ -2321,8 +2736,9 @@ class VPT2Tests(TestCase):
             print_report=print_report,
             calculate_intensities=True
         )
-
-    @inactiveTest
+```
+#### <a name="HOHVPTCartesiansDegenerate">HOHVPTCartesiansDegenerate</a>
+```python
     def test_HOHVPTCartesiansDegenerate(self):
 
         internals = None
@@ -2411,22 +2827,9 @@ class VPT2Tests(TestCase):
                                     )
 
         self.assertLess(np.max(np.abs(my_freqs[:ns] - gaussian_freqs[:ns])), 1.5)
-
-    gaussian_data['HOD'] = {
-        'zpe': np.array([4052.912, 3994.844]),
-        'freqs': np.array([
-        [3873.846, 3685.815],
-        [2810.031, 2706.132],
-        [1421.946, 1383.391],
-        [7747.692, 7202.835],
-        [5620.062, 5323.917],
-        [2843.893, 2749.027],
-        [6683.877, 6377.958],
-        [5295.792, 5044.721],
-        [4231.977, 4072.407]
-    ])
-    }
-    @validationTest
+```
+#### <a name="HODVPTInternals">HODVPTInternals</a>
+```python
     def test_HODVPTInternals(self):
 
         tag = 'HOD Internals'
@@ -2460,8 +2863,9 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             print_report=print_report
         )
-
-    @validationTest
+```
+#### <a name="HODVPTCartesians">HODVPTCartesians</a>
+```python
     def test_HODVPTCartesians(self):
 
         tag = 'HOD Cartesians'
@@ -2491,22 +2895,9 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             print_report=print_report
         )
-
-    gaussian_data['HOT'] = {
-        'zpe': np.array([3789.117, 3736.855]),
-        'freqs': np.array([
-            [3872.325, 3692.047],
-            [2357.491, 2285.849],
-            [1348.418, 1313.165],
-            [7744.651, 7214.810],
-            [4714.982, 4509.256],
-            [2696.835, 2607.130],
-            [6229.816, 5973.755],
-            [5220.743, 4987.363],
-            [3705.909, 3584.756]
-        ])
-    }
-    @validationTest
+```
+#### <a name="HOTVPTInternals">HOTVPTInternals</a>
+```python
     def test_HOTVPTInternals(self):
 
         tag = 'HOT Cartesians'
@@ -2540,8 +2931,9 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             print_report=print_report
         )
-
-    @validationTest
+```
+#### <a name="HOTVPTCartesians">HOTVPTCartesians</a>
+```python
     def test_HOTVPTCartesians(self):
 
         tag = 'HOT Cartesians'
@@ -2571,46 +2963,9 @@ class VPT2Tests(TestCase):
             gaussian_freqs,
             print_report=print_report
         )
-
-    #endregion Water Analogs
-
-    #region Formaldehyde Analogs
-
-    gaussian_data['OCHH'] = {
-        'zpe': [5866.872, 5785.953],
-        'freqs': np.array([
-            [3061.701, 2849.454],
-            [2977.640, 2820.563],
-            [1727.083, 1695.163],
-            [1527.041, 1493.139],
-            [1252.164, 1231.359],
-            [1188.114, 1166.697],
-            # 2 quanta
-            [6123.403, 5719.555],
-            [5955.281, 5578.213],
-            [3454.165, 3372.197],
-            [3054.082, 2988.763],
-            [2504.328, 2459.646],
-            [2376.227, 2327.621],
-            # mixed states
-            [6039.342, 5586.305],
-            [4788.784, 4589.165],
-            [4588.742, 4374.903],
-            [4313.865, 4114.701],
-            [4249.815, 4043.462],
-            [4704.723, 4510.744],
-            [4504.681, 4278.834],
-            [4229.804, 4043.264],
-            [4165.754, 3978.440],
-            [3254.123, 3181.610],
-            [2979.247, 2967.726],
-            [2915.196, 2854.766],
-            [2779.205, 2710.416],
-            [2715.155, 2657.682],
-            [2440.278, 2404.805]
-        ])
-    }
-    @validationTest
+```
+#### <a name="OCHHVPTInternals">OCHHVPTInternals</a>
+```python
     def test_OCHHVPTInternals(self):
 
         tag = 'OCHH Internals'
@@ -2655,8 +3010,9 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTInternalsDirectProp">OCHHVPTInternalsDirectProp</a>
+```python
     def test_OCHHVPTInternalsDirectProp(self):
 
         tag = 'OCHH Internals'
@@ -2704,8 +3060,9 @@ class VPT2Tests(TestCase):
                 "direct_propagate_cartesians":True
             }
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTInternalsBackprop">OCHHVPTInternalsBackprop</a>
+```python
     def test_OCHHVPTInternalsBackprop(self):
 
         tag = 'OCHH Internals'
@@ -2753,8 +3110,9 @@ class VPT2Tests(TestCase):
                 "backpropagate_internals": True
             }
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTCartesians">OCHHVPTCartesians</a>
+```python
     def test_OCHHVPTCartesians(self):
 
         tag = 'OCHH Cartesians'
@@ -2792,8 +3150,9 @@ class VPT2Tests(TestCase):
             , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , nearly_degenerate_threshold=.1
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTInternalsDummy">OCHHVPTInternalsDummy</a>
+```python
     def test_OCHHVPTInternalsDummy(self):
 
         tag = 'OCHH Internals'
@@ -2855,8 +3214,9 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTCartesiansFiltered">OCHHVPTCartesiansFiltered</a>
+```python
     def test_OCHHVPTCartesiansFiltered(self):
 
         tag = 'OCHH Cartesians'
@@ -2893,8 +3253,9 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance,
             state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTCartesiansDegenerate">OCHHVPTCartesiansDegenerate</a>
+```python
     def test_OCHHVPTCartesiansDegenerate(self):
 
         tag = 'OCHH Cartesians'
@@ -2978,8 +3339,9 @@ class VPT2Tests(TestCase):
             gaussian_resonance_handling=True
             , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTCartesiansNonDegenerateSubsample2">OCHHVPTCartesiansNonDegenerateSubsample2</a>
+```python
     def test_OCHHVPTCartesiansNonDegenerateSubsample2(self):
 
         tag = 'OCHH Cartesians'
@@ -3034,8 +3396,9 @@ class VPT2Tests(TestCase):
             gaussian_resonance_handling=True
             , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTCartesiansDegenerateSubsample2">OCHHVPTCartesiansDegenerateSubsample2</a>
+```python
     def test_OCHHVPTCartesiansDegenerateSubsample2(self):
 
         tag = 'OCHH Cartesians'
@@ -3090,8 +3453,9 @@ class VPT2Tests(TestCase):
             gaussian_resonance_handling=True
             , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTCartesiansDegenerateSubsampleFiltered">OCHHVPTCartesiansDegenerateSubsampleFiltered</a>
+```python
     def test_OCHHVPTCartesiansDegenerateSubsampleFiltered(self):
 
         tag = 'OCHH Cartesians'
@@ -3163,8 +3527,9 @@ class VPT2Tests(TestCase):
             # , invert_x=True
             # , modify_degenerate_perturbations=True
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTInternalsDegenerate">OCHHVPTInternalsDegenerate</a>
+```python
     def test_OCHHVPTInternalsDegenerate(self):
 
         tag = 'OCHH Cartesians'
@@ -3256,8 +3621,9 @@ class VPT2Tests(TestCase):
             # , invert_x=True
             # , modify_degenerate_perturbations=True
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTRunner">OCHHVPTRunner</a>
+```python
     def test_OCHHVPTRunner(self):
 
         file_name = "OCHH_freq.fchk"
@@ -3269,8 +3635,9 @@ class VPT2Tests(TestCase):
                 [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
             ]
         )
-
-    @validationTest
+```
+#### <a name="BrHODVPTRunnerEmbedded">BrHODVPTRunnerEmbedded</a>
+```python
     def test_BrHODVPTRunnerEmbedded(self):
 
         file_name = "br_hod_tz.fchk"
@@ -3321,8 +3688,9 @@ class VPT2Tests(TestCase):
                 res2.transition_moment_corrections[2]
             )
         )
-
-    @validationTest
+```
+#### <a name="OCHHVPTRunnerPolyadExtended">OCHHVPTRunnerPolyadExtended</a>
+```python
     def test_OCHHVPTRunnerPolyadExtended(self):
 
         file_name = "OCHH_freq.fchk"
@@ -3348,42 +3716,9 @@ class VPT2Tests(TestCase):
                 ]
             }
         )
-
-    gaussian_data['OCHD'] = {
-        'zpe': [5235.162,  5171.477],
-        'freqs': np.array([
-            [3022.813, 2881.940],
-            [2221.268, 2152.210],
-            [1701.548, 1673.311],
-            [1417.539, 1388.280],
-            [1076.474, 1058.211],
-            [1030.681, 1015.305],
-            # 2 quanta
-            [6045.626, 5574.482],
-            [4442.536, 4203.337],
-            [3403.097, 3327.254],
-            [2835.078, 2744.748],
-            [2152.949, 2098.305],
-            [2061.363, 2022.956],
-            # mixed states
-            [5244.081, 4990.144],
-            [4724.361, 4529.189],
-            [4440.352, 4192.841],
-            [4099.287, 3896.226],
-            [4053.494, 3866.190],
-            [3922.817, 3809.397],
-            [3638.807, 3518.724],
-            [3297.743, 3183.261],
-            [3251.950, 3146.116],
-            [3119.087, 3060.953],
-            [2778.023, 2725.597],
-            [2732.230, 2681.778],
-            [2494.013, 2448.626],
-            [2448.220, 2403.196],
-            [2107.156, 2074.925]
-        ])
-    }
-    @validationTest
+```
+#### <a name="OCHDVPTInternals">OCHDVPTInternals</a>
+```python
     def test_OCHDVPTInternals(self):
 
         tag = 'OCHD Internals'
@@ -3421,16 +3756,9 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-
-    """
-      0 0 0 0 0 1    3061.70147     95.24194      2937.42073     67.88355
-      0 0 0 0 1 0    2977.64050     69.29750      2820.54966     64.51113
-      0 0 0 1 0 0    1727.08265     63.79277      1695.15657     65.45991
-      0 0 1 0 0 0    1527.04080     11.12160      1493.14023      9.38237
-      0 1 0 0 0 0    1252.16397      9.69252      1231.36414     10.16233
-      1 0 0 0 0 0    1188.11376      7.01998      1166.70422      7.00896
-      """
-    @validationTest
+```
+#### <a name="OCHDVPTCartesians">OCHDVPTCartesians</a>
+```python
     def test_OCHDVPTCartesians(self):
 
         tag = 'OCHD Cartesians'
@@ -3463,42 +3791,9 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-
-    gaussian_data['OCHT'] = {
-        'zpe': [4970.730, 4912.805],
-        'freqs': np.array([
-            [3022.143,  2864.375],
-            [1918.480,  1859.357],
-            [1660.249,  1630.227],
-            [1399.294,  1370.966],
-            [1036.668,  1019.245],
-            [ 904.625,   892.062],
-
-            [6044.287,  5601.333],
-            [3836.959,  3677.621],
-            [3320.498,  3246.038],
-            [2798.588,  2724.050],
-            [2073.336,  2035.811],
-            [1809.250,  1778.733],
-
-            [4940.623,  4725.335],
-            [4682.392,  4497.932],
-            [4421.438,  4220.692],
-            [4058.812,  3870.413],
-            [3926.768,  3756.997],
-            [3578.729,  3474.240],
-            [3317.774,  3227.798],
-            [2955.148,  2867.701],
-            [2823.105,  2746.008],
-            [3059.543,  3000.454],
-            [2696.917,  2644.455],
-            [2564.874,  2515.823],
-            [2435.962,  2393.534],
-            [2303.919,  2263.695],
-            [1941.293,  1911.106]
-        ])
-    }
-    @validationTest
+```
+#### <a name="OCHTVPTInternals">OCHTVPTInternals</a>
+```python
     def test_OCHTVPTInternals(self):
 
         tag = 'OCHT Internals'
@@ -3536,8 +3831,9 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-
-    @validationTest
+```
+#### <a name="OCHTVPTCartesians">OCHTVPTCartesians</a>
+```python
     def test_OCHTVPTCartesians(self):
 
         tag = 'OCHT Cartesians'
@@ -3572,13 +3868,9 @@ class VPT2Tests(TestCase):
             , log=True
             # , print_profile=True
         )
-
-    #endregion Formaldehyde Analogs
-
-    #region X-HOCl
-
-    #Paper
-    @validationTest
+```
+#### <a name="ClHOClVPTInternals">ClHOClVPTInternals</a>
+```python
     def test_ClHOClVPTInternals(self):
 
         tag = 'ClHOCl Internals'
@@ -3628,7 +3920,9 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @inactiveTest
+```
+#### <a name="ClHOClVPTInternalsDummy">ClHOClVPTInternalsDummy</a>
+```python
     def test_ClHOClVPTInternalsDummy(self):
 
         tag = 'Cl-HOCl Internals'
@@ -3718,7 +4012,9 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @validationTest
+```
+#### <a name="ClHOClVPTCartesians">ClHOClVPTCartesians</a>
+```python
     def test_ClHOClVPTCartesians(self):
 
         tag = 'Cl-HOCl Cartesians'
@@ -3761,74 +4057,9 @@ class VPT2Tests(TestCase):
             # zero_element_warning=False
 
         )
-
-    #endregion
-
-    #region HOONO
-
-    gaussian_data['HOONO'] = {
-        'zpe': [5144.56105, 5052.05930],
-        'freqs': np.array([
-            [3486.855,  3299.146],
-            [1568.502,  1558.272],
-            [1433.609,  1395.836],
-            [ 970.877,   947.362],
-            [ 836.395,   814.545],
-            [ 715.883,   799.170],
-            [ 524.099,   482.999],
-            [ 397.168,   371.575],
-            [ 355.733,   270.102],
-            # 2 quanta
-            [6973.711,  6378.861],
-            [3137.004,  3097.108],
-            [2867.219,  2783.602],
-            [1941.754,  1889.021],
-            [1672.790,  1622.255],
-            [1431.767,  1543.473],
-            [1048.199,   949.341],
-            [ 794.335,   736.075],
-            [ 711.467,   309.620],
-            # mixed states
-            [5055.357,  4854.609],
-            [4920.465,  4656.617],
-            [4457.732,  4250.173],
-            [4323.250,  4118.829],
-            [4202.739,  4110.476],
-            [4010.955,  3804.739],
-            [3884.023,  3672.896],
-            [3842.589,  3629.964],
-            [3002.112,  2946.860],
-            [2539.379,  2502.223],
-            [2404.897,  2371.654],
-            [2284.385,  2386.161],
-            [2092.601,  2042.056],
-            [1965.670,  1930.208],
-            [1924.236,  1833.376],
-            [2404.486,  2340.072],
-            [2270.004,  2203.572],
-            [2149.493,  2194.956],
-            [1957.709,  1884.793],
-            [1830.777,  1768.335],
-            [1789.343,  1680.838],
-            [1807.272,  1752.785],
-            [1686.760,  1737.147],
-            [1494.976,  1428.035],
-            [1368.044,  1314.186],
-            [1326.610,  1212.119],
-            [1552.278,  1609.052],
-            [1360.494,  1292.706],
-            [1233.562,  1182.927],
-            [1192.128,  1081.094],
-            [1239.983,  1265.933],
-            [1113.051,  1161.080],
-            [1071.617,  1350.184],
-            [ 921.267,   848.123],
-            [ 879.833,   706.552],
-            [ 752.901,   627.196],
-        ])
-    }
-    #Paper
-    @validationTest
+```
+#### <a name="HOONOVPTInternals">HOONOVPTInternals</a>
+```python
     def test_HOONOVPTInternals(self):
 
         tag = 'HOONO Internals'
@@ -3882,7 +4113,9 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance,
             hamiltonian_options=dict(cartesian_analytic_deriv_order=0)
         )
-    @validationTest
+```
+#### <a name="HOONOVPTInternalsDummy">HOONOVPTInternalsDummy</a>
+```python
     def test_HOONOVPTInternalsDummy(self):
 
         tag = 'HOONO Internals'
@@ -3984,7 +4217,9 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
             , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
-    @validationTest
+```
+#### <a name="HOONOVPTInternalsEmbed">HOONOVPTInternalsEmbed</a>
+```python
     def test_HOONOVPTInternalsEmbed(self):
 
         tag = 'HOONO Internals'
@@ -4029,7 +4264,9 @@ class VPT2Tests(TestCase):
             nielsen_tolerance=nielsen_tolerance,
             gaussian_tolerance=gaussian_tolerance
         )
-    @validationTest
+```
+#### <a name="HOONOVPTCartesians">HOONOVPTCartesians</a>
+```python
     def test_HOONOVPTCartesians(self):
 
         tag = 'HOONO Cartesians'
@@ -4074,8 +4311,9 @@ class VPT2Tests(TestCase):
             # zero_element_warning=False
 
         )
-
-    @validationTest
+```
+#### <a name="HOONOVPTCartesiansEmbdedded">HOONOVPTCartesiansEmbdedded</a>
+```python
     def test_HOONOVPTCartesiansEmbdedded(self):
 
         tag = 'HOONO Cartesians'
@@ -4123,8 +4361,9 @@ class VPT2Tests(TestCase):
             # zero_element_warning=False
 
         )
-
-    @validationTest
+```
+#### <a name="HOONOVPTInternalsDegenerate">HOONOVPTInternalsDegenerate</a>
+```python
     def test_HOONOVPTInternalsDegenerate(self):
 
         tag = 'HOONO Internals'
@@ -4209,7 +4448,9 @@ class VPT2Tests(TestCase):
             state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
 
         )
-    @validationTest
+```
+#### <a name="HOONOVPTCartesiansDegenerate">HOONOVPTCartesiansDegenerate</a>
+```python
     def test_HOONOVPTCartesiansDegenerate(self):
 
         tag = 'HOONO Cartesians'
@@ -4281,73 +4522,9 @@ class VPT2Tests(TestCase):
             # zero_element_warning=False
 
         )
-
-    #endregion
-
-    #region Methane
-
-    gaussian_data['CH2DT'] = {
-        'zpe': [8311.227, 8205.865],
-        'freqs': np.array([
-             [3206.212, 3056.426],
-             [3141.846, 3001.995],
-             [2328.234, 2246.906],
-             [1951.131, 1907.512],
-             [1445.225, 1413.150],
-             [1311.183, 1285.762],
-             [1230.305, 1205.049],
-             [1048.980, 1028.622],
-             [ 959.340,  944.038],
-
-             [6412.425, 6049.075],
-             [6283.691, 5956.951],
-             [4656.467, 4431.987],
-             [3902.262, 3737.670],
-             [2890.450, 2815.938],
-             [2622.365, 2568.324],
-             [2460.609, 2402.604],
-             [2097.961, 2053.655],
-             [1918.679, 1868.498],
-
-             [6348.058, 5946.349],
-             [5534.446, 5304.546],
-             [5157.343, 4946.234],
-             [4651.438, 4449.136],
-             [4517.395, 4325.685],
-             [4436.517, 4250.290],
-             [4255.193, 4077.953],
-             [4165.552, 3999.186],
-             [5470.079, 5252.170],
-             [5092.977, 4895.552],
-             [4587.071, 4407.847],
-             [4453.028, 4280.602],
-             [4372.150, 4204.590],
-             [4190.826, 4027.168],
-             [4101.185, 3948.975],
-             [4279.364, 4131.666],
-             [3773.459, 3657.329],
-             [3639.416, 3518.558],
-             [3558.538, 3448.813],
-             [3377.214, 3269.456],
-             [3287.573, 3183.220],
-             [3396.356, 3302.019],
-             [3262.313, 3175.698],
-             [3181.436, 3094.860],
-             [3000.111, 2904.013],
-             [2910.471, 2822.890],
-             [2756.408, 2698.844],
-             [2675.530, 2618.649],
-             [2494.205, 2435.125],
-             [2404.565, 2356.088],
-             [2541.487, 2483.423],
-             [2360.163, 2319.432],
-             [2270.522, 2230.076],
-             [2279.285, 2236.240],
-             [2189.644, 2143.874],
-             [2008.320, 1973.845]
-        ])
-    }
-    @validationTest
+```
+#### <a name="CH2DTVPTCartesians">CH2DTVPTCartesians</a>
+```python
     def test_CH2DTVPTCartesians(self):
 
         tag = 'CH2DT Cartesians'
@@ -4381,107 +4558,9 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
             , log=True
         )
-
-    #endregion Methane
-
-    #region Water Clusters
-    gaussian_data['WaterDimer'] = {
-        'zpe': [10133.860, 9909.756],
-        'freqs': np.array([
-         [ 3935.49,  3742.92],
-         [ 3914.94,  3752.15],
-         [ 3814.08,  3652.41],
-         [ 3718.19,  3584.14],
-         [ 1650.02,  1592.65],
-         [ 1629.21,  1585.96],
-         [  631.34,  505.605],
-         [ 362.703,  295.834],
-         [ 183.777,  141.372],
-         [ 154.306,  110.995],
-         [ 146.544,  150.517],
-         [ 127.117,   69.163],
-         [ 7870.98,  7393.56],
-         [ 7829.88,  7368.49],
-         [ 7628.16,  7224.88],
-         [ 7436.38,  7016.02],
-         [ 3300.05,  3152.47],
-         [ 3258.42,  3144.16],
-         [ 1262.68,  921.053],
-         [ 725.405,  488.907],
-         [ 367.554,  268.882],
-         [ 308.612,  207.465],
-         [ 293.089,  299.766],
-         [ 254.234,  114.677],
-         [ 7850.43,  7494.65],
-         [ 7749.57,  7239.31],
-         [ 7653.68,  7322.97],
-         [ 5585.51,  5334.87],
-         [  5564.7,   5314.4],
-         [ 4566.83,   4249.7],
-         [ 4298.19,  4016.06],
-         [ 4119.27,  3875.58],
-         [  4089.8,  3839.37],
-         [ 4082.03,  3892.36],
-         [ 4062.61,   3810.2],
-         [ 7729.02,  7402.98],
-         [ 7633.13,  7271.26],
-         [ 5564.96,  5328.22],
-         [ 5544.15,  5337.03],
-         [ 4546.28,  4261.39],
-         [ 4277.64,  4024.52],
-         [ 4098.72,  3895.81],
-         [ 4069.25,  3864.62],
-         [ 4061.48,  3903.06],
-         [ 4042.06,  3844.89],
-         [ 7532.27,  7230.66],
-         [  5464.1,  5244.06],
-         [ 5443.29,  5222.11],
-         [ 4445.42,  4159.77],
-         [ 4176.78,  3928.52],
-         [ 3997.86,  3794.28],
-         [ 3968.39,  3763.45],
-         [ 3960.62,  3844.23],
-         [  3941.2,  3692.21],
-         [ 5368.22,   5164.6],
-         [  5347.4,  5168.41],
-         [ 4349.53,  4139.08],
-         [ 4080.89,  3889.46],
-         [ 3901.97,   3739.5],
-         [  3872.5,  3704.84],
-         [ 3864.74,  3750.79],
-         [ 3845.31,   3657.1],
-         [ 3279.23,  3172.37],
-         [ 2281.36,  2107.39],
-         [ 2012.73,  1852.95],
-         [  1833.8,  1732.29],
-         [ 1804.33,  1699.13],
-         [ 1796.57,    1746.],
-         [ 1777.14,  1656.44],
-         [ 2260.55,  2094.51],
-         [ 1991.91,  1862.32],
-         [ 1812.99,  1729.35],
-         [ 1783.52,  1700.18],
-         [ 1775.76,  1736.87],
-         [ 1756.33,  1651.98],
-         [ 994.042,  745.791],
-         [ 815.116,   620.62],
-         [ 785.646,  595.362],
-         [ 777.884,  646.479],
-         [ 758.457,   525.68],
-         [ 546.479,  389.065],
-         [ 517.009,  374.506],
-         [ 509.247,  405.832],
-         [  489.82,  336.402],
-         [ 338.083,  235.655],
-         [ 330.321,  287.882],
-         [ 310.894,  207.357],
-         [  300.85,  261.693],
-         [ 281.423,   169.59],
-         [ 273.662,  201.333]
-    ])
-    }
-    #Paper
-    @validationTest
+```
+#### <a name="WaterDimerVPTInternals">WaterDimerVPTInternals</a>
+```python
     def test_WaterDimerVPTInternals(self):
 
         """
@@ -4578,8 +4657,9 @@ class VPT2Tests(TestCase):
             # , parallelized=True
             , hamiltonian_options={'cartesian_analytic_deriv_order':0}
         )
-
-    @validationTest
+```
+#### <a name="WaterDimerVPTInternalsBackprop">WaterDimerVPTInternalsBackprop</a>
+```python
     def test_WaterDimerVPTInternalsBackprop(self):
 
         """
@@ -4667,8 +4747,9 @@ class VPT2Tests(TestCase):
             , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , parallelized=True
         )
-
-    @validationTest
+```
+#### <a name="WaterDimerVPTInternalsDirectProp">WaterDimerVPTInternalsDirectProp</a>
+```python
     def test_WaterDimerVPTInternalsDirectProp(self):
 
         """
@@ -4756,8 +4837,9 @@ class VPT2Tests(TestCase):
             , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , parallelized=True
         )
-
-    @validationTest
+```
+#### <a name="WaterDimerVPTInternalsDummy">WaterDimerVPTInternalsDummy</a>
+```python
     def test_WaterDimerVPTInternalsDummy(self):
         # Borked up somehow...
 
@@ -4835,8 +4917,9 @@ class VPT2Tests(TestCase):
             , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , parallelized=True
         )
-
-    @validationTest #prev
+```
+#### <a name="WaterDimerVPTCartesians">WaterDimerVPTCartesians</a>
+```python
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -4914,8 +4997,9 @@ class VPT2Tests(TestCase):
         > H(1): SelectionRuleStateSpace(ogstates=455, nstates=255359, basis=HOBasis(dim=12))
         > H(2): SelectionRuleStateSpace(ogstates=455, nstates=90961, basis=HOBasis(dim=12))
         """
-
-    @validationTest
+```
+#### <a name="WaterDimerVPTCartesiansDegenerate">WaterDimerVPTCartesiansDegenerate</a>
+```python
     def test_WaterDimerVPTCartesiansDegenerate(self):
 
         tag = 'Water Dimer Cartesians'
@@ -4978,8 +5062,9 @@ class VPT2Tests(TestCase):
             , use_cached_representations=False
             , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
         )
-
-    @validationTest
+```
+#### <a name="WaterDimerVPTCartesiansSubterms">WaterDimerVPTCartesiansSubterms</a>
+```python
     def test_WaterDimerVPTCartesiansSubterms(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -5021,8 +5106,9 @@ class VPT2Tests(TestCase):
             , use_cached_representations=False
             , state_space_terms=((1, 0), (2, 0))
         )
-
-    @validationTest
+```
+#### <a name="WaterDimerVPTCartesiansRestrictedFilter">WaterDimerVPTCartesiansRestrictedFilter</a>
+```python
     def test_WaterDimerVPTCartesiansRestrictedFilter(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -5065,8 +5151,9 @@ class VPT2Tests(TestCase):
             , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, 'intensities')
             # , parallelized=True
         )
-
-    @validationTest
+```
+#### <a name="WaterDimerVPTCartesiansParallel">WaterDimerVPTCartesiansParallel</a>
+```python
     def test_WaterDimerVPTCartesiansParallel(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -5104,8 +5191,9 @@ class VPT2Tests(TestCase):
             gaussian_tolerance=gaussian_tolerance
             , parallelized=True
         )
-
-    @validationTest
+```
+#### <a name="WaterDimerVPTCartesiansPararalelMemConstrained">WaterDimerVPTCartesiansPararalelMemConstrained</a>
+```python
     def test_WaterDimerVPTCartesiansPararalelMemConstrained(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -5141,8 +5229,9 @@ class VPT2Tests(TestCase):
             , parallelized=True
             , chunk_size=int(2e4)
         )
-
-    @validationTest
+```
+#### <a name="WaterDimerVPTCartesiansSubspace">WaterDimerVPTCartesiansSubspace</a>
+```python
     def test_WaterDimerVPTCartesiansSubspace(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -5186,8 +5275,9 @@ class VPT2Tests(TestCase):
             , state_space_filters = VPTStateSpace.get_state_space_filter(states, n_modes, target='intensities')
             # , parallelized=True
         )
-
-    @validationTest
+```
+#### <a name="WaterDimerVPTCartesiansHarmonic">WaterDimerVPTCartesiansHarmonic</a>
+```python
     def test_WaterDimerVPTCartesiansHarmonic(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
 
@@ -5232,8 +5322,9 @@ class VPT2Tests(TestCase):
             , state_space_filters=VPTStateSpace.get_state_space_filter(states, n_modes, 'intensities')
             # , parallelized=True
         )
-
-    @validationTest
+```
+#### <a name="WaterTrimerVPTCartesians">WaterTrimerVPTCartesians</a>
+```python
     def test_WaterTrimerVPTCartesians(self):
         tag = 'Water Trimer Cartesians'
         file_name = "water_trimer_freq.fchk"
@@ -5341,14 +5432,9 @@ class VPT2Tests(TestCase):
           1 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0     520.57961      0.00000       319.99659   9536.21904
           1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0     512.19704      0.00000       440.86686    496.64051
   """
-
-    #endregion Water Clusters
-
-    #endregion Test Systems
-
-    #region Test Action Expansions
-
-    @validationTest
+```
+#### <a name="HOHCartesianActionExpansion">HOHCartesianActionExpansion</a>
+```python
     def test_HOHCartesianActionExpansion(self):
 
         internals = None
@@ -5375,14 +5461,9 @@ class VPT2Tests(TestCase):
                 gaussian_x, x
             )
         )
-
-        # raise Exception([
-        #     self.h2w * x,
-        #     self.h2w * w,
-        #     self.h2w * g0
-        # ])
-
-    @inactiveTest
+```
+#### <a name="OCHHCartesianActionExpansion">OCHHCartesianActionExpansion</a>
+```python
     def test_OCHHCartesianActionExpansion(self):
 
         internals = None
@@ -5409,8 +5490,9 @@ class VPT2Tests(TestCase):
             # self.h2w * w,
             # self.h2w * g0
         ])
-
-    @inactiveTest
+```
+#### <a name="WaterDimerCartesianActionExpansion">WaterDimerCartesianActionExpansion</a>
+```python
     def test_WaterDimerCartesianActionExpansion(self):
 
         internals = None
@@ -5432,14 +5514,6 @@ class VPT2Tests(TestCase):
             # self.h2w * w,
             # self.h2w * g0
         ])
-
-        # raise Exception([
-        #     self.h2w * x,
-        #     self.h2w * w,
-        #     self.h2w * g0
-        # ])
-
-    #endregion Test Action Expansions
 ```
 
 ___

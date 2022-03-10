@@ -1,74 +1,112 @@
-## <a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace">PermutationallyReducedStateSpace</a>
+## <a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace">PermutationallyReducedStateSpace</a> 
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1642)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1642?message=Update%20Docs)]
+</div>
+
 Defines a basis state space where terms are reduced over their
 permutationally equivalent operations, making many operations
 dramatically faster
 
-### Properties and Methods
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.__init__" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, basis, class_reps, perms): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1649)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1649?message=Update%20Docs)]
+</div>
+
 
 - `original_space`: `BasisStateSpace`
     >No description...
 
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.to_equivalence_class_space" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.to_equivalence_class_space" class="docs-object-method">&nbsp;</a> 
 ```python
 to_equivalence_class_space(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1657)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1657?message=Update%20Docs)]
+</div>
 
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.from_space" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.from_space" class="docs-object-method">&nbsp;</a> 
 ```python
 from_space(original_space): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1660)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1660?message=Update%20Docs)]
+</div>
 
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.get_equivalent_permutations" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.get_equivalent_permutations" class="docs-object-method">&nbsp;</a> 
 ```python
 get_equivalent_permutations(exc): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1665)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1665?message=Update%20Docs)]
+</div>
+
 
 - `exc`: `np.ndarray`
     >No description...
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.permutation_direct_product" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.permutation_direct_product" class="docs-object-method">&nbsp;</a> 
 ```python
 permutation_direct_product(self, perms): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1688)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1688?message=Update%20Docs)]
+</div>
+
 Creates a new space by taking permutation products
 - `perms`: `Any`
     >No description...
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.apply_selection_rules" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.apply_selection_rules" class="docs-object-method">&nbsp;</a> 
 ```python
 apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None, logger=None, iterations=1, new_state_space_class=None): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1708)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1708?message=Update%20Docs)]
+</div>
 
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.permutationally_reduce" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.permutationally_reduce" class="docs-object-method">&nbsp;</a> 
 ```python
 permutationally_reduce(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1728)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1728?message=Update%20Docs)]
+</div>
 
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.representative_space" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.representative_space" class="docs-object-method">&nbsp;</a> 
 ```python
 representative_space(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1730)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1730?message=Update%20Docs)]
+</div>
 
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.permutationally_expand" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.permutationally_expand" class="docs-object-method">&nbsp;</a> 
 ```python
 permutationally_expand(self): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1732)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1732?message=Update%20Docs)]
+</div>
+
 
 - `:returns`: `BasisStateSpace`
     >No description...
 
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.take_permutations" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.take_permutations" class="docs-object-method">&nbsp;</a> 
 ```python
 take_permutations(self, *p): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1743)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1743?message=Update%20Docs)]
+</div>
+
 Takes subsets of the stored permutations.
         This function is subject to change as the held structure of the permutations
         changes.
@@ -80,10 +118,14 @@ Takes subsets of the stored permutations.
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.take_subspace" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.take_subspace" class="docs-object-method">&nbsp;</a> 
 ```python
 take_subspace(self, sel, assume_sorted=False, track_excitations=True, track_indices=True): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1759)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1759?message=Update%20Docs)]
+</div>
+
 Returns a subsample of the space.
         Intended to be a cheap operation, so samples
         along either the indices or the excitations, depending
@@ -95,10 +137,14 @@ Returns a subsample of the space.
 - `:returns`: `_`
     >No description...
 
-<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.take_subdimensions" class="docs-object-method">&nbsp;</a>
+<a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace.take_subdimensions" class="docs-object-method">&nbsp;</a> 
 ```python
 take_subdimensions(self, inds): 
 ```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateSpaces.py#L1784)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1784?message=Update%20Docs)]
+</div>
+
 Returns a subsample of the space with some dimensions
         dropped
 - `inds`: `Any`
@@ -106,15 +152,12 @@ Returns a subsample of the space with some dimensions
 - `:returns`: `_`
     >No description...
 
-### Examples
-
-
 
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py?message=Update%20Docs)
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateSpaces.py#L1642?message=Update%20Docs)
