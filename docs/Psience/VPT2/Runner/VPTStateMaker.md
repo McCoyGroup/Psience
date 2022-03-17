@@ -1,6 +1,6 @@
 ## <a id="Psience.VPT2.Runner.VPTStateMaker">VPTStateMaker</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L966)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L966?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L976)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L976?message=Update%20Docs)]
 </div>
 
 A tiny but useful class to make states based on their quanta
@@ -19,7 +19,7 @@ of excitation
 __init__(self, ndim, mode='low-high'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L972)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L972?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L982)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L982?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Runner.VPTStateMaker.make_state" class="docs-object-method">&nbsp;</a> 
@@ -27,7 +27,7 @@ __init__(self, ndim, mode='low-high'):
 make_state(self, *specs, mode=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L976)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L976?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L986)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L986?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Runner.VPTStateMaker.__call__" class="docs-object-method">&nbsp;</a> 
@@ -35,7 +35,7 @@ make_state(self, *specs, mode=None):
 __call__(self, *specs, mode=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L998)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L998?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Runner.py#L1008)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L1008?message=Update%20Docs)]
 </div>
 
  </div>
@@ -100,6 +100,7 @@ class VPT2Tests(TestCase):
         H  = 1
         Cl = 2
         X  = 3
+
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             [
@@ -110,23 +111,118 @@ class VPT2Tests(TestCase):
                 state([1, 2], [5, 1]),
                 state([1, 1], [2, 2]),
             ],
-            degenerate_states=[
-                [
-                    [0, 0, 0, 0, 0, 2],
-                    [0, 0, 0, 0, 0, 3],
-                    [0, 1, 0, 0, 0, 2],
-                    [0, 0, 0, 0, 2, 1]
-                ]
+            logger=True,
+            handle_strong_couplings=True,
+            strong_coupling_test_modes=list(range(3, 6))
+        )
+        """
+        > [[0 0 0 0 0 2]
+        >  [1 0 0 0 0 2]
+        >  [0 1 0 0 0 2]
+        >  [0 0 0 0 2 1]
+        >  [0 0 0 0 4 0]
+        >  [0 2 0 0 0 2]
+        >  [0 1 0 0 2 1]]
+                                 Harmonic                  Anharmonic
+        State             Frequency    Intensity       Frequency    Intensity
+          0 0 0 0 0 1    2709.16096   2782.25433      2285.38768   2611.96281
+          0 0 0 0 0 2    5418.32192      0.00000      4140.45935     19.13726
+          0 0 0 0 0 3    8127.48288      0.00000      5353.97008      0.16004
+          0 1 0 0 0 2    5699.88024      0.00000      4605.01290      3.93389
+          0 0 0 0 2 1    5592.48466      0.00000      5023.09956      7.99053
+        """
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                state(),
+                state([1, 1]),
+                state([1, 2]),
+                state([1, 3]),
+                state([1, 2], [5, 1]),
+                state([1, 1], [2, 2]),
             ],
             logger=True,
-            handle_strong_couplings=False
-            , internals=[
-                    [Cl,    _,    _,     _],
-                    [ O,   Cl,    _,     _],
-                    [ X,    O,   Cl,     _],
-                    [ H,    O,   Cl,    X],
-                ]
+            handle_strong_couplings=True
         )
+        """        
+        > [[0 0 0 0 0 2]
+        >  [0 0 0 0 2 1]
+        >  [0 0 0 0 4 0]]
+                                 Harmonic                  Anharmonic
+        State             Frequency    Intensity       Frequency    Intensity
+          0 0 0 0 0 1    2709.16096   2782.25433      2285.38768   2611.96281
+          0 0 0 0 0 2    5418.32192      0.00000      4096.10015     21.49976
+          0 0 0 0 0 3    8127.48288      0.00000      5353.97008      0.16004
+          0 1 0 0 0 2    5699.88024      0.00000      4374.63719      2.66632
+          0 0 0 0 2 1    5592.48466      0.00000      4964.16010      6.86648
+        """
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                state(),
+                state([1, 1]),
+                state([1, 2]),
+                state([1, 3]),
+                state([1, 2], [5, 1]),
+                state([1, 1], [2, 2]),
+            ],
+            logger=True,
+            handle_strong_couplings=True
+            , strong_coupling_test_modes=list(range(3, 6))
+            , internals=[
+                [Cl, _, _, _],
+                [O, Cl, _, _],
+                [X, O, Cl, _],
+                [H, O, Cl, X],
+            ]
+        )
+        """        
+        > [[0 0 0 0 0 2]
+        >  [1 0 0 0 0 2]
+        >  [0 1 0 0 0 2]
+        >  [0 0 0 0 2 1]
+        >  [0 0 0 0 4 0]
+        >  [0 2 0 0 0 2]
+        >  [0 1 0 0 2 1]]
+                                 Harmonic                  Anharmonic
+        State             Frequency    Intensity       Frequency    Intensity
+          0 0 0 0 0 1    2709.16096   2782.25433      2305.91708   2613.72238
+          0 0 0 0 0 2    5418.32192      0.00000      4174.53466     17.82679
+          0 0 0 0 0 3    8127.48288      0.00000      5353.97246      0.16004
+          0 1 0 0 0 2    5699.88024      0.00000      4645.21985      6.56429
+          0 0 0 0 2 1    5592.48466      0.00000      5114.27886      9.19226
+        """
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                state(),
+                state([1, 1]),
+                state([1, 2]),
+                state([1, 3]),
+                state([1, 2], [5, 1]),
+                state([1, 1], [2, 2]),
+            ],
+            logger=True,
+            handle_strong_couplings=True
+            , internals=[
+                [Cl, _, _, _],
+                [O, Cl, _, _],
+                [X, O, Cl, _],
+                [H, O, Cl, X],
+            ]
+        )
+        """
+        > [[0 0 0 0 0 2]
+        >  [0 0 0 0 2 1]
+        >  [0 0 0 0 4 0]]
+                                 Harmonic                  Anharmonic
+        State             Frequency    Intensity       Frequency    Intensity
+          0 0 0 0 0 1    2709.16096   2782.25433      2305.91708   2613.72238
+          0 0 0 0 0 2    5418.32192      0.00000      4130.15930     22.20869
+          0 0 0 0 0 3    8127.48288      0.00000      5353.97246      0.16004
+          0 1 0 0 0 2    5699.88024      0.00000      4374.63638      2.66634
+          0 0 0 0 2 1    5592.48466      0.00000      5053.08138      7.79496
+        """
 ```
 
  </div>
@@ -138,4 +234,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTStateMaker.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTStateMaker.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTStateMaker.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L966?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Runner.py#L976?message=Update%20Docs)
