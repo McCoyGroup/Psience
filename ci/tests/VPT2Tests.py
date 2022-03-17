@@ -343,6 +343,7 @@ class VPT2Tests(TestCase):
                 [H, O, Cl, X],
             ]
         )
+
         """
         > [[0 0 0 0 0 2]
         >  [0 0 0 0 2 1]
