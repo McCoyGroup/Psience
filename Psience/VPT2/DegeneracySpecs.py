@@ -9,6 +9,8 @@ __all__ = [
     "DegenerateMultiStateSpace"
 ]
 
+__reload_hook__ = ["..BasisReps"]
+
 class DegenerateSpaceInputFormat(enum.Enum):
     Groups = "groups"
     QuantaSpecRules = "n_T"
@@ -394,12 +396,54 @@ class CallableDegeneracySpec(DegeneracySpec):
 
 class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
+    @staticmethod
+    def default_group_filter(group, target_modes=None):
+        """
+        Excludes modes that differ in only one position, prioritizing states with fewer numbers of quanta
+        (potentially add restrictions to high frequency modes...?)
+
+        :param input_state:
+        :type input_state:
+        :param couplings:
+        :type couplings:
+        :return:
+        :rtype:
+        """
+        if len(group) == 1:
+            return group
+
+        if target_modes is not None:
+            sub = group.take_subdimensions(target_modes)
+            inds = sub.indices
+            exc = sub.excitations
+        else:
+            inds = group.indices
+            exc = group.excitations
+        sorting = np.argsort(inds)
+        exc = exc[sorting]
+        diffs = exc[:, np.newaxis] - exc[np.newaxis, :]  # difference matrix (s, s, m)
+        diff_sums = np.sum(diffs != 0, axis=2)  # (s, s)
+        bad_pos = np.where(diff_sums == 1) # np.logical_or(diff_sums == 1, diff_sums == 0))
+        if len(bad_pos) > 0 and len(bad_pos[0]) > 0:
+            kills = np.unique(bad_pos[1][bad_pos[1] > bad_pos[0]]) # upper triangle
+            # prek = kills
+            kills = sorting[kills] # OG indices
+            # raise Exception(prek, kills, exc[prek], group.excitations[kills])
+
+            # now drop all of these from the total space
+            mask = np.setdiff1d(np.arange(len(exc)), kills)
+            group = group.take_subspace(mask)
+            # raise Exception(group.excitations, kills)#, np.array(bad_pos).T)
+
+        return group
+
     @classmethod
     def from_spec(cls,
                   degenerate_states,
                   solver=None,
                   full_basis=None,
-                  format=None
+                  format=None,
+                  group_filter=None
                   ):
         """
         Generates a DegenerateMultiStateSpace object from a number
@@ -457,17 +501,29 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                     groups.append([x])
 
         # now turn these into proper BasisStateSpace objects so we can work with them more easily
-        ugh = np.full(len(groups), None)
+        ugh = [None]*len(groups)
         for i,g in enumerate(groups):
             # g = np.sort(np.array(g))
             if not isinstance(g, BasisStateSpace):
                 g = BasisStateSpace(states.basis, np.array(g), mode=BasisStateSpace.StateSpaceSpec.Indices, full_basis=full_basis)
+            if group_filter is not None:
+                g = group_filter(g)
             ugh[i] = g
+        for n,x in enumerate(states.indices):
+            for g in ugh:
+                if x in g.indices:
+                    break
+            else:
+                ugh.append(states.take_subspace([n]))
+        # now make a numpy array for initialization
+        arrs = np.full(len(ugh), None)
+        for i, g in enumerate(ugh):
+            arrs[i] = g
             # if len(g) > 1:
             #     raise Exception(ugh[i].indices, g, ugh[i].excitations,
             #             states.basis.unravel_state_inds(np.arange(10)))
 
-        return cls(ugh)
+        return cls(arrs)
 
 
 

@@ -614,7 +614,10 @@ class VPTSolverOptions:
         "zero_element_warning",
         "degenerate_states",
         "zero_order_energy_corrections",
-        "handle_strong_couplings"
+        "handle_strong_couplings",
+        "strong_coupling_test_modes",
+        "strong_couplings_state_filter",
+        "strongly_coupled_group_filter"
     )
     def __init__(self,
                  order=2,
@@ -633,7 +636,11 @@ class VPTSolverOptions:
                  zero_element_warning=None,
                  degenerate_states=None,
                  handle_strong_couplings=None,
+                 strong_coupling_test_modes=None,
+                 strong_couplings_state_filter=None,
+                 strongly_coupled_group_filter=None,
                  zero_order_energy_corrections=None
+
                  ):
         """
         :param order: the order of perturbation theory to apply
@@ -677,6 +684,9 @@ class VPTSolverOptions:
             flat_total_space=flat_total_space,
             degenerate_states=degenerate_states,
             handle_strong_couplings=handle_strong_couplings,
+            strong_coupling_test_modes=strong_coupling_test_modes,
+            strong_couplings_state_filter=strong_couplings_state_filter,
+            strongly_coupled_group_filter=strongly_coupled_group_filter,
             state_space_iterations=state_space_iterations,
             state_space_terms=state_space_terms,
             state_space_filters=state_space_filters,
