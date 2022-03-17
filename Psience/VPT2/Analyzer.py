@@ -8,6 +8,7 @@ import McUtils.Numputils as nput
 from McUtils.Scaffolding import Checkpointer
 from ..Spectra import DiscreteSpectrum
 from .Wavefunctions import PerturbationTheoryWavefunctions
+from .Runner import VPTRunner
 
 __all__ = [
     "VPTResultsLoader",
@@ -15,7 +16,7 @@ __all__ = [
     "VPTAnalyzer"
 ]
 
-__reload_hook__ = ["..Spectra"]
+__reload_hook__ = ["..Spectra", ".Runner", ".Wavefunctions"]
 
 class VPTResultsSource(enum.Enum):
     """
@@ -129,7 +130,7 @@ class VPTResultsLoader:
         raise ValueError("no dispatch")
     @dipole_terms.register("checkpoint")
     def _(self):
-        return DiscreteSpectrum(*self.data["dipole_terms"])
+        return self.data["dipole_terms"]
     @dipole_terms.register("wavefunctions")
     def _(self):
         return self.data.dipole_terms
@@ -148,7 +149,8 @@ class VPTResultsLoader:
         return self.data["corrections"]["total_states"]
     @basis.register("wavefunctions")
     def _(self):
-        raise NotImplementedError("missing")
+        data = self.data #type:PerturbationTheoryWavefunctions
+        return data.corrs.total_basis
 
     @property_dispatcher
     def target_states(self):
@@ -164,7 +166,8 @@ class VPTResultsLoader:
         return self.data["corrections"]["states"]
     @target_states.register("wavefunctions")
     def _(self):
-        raise NotImplementedError("missing")
+        data = self.data  # type:PerturbationTheoryWavefunctions
+        return data.corrs.states
 
     @property_dispatcher
     def spectrum(self):
@@ -181,7 +184,7 @@ class VPTResultsLoader:
         return DiscreteSpectrum(freq * UnitsData.convert("Hartrees", "Wavenumbers"), ints)
     @spectrum.register("wavefunctions")
     def _(self):
-        return DiscreteSpectrum(self.data.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers"), self.data.intensities)
+        return DiscreteSpectrum(self.data.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers"), self.data.intensities[1:])
 
     @property_dispatcher
     def zero_order_spectrum(self):
@@ -199,7 +202,8 @@ class VPTResultsLoader:
     @zero_order_spectrum.register("wavefunctions")
     def _(self):
         return DiscreteSpectrum(self.data.deperturbed_frequencies(order=0) * UnitsData.convert("Hartrees", "Wavenumbers"),
-                                self.data.deperturbed_intensities_to_order(order=0))
+                                self.data.deperturbed_intensities_to_order(order=0)[1:]
+                                )
 
     @property_dispatcher
     def energy_corrections(self):
@@ -215,7 +219,8 @@ class VPTResultsLoader:
         return self.data["corrections"]["energies"]
     @energy_corrections.register("wavefunctions")
     def _(self):
-        return self.data.corrs.energies
+        data = self.data #type: PerturbationTheoryWavefunctions
+        return data.corrs.energy_corrs
 
     def energies(self):
         """
@@ -318,7 +323,8 @@ class VPTResultsLoader:
         return self.data["degenerate_data"]["states"]
     @degenerate_states.register("wavefunctions")
     def _(self):
-        raise NotImplementedError("missing")
+        data = self.data  # type:PerturbationTheoryWavefunctions
+        return data.corrs.degenerate_states
 
     @property_dispatcher
     def deperturbed_hamiltonians(self):
@@ -332,9 +338,10 @@ class VPTResultsLoader:
     @deperturbed_hamiltonians.register("checkpoint")
     def _(self):
         return self.data["degenerate_data"]["hamiltonians"]
-    @transition_moment_corrections.register("wavefunctions")
+    @deperturbed_hamiltonians.register("wavefunctions")
     def _(self):
-        raise NotImplementedError("missing")
+        data = self.data  # type:PerturbationTheoryWavefunctions
+        return data.corrs.degenerate_hamiltonians
 
     @property_dispatcher
     def degenerate_energies(self):
@@ -350,7 +357,8 @@ class VPTResultsLoader:
         return self.data["degenerate_data"]["energies"]
     @degenerate_energies.register("wavefunctions")
     def _(self):
-        raise NotImplementedError("missing")
+        data = self.data  # type:PerturbationTheoryWavefunctions
+        return data.corrs.degenerate_energies
 
     @property_dispatcher
     def degenerate_rotations(self):
@@ -366,7 +374,8 @@ class VPTResultsLoader:
         return self.data["degenerate_states"]["rotations"]
     @degenerate_rotations.register("wavefunctions")
     def _(self):
-        raise NotImplementedError("missing")
+        data = self.data  # type:PerturbationTheoryWavefunctions
+        return data.corrs.degenerate_transf
 
 def loaded_prop(fn):
     name = fn.__name__
@@ -386,6 +395,27 @@ class VPTAnalyzer:
         if not isinstance(res, VPTResultsLoader):
             res = VPTResultsLoader(res)
         self.loader = res
+
+    @classmethod
+    def run_VPT(cls, *args, logger=False, **kwargs):
+        """
+        Runs a VPT calculation through `VPTRunner.run_simple` and
+        stores the output wave functions to use
+
+        :param args:
+        :type args:
+        :param kwargs:
+        :type kwargs:
+        :return:
+        :rtype:
+        """
+
+        wfns = VPTRunner.run_simple(
+            *args,
+            logger=logger,
+            **kwargs
+        )
+        return cls(wfns)
 
     @loaded_prop
     def potential_terms(self):
@@ -484,7 +514,7 @@ class VPTAnalyzer:
         tmom = self.deperturbed_transition_moments[0]
         osc = np.linalg.norm(tmom, axis=0) ** 2
         units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
-        ints = units * freqs * osc
+        ints = units * freqs * osc[1:]
         return DiscreteSpectrum(freqs * UnitsData.convert("Hartrees", "Wavenumbers"), ints)
     @property
     def deperturbed_frequencies(self):
@@ -667,7 +697,7 @@ class VPTAnalyzer:
         osc = np.linalg.norm(deg_tmom, axis=0) ** 2
         units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
         freqs = (eng - zpe)
-        ints = units * freqs * osc
+        ints = units * freqs * osc[1:]
 
         return DiscreteSpectrum(freqs * UnitsData.convert("Hartrees", "Wavenumbers"), ints), deg_transf
 
