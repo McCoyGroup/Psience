@@ -5,7 +5,7 @@ Tests/TestData
 .idea
 CMakeLists.txt
 cmake-build-debug
-
+Icon?
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
