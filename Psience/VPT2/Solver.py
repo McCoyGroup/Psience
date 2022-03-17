@@ -15,7 +15,7 @@ from .DegeneracySpecs import DegenerateMultiStateSpace
 from .Common import *
 from .Corrections import *
 
-__reload_hook__ = [ "..BasisReps" ]
+__reload_hook__ = [ "..BasisReps", ".DegeneracySpecs", ".Corrections", ".StateFilters", ".Common" ]
 
 __all__ = [
     "PerturbationTheorySolver"
@@ -47,6 +47,9 @@ class PerturbationTheorySolver:
                  zero_element_warning=True,
                  degenerate_states=None,
                  handle_strong_couplings=False,
+                 strong_coupling_test_modes=None,
+                 strong_couplings_state_filter=None,
+                 strongly_coupled_group_filter=None,
                  zero_order_energy_corrections=None,
                  memory_constrained=False,
                  keep_hamiltonians=None,
@@ -110,6 +113,9 @@ class PerturbationTheorySolver:
         if handle_strong_couplings is None:
             handle_strong_couplings = self.degeneracy_spec is None
         self.handle_strong_couplings = handle_strong_couplings
+        self.strong_coupling_test_modes = strong_coupling_test_modes
+        self.strong_couplings_state_filter = strong_couplings_state_filter
+        self.strongly_coupled_group_filter = strongly_coupled_group_filter
         # self.degeneracy_mode = degeneracy_mode
         self.allow_sakurai_degs = allow_sakurai_degs
         self.allow_post_PT_calc = allow_post_PT_calc
@@ -1541,7 +1547,8 @@ class PerturbationTheorySolver:
                 order,
                 non_zero_cutoff=non_zero_cutoff,
                 # filters=self.state_space_filters
-                filters=None
+                filters=None,
+                logger=logger
             )
 
             cs_states = SelectionRuleStateSpace(states, corr_inds, None)
@@ -1578,7 +1585,10 @@ class PerturbationTheorySolver:
                     degenerate_correction_threshold = handle_strong_couplings
                     handle_strong_couplings = handle_strong_couplings > 0
 
-                sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold)
+                state_filter = self.strong_couplings_state_filter
+                if state_filter is None:
+                    state_filter = lambda state, couplings:corrs.default_state_filter(state, couplings, target_modes=self.strong_coupling_test_modes)
+                sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold, state_filter=state_filter)
                 if len(sc) > 0:
                     with self.logger.block(tag="Strongly coupled states (threshold={})".format(degenerate_correction_threshold)):
                         self.logger.log_print(
@@ -1587,8 +1597,16 @@ class PerturbationTheorySolver:
 
                         if handle_strong_couplings and (sc is not None and len(sc) > 0):
                             sc = corrs.collapse_strong_couplings(sc)
-                            degenerate_states = DegenerateMultiStateSpace.from_spec({'couplings':sc}, solver=self)
-                            with self.logger.block(tag="Redoing PT with strong couplings handled (degs={})".format(degenerate_states)):
+                            group_filter = self.strongly_coupled_group_filter
+                            if group_filter is None:
+                                group_filter = lambda group:DegenerateMultiStateSpace.default_group_filter(group, target_modes=self.strong_coupling_test_modes)
+                            degenerate_states = DegenerateMultiStateSpace.from_spec({'couplings':sc}, solver=self, group_filter=group_filter)
+                            # raise Exception("...")
+                            with self.logger.block(tag="Redoing PT with strong couplings handled"):
+                                with self.logger.block(tag="Degenerate groups:"):
+                                    for g in degenerate_states.flat:
+                                        if len(g) > 1:
+                                            self.logger.log_print(str(g.excitations).splitlines())
                                 corrs = self._get_corrections(
                                     perturbations,
                                     states,
@@ -1925,8 +1943,8 @@ class PerturbationTheorySolver:
         :return:
         :rtype:
         """
-        # we pull the states and total states from the corrections object
 
+        # we pull the states and total states from the corrections object
         total_state_space = corrs.states  # type: BasisStateSpace
 
         # set up space to store the degenerate energies and rotations coming from the
@@ -1952,7 +1970,14 @@ class PerturbationTheorySolver:
             # we apply the degenerate PT on a group-by-group basis
             # by transforming the H reps into the non-degenerate basis
             deg_inds = total_state_space.find(group, missing_val=-1)
-            deg_inds = deg_inds[deg_inds > -1]
+            mask = deg_inds > -1
+            deg_inds = deg_inds[mask]
+            if not mask.all():
+                bad = group.take_subspace(np.where(np.logical_not(mask))[0])
+                self.logger.log_print("WARNING: got degeneracy spec including states {} that are not in space of corrected states".format(
+                    bad.excitations
+                ))
+            group = group.take_subspace(np.where(mask)[0])
             if len(deg_inds) == 1 or (self.gaussian_resonance_handling and np.max(np.sum(group.excitations, axis=1)) > 2):
                 for i in deg_inds:
                     # we'll be a little bit inefficient for now and speed up later
@@ -1970,7 +1995,8 @@ class PerturbationTheorySolver:
                 rotation_row_inds.append(deg_rows)
                 rotation_col_inds.append(deg_cols)
             else:
-                self.logger.log_print("WARNING: got degeneracy spec that is not in total space")
+                pass
+                # raise NotImplementedError("Not sure what to do when no states in degeneracy spec are in total space")
 
         if self.results is None or isinstance(self.results, NullCheckpointer):
             try:
@@ -2104,14 +2130,13 @@ class PerturbationTheorySolver:
         """
 
         logger = self.logger
-
+        # raise Exception(corrs.states.excitations, deg_group)
         with logger.block(tag="states"):
             logger.log_print(
                 str(
                     corrs.states.take_states(deg_group).excitations
                 ).splitlines()
             )
-
         subdegs = corrs.take_subspace(deg_group)
 
         # from McUtils.Scaffolding import JSONSerializer

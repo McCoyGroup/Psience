@@ -165,7 +165,8 @@ class PerturbationTheoryCorrections:
                                states:BasisStateSpace, flat_total_space:BasisStateSpace,
                                nstates, order,
                                filters=None,
-                               non_zero_cutoff=1.0e-14
+                               non_zero_cutoff=1.0e-14,
+                               logger=None
                                ):
         """
 
@@ -237,25 +238,32 @@ class PerturbationTheoryCorrections:
                         nonzi = np.where(np.abs(corrs[i, o]) > non_zero_cutoff)[0]
                         vals = corrs[i, o][nonzi,]
 
-                    # we attempt to filter out things that can't touch based on our filter rules
-                    target_quanta = np.sum(flat_total_space.take_subspace(nonzi).excitations, axis=1)
-                    if nquanta_rules is not None and len(nquanta_rules) > 0:
-                        # from .Solver import PerturbationTheoryStateSpaceFilter
-                        mask = None
-                        for f in nquanta_rules:
-                            # f:PerturbationTheoryStateSpaceFilter
-                            for (filter_space, filter_rules) in f.prefilters:
-                                is_in = states.take_subspace([i]).intersection(filter_space)
-                                if len(is_in) > 0:
-                                    q_diffs = target_quanta - initial_quanta[i]
-                                    poss_diffs = np.unique([sum(x) for x in filter_rules])
-                                    if mask is None:
-                                        mask = np.isin(q_diffs, poss_diffs)
-                                    else:
-                                        mask = np.logical_or(mask, np.isin(q_diffs, poss_diffs))
-                        if mask is not None:
-                            nonzi = nonzi[mask]
-                            vals = vals[mask]
+                    if len(nonzi) > 0:
+                        # we attempt to filter out things that can't touch based on our filter rules
+                        target_quanta = np.sum(flat_total_space.take_subspace(nonzi).excitations, axis=1)
+                        if nquanta_rules is not None and len(nquanta_rules) > 0:
+                            # from .Solver import PerturbationTheoryStateSpaceFilter
+                            mask = None
+                            for f in nquanta_rules:
+                                # f:PerturbationTheoryStateSpaceFilter
+                                for (filter_space, filter_rules) in f.prefilters:
+                                    is_in = states.take_subspace([i]).intersection(filter_space)
+                                    if len(is_in) > 0:
+                                        q_diffs = target_quanta - initial_quanta[i]
+                                        poss_diffs = np.unique([sum(x) for x in filter_rules])
+                                        if mask is None:
+                                            mask = np.isin(q_diffs, poss_diffs)
+                                        else:
+                                            mask = np.logical_or(mask, np.isin(q_diffs, poss_diffs))
+                            if mask is not None:
+                                nonzi = nonzi[mask]
+                                vals = vals[mask]
+                    else:
+                        if logger is not None:
+                            logger.log_print("No corrections for state {s} at order {o}",
+                                s=states.excitations[i],
+                                o=o
+                            )
 
                     # and then we add the appropriate basis indices to the list of basis data
                     non_zeros.append(
@@ -293,7 +301,7 @@ class PerturbationTheoryCorrections:
 
         return corr_mats, corr_inds
 
-    def prune(self, threshold=.1):
+    def prune(self, threshold=.1, in_place=False):
         """
         Returns corrections with couplings less than the given cutoff set to zero
 
@@ -302,10 +310,57 @@ class PerturbationTheoryCorrections:
         :return:
         :rtype:
         """
+        if not in_place:
+            import copy
+            new = copy.copy(self)
+            new.prune(threshold=threshold, in_place=False)
+            # might need to work harder here...
+            return new
+
+        for o in range(1, self.order):
+            sp_vals, sp_inds = self.wfn_corrections[o].block_data
+            mask = abs(sp_vals) > threshold
+            sp_vals = sp_vals[mask]
+            sp_inds = tuple(s[mask] for s in sp_inds)
+            self.wfn_corrections[o].block_vals = sp_vals
+            self.wfn_corrections[o].block_inds = sp_inds
+        return self
 
 
+    @staticmethod
+    def default_state_filter(state, couplings, target_modes=None):
+        """
+        Excludes modes that differ in only one position, prioritizing states with fewer numbers of quanta
+        (potentially add restrictions to high frequency modes...?)
 
-    def find_strong_couplings(self, threshold=.1):
+        :param input_state:
+        :type input_state:
+        :param couplings:
+        :type couplings:
+        :return:
+        :rtype:
+        """
+        if target_modes is None:
+            target_modes = np.arange(len(state.excitations[0]))
+        exc_1 = state.excitations[0, target_modes]
+        exc_2 = couplings.excitations[:, target_modes]
+        diffs = exc_2 - exc_1[np.newaxis, :]
+        diff_sums = np.sum(diffs != 0, axis=1)
+        diff_mask = diff_sums == 1 # find where changes are only in one position
+        # now drop these modes
+        if diff_mask.any():
+            if diff_mask.all():
+                couplings = None
+            else:
+                # print(">>>", state.excitations[0])
+                # print(couplings.excitations)
+                couplings = couplings.take_subspace(np.where(np.logical_not(diff_mask))[0])
+                # print("===")
+                # print(couplings.excitations)
+        # print(couplings.excitations, diff_mask, exc_1, exc_2)
+        return couplings
+
+    def find_strong_couplings(self, threshold=.1, state_filter=None):
         """
         Finds positions in the expansion matrices where the couplings are too large
 
@@ -314,6 +369,9 @@ class PerturbationTheoryCorrections:
         :return:
         :rtype:
         """
+
+        if state_filter is None:
+            state_filter = self.default_state_filter
 
         order = self.order
         strong_couplings = {}
@@ -327,9 +385,11 @@ class PerturbationTheoryCorrections:
             for i, v in zip(ind_keys, ind_vals):
                 _, upos = np.unique(v, return_index=True)
                 usubs = v[np.sort(upos)]
-                if i not in strong_couplings:
-                    strong_couplings[i] = [None for _ in range(order)]
-                strong_couplings[i][o] = self.total_basis.take_subspace(usubs)
+                states = state_filter(self.states.take_states([i]), self.total_basis.take_subspace(usubs))
+                if states is not None and len(states) > 0:
+                    if i not in strong_couplings:
+                        strong_couplings[i] = [None for _ in range(order)]
+                    strong_couplings[i][o] = states
 
         return strong_couplings
 
