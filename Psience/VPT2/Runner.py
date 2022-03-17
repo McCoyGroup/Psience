@@ -24,6 +24,8 @@ __all__ = [
     "VPTSolverOptions"
 ]
 
+__reload_hook__ = ["..BasisRepss", "..Molecools", ".DegeneracySpecs", ".Hamiltonian", ".StateFilters"]
+
 class VPTSystem:
     """
     Provides a little helper for setting up the input
@@ -879,6 +881,7 @@ class VPTRunner:
                    states,
                    target_property=None,
                    corrected_fundamental_frequencies=None,
+                   calculate_intensities=True,
                    **opts
                    ):
 
@@ -971,7 +974,7 @@ class VPTRunner:
                     else:
                         logger.log_print(str(ds))
 
-            return runner.print_tables()
+            return runner.print_tables(print_intensities=calculate_intensities)
 
 class VPTStateMaker:
     """

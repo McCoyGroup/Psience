@@ -8,8 +8,11 @@ We're working on [documenting the package](https://mccoygroup.github.io/Psience)
 
 `Psience` is written in pure python and we've worked to try to avoid any major dependencies outside of what comes in `Anaconda` and our `McUtils` package.
 
-It is unlikely that Psience will even find its way onto PyPI, so the best thing to do is install from GitHub via `git clone`. 
-The `master` branch _should_ be stable. Other branches are intended to be development branches. 
+The easiest way to install is via `pip`, as
+
+```lang-shell
+pip install mccoygroup-psience
+```
 
 ### Contributing
 

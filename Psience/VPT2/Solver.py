@@ -264,9 +264,10 @@ class PerturbationTheorySolver:
             with self.logger.block(tag="Applying post-PT variational calc."):
                 if self.gaussian_resonance_handling:
                     self.logger.log_print('WARNING: Doing Gaussian resonance handling and not doing variational calculation involving states with more than 2 quanta of excitation')
-                deg_engs, deg_transf = self.apply_post_PT_variational_calc(degenerate_states, corrs)
+                deg_engs, deg_transf, deg_hams = self.apply_post_PT_variational_calc(degenerate_states, corrs)
                 corrs.degenerate_energies = deg_engs
                 corrs.degenerate_transf = deg_transf
+                corrs.degenerate_hamiltonians = deg_hams
 
         # if (
         #         self.keep_hamiltonians is None and self.memory_constrained
@@ -1566,8 +1567,7 @@ class PerturbationTheorySolver:
                     "wavefunctions": corr_mats,
                     "degenerate_transformation": None,
                     "degenerate_energies": None
-                },
-                perturbations # we probably want to ditch this for memory reasons...
+                }
                 , logger=self.logger
             )
 
@@ -1958,8 +1958,6 @@ class PerturbationTheorySolver:
             message_prepper=self._fmt_depert_engs(total_state_space, base_energies)
         )
 
-        # this will be built from a series of block-diagonal matrices
-        # so we store the relevant values and indices to compose the SparseArray
         rotations = []
         rotation_vals = []
         rotation_row_inds = []
@@ -1967,26 +1965,8 @@ class PerturbationTheorySolver:
 
         ndeg_ham_corrs = []
         for group in degenerate_states:
-            # we apply the degenerate PT on a group-by-group basis
-            # by transforming the H reps into the non-degenerate basis
-            deg_inds = total_state_space.find(group, missing_val=-1)
-            mask = deg_inds > -1
-            deg_inds = deg_inds[mask]
-            if not mask.all():
-                bad = group.take_subspace(np.where(np.logical_not(mask))[0])
-                self.logger.log_print("WARNING: got degeneracy spec including states {} that are not in space of corrected states".format(
-                    bad.excitations
-                ))
-            group = group.take_subspace(np.where(mask)[0])
-            if len(deg_inds) == 1 or (self.gaussian_resonance_handling and np.max(np.sum(group.excitations, axis=1)) > 2):
-                for i in deg_inds:
-                    # we'll be a little bit inefficient for now and speed up later
-                    energies[i] = base_energies[i]
-                    rotation_vals.append([1.])
-                    rotation_row_inds.append([i])
-                    rotation_col_inds.append([i])
-            elif len(deg_inds) > 1:
-                H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group, corrs)
+            deg_inds, H_nd, deg_rot, deg_engs = corrs.get_degenerate_transformation(group, gaussian_resonance_handling=self.gaussian_resonance_handling)
+            if H_nd is not None:
                 ndeg_ham_corrs.append(H_nd)
                 rotations.append(deg_rot)
                 energies[deg_inds] = deg_engs
@@ -1995,8 +1975,12 @@ class PerturbationTheorySolver:
                 rotation_row_inds.append(deg_rows)
                 rotation_col_inds.append(deg_cols)
             else:
-                pass
-                # raise NotImplementedError("Not sure what to do when no states in degeneracy spec are in total space")
+                for i in deg_inds:
+                    # we'll be a little bit inefficient for now and speed up later
+                    energies[i] = base_energies[i]
+                    rotation_vals.append([1.])
+                    rotation_row_inds.append([i])
+                    rotation_col_inds.append([i])
 
         if self.results is None or isinstance(self.results, NullCheckpointer):
             try:
@@ -2035,7 +2019,7 @@ class PerturbationTheorySolver:
             shape=(len(energies), len(energies))
         )
 
-        return energies, rotations
+        return energies, rotations, ndeg_ham_corrs
     def drop_deg_pert_els(self, perts, deg_groups):
         """
 
@@ -2088,122 +2072,7 @@ class PerturbationTheorySolver:
                     )
 
         return pert_blocks, perts
-    def get_transformed_Hamiltonians(self, corrs, deg_group=None):
-        """
 
-        :param corrs:
-        :type corrs:
-        :param deg_group:
-        :type deg_group:
-        :return:
-        :rtype:
-        """
-        if deg_group is not None:
-            subcorrs = corrs.take_subspace(deg_group)
-            inds = self.flat_total_space.find(deg_group)
-            subhams = [SparseArray.from_data(self._take_subham(H, inds)) for H in self.representations]
-            # H_nd =[
-            #     x.asarray() if isinstance(x, SparseArray) else x
-            #     for x in subcorrs.operator_representation(subhams, subspace=deg_group)
-            # ]
-            H_nd = [
-                x.asarray() if isinstance(x, SparseArray) else x
-                for x in subcorrs.operator_representation(subhams, subspace=deg_group, logger_symbol="H")
-            ]
-
-        else:
-            subhams = self.representations
-            H_nd = [
-                x.asarray() if isinstance(x, SparseArray) else x
-                for x in corrs.operator_representation(subhams, logger_symbol="H", logger_conversion=UnitsData.convert("Hartrees", "Wavenumbers"))
-            ]
-        return H_nd
-    def get_degenerate_rotation(self, deg_group, corrs):
-        """
-
-        :param deg_group:
-        :type deg_group:
-        :param corrs:
-        :type corrs:
-        :return:
-        :rtype:
-        """
-
-        logger = self.logger
-        # raise Exception(corrs.states.excitations, deg_group)
-        with logger.block(tag="states"):
-            logger.log_print(
-                str(
-                    corrs.states.take_states(deg_group).excitations
-                ).splitlines()
-            )
-        subdegs = corrs.take_subspace(deg_group)
-
-        # from McUtils.Scaffolding import JSONSerializer
-        # import os
-        # with open(os.path.expanduser("~/Desktop/wat6.json"), "w+") as woof:
-        #     JSONSerializer().serialize(woof, subdegs)
-
-        # H_nd = self.get_transformed_Hamiltonians(corrs, deg_group)
-        # for h in H_nd[1:]:
-        #     np.fill_diagonal(h, 0.)
-        H_nd_corrs = self.get_transformed_Hamiltonians(subdegs, None)
-        # import McUtils.Plots as plt
-        # plt.TensorPlot(np.array(H_nd)).show()
-        H_nd = np.sum(H_nd_corrs, axis=0)
-        # overlaps = np.sum(subdegs.get_overlap_matrices(), axis=0)
-
-        with logger.block(tag="non-degenerate Hamiltonian"):
-            logger.log_print(
-                str(
-                    np.round(H_nd * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
-                ).splitlines()
-            )
-
-        deg_engs, deg_transf = np.linalg.eigh(H_nd)
-
-        ov_thresh = .5
-        for i in range(len(deg_transf)):
-            max_ov = np.max(deg_transf[:, i] ** 2)
-            if max_ov < ov_thresh:  # there must be a single mode that has more than 50% of the initial state character?
-                logger.log_print(
-                    "    state {i} is more than 50% mixed",
-                    i=i
-                )
-            #     raise PerturbationTheoryException("mode {} is has no contribution of greater than {}".format(
-            #         i, ov_thresh
-            #     ))
-
-        # we pick the terms with the max contribution from each input state
-        # and zero out the contributions so that two states can't map
-        # to the same input state
-        sort_transf = np.abs(deg_transf.copy())
-        sorting = [-1] * len(deg_transf)
-        for i in range(len(deg_transf)):
-            o = np.argmax(sort_transf[i, :])
-            sorting[i] = o
-            sort_transf[:, o] = 0.  # np.zeros(len(sort_transf))
-
-        with logger.block(tag='contributions'):
-            logger.log_print(
-                str(np.round(100 * (deg_transf ** 2)).astype(int)).splitlines()
-            )
-
-        logger.log_print('sorting: {s}', s=sorting)
-
-        # sorting = np.argsort(sorting)
-
-        #
-        # # if len(sorting) != len(np.unique(sorting)):
-        # #     raise PerturbationTheoryException("After diagonalizing can't distinguish modes...")
-        deg_engs = deg_engs[sorting,]
-
-        self.logger.log_print("degenerate energies {e}",
-                              e=np.round(deg_engs * UnitsData.convert("Hartrees", "Wavenumbers")))
-
-        deg_transf = deg_transf[:, sorting]
-
-        return H_nd_corrs, deg_engs, deg_transf
     #endregion
 
     def _martin_test(cls, h_reps, states, threshold, total_coupled_space):

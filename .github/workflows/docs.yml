@@ -2,7 +2,7 @@ name: PsienceDocs
 on:
   push:
     branches:
-      - edit
+      - master
 
 jobs:
   docs:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
         with:
-          ref: edit
+          ref: master
       - name: Document
         uses: ./.github/actions/docs
         env:

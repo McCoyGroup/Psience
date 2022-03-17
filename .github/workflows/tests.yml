@@ -2,7 +2,7 @@ name: PsienceTests
 on:
   push:
     branches:
-      - edit
+      - master
 
 jobs:
   test:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
         with:
-          ref: edit
+          ref: master
       - name: Test
         uses: ./.github/actions/tests
         env:

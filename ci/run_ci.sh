@@ -34,16 +34,15 @@ if [[ "$1" == "docs" ]]; then
 fi
 
 if [[ "$run_test" == "true" ]]; then
-  if [[ "$branch" = "master" ]]; then
+  if [[ "$branch" == "master" ]]; then
     PYTHONPATH=/home python3 Psience/ci/tests/run_tests.py -v -d
   else
     PYTHONPATH=/home python3 Psience/ci/tests/run_tests.py -d
   fi
 fi
 
-
 if [[ "$build_docs" == "true" ]]; then
-  if [[ "$branch" = "edit" ]]; then
+  if [[ "$branch" == "master" ]]; then
     # build docs and push
     PYTHONPATH=/home python3 Psience/ci/build_docs.py
 #    rm -rf Psience/docs
