@@ -43,7 +43,7 @@ fi
 
 
 if [[ "$build_docs" == "true" ]]; then
-  if [[ "$branch" = "edit" ]]; then
+  if [[ "$branch" = "master" ]]; then
     # build docs and push
     PYTHONPATH=/home python3 Psience/ci/build_docs.py
 #    rm -rf Psience/docs
