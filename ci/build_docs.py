@@ -11,7 +11,7 @@ doc_config = {
         "url": "https://mccoygroup.github.io/Psience/",
         "gh_username": "McCoyGroup",
         "gh_repo": "Psience",
-        "gh_branch": "edit",
+        "gh_branch": "master",
         "footer": "Brought to you by the McCoy Group",
         'url_base':"Psience"
     },
