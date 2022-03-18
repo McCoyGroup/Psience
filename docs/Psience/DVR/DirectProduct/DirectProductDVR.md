@@ -1,6 +1,6 @@
 ## <a id="Psience.DVR.DirectProduct.DirectProductDVR">DirectProductDVR</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/DVR/DirectProduct.py#L17)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/DirectProduct.py#L17?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L17)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L17?message=Update%20Docs)]
 </div>
 
 
@@ -18,7 +18,7 @@
 __init__(self, dvrs_1D, **base_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/DVR/DirectProduct.py#L19)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/DirectProduct.py#L19?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L19)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L19?message=Update%20Docs)]
 </div>
 
 
@@ -32,7 +32,7 @@ __init__(self, dvrs_1D, **base_opts):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/DVR/DirectProduct.py#L31)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/DirectProduct.py#L31?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L31)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L31?message=Update%20Docs)]
 </div>
 
 <a id="Psience.DVR.DirectProduct.DirectProductDVR.get_grid" class="docs-object-method">&nbsp;</a> 
@@ -40,7 +40,7 @@ __repr__(self):
 get_grid(self, domain=None, divs=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/DVR/DirectProduct.py#L38)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/DirectProduct.py#L38?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L38)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L38?message=Update%20Docs)]
 </div>
 
 <a id="Psience.DVR.DirectProduct.DirectProductDVR.grid" class="docs-object-method">&nbsp;</a> 
@@ -48,7 +48,7 @@ get_grid(self, domain=None, divs=None, **kwargs):
 grid(self, domain=None, divs=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/DVR/DirectProduct.py#L49)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/DirectProduct.py#L49?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L49)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L49?message=Update%20Docs)]
 </div>
 
 <a id="Psience.DVR.DirectProduct.DirectProductDVR.get_kinetic_energy" class="docs-object-method">&nbsp;</a> 
@@ -56,7 +56,7 @@ grid(self, domain=None, divs=None, **kwargs):
 get_kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/DVR/DirectProduct.py#L61)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/DirectProduct.py#L61?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L61)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L61?message=Update%20Docs)]
 </div>
 
 <a id="Psience.DVR.DirectProduct.DirectProductDVR.kinetic_energy" class="docs-object-method">&nbsp;</a> 
@@ -64,7 +64,7 @@ get_kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, **kwa
 kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/DVR/DirectProduct.py#L214)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/DirectProduct.py#L214?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L214)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L214?message=Update%20Docs)]
 </div>
 
 Computes the N-dimensional kinetic energy
@@ -93,4 +93,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/DVR/DirectProduct/DirectProductDVR.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/DirectProduct/DirectProductDVR.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/DirectProduct/DirectProductDVR.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/DirectProduct.py#L17?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L17?message=Update%20Docs)

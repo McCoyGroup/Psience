@@ -1,6 +1,6 @@
 ## <a id="Psience.BasisReps.Representations.Representation">Representation</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L24)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L24?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L24)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L24?message=Update%20Docs)]
 </div>
 
 A `Representation` provides a simple interface to build matrix representations of operators expressed
@@ -19,7 +19,7 @@ in high-dimensional spaces.
 __init__(self, compute, basis, name=None, logger=None, selection_rules=None, selection_rule_steps=None, memory_constrained=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L31)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L31?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L31)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L31?message=Update%20Docs)]
 </div>
 
 
@@ -36,7 +36,7 @@ __init__(self, compute, basis, name=None, logger=None, selection_rules=None, sel
 parallelizer(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.compute" class="docs-object-method">&nbsp;</a> 
@@ -44,7 +44,7 @@ parallelizer(self):
 compute(self, inds, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L70)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L70?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L70)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L70?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.compute_cached" class="docs-object-method">&nbsp;</a> 
@@ -52,7 +52,7 @@ compute(self, inds, **kwargs):
 compute_cached(self, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L76)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L76?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L76)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L76?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.chunk_size" class="docs-object-method">&nbsp;</a> 
@@ -61,7 +61,7 @@ compute_cached(self, inds):
 chunk_size(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.clear_cache" class="docs-object-method">&nbsp;</a> 
@@ -69,7 +69,7 @@ chunk_size(self):
 clear_cache(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L89)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L89?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L89)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L89?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.diag" class="docs-object-method">&nbsp;</a> 
@@ -78,7 +78,7 @@ clear_cache(self):
 diag(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.ndims" class="docs-object-method">&nbsp;</a> 
@@ -87,7 +87,7 @@ diag(self):
 ndims(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.dim_inds" class="docs-object-method">&nbsp;</a> 
@@ -96,7 +96,7 @@ ndims(self):
 dim_inds(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.get_brakets" class="docs-object-method">&nbsp;</a> 
@@ -104,7 +104,7 @@ dim_inds(self):
 get_brakets(self, states, check_orthogonality=True, memory_constrained=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L138)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L138?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L138)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L138?message=Update%20Docs)]
 </div>
 
 Computes term elements based on getting a BraKetSpace.
@@ -120,7 +120,7 @@ Computes term elements based on getting a BraKetSpace.
 get_element(self, n, m): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L159)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L159?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L159)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L159?message=Update%20Docs)]
 </div>
 
 Computes term elements.
@@ -137,7 +137,7 @@ Computes term elements.
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L249)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L249?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L249)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L249?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.__rmul__" class="docs-object-method">&nbsp;</a> 
@@ -145,7 +145,7 @@ __getitem__(self, item):
 __rmul__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L266)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L266?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L266)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L266?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.__mul__" class="docs-object-method">&nbsp;</a> 
@@ -153,7 +153,7 @@ __rmul__(self, other):
 __mul__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L278)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L278?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L278)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L278?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.__add__" class="docs-object-method">&nbsp;</a> 
@@ -161,7 +161,7 @@ __mul__(self, other):
 __add__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L291)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L291?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L291)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L291?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.__repr__" class="docs-object-method">&nbsp;</a> 
@@ -169,7 +169,7 @@ __add__(self, other):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L324)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L324?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L324)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L324?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.selection_rules" class="docs-object-method">&nbsp;</a> 
@@ -178,7 +178,7 @@ __repr__(self):
 selection_rules(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -191,7 +191,7 @@ selection_rules(self):
 selection_rule_steps(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -203,7 +203,7 @@ selection_rule_steps(self):
 get_transformed_space(self, space, parallelizer=None, logger=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L372)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L372?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L372)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L372?message=Update%20Docs)]
 </div>
 
 Returns the state space obtained by using the
@@ -218,7 +218,7 @@ Returns the state space obtained by using the
 apply(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L398)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L398?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L398)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L398?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Representations.Representation.get_representation_matrix" class="docs-object-method">&nbsp;</a> 
@@ -226,7 +226,7 @@ apply(self, other):
 get_representation_matrix(self, coupled_space, total_space, filter_space=None, diagonal=False, logger=None, zero_element_warning=True, clear_sparse_caches=True, clear_operator_caches=True, assume_symmetric=True, remove_duplicates=True, memory_constrained=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L559)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L559?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L559)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L559?message=Update%20Docs)]
 </div>
 
 Actively constructs a perturbation theory Hamiltonian representation
@@ -242,7 +242,7 @@ Actively constructs a perturbation theory Hamiltonian representation
 get_diagonal_representation(self, coupled_space, total_space, logger=None, zero_element_warning=True, clear_sparse_caches=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Representations.py#L796)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L796?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Representations.py#L796)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L796?message=Update%20Docs)]
 </div>
 
 Actively constructs a perturbation theory Hamiltonian representation
@@ -429,4 +429,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/Representations/Representation.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Representations/Representation.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Representations/Representation.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Representations.py#L24?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Representations.py#L24?message=Update%20Docs)

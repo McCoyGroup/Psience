@@ -1,6 +1,6 @@
 ## <a id="Psience.Molecools.Molecule.Molecule">Molecule</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L25)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L25?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L25)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L25?message=Update%20Docs)]
 </div>
 
 General purpose 'Molecule' class where the 'Molecule' need not be a molecule at all
@@ -18,7 +18,7 @@ General purpose 'Molecule' class where the 'Molecule' need not be a molecule at 
 __init__(self, atoms, coords, bonds=None, masses=None, name=None, zmatrix=None, obmol=None, dipole_surface=None, dipole_derivatives=None, potential_surface=None, potential_derivatives=None, normal_modes=None, source_file=None, guess_bonds=True, charge=None, **metadata): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L30)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L30?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L30)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L30?message=Update%20Docs)]
 </div>
 
 
@@ -55,7 +55,7 @@ __init__(self, atoms, coords, bonds=None, masses=None, name=None, zmatrix=None, 
 dipole_surface(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -68,7 +68,7 @@ dipole_surface(self):
 dipole_derivatives(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.potential_surface" class="docs-object-method">&nbsp;</a> 
@@ -77,7 +77,7 @@ dipole_derivatives(self):
 potential_surface(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -90,7 +90,7 @@ potential_surface(self):
 potential_derivatives(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.normal_modes" class="docs-object-method">&nbsp;</a> 
@@ -99,7 +99,7 @@ potential_derivatives(self):
 normal_modes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -112,7 +112,7 @@ normal_modes(self):
 metadata(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.__repr__" class="docs-object-method">&nbsp;</a> 
@@ -120,7 +120,7 @@ metadata(self):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L185)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L185?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L185)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L185?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.num_atoms" class="docs-object-method">&nbsp;</a> 
@@ -129,7 +129,7 @@ __repr__(self):
 num_atoms(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.atom_positions" class="docs-object-method">&nbsp;</a> 
@@ -138,7 +138,7 @@ num_atoms(self):
 atom_positions(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 A mapping of atom types to positions
@@ -153,7 +153,7 @@ A mapping of atom types to positions
 dummy_positions(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.atoms" class="docs-object-method">&nbsp;</a> 
@@ -162,7 +162,7 @@ dummy_positions(self):
 atoms(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.masses" class="docs-object-method">&nbsp;</a> 
@@ -171,7 +171,7 @@ atoms(self):
 masses(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.bonds" class="docs-object-method">&nbsp;</a> 
@@ -180,7 +180,7 @@ masses(self):
 bonds(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.coords" class="docs-object-method">&nbsp;</a> 
@@ -189,7 +189,7 @@ bonds(self):
 coords(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.sys" class="docs-object-method">&nbsp;</a> 
@@ -198,7 +198,7 @@ coords(self):
 sys(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.formula" class="docs-object-method">&nbsp;</a> 
@@ -207,7 +207,7 @@ sys(self):
 formula(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.multiconfig" class="docs-object-method">&nbsp;</a> 
@@ -216,7 +216,7 @@ formula(self):
 multiconfig(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.name" class="docs-object-method">&nbsp;</a> 
@@ -225,7 +225,7 @@ multiconfig(self):
 name(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.source_file" class="docs-object-method">&nbsp;</a> 
@@ -234,7 +234,7 @@ name(self):
 source_file(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.insert_atoms" class="docs-object-method">&nbsp;</a> 
@@ -242,7 +242,7 @@ source_file(self):
 insert_atoms(self, atoms, coords, where, handle_properties=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L264)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L264?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L264)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L264?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.delete_atoms" class="docs-object-method">&nbsp;</a> 
@@ -250,7 +250,7 @@ insert_atoms(self, atoms, coords, where, handle_properties=True):
 delete_atoms(self, where, handle_properties=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L290)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L290?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L290)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L290?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.take_submolecule" class="docs-object-method">&nbsp;</a> 
@@ -258,7 +258,7 @@ delete_atoms(self, where, handle_properties=True):
 take_submolecule(self, spec): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L306)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L306?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L306)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L306?message=Update%20Docs)]
 </div>
 
 Takes a 'slice' of a molecule if working with Cartesian coords.
@@ -274,7 +274,7 @@ Takes a 'slice' of a molecule if working with Cartesian coords.
 shape(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.__len__" class="docs-object-method">&nbsp;</a> 
@@ -282,7 +282,7 @@ shape(self):
 __len__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L334)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L334?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L334)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L334?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.__iter__" class="docs-object-method">&nbsp;</a> 
@@ -290,7 +290,7 @@ __len__(self):
 __iter__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L339)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L339?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L339)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L339?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.__getitem__" class="docs-object-method">&nbsp;</a> 
@@ -298,7 +298,7 @@ __iter__(self):
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L345)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L345?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L345)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L345?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.copy" class="docs-object-method">&nbsp;</a> 
@@ -306,7 +306,7 @@ __getitem__(self, item):
 copy(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L348)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L348?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L348)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L348?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.prop" class="docs-object-method">&nbsp;</a> 
@@ -314,7 +314,7 @@ copy(self):
 prop(self, name, *args, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L364)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L364?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L364)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L364?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.mass_weighted_coords" class="docs-object-method">&nbsp;</a> 
@@ -323,7 +323,7 @@ prop(self, name, *args, **kwargs):
 mass_weighted_coords(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -336,7 +336,7 @@ mass_weighted_coords(self):
 center_of_mass(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -349,7 +349,7 @@ center_of_mass(self):
 inertia_tensor(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -362,7 +362,7 @@ inertia_tensor(self):
 inertial_eigensystem(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -375,7 +375,7 @@ inertial_eigensystem(self):
 moments_of_inertia(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -388,7 +388,7 @@ moments_of_inertia(self):
 inertial_axes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -401,7 +401,7 @@ inertial_axes(self):
 translation_rotation_modes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -414,7 +414,7 @@ translation_rotation_modes(self):
 zmatrix(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -427,7 +427,7 @@ zmatrix(self):
 internal_coordinates(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.g_matrix" class="docs-object-method">&nbsp;</a> 
@@ -436,7 +436,7 @@ internal_coordinates(self):
 g_matrix(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 Returns the molecular g-matrix for the system
@@ -448,7 +448,7 @@ Returns the molecular g-matrix for the system
 bond_length(self, i, j): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L466)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L466?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L466)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L466?message=Update%20Docs)]
 </div>
 
 Returns the bond length of the coordinates
@@ -464,7 +464,7 @@ Returns the bond length of the coordinates
 bond_angle(self, i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L478)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L478?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L478)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L478?message=Update%20Docs)]
 </div>
 
 Returns the bond angle of the specified coordinates
@@ -480,7 +480,7 @@ Returns the bond angle of the specified coordinates
 dihedral(self, i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L490)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L490?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L490)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L490?message=Update%20Docs)]
 </div>
 
 Returns the dihedral angle of the specified coordinates
@@ -496,7 +496,7 @@ Returns the dihedral angle of the specified coordinates
 principle_axis_frame(self, sel=None, inverse=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L506)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L506?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L506)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L506?message=Update%20Docs)]
 </div>
 
 Gets the principle axis frame(s) for the molecule
@@ -515,7 +515,7 @@ Gets the principle axis frame(s) for the molecule
 principle_axis_data(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L?message=Update%20Docs)]
 </div>
 
 Gets the principle axis embedded coords and embedding parameters for the molecule
@@ -527,7 +527,7 @@ Gets the principle axis embedded coords and embedding parameters for the molecul
 eckart_frame(self, mol, sel=None, inverse=False, planar_ref_tolerance=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L530)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L530?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L530)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L530?message=Update%20Docs)]
 </div>
 
 Gets the Eckart frame(s) for the molecule
@@ -545,7 +545,7 @@ Gets the Eckart frame(s) for the molecule
 embed_coords(self, crds, sel=None, planar_ref_tolerance=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L544)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L544?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L544)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L544?message=Update%20Docs)]
 </div>
 
 Embeds coords in the Eckart frame using `self` as a reference
@@ -559,7 +559,7 @@ Embeds coords in the Eckart frame using `self` as a reference
 get_embedding_data(self, crds, sel=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L554)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L554?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L554)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L554?message=Update%20Docs)]
 </div>
 
 Gets the necessary data to embed crds in the Eckart frame using `self` as a reference
@@ -573,7 +573,7 @@ Gets the necessary data to embed crds in the Eckart frame using `self` as a refe
 get_embedded_molecule(self, ref=None, embed_properties=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L563)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L563?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L563)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L563?message=Update%20Docs)]
 </div>
 
 Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
@@ -586,7 +586,7 @@ Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise ret
 from_zmat(zmat, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L596)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L596?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L596)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L596?message=Update%20Docs)]
 </div>
 
 Little z-matrix importer
@@ -600,7 +600,7 @@ Little z-matrix importer
 from_pybel(mol, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L613)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L613?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L613)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L613?message=Update%20Docs)]
 </div>
 
 
@@ -614,7 +614,7 @@ from_pybel(mol, **opts):
 from_file(file, mode=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L661)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L661?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L661)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L661?message=Update%20Docs)]
 </div>
 
 In general we'll delegate to pybel except for like Fchk and Log files
@@ -628,7 +628,7 @@ In general we'll delegate to pybel except for like Fchk and Log files
 from_spec(spec): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L714)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L714?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L714)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L714?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Molecule.Molecule.plot" class="docs-object-method">&nbsp;</a> 
@@ -636,7 +636,7 @@ from_spec(spec):
 plot(self, *geometries, figure=None, bond_radius=0.1, atom_radius_scaling=0.25, atom_style=None, bond_style=None, mode='fast', objects=False, **plot_ops): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule.py#L751)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L751?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L751)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L751?message=Update%20Docs)]
 </div>
 
  </div>
@@ -651,4 +651,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Molecools/Molecule/Molecule.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Molecule/Molecule.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Molecule/Molecule.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule.py#L25?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L25?message=Update%20Docs)

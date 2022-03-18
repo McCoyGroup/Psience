@@ -1,6 +1,6 @@
 ## <a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem">MolecularZMatrixCoordinateSystem</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/CoordinateSystems.py#L77)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/CoordinateSystems.py#L77?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems.py#L77)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L77?message=Update%20Docs)]
 </div>
 
 Mirrors the standard ZMatrix coordinate system in _almost_ all regards, but forces an embedding
@@ -21,7 +21,7 @@ name: str
 __init__(self, molecule, converter_options=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/CoordinateSystems.py#L82)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/CoordinateSystems.py#L82?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems.py#L82)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L82?message=Update%20Docs)]
 </div>
 
 
@@ -38,7 +38,7 @@ __init__(self, molecule, converter_options=None, **opts):
 origins(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/CoordinateSystems.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/CoordinateSystems.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.axes" class="docs-object-method">&nbsp;</a> 
@@ -47,7 +47,7 @@ origins(self):
 axes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/CoordinateSystems.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/CoordinateSystems.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.pre_convert" class="docs-object-method">&nbsp;</a> 
@@ -55,7 +55,7 @@ axes(self):
 pre_convert(self, system): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/CoordinateSystems.py#L106)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/CoordinateSystems.py#L106?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems.py#L106)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L106?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.set_embedding" class="docs-object-method">&nbsp;</a> 
@@ -63,7 +63,7 @@ pre_convert(self, system):
 set_embedding(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/CoordinateSystems.py#L109)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/CoordinateSystems.py#L109?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems.py#L109)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L109?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.jacobian" class="docs-object-method">&nbsp;</a> 
@@ -71,7 +71,7 @@ set_embedding(self):
 jacobian(self, *args, reembed=None, strip_dummies=None, converter_options=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/CoordinateSystems.py#L133)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/CoordinateSystems.py#L133?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems.py#L133)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L133?message=Update%20Docs)]
 </div>
 
  </div>
@@ -86,4 +86,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Molecools/CoordinateSystems/MolecularZMatrixCoordinateSystem.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/CoordinateSystems/MolecularZMatrixCoordinateSystem.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/CoordinateSystems/MolecularZMatrixCoordinateSystem.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/CoordinateSystems.py#L77?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L77?message=Update%20Docs)

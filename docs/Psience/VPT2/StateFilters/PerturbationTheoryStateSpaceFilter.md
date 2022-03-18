@@ -1,6 +1,6 @@
 ## <a id="Psience.VPT2.StateFilters.PerturbationTheoryStateSpaceFilter">PerturbationTheoryStateSpaceFilter</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/StateFilters.py#L9)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/StateFilters.py#L9?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L9)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L9?message=Update%20Docs)]
 </div>
 
 Provides an easier constructor for the VPT state space filters
@@ -18,7 +18,7 @@ Provides an easier constructor for the VPT state space filters
 __init__(self, input_space, prefilters, postfilters): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/StateFilters.py#L13)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/StateFilters.py#L13?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L13)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L13?message=Update%20Docs)]
 </div>
 
 
@@ -34,7 +34,7 @@ __init__(self, input_space, prefilters, postfilters):
 from_data(input_space, data): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/StateFilters.py#L28)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/StateFilters.py#L28?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L28)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L28?message=Update%20Docs)]
 </div>
 
 Works to canonicalize inputs and initialize appropriately from there
@@ -48,7 +48,7 @@ Works to canonicalize inputs and initialize appropriately from there
 from_rules(input_space, *rules): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/StateFilters.py#L69)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/StateFilters.py#L69?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L69)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L69?message=Update%20Docs)]
 </div>
 
 Builds a set of filter spaces from dicts of rules
@@ -63,7 +63,7 @@ Builds a set of filter spaces from dicts of rules
 prefilters(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/StateFilters.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/StateFilters.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -76,7 +76,7 @@ prefilters(self):
 postfilter(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/StateFilters.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/StateFilters.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -88,7 +88,7 @@ postfilter(self):
 canonicalize_prefilters(self, basis, prefilters): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/StateFilters.py#L180)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/StateFilters.py#L180?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L180)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L180?message=Update%20Docs)]
 </div>
 
 Puts the prefilters in canonical form...
@@ -104,7 +104,7 @@ Puts the prefilters in canonical form...
 from_property_rules(initial_space, target_space, perturbation_rules, property_rules, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/StateFilters.py#L227)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/StateFilters.py#L227?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L227)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L227?message=Update%20Docs)]
 </div>
 
 
@@ -126,7 +126,7 @@ from_property_rules(initial_space, target_space, perturbation_rules, property_ru
 generate_nquanta_filter(initials, rules, finals): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/StateFilters.py#L435)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/StateFilters.py#L435?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L435)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L435?message=Update%20Docs)]
 </div>
 
 Takes the initial number of quanta, a set of possible rules, and
@@ -150,4 +150,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/StateFilters/PerturbationTheoryStateSpaceFilter.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/StateFilters/PerturbationTheoryStateSpaceFilter.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/StateFilters/PerturbationTheoryStateSpaceFilter.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/StateFilters.py#L9?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L9?message=Update%20Docs)

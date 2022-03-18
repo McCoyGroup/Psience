@@ -1,6 +1,6 @@
 ## <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer">PermutationStateIndexer</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateIndexers.py#L90)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateIndexers.py#L90?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L90)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L90?message=Update%20Docs)]
 </div>
 
 A sophisticated indexer that takes a state dimension and provides
@@ -24,7 +24,7 @@ systems.
 __init__(self, ndim): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateIndexers.py#L100)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateIndexers.py#L100?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L100)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L100?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.to_state" class="docs-object-method">&nbsp;</a> 
@@ -32,7 +32,7 @@ __init__(self, ndim):
 to_state(self, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateIndexers.py#L105)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateIndexers.py#L105?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L105)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L105?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.from_state" class="docs-object-method">&nbsp;</a> 
@@ -40,7 +40,7 @@ to_state(self, serializer=None):
 from_state(data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateIndexers.py#L109)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateIndexers.py#L109?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L109)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L109?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.to_indices" class="docs-object-method">&nbsp;</a> 
@@ -48,7 +48,7 @@ from_state(data, serializer=None):
 to_indices(self, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateIndexers.py#L113)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateIndexers.py#L113?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L113)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L113?message=Update%20Docs)]
 </div>
 
 Finds the appropriate integer partitioning for each state
@@ -62,7 +62,7 @@ Finds the appropriate integer partitioning for each state
 from_indices(self, indices, check=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateIndexers.py#L124)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateIndexers.py#L124?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L124)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L124?message=Update%20Docs)]
 </div>
 
 Inverts the index calculation.
@@ -200,4 +200,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/StateIndexers/PermutationStateIndexer.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateIndexers/PermutationStateIndexer.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateIndexers/PermutationStateIndexer.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateIndexers.py#L90?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L90?message=Update%20Docs)

@@ -1,6 +1,6 @@
 # <a id="Psience.DVR">Psience.DVR</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/DVR)]
+[[source](https://github.com/McCoyGroup/Psience/tree/master/Psience/DVR)]
 </div>
     
 A package for doing generalized DVR in python.
@@ -450,8 +450,8 @@ class DVRTests(TestCase):
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience/DVR.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience/DVR.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience/DVR.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience/DVR.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/DVR/__init__.py?message=Update%20Docs)
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/master/ci/examples/Psience/DVR.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/examples/Psience/DVR.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/Psience/DVR.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/DVR.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/__init__.py?message=Update%20Docs)

@@ -1,6 +1,6 @@
 ## <a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunction">AnalyticWavefunction</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Wavefunctions.py#L20)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L20?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Wavefunctions.py#L20)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Wavefunctions.py#L20?message=Update%20Docs)]
 </div>
 
 Little extension to RepresentationBasis so that we can use p and x and stuff
@@ -21,7 +21,7 @@ but for now I just want to provide the scaffolding so that I can build off of it
 __init__(self, energy, data, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Wavefunctions.py#L27)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L27?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Wavefunctions.py#L27)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Wavefunctions.py#L27?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunction.evaluate" class="docs-object-method">&nbsp;</a> 
@@ -29,7 +29,7 @@ __init__(self, energy, data, **opts):
 evaluate(self, *args, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Wavefunctions.py#L30)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L30?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Wavefunctions.py#L30)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Wavefunctions.py#L30?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunction.plot" class="docs-object-method">&nbsp;</a> 
@@ -37,7 +37,7 @@ evaluate(self, *args, **kwargs):
 plot(self, figure=None, plot_class=None, domain=(-5, 5), **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Wavefunctions.py#L33)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L33?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Wavefunctions.py#L33)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Wavefunctions.py#L33?message=Update%20Docs)]
 </div>
 
 Uses McUtils to plot the wavefunction on the passed figure (makes a new one if none)
@@ -51,7 +51,7 @@ Uses McUtils to plot the wavefunction on the passed figure (makes a new one if n
 expect(self, operator): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Wavefunctions.py#L52)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L52?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Wavefunctions.py#L52)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Wavefunctions.py#L52?message=Update%20Docs)]
 </div>
 
 Provides expectation values of operators, but the operators have to be Operator objects...
@@ -66,7 +66,7 @@ Provides expectation values of operators, but the operators have to be Operator 
 expectation(self, op, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Wavefunctions.py#L64)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L64?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Wavefunctions.py#L64)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Wavefunctions.py#L64?message=Update%20Docs)]
 </div>
 
 Computes the expectation value of operator op over the wavefunction other and self
@@ -82,7 +82,7 @@ Computes the expectation value of operator op over the wavefunction other and se
 probability_density(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Wavefunctions.py#L79)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L79?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Wavefunctions.py#L79)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Wavefunctions.py#L79?message=Update%20Docs)]
 </div>
 
 Computes the probability density of the current wavefunction
@@ -101,4 +101,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/Wavefunctions/AnalyticWavefunction.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Wavefunctions/AnalyticWavefunction.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Wavefunctions/AnalyticWavefunction.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Wavefunctions.py#L20?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Wavefunctions.py#L20?message=Update%20Docs)

@@ -1,6 +1,6 @@
 ## <a id="Psience.BasisReps.Operators.Operator">Operator</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L24)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L24?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L24)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L24?message=Update%20Docs)]
 </div>
 
 Provides a (usually) _lazy_ representation of an operator, which allows things like
@@ -20,7 +20,7 @@ Crucially, the underlying basis for the operator is assumed to be orthonormal.
 __init__(self, funcs, quanta, prod_dim=None, symmetries=None, selection_rules=None, selection_rule_steps=None, parallelizer=None, logger=None, zero_threshold=1e-14, chunk_size=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L30)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L30?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L30)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L30?message=Update%20Docs)]
 </div>
 
 
@@ -38,7 +38,7 @@ __init__(self, funcs, quanta, prod_dim=None, symmetries=None, selection_rules=No
 clear_cache(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L77)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L77?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L77)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L77?message=Update%20Docs)]
 </div>
 
 
@@ -51,7 +51,7 @@ clear_cache(self):
 ndim(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Operators.Operator.shape" class="docs-object-method">&nbsp;</a> 
@@ -60,7 +60,7 @@ ndim(self):
 shape(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Operators.Operator.load_parallelizer" class="docs-object-method">&nbsp;</a> 
@@ -68,7 +68,7 @@ shape(self):
 load_parallelizer(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L97)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L97?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L97)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L97?message=Update%20Docs)]
 </div>
 
 Loads the held parallelizer if needed
@@ -81,7 +81,7 @@ Loads the held parallelizer if needed
 parallelizer(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L?message=Update%20Docs)]
 </div>
 
 Loads a parallelizer that can be used to speed up various bits of the calculation
@@ -93,7 +93,7 @@ Loads a parallelizer that can be used to speed up various bits of the calculatio
 get_inner_indices(self, reduced_inds=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L124)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L124?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L124)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L124?message=Update%20Docs)]
 </div>
 
 Gets the n-dimensional array of ijkl (e.g.) indices that functions will map over
@@ -106,7 +106,7 @@ Gets the n-dimensional array of ijkl (e.g.) indices that functions will map over
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L142)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L142?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L142)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L142?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Operators.Operator.__getstate__" class="docs-object-method">&nbsp;</a> 
@@ -114,7 +114,7 @@ __getitem__(self, item):
 __getstate__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L162)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L162?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L162)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L162?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Operators.Operator.filter_symmetric_indices" class="docs-object-method">&nbsp;</a> 
@@ -122,7 +122,7 @@ __getstate__(self):
 filter_symmetric_indices(self, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L194)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L194?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L194)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L194?message=Update%20Docs)]
 </div>
 
 Determines which inds are symmetry unique.
@@ -138,7 +138,7 @@ Determines which inds are symmetry unique.
 get_elements(self, idx, parallelizer=None, check_orthogonality=True, memory_constrained=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L749)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L749?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L749)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L749?message=Update%20Docs)]
 </div>
 
 Calculates a subset of elements
@@ -152,7 +152,7 @@ Calculates a subset of elements
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L790)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L790?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L790)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L790?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Operators.Operator.get_transformed_space" class="docs-object-method">&nbsp;</a> 
@@ -160,7 +160,7 @@ __repr__(self):
 get_transformed_space(self, base_space, rules=None, parallelizer=None, logger=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L797)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L797?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L797)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L797?message=Update%20Docs)]
 </div>
 
 Returns the space one would get from applying
@@ -175,7 +175,7 @@ Returns the space one would get from applying
 apply_reduced(self, base_space, parallelizer=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L1004)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L1004?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1004)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1004?message=Update%20Docs)]
 </div>
 
 Takes a base space as input and applies the held selection rules in semi-efficient
@@ -198,4 +198,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/Operators/Operator.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Operators/Operator.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Operators/Operator.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L24?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L24?message=Update%20Docs)

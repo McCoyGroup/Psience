@@ -1,6 +1,6 @@
 # <a id="Psience.Spectra">Psience.Spectra</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Spectra)]
+[[source](https://github.com/McCoyGroup/Psience/tree/master/Psience/Spectra)]
 </div>
     
 
@@ -30,8 +30,8 @@
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience/Spectra.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience/Spectra.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience/Spectra.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience/Spectra.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Spectra/__init__.py?message=Update%20Docs)
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/master/ci/examples/Psience/Spectra.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/examples/Psience/Spectra.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/Psience/Spectra.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/Spectra.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/__init__.py?message=Update%20Docs)

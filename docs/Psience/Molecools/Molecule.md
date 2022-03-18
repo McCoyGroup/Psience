@@ -1,6 +1,6 @@
 # <a id="Psience.Molecools.Molecule">Psience.Molecools.Molecule</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Molecools/Molecule)]
+[[source](https://github.com/McCoyGroup/Psience/tree/master/Psience/Molecools/Molecule)]
 </div>
     
 Provides a simple Molecule class that we can adapt as we need
@@ -852,8 +852,8 @@ class MolecoolsTests(TestCase):
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience/Molecools/Molecule.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience/Molecools/Molecule.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience/Molecools/Molecule.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience/Molecools/Molecule.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Molecools/Molecule/__init__.py?message=Update%20Docs)
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/master/ci/examples/Psience/Molecools/Molecule.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/examples/Psience/Molecools/Molecule.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/Psience/Molecools/Molecule.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/Molecools/Molecule.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/__init__.py?message=Update%20Docs)

@@ -1,6 +1,6 @@
 # <a id="Psience.VPT2">Psience.VPT2</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2)]
+[[source](https://github.com/McCoyGroup/Psience/tree/master/Psience/VPT2)]
 </div>
     
 An implementation of vibrational perturbation theory (VPT) that uses sparse matrix methods to obtain
@@ -594,8 +594,8 @@ class VPT2Tests(TestCase):
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience/VPT2.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience/VPT2.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience/VPT2.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience/VPT2.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/__init__.py?message=Update%20Docs)
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/master/ci/examples/Psience/VPT2.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/examples/Psience/VPT2.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/Psience/VPT2.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/VPT2.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/__init__.py?message=Update%20Docs)

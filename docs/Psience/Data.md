@@ -1,6 +1,6 @@
 # <a id="Psience.Data">Psience.Data</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Data)]
+[[source](https://github.com/McCoyGroup/Psience/tree/master/Psience/Data)]
 </div>
     
 Provides core Data-related types and data structures.
@@ -110,8 +110,8 @@ class DataTests(TestCase):
 
 ___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/edit/ci/examples/Psience/Data.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/examples/Psience/Data.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/edit/ci/docs/Psience/Data.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/edit/?filename=ci/docs/templates/Psience/Data.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/__init__.py?message=Update%20Docs)
+[Edit Examples](https://github.com/McCoyGroup/Psience/edit/master/ci/examples/Psience/Data.md) or 
+[Create New Examples](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/examples/Psience/Data.md) <br/>
+[Edit Template](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/Psience/Data.md) or 
+[Create New Template](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/Data.md) <br/>
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/__init__.py?message=Update%20Docs)

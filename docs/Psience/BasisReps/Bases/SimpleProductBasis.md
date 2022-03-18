@@ -1,6 +1,6 @@
 ## <a id="Psience.BasisReps.Bases.SimpleProductBasis">SimpleProductBasis</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L306)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L306?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L306)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L306?message=Update%20Docs)]
 </div>
 
 Defines a direct product basis from a 1D basis.
@@ -24,7 +24,7 @@ array_indexer_cutoff: int
 __init__(self, basis_type, n_quanta, indexer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L316)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L316?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L316)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L316?message=Update%20Docs)]
 </div>
 
 
@@ -40,7 +40,7 @@ __init__(self, basis_type, n_quanta, indexer=None):
 to_state(self, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L344)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L344?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L344)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L344?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.from_state" class="docs-object-method">&nbsp;</a> 
@@ -48,7 +48,7 @@ to_state(self, serializer=None):
 from_state(data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L350)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L350?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L350)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L350?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.ndim" class="docs-object-method">&nbsp;</a> 
@@ -57,7 +57,7 @@ from_state(data, serializer=None):
 ndim(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
 </div>
 
 Provides the number of dimensions of the basis
@@ -70,7 +70,7 @@ Provides the number of dimensions of the basis
 dimensions(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
 </div>
 
 Provides the dimensions of the basis
@@ -82,7 +82,7 @@ Provides the dimensions of the basis
 __eq__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L376)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L376?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L376)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L376?message=Update%20Docs)]
 </div>
 
 
@@ -97,7 +97,7 @@ __eq__(self, other):
 quanta(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
 </div>
 
 Provides the quanta in each dimension of the basis
@@ -110,7 +110,7 @@ Provides the quanta in each dimension of the basis
 selection_rules_mapping(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.ravel_state_inds" class="docs-object-method">&nbsp;</a> 
@@ -118,7 +118,7 @@ selection_rules_mapping(self):
 ravel_state_inds(self, idx): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L406)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L406?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L406)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L406?message=Update%20Docs)]
 </div>
 
 Converts state indices from an array of quanta to an array of indices
@@ -132,7 +132,7 @@ Converts state indices from an array of quanta to an array of indices
 unravel_state_inds(self, idx): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L418)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L418?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L418)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L418?message=Update%20Docs)]
 </div>
 
 Converts state indices from an array of ints to an array of quanta
@@ -146,7 +146,7 @@ Converts state indices from an array of ints to an array of quanta
 get_function(self, idx): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L432)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L432?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L432)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L432?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Bases.SimpleProductBasis.operator" class="docs-object-method">&nbsp;</a> 
@@ -154,7 +154,7 @@ get_function(self, idx):
 operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None, chunk_size=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L436)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L436?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L436)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L436?message=Update%20Docs)]
 </div>
 
 Builds an operator based on supplied terms, remapping names where possible.
@@ -173,7 +173,7 @@ Builds an operator based on supplied terms, remapping names where possible.
 representation(self, *terms, coeffs=None, name=None, axes=None, logger=None, parallelizer=None, chunk_size=None, memory_constrained=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L475)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L475?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L475)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L475?message=Update%20Docs)]
 </div>
 
 Provides a representation of a product operator specified by _terms_.
@@ -188,7 +188,7 @@ Provides a representation of a product operator specified by _terms_.
 x(self, n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L492)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L492?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L492)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L492?message=Update%20Docs)]
 </div>
 
 Returns the representation of x in the multi-dimensional basis with every term evaluated up to n quanta
@@ -203,7 +203,7 @@ Returns the representation of x in the multi-dimensional basis with every term e
 p(self, n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L502)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L502?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L502)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L502?message=Update%20Docs)]
 </div>
 
 Returns the representation of p in the multi-dimensional basis with every term evaluated up to n quanta
@@ -218,7 +218,7 @@ Returns the representation of p in the multi-dimensional basis with every term e
 take_subdimensions(self, dims): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L513)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L513?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L513)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L513?message=Update%20Docs)]
 </div>
 
 Casts down to lower dimensional space
@@ -232,7 +232,7 @@ Casts down to lower dimensional space
 get_state_space(self, quanta): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L525)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L525?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L525)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L525?message=Update%20Docs)]
 </div>
 
  </div>
@@ -607,4 +607,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/Bases/SimpleProductBasis.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Bases/SimpleProductBasis.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Bases/SimpleProductBasis.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L306?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L306?message=Update%20Docs)

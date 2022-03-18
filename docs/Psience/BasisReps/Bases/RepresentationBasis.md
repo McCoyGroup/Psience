@@ -1,6 +1,6 @@
 ## <a id="Psience.BasisReps.Bases.RepresentationBasis">RepresentationBasis</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L18)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L18?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L18)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L18?message=Update%20Docs)]
 </div>
 
 Metaclass for representations.
@@ -23,7 +23,7 @@ selection_rules_mapping: dict
 __init__(self, function_generator, n_quanta): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L24)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L24?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L24)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L24?message=Update%20Docs)]
 </div>
 
 
@@ -37,7 +37,7 @@ __init__(self, function_generator, n_quanta):
 __eq__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L35)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L35?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L35)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L35?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Bases.RepresentationBasis.dimensions" class="docs-object-method">&nbsp;</a> 
@@ -46,7 +46,7 @@ __eq__(self, other):
 dimensions(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
 </div>
 
 Returns the dimensions of the basis
@@ -59,7 +59,7 @@ Returns the dimensions of the basis
 ndim(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
 </div>
 
 Returns the number of dimensions of the basis
@@ -71,7 +71,7 @@ Returns the number of dimensions of the basis
 ravel_state_inds(self, idx): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L59)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L59?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L59)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L59?message=Update%20Docs)]
 </div>
 
 Converts state indices from an array of quanta to an array of indices...except in 1D this really isn't doing anything
@@ -85,7 +85,7 @@ Converts state indices from an array of quanta to an array of indices...except i
 unravel_state_inds(self, idx): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L76)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L76?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L76)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L76?message=Update%20Docs)]
 </div>
 
 Converts state indices from an array of ints to an array of quanta...except in 1D this really isn't doing anything
@@ -99,7 +99,7 @@ Converts state indices from an array of ints to an array of quanta...except in 1
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L93)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L93?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L93)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L93?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Bases.RepresentationBasis.__repr__" class="docs-object-method">&nbsp;</a> 
@@ -107,7 +107,7 @@ __getitem__(self, item):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L97)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L97?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L97)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L97?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Bases.RepresentationBasis.p" class="docs-object-method">&nbsp;</a> 
@@ -115,7 +115,7 @@ __repr__(self):
 p(self, n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L105)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L105?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L105)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L105?message=Update%20Docs)]
 </div>
 
 Generates the momentum matrix up to n-quanta.
@@ -135,7 +135,7 @@ Generates the momentum matrix up to n-quanta.
 x(self, n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L123)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L123?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L123)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L123?message=Update%20Docs)]
 </div>
 
 Generates the coordinate matrix up to n-quanta
@@ -149,7 +149,7 @@ Generates the coordinate matrix up to n-quanta
 I(self, n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L135)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L135?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L135)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L135?message=Update%20Docs)]
 </div>
 
 Generates the identity matrix up to n-quanta
@@ -164,7 +164,7 @@ Generates the identity matrix up to n-quanta
 operator_mapping(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Bases.RepresentationBasis.operator" class="docs-object-method">&nbsp;</a> 
@@ -172,7 +172,7 @@ operator_mapping(self):
 operator(self, *terms, logger=None, parallelizer=None, chunk_size=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L151)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L151?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L151)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L151?message=Update%20Docs)]
 </div>
 
 Provides an `Operator` to handle the given terms
@@ -192,7 +192,7 @@ Provides an `Operator` to handle the given terms
 representation(self, *terms, logger=None, name=None, parallelizer=None, chunk_size=None, memory_constrained=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L171)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L171?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L171)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L171?message=Update%20Docs)]
 </div>
 
 Provides a representation of a product operator specified by `terms`
@@ -206,7 +206,7 @@ Provides a representation of a product operator specified by `terms`
 selection_rule_steps(self, *terms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L268)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L268?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L268)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L268?message=Update%20Docs)]
 </div>
 
 Generates the full set of possible selection rules for terms
@@ -220,7 +220,7 @@ Generates the full set of possible selection rules for terms
 selection_rules(self, *terms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Bases.py#L290)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L290?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L290)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L290?message=Update%20Docs)]
 </div>
 
 Generates the full set of possible selection rules for terms
@@ -241,4 +241,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/Bases/RepresentationBasis.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Bases/RepresentationBasis.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Bases/RepresentationBasis.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Bases.py#L18?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L18?message=Update%20Docs)

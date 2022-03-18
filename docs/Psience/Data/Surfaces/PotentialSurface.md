@@ -1,6 +1,6 @@
 ## <a id="Psience.Data.Surfaces.PotentialSurface">PotentialSurface</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Data/Surfaces.py#L167)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/Surfaces.py#L167?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces.py#L167)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L167?message=Update%20Docs)]
 </div>
 
 A potential surface structure to go along with the DipoleSurface.
@@ -19,7 +19,7 @@ Provides convenient access to dipole data + a unified interface to things like e
 get_log_values(log_file, keys=('StandardCartesianCoordinates', 'ScanEnergies')): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Data/Surfaces.py#L173)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/Surfaces.py#L173?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces.py#L173)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L173?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Data.Surfaces.PotentialSurface.from_log_file" class="docs-object-method">&nbsp;</a> 
@@ -27,7 +27,7 @@ get_log_values(log_file, keys=('StandardCartesianCoordinates', 'ScanEnergies')):
 from_log_file(log_file, coord_transf, keys=('StandardCartesianCoordinates', 'ScanEnergies'), tol=0.001, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Data/Surfaces.py#L189)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/Surfaces.py#L189?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces.py#L189)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L189?message=Update%20Docs)]
 </div>
 
 Loads dipoles from a Gaussian log file and builds a potential surface by interpolating.
@@ -44,7 +44,7 @@ Loads dipoles from a Gaussian log file and builds a potential surface by interpo
 get_fchk_values(fchk_file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Data/Surfaces.py#L242)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/Surfaces.py#L242?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces.py#L242)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L242?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Data.Surfaces.PotentialSurface.from_fchk_file" class="docs-object-method">&nbsp;</a> 
@@ -52,7 +52,7 @@ get_fchk_values(fchk_file):
 from_fchk_file(fchk_file, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Data/Surfaces.py#L255)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/Surfaces.py#L255?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces.py#L255)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L255?message=Update%20Docs)]
 </div>
 
 Loads potential from a Gaussian formatted checkpoint file and builds a potential surface via a quartic approximation
@@ -122,4 +122,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Data/Surfaces/PotentialSurface.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data/Surfaces/PotentialSurface.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data/Surfaces/PotentialSurface.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Data/Surfaces.py#L167?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L167?message=Update%20Docs)

@@ -1,6 +1,6 @@
 ## <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis">HarmonicOscillatorBasis</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/HarmonicOscillator.py#L20)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/HarmonicOscillator.py#L20?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/HarmonicOscillator.py#L20)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/HarmonicOscillator.py#L20?message=Update%20Docs)]
 </div>
 
 Provides a concrete implementation of RepresentationBasis using the H.O.
@@ -26,7 +26,7 @@ x: _lru_cache_wrapper
 __init__(self, n_quanta, m=None, re=None, dimensionless=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/HarmonicOscillator.py#L27)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/HarmonicOscillator.py#L27?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/HarmonicOscillator.py#L27)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/HarmonicOscillator.py#L27?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis.__eq__" class="docs-object-method">&nbsp;</a> 
@@ -34,7 +34,7 @@ __init__(self, n_quanta, m=None, re=None, dimensionless=True):
 __eq__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/HarmonicOscillator.py#L35)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/HarmonicOscillator.py#L35?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/HarmonicOscillator.py#L35)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/HarmonicOscillator.py#L35?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis.pmatrix_ho" class="docs-object-method">&nbsp;</a> 
@@ -42,7 +42,7 @@ __eq__(self, other):
 pmatrix_ho(n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/HarmonicOscillator.py#L54)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/HarmonicOscillator.py#L54?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/HarmonicOscillator.py#L54)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/HarmonicOscillator.py#L54?message=Update%20Docs)]
 </div>
 
 There's one big subtlety to what we're doing here, which is that
@@ -61,7 +61,7 @@ There's one big subtlety to what we're doing here, which is that
 qmatrix_ho(n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/HarmonicOscillator.py#L79)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/HarmonicOscillator.py#L79?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/HarmonicOscillator.py#L79)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/HarmonicOscillator.py#L79?message=Update%20Docs)]
 </div>
 
 
@@ -75,7 +75,7 @@ qmatrix_ho(n):
 operator(self, *terms, logger=None, parallelizer=None, chunk_size=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/HarmonicOscillator.py#L96)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/HarmonicOscillator.py#L96?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/HarmonicOscillator.py#L96)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/HarmonicOscillator.py#L96?message=Update%20Docs)]
 </div>
 
 Builds an operator based on supplied terms, remapping names where possible.
@@ -94,7 +94,7 @@ Builds an operator based on supplied terms, remapping names where possible.
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/HarmonicOscillator.py#L147)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/HarmonicOscillator.py#L147?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/HarmonicOscillator.py#L147)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/HarmonicOscillator.py#L147?message=Update%20Docs)]
 </div>
 
  </div>
@@ -273,4 +273,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/HarmonicOscillator.py#L20?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/HarmonicOscillator.py#L20?message=Update%20Docs)

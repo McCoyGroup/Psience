@@ -1,6 +1,6 @@
 ## <a id="Psience.BasisReps.StateIndexers.BaseStateIndexer">BaseStateIndexer</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateIndexers.py#L16)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateIndexers.py#L16?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L16)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L16?message=Update%20Docs)]
 </div>
 
 Provides a base class for indexing states
@@ -18,7 +18,7 @@ Provides a base class for indexing states
 to_indices(self, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateIndexers.py#L20)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateIndexers.py#L20?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L20)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L20?message=Update%20Docs)]
 </div>
 
 Converts the set of states to numerical indices
@@ -32,7 +32,7 @@ Converts the set of states to numerical indices
 from_indices(self, indices): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/StateIndexers.py#L31)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateIndexers.py#L31?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L31)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L31?message=Update%20Docs)]
 </div>
 
 Converts the set of states to numerical indices
@@ -53,4 +53,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/StateIndexers/BaseStateIndexer.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateIndexers/BaseStateIndexer.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateIndexers/BaseStateIndexer.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/StateIndexers.py#L16?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L16?message=Update%20Docs)

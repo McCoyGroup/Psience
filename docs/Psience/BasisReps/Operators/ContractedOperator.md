@@ -1,6 +1,6 @@
 ## <a id="Psience.BasisReps.Operators.ContractedOperator">ContractedOperator</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L1063)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L1063?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1063)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1063?message=Update%20Docs)]
 </div>
 
 Provides support for terms that look like `pGp` or `p(dG/dQ)Qp` by
@@ -20,7 +20,7 @@ and doing the appropriate tensor contractions with the expansion coefficients (i
 __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None, selection_rules=None, selection_rule_steps=None, zero_threshold=1e-14, chunk_size=None, parallelizer=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L1070)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L1070?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1070)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1070?message=Update%20Docs)]
 </div>
 
 
@@ -52,7 +52,7 @@ __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None,
 get_elements(self, idx, parallelizer=None, check_orthogonality=True, memory_constrained=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L1157)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L1157?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1157)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1157?message=Update%20Docs)]
 </div>
 
 Computes the operator values over the specified indices
@@ -66,7 +66,7 @@ Computes the operator values over the specified indices
 apply_reduced(self, base_space, parallelizer=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L1188)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L1188?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1188)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1188?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Operators.ContractedOperator.__repr__" class="docs-object-method">&nbsp;</a> 
@@ -74,7 +74,7 @@ apply_reduced(self, base_space, parallelizer=None, logger=None):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/BasisReps/Operators.py#L1231)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L1231?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1231)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1231?message=Update%20Docs)]
 </div>
 
  </div>
@@ -89,4 +89,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/Operators/ContractedOperator.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Operators/ContractedOperator.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Operators/ContractedOperator.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/BasisReps/Operators.py#L1063?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1063?message=Update%20Docs)

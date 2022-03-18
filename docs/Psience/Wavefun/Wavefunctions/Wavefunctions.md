@@ -1,6 +1,6 @@
 ## <a id="Psience.Wavefun.Wavefunctions.Wavefunctions">Wavefunctions</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Wavefun/Wavefunctions.py#L57)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Wavefun/Wavefunctions.py#L57?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Wavefun/Wavefunctions.py#L57)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L57?message=Update%20Docs)]
 </div>
 
 An object representing a set of wavefunctions.
@@ -19,7 +19,7 @@ Provides concrete, but potentially inefficient methods for doing all the wavefun
 __init__(self, energies=None, wavefunctions=None, indices=None, wavefunction_class=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Wavefun/Wavefunctions.py#L63)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Wavefun/Wavefunctions.py#L63?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Wavefun/Wavefunctions.py#L63)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L63?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunctions.get_wavefunctions" class="docs-object-method">&nbsp;</a> 
@@ -27,7 +27,7 @@ __init__(self, energies=None, wavefunctions=None, indices=None, wavefunction_cla
 get_wavefunctions(self, which): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Wavefun/Wavefunctions.py#L72)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Wavefun/Wavefunctions.py#L72?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Wavefun/Wavefunctions.py#L72)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L72?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunctions.__getitem__" class="docs-object-method">&nbsp;</a> 
@@ -35,7 +35,7 @@ get_wavefunctions(self, which):
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Wavefun/Wavefunctions.py#L86)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Wavefun/Wavefunctions.py#L86?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Wavefun/Wavefunctions.py#L86)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L86?message=Update%20Docs)]
 </div>
 
 Returns a single Wavefunction object
@@ -45,7 +45,7 @@ Returns a single Wavefunction object
 __iter__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Wavefun/Wavefunctions.py#L90)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Wavefun/Wavefunctions.py#L90?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Wavefun/Wavefunctions.py#L90)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L90?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunctions.frequencies" class="docs-object-method">&nbsp;</a> 
@@ -53,7 +53,7 @@ __iter__(self):
 frequencies(self, start_at=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Wavefun/Wavefunctions.py#L96)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Wavefun/Wavefunctions.py#L96?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Wavefun/Wavefunctions.py#L96)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L96?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunctions.plot" class="docs-object-method">&nbsp;</a> 
@@ -61,7 +61,7 @@ frequencies(self, start_at=0):
 plot(self, figure=None, graphics_class=None, plot_style=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/Wavefun/Wavefunctions.py#L99)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Wavefun/Wavefunctions.py#L99?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Wavefun/Wavefunctions.py#L99)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L99?message=Update%20Docs)]
 </div>
 
 Plots all of the wavefunctions on one set of axes
@@ -82,4 +82,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Wavefun/Wavefunctions/Wavefunctions.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Wavefun/Wavefunctions/Wavefunctions.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Wavefun/Wavefunctions/Wavefunctions.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/Wavefun/Wavefunctions.py#L57?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L57?message=Update%20Docs)
