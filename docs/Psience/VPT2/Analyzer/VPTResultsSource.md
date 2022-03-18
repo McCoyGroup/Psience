@@ -1,6 +1,6 @@
 ## <a id="Psience.VPT2.Analyzer.VPTResultsSource">VPTResultsSource</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L20)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L20?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/edit/Psience/VPT2/Analyzer.py#L21)/[edit](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L21?message=Update%20Docs)]
 </div>
 
 Enum of sources to load PT results from
@@ -37,4 +37,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Analyzer/VPTResultsSource.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Analyzer/VPTResultsSource.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Analyzer/VPTResultsSource.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L20?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/edit/Psience/VPT2/Analyzer.py#L21?message=Update%20Docs)
