@@ -2,10 +2,10 @@
 Provides analyzer class to handle common VPT analyses
 """
 
-import enum, weakref, functools, numpy as np, itertools as ip
+import enum, weakref, functools, numpy as np, itertools as ip, io
 from McUtils.Data import UnitsData
 import McUtils.Numputils as nput
-from McUtils.Scaffolding import Checkpointer
+from McUtils.Scaffolding import Checkpointer, Logger
 from ..Spectra import DiscreteSpectrum
 from .Wavefunctions import PerturbationTheoryWavefunctions
 from .Runner import VPTRunner
@@ -167,7 +167,7 @@ class VPTResultsLoader:
     @target_states.register("wavefunctions")
     def _(self):
         data = self.data  # type:PerturbationTheoryWavefunctions
-        return data.corrs.states
+        return data.corrs.states.excitations
 
     @property_dispatcher
     def spectrum(self):
@@ -397,7 +397,7 @@ class VPTAnalyzer:
         self.loader = res
 
     @classmethod
-    def run_VPT(cls, *args, logger=False, **kwargs):
+    def run_VPT(cls, *args, logger=None, **kwargs):
         """
         Runs a VPT calculation through `VPTRunner.run_simple` and
         stores the output wave functions to use
@@ -409,6 +409,9 @@ class VPTAnalyzer:
         :return:
         :rtype:
         """
+
+        if logger is None:
+            logger = Logger(io.StringIO())
 
         wfns = VPTRunner.run_simple(
             *args,
@@ -697,7 +700,7 @@ class VPTAnalyzer:
         osc = np.linalg.norm(deg_tmom, axis=0) ** 2
         units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
         freqs = (eng - zpe)
-        ints = units * freqs * osc[1:]
+        ints = units * freqs * osc#[1:]
 
         return DiscreteSpectrum(freqs * UnitsData.convert("Hartrees", "Wavenumbers"), ints), deg_transf
 

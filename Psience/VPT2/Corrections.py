@@ -407,6 +407,12 @@ class PerturbationTheoryCorrections:
         # import McUtils.Plots as plt
         # plt.TensorPlot(np.array(H_nd)).show()
         H_nd = np.sum(H_nd_corrs, axis=0)
+        if np.sum(H_nd) == 0:
+            raise Exception(subdegs.wfn_corrections)
+        #     raise Exception(deg_group.excitations,
+        #                     self.states.take_states(deg_group).excitations,
+        #                     # self.coupled_states.take_states(deg_group).excitations
+        #                     )
         # overlaps = np.sum(subdegs.get_overlap_matrices(), axis=0)
 
         with logger.block(tag="non-degenerate Hamiltonian"):
@@ -461,13 +467,13 @@ class PerturbationTheoryCorrections:
 
         return H_nd_corrs, deg_engs, deg_transf
 
-    def get_degenerate_transformation(self, group, gaussian_resonance_handling=False):
+    def get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=False):
         # this will be built from a series of block-diagonal matrices
         # so we store the relevant values and indices to compose the SparseArray
 
         # we apply the degenerate PT on a group-by-group basis
         # by transforming the H reps into the non-degenerate basis
-        deg_inds = self.total_basis.find(group, missing_val=-1)
+        deg_inds = self.states.find(group, missing_val=-1)
         mask = deg_inds > -1
         deg_inds = deg_inds[mask]
         if not mask.all():
@@ -477,11 +483,12 @@ class PerturbationTheoryCorrections:
                     bad.excitations
                 ))
         group = group.take_subspace(np.where(mask)[0])
+
         if len(deg_inds) == 1 or (
                 gaussian_resonance_handling and np.max(np.sum(group.excitations, axis=1)) > 2):
             H_nd = deg_engs = deg_rot = None
         elif len(deg_inds) > 1:
-            H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group)
+            H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group, hams)
         else:
             H_nd = deg_engs = deg_rot = None
             # raise NotImplementedError("Not sure what to do when no states in degeneracy spec are in total space")

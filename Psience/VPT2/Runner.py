@@ -797,7 +797,7 @@ class VPTRunner:
         )
 
     @classmethod
-    def print_output_tables(cls, wfns=None, file=None, print_intensities=True, sep_char="=", sep_len=100):
+    def print_output_tables(cls, wfns=None, file=None, print_intensities=True, logger=None, sep_char="=", sep_len=100):
         """
         Prints a bunch of formatted output data from a PT run
 
@@ -807,7 +807,9 @@ class VPTRunner:
         :rtype:
         """
 
-        if wfns.logger is not None:
+        if logger is None:
+            logger = wfns.logger
+        if logger is not None:
             def print_block(label, *args, **kwargs):
                 with wfns.logger.block(tag=label):
                     wfns.logger.log_print(" ".join("{}".format(x) for x in args), **kwargs)

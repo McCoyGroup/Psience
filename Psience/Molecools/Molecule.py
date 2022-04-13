@@ -846,6 +846,11 @@ class Molecule(AbstractMolecule):
 
         return figure, atoms, bonds
 
+    def jupyter_viz(self):
+        from McUtils.Jupyter import MoleculeGraphics
+        return MoleculeGraphics(self.atoms, self.coords,
+                                bonds=self.bonds
+                                )
     #endregion
 
     #region External Program Properties

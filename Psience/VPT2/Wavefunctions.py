@@ -136,12 +136,17 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     def degenerate_transformation(self):
         return self.corrs.degenerate_transf
 
+
+    def energies_to_order(self, order=None):
+        if order is None:
+            order = self.corrs.order
+        return np.sum(self.corrs.energy_corrs[:, :order+1], axis=1)
     @property
     def deperturbed_energies(self):
-        return np.sum(self.corrs.energy_corrs[:, :self.corrs.order+1], axis=1)
-
-    def energies_to_order(self, order):
-        return np.sum(self.corrs.energy_corrs[:, :order+1], axis=1)
+        return self.energies_to_order()
+    def deperturbed_frequencies(self, order=None):
+        eng = self.energies_to_order(order=order)
+        return eng[1:] - eng[0]
 
     @property
     def order(self):

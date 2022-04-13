@@ -24,7 +24,8 @@ class MolecularVibrations:
                  freqs=None,
                  init=None
                  ):
-        """Sets up a vibration for a Molecule object over the CoordinateSystem basis
+        """
+        Sets up a vibration for a Molecule object over the CoordinateSystem basis
 
         :param molecule:
         :type molecule: AbstractMolecule
@@ -127,7 +128,6 @@ class MolecularVibrations:
         """
         from McUtils.Plots import Animator
 
-
         coords = self.coords
         if coords is None:
             raise ValueError("can't visualize vibrations if no starting structure is provided")
@@ -137,40 +137,57 @@ class MolecularVibrations:
 
         left  = np.flip(self.displace(amt=-step_size, n=steps[0], which=which), axis=0)
         right = self.displace(amt=step_size, n=steps[1], which=which)
-        all_geoms = np.concatenate((left, np.broadcast_to(coords, (1, ) + coords.shape), right))
 
-        figure, atoms, bonds = self._mol.plot(*all_geoms, objects=True, mode=mode, **plot_args)
+        if mode=='jupyter':
 
-        def animate(*args, frame=0, _atoms=atoms, _bonds=bonds, _figure=figure):
-            """
-            Animates a vibration. Currently uses Matplotlib and so can be _verrry_ slow
-            """
+            all_geoms = np.concatenate((left, np.broadcast_to(coords, (1,) + coords.shape), right,
+                                        np.flip(right, axis=0)[1:], np.broadcast_to(coords, (1,) + coords.shape), np.flip(left, axis=0)[:-1]
+                                        ))
 
-            my_stuff = []
-            nframes = len(_atoms)
-            forward = ( frame // nframes ) % 2 == 0
-            frame = frame % nframes
-            if not forward:
-                frame = -frame - 1
+            from McUtils.Jupyter import MoleculeGraphics
+            try:
+                ats = self._mol.atoms
+            except:
+                raise Exception(self._mol)
+            return MoleculeGraphics(self._mol.atoms,
+                                    all_geoms,
+                                    bonds=self._mol.bonds
+                                    )
+        else:
 
-            if _atoms[frame] is not None:
-                for a in _atoms[frame]:
-                    coll = a.plot(figure)
-                    my_stuff.append(coll)
-            if _bonds[frame] is not None:
-                for b in _bonds[frame]:
-                    for bb in b:
-                        p = bb.plot(figure)
-                        try:
-                            my_stuff.extend(p)
-                        except ValueError:
-                            my_stuff.append(p)
+            all_geoms = np.concatenate((left, np.broadcast_to(coords, (1,) + coords.shape), right))
+            figure, atoms, bonds = self._mol.plot(*all_geoms, objects=True, mode=mode, **plot_args)
 
-            return my_stuff
+            def animate(*args, frame=0, _atoms=atoms, _bonds=bonds, _figure=figure):
+                """
+                Animates a vibration. Currently uses Matplotlib and so can be _verrry_ slow
+                """
 
-        if anim_opts is None:
-            anim_opts = {}
-        return Animator(figure, None, plot_method=animate, **anim_opts)
+                my_stuff = []
+                nframes = len(_atoms)
+                forward = ( frame // nframes ) % 2 == 0
+                frame = frame % nframes
+                if not forward:
+                    frame = -frame - 1
+
+                if _atoms[frame] is not None:
+                    for a in _atoms[frame]:
+                        coll = a.plot(figure)
+                        my_stuff.append(coll)
+                if _bonds[frame] is not None:
+                    for b in _bonds[frame]:
+                        for bb in b:
+                            p = bb.plot(figure)
+                            try:
+                                my_stuff.extend(p)
+                            except ValueError:
+                                my_stuff.append(p)
+
+                return my_stuff
+
+            if anim_opts is None:
+                anim_opts = {}
+            return Animator(figure, None, plot_method=animate, **anim_opts)
 
     def __getitem__(self, item):
         """

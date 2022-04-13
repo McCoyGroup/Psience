@@ -1965,7 +1965,7 @@ class PerturbationTheorySolver:
 
         ndeg_ham_corrs = []
         for group in degenerate_states:
-            deg_inds, H_nd, deg_rot, deg_engs = corrs.get_degenerate_transformation(group, gaussian_resonance_handling=self.gaussian_resonance_handling)
+            deg_inds, H_nd, deg_rot, deg_engs = corrs.get_degenerate_transformation(group, self.representations, gaussian_resonance_handling=self.gaussian_resonance_handling)
             if H_nd is not None:
                 ndeg_ham_corrs.append(H_nd)
                 rotations.append(deg_rot)

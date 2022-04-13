@@ -1404,6 +1404,7 @@ class DipoleSurfaceManager(PropertyManager):
                 parse = gr.parse(keys)
 
             mom, grad = tuple(parse[k] for k in keys[:2])
+            grad = grad.array
             seconds = thirds = None
             num_grad = num_secs = None
 
