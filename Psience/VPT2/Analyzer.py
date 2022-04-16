@@ -324,7 +324,10 @@ class VPTResultsLoader:
     @degenerate_states.register("wavefunctions")
     def _(self):
         data = self.data  # type:PerturbationTheoryWavefunctions
-        return data.corrs.degenerate_states
+        states = data.corrs.degenerate_states
+        if states is not None:
+            states = [x for x in data.corrs.degenerate_states if len(x) > 1]
+        return states
 
     @property_dispatcher
     def deperturbed_hamiltonians(self):
@@ -626,6 +629,13 @@ class VPTAnalyzer:
         #     #         i, ov_thresh
         #     #     ))
 
+        # print(
+        #     *str(
+        #         np.round(ham * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
+        #     ).splitlines(),
+        #     sep="\n"
+        # )
+
         # we pick the terms with the max contribution from each input state
         # and zero out the contributions so that two states can't map
         # to the same input state
@@ -635,7 +645,7 @@ class VPTAnalyzer:
             o = np.argmax(sort_transf[i, :])
             sorting[i] = o
             sort_transf[:, o] = 0.  # np.zeros(len(sort_transf))
-        # print(sorting)
+        # print(deg_transf)
 
         deg_engs = deg_engs[sorting,]
         deg_transf = deg_transf[:, sorting]
@@ -692,6 +702,7 @@ class VPTAnalyzer:
         :return:
         :rtype:
         """
+
 
         eng, deg_transf, deg_tmom = self.get_shifted_transformed_transition_moments(
             deg_states, target_states, hams, shifts, tmoms,

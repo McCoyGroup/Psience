@@ -785,7 +785,9 @@ class BasisStateSpace(AbstractStateSpace):
 
         indexer = self.indexer
         spec = self.StateSpaceSpec.Indices
+        # print("-->", self.indices)
         states = self.indices[indexer]
+        # print(">  ", states)
         new = type(self)(self.basis, states, mode=spec)
         new._sorted = True
         new._indexer = np.arange(len(states))

@@ -150,9 +150,9 @@ class PerturbationTheoryCorrections:
         """
 
         new_states = self.states.find(space)
-        # raise Exception(new_states)
+        # print("? =", new_states)
         return type(self)(
-            self.states.take_states(space),
+            self.states.take_subspace(new_states),
             self.coupled_states.take_states(space),
             self.total_basis,
             self.energy_corrs[new_states],
@@ -473,6 +473,7 @@ class PerturbationTheoryCorrections:
 
         # we apply the degenerate PT on a group-by-group basis
         # by transforming the H reps into the non-degenerate basis
+        # print(">", group.excitations)
         deg_inds = self.states.find(group, missing_val=-1)
         mask = deg_inds > -1
         deg_inds = deg_inds[mask]
@@ -483,6 +484,7 @@ class PerturbationTheoryCorrections:
                     bad.excitations
                 ))
         group = group.take_subspace(np.where(mask)[0])
+        # print(">..", deg_inds, self.states.find(group, missing_val=-1))
 
         if len(deg_inds) == 1 or (
                 gaussian_resonance_handling and np.max(np.sum(group.excitations, axis=1)) > 2):

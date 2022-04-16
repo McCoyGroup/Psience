@@ -1459,12 +1459,14 @@ class PerturbationTheorySolver:
                 for deg_group in degenerate_states:
                     if not hasattr(deg_group, 'indices'):
                         deg_group = BasisStateSpace(flat_total_space.basis, deg_group, full_basis=self.full_basis)
+                    deg_group = deg_group.as_sorted()
                     deg_group.deg_find_inds = None
                     _.append(deg_group)
                 degenerate_states = _
 
                 if self.drop_perturbation_degs:
                     dropped_els, perturbations = self.drop_deg_pert_els(perturbations, degenerate_states)
+
                     for deg_group in degenerate_states:
                         for n in deg_group.indices:
                             d2 = deg_group.take_states([n])
@@ -1488,6 +1490,7 @@ class PerturbationTheorySolver:
                         # we use this to build a pertubation operator that removes
                         # then entire set of degenerate states
                         deg_inds = flat_total_space.find(deg_group)
+
                         if len(deg_group) > 1:
                             if self.allow_sakurai_degs:
                                 deg_engs, zero_order_states, main_zero_states, subspaces = self._get_deg_eq_inputs(deg_inds)
@@ -1985,11 +1988,11 @@ class PerturbationTheorySolver:
         if self.results is None or isinstance(self.results, NullCheckpointer):
             try:
                 self.checkpointer["degenerate_data"] = {
-            "states": [d.excitations for d in degenerate_states],
-            "energies": energies,
-            "hamiltonians": ndeg_ham_corrs,
-            "rotations": rotations
-        }
+                    "states": [d.excitations for d in degenerate_states],
+                    "energies": energies,
+                    "hamiltonians": ndeg_ham_corrs,
+                    "rotations": rotations
+                }
             except KeyError:
                 pass
         else:

@@ -87,7 +87,7 @@ class Molecule(AbstractMolecule):
         self._coords = coords
         self._sys = MolecularCartesianCoordinateSystem(self)
         self._coords = CoordinateSet(self._coords, self._sys)
-        if not zmatrix is None:
+        if zmatrix is not None:
             zmatrix = np.asanyarray(zmatrix).astype(int)
             if zmatrix.shape[1] != 4:
                 raise ValueError("can't understand Z-matrix {}".format(zmatrix))

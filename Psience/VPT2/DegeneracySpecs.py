@@ -320,7 +320,8 @@ class PolyadDegeneracySpec(DegeneracySpec):
                                          raise_iteration_error=require_converged
                                          )
 
-        return [g for g in groups if len(g) > 1]
+        grp = [g for g in groups if len(g) > 1]
+        return grp
 
     @staticmethod
     def _is_polyad_rule(d, n_modes):
@@ -356,7 +357,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
     @classmethod
     def canonicalize(cls, spec):
         try:
-            return {k:GroupsDegeneracySpec._validate_grp(g) for k,v in spec.items()}
+            return {k:GroupsDegeneracySpec._validate_grp(v) for k,v in spec.items()}
         except (np.VisibleDeprecationWarning, AttributeError, StopIteration):
             return None
 
@@ -473,10 +474,22 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                     degenerate_states = new
                     del deg_states
 
+                # raise Exception(
+                #     states.basis.indexer.to_indices(
+                #         [[0, 0, 0, 0, 0, 1],
+                #          [0, 0, 0, 0, 2, 0],
+                #          [1, 0, 0, 0, 0, 1],
+                #          [0, 1, 0, 0, 0, 1]]
+                #     )
+                # )
+
                 degenerate_states = [
-                    BasisStateSpace(states.basis, s) if not isinstance(s, BasisStateSpace) else s
+                    BasisStateSpace(states.basis, s)#.as_sorted(track_indices=False, track_excitations=False)
+                    if not isinstance(s, BasisStateSpace) else s
                     for s in degenerate_states
                 ]
+                # for x in degenerate_states:
+                #     print(x.indices)
 
                 logger.log_print(
                     "{n} degenerate state sets found",
@@ -515,13 +528,11 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                     break
             else:
                 ugh.append(states.take_subspace([n]))
+
         # now make a numpy array for initialization
         arrs = np.full(len(ugh), None)
         for i, g in enumerate(ugh):
             arrs[i] = g
-            # if len(g) > 1:
-            #     raise Exception(ugh[i].indices, g, ugh[i].excitations,
-            #             states.basis.unravel_state_inds(np.arange(10)))
 
         return cls(arrs)
 
