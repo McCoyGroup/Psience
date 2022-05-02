@@ -1985,7 +1985,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
                 mode=BasisStateSpace.StateSpaceSpec.Indices,
                 full_basis=self.representative_space.full_basis
             )
-            if self.flat[0]._excitations is not None and track_excitations:
+            if len(self.flat) > 0 and self.flat[0]._excitations is not None and track_excitations:
                 states.excitations = self.excitations
         return states
 
@@ -3129,7 +3129,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype: SelectionRuleStateSpace
         """
 
-        raise NotImplementedError("Unoptimized code path")
+        # raise NotImplementedError("Unoptimized code path")
 
         if not isinstance(other, SelectionRuleStateSpace):
             raise TypeError("difference with {} only defined over subclasses of {} (not {})".format(
@@ -3148,15 +3148,25 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         other_inds = other.representative_space.indices
 
         if handle_subspaces:
-            new_rep = self.representative_space.intersection(other.representative_space)
-            intersected_inds = new_rep.indices
+            new_rep = self.representative_space
+            inter_rep = self.representative_space.intersection(other.representative_space)
+            intersected_inds = inter_rep.indices
             indexer = np.argsort(self_inds)
-            where_inds = self._pick(self_inds, intersected_inds, indexer)
-            new_spaces = self.spaces[where_inds,]
+            where_inds1 = self._pick(self_inds, intersected_inds, indexer)
+            new_spaces = self.spaces.copy()
+            # new_spaces = self.spaces[where_inds,]
             sub_indexer = np.argsort(other_inds)
             where_inds = self._pick(other_inds, intersected_inds, sub_indexer)
-            for n, i in enumerate(where_inds):
-                new_spaces[n] = new_spaces[n].difference(other[n])
+            kill_inds = []
+            for n, i in zip(where_inds1, where_inds):
+                diff = new_spaces[n].difference(other[i])
+                new_spaces[n] = diff
+                if len(diff) == 0:
+                    kill_inds.append(n)
+            if len(kill_inds) > 0:
+                complement = np.setdiff1d(np.arange(len(new_rep)), kill_inds)
+                new_rep = new_rep.take_subspace(complement)
+                new_spaces = new_spaces[complement,]
         else:
             new_rep = self.representative_space.difference(other.representative_space)
             diff_inds = new_rep.indices

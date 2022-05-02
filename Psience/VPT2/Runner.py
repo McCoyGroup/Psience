@@ -256,6 +256,10 @@ class VPTStateSpace:
         # else:
         #     raise NotImplementedError("don't know what to do with degeneracy spec {}".format(degeneracy_specs))
 
+    def filter_generator(self, target_property, order=2):
+        def filter(states):
+            return self.get_state_space_filter(states, target=target_property, order=order)
+        return filter
     def get_filter(self, target_property, order=2):
         """
         Obtains a state space filter for the given target property
@@ -315,42 +319,6 @@ class VPTStateSpace:
                     HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x")
                 ]
             )
-
-            return {
-                    (1, 1): (
-                        cls.get_state_list_from_quanta(1, n_modes),
-                        (
-                            cls.get_state_list_from_quanta([2, 3], n_modes),
-                            [
-                                x for x in HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x")
-                                if sum(x) in [-1, 1]
-                            ]
-                        )
-                    ) if any(sum(s) == 3 for s in states) else (
-                        cls.get_state_list_from_quanta(1, n_modes),
-                        (
-                            cls.get_state_list_from_quanta([2], n_modes),
-                            [
-                                x for x in HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x")
-                                if sum(x) in [-1, 1]
-                            ]
-                        )
-                    ),
-                    (2, 0): (
-                        cls.get_state_list_from_quanta(1, n_modes),
-                        (
-                            cls.get_state_list_from_quanta([3], n_modes),
-                            [
-                                x for x in HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x", "x")
-                                if sum(x) in [-2, 0]#, 2]
-                            ]
-                        ),
-                        (None, [[]])  # selection rules to apply to remainder
-                    ) if any(sum(s) == 3 for s in states) else (
-                        cls.get_state_list_from_quanta(1, n_modes),
-                        (None, [[]])  # selection rules to apply to remainder
-                    )
-            }
         elif target == 'frequencies':
             return {
                 (1, 1): ([],),
@@ -619,7 +587,8 @@ class VPTSolverOptions:
         "handle_strong_couplings",
         "strong_coupling_test_modes",
         "strong_couplings_state_filter",
-        "strongly_coupled_group_filter"
+        "strongly_coupled_group_filter",
+        "extend_strong_coupling_spaces"
     )
     def __init__(self,
                  order=2,
@@ -641,8 +610,8 @@ class VPTSolverOptions:
                  strong_coupling_test_modes=None,
                  strong_couplings_state_filter=None,
                  strongly_coupled_group_filter=None,
+                 extend_strong_coupling_spaces=None,
                  zero_order_energy_corrections=None
-
                  ):
         """
         :param order: the order of perturbation theory to apply
@@ -689,6 +658,7 @@ class VPTSolverOptions:
             strong_coupling_test_modes=strong_coupling_test_modes,
             strong_couplings_state_filter=strong_couplings_state_filter,
             strongly_coupled_group_filter=strongly_coupled_group_filter,
+            extend_strong_coupling_spaces=extend_strong_coupling_spaces,
             state_space_iterations=state_space_iterations,
             state_space_terms=state_space_terms,
             state_space_filters=state_space_filters,
@@ -922,7 +892,7 @@ class VPTRunner:
         if target_property is None and order == 2:
             target_property = 'intensities'
         if target_property is not None and 'state_space_filters' not in opts:
-            par.ops['state_space_filters'] = states.get_filter(target_property, order=order)
+            par.ops['state_space_filters'] = states.filter_generator(target_property, order=order)
 
             # print(par.ops['state_space_filters'])
 
@@ -944,39 +914,40 @@ class VPTRunner:
         )
 
         logger = runner.hamiltonian.logger
-        with logger.block(tag="Starting Perturbation Theory Runner"):
-            with logger.block(tag="Hamiltonian Options"):
-                for k,v in runner.ham_opts.opts.items():
-                    logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
-            with logger.block(tag="Solver Options"):
-                opts = runner.pt_opts.opts
-                for k,v in opts.items():
-                    logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
-            with logger.block(tag="Runtime Options"):
-                opts = dict(runner.runtime_opts.ham_opts, **runner.runtime_opts.solver_opts)
-                for k,v in opts.items():
-                    logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
+        with np.printoptions(linewidth=1e8, threshold=1e6):
+            with logger.block(tag="Starting Perturbation Theory Runner"):
+                with logger.block(tag="Hamiltonian Options"):
+                    for k,v in runner.ham_opts.opts.items():
+                        logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
+                with logger.block(tag="Solver Options"):
+                    opts = runner.pt_opts.opts
+                    for k,v in opts.items():
+                        logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
+                with logger.block(tag="Runtime Options"):
+                    opts = dict(runner.runtime_opts.ham_opts, **runner.runtime_opts.solver_opts)
+                    for k,v in opts.items():
+                        logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
 
-            with logger.block(tag="States"):
-                logger.log_print(
-                    states.state_list,
-                    message_prepper=lambda a:str(np.array(a)).splitlines()
-                )
-            with logger.block(tag="Degeneracies"):
-                if states.degenerate_states is None:
-                    logger.log_print("None")
-                else:
-                    ds = states.degenerate_states
-                    if isinstance(ds, list):
-                        for x in states.degenerate_states:
-                            logger.log_print(
-                                x,
-                                message_prepper=lambda a:str(np.array(a)).splitlines()
-                            )
+                with logger.block(tag="States"):
+                    logger.log_print(
+                        states.state_list,
+                        message_prepper=lambda a:str(np.array(a)).splitlines()
+                    )
+                with logger.block(tag="Degeneracies"):
+                    if states.degenerate_states is None:
+                        logger.log_print("None")
                     else:
-                        logger.log_print(str(ds))
+                        ds = states.degenerate_states
+                        if isinstance(ds, list):
+                            for x in states.degenerate_states:
+                                logger.log_print(
+                                    x,
+                                    message_prepper=lambda a:str(np.array(a)).splitlines()
+                                )
+                        else:
+                            logger.log_print(str(ds))
 
-            return runner.print_tables(print_intensities=calculate_intensities)
+                return runner.print_tables(print_intensities=calculate_intensities)
 
 class VPTStateMaker:
     """

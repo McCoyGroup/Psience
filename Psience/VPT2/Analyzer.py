@@ -529,7 +529,7 @@ class VPTAnalyzer:
         :return:
         :rtype:
         """
-        return self.deperturbed_energies - self.deperturbed_energies[0]
+        return self.deperturbed_energies[1:] - self.deperturbed_energies[0]
     @loaded_prop
     def wavefunction_corrections(self):
         """

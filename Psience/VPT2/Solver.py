@@ -1,5 +1,5 @@
 
-import numpy as np, itertools, time, gc
+import numpy as np, itertools, time, types
 from collections import namedtuple
 
 from McUtils.Numputils import SparseArray
@@ -50,6 +50,7 @@ class PerturbationTheorySolver:
                  strong_coupling_test_modes=None,
                  strong_couplings_state_filter=None,
                  strongly_coupled_group_filter=None,
+                 extend_strong_coupling_spaces=True,
                  zero_order_energy_corrections=None,
                  memory_constrained=False,
                  keep_hamiltonians=None,
@@ -91,10 +92,15 @@ class PerturbationTheorySolver:
         self.perts = perturbations
         self._reps = None
         self.order = order
-        self.state_space_iterations=state_space_iterations
-        self.state_space_terms=state_space_terms
+        self.state_space_iterations = state_space_iterations
+        self.state_space_terms = state_space_terms
 
-        self.state_space_filters=PerturbationTheoryStateSpaceFilter.from_data(states, state_space_filters)
+        if isinstance(state_space_filters, (types.FunctionType, types.MethodType, types.LambdaType)):
+            self.state_space_filter_generator = state_space_filters
+            self.state_space_filters = PerturbationTheoryStateSpaceFilter.from_data(states, self.state_space_filter_generator(states))
+        else:
+            self.state_space_filter_generator = None
+            self.state_space_filters = PerturbationTheoryStateSpaceFilter.from_data(states, state_space_filters)
         self.target_property_rules=target_property_rules
 
         self.logger = logger
@@ -113,6 +119,7 @@ class PerturbationTheorySolver:
         if handle_strong_couplings is None:
             handle_strong_couplings = self.degeneracy_spec is None
         self.handle_strong_couplings = handle_strong_couplings
+        self.extend_strong_coupling_spaces = extend_strong_coupling_spaces
         self.strong_coupling_test_modes = strong_coupling_test_modes
         self.strong_couplings_state_filter = strong_couplings_state_filter
         self.strongly_coupled_group_filter = strongly_coupled_group_filter
@@ -241,18 +248,9 @@ class PerturbationTheorySolver:
         :rtype: PerturbationTheoryCorrections
         """
 
-
-        # wat = sum(self.representations)[:100, :100]
-        # analytic_engs = np.linalg.eigh(wat.asarray())[0]
-
         corrs = self.get_corrections()
         degenerate_states = corrs.degeneracies
-        # print(degenerate_states)
         corrs = corrs.corrections
-
-        # import McUtils.Plots as plt
-        #
-        # wat = corrs.get_overlap_matrices()
 
         # degeneracy_mode = self.degeneracy_mode
         # degenerate_states = self.degenerate_spaces
@@ -268,12 +266,6 @@ class PerturbationTheorySolver:
                 corrs.degenerate_energies = deg_engs
                 corrs.degenerate_transf = deg_transf
                 corrs.degenerate_hamiltonians = deg_hams
-
-        # if (
-        #         self.keep_hamiltonians is None and self.memory_constrained
-        #         or (self.keep_hamiltonians is not None and not self.keep_hamiltonians)
-        # ):
-        #     corrs.hams = None # just to allow the memory to be freed
 
         return corrs
 
@@ -341,17 +333,6 @@ class PerturbationTheorySolver:
                                                                            memory_constrained=self.memory_constrained
                                                                            )
                                     h.clear_cache()
-                                    # post = tracemalloc.take_snapshot()
-                                    # for stat in post.compare_to(pre, 'lineno')[:10]:
-                                    #     print(stat)
-                                    # tracemalloc.stop()
-                                    # if self.memory_constrained:
-                                    #     if not isinstance(self.checkpointer, NullCheckpointer):
-                                    #         self.checkpointer['H[{}]'.format(i+1)] = H[i+1]
-                                    #         H[i+1] = None
-                                    #         gc.collect()
-                                    #     # H[i + 1] = H[i + 1].ascs(inplace=True) # attempt to control memory footprint...
-                                    # cs.clear_cache()
                                     end = time.time()
                                     logger.log_print("took {t:.3f}s", t=end - start)
                                     # raise Exception("woop")
@@ -363,6 +344,95 @@ class PerturbationTheorySolver:
                             checkpointer['representations'] = H
                         except KeyError:
                             pass
+
+            return H
+    def extend_VPT_representations(self, new_flat_space, new_states):
+
+        logger = self.logger
+        if logger is None:
+            logger = NullLogger()
+
+        with self.checkpointer as checkpointer:
+            with self.logger.block(tag='extending representations'):
+                par = Parallelizer.lookup(self.parallelizer)
+                with par:
+                    n_spaces = len(new_states) + 1
+                    N = len(self.flat_total_space)
+                    H = [np.zeros(1)] * min(len(self.perts), n_spaces)
+                    with logger.block(tag="building {}".format(self.perts[0])):
+                        start = time.time()
+                        subh = self.perts[0].get_representation_matrix(new_flat_space,
+                                                                       self.flat_total_space,
+                                                                       zero_element_warning=self.zero_element_warning,
+                                                                       diagonal=True
+                                                                       )
+                        # old_N = self.representations[0].shape[0]
+                        old_vals, old_inds = self.representations[0].block_data
+                        new_vals, new_inds = subh.block_data
+                        full_dat = np.concatenate([old_vals, new_vals])
+                        full_inds = tuple(
+                            np.concatenate([o.astype(int), i.astype(int)]) for o,i in zip(old_inds, new_inds)
+                        )
+                        H[0] = SparseArray.from_data(
+                            (
+                                full_dat,
+                                full_inds
+                            ),
+                            shape=(N, N)
+                        )
+                        end = time.time()
+                        logger.log_print("took {t:.3f}s", t=end - start)
+                        self.perts[0].clear_cache()
+                        self._zo_engs = None
+
+                    for i, h in enumerate(self.perts[1:]):
+                        if n_spaces > i + 1:
+                            cs = new_states[i]
+                            with logger.block(tag="building {}".format(h)):
+                                start = time.time()
+                                if len(cs) > 0:
+                                    #TODO: add a way to avoid calculating terms
+                                    #      that I've already calculated
+                                    subh = h.get_representation_matrix(cs,
+                                                                       self.flat_total_space,
+                                                                       zero_element_warning=self.zero_element_warning,
+                                                                       diagonal=False,
+                                                                       memory_constrained=self.memory_constrained
+                                                                       )
+                                    old_vals, old_inds = self.representations[i+1].block_data
+                                    new_vals, new_inds = subh.block_data
+
+                                    #TODO: I wouldn't need this if I could be assured of no dupes
+                                    full_dat = np.concatenate([old_vals, new_vals])
+                                    full_inds = tuple(np.concatenate([o, i]) for o, i in zip(old_inds, new_inds))
+                                    uinds, usort = np.unique(
+                                        np.array(full_inds).T,
+                                        return_index=True,
+                                        axis=0
+                                    )
+                                    full_dat = full_dat[usort]
+                                    full_inds = uinds.T
+                                else:
+                                    full_dat, full_inds = self.representations[i+1].block_data
+                                H[i + 1] = SparseArray.from_data(
+                                    (
+                                        full_dat,
+                                        full_inds
+                                    ),
+                                    shape=(N, N)
+
+                                )
+                                h.clear_cache()
+                                end = time.time()
+                                logger.log_print("took {t:.3f}s", t=end - start)
+
+                # raise Exception("...")
+
+                if self.use_cached_representations:
+                    try:
+                        checkpointer['representations'] = H
+                    except KeyError:
+                        pass
 
             return H
 
@@ -444,7 +514,6 @@ class PerturbationTheorySolver:
         """
 
         logger = self.logger
-
         with self.logger.block(tag='getting basis'):
             if self._coupled_states is None:
                 self.logger.log_print('trying to load from checkpoint...')
@@ -513,57 +582,126 @@ class PerturbationTheorySolver:
                     t=end - start
                 )
 
-            if self._total_space is None:
-                with logger.block(tag="generating total space"):
+            self._generate_total_space()
+    def _generate_total_space(self):
+        if self._total_space is None:
+            with self.logger.block(tag="generating total space"):
 
+                start = time.time()
+
+                space_list = [self.states] + [s for s in self._coupled_states if s is not None]
+                self._total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
+                flat_space = self.states.take_unique().to_single(track_excitations=False)
+                for s in self._coupled_states:
+                    if s is not None:
+                        flat_space = flat_space.union(s.to_single(track_excitations=False), track_excitations=False)
+                # flat_space = self._total_space.to_single()
+                self._flat_space = flat_space.take_unique(track_excitations=False)
+                # raise Exception(
+                #     self._flat_space.find(
+                #         space_list[1].get_representation_brakets(other=None).bras
+                #     )
+                # )
+                self._total_dim = len(self.flat_total_space)
+
+                end = time.time()
+                self.logger.log_print(
+                    [
+                        "total coupled space dimension: {d} (contracted from {f})",
+                        "took {t:.3f}s"
+                    ],
+                    d=self.total_space_dim,
+                    f=len(flat_space),
+                    t=end - start
+                )
+                # raise Exception("break")
+        else:
+            if self._flat_space is None:
+                with self.logger.block(tag="generating total space"):
                     start = time.time()
-
-                    space_list = [self.states] + [s for s in self._coupled_states if s is not None]
-                    self._total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
-                    flat_space = self.states.take_unique().to_single(track_excitations=False)
-                    for s in self._coupled_states:
-                        if s is not None:
-                            flat_space = flat_space.union(s.to_single(track_excitations=False), track_excitations=False)
-                    # flat_space = self._total_space.to_single()
-                    self._flat_space = flat_space.take_unique(track_excitations=False)
-                    # raise Exception(
-                    #     self._flat_space.find(
-                    #         space_list[1].get_representation_brakets(other=None).bras
-                    #     )
-                    # )
-                    self._total_dim = len(self.flat_total_space)
+                    self._flat_space = self._total_space.to_single().take_unique()
+                    self._total_dim = len(self._flat_space)
 
                     end = time.time()
-                    logger.log_print(
+                    self.logger.log_print(
                         [
-                            "total coupled space dimension: {d} (contracted from {f})",
+                            "total coupled space dimension: {d}",
                             "took {t:.3f}s"
                         ],
                         d=self.total_space_dim,
-                        f=len(flat_space),
                         t=end - start
                     )
-                    # raise Exception("break")
             else:
-                if self._flat_space is None:
-                    with logger.block(tag="generating total space"):
-                        start = time.time()
-                        self._flat_space = self._total_space.to_single().take_unique()
-                        self._total_dim = len(self._flat_space)
+                self._total_dim = len(self._flat_space)
 
-                        end = time.time()
-                        logger.log_print(
-                            [
-                                "total coupled space dimension: {d}",
-                                "took {t:.3f}s"
-                            ],
-                            d=self.total_space_dim,
-                            t=end - start
-                        )
+    def extend_state_spaces(self, new_targets):
+        with self.logger.block(tag='extending basis'):
+            parallelizer = Parallelizer.lookup(self.parallelizer)
+            if parallelizer.nprocs > 1:
+                parallelizer.printer = self.logger.log_print
+                self.logger.log_print('parallelizing over {nproc} processors',
+                                      nproc=parallelizer.nprocs
+                                      )
+            with parallelizer:  # we put an outermost block here to just make sure everything is clean
+                start = time.time()
+                existing_spaces = {self.perts[0]:None}
+                for p,cs in zip(self.perts[1:], self.coupled_states):
+                    flat = cs.to_single().take_unique()
+                    existing_spaces[p] = ({None:cs}, cs)
+                if self.state_space_filter_generator is not None:
+                    filters = PerturbationTheoryStateSpaceFilter.from_data(new_targets, self.state_space_filter_generator(new_targets))
+                    # raise Exception(filters[(1, 1)].prefilters)
                 else:
-                    self._total_dim = len(self._flat_space)
+                    filters = None
+                new_spaces = self.load_coupled_spaces([new_targets],
+                                                      filter_spaces=filters
+                                                      )#, spaces=existing_spaces)
+                self.states = self.states.union(new_targets)
 
-    def load_coupled_spaces(self):
+                if all(n is None for n in new_spaces):
+                    return None
+                for i,(old,new) in enumerate(zip(self._coupled_states, new_spaces)):
+                    if new is not None:
+                        _ = new.indices # precomputing
+                        self._coupled_states[i] = old.union(new)
+                        # print(new)
+                        # new_spaces[i] = new.difference(old)
+                        # print(new)
+                # _ = [len(s) for s in [self.states] + list(self._coupled_states)]
+                end = time.time()
+
+                self.logger.log_print(
+                    ['H({i}): {s}'.format(i=i, s=s) for i, s in
+                     enumerate([self.states] + list(self._coupled_states))]
+                    + ["took {t}s..."],
+                    t=round(end - start, 3)
+                )
+
+            flat_space = None
+            for s in new_spaces:
+                if s is not None:
+                    if flat_space is None:
+                        flat_space = s.to_single(track_excitations=False)
+                    else:
+                        flat_space = flat_space.union(s.to_single(track_excitations=False), track_excitations=False)
+            flat_space = flat_space.take_unique(track_excitations=False)
+            flat_space = flat_space.difference(self.flat_total_space)
+
+            new_spaces = [s for s in new_spaces if s is not None]
+
+            self._flat_space = self.flat_total_space.union(flat_space, track_excitations=False)
+            self._total_dim = len(self.flat_total_space)
+
+            space_list = [self.states] + [s for s in self._coupled_states if s is not None]
+            self._total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
+
+        return flat_space, new_spaces
+
+    def load_coupled_spaces(self, degenerate_spaces=None, spaces=None,
+                            wavefunction_terms=None,
+                            property_filter=None,
+                            filter_spaces=None
+                            ):
         """
         Determines which states need to be coupled at which levels of correction
         to handle the PT
@@ -574,9 +712,10 @@ class PerturbationTheorySolver:
         total_state_spaces = []
         # loop over the degenerate sets and build a full
         # set of connected states
-        spaces=None
         simple_spaces = []
-        for deg_group in self.degenerate_spaces:
+        if degenerate_spaces is None:
+            degenerate_spaces = self.degenerate_spaces
+        for deg_group in degenerate_spaces:
             # self.logger.log_print('loading {g} coupled states...', g=deg_group.indices)
             if len(deg_group) > 1 and self.allow_sakurai_degs:
                 raise NotImplementedError("True degeneracy handling needs some patches")
@@ -596,49 +735,27 @@ class PerturbationTheorySolver:
 
             # raise Exception(simple_spaces[0].full_basis)
 
+            if wavefunction_terms is None:
+                wavefunction_terms = self.state_space_terms
+            if property_filter is None:
+                property_filter = self.target_property_rules
+            if filter_spaces is None:
+                filter_spaces = self.state_space_filters
+
             spaces = self.get_coupled_space(
                 space,
                 None, False,
                 allow_PT_degs=self.allow_sakurai_degs,
                 spaces=spaces,
-                wavefunction_terms=self.state_space_terms,
-                property_filter=self.target_property_rules,
-                filter_spaces=self.state_space_filters
+                wavefunction_terms=wavefunction_terms,
+                property_filter=property_filter,
+                filter_spaces=filter_spaces
                 )
             total_state_spaces.append(spaces)
 
         coupled_states = [spaces[h][1] if spaces[h] is not None else None for h in self.perts]
 
         return coupled_states[1:]
-
-    def _use_second_deg_PT(self, deg_group, degeneracy_cutoff=1e-8): # within a few wavenumbers or so
-        """
-        Diagonalizes the perturbations in the degenerate subspace to
-        get a cleaner basis in which to do the perturbation theory.
-        Used here only to first order to determine whether or not to do 2nd order or 1st order
-        degenerate PT
-        This comes from Sakurai.
-
-        :param deg_group:
-        :type deg_group: BasisStateSpace
-        :return:
-        :rtype: tuple[Iterable[SparseArray], SparseArray, SparseArray]
-        """
-
-        small_space = deg_group.get_representation_brakets()
-        N_D = len(deg_group)
-        # raise Exception(deg_group.excitations, deg_group.indices)
-        subham = self.perts[1][small_space]
-        # raise Exception(subham)
-        subham = subham.reshape((N_D, N_D))
-
-        new_eng1, deg_transf = np.linalg.eigh(subham)
-
-        diffs = np.diff(new_eng1)
-        if (np.abs(diffs) < degeneracy_cutoff).any():
-            return True
-        else:
-            return False
 
     class StateSpaceWrapper:
         """
@@ -650,12 +767,16 @@ class PerturbationTheorySolver:
             return self
         def simple_union(self, other):
             if (
-                    isinstance(other, (int, np.integer, float, np.floating)) and other == 0
+                other is None
+                or isinstance(other, (int, np.integer, float, np.floating)) and other == 0
             ):
                 return self
             if isinstance(other, type(self)):
                 other = other.space
-            return type(self)(self.space.union(other))
+            if other is None:
+                return self
+            else:
+                return type(self)(self.space.union(other))
         def __sub__(self, other):
             return self.simple_union(other)
         def __rsub__(self, other):
@@ -756,7 +877,6 @@ class PerturbationTheorySolver:
             return False
 
         return res
-
     def _could_be_a_prefilter(self, test):
         return (
             test is None
@@ -767,7 +887,6 @@ class PerturbationTheorySolver:
                     and self._could_be_rules(test[1])
             )
         )
-
     def _apply_transformation_with_filters(self, a, b, filter_space:PerturbationTheoryStateSpaceFilter, **opts):
 
         if filter_space is not None:
@@ -882,7 +1001,8 @@ class PerturbationTheorySolver:
                 # reduce to a single space to feed to the next round
                 # of terms
 
-                new = new.to_single().take_unique()
+                if new is not None:
+                    new = new.to_single().take_unique()
             else:
                 projections, cur = cur
                 # figure out what stuff we've already calculated
@@ -953,15 +1073,17 @@ class PerturbationTheorySolver:
                     else:
                         # means we already calculated everything
                         # so we don't need to worry about this
-                        b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True) # just some type fuckery
-                        new = cur.intersection(b_sels, handle_subspaces=False)
-                        new = new.to_single().take_unique()
+                        if cur is not None:
+                            b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True) # just some type fuckery
+                            new = cur.intersection(b_sels, handle_subspaces=False)
+                            new = new.to_single().take_unique()
+                        else:
+                            new = None
 
         else:
             raise TypeError("don't know what to do with {} and {}".format(a, b))
 
         return self.StateSpaceWrapper(new)
-
     def _reduce_new_coupled_space(self, *terms,
                                   spaces=None,
                                   ret_space=True,
@@ -982,7 +1104,6 @@ class PerturbationTheorySolver:
             reversed(terms[:-1]),
             terms[-1]
         )
-
     def get_coupled_space(self,
                             input_state_space,
                             degenerate_space,
@@ -1011,13 +1132,7 @@ class PerturbationTheorySolver:
                 filter_spaces=filter_spaces
             )
         else:
-            raise NotImplementedError("True degeneracy handling is getting a rewrite")
-            if degenerate_space is None:
-                spaces = self.get_nondeg_coupled_space(input_state_space, spaces=spaces)
-            elif not use_second_deg:
-                spaces = self.get_deg_coupled_space(degenerate_space, spaces=spaces)
-            else:
-                spaces = self.get_second_deg_coupled_space(degenerate_space, spaces=spaces)
+            raise NotImplementedError("True degeneracy handling was scrubbed for lack of utility")
 
         # raise Exception(spaces)
         return spaces
@@ -1067,7 +1182,7 @@ class PerturbationTheorySolver:
         D = degenerate_space
         if D is None:
             D = input_state_space
-        pi = self.ProjectionOperatorWrapper(D, complement=True)
+        # pi = self.ProjectionOperatorWrapper(D, complement=True)
         # piD = self.ProjectionOperatorWrapper(D, complement=False)
 
         dot = lambda *terms, spaces=spaces,ret_space=True,filter_space=None: self._reduce_new_coupled_space(*terms,
@@ -1125,214 +1240,8 @@ class PerturbationTheorySolver:
         else:
             raise NotImplementedError("property filters not here yet")
 
-        # else:
-        #     # indicates we were given target property terms to work with so rather
-        #     # than just allowing us to recursively build up we use the selection
-        #     # rules for these terms to determine which selection rules we actually
-        #     # need to calculate both the energy and target property correctly
-        #     target_states, target_sel_rules = property_filter
-        #     exc = input_state_space.excitations
-        #     if isinstance(target_states, (int, np.integer)):
-        #         target_states = (target_states,)
-        #     else:
-        #         target_states = tuple(target_states)
-        #     target_rules = exc[:, np.newaxis, :] - exc[np.newaxis, target_states, :]
-        #
-        #     # Now at each order we determine which selection rule terms we'll need
-        #     all_sels = [
-        #         [ [] ]
-        #         if i == 0 else h.selection_rules for i,h in enumerate(self.perts)
-        #     ]
-        #
-        #     # we populate the entire list of selection rules before filtering
-        #     # this tells us what _would_ be applied and then we'll filter it
-        #     # down to see what _will_ be applied
-        #     base_sel_paths = [
-        #         [((), ())]
-        #     ]
-        #     for k in range(1, order):
-        #         new_paths = []
-        #         for i in range(0, k):
-        #             if not isinstance(H[k - i], (int, np.integer)):
-        #                 sels = all_sels[k-i]
-        #                 if sels is None:
-        #                     raise NotImplementedError("how are we here")
-        #                 for cur_hams, cur_sels in base_sel_paths[i]:
-        #                     new_paths.append((
-        #                         cur_hams + (H[k - i],),
-        #                         cur_sels + (sels,)
-        #                     ))
-        #         base_sel_paths.append(new_paths)
-        #
-        #     # basic filter coming from needing to calculate the energy correctly
-        #     sel_filts = [
-        #         LatticePathGenerator([x]) for x in all_sels
-        #     ]
-        #     for k in range(1, order):
-        #         sel_terms = [a[1] for a in base_sel_paths[k]]
-        #         ham_terms = [a[0] for a in base_sel_paths[k]]
-        #         for i in range(0, k):
-        #             main_terms = LatticePathGenerator(sel_terms[i])
-        #             for n,terms in enumerate(sel_filts[1:k+1]):
-        #                 n+=1
-        #                 # we figure out which sets of raising/lowering
-        #                 # operations will get us from start to finish
-        #                 if not isinstance(terms, list):
-        #                     terms = [terms]
-        #
-        #                 # then we turn these into proper selection rules and
-        #                 # determine which selection rules will go with which
-        #                 # operators
-        #                 for t in terms:
-        #                     bit_strings = main_terms.find_intersections(t)
-        #                     print(bit_strings)
-        #                     # for now we'll just let this mean we need these specific
-        #                     # selection rules but in the future we'll be a bit more
-        #                     # targeted in terms of the terms we need to calculate
-        #                     for b in bit_strings:
-        #                         new_space = input_state_space
-        #                         for h, j, r in zip(ham_terms[i], b, main_terms.steps):
-        #                             if len(r[j]) > 0:
-        #                                 if isinstance(new_space, SelectionRuleStateSpace):
-        #                                     new_space = new_space.to_single().take_unique()
-        #                                 new_space = new_space.apply_selection_rules([r[j]])
-        #                                 if new_space is None:
-        #                                     break
-        #
-        #                                 if spaces[h] is None:
-        #                                     spaces[h] = (None, new_space)
-        #                                 else:
-        #                                     spaces[h] = (None, spaces[h][1].union(new_space))
-        #                             elif spaces[h] is None:
-        #                                 spaces[h] = (None, new_space)
-        #
-        #
-        # raise Exception(spaces)
-        #
-        #     # filter needed to get _excitations_ correctly
-        #
-        # raise Exception(spaces)
-
         return spaces
 
-    def get_deg_coupled_space(self, degenerate_space, spaces=None):
-        """
-        Applies the degenerate equations in semi-symbolic form to determine
-        which states needs to be calculated at which orders of correction
-
-        :return:
-        :rtype:
-        """
-
-        # raise NotImplementedError("haven't checked this yet...")
-
-        D = degenerate_space
-
-        # holder for perts to map to their stored states
-        spaces = {h:None for h in self.perts} if spaces is None else spaces
-        # final state spaces for each energy, corr, overlap, etc.
-        input_wrapper = self.StateSpaceWrapper(D)
-        order = self.order + 1
-        E = [None] * (order + 1)
-        E[0] = input_wrapper
-        corrs = [None] * order
-        corrs[0] = input_wrapper
-
-        piU = self.ProjectionOperatorWrapper(D, complement=True)
-        piD = self.ProjectionOperatorWrapper(D, complement=False)
-        dot = lambda *terms, spaces=spaces: self._reduce_new_coupled_space(*terms, spaces=spaces)
-
-        H = self.PastIndexableTuple(self.perts)
-
-        for k in range(1, order):
-            # Pu |n^(k)>
-            corrs[k] = sum(
-                (
-                   dot(piU, corrs[i]) + dot(piU, H[k - i], corrs[i])
-                    for i in range(0, k)
-                ),
-                corrs[0]
-            )
-
-            corrs[k] = (
-                    sum(dot(piU, corrs[i]) for i in range(0, k))
-                    + sum(dot(piD, H[k - i], corrs[i]) for i in range(0, k))
-            )
-
-            # E^(k+1)
-            E[k+1] = sum(dot(piD, H[k+1-i], corrs[i]) for i in range(0, k+1))
-            # PD|n^(k)>
-            corrs[k] += sum(
-                (
-                   dot(piU, corrs[i]) + dot(piU, H[k+1-i], corrs[i])
-                    for i in range(0, k+1)
-                ),
-                corrs[0]
-            )
-
-        return spaces
-    def get_second_deg_coupled_space(self, degenerate_space, spaces=None):
-        """
-        Does the dirty work of doing the VPT iterative equations.
-        Needs to be adapted to include the two types of degeneracies that can
-        be introduced in Sakurai's approach.
-
-        :return:
-        :rtype:
-        """
-
-        D = degenerate_space
-
-        # holder for perts to map to their stored states
-        spaces = {h:None for h in self.perts} if spaces is None else spaces
-        # final state spaces for each energy, corr, overlap, etc.
-        input_wrapper = self.StateSpaceWrapper(D)
-        order = self.order + 1
-        E = [None] * (order + 2)
-        E[0] = input_wrapper
-        corrs = [None] * order
-        corrs[0] = input_wrapper
-
-        piU = self.ProjectionOperatorWrapper(D, complement=True)
-        piV = self.ProjectionOperatorWrapper(D, complement=False)
-        piG = piV
-        dot = lambda *terms, spaces=spaces: self._reduce_new_coupled_space(*terms, spaces=spaces)
-
-        H = self.PastIndexableTuple(self.perts)
-
-        for k in range(1, order):  # to actually go up to the total order
-            # we condense the corr equations to reflect
-            # only the important stuff
-            corrs[k] = (
-                    sum(dot(piU, corrs[i]) for i in range(0, k))
-                    + sum(dot(piU, H[k - i], corrs[i]) for i in range(0, k))  # goes up to k-1
-            )
-
-            # Pv |n^(k)>
-            corrs[k] += (
-                    sum(dot(piV, corrs[i]) for i in range(0, k))
-                    + sum(dot(piV, H[k + 1 - i], corrs[i]) for i in range(0, k+1))  # goes up to k
-            )
-
-            corrs[k] += (
-                    sum(dot(piG, corrs[i]) for i in range(0, k + 1))
-                    + sum(dot(piG, H[k + 2 - i], corrs[i]) for i in range(0, k + 1))  # goes up to k
-                    + sum(dot(piG, H[1], piU, corrs[i]) for i in range(0, k + 1))
-                    + sum(dot(piG, H[1], piU, H[k + 1 - i], corrs[i]) for i in range(0, k + 1))
-            )
-
-            E[k+2] = (
-                    sum(
-                        dot(H[k + 2 - i], corrs[i])
-                        for i in range(0, k+1)
-                    )
-                    + sum(
-                        dot(H[k + 1 - i], corrs[i])
-                        for i in range(0, k+1)
-                    )
-            )
-
-        return spaces
     #endregion
 
     #region Apply Equations
@@ -1389,6 +1298,7 @@ class PerturbationTheorySolver:
             non_zero_cutoff=non_zero_cutoff
         )
 
+    default_strong_coupling_threshold = .3
     def _get_corrections(self,
                          perturbations,
                          states,
@@ -1428,7 +1338,6 @@ class PerturbationTheorySolver:
         :rtype:
         """
 
-        # checkpointer['indices'] = self.total_state_space
         with checkpointer:
 
             all_energies = np.zeros((len(states), order + 1))
@@ -1493,6 +1402,7 @@ class PerturbationTheorySolver:
 
                         if len(deg_group) > 1:
                             if self.allow_sakurai_degs:
+                                raise NotImplementedError("True degeneracy handling was purged")
                                 deg_engs, zero_order_states, main_zero_states, subspaces = self._get_deg_eq_inputs(deg_inds)
                                 main_subspace = (np.array([d[0] for d in deg_engs]), main_zero_states)
                             else:
@@ -1503,12 +1413,12 @@ class PerturbationTheorySolver:
                         res_inds = states.find(deg_group.indices, missing_val=-1)
                         for n, res_index, de, zo, s in zip(deg_group.indices, res_inds, deg_engs, zero_order_states, subspaces):
                             if res_index > -1:
-                                energies, overlaps, corrs, ecorrs = self.apply_VPT_equations(n, deg_group, de, zo, main_subspace, s,
-                                                                                     allow_PT_degs=self.allow_sakurai_degs,
-                                                                                     non_zero_cutoff=non_zero_cutoff,
-                                                                                     perturbations=perturbations
-                                                                                     )
-
+                                energies, overlaps, corrs, ecorrs = self.apply_VPT_equations(
+                                    n, deg_group, de, zo, main_subspace, s,
+                                    allow_PT_degs=self.allow_sakurai_degs,
+                                    non_zero_cutoff=non_zero_cutoff,
+                                    perturbations=perturbations
+                                )
                                 all_energies[res_index] = energies
                                 all_energy_corrs[res_index] = ecorrs
                                 all_corrs[res_index] = corrs
@@ -1581,9 +1491,9 @@ class PerturbationTheorySolver:
             ):
 
                 if handle_strong_couplings is True or handle_strong_couplings is False:
-                    degenerate_correction_threshold = .5
+                    degenerate_correction_threshold = self.default_strong_coupling_threshold
                 elif not isinstance(handle_strong_couplings, (int, float, np.integer, np.floating)):
-                    degenerate_correction_threshold=.5
+                    degenerate_correction_threshold = self.default_strong_coupling_threshold
                 else:
                     degenerate_correction_threshold = handle_strong_couplings
                     handle_strong_couplings = handle_strong_couplings > 0
@@ -1604,12 +1514,56 @@ class PerturbationTheorySolver:
                             if group_filter is None:
                                 group_filter = lambda group:DegenerateMultiStateSpace.default_group_filter(group, target_modes=self.strong_coupling_test_modes)
                             degenerate_states = DegenerateMultiStateSpace.from_spec({'couplings':sc}, solver=self, group_filter=group_filter)
-                            # raise Exception("...")
+
+                            if self.extend_strong_coupling_spaces:
+                                missing = degenerate_states.to_single().difference(states)
+                                if len(missing) > 0:
+                                    with self.logger.block(tag='new states'):
+                                        self.logger.log_print(
+                                            missing.excitations,
+                                            message_prepper=lambda a: str(np.array(a)).splitlines()
+                                        )
+                                    extended_spaces = self.extend_state_spaces(missing)
+                                    if extended_spaces is not None:
+                                        new_perts = self.extend_VPT_representations(*extended_spaces)
+                                        # new_perts2 = self.get_VPT_representations()
+                                        # diffs = [x.asarray()-y.asarray() for x,y in zip(new_perts, new_perts2)]
+                                        # raise Exception(
+                                        #     [[np.min(d), np.max(d)] for d in diffs]
+                                        # )
+                                        self._zo_engs = None
+                                        self.representations = perturbations = self.PastIndexableTuple(new_perts)
+                                        flat_total_space = self.flat_total_space
+                                        N = self.total_space_dim
+                                    states = states.union(missing)
+
                             with self.logger.block(tag="Redoing PT with strong couplings handled"):
                                 with self.logger.block(tag="Degenerate groups:"):
                                     for g in degenerate_states.flat:
                                         if len(g) > 1:
                                             self.logger.log_print(str(g.excitations).splitlines())
+
+                                if self.results is None or isinstance(self.results, NullCheckpointer):
+                                    try:
+                                        checkpointer['nondegenerate_corrections'] = {
+                                            "states": states.excitations,
+                                            "total_states": total_states.excitations,
+                                            'energies': all_energies,
+                                            'wavefunctions': corr_mats
+                                        }
+                                    except KeyError:
+                                        pass
+                                else:
+                                    with self.results:
+                                        try:
+                                            self.results['nondegenerate_corrections'] = {
+                                                "states": states.excitations,
+                                                "total_states": total_states.excitations,
+                                                'energies': all_energies,
+                                                'wavefunctions': corr_mats
+                                            }
+                                        except KeyError:
+                                            pass
                                 corrs = self._get_corrections(
                                     perturbations,
                                     states,
