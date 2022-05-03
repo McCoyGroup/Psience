@@ -212,7 +212,7 @@ class ExpansionTerms:
                  internal_fd_stencil=9,
                  cartesian_fd_mesh_spacing=1.0e-3,
                  cartesian_fd_stencil=9,
-                 cartesian_analytic_deriv_order=1,
+                 cartesian_analytic_deriv_order=0,
                  internal_by_cartesian_order=3,
                  cartesian_by_internal_order=4,
                  jacobian_warning_threshold=1e4,
