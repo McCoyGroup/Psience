@@ -2,10 +2,10 @@
 Provides analyzer class to handle common VPT analyses
 """
 
-import enum, weakref, functools, numpy as np, itertools as ip
+import enum, weakref, functools, numpy as np, itertools as ip, io
 from McUtils.Data import UnitsData
 import McUtils.Numputils as nput
-from McUtils.Scaffolding import Checkpointer
+from McUtils.Scaffolding import Checkpointer, Logger
 from ..Spectra import DiscreteSpectrum
 from .Wavefunctions import PerturbationTheoryWavefunctions
 from .Runner import VPTRunner
@@ -167,7 +167,7 @@ class VPTResultsLoader:
     @target_states.register("wavefunctions")
     def _(self):
         data = self.data  # type:PerturbationTheoryWavefunctions
-        return data.corrs.states
+        return data.corrs.states.excitations
 
     @property_dispatcher
     def spectrum(self):
@@ -324,7 +324,10 @@ class VPTResultsLoader:
     @degenerate_states.register("wavefunctions")
     def _(self):
         data = self.data  # type:PerturbationTheoryWavefunctions
-        return data.corrs.degenerate_states
+        states = data.corrs.degenerate_states
+        if states is not None:
+            states = [x for x in data.corrs.degenerate_states if len(x) > 1]
+        return states
 
     @property_dispatcher
     def deperturbed_hamiltonians(self):
@@ -397,7 +400,7 @@ class VPTAnalyzer:
         self.loader = res
 
     @classmethod
-    def run_VPT(cls, *args, logger=False, **kwargs):
+    def run_VPT(cls, *args, logger=None, **kwargs):
         """
         Runs a VPT calculation through `VPTRunner.run_simple` and
         stores the output wave functions to use
@@ -409,6 +412,9 @@ class VPTAnalyzer:
         :return:
         :rtype:
         """
+
+        if logger is None:
+            logger = Logger(io.StringIO())
 
         wfns = VPTRunner.run_simple(
             *args,
@@ -523,7 +529,7 @@ class VPTAnalyzer:
         :return:
         :rtype:
         """
-        return self.deperturbed_energies - self.deperturbed_energies[0]
+        return self.deperturbed_energies[1:] - self.deperturbed_energies[0]
     @loaded_prop
     def wavefunction_corrections(self):
         """
@@ -623,6 +629,13 @@ class VPTAnalyzer:
         #     #         i, ov_thresh
         #     #     ))
 
+        # print(
+        #     *str(
+        #         np.round(ham * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
+        #     ).splitlines(),
+        #     sep="\n"
+        # )
+
         # we pick the terms with the max contribution from each input state
         # and zero out the contributions so that two states can't map
         # to the same input state
@@ -632,7 +645,7 @@ class VPTAnalyzer:
             o = np.argmax(sort_transf[i, :])
             sorting[i] = o
             sort_transf[:, o] = 0.  # np.zeros(len(sort_transf))
-        # print(sorting)
+        # print(deg_transf)
 
         deg_engs = deg_engs[sorting,]
         deg_transf = deg_transf[:, sorting]
@@ -690,6 +703,7 @@ class VPTAnalyzer:
         :rtype:
         """
 
+
         eng, deg_transf, deg_tmom = self.get_shifted_transformed_transition_moments(
             deg_states, target_states, hams, shifts, tmoms,
             handling_mode=handling_mode
@@ -697,7 +711,7 @@ class VPTAnalyzer:
         osc = np.linalg.norm(deg_tmom, axis=0) ** 2
         units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
         freqs = (eng - zpe)
-        ints = units * freqs * osc[1:]
+        ints = units * freqs * osc#[1:]
 
         return DiscreteSpectrum(freqs * UnitsData.convert("Hartrees", "Wavenumbers"), ints), deg_transf
 

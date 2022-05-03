@@ -1,7 +1,8 @@
 
 
-import numpy as np, enum, abc
+import numpy as np, enum, abc, scipy.sparse as sp
 from McUtils.Combinatorics import SymmetricGroupGenerator, PermutationRelationGraph
+import McUtils.Numputils as nput
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, BraKetSpace
 
 __all__ = [
@@ -320,7 +321,8 @@ class PolyadDegeneracySpec(DegeneracySpec):
                                          raise_iteration_error=require_converged
                                          )
 
-        return [g for g in groups if len(g) > 1]
+        grp = [g for g in groups if len(g) > 1]
+        return grp
 
     @staticmethod
     def _is_polyad_rule(d, n_modes):
@@ -356,13 +358,12 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
     @classmethod
     def canonicalize(cls, spec):
         try:
-            return {k:GroupsDegeneracySpec._validate_grp(g) for k,v in spec.items()}
+            return {k:GroupsDegeneracySpec._validate_grp(v) for k,v in spec.items()}
         except (np.VisibleDeprecationWarning, AttributeError, StopIteration):
             return None
 
     @classmethod
     def get_strong_coupling_space(cls, states: BasisStateSpace, couplings: dict):
-
         indexer = SymmetricGroupGenerator(states.ndim)
         groups = [None] * len(states.indices)
         for n, i in enumerate(states.indices):
@@ -397,7 +398,15 @@ class CallableDegeneracySpec(DegeneracySpec):
 class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
     @staticmethod
-    def default_group_filter(group, target_modes=None):
+    def default_group_filter(group,
+                             corrections=None,
+                             threshold=None,
+                             energy_cutoff=None,
+                             energies=None,
+                             decoupling_overide=100,
+                             maximize_groups=True,
+                             target_modes=None
+                             ):
         """
         Excludes modes that differ in only one position, prioritizing states with fewer numbers of quanta
         (potentially add restrictions to high frequency modes...?)
@@ -409,7 +418,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         :return:
         :rtype:
         """
-        if len(group) == 1:
+        if len(group) < 2:
             return group
 
         if target_modes is not None:
@@ -419,21 +428,178 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         else:
             inds = group.indices
             exc = group.excitations
-        sorting = np.argsort(inds)
+
+        if corrections is not None:
+            group_inds = corrections.total_basis.find(group)
+            state_inds = corrections.states.find(group, missing_val=-1)
+            kill_spots = (np.arange(len(group_inds))[state_inds > 0], state_inds[state_inds > 0])
+            corr_mat = [np.abs(x[:, group_inds].asarray().T) for x in corrections.wfn_corrections[1:]]
+            max_corr = None
+            for c in corr_mat:
+                c[kill_spots] = 0
+                if max_corr is None:
+                    max_corr = np.max(c, axis=1)
+                else:
+                    submax = np.max(c, axis=1)
+                    p = submax > max_corr
+                    max_corr[p] = submax[p]
+            if threshold is not None:
+                sorting = np.arange(len(max_corr))
+            else:
+                sorting = np.argsort(-max_corr - 1*(state_inds > 0)) # prioritize states inside requested packet for marginal cases
+        else:
+            sorting = np.argsort(inds)
+            corr_mat = None
+
         exc = exc[sorting]
         diffs = exc[:, np.newaxis] - exc[np.newaxis, :]  # difference matrix (s, s, m)
-        diff_sums = np.sum(diffs != 0, axis=2)  # (s, s)
-        bad_pos = np.where(diff_sums == 1) # np.logical_or(diff_sums == 1, diff_sums == 0))
-        if len(bad_pos) > 0 and len(bad_pos[0]) > 0:
-            kills = np.unique(bad_pos[1][bad_pos[1] > bad_pos[0]]) # upper triangle
-            # prek = kills
-            kills = sorting[kills] # OG indices
-            # raise Exception(prek, kills, exc[prek], group.excitations[kills])
+        tots = exc[:, np.newaxis] + exc[np.newaxis, :]  # difference matrix (s, s, m)
+        diff_sums = np.sum(np.abs(diffs), axis=2)  # (s, s)
+        tots_sums = np.sum(np.abs(tots), axis=2)  # (s, s)
+        elims = []
 
-            # now drop all of these from the total space
-            mask = np.setdiff1d(np.arange(len(exc)), kills)
-            group = group.take_subspace(mask)
-            # raise Exception(group.excitations, kills)#, np.array(bad_pos).T)
+        if threshold is not None and corr_mat is not None:
+            if energy_cutoff is None:
+                bad_pos = np.where(np.logical_and(
+                    diff_sums == 1,
+                    tots_sums > 0
+                ))  # np.logical_or(diff_sums == 1, diff_sums == 0))
+            else:
+                e_vec = energies[group_inds]
+                bad_pos = np.where(np.abs(np.subtract.outer(e_vec, e_vec)) > energy_cutoff)
+            if len(bad_pos) > 0 and len(bad_pos[0]) > 0:
+                N = len(group_inds)
+                base_corr = sum(corr_mat)
+                base_vals = base_corr[:, state_inds[state_inds > 0]]
+                base_mat = np.zeros((N, N), dtype=int)
+                base_mat[:, np.where(state_inds > 0)[0]] = base_vals
+                base_mat = (base_mat.T + base_mat) - 2*np.diag(np.diag(base_mat))
+                truly_bad = base_mat[bad_pos] < decoupling_overide
+                # introduce an override so things that are super strongly coupled can remain coupled
+                bad_pos = tuple(b[truly_bad] for b in bad_pos)
+                base_mat[bad_pos] = 0  # refuse to couple problem states
+                base_mat[bad_pos[1], bad_pos[0]] = 0  # refuse to couple problem states
+
+                def get_groups(cm):
+                    _, labs = sp.csgraph.connected_components(cm, return_labels=True)
+                    (grp_keys, groups), _ = nput.group_by(np.arange(N), labs)
+                    A = np.zeros((N, N))
+                    for g in groups:
+                        A[np.ix_(g, g)] = 1
+                    return groups, A
+
+                corr_mat = (base_mat > threshold).astype(int)
+                groups, A = get_groups(corr_mat)
+
+                target_threshold = threshold
+                step_size = .1
+                while (A[bad_pos] > 0).any():
+                    threshold = threshold + step_size
+                    corr_mat = (base_mat > threshold).astype(int)
+                    groups, A = get_groups(corr_mat)
+
+                if maximize_groups:
+                    dropped_pos = np.where(np.logical_and(base_mat > target_threshold, base_mat < threshold))
+                    if len(dropped_pos) > 0:
+                        # figure out if any can be added without causing breakdowns
+                        sorting = np.argsort(base_mat[dropped_pos])
+                        dropped_pos = tuple(d[sorting] for d in dropped_pos)
+                        for i,j in zip(*dropped_pos): # this could be very expensive...
+                            corr_mat[i, j] = base_mat[i, j]
+                            _, A = get_groups(corr_mat)
+                            if (A[bad_pos] > 0).any():
+                                corr_mat[i, j] = 0.
+                            else:
+                                groups = _
+
+                    # print(np.array([
+                    #     group.take_subspace(bad_pos[0]).excitations,
+                    #     group.take_subspace(bad_pos[1]).excitations
+                    # ]).transpose(1, 0, 2))
+                    # print(bad_pairs[A[bad_pos] > 0])
+                    # print(A)
+                    # print("__"*100)
+
+                # # Attempt to fix bad pos by pruning
+                # A = corr_mat
+                # for i in range(len(corr_mat)):
+                #     B = (np.dot(corr_mat, A) > 0).astype(int)
+                #     now_bad = B[bad_pos] > 0
+                #     for (pi, pj) in bad_pairs[now_bad]:
+                #         kill_pos = A[pj] > 0
+                #         corr_mat[pi][kill_pos] = 0
+                #         corr_mat[:, pi][kill_pos] = 0
+                #     A = (np.dot(corr_mat, A) > 0).astype(int)
+                # A = (np.linalg.matrix_power(corr_mat, len(corr_mat)) > 0).astype(int)
+                # print(A)
+
+                group = [group.take_subspace(g) for g in groups if len(g) > 1]
+                # for n,l in enumerate(A):
+                #     pos = np.where(l > 0)
+                #     if len(pos) > 0:
+                #         pos = set(pos[0])
+                #         pos.add(n)
+                #     for g in groups:
+                #         if len(pos.intersection(g)) > 0:
+                #             g.update(pos)
+                #             print("!", group.take_subspace(list(g)).excitations)
+                #             break
+                #     else:
+                #         if len(pos) > 1:
+                #             print("!", group.take_subspace(list(pos)).excitations)
+                #         groups.append(pos)
+                #
+                # group = [group.take_subspace(list(g)) for g in groups if len(g) > 1]
+
+                # for g in group:
+                #     print(">", g.excitations)
+                # raise Exception("...")
+                #
+                #
+                # raise Exception([group.take_subspace(list(g)).excitations for g in groups])
+                #
+                # print("__" * 100)
+                # print(A)
+                # raise Exception(A[bad_pos] > 0)
+
+                # A = corr_mat
+                # for i in range(len(corr_mat)):
+                #     A = (np.dot(corr_mat, A) > 0).astype(int)
+                # print("__" * 100)
+                # print(A)
+
+                # raise Exception((A>0).astype(int))
+
+        else:
+            for n in np.arange(len(exc)):
+                diff_vec = diff_sums[n]
+                bad_pos = np.where(diff_vec == 1)
+                if len(bad_pos) > 0:
+                    bad_pos = bad_pos[0]
+                    if len(bad_pos) > 0:
+                        kills = bad_pos[bad_pos > n]
+                        elims.extend(sorting[kills])
+                        diff_sums[bad_pos, :] = 0
+
+            if len(elims) > 0:
+                mask = np.setdiff1d(np.arange(len(exc)), elims)
+                group = group.take_subspace(mask)
+            # raise Exception(group.excitations, gs)  # , np.array(bad_pos).T)
+
+            # if len(bad_pos) > 0 and len(bad_pos[0]) > 0:
+            #     kills = np.unique(bad_pos[1][bad_pos[1] > bad_pos[0]]) # upper triangle
+            #     # prek = kills
+            #     kills = sorting[kills] # OG indices
+            #     # raise Exception(prek, kills, exc[prek], group.excitations[kills])
+            #
+            #     # now drop all of these from the total space
+            #     mask = np.setdiff1d(np.arange(len(exc)), kills)
+            #     print(">>>", group.excitations)
+            #     group = group.take_subspace(mask)
+            #     print("> ", bad_pos)
+            #     print("> ", group.excitations)
+
+
 
         return group
 
@@ -474,7 +640,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                     del deg_states
 
                 degenerate_states = [
-                    BasisStateSpace(states.basis, s) if not isinstance(s, BasisStateSpace) else s
+                    BasisStateSpace(states.basis, s)#.as_sorted(track_indices=False, track_excitations=False)
+                    if not isinstance(s, BasisStateSpace) else s
                     for s in degenerate_states
                 ]
 
@@ -501,27 +668,35 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                     groups.append([x])
 
         # now turn these into proper BasisStateSpace objects so we can work with them more easily
-        ugh = [None]*len(groups)
+        ugh = []
         for i,g in enumerate(groups):
             # g = np.sort(np.array(g))
             if not isinstance(g, BasisStateSpace):
                 g = BasisStateSpace(states.basis, np.array(g), mode=BasisStateSpace.StateSpaceSpec.Indices, full_basis=full_basis)
             if group_filter is not None:
                 g = group_filter(g)
-            ugh[i] = g
+                if isinstance(g, BasisStateSpace):
+                    ugh.append(g)
+                else:
+                    # for gg in g:
+                    #     print(gg.excitations, gg)
+                    ugh.extend(g)
+            else:
+                ugh.append(g)
+
         for n,x in enumerate(states.indices):
             for g in ugh:
                 if x in g.indices:
                     break
             else:
                 ugh.append(states.take_subspace([n]))
+
         # now make a numpy array for initialization
         arrs = np.full(len(ugh), None)
         for i, g in enumerate(ugh):
             arrs[i] = g
-            # if len(g) > 1:
-            #     raise Exception(ugh[i].indices, g, ugh[i].excitations,
-            #             states.basis.unravel_state_inds(np.arange(10)))
+
+        # raise Exception(arrs)
 
         return cls(arrs)
 

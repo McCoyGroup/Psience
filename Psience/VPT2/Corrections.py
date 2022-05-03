@@ -150,9 +150,9 @@ class PerturbationTheoryCorrections:
         """
 
         new_states = self.states.find(space)
-        # raise Exception(new_states)
+        # print("? =", new_states)
         return type(self)(
-            self.states.take_states(space),
+            self.states.take_subspace(new_states),
             self.coupled_states.take_states(space),
             self.total_basis,
             self.energy_corrs[new_states],
@@ -407,6 +407,12 @@ class PerturbationTheoryCorrections:
         # import McUtils.Plots as plt
         # plt.TensorPlot(np.array(H_nd)).show()
         H_nd = np.sum(H_nd_corrs, axis=0)
+        if np.sum(H_nd) == 0:
+            raise Exception(subdegs.wfn_corrections)
+        #     raise Exception(deg_group.excitations,
+        #                     self.states.take_states(deg_group).excitations,
+        #                     # self.coupled_states.take_states(deg_group).excitations
+        #                     )
         # overlaps = np.sum(subdegs.get_overlap_matrices(), axis=0)
 
         with logger.block(tag="non-degenerate Hamiltonian"):
@@ -461,13 +467,14 @@ class PerturbationTheoryCorrections:
 
         return H_nd_corrs, deg_engs, deg_transf
 
-    def get_degenerate_transformation(self, group, gaussian_resonance_handling=False):
+    def get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=False):
         # this will be built from a series of block-diagonal matrices
         # so we store the relevant values and indices to compose the SparseArray
 
         # we apply the degenerate PT on a group-by-group basis
         # by transforming the H reps into the non-degenerate basis
-        deg_inds = self.total_basis.find(group, missing_val=-1)
+        # print(">", group.excitations)
+        deg_inds = self.states.find(group, missing_val=-1)
         mask = deg_inds > -1
         deg_inds = deg_inds[mask]
         if not mask.all():
@@ -477,11 +484,13 @@ class PerturbationTheoryCorrections:
                     bad.excitations
                 ))
         group = group.take_subspace(np.where(mask)[0])
+        # print(">..", deg_inds, self.states.find(group, missing_val=-1))
+
         if len(deg_inds) == 1 or (
                 gaussian_resonance_handling and np.max(np.sum(group.excitations, axis=1)) > 2):
             H_nd = deg_engs = deg_rot = None
         elif len(deg_inds) > 1:
-            H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group)
+            H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group, hams)
         else:
             H_nd = deg_engs = deg_rot = None
             # raise NotImplementedError("Not sure what to do when no states in degeneracy spec are in total space")
@@ -489,7 +498,7 @@ class PerturbationTheoryCorrections:
         return deg_inds, H_nd, deg_rot, deg_engs
 
     @staticmethod
-    def default_state_filter(state, couplings, target_modes=None):
+    def default_state_filter(state, couplings, energy_cutoff=None, energies=None, basis=None, target_modes=None):
         """
         Excludes modes that differ in only one position, prioritizing states with fewer numbers of quanta
         (potentially add restrictions to high frequency modes...?)
@@ -503,11 +512,20 @@ class PerturbationTheoryCorrections:
         """
         if target_modes is None:
             target_modes = np.arange(len(state.excitations[0]))
-        exc_1 = state.excitations[0, target_modes]
-        exc_2 = couplings.excitations[:, target_modes]
-        diffs = exc_2 - exc_1[np.newaxis, :]
-        diff_sums = np.sum(diffs != 0, axis=1)
-        diff_mask = diff_sums == 1 # find where changes are only in one position
+
+        if energy_cutoff is not None:
+            state_ind = basis.find(state)
+            coupling_inds = basis.find(couplings)
+            diff_mask = np.abs(energies[coupling_inds] - energies[state_ind]) > energy_cutoff
+        else:
+            exc_1 = state.excitations[0, target_modes]
+            exc_2 = couplings.excitations[:, target_modes]
+            diffs = exc_2 - exc_1[np.newaxis, :]
+            diff_sums = np.sum(diffs != 0, axis=1)
+            diff_mask = np.logical_or(
+                np.sum(couplings.excitations, axis=1) == 0, # drop ground state
+                diff_sums == 1 # find where changes are only in one position
+            )
         # now drop these modes
         if diff_mask.any():
             if diff_mask.all():

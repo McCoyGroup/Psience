@@ -310,7 +310,7 @@ class MolecoolsTests(TestCase):
         ref = Molecule.from_file(ref_file)
         new = ref.get_embedded_molecule()
 
-    @debugTest
+    @validationTest
     def test_EmbeddedMolecule(self):
 
         file_name = TestManager.test_data("HOH_freq.fchk")
@@ -685,7 +685,7 @@ class MolecoolsTests(TestCase):
         print(UnitsData.convert("Hartrees", "Wavenumbers") * np.sqrt(np.diag(np.dot(np.dot(mm.T, fcs), mm))))
         # print(modes._basis.matrix.T.dot(m.force_constants).shape)
 
-    @validationTest
+    @debugTest
     def test_VisualizeNormalModes(self):
 
         from Psience.Molecools.Vibrations import MolecularVibrations, MolecularNormalModes
@@ -701,6 +701,8 @@ class MolecoolsTests(TestCase):
 
         nms = m.normal_modes
         realvibs = MolecularVibrations(m, basis=MolecularNormalModes(m, modes, freqs=test_freqs))
+
+        realvibs.visualize(mode='jupyter') # get no bugs
 
         plot_vibrations = False
         if plot_vibrations:
@@ -726,7 +728,7 @@ class MolecoolsTests(TestCase):
             g.show()
 
         self.assertEquals(
-            tuple(np.round(UnitsData.convert("Hartrees", "Wavenumbers")*nms.freqs, 4)),
+            tuple(np.round(UnitsData.convert("Hartrees", "Wavenumbers")*nms.modes.freqs, 4)),
             tuple(np.round(test_freqs, 4))
         )
 
