@@ -498,7 +498,7 @@ class PerturbationTheoryCorrections:
         return deg_inds, H_nd, deg_rot, deg_engs
 
     @staticmethod
-    def default_state_filter(state, couplings, target_modes=None):
+    def default_state_filter(state, couplings, energy_cutoff=None, energies=None, basis=None, target_modes=None):
         """
         Excludes modes that differ in only one position, prioritizing states with fewer numbers of quanta
         (potentially add restrictions to high frequency modes...?)
@@ -512,11 +512,20 @@ class PerturbationTheoryCorrections:
         """
         if target_modes is None:
             target_modes = np.arange(len(state.excitations[0]))
-        exc_1 = state.excitations[0, target_modes]
-        exc_2 = couplings.excitations[:, target_modes]
-        diffs = exc_2 - exc_1[np.newaxis, :]
-        diff_sums = np.sum(diffs != 0, axis=1)
-        diff_mask = diff_sums == 1 # find where changes are only in one position
+
+        if energy_cutoff is not None:
+            state_ind = basis.find(state)
+            coupling_inds = basis.find(couplings)
+            diff_mask = np.abs(energies[coupling_inds] - energies[state_ind]) > energy_cutoff
+        else:
+            exc_1 = state.excitations[0, target_modes]
+            exc_2 = couplings.excitations[:, target_modes]
+            diffs = exc_2 - exc_1[np.newaxis, :]
+            diff_sums = np.sum(diffs != 0, axis=1)
+            diff_mask = np.logical_or(
+                np.sum(couplings.excitations, axis=1) == 0, # drop ground state
+                diff_sums == 1 # find where changes are only in one position
+            )
         # now drop these modes
         if diff_mask.any():
             if diff_mask.all():
