@@ -74,7 +74,7 @@ coords(self):
 __len__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L76)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L76?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L77)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L77?message=Update%20Docs)]
 </div>
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.displace" class="docs-object-method">&nbsp;</a> 
@@ -82,7 +82,7 @@ __len__(self):
 displace(self, displacements=None, amt=0.1, n=1, which=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L79)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L79?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L80)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L80?message=Update%20Docs)]
 </div>
 
 Displaces along the vibrational mode specified by `which`
@@ -102,7 +102,7 @@ Displaces along the vibrational mode specified by `which`
 visualize(self, step_size=0.1, steps=(5, 5), which=0, anim_opts=None, mode='fast', **plot_args): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L111)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L111?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L112)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L112?message=Update%20Docs)]
 </div>
 
 
@@ -126,7 +126,7 @@ visualize(self, step_size=0.1, steps=(5, 5), which=0, anim_opts=None, mode='fast
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L175)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L175?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L192)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L192?message=Update%20Docs)]
 </div>
 
 Takes a slice of the modes
@@ -140,7 +140,7 @@ Takes a slice of the modes
 embed(self, frame): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L209)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L209?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L226)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L226?message=Update%20Docs)]
 </div>
 
 
@@ -154,7 +154,7 @@ embed(self, frame):
 rescale(self, scaling): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L224)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L224?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L241)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L241?message=Update%20Docs)]
 </div>
 
 Multiplies each mode by some scaling factor
@@ -168,7 +168,7 @@ Multiplies each mode by some scaling factor
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L239)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L239?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L256)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L256?message=Update%20Docs)]
 </div>
 
  </div>
@@ -239,6 +239,8 @@ class MolecoolsTests(TestCase):
         nms = m.normal_modes
         realvibs = MolecularVibrations(m, basis=MolecularNormalModes(m, modes, freqs=test_freqs))
 
+        realvibs.visualize(mode='jupyter') # get no bugs
+
         plot_vibrations = False
         if plot_vibrations:
             nmodes = 1
@@ -263,7 +265,7 @@ class MolecoolsTests(TestCase):
             g.show()
 
         self.assertEquals(
-            tuple(np.round(UnitsData.convert("Hartrees", "Wavenumbers")*nms.freqs, 4)),
+            tuple(np.round(UnitsData.convert("Hartrees", "Wavenumbers")*nms.modes.freqs, 4)),
             tuple(np.round(test_freqs, 4))
         )
 ```

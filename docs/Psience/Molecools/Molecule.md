@@ -768,6 +768,8 @@ class MolecoolsTests(TestCase):
         nms = m.normal_modes
         realvibs = MolecularVibrations(m, basis=MolecularNormalModes(m, modes, freqs=test_freqs))
 
+        realvibs.visualize(mode='jupyter') # get no bugs
+
         plot_vibrations = False
         if plot_vibrations:
             nmodes = 1
@@ -792,7 +794,7 @@ class MolecoolsTests(TestCase):
             g.show()
 
         self.assertEquals(
-            tuple(np.round(UnitsData.convert("Hartrees", "Wavenumbers")*nms.freqs, 4)),
+            tuple(np.round(UnitsData.convert("Hartrees", "Wavenumbers")*nms.modes.freqs, 4)),
             tuple(np.round(test_freqs, 4))
         )
 ```

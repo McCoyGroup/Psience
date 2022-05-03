@@ -639,6 +639,14 @@ plot(self, *geometries, figure=None, bond_radius=0.1, atom_radius_scaling=0.25, 
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L751)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L751?message=Update%20Docs)]
 </div>
 
+<a id="Psience.Molecools.Molecule.Molecule.jupyter_viz" class="docs-object-method">&nbsp;</a> 
+```python
+jupyter_viz(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L849)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L849?message=Update%20Docs)]
+</div>
+
  </div>
 </div>
 
