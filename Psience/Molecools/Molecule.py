@@ -758,6 +758,10 @@ class Molecule(AbstractMolecule):
              objects = False,
              **plot_ops
              ):
+
+        if mode == 'jupyter':
+            return self.jupyter_viz()
+
         from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk
 
         if len(geometries) == 0:
@@ -848,9 +852,15 @@ class Molecule(AbstractMolecule):
 
     def jupyter_viz(self):
         from McUtils.Jupyter import MoleculeGraphics
-        return MoleculeGraphics(self.atoms, self.coords,
+
+        return MoleculeGraphics(self.atoms,
+                                np.ndarray.view(self.coords.convert(CartesianCoordinates3D)),
                                 bonds=self.bonds
                                 )
+    def to_widget(self):
+        return self.jupyter_viz().to_widget()
+    def _ipython_display_(self):
+        return self.jupyter_viz()._ipython_display_()
     #endregion
 
     #region External Program Properties
