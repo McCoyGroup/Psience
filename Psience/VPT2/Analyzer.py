@@ -3,9 +3,12 @@ Provides analyzer class to handle common VPT analyses
 """
 
 import enum, weakref, functools, numpy as np, itertools as ip, io
+import os.path
+import tempfile
+
 from McUtils.Data import UnitsData
 import McUtils.Numputils as nput
-from McUtils.Scaffolding import Checkpointer, Logger
+from McUtils.Scaffolding import Checkpointer, Logger, LogParser
 from ..Spectra import DiscreteSpectrum
 from .Wavefunctions import PerturbationTheoryWavefunctions
 from .Runner import VPTRunner
@@ -379,6 +382,27 @@ class VPTResultsLoader:
     def _(self):
         data = self.data  # type:PerturbationTheoryWavefunctions
         return data.corrs.degenerate_transf
+
+    @property_dispatcher
+    def log_file(self):
+        """
+        Returns the log_file for the run
+
+        :return:
+        :rtype:
+        """
+        raise ValueError("no dispatch")
+    @log_file.register("checkpoint")
+    def _(self):
+        tf = self.data.checkpoint_file
+        tf, _ = os.path.splitext(tf)
+        tf = tf+'.txt' #could be more sophisticated in the future maybe...
+        if not os.path.exists(tf):
+            tf = None
+        return tf
+    @log_file.register("wavefunctions")
+    def _(self):
+        return self.data.logger.log_file
 
 def loaded_prop(fn):
     name = fn.__name__
@@ -935,3 +959,42 @@ class VPTAnalyzer:
         with np.printoptions(linewidth=1e9):
             return str(sum(self.deperturbed_hamiltonians[which]) * UnitsData.convert("Hartrees", "Wavenumbers"))
 
+    @property
+    def log_parser(self):
+        log_file = self.loader.log_file()
+        if isinstance(log_file, str):
+            lf = log_file
+        elif isinstance(log_file, io.StringIO):
+            with tempfile.NamedTemporaryFile(delete=False) as tf:
+                lf = tf.name
+            with open(lf, 'w+') as tf:
+                log_file.seek(0)
+                tf.write(log_file.read())
+        else:
+            lf = None
+        if lf is not None:
+            return LogParser(lf)
+        else:
+            raise ValueError("log file {} can't be parsed".format(log_file))
+
+    def print_output_tables(self):
+        no_print = False
+        try:
+            logger = self.loader.data.logger
+        except AttributeError:
+            no_print = True
+            with self.log_parser:
+                for block in self.log_parser.get_blocks():
+                    if not isinstance(block, str) and block.tag == 'IR Data':
+                        print(block)
+        else:
+            self.loader.data.logger = None
+            VPTRunner.print_output_tables(
+                self.loader.data,
+                print_energy_corrections=False,
+                print_energies=False,
+                print_transition_moments=False
+            )
+        finally:
+            if not no_print:
+                self.loader.data.logger = logger

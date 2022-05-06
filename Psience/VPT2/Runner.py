@@ -767,7 +767,12 @@ class VPTRunner:
         )
 
     @classmethod
-    def print_output_tables(cls, wfns=None, file=None, print_intensities=True, logger=None, sep_char="=", sep_len=100):
+    def print_output_tables(cls, wfns=None, file=None,
+                            print_intensities=True,
+                            print_energies=True,
+                            print_energy_corrections=True,
+                            print_transition_moments=True,
+                            logger=None, sep_char="=", sep_len=100):
         """
         Prints a bunch of formatted output data from a PT run
 
@@ -801,35 +806,43 @@ class VPTRunner:
                 print(*args, file=file, **kwargs)
                 print_footer(file=file, **kwargs)
 
-        print_block("Energy Corrections", wfns.format_energy_corrections_table())
-        if wfns.degenerate_transformation is not None:
-            print_block("Deperturbed Energies",
-                        wfns.format_deperturbed_energies_table()
-                        )
-            print_block(
-                "Degenerate Energies",
-                wfns.format_energies_table()
-            )
-        else:
-            print_block("States Energies",
-                wfns.format_energies_table()
-            )
+        if print_energy_corrections:
+            print_block("Energy Corrections", wfns.format_energy_corrections_table())
+        if print_energies:
+            if wfns.degenerate_transformation is not None:
+                print_block("Deperturbed Energies",
+                            wfns.format_deperturbed_energies_table()
+                            )
+                print_block(
+                    "Degenerate Energies",
+                    wfns.format_energies_table()
+                )
+            else:
+                print_block("States Energies",
+                    wfns.format_energies_table()
+                )
 
         if print_intensities:
             ints = wfns.intensities # to make sure they're computed before printing starts
-            if wfns.degenerate_transformation is not None:
-                for a, m in zip(["X", "Y", "Z"], wfns.format_deperturbed_dipole_contribs_tables()):
-                    print_block("{} Deperturbed Dipole Contributions".format(a), m)
+            if print_transition_moments:
+                if wfns.degenerate_transformation is not None:
+                    for a, m in zip(["X", "Y", "Z"], wfns.format_deperturbed_dipole_contribs_tables()):
+                        print_block("{} Deperturbed Dipole Contributions".format(a), m)
 
-                print_block("Deperturbed IR Data",
-                            wfns.format_deperturbed_intensities_table()
-                            )
+                    print_block("Deperturbed IR Data",
+                                wfns.format_deperturbed_intensities_table()
+                                )
 
-            for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
-                print_block("{} Dipole Contributions".format(a), m)
+                for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
+                    print_block("{} Dipole Contributions".format(a), m)
             print_block("IR Data", wfns.format_intensities_table())
 
-    def print_tables(self, wfns=None, file=None, print_intensities=True, sep_char="=", sep_len=100):
+    def print_tables(self,
+                     wfns=None, file=None,
+                     print_intensities=True,
+                     print_energy_corrections=True,
+                     print_transition_moments=True,
+                     sep_char="=", sep_len=100):
         """
         Prints a bunch of formatted output data from a PT run
 
@@ -843,7 +856,10 @@ class VPTRunner:
             wfns = self.get_wavefunctions()
 
         self.print_output_tables(wfns=wfns, file=file,
-                                 print_intensities=print_intensities, sep_char=sep_char, sep_len=sep_len)
+                                 print_intensities=print_intensities,
+                                 print_energy_corrections=print_energy_corrections,
+                                 print_transition_moments=print_transition_moments,
+                                 sep_char=sep_char, sep_len=sep_len)
 
         return wfns
 

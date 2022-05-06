@@ -38,6 +38,7 @@ class MolecularVibrations:
         self._coords = init
         self._basis = basis
         self._freqs = freqs
+        self._widg = None
 
     @property
     def basis(self):
@@ -75,7 +76,7 @@ class MolecularVibrations:
             return self._coords
 
     def __len__(self):
-        return self._basis.matrix.shape[0]
+        return self._basis.matrix.shape[1]
 
     def displace(self, displacements=None, amt=.1, n=1, which=0):
         """
@@ -109,7 +110,7 @@ class MolecularVibrations:
 
         return displaced
 
-    def visualize(self, step_size=.1, steps=(5, 5), which=0, anim_opts=None, mode='fast', **plot_args):
+    def visualize(self, step_size=5, steps=(2, 2), which=0, anim_opts=None, mode='fast', **plot_args):
         """
         :param step_size:
         :type step_size:
@@ -188,6 +189,19 @@ class MolecularVibrations:
             if anim_opts is None:
                 anim_opts = {}
             return Animator(figure, None, plot_method=animate, **anim_opts)
+
+    def _ipython_display_(self):
+        return self.to_widget().display()
+
+    def to_widget(self):
+        from McUtils.Jupyter import JHTML, MenuSelect, ButtonGroup, FunctionDisplay, VariableNamespace
+
+        if self._widg is None:
+            with VariableNamespace():
+                return JHTML.Div(
+                    MenuSelect('which', [str(x+1) for x in range(len(self))], value='1', menu_type=ButtonGroup),
+                    FunctionDisplay(lambda which='1',**kw:self.visualize(which=int(which)-1 if which != '' else 0, mode='jupyter'), ['which'])
+                )
 
     def __getitem__(self, item):
         """
