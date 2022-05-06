@@ -59,7 +59,7 @@ get_wavefunctions(self):
 
 <a id="Psience.VPT2.Runner.VPTRunner.print_output_tables" class="docs-object-method">&nbsp;</a> 
 ```python
-print_output_tables(wfns=None, file=None, print_intensities=True, logger=None, sep_char='=', sep_len=100): 
+print_output_tables(wfns=None, file=None, print_intensities=True, print_energies=True, print_energy_corrections=True, print_transition_moments=True, logger=None, sep_char='=', sep_len=100): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L769)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L769?message=Update%20Docs)]
@@ -73,10 +73,10 @@ Prints a bunch of formatted output data from a PT run
 
 <a id="Psience.VPT2.Runner.VPTRunner.print_tables" class="docs-object-method">&nbsp;</a> 
 ```python
-print_tables(self, wfns=None, file=None, print_intensities=True, sep_char='=', sep_len=100): 
+print_tables(self, wfns=None, file=None, print_intensities=True, print_energy_corrections=True, print_transition_moments=True, sep_char='=', sep_len=100): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L832)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L832?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L840)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L840?message=Update%20Docs)]
 </div>
 
 Prints a bunch of formatted output data from a PT run
@@ -90,7 +90,7 @@ Prints a bunch of formatted output data from a PT run
 run_simple(system, states, target_property=None, corrected_fundamental_frequencies=None, calculate_intensities=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L850)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L850?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L866)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L866?message=Update%20Docs)]
 </div>
 
  </div>
