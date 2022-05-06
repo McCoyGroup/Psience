@@ -1,4 +1,4 @@
-# Psience
+# Psience [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/McCoyGroup/Binder-McUtils/master?urlpath=git-pull%3Frepo%3Dhttps%253A%252F%252Fgithub.com%252FMcCoyGroup%252FPsience%26urlpath%3Dlab%252Ftree%252FPsience%252Fbinder%252Findex.ipynb%26branch%3Dmaster)
 
 Psience is a set of core scientific packages written by the McCoy group for the McCoy group to handle interesting scientific problems, like DVR, managing potential and dipole surfaces, VPT2, normal mode analysis, etc.
 
