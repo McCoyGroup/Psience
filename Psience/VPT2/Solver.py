@@ -50,7 +50,7 @@ class PerturbationTheorySolver:
                  strong_coupling_test_modes=None,
                  strong_couplings_state_filter=None,
                  strongly_coupled_group_filter=None,
-                 strong_coupling_zero_order_energy_cutoff=2.25e-3,
+                 strong_coupling_zero_order_energy_cutoff=4.5e-3,
                  low_frequency_mode_cutoff=1.15e-3,
                  extend_strong_coupling_spaces=True,
                  zero_order_energy_corrections=None,
