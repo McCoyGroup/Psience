@@ -39,8 +39,7 @@ setup(
     # Customize MANIFEST.in if the general case does not suit your needs
     # Comment out this line to prevent the files from being packaged with your software
     # include_package_data=True
-
     install_requires=[
-          'mccoygroup-mcutils',
+        'mccoygroup-mcutils'
     ]
 )
