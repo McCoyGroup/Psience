@@ -295,7 +295,6 @@ class VPTResultsLoader:
         return self.data.deperturbed_transition_moment_corrections
     def deperturbed_transition_moments(self):
         """
-
         :return:
         :rtype:
         """
@@ -523,7 +522,7 @@ class VPTAnalyzer:
         :return:
         :rtype:
         """
-        return self.energies - self.energies[0]
+        return self.energies[1:] - self.energies[0]
 
     @loaded_prop
     def zero_order_spectrum(self):
@@ -789,7 +788,7 @@ class VPTAnalyzer:
 
         res = {'index':inds}
         if 'frequency' in keys:
-            res['frequency'] = freq[inds] * UnitsData.convert("Hartrees", "Wavenumbers")
+            res['frequency'] = freq[inds-1] * UnitsData.convert("Hartrees", "Wavenumbers")
         if 'max_contribs' in keys:
             raise NotImplementedError("whoops")
             res['max_contribs'] = ...
@@ -799,7 +798,7 @@ class VPTAnalyzer:
             else:
                 tm_base = self.transition_moments
             res['transition_moment'] = np.array([tm[0][inds] for tm in tm_base]).T
-            res['intensity'] = freq[inds] * np.linalg.norm(res['transition_moment'], axis=1)**2 * UnitsData.convert("OscillatorStrength", "KilometersPerMole")
+            res['intensity'] = freq[inds-1] * np.linalg.norm(res['transition_moment'], axis=1)**2 * UnitsData.convert("OscillatorStrength", "KilometersPerMole")
 
         new_res = []
         for i in range(len(states)):
