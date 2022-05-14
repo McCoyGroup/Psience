@@ -101,6 +101,10 @@ class AnalyticModelBase:
         """
         return sym.Symbol('m[{i}]'.format(i=i), positive=True)
     @staticmethod
+    def symbol(base, *args, **kwargs):
+        template = "{}["+",".join(["{}"]*len(args))+"]"
+        return sym.Symbol(template.format(base, *args), **kwargs)
+    @staticmethod
     def symbolic_r(i, j):
         """
         Provides a symbolic representation of a bond length
@@ -168,6 +172,16 @@ class AnalyticModelBase:
         :rtype:
         """
         return sym.Symbol('y[{i},{j},{k},{l}]'.format(i=i, j=j, k=k, l=l), real=True)
+    @classmethod
+    def var(cls, *args):
+        if len(args) == 2:
+            return cls.symbolic_r(*args)
+        elif len(args) == 3:
+            return cls.symbolic_a(*args)
+        elif len(args) == 4:
+            return cls.symbolic_t(*args)
+        else:
+            raise NotImplementedError("huh")
 
     @staticmethod
     def reindex_symbol(symbol, mapping):
@@ -206,3 +220,27 @@ class AnalyticModelBase:
         r23 = cls.symbolic_r(j, k)
         a = cls.symbolic_a(i, j, k)
         return 1/sym.sin(a)*(1/r12 - sym.cos(a)/r23)
+
+    @classmethod
+    def is_identity(cls, A):
+        N = len(A)
+        for i in range(N):
+            m = len(A[i])
+            if m != N:
+                return False
+            for j in range(m):
+                if (j != i and A[i][j] != 0) or (j == i and A[i][j] != 1):
+                    return False
+        return True
+    @classmethod
+    def transpose(cls, A):
+        n = len(A)
+        m = len(A[0])
+        return [[A[i][k] for i in range(n)] for k in range(m)]
+    @classmethod
+    def dot(cls, a, b):
+        if isinstance(a[0], list):  # matmul
+            b = cls.transpose(b)
+            return [[cls.dot(a[i], b[j]) for j in range(len(b))] for i in range(len(a))]
+        else:  # vector dot
+            return sum(a * b for a, b in zip(a, b))

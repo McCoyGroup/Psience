@@ -14,6 +14,30 @@ The easiest way to install is via `pip`, as
 pip install mccoygroup-psience
 ```
 
+This should install all dependencies. 
+The major requirement is that Python 3.8+ is required due to use of the types module.
+For safety, it is best to install this in a [virtual environment](https://docs.python.org/3.8/tutorial/venv.html), which we can make like
+
+```lang-shell
+python3.8 -m pip venv mcenv
+```
+
+and activate like
+
+```lang-shell
+. mcenv/bin/activate
+```
+
+or to use it in a [container](https://www.docker.com/) or [conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) or some other place where we can control the environment.
+
+It is also possible to install from source like
+
+```lang-shell
+git clone https://github.com/McCoyGroup/Psience.git
+```
+
+but in this case you will need to make sure the library is on the path yourself and all of the dependencies are installed.
+
 ### Contributing
 
 If you'd like to help out with this, we'd love contributions.

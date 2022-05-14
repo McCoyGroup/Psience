@@ -24,5 +24,6 @@ __all__ = [
     "VPT2",
     "Data",
     "BasisReps",
-    "Spectra"
+    "Spectra",
+    "AnalyticModels"
 ]
