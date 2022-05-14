@@ -2,7 +2,7 @@
 A little package of utilities for setting up/running VPT jobs
 """
 
-import numpy as np, sys
+import numpy as np, sys, os, itertools, scipy
 
 from McUtils.Scaffolding import ParameterManager, Checkpointer
 from McUtils.Zachary import FiniteDifferenceDerivative
@@ -348,6 +348,7 @@ class VPTHamiltonianOptions:
          "backpropagate_internals",
          "direct_propagate_cartesians",
          "zero_mass_term",
+         "use_internal_modes",
          "internal_fd_mesh_spacing",
          "internal_fd_stencil",
          "cartesian_fd_mesh_spacing",
@@ -392,7 +393,8 @@ class VPTHamiltonianOptions:
                  hessian_tolerance=None,
                  grad_tolerance=None,
                  freq_tolerance=None,
-                 g_derivative_threshold=None
+                 g_derivative_threshold=None,
+                 use_internal_modes=None
                  ):
         """
         :param include_coriolis_coupling: whether or not to include Coriolis coupling in Cartesian normal mode calculation
@@ -455,6 +457,7 @@ class VPTHamiltonianOptions:
             pseudopotential_terms=pseudopotential_terms,
             undimensionalize=undimensionalize_normal_modes,
             numerical_jacobians=use_numerical_jacobians,
+            use_internal_modes=use_internal_modes,
             eckart_embed_derivatives=eckart_embed_derivatives,
             eckart_embed_planar_ref_tolerance=eckart_embed_planar_ref_tolerance,
             strip_dummies=strip_dummy_atoms,
@@ -588,7 +591,9 @@ class VPTSolverOptions:
         "strong_coupling_test_modes",
         "strong_couplings_state_filter",
         "strongly_coupled_group_filter",
-        "extend_strong_coupling_spaces"
+        "extend_strong_coupling_spaces",
+        "strong_coupling_zero_order_energy_cutoff",
+        "low_frequency_mode_cutoff"
     )
     def __init__(self,
                  order=2,
@@ -611,6 +616,8 @@ class VPTSolverOptions:
                  strong_couplings_state_filter=None,
                  strongly_coupled_group_filter=None,
                  extend_strong_coupling_spaces=None,
+                 strong_coupling_zero_order_energy_cutoff=None,
+                 low_frequency_mode_cutoff=None,
                  zero_order_energy_corrections=None
                  ):
         """
@@ -659,6 +666,8 @@ class VPTSolverOptions:
             strong_couplings_state_filter=strong_couplings_state_filter,
             strongly_coupled_group_filter=strongly_coupled_group_filter,
             extend_strong_coupling_spaces=extend_strong_coupling_spaces,
+            strong_coupling_zero_order_energy_cutoff=strong_coupling_zero_order_energy_cutoff,
+            low_frequency_mode_cutoff=low_frequency_mode_cutoff,
             state_space_iterations=state_space_iterations,
             state_space_terms=state_space_terms,
             state_space_filters=state_space_filters,
@@ -864,15 +873,13 @@ class VPTRunner:
         return wfns
 
     @classmethod
-    def run_simple(cls,
-                   system,
-                   states,
-                   target_property=None,
-                   corrected_fundamental_frequencies=None,
-                   calculate_intensities=True,
-                   **opts
-                   ):
-
+    def construct(cls,
+               system,
+               states,
+               target_property=None,
+               corrected_fundamental_frequencies=None,
+               **opts
+               ):
         full_opts = (
                 VPTSystem.__props__
                 + VPTStateSpace.__props__
@@ -913,20 +920,42 @@ class VPTRunner:
             # print(par.ops['state_space_filters'])
 
         if corrected_fundamental_frequencies is not None and (
-            'zero_order_energy_corrections' not in opts
-            or opts['zero_order_energy_corrections'] is None
+                'zero_order_energy_corrections' not in opts
+                or opts['zero_order_energy_corrections'] is None
         ):
             par.ops['zero_order_energy_corrections'] = VPTSolverOptions.get_zero_order_energies(
                 corrected_fundamental_frequencies,
                 states.state_list
             )
 
+        hops = VPTHamiltonianOptions(**par.filter(VPTHamiltonianOptions))
+        rops = VPTRuntimeOptions(**par.filter(VPTRuntimeOptions))
+        sops = VPTSolverOptions(**par.filter(VPTSolverOptions))
+
         runner = cls(
             sys,
             states,
-            hamiltonian_options=VPTHamiltonianOptions(**par.filter(VPTHamiltonianOptions)),
-            runtime_options=VPTRuntimeOptions(**par.filter(VPTRuntimeOptions)),
-            solver_options=VPTSolverOptions(**par.filter(VPTSolverOptions))
+            hamiltonian_options=hops,
+            runtime_options=rops,
+            solver_options=sops
+        )
+        return runner, (sys, states, hops, rops, sops)
+    @classmethod
+    def run_simple(cls,
+                   system,
+                   states,
+                   target_property=None,
+                   corrected_fundamental_frequencies=None,
+                   calculate_intensities=True,
+                   **opts
+                   ):
+
+        runner, (system, states, hops, rops, sops) = cls.construct(
+            system,
+            states,
+            target_property=target_property,
+            corrected_fundamental_frequencies=corrected_fundamental_frequencies,
+            **opts
         )
 
         logger = runner.hamiltonian.logger
@@ -999,3 +1028,127 @@ class VPTStateMaker:
 
     def __call__(self, *specs, mode=None):
         return self.make_state(*specs, mode=mode)
+
+class AnneInputHelpers:
+
+    @classmethod
+    def get_tensor_idx(cls, line, inds, m):
+        bits = line.split()
+        idx = tuple(int(i) - 1 for i in bits if '.' not in i)
+        m = max(m, max(idx))
+        val = float(bits[len(idx)])
+        inds[idx] = val
+        return m
+
+    @classmethod
+    def parse_tensor(cls, block, dims=None):
+        inds = {}
+        m = 0
+        if os.path.isfile(block):
+            with open(block) as f:
+                for line in f:
+                    line = line.strip()
+                    if len(line) > 0:
+                        m = cls.get_tensor_idx(line, inds, m)
+        else:
+            for line in block.splitlines():
+                line = line.strip()
+                if len(line) > 0:
+                    m = cls.get_tensor_idx(line, inds, m)
+        m = m + 1
+        n = len(next(iter(inds)))
+        a = np.zeros((m,) * n)
+        for i, v in inds.items():
+            for p in itertools.permutations(i):
+                a[p] = v
+        return a
+
+    @classmethod
+    def parse_freqs_line(cls, line):
+        data = [float(x) for x in line.split()]
+        if len(data) > 0:
+            return np.array(data)
+        else:
+            return None
+
+    @classmethod
+    def parse_modes_line(cls, line):
+        data = [float(x) for x in line.split()]
+        if len(data) > 0:
+            l = len(data)
+            n = int(np.sqrt(l))
+            return np.array(data).reshape(n, n)
+        else:
+            return None
+
+    @classmethod
+    def parse_modes(cls, block, dims=None):
+        inds = {}
+        m = 0
+        freqs = None
+        L = None
+        Linv = None
+        if os.path.isfile(block):
+            with open(block) as f:
+                for line in f:
+                    line = line.strip()
+                    if len(line) > 0:
+                        if freqs is None:
+                            freqs = cls.parse_freqs_line(line)
+                        elif L is None:
+                            L = cls.parse_modes_line(line)
+                        elif Linv is None:
+                            Linv = cls.parse_modes_line(line)
+                            break
+        else:
+            for line in block.splitlines():
+                line = line.strip()
+                if len(line) > 0:
+                    if freqs is None:
+                        freqs = cls.parse_freqs_line(line)
+                    elif L is None:
+                        L = cls.parse_modes_line(line)
+                    elif Linv is None:
+                        Linv = cls.parse_modes_line(line)
+                        break
+        return freqs, L, Linv
+
+    @classmethod
+    def parse_coords(cls, block, dims=None):
+        coords = []
+        if os.path.isfile(block):
+            with open(block) as f:
+                for line in f:
+                    line = line.strip()
+                    if len(line) > 0:
+                        coords.append([float(x) for x in line.split()])
+        else:
+            for line in block.splitlines():
+                line = line.strip()
+                if len(line) > 0:
+                    coords.append([float(x) for x in line.split()])
+        return np.array(coords)
+
+    @classmethod
+    def renormalize_modes(cls, freqs, modes, inv):
+        modes = (modes * np.sqrt(freqs)[:, np.newaxis]).T
+        inv = inv.T / np.sqrt(freqs)[:, np.newaxis]
+        G = np.linalg.inv(np.dot(inv.T, inv))
+        F = np.dot(np.dot(inv.T, np.diag(freqs ** 2)), inv)
+        freq, modes = scipy.linalg.eigh(F, G, type=2)
+        return freq, modes, np.linalg.inv(modes)
+
+    @classmethod
+    def rerotate_force_field(cls, old_inv, new_modes, old_field):
+        mid_field = []
+        for f in old_field:
+            for i in range(f.ndim):
+                f = np.tensordot(old_inv, f, axes=[1, -1])
+            mid_field.append(f)
+        new_field = []
+        for f in mid_field:
+            for i in range(f.ndim):
+                f = np.tensordot(new_modes, f, axes=[1, -1])
+            new_field.append(f)
+        return new_field, mid_field
+VPTRunner.helpers = AnneInputHelpers

@@ -1302,7 +1302,103 @@ class PerturbationTheorySolver:
             non_zero_cutoff=non_zero_cutoff
         )
 
+    @property
+    def high_frequency_modes(self):
+        fundamentals = BasisStateSpace.from_quanta(self.total_state_space.basis, [0, 1])
+        where = self.flat_total_space.find(fundamentals)
+        test_freqs = self.zero_order_energies[where[1:]] - self.zero_order_energies[where[0]]
+        test_modes = np.where(test_freqs > self.low_frequency_mode_cutoff)
+        if len(test_modes) > 0:
+            test_modes = list(test_modes[0])
+        return test_modes
+
     default_strong_coupling_threshold = .3
+    def identify_strong_couplings(self, corrs, handle_strong_couplings=True):
+        if handle_strong_couplings is True or handle_strong_couplings is False:
+            degenerate_correction_threshold = self.default_strong_coupling_threshold
+        elif not isinstance(handle_strong_couplings, (int, float, np.integer, np.floating)):
+            degenerate_correction_threshold = self.default_strong_coupling_threshold
+        else:
+            degenerate_correction_threshold = handle_strong_couplings
+            handle_strong_couplings = handle_strong_couplings > 0
+
+        test_modes = self.strong_coupling_test_modes
+        if test_modes is None:
+            test_modes = self.high_frequency_modes
+
+            # raise Exception(test_modes, test_freqs * 219465, fundamentals.excitations, where)
+
+        state_filter = self.strong_couplings_state_filter
+        zero_order_energy_cutoff = self.strong_coupling_zero_order_energy_cutoff
+        if state_filter is None:
+            state_filter = lambda state, couplings: corrs.default_state_filter(state, couplings,
+                                                                               energy_cutoff=zero_order_energy_cutoff,
+                                                                               energies=self.zero_order_energies,
+                                                                               basis=self.flat_total_space,
+                                                                               target_modes=test_modes
+                                                                               )
+        sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold, state_filter=state_filter)
+        return sc, degenerate_correction_threshold
+
+    def construct_strong_coupling_spaces(self, sc, corrs, states, threshold):
+        sc = corrs.collapse_strong_couplings(sc)
+        group_filter = self.strongly_coupled_group_filter
+        zero_order_energy_cutoff = self.strong_coupling_zero_order_energy_cutoff
+        test_modes = self.strong_coupling_test_modes
+        if test_modes is None:
+            test_modes = self.high_frequency_modes
+        if group_filter is None:
+            group_filter = lambda group: DegenerateMultiStateSpace.default_group_filter(group,
+                                                                                        corrections=corrs,
+                                                                                        energy_cutoff=zero_order_energy_cutoff,
+                                                                                        energies=self.zero_order_energies,
+                                                                                        threshold=threshold,
+                                                                                        target_modes=test_modes
+                                                                                        )
+        elif isinstance(group_filter, str) and group_filter == 'unfiltered':
+            group_filter = None
+        degenerate_states = DegenerateMultiStateSpace.from_spec(
+            {'couplings': sc},
+            solver=self,
+            group_filter=group_filter
+        )
+
+        if self.extend_strong_coupling_spaces:
+            missing = degenerate_states.to_single().difference(states)
+            if len(missing) > 0:
+                with self.logger.block(tag='new states'):
+                    self.logger.log_print(
+                        missing.excitations,
+                        message_prepper=lambda a: str(np.array(a)).splitlines()
+                    )
+                extended_spaces = self.extend_state_spaces(missing)
+                if extended_spaces is not None:
+                    new_perts = self.extend_VPT_representations(*extended_spaces)
+                    # new_perts2 = self.get_VPT_representations()
+                    # diffs = [x.asarray()-y.asarray() for x,y in zip(new_perts, new_perts2)]
+                    # raise Exception(
+                    #     [[np.min(d), np.max(d)] for d in diffs]
+                    # )
+                    self._zo_engs = None
+                    self.representations = perturbations = self.PastIndexableTuple(new_perts)
+                    flat_total_space = self.flat_total_space
+                    N = self.total_space_dim
+                else:
+                    flat_total_space = self.flat_total_space
+                    N = self.total_space_dim
+                    perturbations = self.representations
+                states = states.union(missing)
+            else:
+                flat_total_space = self.flat_total_space
+                N = self.total_space_dim
+                perturbations = self.representations
+        else:
+            flat_total_space = self.flat_total_space
+            N = self.total_space_dim
+            perturbations = self.representations
+
+        return degenerate_states, (states, perturbations, flat_total_space, N)
+
     def _get_corrections(self,
                          perturbations,
                          states,
@@ -1488,40 +1584,11 @@ class PerturbationTheorySolver:
                 , logger=self.logger
             )
 
-
             if (
                     degenerate_states is None
                     or all(len(x) == 1 for x in degenerate_states)
             ):
-
-                if handle_strong_couplings is True or handle_strong_couplings is False:
-                    degenerate_correction_threshold = self.default_strong_coupling_threshold
-                elif not isinstance(handle_strong_couplings, (int, float, np.integer, np.floating)):
-                    degenerate_correction_threshold = self.default_strong_coupling_threshold
-                else:
-                    degenerate_correction_threshold = handle_strong_couplings
-                    handle_strong_couplings = handle_strong_couplings > 0
-
-                test_modes = self.strong_coupling_test_modes
-                if test_modes is None:
-                    fundamentals = BasisStateSpace.from_quanta(self.total_state_space.basis, [0, 1])
-                    where = self.flat_total_space.find(fundamentals)
-                    test_freqs = self.zero_order_energies[where[1:]] - self.zero_order_energies[where[0]]
-                    test_modes = np.where(test_freqs > self.low_frequency_mode_cutoff)
-                    if len(test_modes) > 0:
-                        test_modes = list(test_modes[0])
-                    # raise Exception(test_modes, test_freqs * 219465, fundamentals.excitations, where)
-
-                state_filter = self.strong_couplings_state_filter
-                zero_order_energy_cutoff = self.strong_coupling_zero_order_energy_cutoff
-                if state_filter is None:
-                    state_filter = lambda state, couplings:corrs.default_state_filter(state, couplings,
-                                                                                      energy_cutoff=zero_order_energy_cutoff,
-                                                                                      energies=self.zero_order_energies,
-                                                                                      basis=self.flat_total_space,
-                                                                                      target_modes=test_modes
-                                                                                      )
-                sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold, state_filter=state_filter)
+                sc, degenerate_correction_threshold = self.identify_strong_couplings(corrs, handle_strong_couplings)
                 if len(sc) > 0:
                     with self.logger.block(tag="Strongly coupled states (threshold={})".format(degenerate_correction_threshold)):
                         self.logger.log_print(
@@ -1529,69 +1596,14 @@ class PerturbationTheorySolver:
                         )
 
                         if handle_strong_couplings and (sc is not None and len(sc) > 0):
-                            sc = corrs.collapse_strong_couplings(sc)
-                            group_filter = self.strongly_coupled_group_filter
-                            if group_filter is None:
-                                group_filter = lambda group:DegenerateMultiStateSpace.default_group_filter(group,
-                                                                                                           corrections=corrs,
-                                                                                                           energy_cutoff=zero_order_energy_cutoff,
-                                                                                                           energies=self.zero_order_energies,
-                                                                                                           threshold=degenerate_correction_threshold,
-                                                                                                           target_modes=test_modes
-                                                                                                           )
-                            elif isinstance(group_filter, str) and group_filter == 'unfiltered':
-                                group_filter = None
-                            degenerate_states = DegenerateMultiStateSpace.from_spec({'couplings':sc}, solver=self, group_filter=group_filter)
-
-                            if self.extend_strong_coupling_spaces:
-                                missing = degenerate_states.to_single().difference(states)
-                                if len(missing) > 0:
-                                    with self.logger.block(tag='new states'):
-                                        self.logger.log_print(
-                                            missing.excitations,
-                                            message_prepper=lambda a: str(np.array(a)).splitlines()
-                                        )
-                                    extended_spaces = self.extend_state_spaces(missing)
-                                    if extended_spaces is not None:
-                                        new_perts = self.extend_VPT_representations(*extended_spaces)
-                                        # new_perts2 = self.get_VPT_representations()
-                                        # diffs = [x.asarray()-y.asarray() for x,y in zip(new_perts, new_perts2)]
-                                        # raise Exception(
-                                        #     [[np.min(d), np.max(d)] for d in diffs]
-                                        # )
-                                        self._zo_engs = None
-                                        self.representations = perturbations = self.PastIndexableTuple(new_perts)
-                                        flat_total_space = self.flat_total_space
-                                        N = self.total_space_dim
-                                    states = states.union(missing)
-
+                            degenerate_states, meta = self.construct_strong_coupling_spaces(sc, corrs, states, degenerate_correction_threshold)
+                            states, perturbations, flat_total_space, N = meta
                             with self.logger.block(tag="Redoing PT with strong couplings handled"):
                                 with self.logger.block(tag="Degenerate groups:"):
                                     for g in degenerate_states.flat:
                                         if len(g) > 1:
                                             self.logger.log_print(str(g.excitations).splitlines())
 
-                                # if self.results is None or isinstance(self.results, NullCheckpointer):
-                                #     try:
-                                #         checkpointer['nondegenerate_corrections'] = {
-                                #             "states": states.excitations,
-                                #             "total_states": total_states.excitations,
-                                #             'energies': all_energies,
-                                #             'wavefunctions': corr_mats
-                                #         }
-                                #     except KeyError:
-                                #         pass
-                                # else:
-                                #     with self.results:
-                                #         try:
-                                #             self.results['nondegenerate_corrections'] = {
-                                #                 "states": states.excitations,
-                                #                 "total_states": total_states.excitations,
-                                #                 'energies': all_energies,
-                                #                 'wavefunctions': corr_mats
-                                #             }
-                                #         except KeyError:
-                                #             pass
                                 corrs = self._get_corrections(
                                     perturbations,
                                     states,

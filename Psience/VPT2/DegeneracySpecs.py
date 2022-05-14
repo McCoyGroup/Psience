@@ -451,6 +451,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             sorting = np.argsort(inds)
             corr_mat = None
 
+
         exc = exc[sorting]
         diffs = exc[:, np.newaxis] - exc[np.newaxis, :]  # difference matrix (s, s, m)
         tots = exc[:, np.newaxis] + exc[np.newaxis, :]  # difference matrix (s, s, m)

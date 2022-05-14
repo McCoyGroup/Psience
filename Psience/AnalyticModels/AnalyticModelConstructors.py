@@ -1,11 +1,12 @@
 
-import numpy as np
+import numpy as np, scipy
 from .Helpers import sym, AnalyticModelBase
 from ..Data import KEData
 
 __all__ = [
     'AnalyticPotentialConstructor',
-    'AnalyticKineticEnergyConstructor'
+    'AnalyticKineticEnergyConstructor',
+    'AnalyticModel'
 ]
 
 class AnalyticPotentialConstructor(AnalyticModelBase):
@@ -13,15 +14,20 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
 
     """
     @classmethod
-    def symbolic_morse(cls, instance=None):
+    def morse(cls, *args):
         """
         Returns a fully symbolic form of a Morse potential
         :return:
         :rtype:
         """
-        return cls.morse(*cls.symbol_list(["De", "a", "r", "re"], instance=instance))
+        return cls.calc_morse(
+            AnalyticModelBase.symbol("De", *args),
+            AnalyticModelBase.symbol("ap", *args),
+            AnalyticModelBase.symbolic_r(*args),
+            AnalyticModelBase.symbol("re", *args)
+        )
     @staticmethod
-    def morse(De, a, r, re):
+    def calc_morse(De, a, r, re):
         """
         :param De:
         :type De:
@@ -48,13 +54,17 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
         """
         return k*(x-x_e)**2
     @classmethod
-    def symbolic_harmonic(cls, instance=None):
+    def harmonic(cls, *args):
         """
         Returns a fully symbolic form of a Morse potential
         :return:
         :rtype:
         """
-        return cls.harm(*cls.symbol_list(["k", "q", "qe"], instance=instance))
+        return cls.harm(
+            AnalyticModelBase.symbol("k", *args),
+            AnalyticModelBase.var(*args),
+            AnalyticModelBase.var("qe", *args),
+        )
 
 class AnalyticKineticEnergyConstructor(AnalyticModelBase):
     """
@@ -157,17 +167,47 @@ class AnalyticModel:
     which can be used to get derived expressions to evaluate.
     """
 
-    def __init__(self, coordinates, potential):
+    def __init__(self, coordinates, potential, values=None):
         self.coords = coordinates
+        self.vals = values
         self._syms = None
         self._base_g = None
         self._g = None
+        self._u = None
         self.pot = potential
+
     @property
     def internal_coordinates(self):
         if self._syms is None:
             self._load_symbols()
         return self._syms[0]
+
+    def normal_modes(self):
+        v = AnalyticPotentialConstructor.eval_exprs(
+            self.v(),
+            self.vals
+        )
+        g = AnalyticKineticEnergyConstructor.eval_exprs(
+            self.g(),
+            self.vals
+        )
+        freqs2, mode_inv = scipy.linalg.eigh(v, g, type=2) # modes come out as a (internals, normal_mode) array
+        freqs = np.sqrt(freqs2)
+
+        # normalization = np.broadcast_to(1 / np.linalg.norm(modes, axis=0), modes.shape)
+        mode_inv = mode_inv  # now as (normal_mode, internals) with frequency dimension removed
+        modes = np.linalg.inv(mode_inv)
+        mode_inv = mode_inv.T * np.sqrt(freqs[:, np.newaxis])
+        modes = modes / np.sqrt(freqs[:, np.newaxis])
+
+        coords = [AnalyticModelBase.dot(v, self.coords) for v in modes.T]
+
+        return coords, (freqs, modes, mode_inv)
+
+    def evaluate(self, expr):
+        if self.vals is None:
+            raise ValueError("ugh")
+        return AnalyticModelBase.eval_exprs(expr, self.vals)
 
     def _load_symbols(self):
         sym_list = []
@@ -185,9 +225,12 @@ class AnalyticModel:
         a = a.strip("]").split(",")
         return (t, tuple(int(x) for x in a))
 
-    def jacobian(self):
+    def jacobian(self, order=0):
         ics = self.internal_coordinates
-        return [AnalyticModelBase.take_derivs(c, ics) for c in self.coords]
+        jac = [AnalyticModelBase.take_derivs(c, ics) for c in self.coords]
+        for i in range(order):
+            jac = AnalyticModelBase.take_derivs(jac, ics)
+        return jac
     def _base_gmat(self):
         if self._base_g is None:
             if self._syms is None:
@@ -198,39 +241,73 @@ class AnalyticModel:
     def g(self, order=0):
         # Gmatrix elements will basically involve taking some
         # kind of direct product of coordinate reps
+        J_t = self.jacobian()
         if self._g is None:
-            J_t = self.jacobian()
             G = self._base_gmat()
-            def transpose(A):
-                n = len(A)
-                m = len(A[0])
-                return [[A[i][k] for i in range(n)] for k in range(m)]
-            def dot(a, b):
-                if isinstance(a[0], list): # matmul
-                    b = transpose(b)
-                    return [[dot(a[i], b[j]) for j in range(len(b))]  for i in range(len(a))]
-                else: # vector dot
-                    return sum(a*b for a,b in zip(a,b))
-            J = transpose(J_t)
-            self._g = dot(dot(J_t, G), J)
-        if order > 0:
-            raise NotImplementedError("need to handle coordinate transforms")
-            ics = self.internal_coordinates
-            for i in range(order):
-                ...
-
+            J = AnalyticModelBase.transpose(J_t)
+            self._g = AnalyticModelBase.dot(AnalyticModelBase.dot(J_t, G), J)
+        all_gs = [self._g]
+        J_inv = sym.Matrix(J_t).inv()
+        for i in range(order):
+            g = AnalyticModelBase.dot(
+                J_inv,
+                AnalyticModelBase.take_derivs(all_gs[-1], self.internal_coordinates)
+            )
+            all_gs.append(g)
+        return all_gs
 
     def v(self, order=2):
         # we provide a Taylor series expansion of the potential
-        raise NotImplementedError("need to handle composite coordinates")
-    def vp(self, order=0):
-        raise NotImplementedError("need to handle composite coordinates")
+        v = self.pot
+        all_vs = [v]
+        if order > 0:
+            J_inv = sym.Matrix(self.jacobian()).inv()
+        for i in range(order):
+            v = AnalyticModelBase.dot(
+                J_inv,
+                AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates)
+            )
+            all_vs.append(v)
+        return all_vs
 
+    def _base_u(self):
+        if self._syms is None:
+            self._load_symbols()
+        symlist = self._syms[1]
+        return [[AnalyticKineticEnergyConstructor.vp(a[1], b[1], coord_types=[a[0], b[0]]) for b in symlist] for a in symlist]
+    def vp(self, order=0):
+        J_t = self.jacobian()
+        if self._u is None:
+            U = self._base_u()
+            J = AnalyticModelBase.transpose(J_t)
+            self._u = sum(sum(AnalyticModelBase.dot(AnalyticModelBase.dot(J_t, U), J)))
+        u = self._u
+        all_vs = [u]
+        if order > 0:
+            J_inv = sym.Matrix(J_t).inv()
+        for i in range(order):
+            U = AnalyticModelBase.dot(
+                J_inv,
+                AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates)
+            )
+            all_vs.append(U)
+        return all_vs
+
+    @classmethod
+    def sym(self, base, *args):
+        return AnalyticModelBase.symbol(base, *args)
+    @classmethod
+    def m(self, i):
+        return AnalyticModelBase.symbolic_m(i)
+    @classmethod
     def r(self, i, j):
         return AnalyticModelBase.symbolic_r(i, j)
+    @classmethod
     def a(self, i, j, k):
         return AnalyticModelBase.symbolic_a(i, j, k)
+    @classmethod
     def t(self, i, j, k, l):
         return AnalyticModelBase.symbolic_t(i, j, k, l)
+    @classmethod
     def y(self, i, j, k, l):
         return AnalyticModelBase.symbolic_t(i, j, k, l)

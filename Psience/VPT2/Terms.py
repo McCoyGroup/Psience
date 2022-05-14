@@ -195,6 +195,7 @@ class ExpansionTerms:
                  molecule,
                  modes=None,
                  mode_selection=None,
+                 use_internal_modes=None,
                  logger=None,
                  parallelizer=None,
                  checkpointer=None,
@@ -217,7 +218,7 @@ class ExpansionTerms:
                  cartesian_by_internal_order=4,
                  jacobian_warning_threshold=1e4,
                  coordinate_transformations=None,
-                 coordinate_derivatives=None,
+                 coordinate_derivatives=None
                  ):
         """
         :param molecule: the molecule we're doing the expansion for
@@ -252,17 +253,19 @@ class ExpansionTerms:
         self.internal_coordinates = molecule.internal_coordinates
         self.coords = molecule.coords
         self.masses = molecule.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        self.use_internal_modes = use_internal_modes
         if modes is None:
             modes = molecule.normal_modes.modes
-
+        self._modes = modes.basis
         if undimensionalize:
             self.raw_modes = modes
-            modes = self.undimensionalize(self.masses, modes.basis)
+            modes = self.undimensionalize(self.masses, self._modes)
         else:
             self.raw_modes = None
+            modes = self._modes
         if mode_selection is not None:
             modes = modes[mode_selection]
-        self.modes = modes
+        self._modes = modes
         self.mode_sel = mode_selection
         self.freqs = self.modes.freqs
         self._inert_frame = None
@@ -304,6 +307,48 @@ class ExpansionTerms:
             n = len(self.masses)
         return n
 
+    def _check_internal_modes(self, clean=True):
+        if self.use_internal_modes is not None:
+            if clean and self.use_internal_modes:
+                self._reshape_internal_modes()
+            return self.use_internal_modes
+        mat = self._modes.matrix
+        is_internal = mat.shape[0] == self.coords.shape[0] * self.coords.shape[1] - 6
+        self.use_internal_modes = is_internal
+        if clean and is_internal:
+            self._reshape_internal_modes()
+        return is_internal
+
+    def _reshape_internal_modes(self):
+        QR = self._modes.matrix  # derivatives of Q with respect to the internals
+        # we need to add zeros for the orientation coordinates
+        if QR.shape[0] != 3 * self.num_atoms:
+            _QR = QR
+            QR = np.zeros((3 * self.num_atoms, _QR.shape[1]))
+            embedding_coords = [0, 1, 2, 4, 5, 8]
+            good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
+            QR[good_coords, :] = _QR
+            self._modes.matrix = QR
+
+        RQ = self._modes.inverse  # derivatives of internals with respect to Q
+        if RQ.shape[1] != 3 * self.num_atoms:
+            _RQ = RQ
+            # we need to add zeros for the orientation coordinates
+            RQ = np.zeros((_RQ.shape[0], 3 * self.num_atoms))
+            embedding_coords = [0, 1, 2, 4, 5, 8]
+            good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
+            RQ[:, good_coords] = _RQ
+            self._modes.inverse = RQ
+
+    @property
+    def modes(self):
+        # if self._check_internal_modes():
+        #     J, = self.get_cart_jacobs([1])
+        #     return np.dot(J, self._modes)
+        # else:
+        #     # cartesian modes
+        return self._modes
+
     def undimensionalize(self, masses, modes):
         """
         Removes units from normal modes
@@ -318,9 +363,15 @@ class ExpansionTerms:
         L = modes.matrix.T
         freqs = modes.freqs
         freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
-        mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
-        L = L * freq_conv * mass_conv
-        Linv = (L / freq_conv**2)
+        if self._check_internal_modes(clean=False):
+            conv = freq_conv
+            L = L * conv
+            Linv = modes.inverse / conv
+        else:
+            mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
+            conv = freq_conv * mass_conv
+            L = L * conv
+            Linv = (L / freq_conv**2)
         modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
         return modes
 
@@ -766,7 +817,7 @@ class ExpansionTerms:
                     [
                         "Getting coordinate transforms for {m}",
                         "Embedding axes: {a}"
-                        ],
+                    ],
                     m=self.molecule,
                     a=self.internal_coordinates.system.converter_options["axes_labels"]
                 )
@@ -936,83 +987,129 @@ class ExpansionTerms:
             else:
                 int_by_cartesian_jacobs = current_cache[JacobianKeys.InternalsByCartesians]
 
-            QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
-            YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
+            if self._check_internal_modes():
+                self.use_internal_modes = True
 
-            if (
-                    JacobianKeys.InternalsByCartesianModes not in current_cache
-                    or len(current_cache[JacobianKeys.InternalsByCartesianModes]) < internal_by_cartesian_order
-            ):
-                RQ_derivs = TensorDerivativeConverter(
-                    [YQ] + [0]*(len(int_by_cartesian_jacobs) - 1),
-                    int_by_cartesian_jacobs
-                ).convert(order=len(int_by_cartesian_jacobs))#, check_arrays=True)
-                current_cache[JacobianKeys.InternalsByCartesianModes] = RQ_derivs
+                QR = self.modes.matrix  # derivatives of Q with respect to the internals
+                # we need to add zeros for the orientation coordinates
+                if QR.shape[0] != 3*self.num_atoms:
+                    _QR = QR
+                    QR = np.zeros((3*self.num_atoms, _QR.shape[1]))
+                    embedding_coords = [0, 1, 2, 4, 5, 8]
+                    good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
+                    QR[good_coords, :] = _QR
+                    self.modes.matrix = QR
+
+                RQ = self.modes.inverse # derivatives of internals with respect to Q
+                if RQ.shape[1] != 3 * self.num_atoms:
+                    _RQ = RQ
+                    # we need to add zeros for the orientation coordinates
+                    RQ = np.zeros((_RQ.shape[0], 3*self.num_atoms))
+                    embedding_coords = [0, 1, 2, 4, 5, 8]
+                    good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
+                    RQ[:, good_coords] = _RQ
+                    self.modes.inverse = RQ
+
+                if (
+                        JacobianKeys.CartesiansByInternalModes not in current_cache
+                        or len(current_cache[JacobianKeys.CartesiansByInternalModes]) < len(cart_by_internal_jacobs)
+                ):
+                    x_derivs = cart_by_internal_jacobs#(YR, YRR, YRRR, YRRRR)
+                    Q_derivs = [RQ] + [0]*(len(cart_by_internal_jacobs) - 1)
+                    YQ_derivs = TensorDerivativeConverter(Q_derivs, x_derivs,
+                                                          jacobians_name='Q',
+                                                          values_name='X'
+                                                          ).convert(order=len(cart_by_internal_jacobs))#, check_arrays=True)
+
+                    current_cache[JacobianKeys.CartesiansByInternalModes] = YQ_derivs
+
+                if (
+                        JacobianKeys.InternalModesByCartesians not in current_cache
+                        or len(current_cache[JacobianKeys.InternalModesByCartesians]) < len(int_by_cartesian_jacobs)
+                ):
+                    QY_derivs = TensorDerivativeConverter(int_by_cartesian_jacobs,
+                                                          [QR] + [0]*(len(int_by_cartesian_jacobs) - 1)
+                                                          ).convert(order=len(int_by_cartesian_jacobs))#, check_arrays=True)
+                    current_cache[JacobianKeys.InternalModesByCartesians] = QY_derivs
+
             else:
-                RQ_derivs = current_cache[JacobianKeys.InternalsByCartesianModes]
+                QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
+                YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
 
-            if (
-                    JacobianKeys.CartesianModesByInternals not in current_cache
-                    or len(current_cache[JacobianKeys.CartesianModesByInternals]) < cartesian_by_internal_order
-            ):
-                QR_derivs = TensorDerivativeConverter(
-                    cart_by_internal_jacobs,
-                    [QY] + [0]*(len(cart_by_internal_jacobs) - 1)
-                ).convert(order=len(cart_by_internal_jacobs))
-                current_cache[JacobianKeys.CartesianModesByInternals] = QR_derivs
-            else:
-                QR_derivs = current_cache[JacobianKeys.CartesianModesByInternals]
+                if (
+                        JacobianKeys.InternalsByCartesianModes not in current_cache
+                        or len(current_cache[JacobianKeys.InternalsByCartesianModes]) < internal_by_cartesian_order
+                ):
+                    RQ_derivs = TensorDerivativeConverter(
+                        [YQ] + [0]*(len(int_by_cartesian_jacobs) - 1),
+                        int_by_cartesian_jacobs
+                    ).convert(order=len(int_by_cartesian_jacobs))#, check_arrays=True)
+                    current_cache[JacobianKeys.InternalsByCartesianModes] = RQ_derivs
+                else:
+                    RQ_derivs = current_cache[JacobianKeys.InternalsByCartesianModes]
 
-            if (
-                    JacobianKeys.CartesiansByInternalModes not in current_cache
-                    or len(current_cache[JacobianKeys.CartesiansByInternalModes]) < len(cart_by_internal_jacobs)
-            ):
-                x_derivs = cart_by_internal_jacobs#(YR, YRR, YRRR, YRRRR)
-                Q_derivs = RQ_derivs[:1] + [0]*(len(cart_by_internal_jacobs) - 1)
-                YQ_derivs = TensorDerivativeConverter(Q_derivs, x_derivs,
-                                                      jacobians_name='Q',
-                                                      values_name='X'
-                                                      ).convert(order=len(cart_by_internal_jacobs))#, check_arrays=True)
-                # self._get_tensor_derivs(
-                #     YQ_derivs, (QY, 0, 0, 0),
-                #     mixed_XQ=False
-                # )
+                if (
+                        JacobianKeys.CartesianModesByInternals not in current_cache
+                        or len(current_cache[JacobianKeys.CartesianModesByInternals]) < cartesian_by_internal_order
+                ):
+                    QR_derivs = TensorDerivativeConverter(
+                        cart_by_internal_jacobs,
+                        [QY] + [0]*(len(cart_by_internal_jacobs) - 1)
+                    ).convert(order=len(cart_by_internal_jacobs))
+                    current_cache[JacobianKeys.CartesianModesByInternals] = QR_derivs
+                else:
+                    QR_derivs = current_cache[JacobianKeys.CartesianModesByInternals]
 
-                current_cache[JacobianKeys.CartesiansByInternalModes] = YQ_derivs
+                if (
+                        JacobianKeys.CartesiansByInternalModes not in current_cache
+                        or len(current_cache[JacobianKeys.CartesiansByInternalModes]) < len(cart_by_internal_jacobs)
+                ):
+                    x_derivs = cart_by_internal_jacobs#(YR, YRR, YRRR, YRRRR)
+                    Q_derivs = RQ_derivs[:1] + [0]*(len(cart_by_internal_jacobs) - 1)
+                    YQ_derivs = TensorDerivativeConverter(Q_derivs, x_derivs,
+                                                          jacobians_name='Q',
+                                                          values_name='X'
+                                                          ).convert(order=len(cart_by_internal_jacobs))#, check_arrays=True)
+                    # self._get_tensor_derivs(
+                    #     YQ_derivs, (QY, 0, 0, 0),
+                    #     mixed_XQ=False
+                    # )
 
-            if (
-                    JacobianKeys.CartesianModesByInternalModes not in current_cache
-                    or len(current_cache[JacobianKeys.CartesianModesByInternalModes]) < len(cart_by_internal_jacobs)
-            ):
-                YQ_derivs = current_cache[JacobianKeys.CartesiansByInternalModes]
-                qQ_derivs = TensorDerivativeConverter(YQ_derivs, [QY] + [0] * (len(cart_by_internal_jacobs) - 1),
-                                                      jacobians_name='YQ',
-                                                      values_name='qY'
-                                                      ).convert(order=len(cart_by_internal_jacobs))#, check_arrays=True)
-                current_cache[JacobianKeys.CartesianModesByInternalModes] = qQ_derivs
+                    current_cache[JacobianKeys.CartesiansByInternalModes] = YQ_derivs
 
-            if (
-                    JacobianKeys.InternalModesByCartesians not in current_cache
-                    or len(current_cache[JacobianKeys.InternalModesByCartesians]) < len(int_by_cartesian_jacobs)
-            ):
-                QR = QR_derivs[0]
-                QY_derivs = TensorDerivativeConverter(int_by_cartesian_jacobs,
-                                                      [QR] + [0]*(len(int_by_cartesian_jacobs) - 1)
-                                                      ).convert(order=len(int_by_cartesian_jacobs))#, check_arrays=True)
-                current_cache[JacobianKeys.InternalModesByCartesians] = QY_derivs
+                if (
+                        JacobianKeys.CartesianModesByInternalModes not in current_cache
+                        or len(current_cache[JacobianKeys.CartesianModesByInternalModes]) < len(cart_by_internal_jacobs)
+                ):
+                    YQ_derivs = current_cache[JacobianKeys.CartesiansByInternalModes]
+                    qQ_derivs = TensorDerivativeConverter(YQ_derivs, [QY] + [0] * (len(cart_by_internal_jacobs) - 1),
+                                                          jacobians_name='YQ',
+                                                          values_name='qY'
+                                                          ).convert(order=len(cart_by_internal_jacobs))#, check_arrays=True)
+                    current_cache[JacobianKeys.CartesianModesByInternalModes] = qQ_derivs
 
-            if (
-                    JacobianKeys.InternalModesByCartesianModes not in current_cache
-                    or len(current_cache[JacobianKeys.InternalModesByCartesianModes]) < len(int_by_cartesian_jacobs)
-            ):
-                RQ_derivs = current_cache[JacobianKeys.InternalsByCartesianModes]
-                QR = QR_derivs[0]
-                Qq_derivs = TensorDerivativeConverter(RQ_derivs,
-                                                      [QR] + [0] * (len(RQ_derivs) - 1),
-                                                      jacobians_name='Rq',
-                                                      values_name='qR'
-                                                      ).convert(order=len(RQ_derivs))
-                current_cache[JacobianKeys.InternalModesByCartesianModes] = Qq_derivs
+                if (
+                        JacobianKeys.InternalModesByCartesians not in current_cache
+                        or len(current_cache[JacobianKeys.InternalModesByCartesians]) < len(int_by_cartesian_jacobs)
+                ):
+                    QR = QR_derivs[0]
+                    QY_derivs = TensorDerivativeConverter(int_by_cartesian_jacobs,
+                                                          [QR] + [0]*(len(int_by_cartesian_jacobs) - 1)
+                                                          ).convert(order=len(int_by_cartesian_jacobs))#, check_arrays=True)
+                    current_cache[JacobianKeys.InternalModesByCartesians] = QY_derivs
+
+                if (
+                        JacobianKeys.InternalModesByCartesianModes not in current_cache
+                        or len(current_cache[JacobianKeys.InternalModesByCartesianModes]) < len(int_by_cartesian_jacobs)
+                ):
+                    RQ_derivs = current_cache[JacobianKeys.InternalsByCartesianModes]
+                    QR = QR_derivs[0]
+                    Qq_derivs = TensorDerivativeConverter(RQ_derivs,
+                                                          [QR] + [0] * (len(RQ_derivs) - 1),
+                                                          jacobians_name='Rq',
+                                                          values_name='qR'
+                                                          ).convert(order=len(RQ_derivs))
+                    current_cache[JacobianKeys.InternalModesByCartesianModes] = Qq_derivs
 
             self._cached_transforms[self.molecule] = current_cache
             with self.checkpointer:
@@ -1189,7 +1286,6 @@ class PotentialTerms(ExpansionTerms):
 
     @property
     def v_derivs(self):
-
         if self._v_derivs is None:
             if self._input_derivs is None:
                 self._input_derivs = self.molecule.potential_surface.derivatives
@@ -1200,7 +1296,19 @@ class PotentialTerms(ExpansionTerms):
     def v_derivs(self, v):
         self._v_derivs = v
 
+
+    def _check_mode_terms(self, derivs=None):
+        modes_n = len(self.modes.freqs)
+        if derivs is None:
+            derivs = self.v_derivs
+        for d in derivs:
+            if d.shape != (modes_n,) * len(d.shape):
+                return False
+        return True
     def _canonicalize_derivs(self, freqs, masses, derivs):
+
+        if self._check_mode_terms(derivs):
+            return derivs
 
         if len(derivs) == 3:
             grad, fcs, fds = derivs
@@ -1324,122 +1432,126 @@ class PotentialTerms(ExpansionTerms):
                     )
                 )
 
-        # amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-        m_conv = np.sqrt(self._tripmass(masses))
-        f_conv = np.sqrt(freqs)
-        # f_conv = np.ones(f_conv.shape) # debugging
-
-        if fcs.shape == (coord_n, coord_n):
-            undimension_2 = np.outer(m_conv, m_conv)
-        elif fcs.shape == (modes_n, modes_n):
-            undimension_2 = f_conv[:, np.newaxis] * f_conv[np.newaxis, :]
+        if self._check_mode_terms(derivs) or self.use_internal_modes:
+            all_derivs = derivs
         else:
-            undimension_2 = 1
-        fcs = fcs * (1 / undimension_2)
+            # amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            m_conv = np.sqrt(self._tripmass(masses))
+            f_conv = np.sqrt(freqs)
+            # f_conv = np.ones(f_conv.shape) # debugging
+            if fcs.shape == (coord_n, coord_n):
+                undimension_2 = np.outer(m_conv, m_conv)
+            elif fcs.shape == (modes_n, modes_n):
+                undimension_2 = f_conv[:, np.newaxis] * f_conv[np.newaxis, :]
+            else:
+                undimension_2 = 1
+            fcs = fcs * (1 / undimension_2)
 
-        if self.freq_tolerance is not None and self.check_input_force_constants:
+            if self.freq_tolerance is not None and self.check_input_force_constants:
+                xQ2 = self.modes.inverse
+                _, v2x = TensorDerivativeConverter((xQ2, 0), (grad, fcs)).convert(order=2)
 
-            xQ2 = self.modes.inverse
-            _, v2x = TensorDerivativeConverter((xQ2, 0), (grad, fcs)).convert(order=2)
-
-            real_freqs = np.diag(v2x)
-            nominal_freqs = self.modes.freqs
-            # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
-            if self.freq_tolerance is not None:
-                if np.max(np.abs(nominal_freqs - real_freqs)) > self.freq_tolerance:
-                    raise PerturbationTheoryException(
-                        "Input frequencies aren't obtained when transforming the force constant matrix;"
-                        " this likely indicates issues with the input mode vectors"
-                        " got \n{}\n but expected \n{}\n".format(
-                            real_freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
-                            nominal_freqs * UnitsData.convert("Hartrees", "Wavenumbers")
+                real_freqs = np.diag(v2x)
+                nominal_freqs = self.modes.freqs
+                # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
+                if self.freq_tolerance is not None:
+                    if np.max(np.abs(nominal_freqs - real_freqs)) > self.freq_tolerance:
+                        raise PerturbationTheoryException(
+                            "Input frequencies aren't obtained when transforming the force constant matrix;"
+                            " this likely indicates issues with the input mode vectors"
+                            " got \n{}\n but expected \n{}\n".format(
+                                real_freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
+                                nominal_freqs * UnitsData.convert("Hartrees", "Wavenumbers")
+                            )
                         )
+
+            all_derivs = [grad, fcs]
+            if len(derivs) > 2:
+                if thirds.shape == (modes_n, coord_n, coord_n):
+                    if self.mixed_derivs is None:
+                        self.mixed_derivs = True
+                    undimension_3 = (
+                            f_conv[:, np.newaxis, np.newaxis]
+                            * m_conv[np.newaxis, :, np.newaxis]
+                            * m_conv[np.newaxis, np.newaxis, :]
                     )
+                elif thirds.shape == (coord_n, coord_n, coord_n):
+                    if self.mixed_derivs is None:
+                        self.mixed_derivs = False
+                    undimension_3 = (
+                            m_conv[:, np.newaxis, np.newaxis]
+                            * m_conv[np.newaxis, :, np.newaxis]
+                            * m_conv[np.newaxis, np.newaxis, :]
+                    )
+                elif thirds.shape == (modes_n, modes_n, modes_n):
+                    if self.mixed_derivs is None:
+                        self.mixed_derivs = False
+                    undimension_3 = (
+                            f_conv[:, np.newaxis, np.newaxis]
+                            * f_conv[np.newaxis, :, np.newaxis]
+                            * f_conv[np.newaxis, np.newaxis, :]
+                    )
+                else:
+                    if self.mixed_derivs is None:
+                        self.mixed_derivs = False
+                    undimension_3 = 1
+                thirds = thirds * (1 / undimension_3)
+                all_derivs.append(thirds)
 
-        all_derivs = [grad, fcs]
-        if len(derivs) > 2:
-            if thirds.shape == (modes_n, coord_n, coord_n):
-                if self.mixed_derivs is None:
-                    self.mixed_derivs = True
-                undimension_3 = (
-                        f_conv[:, np.newaxis, np.newaxis]
-                        * m_conv[np.newaxis, :, np.newaxis]
-                        * m_conv[np.newaxis, np.newaxis, :]
-                )
-            elif thirds.shape == (coord_n, coord_n, coord_n):
-                if self.mixed_derivs is None:
-                    self.mixed_derivs = False
-                undimension_3 = (
-                        m_conv[:, np.newaxis, np.newaxis]
-                        * m_conv[np.newaxis, :, np.newaxis]
-                        * m_conv[np.newaxis, np.newaxis, :]
-                )
-            elif thirds.shape == (modes_n, modes_n, modes_n):
-                if self.mixed_derivs is None:
-                    self.mixed_derivs = False
-                undimension_3 = (
-                        f_conv[:, np.newaxis, np.newaxis]
-                        * f_conv[np.newaxis, :, np.newaxis]
-                        * f_conv[np.newaxis, np.newaxis, :]
-                )
-            else:
-                if self.mixed_derivs is None:
-                    self.mixed_derivs = False
-                undimension_3 = 1
-            thirds = thirds * (1 / undimension_3)
-            all_derivs.append(thirds)
+            if len(derivs) > 3:
+                if fourths.shape == (modes_n, modes_n, coord_n, coord_n):
+                    undimension_4 = (
+                            f_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                            * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                            * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
+                            * m_conv[np.newaxis, np.newaxis, np.newaxis, :]
+                    )
+                elif fourths.shape == (coord_n, coord_n, coord_n, coord_n):
+                    undimension_4 = (
+                            m_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                            * m_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                            * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
+                            * m_conv[np.newaxis, np.newaxis, np.newaxis, :]
+                    )
+                elif fourths.shape == (modes_n, modes_n, modes_n, modes_n):
+                    undimension_4 = (
+                            f_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                            * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                            * f_conv[np.newaxis, np.newaxis, :, np.newaxis]
+                            * f_conv[np.newaxis, np.newaxis, np.newaxis, :]
+                    )
+                else:
+                    undimension_4 = 1
 
-        if len(derivs) > 3:
-            if fourths.shape == (modes_n, modes_n, coord_n, coord_n):
-                undimension_4 = (
-                        f_conv[:, np.newaxis, np.newaxis, np.newaxis]
-                        * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
-                        * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
-                        * m_conv[np.newaxis, np.newaxis, np.newaxis, :]
-                )
-            elif fourths.shape == (coord_n, coord_n, coord_n, coord_n):
-                undimension_4 = (
-                        m_conv[:, np.newaxis, np.newaxis, np.newaxis]
-                        * m_conv[np.newaxis, :, np.newaxis, np.newaxis]
-                        * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
-                        * m_conv[np.newaxis, np.newaxis, np.newaxis, :]
-                )
-            elif fourths.shape == (modes_n, modes_n, modes_n, modes_n):
-                undimension_4 = (
-                        f_conv[:, np.newaxis, np.newaxis, np.newaxis]
-                        * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
-                        * f_conv[np.newaxis, np.newaxis, :, np.newaxis]
-                        * f_conv[np.newaxis, np.newaxis, np.newaxis, :]
-                )
-            else:
-                undimension_4 = 1
+                if isinstance(fourths, SparseArray):
+                    fourths = fourths.asarray()
+                fourths = fourths * (1 / undimension_4)
 
-            if isinstance(fourths, SparseArray):
-                fourths = fourths.asarray()
-            fourths = fourths * (1 / undimension_4)
+                all_derivs.append(fourths)
 
-            all_derivs.append(fourths)
+            for i in range(4, len(derivs)):
+                term = derivs[i]
+                if term.shape == (coord_n,) * (i + 1):
+                    undimension = m_conv
+                    mc = m_conv
+                    for j in range(i):
+                        mc = np.expand_dims(mc, 0)
+                        undimension = np.expand_dims(undimension, -1) * mc
+                elif term.shape != (internals_n,) * (i + 1):
+                    undimension = f_conv
+                    fc = f_conv
+                    for j in range(i):
+                        fc = np.expand_dims(fc, 0)
+                        undimension = np.expand_dims(undimension, -1) * fc
 
-        for i in range(4, len(derivs)):
-            term = derivs[i]
-            if term.shape == (coord_n,) * (i + 1):
-                undimension = m_conv
-                mc = m_conv
-                for j in range(i):
-                    mc = np.expand_dims(mc, 0)
-                    undimension = np.expand_dims(undimension, -1) * mc
-            elif term.shape != (internals_n,) * (i + 1):
-                undimension = f_conv
-                fc = f_conv
-                for j in range(i):
-                    fc = np.expand_dims(fc, 0)
-                    undimension = np.expand_dims(undimension, -1) * fc
-
-            all_derivs.append(term / undimension)
+                all_derivs.append(term / undimension)
 
         return all_derivs
 
     def get_terms(self, order=None, logger=None):
+
+        if self._check_mode_terms():
+            return self.v_derivs[1:]
 
         if logger is None:
             logger = self.logger
@@ -1488,7 +1600,15 @@ class PotentialTerms(ExpansionTerms):
                 ]).convert(order=order)#, check_arrays=True)
             else:
                 terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
-
+        elif self._check_internal_modes() and not self._check_mode_terms():
+            raise NotImplementedError("...")
+            # It should be very rare that we are actually able to make it here
+            terms = []
+            RQ = self.modes.inverse
+            for v in V_derivs:
+                for j in range(v.ndim):
+                    v = np.tensordot(RQ, v, axes=[1, -1])
+                terms.append(v)
         else:
             x_derivs = self.get_cartesians_by_modes(order=order-1)
             # raise Exception(x_derivs[1])
@@ -1664,12 +1784,6 @@ class PotentialTerms(ExpansionTerms):
                             )
                         )
 
-        # import McUtils.Plots as plt
-        # plt.TensorPlot(UnitsData.convert("Hartrees", "Wavenumbers")*terms[3], plot_style=dict(
-        #     vmin=-1000,
-        #     vmax=1000
-        # )).show()
-
         # drop the gradient term as that is all zeros
         terms = terms[1:]
 
@@ -1727,9 +1841,13 @@ class KineticTerms(ExpansionTerms):
                 terms = [G] + [0]*(order)
         else:
             # should work this into the new layout
-            QY_derivs = self.get_modes_by_cartesians(order=order+1)
-            YQ_derivs = self.get_cartesians_by_modes(order=order+1)
-
+            uses_internal_modes = self._check_internal_modes()
+            if uses_internal_modes:
+                QY_derivs = self.get_internals_by_cartesians(order=order + 1)
+                YQ_derivs = self.get_cartesians_by_internals(order=order + 1)
+            else:
+                QY_derivs = self.get_modes_by_cartesians(order=order+1)
+                YQ_derivs = self.get_cartesians_by_modes(order=order+1)
             # RQ = dot(YQ, RY)
 
             term_getter = TensorDerivativeConverter(YQ_derivs, QY_derivs).terms
@@ -1740,6 +1858,17 @@ class KineticTerms(ExpansionTerms):
                 g_cur = G_terms[-1].dQ()#.simplify()
                 G_terms.append(g_cur)
             terms = [x.array for x in G_terms]
+
+            if uses_internal_modes:
+                QR = self.modes.matrix
+                RQ = self.modes.inverse
+                for i,g in enumerate(terms):
+                    for j in range(2):
+                        g = np.tensordot(QR, g, axes=[0, -1])
+                    for j in range(i):
+                        g = np.tensordot(RQ, g, axes=[1, -1])
+                    terms[i] = g
+
 
             for i,t in enumerate(terms):
                 if i == 0:

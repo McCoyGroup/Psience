@@ -510,6 +510,7 @@ class PerturbationTheoryCorrections:
         :return:
         :rtype:
         """
+
         if target_modes is None:
             target_modes = np.arange(len(state.excitations[0]))
 
@@ -527,6 +528,7 @@ class PerturbationTheoryCorrections:
                 diff_sums == 1 # find where changes are only in one position
             )
         # now drop these modes
+        # print(couplings.excitations)
         if diff_mask.any():
             if diff_mask.all():
                 couplings = None
@@ -536,7 +538,7 @@ class PerturbationTheoryCorrections:
                 couplings = couplings.take_subspace(np.where(np.logical_not(diff_mask))[0])
                 # print("===")
                 # print(couplings.excitations)
-        # print(couplings.excitations, diff_mask, exc_1, exc_2)
+        # print(couplings.excitations)
         return couplings
 
     def find_strong_couplings(self, threshold=.1, state_filter=None):
