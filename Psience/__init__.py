@@ -15,6 +15,7 @@ import Psience.DVR as DVR
 import Psience.VPT2 as VPT2
 import Psience.Data as Data
 import Psience.BasisReps as BasisReps
+import Psience.AnalyticModels as AnalyticModels
 
 # getting the full list of symbols explicitly in an __all__ variable
 __all__ = [
