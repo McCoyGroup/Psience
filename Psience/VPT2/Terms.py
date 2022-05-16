@@ -203,7 +203,7 @@ class ExpansionTerms:
                  logger=None,
                  parallelizer=None,
                  checkpointer=None,
-                 undimensionalize=True,
+                 undimensionalize=None,
                  numerical_jacobians=True,
                  eckart_embed_derivatives=True,
                  eckart_embed_planar_ref_tolerance=None,
@@ -261,6 +261,8 @@ class ExpansionTerms:
         if modes is None:
             modes = molecule.normal_modes.modes
         self._modes = modes.basis
+        if undimensionalize is None:
+            undimensionalize = not self._check_internal_modes(clean=False)
         if undimensionalize:
             self.raw_modes = modes
             modes = self.undimensionalize(self.masses, self._modes)
@@ -311,12 +313,14 @@ class ExpansionTerms:
             n = len(self.masses)
         return n
 
-    def _check_internal_modes(self, clean=True):
+    def _check_internal_modes(self, modes=None, clean=True):
         if self.use_internal_modes is not None:
             if clean and self.use_internal_modes:
                 self._reshape_internal_modes()
             return self.use_internal_modes
-        mat = self._modes.matrix
+        if modes is None:
+            modes = self._modes
+        mat = modes.matrix
         is_internal = mat.shape[0] == self.coords.shape[0] * self.coords.shape[1] - 6
         self.use_internal_modes = is_internal
         if clean and is_internal:

@@ -21,6 +21,11 @@ class SympyShim:
         return self.sym
     def __getattr__(self, item):
         return getattr(self._load_sympy(), item)
+    # @classmethod
+    # def _load_attr(self, item):
+    #     return getattr(self._load_sympy(), item)
+    # def tensorcontraction(self, ):
+
 sym = SympyShim()
 
 class SymbolicCaller:
