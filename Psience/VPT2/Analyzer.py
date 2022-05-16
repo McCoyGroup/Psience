@@ -976,7 +976,12 @@ class VPTAnalyzer:
         else:
             raise ValueError("log file {} can't be parsed".format(log_file))
 
-    def print_output_tables(self):
+    def print_output_tables(self,
+                            print_energy_corrections=False,
+                            print_energies=False,
+                            print_transition_moments=False,
+                            print_intensities=True,
+                            **kwargs):
         no_print = False
         try:
             logger = self.loader.data.logger
@@ -990,9 +995,11 @@ class VPTAnalyzer:
             self.loader.data.logger = None
             VPTRunner.print_output_tables(
                 self.loader.data,
-                print_energy_corrections=False,
-                print_energies=False,
-                print_transition_moments=False
+                print_energy_corrections=print_energy_corrections,
+                print_energies=print_energies,
+                print_transition_moments=print_transition_moments,
+                print_intensities=print_intensities,
+                **kwargs
             )
         finally:
             if not no_print:

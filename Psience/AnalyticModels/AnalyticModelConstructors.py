@@ -8,23 +8,24 @@ __all__ = [
     'AnalyticKineticEnergyConstructor',
     'AnalyticModel'
 ]
+__reload_hook__ = ["..Data"]
 
 class AnalyticPotentialConstructor(AnalyticModelBase):
     """
 
     """
     @classmethod
-    def morse(cls, *args):
+    def morse(cls, *args, De=None, a=None, re=None):
         """
         Returns a fully symbolic form of a Morse potential
         :return:
         :rtype:
         """
         return cls.calc_morse(
-            AnalyticModelBase.symbol("De", *args),
-            AnalyticModelBase.symbol("ap", *args),
+            AnalyticModelBase.symbol("De", *args) if De is None else De,
+            AnalyticModelBase.symbol("ap", *args) if a is None else a,
             AnalyticModelBase.symbolic_r(*args),
-            AnalyticModelBase.symbol("re", *args)
+            AnalyticModelBase.symbol("re", *args) if re is None else re
         )
     @staticmethod
     def calc_morse(De, a, r, re):
@@ -54,16 +55,16 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
         """
         return k*(x-x_e)**2
     @classmethod
-    def harmonic(cls, *args):
+    def harmonic(cls, *args, k=None, qe=None):
         """
         Returns a fully symbolic form of a Morse potential
         :return:
         :rtype:
         """
         return cls.harm(
-            AnalyticModelBase.symbol("k", *args),
+            AnalyticModelBase.symbol("k", *args) if k is None else k,
             AnalyticModelBase.var(*args),
-            AnalyticModelBase.var("qe", *args),
+            AnalyticModelBase.symbol("qe", *args) if qe is None else qe,
         )
 
 class AnalyticKineticEnergyConstructor(AnalyticModelBase):
@@ -87,37 +88,99 @@ class AnalyticKineticEnergyConstructor(AnalyticModelBase):
         if sorting.index(coord_types[0]) > sorting.index(coord_types[1]):
             inds1, inds2 = inds2, inds1
             type1, type2 = type2, type1
-        mapping = {i:k for i,k in zip(inds1, tuple(range(1, len(inds1) + 1)))}
-        n = len(inds1) + 1
-        for i in inds2:
-            if i not in inds1:
-                mapping[i] = n
-                n += 1
+        shared_indices = np.intersect1d(inds1, inds2)
+        mapping = {i:k for i,k in zip(shared_indices, tuple(range(1, len(shared_indices) + 1)))}
+        n = len(shared_indices) + 1
+        diff_inds = np.concatenate([np.setdiff1d(inds1, shared_indices),np.setdiff1d(inds2, shared_indices)])
+        for i in diff_inds:
+            mapping[i] = n
+            n += 1
 
         return ((type1, type2), tuple(mapping[i] for i in inds1), tuple(mapping[i] for i in inds2)), mapping
 
     @classmethod
-    def g(cls, inds1:'Iterable[int]', inds2:'Iterable[int]', coord_types=None):
+    def g(cls, inds1:'Iterable[int]', inds2:'Iterable[int]', coord_types=None, target_symbols=None):
         key, mapping = cls._get_coord_key(inds1, inds2, coord_types=coord_types)
-        try:
-            expr = KEData[(key,)][0]
-        except KeyError:
-            expr = 0
+        (expr, _), perm = KEData.find_expressions(key, return_permutation=True)
+        # print(expr, perm, mapping)
+        if perm is not None:
+            shared_indices = np.intersect1d(inds1, inds2)
+            p1, p2 = perm
+            # print(perm, mapping, inds1)
+            if p1 is not None:
+                updates = {}
+                for i,p in enumerate(p1):
+                    old = inds1[i]
+                    new = inds1[p]
+                    if (
+                            old not in shared_indices and new not in shared_indices
+                            or old in shared_indices and new in shared_indices
+                    ):
+                        updates[new] = mapping[old]
+                mapping.update(updates)
+            if p2 is not None:
+                updates = {}
+                for i,p in enumerate(p2):
+                    old = inds2[i]
+                    new = inds2[p]
+                    if (
+                            old not in shared_indices and new not in shared_indices
+                            or old in shared_indices and new in shared_indices
+                    ):
+                        updates[new] = mapping[old]
+                mapping.update(updates)
+            # print(perm)
+            # print(mapping)
+            # print(expr)
+
         if not isinstance(expr, (int, np.integer)):
-            subs = tuple((s, cls.reindex_symbol(s, mapping)) for s in expr.free_symbols)
-            expr = expr.subs(subs)
+            rev_mapping = {v:k for k,v in mapping.items()}
+            subs = tuple((s, cls.reindex_symbol(s, rev_mapping, target_symbols=target_symbols)) for s in expr.free_symbols)
+            expr = expr.subs([(s, q) for s,(q, _) in subs])
+            expr = expr.subs([(q, f) for s,(q, f) in subs])
         return expr
 
     @classmethod
-    def vp(cls, inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None):
+    def vp(cls, inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbols=None):
         key, mapping = cls._get_coord_key(inds1, inds2, coord_types=coord_types)
-        try:
-            expr = KEData[(key,)][1]
-        except KeyError:
-            expr = 0
+        (_, expr), perm = KEData.find_expressions(key, return_permutation=True)
+        # print(expr, perm, mapping)
+        if perm is not None:
+            shared_indices = np.intersect1d(inds1, inds2)
+            p1, p2 = perm
+            # print(perm, mapping, inds1)
+            if p1 is not None:
+                updates = {}
+                for i, p in enumerate(p1):
+                    old = inds1[i]
+                    new = inds1[p]
+                    if (
+                            old not in shared_indices and new not in shared_indices
+                            or old in shared_indices and new in shared_indices
+                    ):
+                        updates[new] = mapping[old]
+                mapping.update(updates)
+            if p2 is not None:
+                updates = {}
+                for i, p in enumerate(p2):
+                    old = inds2[i]
+                    new = inds2[p]
+                    if (
+                            old not in shared_indices and new not in shared_indices
+                            or old in shared_indices and new in shared_indices
+                    ):
+                        updates[new] = mapping[old]
+                mapping.update(updates)
+            # print(perm)
+            # print(mapping)
+            # print(expr)
+
         if not isinstance(expr, (int, np.integer)):
-            subs = tuple((s, cls.reindex_symbol(s, mapping)) for s in expr.free_symbols)
-            expr = expr.subs(subs)
+            rev_mapping = {v: k for k, v in mapping.items()}
+            subs = tuple(
+                (s, cls.reindex_symbol(s, rev_mapping, target_symbols=target_symbols)) for s in expr.free_symbols)
+            expr = expr.subs([(s, q) for s, (q, _) in subs])
+            expr = expr.subs([(q, f) for s, (q, f) in subs])
         return expr
 
     @classmethod
@@ -167,7 +230,7 @@ class AnalyticModel:
     which can be used to get derived expressions to evaluate.
     """
 
-    def __init__(self, coordinates, potential, values=None):
+    def __init__(self, coordinates, potential, values=None, rotation=None):
         self.coords = coordinates
         self.vals = values
         self._syms = None
@@ -175,6 +238,22 @@ class AnalyticModel:
         self._g = None
         self._u = None
         self.pot = potential
+        if rotation is not None:
+            if len(rotation) == 2:
+                r, i = rotation
+                r = np.asanyarray(r)
+                i = np.asanyarray(i)
+                if r.ndim == 2:
+                    rotation = r
+                    inverse = i
+                else:
+                    inverse = np.linalg.inv(rotation)
+            else:
+                inverse = np.linalg.inv(rotation)
+        else:
+            inverse = None
+        self.rotation = rotation
+        self.inverse = inverse
 
     @property
     def internal_coordinates(self):
@@ -183,31 +262,53 @@ class AnalyticModel:
         return self._syms[0]
 
     def normal_modes(self):
-        v = AnalyticPotentialConstructor.eval_exprs(
-            self.v(),
-            self.vals
-        )
-        g = AnalyticKineticEnergyConstructor.eval_exprs(
-            self.g(),
-            self.vals
-        )
+        v = self.v(evaluate=True)[-1]
+        g = self.g(evaluate=True)[-1]
         freqs2, mode_inv = scipy.linalg.eigh(v, g, type=2) # modes come out as a (internals, normal_mode) array
         freqs = np.sqrt(freqs2)
 
         # normalization = np.broadcast_to(1 / np.linalg.norm(modes, axis=0), modes.shape)
-        mode_inv = mode_inv  # now as (normal_mode, internals) with frequency dimension removed
+        # mode_inv = mode_inv  # now as (normal_mode, internals) with frequency dimension removed
         modes = np.linalg.inv(mode_inv)
-        mode_inv = mode_inv.T * np.sqrt(freqs[:, np.newaxis])
+        mode_inv = mode_inv * np.sqrt(freqs[np.newaxis, :])
         modes = modes / np.sqrt(freqs[:, np.newaxis])
 
-        coords = [AnalyticModelBase.dot(v, self.coords) for v in modes.T]
+        # coords = [AnalyticModelBase.dot(v, self.coords) for v in modes]
 
-        return coords, (freqs, modes, mode_inv)
+        return freqs, modes, mode_inv
+
+    def to_normal_modes(self):
+        import copy
+
+        if self.rotation is not None:
+            raise ValueError("already rotated")
+        else:
+            freqs, modes, mode_inv = self.normal_modes()
+            new = copy.copy(self)
+            new._base_g = new._g = new._u = None
+            new.rotation = modes
+            new.inverse = mode_inv
+            return new, freqs
+
+    def get_VPT_expansions(self, order=2, evaluate=True):
+        return dict(
+            kinetic_terms=self.g(order, evaluate=evaluate),
+            potential_terms=self.v(order+2, evaluate=evaluate)[2:],
+            pseudopotential_terms=self.vp(order-2, evaluate=evaluate),
+        )
 
     def evaluate(self, expr):
         if self.vals is None:
             raise ValueError("ugh")
-        return AnalyticModelBase.eval_exprs(expr, self.vals)
+        a = AnalyticModelBase.eval_exprs(expr, self.vals)
+        try:
+            a = np.array(a, dtype=float)
+        except ValueError:
+            pass
+        else:
+            if a.ndim == 0:
+                a = a.tolist()
+        return a
 
     def _load_symbols(self):
         sym_list = []
@@ -225,73 +326,134 @@ class AnalyticModel:
         a = a.strip("]").split(",")
         return (t, tuple(int(x) for x in a))
 
-    def jacobian(self, order=0):
+    def jacobian(self, order=0, evaluate=False):
         ics = self.internal_coordinates
-        jac = [AnalyticModelBase.take_derivs(c, ics) for c in self.coords]
-        for i in range(order):
-            jac = AnalyticModelBase.take_derivs(jac, ics)
+        crd = self.coords
+        jac = sym.Matrix([AnalyticModelBase.take_derivs(c, ics) for c in crd]).transpose()
+        if order > 0:
+            if self.rotation is not None:
+                jac = AnalyticModelBase.dot(jac, self.rotation)
+            for i in range(order):
+                jac = AnalyticModelBase.take_derivs(jac, ics)
+        elif evaluate and self.rotation is not None:
+                jac = AnalyticModelBase.dot(self.evaluate(jac), self.rotation)
+        if evaluate:
+            jac = self.evaluate(jac)
+        else:
+            jac = sym.Matrix(jac)
+        return jac
+    def jacobian_inverse(self, order=0, evaluate=False):
+        ics = self.internal_coordinates
+        crd = self.coords
+        # try:
+        #     jac = sym.Array([AnalyticModelBase.take_derivs(c, crd) for c in ics])
+        #     for i in range(order):
+        #         jac = AnalyticModelBase.take_derivs(jac, crd)
+        # except ValueError:
+        jac = self.jacobian().inv()
+        if order > 0:
+            if self.inverse is not None:
+                jac = AnalyticModelBase.dot(self.inverse, jac)
+            for i in range(order):
+                jac = AnalyticModelBase.take_derivs(jac, crd)
+        elif evaluate and self.inverse is not None:
+                jac = AnalyticModelBase.dot(self.inverse, self.evaluate(jac))
+        if evaluate:
+            jac = self.evaluate(jac)
+        else:
+            jac = sym.Matrix(jac)
+        # if self.inverse is not None:
+        #     jac = AnalyticModelBase.dot(jac, self.inverse)
+        # for i in range(order):
+        #     jac = AnalyticModelBase.take_derivs(jac, crd)
+        # if evaluate:
+        #     jac = self.evaluate(jac)
+        # else:
+        #     jac = sym.Matrix(jac)
         return jac
     def _base_gmat(self):
         if self._base_g is None:
             if self._syms is None:
                 self._load_symbols()
             symlist = self._syms[1]
-            return [[AnalyticKineticEnergyConstructor.g(a[1], b[1], coord_types=[a[0], b[0]]) for b in symlist] for a in symlist]
+            targets = {s.name for s in self._syms[0]}
+            if self.vals is not None:
+                targets.update(s.name for s in self.vals.keys())
+            return [[AnalyticKineticEnergyConstructor.g(a[1], b[1], coord_types=[a[0], b[0]], target_symbols=targets) for b in symlist] for a in symlist]
         return self._base_g
-    def g(self, order=0):
+    def g(self, order=0, evaluate=False):
         # Gmatrix elements will basically involve taking some
         # kind of direct product of coordinate reps
-        J_t = self.jacobian()
+        J = self.jacobian_inverse(evaluate=evaluate)
         if self._g is None:
             G = self._base_gmat()
-            J = AnalyticModelBase.transpose(J_t)
+            J_t = J.transpose()
             self._g = AnalyticModelBase.dot(AnalyticModelBase.dot(J_t, G), J)
         all_gs = [self._g]
-        J_inv = sym.Matrix(J_t).inv()
-        for i in range(order):
-            g = AnalyticModelBase.dot(
-                J_inv,
-                AnalyticModelBase.take_derivs(all_gs[-1], self.internal_coordinates)
-            )
-            all_gs.append(g)
+        if order > 0:
+            J_inv = self.jacobian(evaluate=evaluate)
+            for i in range(order):
+                all_gs.append(AnalyticModelBase.take_derivs(all_gs[-1], self.internal_coordinates))
+        if evaluate:
+            for i,g in enumerate(all_gs):
+                all_gs[i] = self.evaluate(g)
+        for i in range(1, len(all_gs)):
+            g = all_gs[i]
+            for j in range(i):
+                g = AnalyticModelBase.dot(J_inv, g, axes=[1, -3])
+            all_gs[i] = g
         return all_gs
-
-    def v(self, order=2):
+    def v(self, order=2, evaluate=False):
         # we provide a Taylor series expansion of the potential
         v = self.pot
         all_vs = [v]
         if order > 0:
-            J_inv = sym.Matrix(self.jacobian()).inv()
+            J_inv = self.jacobian(evaluate=evaluate)
         for i in range(order):
-            v = AnalyticModelBase.dot(
-                J_inv,
-                AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates)
-            )
-            all_vs.append(v)
+            all_vs.append(AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates))
+        if evaluate:
+            for i,v in enumerate(all_vs):
+                all_vs[i] = self.evaluate(v)
+        for i in range(1, len(all_vs)):
+            v = all_vs[i]
+            for j in range(i):
+                v = AnalyticModelBase.dot(J_inv, v, axes=[1, -1])
+            all_vs[i] = v
         return all_vs
 
     def _base_u(self):
         if self._syms is None:
             self._load_symbols()
         symlist = self._syms[1]
-        return [[AnalyticKineticEnergyConstructor.vp(a[1], b[1], coord_types=[a[0], b[0]]) for b in symlist] for a in symlist]
-    def vp(self, order=0):
+        targets = {s.name for s in self._syms[0]}
+        if self.vals is not None:
+            targets.update(s.name for s in self.vals.keys())
+        return [[AnalyticKineticEnergyConstructor.vp(a[1], b[1], coord_types=[a[0], b[0]], target_symbols=targets) for b in symlist] for a in symlist]
+        # return [[AnalyticKineticEnergyConstructor.vp(a[1], b[1], coord_types=[a[0], b[0]]) for b in symlist] for a in symlist]
+    def vp(self, order=0, evaluate=False):
         J_t = self.jacobian()
         if self._u is None:
             U = self._base_u()
             J = AnalyticModelBase.transpose(J_t)
-            self._u = sum(sum(AnalyticModelBase.dot(AnalyticModelBase.dot(J_t, U), J)))
+            self._u = 8*AnalyticModelBase.contract(AnalyticModelBase.dot(AnalyticModelBase.dot(J_t, U), J), (0, 1))
         u = self._u
         all_vs = [u]
         if order > 0:
-            J_inv = sym.Matrix(J_t).inv()
+            J_inv = self.jacobian(evaluate=evaluate).transpose()
         for i in range(order):
-            U = AnalyticModelBase.dot(
-                J_inv,
-                AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates)
-            )
-            all_vs.append(U)
+            all_vs.append(AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates))
+        if evaluate:
+            for i, v in enumerate(all_vs):
+                all_vs[i] = self.evaluate(v)
+        for i in range(1, len(all_vs)):
+            v = all_vs[i]
+            for j in range(i):
+                v = AnalyticModelBase.dot(J_inv, v, axes=[1, -1])
+            all_vs[i] = v
         return all_vs
+
+    Potential = AnalyticPotentialConstructor
+    KE = AnalyticKineticEnergyConstructor
 
     @classmethod
     def sym(self, base, *args):

@@ -52,9 +52,8 @@ class AnalyticModelBase:
         :rtype:
         """
         if isinstance(expr, list):
-            return [cls.take_derivs(e, vars) for e in expr]
-        else:
-            return [sym.diff(expr, v) for v in vars]
+            expr = sym.Array(expr)
+        return sym.Array([sym.diff(expr, v) for v in vars])
 
     @classmethod
     def eval_exprs(cls, expr, subs):
@@ -68,12 +67,28 @@ class AnalyticModelBase:
         :return:
         :rtype:
         """
+        # if isinstance(expr, sym.Array):
+        #     return [cls.eval_exprs(e, subs) for e in expr]
+        # elif isinstance(expr, (int, float, np.integer, np.floating)):
+        #     return expr
+        # else:
         if isinstance(expr, list):
-            return [cls.eval_exprs(e, subs) for e in expr]
-        elif isinstance(expr, (int, float, np.integer, np.floating)):
+            try:
+                expr = sym.Array(expr)
+            except ValueError:
+                pass
+        elif isinstance(expr, np.ndarray) and expr.dtype == object:
+            expr = expr.tolist()
+            try:
+                expr = sym.Array(expr)
+            except ValueError:
+                pass
+        if isinstance(expr, (int, float, np.integer, np.floating, np.ndarray)):
             return expr
-        else:
+        elif not isinstance(expr, list):
             return expr.subs(subs)
+        else:
+            return [cls.eval_exprs(e, subs) for e in expr]
 
     @classmethod
     def symbol_list(cls, names, instance=None):
@@ -183,8 +198,8 @@ class AnalyticModelBase:
         else:
             raise NotImplementedError("huh")
 
-    @staticmethod
-    def reindex_symbol(symbol, mapping):
+    @classmethod
+    def reindex_symbol(cls, symbol, mapping, target_symbols=None):
         """
         Changes the indices on symbols using the given mapping
 
@@ -198,9 +213,27 @@ class AnalyticModelBase:
         name = symbol.name
         for k,v in mapping.items():
             name = name.replace(str(k), str(k)+"$")
+        qual_name = name
         for k,v in mapping.items():
             name = name.replace(str(k)+"$", str(v))
-        return sym.Symbol(name, positive=symbol.is_positive, real=symbol.is_real)
+        if target_symbols is not None and name not in target_symbols:
+            t, a = name.split("[")
+            a = a.strip("]").split(",")
+            inds = tuple(int(x) for x in a)
+            if t == "r":
+                test = cls.symbolic_r(inds[1], inds[0])
+                if test.name in target_symbols:
+                    name = test.name
+            elif t == "a":
+                test = cls.symbolic_a(inds[2], inds[1], inds[0])
+                if test.name in target_symbols:
+                    name = test.name
+            elif t == "t":
+                test = cls.symbolic_t(inds[3], inds[2], inds[1], inds[0])
+                if test.name in target_symbols:
+                    name = test.name
+
+        return [sym.Symbol(qual_name, positive=symbol.is_positive, real=symbol.is_real), sym.Symbol(name, positive=symbol.is_positive, real=symbol.is_real)]
 
     @classmethod
     def lam(cls, i, j, k):
@@ -234,13 +267,38 @@ class AnalyticModelBase:
         return True
     @classmethod
     def transpose(cls, A):
-        n = len(A)
-        m = len(A[0])
-        return [[A[i][k] for i in range(n)] for k in range(m)]
+        if isinstance(A, list):
+            A = sym.Array(A)
+        return sym.transpose(A)
     @classmethod
-    def dot(cls, a, b):
-        if isinstance(a[0], list):  # matmul
-            b = cls.transpose(b)
-            return [[cls.dot(a[i], b[j]) for j in range(len(b))] for i in range(len(a))]
-        else:  # vector dot
-            return sum(a * b for a, b in zip(a, b))
+    def dot(cls, a, b, axes=None):
+        if isinstance(a, (list, sym.Matrix)):
+            a = sym.Array(a)
+        if isinstance(b, (list, sym.Matrix)):
+            b = sym.Array(b)
+        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+            if axes is None:
+                return np.dot(a, b)
+            else:
+                return np.tensordot(a, b, axes=axes)
+        else:
+            if isinstance(a, np.ndarray):
+                a = sym.Array(a)
+            if isinstance(b, np.ndarray):
+                b = sym.Array(b)
+            if axes is None:
+                axes = (a.rank()-1, a.rank())
+            else:
+                axa, axb = axes
+                if isinstance(axb, int):
+                    axb += a.rank()-1
+                else:
+                    ar = a.rank()-1
+                    axb = [ar + x for x in axb]
+                axes = [axa, axb]
+            return sym.tensorcontraction(sym.tensorproduct(a, b), axes)
+    @classmethod
+    def contract(cls, a, axes):
+        if isinstance(a, list):
+            a = sym.Array(a)
+        return sym.tensorcontraction(a, axes)

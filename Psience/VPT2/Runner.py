@@ -4,6 +4,7 @@ A little package of utilities for setting up/running VPT jobs
 
 import numpy as np, sys, os, itertools, scipy
 
+from McUtils.Data import UnitsData, AtomData
 from McUtils.Scaffolding import ParameterManager, Checkpointer
 from McUtils.Zachary import FiniteDifferenceDerivative
 
@@ -1072,12 +1073,12 @@ class AnneInputHelpers:
             return None
 
     @classmethod
-    def parse_modes_line(cls, line):
+    def parse_modes_line(cls, line, nmodes):
         data = [float(x) for x in line.split()]
         if len(data) > 0:
             l = len(data)
-            n = int(np.sqrt(l))
-            return np.array(data).reshape(n, n)
+            n = int(l/nmodes)
+            return np.array(data).reshape(nmodes, n).T
         else:
             return None
 
@@ -1096,9 +1097,9 @@ class AnneInputHelpers:
                         if freqs is None:
                             freqs = cls.parse_freqs_line(line)
                         elif L is None:
-                            L = cls.parse_modes_line(line)
+                            L = cls.parse_modes_line(line, len(freqs))
                         elif Linv is None:
-                            Linv = cls.parse_modes_line(line)
+                            Linv = cls.parse_modes_line(line, L.shape[1])
                             break
         else:
             for line in block.splitlines():
@@ -1107,14 +1108,30 @@ class AnneInputHelpers:
                     if freqs is None:
                         freqs = cls.parse_freqs_line(line)
                     elif L is None:
-                        L = cls.parse_modes_line(line)
+                        L = cls.parse_modes_line(line, len(freqs))
                     elif Linv is None:
-                        Linv = cls.parse_modes_line(line)
+                        Linv = cls.parse_modes_line(line, L.shape[1])
                         break
         return freqs, L, Linv
 
     @classmethod
     def parse_coords(cls, block, dims=None):
+        coords = []
+        if os.path.isfile(block):
+            with open(block) as f:
+                for line in f:
+                    line = line.strip()
+                    if len(line) > 0:
+                        coords.append([float(x) for x in line.split()])
+        else:
+            for line in block.splitlines():
+                line = line.strip()
+                if len(line) > 0:
+                    coords.append([float(x) for x in line.split()])
+        return np.array(coords)
+
+    @classmethod
+    def parse_atoms(cls, block, dims=None):
         coords = []
         if os.path.isfile(block):
             with open(block) as f:
@@ -1151,4 +1168,9 @@ class AnneInputHelpers:
                 f = np.tensordot(new_modes, f, axes=[1, -1])
             new_field.append(f)
         return new_field, mid_field
+
+    convert = UnitsData.convert
+    @staticmethod
+    def mass(atom):
+        return AtomData[atom]["Mass"]
 VPTRunner.helpers = AnneInputHelpers

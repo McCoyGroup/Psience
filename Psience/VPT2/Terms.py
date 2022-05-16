@@ -149,6 +149,10 @@ class JacobianKeys(enum.Enum):
     InternalModesByCartesians = "ModesByCartesians"
     CartesianModesByInternalModes = "CartesianModesByInternalModes"
     InternalModesByCartesianModes = "InternalModesByCartesianModes"
+    InternalModesByInternals = "InternalModesByInternals"
+    InternalsByInternalModes = "InternalsByInternalModes"
+    CartesianModesByCartesians = "CartesianModesByCartesians"
+    CartesiansByCartesianModes = "CartesiansByCartesianModes"
 
 class ExpansionTerms:
     """
@@ -1031,7 +1035,6 @@ class ExpansionTerms:
                                                           [QR] + [0]*(len(int_by_cartesian_jacobs) - 1)
                                                           ).convert(order=len(int_by_cartesian_jacobs))#, check_arrays=True)
                     current_cache[JacobianKeys.InternalModesByCartesians] = QY_derivs
-
             else:
                 QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
                 YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
@@ -1111,6 +1114,33 @@ class ExpansionTerms:
                                                           ).convert(order=len(RQ_derivs))
                     current_cache[JacobianKeys.InternalModesByCartesianModes] = Qq_derivs
 
+                if (
+                        JacobianKeys.CartesianModesByCartesians not in current_cache
+                        or len(current_cache[JacobianKeys.CartesianModesByCartesians]) < len(cart_by_internal_jacobs)
+                ):
+                    current_cache[JacobianKeys.CartesianModesByCartesians] = [self.modes.matrix] + [0]*(len(cart_by_internal_jacobs)-1)
+                if (
+                        JacobianKeys.CartesiansByCartesianModes not in current_cache
+                        or len(current_cache[JacobianKeys.CartesiansByCartesianModes]) < len(cart_by_internal_jacobs)
+                ):
+                    current_cache[JacobianKeys.CartesiansByCartesianModes] = [self.modes.inverse] + [0] * (len(cart_by_internal_jacobs) - 1)
+
+                if (
+                        JacobianKeys.InternalModesByInternals not in current_cache
+                        or len(current_cache[JacobianKeys.InternalModesByInternals]) < len(int_by_cartesian_jacobs)
+                ):
+                    YR = current_cache[JacobianKeys.CartesiansByInternals][0]
+                    QY = current_cache[JacobianKeys.InternalModesByCartesians][0]
+                    current_cache[JacobianKeys.InternalModesByInternals] = [YR@QY] + [0]*(len(int_by_cartesian_jacobs)-1)
+
+                if (
+                        JacobianKeys.InternalsByInternalModes not in current_cache
+                        or len(current_cache[JacobianKeys.InternalsByInternalModes]) < len(int_by_cartesian_jacobs)
+                ):
+                    RY = current_cache[JacobianKeys.InternalsByCartesians][0]
+                    YQ = current_cache[JacobianKeys.CartesiansByInternalModes][0]
+                    current_cache[JacobianKeys.InternalsByInternalModes] = [YQ@RY] + [0]*(len(int_by_cartesian_jacobs)-1)
+
             self._cached_transforms[self.molecule] = current_cache
             with self.checkpointer:
                 try:
@@ -1120,6 +1150,91 @@ class ExpansionTerms:
 
         return current_cache#self._cached_transforms[self.molecule]
 
+    @property
+    def cartesian_L_matrix(self):
+        return self.get_cartesians_by_cartesian_modes(1)[0]
+    def get_cartesians_by_cartesian_modes(self, order=None):
+        # print(dict(
+        #     cartesian_by_internal_order=order,
+        #     internal_by_cartesian_order=min(order, self.internal_by_cartesian_order)
+        # ))
+        base = self.get_coordinate_transforms(
+            cartesian_by_internal_order=order,
+            internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
+        )[JacobianKeys.CartesiansByCartesianModes]
+        if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'CartesiansByInternalModes',
+                    len(base),
+                    order
+                ))
+            base = base[:order]
+        return base
+    @property
+    def cartesian_L_inverse(self):
+        return self.get_cartesian_modes_by_cartesians(1)[0]
+    def get_cartesian_modes_by_cartesians(self, order=None):
+        base = self.get_coordinate_transforms(
+            cartesian_by_internal_order=order,
+            internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
+        )[JacobianKeys.CartesianModesByCartesians]
+        if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'CartesiansByInternalModes',
+                    len(base),
+                    order
+                ))
+            base = base[:order]
+        return base
+
+    @property
+    def internal_L_matrix(self):
+        return self.get_internal_modes_by_internals(1)[0]
+    def get_internal_modes_by_internals(self, order=None, strip_embedding=True):
+        # print(dict(
+        #     cartesian_by_internal_order=order,
+        #     internal_by_cartesian_order=min(order, self.internal_by_cartesian_order)
+        # ))
+        base = self.get_coordinate_transforms(
+            cartesian_by_internal_order=order,
+            internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
+        )[JacobianKeys.InternalModesByInternals]
+        if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'InternalModesByInternal',
+                    len(base),
+                    order
+                ))
+            base = base[:order]
+        if strip_embedding:
+            embedding_coords = [0, 1, 2, 4, 5, 8]
+            good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
+            base = [t[good_coords,] if not isinstance(t, int) else t for t in base]
+        return base
+    @property
+    def internal_L_inverse(self):
+        return self.get_internals_by_internal_modes(1)[0]
+    def get_internals_by_internal_modes(self, order=None, strip_embedding=True):
+        base = self.get_coordinate_transforms(
+            cartesian_by_internal_order=order,
+            internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
+        )[JacobianKeys.InternalsByInternalModes]
+        if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'CartesiansByInternalModes',
+                    len(base),
+                    order
+                ))
+            base = base[:order]
+        if strip_embedding:
+            embedding_coords = [0, 1, 2, 4, 5, 8]
+            good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
+            base = [t[..., good_coords] if not isinstance(t, int) else t for t in base]
+        return base
     @property
     def cartesians_by_modes(self):
         return self.get_cartesians_by_modes()
@@ -1141,11 +1256,10 @@ class ExpansionTerms:
                 ))
             base = base[:order]
         return base
-
     @property
     def modes_by_cartesians(self):
         return self.get_coordinate_transforms()[JacobianKeys.InternalModesByCartesians]
-    def get_modes_by_cartesians(self, order=None):
+    def get_modes_by_cartesians(self, order=None, strip_embedding=False):
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=None if order is None else min(order, self.cartesian_by_internal_order),
             internal_by_cartesian_order=order
@@ -1162,7 +1276,7 @@ class ExpansionTerms:
     @property
     def cartesians_by_internals(self):
         return self.get_coordinate_transforms()[JacobianKeys.CartesiansByInternals]
-    def get_cartesians_by_internals(self, order=None):
+    def get_cartesians_by_internals(self, order=None, strip_embedding=False):
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=order,
             internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
@@ -1175,11 +1289,16 @@ class ExpansionTerms:
                     order
                 ))
             base = base[:order]
+
+        if strip_embedding:
+            embedding_coords = [0, 1, 2, 4, 5, 8]
+            good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
+            base = [t[np.ix_((good_coords,)*t.ndim-1)] for t in base]
         return base
     @property
     def internals_by_cartesians(self):
         return self.get_coordinate_transforms()[JacobianKeys.InternalsByCartesians]
-    def get_internals_by_cartesians(self, order=None):
+    def get_internals_by_cartesians(self, order=None, strip_embedding=False):
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=None if order is None else min(order, self.cartesian_by_internal_order),
             internal_by_cartesian_order=order
@@ -1192,6 +1311,10 @@ class ExpansionTerms:
                     order
                 ))
             base = base[:order]
+        if strip_embedding:
+            embedding_coords = [0, 1, 2, 4, 5, 8]
+            good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
+            base = [t[good_coords,] for t in base]
         return base
 
     @property
@@ -1843,8 +1966,8 @@ class KineticTerms(ExpansionTerms):
             # should work this into the new layout
             uses_internal_modes = self._check_internal_modes()
             if uses_internal_modes:
-                QY_derivs = self.get_internals_by_cartesians(order=order + 1)
-                YQ_derivs = self.get_cartesians_by_internals(order=order + 1)
+                QY_derivs = self.get_internals_by_cartesians(order=order + 1) # really dRdY derivatives
+                YQ_derivs = self.get_cartesians_by_internals(order=order + 1) # really dYdR derivatives
             else:
                 QY_derivs = self.get_modes_by_cartesians(order=order+1)
                 YQ_derivs = self.get_cartesians_by_modes(order=order+1)
@@ -1902,9 +2025,12 @@ class KineticTerms(ExpansionTerms):
         return G_terms
 
 class DipoleTerms(ExpansionTerms):
+    __props__ = ExpansionTerms.__props__ + (
+        "dipole_derivatives",
+    )
     def __init__(self,
                  molecule,
-                 derivatives=None,
+                 dipole_derivatives=None,
                  mixed_derivs=None,
                  modes=None,
                  mode_selection=None,
@@ -1931,14 +2057,17 @@ class DipoleTerms(ExpansionTerms):
         self.mixed_derivs = mixed_derivs
         if self.mixed_derivs is None:
             self.mixed_derivs = mixed_derivs
-        if derivatives is None:
-            derivatives = molecule.dipole_surface.derivatives
-        self.derivs = self._canonicalize_derivs(self.freqs, self.masses, derivatives)
+        if dipole_derivatives is None:
+            dipole_derivatives = molecule.dipole_surface.derivatives
+        self.derivs = self._canonicalize_derivs(self.freqs, self.masses, dipole_derivatives)
 
     def _canonicalize_derivs(self, freqs, masses, derivs):
         """
         Makes sure all of the dipole moments are clean and ready to rotate
         """
+
+        if self._check_mode_terms(derivs):
+            return derivs
 
         if len(derivs) == 4:
             mom, grad, seconds, thirds = derivs
@@ -2132,7 +2261,18 @@ class DipoleTerms(ExpansionTerms):
 
         return all_derivs
 
+    def _check_mode_terms(self, derivs=None):
+        modes_n = len(self.modes.freqs)
+        if derivs is None:
+            derivs = self.derivs[1:]
+        for d in derivs:
+            if d.shape != (modes_n,) * len(d.shape):
+                return False
+        return True
     def get_terms(self, order=None):
+
+        if self._check_mode_terms():
+            return self.derivs[1:]
 
         if order is None:
             order = len(self.derivs) - 1
