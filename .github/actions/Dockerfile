@@ -6,13 +6,6 @@ RUN apt-get update \
     && apt-get purge -y --auto-remove \
     && rm -rf /var/lib/apt/lists/*
 
-# installs python packages we'd want for unit testing
-RUN pip install \
-              numpy \
-              matplotlib \
-              scipy \
-              h5py
-
 LABEL "name"="McCoyGroup/PsienceCI"
 LABEL "maintainer"="Mark Boyer <b3m2a1uw.edu>"
 LABEL "version"="0.0.1"
@@ -29,6 +22,7 @@ RUN \
     git clone https://github.com/McCoyGroup/Psience.git
 
 RUN \
-    cd /home/Psience
+    cd /home/Psience && \
+    pip install -r requirements.txt
 
 ENTRYPOINT ["/bin/bash", "/home/Psience/ci/run_ci.sh"]

@@ -1148,9 +1148,9 @@ class AnneInputHelpers:
 
     @classmethod
     def renormalize_modes(cls, freqs, modes, inv):
-        modes = (modes * np.sqrt(freqs)[:, np.newaxis]).T
-        inv = inv.T / np.sqrt(freqs)[:, np.newaxis]
-        G = np.linalg.inv(np.dot(inv.T, inv))
+        # modes = (modes * np.sqrt(freqs)[:, np.newaxis]).T
+        # inv = inv#.T / np.sqrt(freqs)[:, np.newaxis]
+        G = np.dot(modes, modes.T)
         F = np.dot(np.dot(inv.T, np.diag(freqs ** 2)), inv)
         freq, modes = scipy.linalg.eigh(F, G, type=2)
         return freq, modes, np.linalg.inv(modes)
@@ -1174,7 +1174,7 @@ class AnneInputHelpers:
         freq, matrix, inv = cls.renormalize_modes(*base_modes)
         potential_terms = cls.rerotate_force_field(
             base_modes[2],
-            inv / np.sqrt(freq)[:, np.newaxis],  # we divide by the sqrt of the frequencies to get the units to work
+            inv.T,  # we divide by the sqrt of the frequencies to get the units to work
             old_field
             # [
             #     np.diag(freq),  # in the file I was given the frequencies were in Hartree
