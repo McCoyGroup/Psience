@@ -1169,6 +1169,21 @@ class AnneInputHelpers:
             new_field.append(f)
         return new_field, mid_field
 
+    @classmethod
+    def reexpress_normal_modes(cls, base_modes, old_field):
+        freq, matrix, inv = cls.renormalize_modes(*base_modes)
+        potential_terms = cls.rerotate_force_field(
+            base_modes[2],
+            inv / np.sqrt(freq)[:, np.newaxis],  # we divide by the sqrt of the frequencies to get the units to work
+            old_field
+            # [
+            #     np.diag(freq),  # in the file I was given the frequencies were in Hartree
+            #     cubics * helpers.convert("Wavenumbers", "Hartrees"),
+            #     quartics * helpers.convert("Wavenumbers", "Hartrees")
+            # ]
+        )[0]
+        return (freq, matrix, inv), potential_terms
+
     convert = UnitsData.convert
     @staticmethod
     def mass(atom):
