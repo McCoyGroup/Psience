@@ -15,10 +15,10 @@ Represents the KE coefficients
 
 <a id="Psience.VPT2.Terms.KineticTerms.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, molecule, g_derivative_threshold=0.001, **opts): 
+__init__(self, molecule, g_derivative_threshold=0.001, gmatrix_tolerance=1e-06, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1944)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1944?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1945)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1945?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.KineticTerms.get_terms" class="docs-object-method">&nbsp;</a> 
@@ -26,7 +26,7 @@ __init__(self, molecule, g_derivative_threshold=0.001, **opts):
 get_terms(self, order=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1952)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1952?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1955)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1955?message=Update%20Docs)]
 </div>
 
  </div>
