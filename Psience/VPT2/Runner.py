@@ -1221,7 +1221,7 @@ class AnneInputHelpers:
             r_coords = [0, 1, 3]
             a_coords = [2, 4]
             t_coords = [5]
-            extra = np.arange(6, ncoords)
+            extra = np.arange(6, ncoords+1)
             r_coords += extra[::4].tolist()
             a_coords += extra[1::4].tolist()
             t_coords += extra[2::4].tolist()
@@ -1285,12 +1285,13 @@ class AnneInputHelpers:
                      states=2,
                      calculate_intensities=False,
                      return_analyzer=False,
+                     return_runner=False,
                      modes_file='nm_int.dat',
                      atoms_file='atom.dat',
                      coords_file='cart_ref.dat',
                      zmat_file='z_mat.dat',
                      potential_files=('cub.dat', 'quart.dat'),
-                     energy_units="Wavenumbers",
+                     energy_units=None,
                      **opts
                      ):
         from .Analyzer import VPTAnalyzer
@@ -1300,14 +1301,29 @@ class AnneInputHelpers:
             if base_dir is not None:
                 os.chdir(base_dir)
 
-            conv = cls.convert(energy_units, "Hartrees")
             base_freqs, base_mat, base_inv = cls.parse_modes(modes_file)
+            if energy_units is None:
+                if np.max(base_freqs) > 1:
+                    conv = cls.convert("Wavenumbers", "Hartrees")
+                else:
+                    conv = 1
+            else:
+                conv = cls.convert(energy_units, "Hartrees")
             base_freqs *= conv
-            potential = [cls.parse_tensor(f) * conv for f in potential_files]
+            potential = [cls.parse_tensor(f) for f in potential_files]
+            if energy_units is None:
+                if np.max(np.abs(potential[0])) > 1:
+                    conv = cls.convert("Wavenumbers", "Hartrees")
+                else:
+                    conv = 1
+            else:
+                conv = cls.convert(energy_units, "Hartrees")
+            potential = [t * conv for t in potential]
             atoms = cls.parse_atoms(atoms_file)
             coords = cls.parse_coords(coords_file)
             zmat = cls.parse_zmatrix(zmat_file)
             sorting = cls.standard_sorting(zmat)  # we need to re-sort our internal coordinates
+            # raise Exception(sorting)
 
             (freq, matrix, inv), potential_terms = cls.reexpress_normal_modes(
                 (base_freqs, base_mat, base_inv),
@@ -1317,9 +1333,11 @@ class AnneInputHelpers:
 
             # raise Exception(np.diag(potential_terms[0]) * UnitsData.convert("Hartrees", "Wavenumbers"), freq*UnitsData.convert("Hartrees", "Wavenumbers"))
             if return_analyzer:
-                runner = VPTAnalyzer.run_VPT
+                runner = lambda *a, **kw:VPTAnalyzer.run_VPT(*a, calculate_intensities=calculate_intensities, **kw)
+            elif return_runner:
+                runner = VPTRunner.construct
             else:
-                runner = VPTRunner.run_simple
+                runner = lambda *a, **kw:VPTRunner.run_simple(*a, calculate_intensities=calculate_intensities, **kw)
 
             res = runner(
                 [atoms, coords],
@@ -1331,7 +1349,6 @@ class AnneInputHelpers:
                 },
                 potential_terms=potential_terms,
                 internals=zmat,
-                calculate_intensities=calculate_intensities,
                 **opts
             )
             if return_analyzer:
