@@ -339,6 +339,8 @@ class VPTHamiltonianOptions:
          "kinetic_terms",
          "coriolis_terms",
          "pseudopotential_terms",
+         "dipole_terms",
+         "dipole_derivatives",
          "undimensionalize_normal_modes",
          "use_numerical_jacobians",
          "eckart_embed_derivatives",
@@ -372,6 +374,8 @@ class VPTHamiltonianOptions:
                  kinetic_terms=None,
                  coriolis_terms=None,
                  pseudopotential_terms=None,
+                 dipole_terms=None,
+                 dipole_derivatives=None,
                  undimensionalize_normal_modes=None,
                  use_numerical_jacobians=None,
                  eckart_embed_derivatives=None,
@@ -456,6 +460,8 @@ class VPTHamiltonianOptions:
             kinetic_terms=kinetic_terms,
             coriolis_terms=coriolis_terms,
             pseudopotential_terms=pseudopotential_terms,
+            dipole_terms=dipole_terms,
+            dipole_derivatives=dipole_derivatives,
             undimensionalize=undimensionalize_normal_modes,
             numerical_jacobians=use_numerical_jacobians,
             use_internal_modes=use_internal_modes,
@@ -1056,9 +1062,11 @@ class AnneInputHelpers:
                 line = line.strip()
                 if len(line) > 0:
                     m = cls.get_tensor_idx(line, inds, m)
-        m = m + 1
-        n = len(next(iter(inds)))
-        a = np.zeros((m,) * n)
+        if dims is None:
+            m = m + 1
+            n = len(next(iter(inds)))
+            dims = (m,) * n
+        a = np.zeros(dims)
         for i, v in inds.items():
             for p in itertools.permutations(i):
                 a[p] = v
@@ -1083,7 +1091,7 @@ class AnneInputHelpers:
             return None
 
     @classmethod
-    def parse_modes(cls, block, dims=None):
+    def parse_modes(cls, block):
         inds = {}
         m = 0
         freqs = None
@@ -1115,7 +1123,7 @@ class AnneInputHelpers:
         return freqs, L, Linv
 
     @classmethod
-    def parse_coords(cls, block, dims=None):
+    def parse_coords(cls, block):
         coords = []
         if os.path.isfile(block):
             with open(block) as f:
@@ -1131,36 +1139,104 @@ class AnneInputHelpers:
         return np.array(coords)
 
     @classmethod
-    def parse_atoms(cls, block, dims=None):
+    def parse_atoms(cls, block):
         coords = []
         if os.path.isfile(block):
             with open(block) as f:
                 for line in f:
                     line = line.strip()
                     if len(line) > 0:
-                        coords.append([float(x) for x in line.split()])
+                        try:
+                            coords.extend([int(x) for x in line.split()])
+                        except ValueError:
+                            pass
         else:
             for line in block.splitlines():
                 line = line.strip()
                 if len(line) > 0:
-                    coords.append([float(x) for x in line.split()])
-        return np.array(coords)
+                    try:
+                        coords.extend([int(x) for x in line.split()])
+                    except ValueError:
+                        pass
+        return [AtomData[x]["Symbol"] for x in coords]
 
     @classmethod
-    def renormalize_modes(cls, freqs, modes, inv):
+    def parse_zmatrix(cls, block):
+        _ = 10000
+        zmat = [[0, _, _, _]]
+        n = 1
+        if os.path.isfile(block):
+            with open(block) as f:
+                for line in f:
+                    line = line.strip()
+                    if len(line) > 0:
+                        split = line.split()
+                        if len(split) == 4:
+                            split = split[:3]
+                        zmat.append([n] + [int(x)-1 for x in split] + [_]*(3-len(split)))
+                        n += 1
+                    elif len(zmat) > 1:
+                        break
+        else:
+            for line in block.splitlines():
+                line = line.strip()
+                if len(line) > 0:
+                    split = line.split()
+                    if len(split) == 4:
+                        split = split[:3]
+                    zmat.append([n] + [int(x) - 1 for x in split] + [_] * (3 - len(split)))
+                    n += 1
+                elif len(zmat) > 1:
+                    break
+        return np.array(zmat)
+
+    @classmethod
+    def standard_sorting(cls, zmat):
+        """
+        converts from [r1, r2, r3, ..., a1, a2, ..., t1, t2, ...] coords
+        to standard zmat coords
+        :param zmat:
+        :type zmat:
+        :return:
+        :rtype:
+        """
+        nats = len(zmat)
+        ncoords = 3*nats - 6
+        if nats < 4:
+            return None
+        else:
+            r_coords = [0, 1, 3]
+            a_coords = [2, 4]
+            t_coords = [5]
+            extra = np.arange(6, ncoords)
+            r_coords += extra[::4].tolist()
+            a_coords += extra[1::4].tolist()
+            t_coords += extra[2::4].tolist()
+            return np.argsort(np.concatenate([r_coords, a_coords, t_coords]))
+
+    @classmethod
+    def renormalize_modes(cls, freqs, modes, inv, sorting=None):
         # modes = (modes * np.sqrt(freqs)[:, np.newaxis]).T
         # inv = inv#.T / np.sqrt(freqs)[:, np.newaxis]
         G = np.dot(modes, modes.T)
         F = np.dot(np.dot(inv.T, np.diag(freqs ** 2)), inv)
+        if sorting is not None:
+            G = G[np.ix_(sorting, sorting)]
+            # print(np.round(F*219465))
+            F = F[np.ix_(sorting, sorting)]
         freq, modes = scipy.linalg.eigh(F, G, type=2)
-        return freq, modes, np.linalg.inv(modes)
+        return np.sqrt(freq), modes, np.linalg.inv(modes)
 
     @classmethod
-    def rerotate_force_field(cls, old_inv, new_modes, old_field):
+    def rerotate_force_field(cls, old_inv, new_modes, old_field, sorting=None):
         mid_field = []
         for f in old_field:
             for i in range(f.ndim):
                 f = np.tensordot(old_inv, f, axes=[1, -1])
+                # print(np.round(f*219465))
+            if sorting is not None:
+                f = f[np.ix_(*(sorting,)*f.ndim)]
+                # print(np.round(f*219465))
             mid_field.append(f)
         new_field = []
         for f in mid_field:
@@ -1170,12 +1246,13 @@ class AnneInputHelpers:
         return new_field, mid_field
 
     @classmethod
-    def reexpress_normal_modes(cls, base_modes, old_field):
-        freq, matrix, inv = cls.renormalize_modes(*base_modes)
+    def reexpress_normal_modes(cls, base_modes, old_field, sorting=None):
+        freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting)
         potential_terms = cls.rerotate_force_field(
-            base_modes[2],
-            inv.T,  # we divide by the sqrt of the frequencies to get the units to work
-            old_field
+            base_modes[1],
+            matrix.T,#/np.sqrt(freq)[np.newaxis, :],  # we divide by the sqrt of the frequencies to get the units to work
+            old_field,
+            sorting=sorting
             # [
             #     np.diag(freq),  # in the file I was given the frequencies were in Hartree
             #     cubics * helpers.convert("Wavenumbers", "Hartrees"),
@@ -1187,5 +1264,46 @@ class AnneInputHelpers:
     convert = UnitsData.convert
     @staticmethod
     def mass(atom):
-        return AtomData[atom]["Mass"]
+        return AtomData[atom]["Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+
+
+    @classmethod
+    def run_anne_job(cls, base_dir, states=2, calculate_intensities=False, **opts):
+        og_dir = os.getcwd()
+        try:
+            os.chdir(base_dir)
+
+            base_freqs, base_mat, base_inv = cls.parse_modes("nm_int.dat")
+            base_freqs *= cls.convert("Wavenumbers", "Hartrees")
+            cubics = cls.parse_tensor("cub.dat") * cls.convert("Wavenumbers", "Hartrees")
+            quartics = cls.parse_tensor("quart.dat") * cls.convert("Wavenumbers", "Hartrees")
+            atoms = cls.parse_atoms("atom.dat")
+            coords = cls.parse_coords("cart_ref.dat")
+            zmat = cls.parse_zmatrix("zmat.dat")
+
+            (freq, matrix, inv), potential_terms = cls.reexpress_normal_modes(
+                (base_freqs, base_mat, base_inv),
+                [
+                    np.diag(base_freqs),
+                    cubics,
+                    quartics
+                ],
+                sorting=cls.standard_sorting(zmat)  # we need to re-sort our internal coordinates
+            )
+            VPTRunner.run_simple(
+                [atoms, coords],
+                states,
+                modes={
+                    "freqs": freq,
+                    "matrix": matrix,
+                    "inverse": inv
+                },
+                potential_terms=potential_terms,
+                internals=zmat,
+                calculate_intensities=calculate_intensities,
+                **opts
+            )
+        finally:
+            os.chdir(og_dir)
+
 VPTRunner.helpers = AnneInputHelpers

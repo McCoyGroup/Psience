@@ -1,6 +1,7 @@
 
 import numpy as np, scipy
-from .Helpers import sym, AnalyticModelBase
+from McUtils.Data import AtomData, UnitsData
+from .Helpers import AnalyticModelBase
 from ..Data import KEData
 
 __all__ = [
@@ -29,30 +30,10 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
         )
     @staticmethod
     def calc_morse(De, a, r, re):
-        """
-        :param De:
-        :type De:
-        :param a:
-        :type a:
-        :param r:
-        :type r:
-        :return:
-        :rtype: sym.expr
-        """
-        return De * (1 - sym.exp(-a * (r-re)))**2
+        return De * (1 - AnalyticModelBase.sym.exp(-a * (r-re)))**2
+
     @staticmethod
     def harm(k, x, x_e):
-        """
-
-        :param De:
-        :type De:
-        :param a:
-        :type a:
-        :param r:
-        :type r:
-        :return:
-        :rtype: sym.expr
-        """
         return k*(x-x_e)**2
     @classmethod
     def harmonic(cls, *args, k=None, qe=None):
@@ -65,6 +46,22 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
             AnalyticModelBase.symbol("k", *args) if k is None else k,
             AnalyticModelBase.var(*args),
             AnalyticModelBase.symbol("qe", *args) if qe is None else qe,
+        )
+
+    @staticmethod
+    def lin(k, x, x_e):
+        return k * (x - x_e)
+    @classmethod
+    def linear(cls, *args, k=1, xe=None):
+        """
+        Returns a fully symbolic form of a linear function
+        :return:
+        :rtype:
+        """
+        return cls.lin(
+            AnalyticModelBase.symbol("k", *args) if k is None else k,
+            AnalyticModelBase.var(*args),
+            AnalyticModelBase.symbol("xe", *args) if xe is None else xe
         )
 
 class AnalyticKineticEnergyConstructor(AnalyticModelBase):
@@ -220,7 +217,7 @@ class AnalyticKineticEnergyConstructor(AnalyticModelBase):
                 g_contribs.append(1/cls.symbolic_m(i)*a.dot(b))
 
         g = sum(g_contribs)
-        if isinstance(g, sym.Expr):
+        if isinstance(g, AnalyticModelBase.sym.Expr):
             g = g.expand().simplify().expand()#.subs(sym.Abs, sym.Id).simplify()
         return g
 
@@ -230,7 +227,7 @@ class AnalyticModel:
     which can be used to get derived expressions to evaluate.
     """
 
-    def __init__(self, coordinates, potential, values=None, rotation=None):
+    def __init__(self, coordinates, potential, dipole=None, values=None, rotation=None):
         self.coords = coordinates
         self.vals = values
         self._syms = None
@@ -238,6 +235,7 @@ class AnalyticModel:
         self._g = None
         self._u = None
         self.pot = potential
+        self.dip = dipole
         if rotation is not None:
             if len(rotation) == 2:
                 r, i = rotation
@@ -291,11 +289,14 @@ class AnalyticModel:
             return new, freqs
 
     def get_VPT_expansions(self, order=2, evaluate=True):
-        return dict(
+        terms = dict(
             kinetic_terms=self.g(order, evaluate=evaluate),
             potential_terms=self.v(order+2, evaluate=evaluate)[2:],
-            pseudopotential_terms=self.vp(order-2, evaluate=evaluate),
+            pseudopotential_terms=self.vp(order-2, evaluate=evaluate)
         )
+        if self.dip is not None:
+            terms['dipole_terms'] = self.mu(order+1, evaluate=evaluate)
+        return terms
 
     def evaluate(self, expr):
         if self.vals is None:
@@ -329,7 +330,7 @@ class AnalyticModel:
     def jacobian(self, order=0, evaluate=False):
         ics = self.internal_coordinates
         crd = self.coords
-        jac = sym.Matrix([AnalyticModelBase.take_derivs(c, ics) for c in crd]).transpose()
+        jac = AnalyticModelBase.sym.Matrix([AnalyticModelBase.take_derivs(c, ics) for c in crd]).transpose()
         if order > 0:
             if self.rotation is not None:
                 jac = AnalyticModelBase.dot(jac, self.rotation)
@@ -340,7 +341,7 @@ class AnalyticModel:
         if evaluate:
             jac = self.evaluate(jac)
         else:
-            jac = sym.Matrix(jac)
+            jac = AnalyticModelBase.sym.Matrix(jac)
         return jac
     def jacobian_inverse(self, order=0, evaluate=False):
         ics = self.internal_coordinates
@@ -361,7 +362,7 @@ class AnalyticModel:
         if evaluate:
             jac = self.evaluate(jac)
         else:
-            jac = sym.Matrix(jac)
+            jac = AnalyticModelBase.sym.Matrix(jac)
         # if self.inverse is not None:
         #     jac = AnalyticModelBase.dot(jac, self.inverse)
         # for i in range(order):
@@ -452,7 +453,30 @@ class AnalyticModel:
             all_vs[i] = v
         return all_vs
 
+    def mu(self, order=1, evaluate=False):
+        # we provide a Taylor series expansion of the potential
+        mu = []
+        for v in self.dip:
+            all_vs = [v]
+            if order > 0:
+                J_inv = self.jacobian(evaluate=evaluate)
+            for i in range(order):
+                all_vs.append(AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates))
+            if evaluate:
+                for i, v in enumerate(all_vs):
+                    all_vs[i] = self.evaluate(v)
+            for i in range(1, len(all_vs)):
+                v = all_vs[i]
+                for j in range(i):
+                    v = AnalyticModelBase.dot(J_inv, v, axes=[1, -1])
+                all_vs[i] = v
+            mu.append(all_vs)
+        return mu
+
     Potential = AnalyticPotentialConstructor
+    morse = AnalyticPotentialConstructor.morse
+    harmonic = AnalyticPotentialConstructor.harmonic
+    linear = AnalyticPotentialConstructor.linear
     KE = AnalyticKineticEnergyConstructor
 
     @classmethod
@@ -473,3 +497,8 @@ class AnalyticModel:
     @classmethod
     def y(self, i, j, k, l):
         return AnalyticModelBase.symbolic_t(i, j, k, l)
+
+    convert = UnitsData.convert
+    @staticmethod
+    def mass(atom):
+        return AtomData[atom]["Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")

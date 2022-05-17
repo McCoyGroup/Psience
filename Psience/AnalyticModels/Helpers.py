@@ -1,6 +1,5 @@
 
 __all__ = [
-    "sym",
     "SymbolicCaller",
     "AnalyticModelBase"
 ]
@@ -25,7 +24,6 @@ class SympyShim:
     # def _load_attr(self, item):
     #     return getattr(self._load_sympy(), item)
     # def tensorcontraction(self, ):
-
 sym = SympyShim()
 
 class SymbolicCaller:
@@ -44,6 +42,8 @@ class AnalyticModelBase:
     """
     Provides a base class for analytic models
     """
+    sym = sym
+
     @classmethod
     def take_derivs(cls, expr, vars):
         """
