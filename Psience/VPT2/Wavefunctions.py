@@ -687,7 +687,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     def dipole_terms(self):
         if self._dipole_terms is None:
             if 'dipole_terms' in self.expansion_options:
-                ...
+                self._dipole_terms = self.TermHolder(self.expansion_options['dipole_terms'])
             else:
                 self._dipole_terms = self.TermHolder(
                     DipoleTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection,
