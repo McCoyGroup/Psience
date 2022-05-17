@@ -39,6 +39,9 @@ and spectrum handling.
    <div class="col" markdown="1">
 [Spectra](Psience/Spectra.md)   
 </div>
+   <div class="col" markdown="1">
+[AnalyticModels](Psience/AnalyticModels.md)   
+</div>
 </div>
 </div>
 

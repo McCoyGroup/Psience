@@ -209,7 +209,7 @@ Excludes modes that differ in only one position, prioritizing states with fewer 
 find_strong_couplings(self, threshold=0.1, state_filter=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L542)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L542?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L544)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L544?message=Update%20Docs)]
 </div>
 
 Finds positions in the expansion matrices where the couplings are too large
@@ -223,7 +223,7 @@ Finds positions in the expansion matrices where the couplings are too large
 format_strong_couplings_report(self, couplings=None, threshold=0.1, int_fmt='{:>3.0f}', padding='{:<8}', join=True, use_excitations=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L575)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L575?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L577)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L577?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Corrections.PerturbationTheoryCorrections.collapse_strong_couplings" class="docs-object-method">&nbsp;</a> 
@@ -231,7 +231,7 @@ format_strong_couplings_report(self, couplings=None, threshold=0.1, int_fmt='{:>
 collapse_strong_couplings(self, sc: dict): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L595)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L595?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L597)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L597?message=Update%20Docs)]
 </div>
 
 
@@ -245,7 +245,7 @@ collapse_strong_couplings(self, sc: dict):
 operator_representation(self, operator_expansion, order=None, subspace=None, contract=True, logger_symbol='A', logger_conversion=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L662)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L662?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L664)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L664?message=Update%20Docs)]
 </div>
 
 Generates the representation of the operator in the basis of stored states
@@ -263,7 +263,7 @@ Generates the representation of the operator in the basis of stored states
 get_overlap_matrices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L743)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L743?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L745)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L745?message=Update%20Docs)]
 </div>
 
 Returns the overlap matrices for the set of corrections
@@ -276,7 +276,7 @@ Returns the overlap matrices for the set of corrections
 savez(self, file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L818)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L818?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L820)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L820?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Corrections.PerturbationTheoryCorrections.loadz" class="docs-object-method">&nbsp;</a> 
@@ -284,7 +284,7 @@ savez(self, file):
 loadz(file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L834)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L834?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L836)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L836?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Corrections.PerturbationTheoryCorrections.to_state" class="docs-object-method">&nbsp;</a> 
@@ -292,7 +292,7 @@ loadz(file):
 to_state(self, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L853)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L853?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L855)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L855?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Corrections.PerturbationTheoryCorrections.from_state" class="docs-object-method">&nbsp;</a> 
@@ -300,7 +300,7 @@ to_state(self, serializer=None):
 from_state(data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L865)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L865?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L867)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L867?message=Update%20Docs)]
 </div>
 
  </div>

@@ -17,6 +17,7 @@ Usually used through the `KETermData` object.
 
 ```python
 base_dir: str
+equivalent_perms: dict
 ```
 <a id="Psience.Data.KEData.KEDataHandler.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -24,6 +25,14 @@ __init__(self):
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/KEData.py#L18)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/KEData.py#L18?message=Update%20Docs)]
+</div>
+
+<a id="Psience.Data.KEData.KEDataHandler.find_expressions" class="docs-object-method">&nbsp;</a> 
+```python
+find_expressions(self, k, return_permutation=False): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/KEData.py#L26)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/KEData.py#L26?message=Update%20Docs)]
 </div>
 
  </div>
