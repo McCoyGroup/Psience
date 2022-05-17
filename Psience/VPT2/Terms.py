@@ -1318,7 +1318,7 @@ class ExpansionTerms:
         if strip_embedding:
             embedding_coords = [0, 1, 2, 4, 5, 8]
             good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
-            base = [t[good_coords,] for t in base]
+            base = [t[..., good_coords] for t in base]
         return base
 
     @property
@@ -1940,14 +1940,17 @@ class KineticTerms(ExpansionTerms):
 
     __props__ = ExpansionTerms.__props__ + (
         'g_derivative_threshold',
+        "gmatrix_tolerance"
     )
     def __init__(self,
                  molecule,
                  g_derivative_threshold=1e-3,
+                 gmatrix_tolerance=1e-6,
                  **opts
                  ):
         super().__init__(molecule, **opts)
         self.g_derivative_threshold = g_derivative_threshold
+        self.gmatrix_tolerance = gmatrix_tolerance
 
     def get_terms(self, order=None, logger=None):
 
@@ -1999,6 +2002,8 @@ class KineticTerms(ExpansionTerms):
 
             for i,t in enumerate(terms):
                 if i == 0:
+                    if self.gmatrix_tolerance is not None and np.linalg.norm(np.abs(terms[0] - np.diag(np.diag(terms[0])))) > self.gmatrix_tolerance:
+                        raise ValueError("G-matrix is not diagonal (got {})".format(terms[0]))
                     continue
                 m = np.max(np.abs(t))
                 if m > self.g_derivative_threshold:

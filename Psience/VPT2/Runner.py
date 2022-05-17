@@ -364,7 +364,8 @@ class VPTHamiltonianOptions:
          "hessian_tolerance",
          "grad_tolerance",
          "freq_tolerance",
-         "g_derivative_threshold"
+         "g_derivative_threshold",
+         "gmatrix_tolerance"
     )
 
     def __init__(self,
@@ -399,6 +400,7 @@ class VPTHamiltonianOptions:
                  grad_tolerance=None,
                  freq_tolerance=None,
                  g_derivative_threshold=None,
+                 gmatrix_tolerance=None,
                  use_internal_modes=None
                  ):
         """
@@ -485,7 +487,8 @@ class VPTHamiltonianOptions:
             hessian_tolerance=hessian_tolerance,
             grad_tolerance=grad_tolerance,
             freq_tolerance=freq_tolerance,
-            g_derivative_threshold=g_derivative_threshold
+            g_derivative_threshold=g_derivative_threshold,
+            gmatrix_tolerance=gmatrix_tolerance
         )
 
         real_opts = {}
@@ -1039,6 +1042,11 @@ class VPTStateMaker:
 class AnneInputHelpers:
 
     @classmethod
+    def _check_file(cls, no_file):
+        if len(no_file.splitlines()) < 2 and '.' in no_file:
+            raise FileNotFoundError("{} is not a file".format(no_file))
+
+    @classmethod
     def get_tensor_idx(cls, line, inds, m):
         bits = line.split()
         idx = tuple(int(i) - 1 for i in bits if '.' not in i)
@@ -1058,6 +1066,7 @@ class AnneInputHelpers:
                     if len(line) > 0:
                         m = cls.get_tensor_idx(line, inds, m)
         else:
+            cls._check_file(block)
             for line in block.splitlines():
                 line = line.strip()
                 if len(line) > 0:
@@ -1110,6 +1119,7 @@ class AnneInputHelpers:
                             Linv = cls.parse_modes_line(line, L.shape[1])
                             break
         else:
+            cls._check_file(block)
             for line in block.splitlines():
                 line = line.strip()
                 if len(line) > 0:
@@ -1132,6 +1142,7 @@ class AnneInputHelpers:
                     if len(line) > 0:
                         coords.append([float(x) for x in line.split()])
         else:
+            cls._check_file(block)
             for line in block.splitlines():
                 line = line.strip()
                 if len(line) > 0:
@@ -1151,6 +1162,7 @@ class AnneInputHelpers:
                         except ValueError:
                             pass
         else:
+            cls._check_file(block)
             for line in block.splitlines():
                 line = line.strip()
                 if len(line) > 0:
@@ -1178,6 +1190,7 @@ class AnneInputHelpers:
                     elif len(zmat) > 1:
                         break
         else:
+            cls._check_file(block)
             for line in block.splitlines():
                 line = line.strip()
                 if len(line) > 0:
@@ -1268,29 +1281,47 @@ class AnneInputHelpers:
 
 
     @classmethod
-    def run_anne_job(cls, base_dir, states=2, calculate_intensities=False, **opts):
+    def run_anne_job(cls, base_dir,
+                     states=2,
+                     calculate_intensities=False,
+                     return_analyzer=False,
+                     modes_file='nm_int.dat',
+                     atoms_file='atom.dat',
+                     coords_file='cart_ref.dat',
+                     zmat_file='z_mat.dat',
+                     potential_files=('cub.dat', 'quart.dat'),
+                     energy_units="Wavenumbers",
+                     **opts
+                     ):
+        from .Analyzer import VPTAnalyzer
+
         og_dir = os.getcwd()
         try:
-            os.chdir(base_dir)
+            if base_dir is not None:
+                os.chdir(base_dir)
 
-            base_freqs, base_mat, base_inv = cls.parse_modes("nm_int.dat")
-            base_freqs *= cls.convert("Wavenumbers", "Hartrees")
-            cubics = cls.parse_tensor("cub.dat") * cls.convert("Wavenumbers", "Hartrees")
-            quartics = cls.parse_tensor("quart.dat") * cls.convert("Wavenumbers", "Hartrees")
-            atoms = cls.parse_atoms("atom.dat")
-            coords = cls.parse_coords("cart_ref.dat")
-            zmat = cls.parse_zmatrix("zmat.dat")
+            conv = cls.convert(energy_units, "Hartrees")
+            base_freqs, base_mat, base_inv = cls.parse_modes(modes_file)
+            base_freqs *= conv
+            potential = [cls.parse_tensor(f) * conv for f in potential_files]
+            atoms = cls.parse_atoms(atoms_file)
+            coords = cls.parse_coords(coords_file)
+            zmat = cls.parse_zmatrix(zmat_file)
+            sorting = cls.standard_sorting(zmat)  # we need to re-sort our internal coordinates
 
             (freq, matrix, inv), potential_terms = cls.reexpress_normal_modes(
                 (base_freqs, base_mat, base_inv),
-                [
-                    np.diag(base_freqs),
-                    cubics,
-                    quartics
-                ],
-                sorting=cls.standard_sorting(zmat)  # we need to re-sort our internal coordinates
+                [np.diag(base_freqs)] + potential,
+                sorting=sorting
             )
-            VPTRunner.run_simple(
+
+            # raise Exception(np.diag(potential_terms[0]) * UnitsData.convert("Hartrees", "Wavenumbers"), freq*UnitsData.convert("Hartrees", "Wavenumbers"))
+            if return_analyzer:
+                runner = VPTAnalyzer.run_VPT
+            else:
+                runner = VPTRunner.run_simple
+
+            res = runner(
                 [atoms, coords],
                 states,
                 modes={
@@ -1303,7 +1334,51 @@ class AnneInputHelpers:
                 calculate_intensities=calculate_intensities,
                 **opts
             )
+            if return_analyzer:
+                res.print_output_tables(print_intensities=calculate_intensities, print_energies=not calculate_intensities)
+
         finally:
             os.chdir(og_dir)
+
+        return res
+
+    @classmethod
+    def get_internal_expansion(cls, fchk, internals, states=2, **opts):
+        test_runner, _ = VPTRunner.construct(
+            fchk,
+            states,
+            internals=internals,
+            logger=False
+        )
+        test_freqs = test_runner.hamiltonian.modes.freqs
+        test_V = test_runner.hamiltonian.V_terms
+        test_modes = test_V.internal_L_matrix
+        test_inver = test_V.internal_L_inverse
+        return {
+            "runner":test_runner,
+            "freqs":test_freqs,
+            "potential":test_V,
+            "modes":[test_modes, test_inver],
+            "states":states,
+            "fchk":fchk,
+            "zmatrix":internals
+        }
+
+    @classmethod
+    def run_internal_expansion(cls, expansion_data, calculate_intensities=False, **opts):
+        test_V = expansion_data['potential']
+        return VPTRunner.run_simple(
+            expansion_data['fchk'],
+            expansion_data['states'],
+            modes={
+                "freqs": expansion_data['freqs'],
+                "matrix": expansion_data['modes'][0],
+                "inverse": expansion_data['modes'][1]
+            },
+            internals=expansion_data['zmatrix'],
+            potential_terms=[test_V[0], test_V[1], test_V[2]],
+            undimensionalize_normal_modes=False,
+            calculate_intensities=calculate_intensities
+        )
 
 VPTRunner.helpers = AnneInputHelpers
