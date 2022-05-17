@@ -297,6 +297,28 @@ class AnalyticModel:
         if self.dip is not None:
             terms['dipole_terms'] = self.mu(order+1, evaluate=evaluate)
         return terms
+    def run_VPT(self, order=2):
+        from ..VPT2 import VPTAnalyzer
+
+        if self.rotation is None:
+            self, _ = self.to_normal_modes()
+        expansions = self.get_VPT_expansions(order=order, evaluate=True)
+        freqs = np.diag(expansions['potential_terms'][0])
+        ncoords = len(freqs)
+        natoms = (ncoords + 6) // 3
+        analyzer = VPTAnalyzer.run_VPT(
+            [["H"] * natoms, np.zeros((natoms, 3))],  # dummy data since this won't be used at all
+            2,
+            modes={
+                "freqs": freqs,
+                "matrix": np.zeros((3 * natoms, len(freqs)))  # dummy data since this won't be used at all
+            },
+            **expansions,
+            include_coriolis_coupling=False,  # tell the job not to try to calculate the Coriolis coupling tensor
+            calculate_intensities=self.dip is not None # no dipole so we can't get intensities
+        )
+        analyzer.print_output_tables(print_intensities=self.dip is not None, print_energies=self.dip is None)
+        return analyzer
 
     def evaluate(self, expr):
         if self.vals is None:
