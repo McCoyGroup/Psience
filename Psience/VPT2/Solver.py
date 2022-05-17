@@ -1342,6 +1342,13 @@ class PerturbationTheorySolver:
 
     def construct_strong_coupling_spaces(self, sc, corrs, states, threshold):
         sc = corrs.collapse_strong_couplings(sc)
+        with self.logger.block(tag='unpruned spaces states', log_level=self.logger.LogLevel.Never):
+            for s in sc.values():
+                self.logger.log_print(
+                    s,
+                    message_prepper=lambda a: str(a.excitations).splitlines(),
+                    log_level=self.logger.LogLevel.Never
+                )
         group_filter = self.strongly_coupled_group_filter
         zero_order_energy_cutoff = self.strong_coupling_zero_order_energy_cutoff
         test_modes = self.strong_coupling_test_modes
