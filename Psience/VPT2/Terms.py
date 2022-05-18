@@ -1297,7 +1297,7 @@ class ExpansionTerms:
         if strip_embedding:
             embedding_coords = [0, 1, 2, 4, 5, 8]
             good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
-            base = [t[np.ix_((good_coords,)*t.ndim-1)] for t in base]
+            base = [t[np.ix_(*((good_coords,)*(t.ndim-1)))] for t in base]
         return base
     @property
     def internals_by_cartesians(self):

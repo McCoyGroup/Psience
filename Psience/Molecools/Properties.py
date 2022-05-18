@@ -254,7 +254,6 @@ class StructuralProperties:
             com = pax_axes = None
             ref_com = ref_axes = None
 
-
         if sel is not None:
             coords = coords[..., sel, :]
             masses = masses[sel]

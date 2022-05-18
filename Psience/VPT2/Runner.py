@@ -1221,23 +1221,34 @@ class AnneInputHelpers:
             r_coords = [0, 1, 3]
             a_coords = [2, 4]
             t_coords = [5]
-            extra = np.arange(6, ncoords+1)
-            r_coords += extra[::4].tolist()
-            a_coords += extra[1::4].tolist()
-            t_coords += extra[2::4].tolist()
+            if nats > 4:
+                extra = np.arange(6, ncoords+1)
+                r_coords += extra[::4].tolist()
+                a_coords += extra[1::4].tolist()
+                t_coords += extra[2::4].tolist()
             return np.argsort(np.concatenate([r_coords, a_coords, t_coords]))
 
     @classmethod
-    def renormalize_modes(cls, freqs, modes, inv, sorting=None):
-        # modes = (modes * np.sqrt(freqs)[:, np.newaxis]).T
-        # inv = inv#.T / np.sqrt(freqs)[:, np.newaxis]
-        G = np.dot(modes, modes.T)
-        F = np.dot(np.dot(inv.T, np.diag(freqs ** 2)), inv)
+    def get_internal_FG(cls, freqs, modes, inv, sorting=None):
+        modes = modes.T * np.sqrt(freqs)[:, np.newaxis]
+        inv = inv.T / np.sqrt(freqs)[np.newaxis, :]
+        G = np.dot(modes.T, modes)
+        # print(np.dot(modes, modes.T))
+        # print(np.dot(modes.T, modes))
+        F = np.dot(np.dot(inv, np.diag(freqs ** 2)), inv.T)
         if sorting is not None:
             G = G[np.ix_(sorting, sorting)]
+            # print(G)
             # print(np.round(F*219465))
             F = F[np.ix_(sorting, sorting)]
+            # print(F)
+        return F, G
+
+    @classmethod
+    def renormalize_modes(cls, freqs, modes, inv, sorting=None):
+        F, G = cls.get_internal_FG(freqs, modes, inv, sorting=sorting)
         freq, modes = scipy.linalg.eigh(F, G, type=2)
+        modes = modes * np.sqrt(freqs)[np.newaxis, :]
         return np.sqrt(freq), modes, np.linalg.inv(modes)
 
     @classmethod
@@ -1261,6 +1272,8 @@ class AnneInputHelpers:
     @classmethod
     def reexpress_normal_modes(cls, base_modes, old_field, sorting=None):
         freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting)
+        # print(freq, matrix, inv)
+        # freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting)
         potential_terms = cls.rerotate_force_field(
             base_modes[1],
             matrix.T,#/np.sqrt(freq)[np.newaxis, :],  # we divide by the sqrt of the frequencies to get the units to work
@@ -1273,6 +1286,9 @@ class AnneInputHelpers:
             # ]
         )[0]
         return (freq, matrix, inv), potential_terms
+
+    # @classmethod
+    # def rephase_normal_modes(cls, ...):
 
     convert = UnitsData.convert
     @staticmethod
