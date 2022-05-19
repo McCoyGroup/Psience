@@ -536,7 +536,7 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
             embed_carts = carts[..., 3:, :]
             reembed = not (
                     carts.squeeze().ndim == 2 and
-                    np.allclose(molecule.coords, carts, atol=1.0e-5)
+                    np.allclose(molecule.coords, embed_carts, atol=1.0e-5)
             ) # agree to like a ten thousandth of an angstrom
             if reembed:
                 if not return_derivs:

@@ -308,23 +308,33 @@ class VPTStateSpace:
                 cls.get_state_list_from_quanta(0, n_modes),
                 states,
                 [
-                    HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x"),
-                    HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x", "x")
+                    HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"]*i) for i in range(3, order+3)
                 ],
                 [
-                    # (),
-                    # (),
-                    # ()
-                    HarmonicOscillatorProductBasis(n_modes).selection_rules("x"),
-                    HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x"),
-                    HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x")
+                    HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"]*i) for i in range(1, order+2)
                 ]
             )
         elif target == 'frequencies':
-            return {
-                (1, 1): ([],),
-                (2, 0): (None, [[]])
-            }
+            # return {
+            #     (1, 1): ([],),
+            #     (2, 0): (None, [[0]])
+            # }
+            return PerturbationTheoryStateSpaceFilter.from_property_rules(
+                cls.get_state_list_from_quanta(0, n_modes),
+                states,
+                [
+                    HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"] * i) for i in range(3, order + 3)
+                ],
+                None
+                # [
+                #     # (),
+                #     # (),
+                #     # ()
+                #     # HarmonicOscillatorProductBasis(n_modes).selection_rules("x"),
+                #     # HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x"),
+                #     # HarmonicOscillatorProductBasis(n_modes).selection_rules("x", "x", "x")
+                # ]
+            )
 
 class VPTHamiltonianOptions:
     """
@@ -560,7 +570,7 @@ class VPTRuntimeOptions:
         self.ham_opts = real_ham_opts
 
         solver_run_opts = dict(
-            operator_chunk_size=operator_chunk_size,
+            # operator_chunk_size=operator_chunk_size,
             memory_constrained=memory_constrained,
             verbose=verbose,
             checkpoint_keys=checkpoint_keys,
@@ -925,7 +935,11 @@ class VPTRunner:
         if target_property is None and order == 2:
             target_property = 'intensities'
         if target_property is not None and 'state_space_filters' not in opts:
-            par.ops['state_space_filters'] = states.filter_generator(target_property, order=order)
+            if 'expansion_order' in opts.keys():
+                expansion_order = opts['expansion_order']
+            else:
+                expansion_order = order
+            par.ops['state_space_filters'] = states.filter_generator(target_property, order=expansion_order)
 
             # print(par.ops['state_space_filters'])
 
@@ -1390,6 +1404,8 @@ class AnneInputHelpers:
         return {
             "runner":test_runner,
             "freqs":test_freqs,
+            "molecule":test_runner.hamiltonian.molecule,
+            "kinetic":test_runner.hamiltonian.G_terms,
             "potential":test_V,
             "modes":[test_modes, test_inver],
             "states":states,
@@ -1413,5 +1429,27 @@ class AnneInputHelpers:
             undimensionalize_normal_modes=False,
             calculate_intensities=calculate_intensities
         )
+
+    @classmethod
+    def make_nt_polyad(cls, nt):  #this should be of the form num of quanta give same E
+        results=[]
+        for i in range(len(nt)):
+            for j in range(i+1,len(nt)):
+                a=nt[i]
+                b=nt[j]
+                if b>a:
+                    if b%a==0:
+                        b=b//a
+                        a=1
+                else:
+                    if a%b==0:
+                        a=a//b
+                        b=1
+                baselist=[0]*len(nt)
+                baselist[i]=a
+                twolist=[0]*len(nt)
+                twolist[j]=b
+                results.append([baselist,twolist])
+        return results
 
 VPTRunner.helpers = AnneInputHelpers
