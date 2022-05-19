@@ -363,7 +363,6 @@ class PerturbationTheoryStateSpaceFilter:
                             for x in prop_rules_nquanta[k-i-j] if p2+x==p1
                         ]
                         rules.extend(matches)
-
         # now we need to take these matches and use them to determine which terms are truly needed
         # for both the initial and target spaces
         keys = {}
@@ -386,6 +385,7 @@ class PerturbationTheoryStateSpaceFilter:
         new_rules = {k:cls._prune_transition_tree(tree_groups[k[0]-1][:k[1]], t) for k,t in full_rules.items()}
         if property_rules is None:
             new_rules[(order, 0)] = {k:((),) for k in new_rules[(order, 0)]}
+        # print(new_rules, order)
 
         # raise Exception("\n{}\n{}\n{}".format(new_rules[(1, 1)][4], full_rules[(1, 0)][3], full_rules[(1, 1)][3]))
         # raise Exception(full_rules[(1, 0)][0], full_rules[(1, 1)][3])#, full_rules[(1, 1)][1])
