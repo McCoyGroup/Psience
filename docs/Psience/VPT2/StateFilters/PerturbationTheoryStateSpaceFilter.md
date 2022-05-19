@@ -88,7 +88,7 @@ postfilter(self):
 canonicalize_prefilters(self, basis, prefilters): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L180)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L180?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L183)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L183?message=Update%20Docs)]
 </div>
 
 Puts the prefilters in canonical form...
@@ -104,7 +104,7 @@ Puts the prefilters in canonical form...
 from_property_rules(initial_space, target_space, perturbation_rules, property_rules, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L227)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L227?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L230)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L230?message=Update%20Docs)]
 </div>
 
 
@@ -126,7 +126,7 @@ from_property_rules(initial_space, target_space, perturbation_rules, property_ru
 generate_nquanta_filter(initials, rules, finals): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L435)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L435?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/StateFilters.py#L457)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/StateFilters.py#L457?message=Update%20Docs)]
 </div>
 
 Takes the initial number of quanta, a set of possible rules, and
