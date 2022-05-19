@@ -151,6 +151,12 @@ class VPTStateSpace:
                  states,
                  degeneracy_specs=None
                  ):
+        """
+        :param states: A list of states or a number of quanta to target
+        :type states: list | int
+        :param degeneracy_specs: A specification of degeneracies, either as polyads or explicit groups of states
+        :type degeneracy_specs: list | dict
+        """
         self.state_list = states
         self.degenerate_states = self.build_degenerate_state_spaces(degeneracy_specs)
         if self.degenerate_states is not None:
@@ -298,9 +304,8 @@ class VPTStateSpace:
             else:
                 n_modes = len(states[0])
 
-        if order != 2:
-            raise ValueError("state space filters currently only implemented at second order")
-
+        # if order != 2:
+        #     raise ValueError("state space filters currently only implemented at second order")
         if target == 'wavefunctions':
             return None
         elif target == 'intensities':
@@ -312,7 +317,8 @@ class VPTStateSpace:
                 ],
                 [
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"]*i) for i in range(1, order+2)
-                ]
+                ],
+                order=order
             )
         elif target == 'frequencies':
             # return {
@@ -325,7 +331,8 @@ class VPTStateSpace:
                 [
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"] * i) for i in range(3, order + 3)
                 ],
-                None
+                None,
+                order=order
                 # [
                 #     # (),
                 #     # (),
@@ -939,7 +946,7 @@ class VPTRunner:
                 expansion_order = opts['expansion_order']
             else:
                 expansion_order = order
-            par.ops['state_space_filters'] = states.filter_generator(target_property, order=expansion_order)
+            par.ops['state_space_filters'] = states.filter_generator(target_property, order=order)
 
             # print(par.ops['state_space_filters'])
 

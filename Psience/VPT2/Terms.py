@@ -331,7 +331,7 @@ class ExpansionTerms:
     def _reshape_internal_modes(self):
         QR = self._modes.matrix  # derivatives of Q with respect to the internals
         # we need to add zeros for the orientation coordinates
-        if QR.shape[0] != 3 * self.num_atoms:
+        if not self.strip_embedding and QR.shape[0] != 3 * self.num_atoms:
             _QR = QR
             QR = np.zeros((3 * self.num_atoms, _QR.shape[1]))
             embedding_coords = [0, 1, 2, 4, 5, 8]
@@ -340,7 +340,7 @@ class ExpansionTerms:
             self._modes.matrix = QR
 
         RQ = self._modes.inverse  # derivatives of internals with respect to Q
-        if RQ.shape[1] != 3 * self.num_atoms:
+        if not self.strip_embedding and RQ.shape[1] != 3 * self.num_atoms:
             _RQ = RQ
             # we need to add zeros for the orientation coordinates
             RQ = np.zeros((_RQ.shape[0], 3 * self.num_atoms))
@@ -1001,7 +1001,7 @@ class ExpansionTerms:
 
                 QR = self.modes.matrix  # derivatives of Q with respect to the internals
                 # we need to add zeros for the orientation coordinates
-                if QR.shape[0] != 3*self.num_atoms:
+                if not self.strip_embedding and QR.shape[0] != 3*self.num_atoms:
                     _QR = QR
                     QR = np.zeros((3*self.num_atoms, _QR.shape[1]))
                     embedding_coords = [0, 1, 2, 4, 5, 8]
@@ -1010,7 +1010,7 @@ class ExpansionTerms:
                     self.modes.matrix = QR
 
                 RQ = self.modes.inverse # derivatives of internals with respect to Q
-                if RQ.shape[1] != 3 * self.num_atoms:
+                if not self.strip_embedding and RQ.shape[1] != 3 * self.num_atoms:
                     _RQ = RQ
                     # we need to add zeros for the orientation coordinates
                     RQ = np.zeros((_RQ.shape[0], 3*self.num_atoms))

@@ -330,7 +330,12 @@ class PerturbationTheoryHamiltonian:
 
         return self._expansions[2]
 
-    def _get_H(self, o):
+    def _get_H(self, o,
+               include_potential=True,
+               include_gmatrix=True,
+               include_coriolis=True,
+               include_pseudopotential=True
+               ):
         """
         Provides the representation for H(i) in this basis
         """
@@ -344,22 +349,28 @@ class PerturbationTheoryHamiltonian:
             else:
                 iphase = -1
 
-            T = self._input_kinetic[o] if self._input_kinetic is not None and len(self._input_kinetic) > o else None
-            if T is None:
-                T = self.G_terms[o]
-            V = self._input_potential[o] if self._input_potential is not None and len(
-                self._input_potential
-            ) > o else None
-            if V is None:
-                V = self.V_terms[o]
+            if include_gmatrix:
+                T = self._input_kinetic[o] if self._input_kinetic is not None and len(self._input_kinetic) > o else None
+                if T is None:
+                    T = self.G_terms[o]
+            else:
+                T = None
+
+            if include_potential:
+                V = self._input_potential[o] if self._input_potential is not None and len(
+                    self._input_potential
+                ) > o else None
+                if V is None:
+                    V = self.V_terms[o]
+            else:
+                V = None
 
             self.logger.log_print("V({o}) = {V}", o=o, V=V, log_level=self.logger.LogLevel.Never)
             self.logger.log_print("T({o}) = {T}", o=o, T=T, log_level=self.logger.LogLevel.Never)
 
-            p_expansion = ['p'] + ['x'] * o + ['p']
-            v_expansion = ['x'] * (o + 2)
-            self._expansions[o] = (
-                    (iphase / (2*np.math.factorial(o))) * self.basis.representation(*p_expansion,
+            if T is not None:
+                p_expansion = ['p'] + ['x'] * o + ['p']
+                T = (iphase / (2*np.math.factorial(o))) * self.basis.representation(*p_expansion,
                                                                                         coeffs=T,
                                                                                         name='T({})'.format(o),
                                                                                         axes=[
@@ -368,7 +379,12 @@ class PerturbationTheoryHamiltonian:
                                                                                         ],
                                                                                         **self.operator_settings
                                                                                         )
-                    + 1 / np.math.factorial(o + 2) * self.basis.representation(*v_expansion,
+            else:
+                T = None
+
+            if V is not None:
+                v_expansion = ['x'] * (o + 2)
+                V = 1 / np.math.factorial(o + 2) * self.basis.representation(*v_expansion,
                                                                                coeffs=V,
                                                                                axes=[
                                                                                     list(range(o+2)),
@@ -377,10 +393,20 @@ class PerturbationTheoryHamiltonian:
                                                                                name='V({})'.format(o),
                                                                                **self.operator_settings
                                                                                )
-            )
+            else:
+                V = None
+
+            if T is None and V is None:
+                self._expansions[o] = 0
+            elif T is None:
+                self._expansions[o] = V
+            elif V is None:
+                self._expansions[o] = T
+            else:
+                self._expansions[o] = T + V
             if o > 1:
                 oz = o - 2
-                if self.coriolis_terms is not None or self._input_coriolis is not None:
+                if include_coriolis and (self.coriolis_terms is not None or self._input_coriolis is not None):
                     Z = self._input_coriolis[oz] if self._input_coriolis is not None and len(self._input_coriolis) > oz else None
                     if Z is None:
                         Z = self.coriolis_terms[oz]
@@ -390,24 +416,32 @@ class PerturbationTheoryHamiltonian:
                         # raise Exception(Z)
 
                     z_exp = ['x', 'p'] + ['x' for _ in range(oz)] + ['x', 'p']
-                    self._expansions[o] += iphase * self.basis.representation(*z_exp,
+                    Z = iphase * self.basis.representation(*z_exp,
                                                                               coeffs=Z,
                                                                               name='Coriolis({})'.format(oz),
                                                                               **self.operator_settings
                                                                               )
+                    if isinstance(self._expansions[o], int):
+                        self._expansions[o] = Z
+                    else:
+                       self._expansions[o] += Z
 
                     self.logger.log_print("Z({o}) = {Z}", o=oz, Z=Z, log_level=self.logger.LogLevel.Never)
 
-                if self.pseudopotential_term is not None or self._input_pseudopotential is not None:
+                if include_pseudopotential and (self.pseudopotential_term is not None or self._input_pseudopotential is not None):
                     U = self._input_pseudopotential[oz] if self._input_pseudopotential is not None and len(self._input_pseudopotential) > oz else None
                     if U is None:
                         U = self.pseudopotential_term[oz]
                     u_exp = ['x' for _ in range(oz)]
-                    self._expansions[o] += 1 / 8 * self.basis.representation(*u_exp,
-                                                                             coeffs=U,
-                                                                             name="V'({})".format(oz),
-                                                                             **self.operator_settings
-                                                                             )
+                    U = 1 / 8 * self.basis.representation(*u_exp,
+                                                             coeffs=U,
+                                                             name="V'({})".format(oz),
+                                                             **self.operator_settings
+                                                             )
+                    if isinstance(self._expansions[o], int):
+                        self._expansions[o] = U
+                    else:
+                        self._expansions[o] += U
 
                     self.logger.log_print("U({o}) = {U}", o=oz, U=U, log_level=self.logger.LogLevel.Never)
 
@@ -418,7 +452,7 @@ class PerturbationTheoryHamiltonian:
 
         return self._expansions[o]
 
-    def get_perturbations(self, order):
+    def get_perturbations(self, expansion_orders):
         """
         Gets the `Representation` objects for the perturbations up through second order
 
@@ -428,17 +462,30 @@ class PerturbationTheoryHamiltonian:
         :rtype:
         """
         # we get a benefit from going high first
-        return tuple(reversed([self._get_H(i) for i in range(order, -1, -1)]))
+        if isinstance(expansion_orders, int):
+            expansion_orders = self._get_expansion_orders(None, expansion_orders)
+        order = max(expansion_orders.values())
+        perts = []
+        for i in range(order, -1, -1):
+            perts.append(
+                self._get_H(i,
+                            include_potential=expansion_orders['potential'] >= i,
+                            include_gmatrix=expansion_orders['gmatrix'] >= i,
+                            include_coriolis=expansion_orders['coriolis'] >= i,
+                            include_pseudopotential=expansion_orders['pseudopotential'] >= i
+                            )
+            )
+        return tuple(reversed(perts))
 
-    @property
-    def perturbations(self):
-        """
-        Returns `Representation` objects for the different perturbations through second order
-
-        :return:
-        :rtype:
-        """
-        return self.get_perturbations(2)
+    # @property
+    # def perturbations(self):
+    #     """
+    #     Returns `Representation` objects for the different perturbations through second order
+    #
+    #     :return:
+    #     :rtype:
+    #     """
+    #     return self.get_perturbations(2)
 
     #region Nielsen energies
 
@@ -515,7 +562,6 @@ class PerturbationTheoryHamiltonian:
         x_mat[:, ri, ci] = x_mat_linear
         x_mat[:, ci, ri] = x_mat_linear
         return x_mat
-
 
     @classmethod
     def _get_Nielsen_energies_from_x(cls, states, freqs, x_mat, return_split=False):
@@ -645,6 +691,7 @@ class PerturbationTheoryHamiltonian:
         :return: the sets of coupled states
         :rtype: tuple[BasisMultiStateSpace]
         """
+        raise NotImplementedError("dead code path")
 
         nits = order - 1
         if nits >= 0:
@@ -728,6 +775,7 @@ class PerturbationTheoryHamiltonian:
         :return:
         :rtype:
         """
+        raise NotImplementedError("dead code path")
 
         # raise Exception(states)
         # need to rewrite this to work better with BasisStateSpace
@@ -802,6 +850,29 @@ class PerturbationTheoryHamiltonian:
 
         return coupled_states
 
+    def _get_expansion_orders(self, expansion_order, order):
+        if expansion_order is None:
+            expansion_order = order
+        if isinstance(expansion_order, int):
+            expansion_order = {
+                "kinetic":expansion_order,
+                "potential":expansion_order
+            }
+        if "default" in expansion_order:
+            default = expansion_order["default"]
+        else:
+            default = expansion_order
+        if "kinetic" in expansion_order:
+            ke_default = expansion_order["kinetic"]
+        else:
+            ke_default = default
+        for k in ["gmatrix", "pseudopotential", "coriolis"]:
+            if k not in expansion_order:
+                expansion_order[k] = ke_default
+        if "potential" not in expansion_order:
+            expansion_order["potential"] = default
+        return expansion_order
+
     def get_solver(self,
                    states,
                    degeneracies=None,
@@ -815,6 +886,7 @@ class PerturbationTheoryHamiltonian:
                    **opts
                 ):
 
+        expansion_order = self._get_expansion_orders(expansion_order, order)
         h_reps = self.get_perturbations(expansion_order)
 
         if memory_constrained is None:
