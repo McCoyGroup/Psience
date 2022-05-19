@@ -209,7 +209,7 @@ class ExpansionTerms:
                  eckart_embed_derivatives=True,
                  eckart_embed_planar_ref_tolerance=None,
                  strip_dummies=False,
-                 strip_embedding=False,
+                 strip_embedding=True,
                  mixed_derivative_handling_mode="numerical",
                  backpropagate_internals=False,
                  direct_propagate_cartesians=False,
@@ -1214,7 +1214,7 @@ class ExpansionTerms:
                     order
                 ))
             base = base[:order]
-        if strip_embedding:
+        if strip_embedding and not self.strip_embedding:
             embedding_coords = [0, 1, 2, 4, 5, 8]
             good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
             base = [t[good_coords,] if not isinstance(t, int) else t for t in base]
@@ -1235,7 +1235,7 @@ class ExpansionTerms:
                     order
                 ))
             base = base[:order]
-        if strip_embedding:
+        if strip_embedding and not self.strip_embedding:
             embedding_coords = [0, 1, 2, 4, 5, 8]
             good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
             base = [t[..., good_coords] if not isinstance(t, int) else t for t in base]
@@ -1264,7 +1264,7 @@ class ExpansionTerms:
     @property
     def modes_by_cartesians(self):
         return self.get_coordinate_transforms()[JacobianKeys.InternalModesByCartesians]
-    def get_modes_by_cartesians(self, order=None, strip_embedding=False):
+    def get_modes_by_cartesians(self, order=None, strip_embedding=True):
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=None if order is None else min(order, self.cartesian_by_internal_order),
             internal_by_cartesian_order=order
@@ -1295,7 +1295,7 @@ class ExpansionTerms:
                 ))
             base = base[:order]
 
-        if strip_embedding:
+        if strip_embedding and not self.strip_embedding:
             embedding_coords = [0, 1, 2, 4, 5, 8]
             good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
             base = [t[np.ix_(*((good_coords,)*(t.ndim-1)))] for t in base]
@@ -1316,7 +1316,7 @@ class ExpansionTerms:
                     order
                 ))
             base = base[:order]
-        if strip_embedding:
+        if strip_embedding and not self.strip_embedding:
             embedding_coords = [0, 1, 2, 4, 5, 8]
             good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
             base = [t[..., good_coords] for t in base]
