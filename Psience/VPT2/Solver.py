@@ -923,6 +923,9 @@ class PerturbationTheorySolver:
                     b = b_remainder
 
                 if len(b) > 0:
+                    # if filter_rules is not None and len(filter_rules) == 0:
+                    #     new = b.to_single().take_unique()
+                    # else:
                     if new is None:
                         new = a.get_transformed_space(b, rules=filter_rules, **opts)
                     else:

@@ -602,9 +602,12 @@ class BasisStateSpace(AbstractStateSpace):
         if isinstance(quants, int):
             quants = [quants]
 
-        states = np.concatenate(
-            [cls.get_states_with_quanta(n, basis.ndim) for n in quants]
-        )
+        if len(quants) > 0:
+            states = np.concatenate(
+                [cls.get_states_with_quanta(n, basis.ndim) for n in quants]
+            )
+        else:
+            states = []
 
         return cls(basis, states, mode=cls.StateSpaceSpec.Excitations)
 

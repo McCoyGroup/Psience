@@ -2550,7 +2550,10 @@ class VPT2Tests(TestCase):
         degeneracies = VPTStateSpace.get_degenerate_polyad_space(
             states,
             [
-                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+                [
+                    [0, 0, 0, 0, 0, 1],
+                    [0, 1, 0, 1, 0, 0]
+                ]
             ]
         )
         degeneracies = [np.array(x).tolist() for x in degeneracies]

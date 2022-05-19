@@ -129,6 +129,9 @@ class PerturbationTheoryStateSpaceFilter:
                 lt = len(test)
             except TypeError:
                 return False
+            else:
+                if lt == 0:
+                    return True
 
             try:
                 if lt > 0 and isinstance(test[0], (int, np.integer)):
@@ -139,7 +142,7 @@ class PerturbationTheoryStateSpaceFilter:
                         return True
                     else:
                         return False
-            except TypeError:
+            except (TypeError, IndexError):
                 return False
 
     def _could_be_rules(self, test):
@@ -171,9 +174,9 @@ class PerturbationTheoryStateSpaceFilter:
             test is None
             or self._could_be_a_space(test)
             or (
-                    len(test) == 2 and
-                    test[0] is None or self._could_be_a_space(test[0])
-                    and self._could_be_rules(test[1])
+                    len(test) == 2
+                    and (test[0] is None or self._could_be_a_space(test[0]))
+                    and (self._could_be_rules(test[1]))
             )
         )
 
@@ -267,6 +270,7 @@ class PerturbationTheoryStateSpaceFilter:
                 (BasisStateSpace.from_quanta(basis, [i]), r) for i,r in v.items()
             ) for k,v in int_rules.items()
         }
+        # raise Exception(full_rules[(2, 0)])
         return full_rules
 
     @classmethod
@@ -329,33 +333,41 @@ class PerturbationTheoryStateSpaceFilter:
 
         # with those sets built we can now figure out which property rules can connect
         # the terms at which orders
-        prop_rules_nquanta = [np.unique([sum(x) for x in p]) for p in property_rules]
         rules = []
+        def check_zero_rule(x):
+            return (
+                sum(y[1] for y in x) == 0 # doesn't change number of quanta
+                # and # and the term will be iterated enough this rule can apply
+            )
         for k in range(order+1):
             for p1, v1 in init_places[k].items():
-                clean_v = [x for x in v1 if sum(y[1] for y in x) == 0]
+                clean_v = [x for x in v1 if check_zero_rule(x)]
                 if len(clean_v)>0:
-                    rules.append(((p1, clean_v), None, (None, None)))
+                    rules.append(
+                        ((p1, clean_v), None, (None, None))
+                    )
             for p2, v2 in targ_places[k].items():
-                clean_v = [x for x in v2 if sum(y[1] for y in x) == 0]
+                clean_v = [x for x in v2 if check_zero_rule(x)]
                 if len(clean_v)>0:
-                    rules.append(((None, None), None, (p2, clean_v)))
-            for i in range(k+1):
-                for j in range(k-i+1):
-                    matches = [
-                        ((p1, v1), x, (p2, v2))
-                        for p1,v1 in init_places[i].items()
-                        for p2,v2 in targ_places[j].items()
-                        for x in prop_rules_nquanta[k-i-j] if p2+x==p1
-                    ]
-                    rules.extend(matches)
+                    rules.append(
+                        ((None, None), None, (p2, clean_v))
+                    )
+            if property_rules is not None:
+                prop_rules_nquanta = [np.unique([sum(x) for x in p]) for p in property_rules]
+                for i in range(k+1):
+                    for j in range(k-i+1):
+                        matches = [
+                            ((p1, v1), x, (p2, v2))
+                            for p1,v1 in init_places[i].items()
+                            for p2,v2 in targ_places[j].items()
+                            for x in prop_rules_nquanta[k-i-j] if p2+x==p1
+                        ]
+                        rules.extend(matches)
 
         # now we need to take these matches and use them to determine which terms are truly needed
         # for both the initial and target spaces
-
         keys = {}
         for (n,v), _, _ in rules:
-
             if n is not None:
                 if n not in keys:
                     keys[n] = set(v)
@@ -372,6 +384,8 @@ class PerturbationTheoryStateSpaceFilter:
         tree_ordering = list(sorted(full_rules.keys()))
         tree_groups = [[full_rules[x] for x in tree_ordering if x[0] == i+1] for i in range(order)]
         new_rules = {k:cls._prune_transition_tree(tree_groups[k[0]-1][:k[1]], t) for k,t in full_rules.items()}
+        if property_rules is None:
+            new_rules[(order, 0)] = {k:((),) for k in new_rules[(order, 0)]}
 
         # raise Exception("\n{}\n{}\n{}".format(new_rules[(1, 1)][4], full_rules[(1, 0)][3], full_rules[(1, 1)][3]))
         # raise Exception(full_rules[(1, 0)][0], full_rules[(1, 1)][3])#, full_rules[(1, 1)][1])
@@ -385,6 +399,13 @@ class PerturbationTheoryStateSpaceFilter:
         #
         #
         # raise init_full_rules, targ_full_rules
+    @classmethod
+    def _prune_full_rules(self, init_space, targ_space, full_rules, property_rules, order):
+        # we now check which rules truly can get us from the init space
+        # to the targ space in under the target order
+        for key, states in full_rules.items():
+            ...
+
 
     @staticmethod
     def _construct_rule_table_from_paths(perturbation_rules, keys):
@@ -404,6 +425,7 @@ class PerturbationTheoryStateSpaceFilter:
                     else:
                         init_full_rules[key][cur_d].update(subrules)
                     cur_d += d
+                # print(init_full_rules[key])
 
         return init_full_rules
 

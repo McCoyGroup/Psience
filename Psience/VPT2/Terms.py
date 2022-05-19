@@ -1,6 +1,7 @@
 """
 Stores all of the terms used inside the VPT2 representations
 """
+import itertools
 
 import numpy as np, functools as fp, itertools as ip, time, enum
 
@@ -1833,6 +1834,17 @@ class PotentialTerms(ExpansionTerms):
                 # at this point, then, we should be able to fill in the terms we know are missing
                 if not isinstance(v4, np.ndarray):
                     v4 = v4.asarray()
+                for i in range(v4.shape[0]):
+                    for j in range(i+1, v4.shape[0]):
+                        for k in range(j+1, v4.shape[0]):
+                            for l in range(k+1, v4.shape[0]):
+                                # if (i != j and i != k and i != l and j != k and j != l and k != l ): # all different
+                                for p in itertools.permutations([i, j, k, l]):
+                                    v4[p] = 0
+                                # v4[i, j, k, l] = 0
+                                # v4[i, j, k, l] = 0
+                                # v4[i, j, k, l] = 0
+                                # v4[i, j, k, l] = 0
                 terms[3] = v4
                 for i in range(v4.shape[0]):
                     if (
@@ -1918,6 +1930,9 @@ class PotentialTerms(ExpansionTerms):
             self.checkpointer['potential_terms'] = terms
         except (OSError, KeyError):
             pass
+
+        if self.hessian_tolerance is not None and np.linalg.norm(np.abs(terms[0] - np.diag(np.diag(terms[0])))) > self.hessian_tolerance:
+            raise ValueError("F-matrix is not diagonal (got {})".format(terms[0]))
 
         new_freqs = np.diag(terms[0])
         old_freqs = self.modes.freqs
