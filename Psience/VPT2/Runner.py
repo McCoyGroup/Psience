@@ -1068,10 +1068,10 @@ class AnneInputHelpers:
             raise FileNotFoundError("{} is not a file".format(no_file))
 
     @classmethod
-    def get_tensor_idx(cls, line, inds, m):
+    def get_tensor_idx(cls, line, inds, m, start_at=0):
         bits = line.split()
         idx = tuple(int(i) - 1 for i in bits if '.' not in i)
-        m = max(m, max(idx))
+        m = max(m, max(idx[start_at:]))
         val = float(bits[len(idx)])
         inds[idx] = val
         return m
@@ -1100,6 +1100,37 @@ class AnneInputHelpers:
         for i, v in inds.items():
             for p in itertools.permutations(i):
                 a[p] = v
+        return a
+    @classmethod
+    def parse_dipole_tensor(cls, block, dims=None):
+        inds = {}
+        m = 0
+        if os.path.isfile(block):
+            with open(block) as f:
+                for line in f:
+                    line = line.strip()
+                    if len(line) > 0:
+                        m = cls.get_tensor_idx(line, inds, m, start_at=1)
+        else:
+            cls._check_file(block)
+            for line in block.splitlines():
+                line = line.strip()
+                if len(line) > 0:
+                    m = cls.get_tensor_idx(line, inds, m, start_at=1)
+        if dims is None:
+            m = m + 1
+            n = len(next(iter(inds)))
+            dims = (3,) + (m,) * (n-1)
+        a = np.zeros(dims)
+        for i, v in inds.items():
+            u = i[0]
+            i = i[1:]
+            for p in itertools.permutations(i):
+                p = (u,) + p
+                a[p] = v
+        # print(">>", a.shape)
+        # a = np.transpose(a, list(range(1, a.ndim)) + [0]) # needs to be innermost I guess...
+        # print(">", a.shape)
         return a
 
     @classmethod
@@ -1273,25 +1304,26 @@ class AnneInputHelpers:
         return np.sqrt(freq), modes, np.linalg.inv(modes)
 
     @classmethod
-    def rerotate_force_field(cls, old_inv, new_modes, old_field, sorting=None):
+    def rerotate_force_field(cls, old_inv, new_modes, old_field, dim_skips=0, sorting=None):
         mid_field = []
+        final = -1 - dim_skips
         for f in old_field:
-            for i in range(f.ndim):
-                f = np.tensordot(old_inv, f, axes=[1, -1])
+            for i in range(f.ndim - dim_skips):
+                f = np.tensordot(old_inv, f, axes=[1, final])
                 # print(np.round(f*219465))
             if sorting is not None:
-                f = f[np.ix_(*(sorting,)*f.ndim)]
+                f = f[np.ix_(*(sorting,)*(f.ndim - dim_skips) )]
                 # print(np.round(f*219465))
             mid_field.append(f)
         new_field = []
         for f in mid_field:
-            for i in range(f.ndim):
-                f = np.tensordot(new_modes, f, axes=[1, -1])
+            for i in range(f.ndim - dim_skips):
+                f = np.tensordot(new_modes, f, axes=[1, final])
             new_field.append(f)
         return new_field, mid_field
 
     @classmethod
-    def reexpress_normal_modes(cls, base_modes, old_field, sorting=None):
+    def reexpress_normal_modes(cls, base_modes, old_field, dipole, sorting=None):
         freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting)
         # print(freq, matrix, inv)
         # freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting)
@@ -1306,7 +1338,26 @@ class AnneInputHelpers:
             #     quartics * helpers.convert("Wavenumbers", "Hartrees")
             # ]
         )[0]
-        return (freq, matrix, inv), potential_terms
+        if dipole is not None:
+            # print(dipole[0].shape, base_modes[1].shape, matrix.shape)
+            dipole = [
+                    [0] + cls.rerotate_force_field(
+                        base_modes[1],
+                        matrix.T,
+                        # /np.sqrt(freq)[np.newaxis, :],  # we divide by the sqrt of the frequencies to get the units to work
+                        [d[a] for d in dipole],
+                        sorting=sorting,
+                        dim_skips=1
+                        # [
+                        #     np.diag(freq),  # in the file I was given the frequencies were in Hartree
+                        #     cubics * helpers.convert("Wavenumbers", "Hartrees"),
+                        #     quartics * helpers.convert("Wavenumbers", "Hartrees")
+                        # ]
+                    )[0]
+            for a in range(3)
+            ]
+            # dipole = [np.zeros(3)] + dipole
+        return (freq, matrix, inv), potential_terms, dipole
 
     # @classmethod
     # def rephase_normal_modes(cls, ...):
@@ -1320,7 +1371,7 @@ class AnneInputHelpers:
     @classmethod
     def run_anne_job(cls, base_dir,
                      states=2,
-                     calculate_intensities=False,
+                     calculate_intensities=None,
                      return_analyzer=False,
                      return_runner=False,
                      modes_file='nm_int.dat',
@@ -1328,6 +1379,7 @@ class AnneInputHelpers:
                      coords_file='cart_ref.dat',
                      zmat_file='z_mat.dat',
                      potential_files=('cub.dat', 'quart.dat'),
+                     dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat"),
                      energy_units=None,
                      **opts
                      ):
@@ -1358,15 +1410,33 @@ class AnneInputHelpers:
             potential = [t * conv for t in potential]
             atoms = cls.parse_atoms(atoms_file)
             coords = cls.parse_coords(coords_file)
-            zmat = cls.parse_zmatrix(zmat_file)
+            if zmat_file is None:
+                zmat = None
+            else:
+                zmat = cls.parse_zmatrix(zmat_file)
             sorting = cls.standard_sorting(zmat)  # we need to re-sort our internal coordinates
+            if os.path.exists(dipole_files[0]):
+                dipole_terms = [cls.parse_dipole_tensor(f) for f in dipole_files]
+                # if energy_units is None:
+                #     if np.max(np.abs(potential[0])) > 1:
+                #         conv = cls.convert("Wavenumbers", "Hartrees")
+                #     else:
+                #         conv = 1
+                # else:
+                #     conv = cls.convert(energy_units, "Hartrees")
+            else:
+                dipole_terms = None
             # raise Exception(sorting)
 
-            (freq, matrix, inv), potential_terms = cls.reexpress_normal_modes(
+            (freq, matrix, inv), potential_terms, dipole_terms = cls.reexpress_normal_modes(
                 (base_freqs, base_mat, base_inv),
                 [np.diag(base_freqs)] + potential,
+                dipole_terms,
                 sorting=sorting
             )
+
+            if calculate_intensities is None:
+                calculate_intensities = dipole_terms is not None
 
             # raise Exception(np.diag(potential_terms[0]) * UnitsData.convert("Hartrees", "Wavenumbers"), freq*UnitsData.convert("Hartrees", "Wavenumbers"))
             if return_analyzer:
@@ -1375,6 +1445,8 @@ class AnneInputHelpers:
                 runner = VPTRunner.construct
             else:
                 runner = lambda *a, **kw:VPTRunner.run_simple(*a, calculate_intensities=calculate_intensities, **kw)
+
+            # raise Exception([a.shape for a in dipole_terms])
 
             res = runner(
                 [atoms, coords],
@@ -1385,11 +1457,15 @@ class AnneInputHelpers:
                     "inverse": inv
                 },
                 potential_terms=potential_terms,
+                dipole_terms=dipole_terms,
                 internals=zmat,
                 **opts
             )
             if return_analyzer:
-                res.print_output_tables(print_intensities=calculate_intensities, print_energies=not calculate_intensities)
+                res.print_output_tables(
+                    print_intensities=calculate_intensities,
+                    print_energies=not calculate_intensities
+                )
 
         finally:
             os.chdir(og_dir)
@@ -1444,14 +1520,14 @@ class AnneInputHelpers:
             for j in range(i+1,len(nt)):
                 a=nt[i]
                 b=nt[j]
-                if b>a:
-                    if b%a==0:
-                        b=b//a
-                        a=1
-                else:
-                    if a%b==0:
-                        a=a//b
-                        b=1
+                if a <= 0 or b <= 0:
+                    continue  # this skips to the next step in the loop
+                if a>b:
+                    a, b = b, a
+                    i, j = j, i
+                if b%a==0:
+                    b=b//a
+                    a=1
                 baselist=[0]*len(nt)
                 baselist[i]=a
                 twolist=[0]*len(nt)
