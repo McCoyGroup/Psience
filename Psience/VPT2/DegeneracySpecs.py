@@ -117,7 +117,6 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
     def canonicalize(cls, spec):
         raise NotImplementedError("abstract interface")
 
-
 class TotalQuantaDegeneracySpec(DegeneracySpec):
     """
 
@@ -373,6 +372,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
                 groups[n] = [i]
 
         groups = PermutationRelationGraph.merge_groups([(g, indexer.from_indices(g)) for g in groups])
+
         return [g[1] for g in groups]
 
 class CallableDegeneracySpec(DegeneracySpec):
@@ -421,6 +421,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         if len(group) < 2:
             return group
 
+        # print(">>>", group.excitations)
+
         if target_modes is not None:
             sub = group.take_subdimensions(target_modes)
             inds = sub.indices
@@ -450,7 +452,6 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         else:
             sorting = np.argsort(inds)
             corr_mat = None
-
 
         exc = exc[sorting]
         diffs = exc[:, np.newaxis] - exc[np.newaxis, :]  # difference matrix (s, s, m)
@@ -600,7 +601,11 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             #     print("> ", bad_pos)
             #     print("> ", group.excitations)
 
-
+        # if isinstance(group, BasisStateSpace):
+        #     group
+        # if isinstance(group, list):
+        #     print(group)
+        # print("<  ", group.excitations)
 
         return group
 
@@ -660,6 +665,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             deg_sets = [(set(d.indices),d) for d in degenerate_states]
             for x in states.indices:
                 for i, (d,bs) in enumerate(deg_sets):
+                    # if i == 11:
+                    #     raise Exception(bs.excitations, bs.indices)
                     if x in d:
                         if groups[i] is None:
                             groups[i] = bs.indices
@@ -673,6 +680,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         for i,g in enumerate(groups):
             # g = np.sort(np.array(g))
             if not isinstance(g, BasisStateSpace):
+                # if np.any(np.asanyarray(g) < 0):
+                #     raise Exception(i, g)
                 g = BasisStateSpace(states.basis, np.array(g), mode=BasisStateSpace.StateSpaceSpec.Indices, full_basis=full_basis)
             if group_filter is not None:
                 g = group_filter(g)

@@ -701,6 +701,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                             **ParameterManager(self.expansion_options).filter(DipoleTerms)
                             ).get_terms()
             )
+        # print([x for x in self._dipole_terms])
         return self._dipole_terms
 
     @dipole_terms.setter

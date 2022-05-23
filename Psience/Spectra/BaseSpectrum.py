@@ -190,6 +190,7 @@ class ContinuousSpectrum(BaseSpectrum):
 
     def plot(self,
              figure=None,
+             filled=False,
              plot_style=None,
              **opts
              ):
@@ -205,11 +206,18 @@ class ContinuousSpectrum(BaseSpectrum):
         """
 
         # suuuuper straightforward
-        return plt.Plot(self.frequencies, self.intensities,
-                             figure=figure,
-                             plot_style=plot_style,
-                             **opts
-                             )
+        main = plt.Plot(self.frequencies, self.intensities,
+                         figure=figure,
+                         plot_style=plot_style,
+                         **opts
+                         )
+        if filled:
+            plt.FilledPlot(self.frequencies, self.intensities,
+                     figure=main,
+                     plot_style=plot_style,
+                     **opts
+                     )
+        return main
 
 class BroadenedSpectrum(BaseSpectrum):
     """
@@ -235,7 +243,7 @@ class BroadenedSpectrum(BaseSpectrum):
         self.broadening_type = broadening_type
         self.breadth = breadth
 
-    def _eval_gauss_broadening(self, pts, center, breadth):
+    def _eval_gauss_broadening(self, pts, height, center, breadth, target_zero=.1, adjust_width=True):
         """
         Evaluates a Gaussian centered around `center` with breadth `breadth` at `pts`
 
@@ -250,11 +258,16 @@ class BroadenedSpectrum(BaseSpectrum):
         """
         from scipy.stats import norm
 
+        if adjust_width:
+            h = height
+            if h < 1:
+                h = 1
+            z = target_zero / h
+            breadth = np.sqrt(breadth**2/(2*np.log(1/z))) # chosen to make the pdf(center-breadth) == target
         bd = norm(loc=center, scale=breadth)
+        return height * bd.pdf(pts) * (np.sqrt(2 * np.pi) * breadth) # remove the normalization
 
-        return bd.pdf(pts) * (np.sqrt(2 * np.pi) * breadth) # remove the normalization
-
-    def _eval_lorentz_broadening(self, pts, center, breadth):
+    def _eval_lorentz_broadening(self, pts, height, center, breadth):
         """
         Evaluates a Lorentzian centered around `center` with breadth `breadth` at `pts`
 
@@ -270,10 +283,11 @@ class BroadenedSpectrum(BaseSpectrum):
         from scipy.stats import cauchy
 
         bd = cauchy(loc=center, scale=breadth).pdf
+        # if height < 1:
+        #     height = 1
+        return height * bd(pts) * (np.pi * breadth )  # remove the normalization
 
-        return bd(pts) * (np.pi * breadth)  # remove the normalization
-
-    def _get_pts(self, step_size=.5, freq_min=None, freq_max=None, stddevs=5):
+    def _get_pts(self, step_size=.5, freq_min=None, freq_max=None, stddevs=5, adjust_width=True):
         """
         Evaluates the points needed to plot the broadened spectrum
 
@@ -317,11 +331,11 @@ class BroadenedSpectrum(BaseSpectrum):
                 ))
 
         freq_vals = np.arange(freq_min, freq_max, step_size)
-        vals = np.dot(ints, [bt(freq_vals, c, b) for c, b in zip(freqs, breadths)])
+        vals = np.sum([bt(freq_vals, i, c, b, adjust_width=adjust_width) for i, c, b in zip(ints, freqs, breadths)], axis=0)
 
         return freq_vals, vals
 
-    def plot(self, step_size=.5, freq_min=None, freq_max=None, figure=None, plot_style=None, **opts):
+    def plot(self, step_size=.5, freq_min=None, freq_max=None, figure=None, plot_style=None, filled=False, adjust_width=True, **opts):
         """
         Applies the broadening then plots it using `McUtils.Plots.Plot`
 
@@ -341,9 +355,25 @@ class BroadenedSpectrum(BaseSpectrum):
         :rtype:
         """
 
-        freqs, ints = self._get_pts(step_size=step_size, freq_min=freq_min, freq_max=freq_max)
-        return plt.Plot(freqs, ints,
-                        figure=figure,
-                        plot_style=plot_style,
-                        **opts
-                        )
+        freqs, ints = self._get_pts(step_size=step_size, freq_min=freq_min, freq_max=freq_max, adjust_width=adjust_width)
+        if plot_style is None:
+            plot_style = {}
+        if filled:
+            main = plt.FilledPlot(freqs, ints,
+                     figure=figure,
+                     plot_style=plot_style,
+                     **opts
+                     )
+
+            main = plt.Plot(freqs, ints,
+                            figure=main,
+                            plot_style=plt.Plot.filter_options(plot_style),
+                            **plt.Plot.filter_options(opts)
+                            )
+        else:
+            main = plt.Plot(freqs, ints,
+                     figure=figure,
+                     plot_style=plot_style,
+                     **opts
+                     )
+        return main
