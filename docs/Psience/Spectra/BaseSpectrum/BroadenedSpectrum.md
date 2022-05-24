@@ -1,6 +1,6 @@
 ## <a id="Psience.Spectra.BaseSpectrum.BroadenedSpectrum">BroadenedSpectrum</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L214)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L214?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L222)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L222?message=Update%20Docs)]
 </div>
 
 A stick spectrum with associated broadening function
@@ -18,7 +18,7 @@ A stick spectrum with associated broadening function
 __init__(self, frequencies, intensities, broadening_type='gaussian', breadth=10, **meta): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L219)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L219?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L227)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L227?message=Update%20Docs)]
 </div>
 
 
@@ -35,10 +35,10 @@ __init__(self, frequencies, intensities, broadening_type='gaussian', breadth=10,
 
 <a id="Psience.Spectra.BaseSpectrum.BroadenedSpectrum.plot" class="docs-object-method">&nbsp;</a> 
 ```python
-plot(self, step_size=0.5, freq_min=None, freq_max=None, figure=None, plot_style=None, **opts): 
+plot(self, step_size=0.5, freq_min=None, freq_max=None, figure=None, plot_style=None, filled=False, adjust_width=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L324)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L324?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L338)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L338?message=Update%20Docs)]
 </div>
 
 Applies the broadening then plots it using `McUtils.Plots.Plot`
@@ -69,4 +69,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Spectra/BaseSpectrum/BroadenedSpectrum.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Spectra/BaseSpectrum/BroadenedSpectrum.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Spectra/BaseSpectrum/BroadenedSpectrum.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L214?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L222?message=Update%20Docs)

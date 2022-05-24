@@ -16,7 +16,7 @@ solely to allow for plotting & maybe some day for interchange with like experime
 
 <a id="Psience.Spectra.BaseSpectrum.ContinuousSpectrum.plot" class="docs-object-method">&nbsp;</a> 
 ```python
-plot(self, figure=None, plot_style=None, **opts): 
+plot(self, figure=None, filled=False, plot_style=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L191)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L191?message=Update%20Docs)]
