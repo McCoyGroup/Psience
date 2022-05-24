@@ -364,12 +364,11 @@ class BroadenedSpectrum(BaseSpectrum):
                      plot_style=plot_style,
                      **opts
                      )
-
-            main = plt.Plot(freqs, ints,
-                            figure=main,
-                            plot_style=plt.Plot.filter_options(plot_style),
-                            **plt.Plot.filter_options(opts)
-                            )
+            plt.Plot(freqs, ints,
+                        figure=main,
+                        plot_style=plt.Plot.filter_options(plot_style),
+                        **plt.Plot.filter_options(opts)
+                        )
         else:
             main = plt.Plot(freqs, ints,
                      figure=figure,
