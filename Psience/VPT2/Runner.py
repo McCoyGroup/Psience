@@ -1421,8 +1421,9 @@ class AnneInputHelpers:
                      atoms_file='atom.dat',
                      coords_file='cart_ref.dat',
                      zmat_file='z_mat.dat',
-                     potential_files=('cub.dat', 'quart.dat'),
-                     dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat"),
+                     potential_files=('cub.dat', 'quart.dat', 'quintic.dat', 'sextic.dat'),
+                     dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat", "lin_quart.dat", 'lin_quint.dat'),
+                     expansion_order=None,
                      energy_units=None,
                      type=0,
                      **opts
@@ -1443,7 +1444,7 @@ class AnneInputHelpers:
             else:
                 conv = cls.convert(energy_units, "Hartrees")
             base_freqs *= conv
-            potential = [cls.parse_tensor(f) for f in potential_files]
+            potential = [cls.parse_tensor(f) for f in potential_files if os.path.isfile(f)]
             if energy_units is None:
                 if np.max(np.abs(potential[0])) > 1:
                     conv = cls.convert("Wavenumbers", "Hartrees")
@@ -1460,7 +1461,7 @@ class AnneInputHelpers:
                 zmat = cls.parse_zmatrix(zmat_file)
             sorting = cls.standard_sorting(zmat)  # we need to re-sort our internal coordinates
             if os.path.exists(dipole_files[0]):
-                dipole_terms = [cls.parse_dipole_tensor(f) for f in dipole_files]
+                dipole_terms = [cls.parse_dipole_tensor(f) for f in dipole_files if os.path.isfile(f)]
                 # if energy_units is None:
                 #     if np.max(np.abs(potential[0])) > 1:
                 #         conv = cls.convert("Wavenumbers", "Hartrees")
@@ -1498,6 +1499,13 @@ class AnneInputHelpers:
             else:
                 runner = lambda *a, **kw:VPTRunner.run_simple(*a, calculate_intensities=calculate_intensities, **kw)
 
+            if expansion_order is None:
+                expansion_order = {}
+            if isinstance(expansion_order, dict):
+                if 'potential' not in expansion_order:
+                    expansion_order['potential'] = len(potential_terms) - 1
+                if dipole_terms is not None and 'dipole' not in expansion_order:
+                    expansion_order['dipole'] = len(potential_terms) - 2
             # raise Exception([a.shape for a in dipole_terms])
 
             res = runner(
@@ -1511,6 +1519,7 @@ class AnneInputHelpers:
                 potential_terms=potential_terms,
                 dipole_terms=dipole_terms,
                 internals=zmat,
+                expansion_order=expansion_order,
                 **opts
             )
             if return_analyzer:
@@ -1565,26 +1574,26 @@ class AnneInputHelpers:
             calculate_intensities=calculate_intensities
         )
 
-    @classmethod
-    def make_nt_polyad(cls, nt):  #this should be of the form num of quanta give same E
-        results=[]
-        for i in range(len(nt)):
-            for j in range(i+1,len(nt)):
-                a=nt[i]
-                b=nt[j]
-                if a <= 0 or b <= 0:
-                    continue  # this skips to the next step in the loop
-                if a>b:
-                    a, b = b, a
-                    i, j = j, i
-                if b%a==0:
-                    b=b//a
-                    a=1
-                baselist=[0]*len(nt)
-                baselist[i]=a
-                twolist=[0]*len(nt)
-                twolist[j]=b
-                results.append([baselist,twolist])
-        return results
+    # @classmethod
+    # def make_nt_polyad(cls, nt):  #this should be of the form num of quanta give same E
+    #     results=[]
+    #     for i in range(len(nt)):
+    #         for j in range(i+1,len(nt)):
+    #             a=nt[i]
+    #             b=nt[j]
+    #             if a <= 0 or b <= 0:
+    #                 continue  # this skips to the next step in the loop
+    #             if a>b:
+    #                 a, b = b, a
+    #                 i, j = j, i
+    #             if b%a==0:
+    #                 b=b//a
+    #                 a=1
+    #             baselist=[0]*len(nt)
+    #             baselist[i]=a
+    #             twolist=[0]*len(nt)
+    #             twolist[j]=b
+    #             results.append([baselist,twolist])
+    #     return results
 
 VPTRunner.helpers = AnneInputHelpers
