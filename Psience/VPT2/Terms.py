@@ -1851,14 +1851,17 @@ class PotentialTerms(ExpansionTerms):
                             self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
                             or self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Unhandled
                     ):
-                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+                        r = range(i, v4.shape[0])
+                        v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[r, r, i, i] = v4[i, i, r, r]
                     elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
-                        v4[i, i, :, :] = v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i]
+                        r = range(i, v4.shape[0])
+                        v4[i, i, r, r] = v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[r, r, i, i]
                     elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
-                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = np.average(
+                        r = range(i, v4.shape[0])
+                        v4[i, i, r, r] = v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[r, r, i, i] = np.average(
                             [
-                                v4[:, :, i, i],
-                                v4[i, i, :, :]
+                                v4[r, r, i, i],
+                                v4[i, i, r, r]
                                 ],
                             axis=0
                         )
@@ -2234,7 +2237,6 @@ class DipoleTerms(ExpansionTerms):
             all_derivs.append(seconds)
 
         if len(derivs) > 3:
-
             if thirds.shape == (modes_n, modes_n, coord_n, 3):
                 if self.mixed_derivs is None:
                     self.mixed_derivs = True
@@ -2325,7 +2327,7 @@ class DipoleTerms(ExpansionTerms):
             mu_derivs = self.derivs[1:]
 
             if len(mu_derivs) > 2:
-                qQ, qQQ =  self.get_cartesian_modes_by_internal_modes(2)
+                qQ, qQQ = self.get_cartesian_modes_by_internal_modes(2)
                 f43 = np.tensordot(qQQ, mu_derivs[1], axes=[2, 0])
                 mu_derivs = list(mu_derivs)
                 mu_derivs[2] = mu_derivs[2] + f43
@@ -2336,6 +2338,7 @@ class DipoleTerms(ExpansionTerms):
             u_derivs = [d[..., coord] for d in mu_derivs]
 
             if self.mixed_derivs:
+                # d^2X/dQ^2@dU/dX + dX/dQ@dU/dQdX
                 terms = TensorDerivativeConverter(x_derivs, u_derivs,
                                                   mixed_terms=[
                                                       [u_derivs[1]],  # dVdQXX
@@ -2353,9 +2356,9 @@ class DipoleTerms(ExpansionTerms):
                         if self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
                             for i in range(v2.shape[0]):
                                 if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
-                                    v2[i, :] = v2[:, i] = v2[:, i]
-                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
                                     v2[i, :] = v2[:, i] = v2[i, :]
+                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                                    v2[i, :] = v2[:, i] = v2[:, i]
                                 elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
                                     v2[i, :] = v2[:, i] = np.average(
                                         [
@@ -2376,19 +2379,33 @@ class DipoleTerms(ExpansionTerms):
                         # Gaussian gives slightly different constants
                         # depending on whether the analytic or numerical derivs
                         # were transformed
-                        # TODO: zero out the ill-defined terms
+                        # we assume we only got second derivs in Q_i Q_i
+                        # at this point, then, we should be able to fill in the terms we know are missing
+                        if not isinstance(v3, np.ndarray):
+                            v3 = v3.asarray()
+                        for i in range(v3.shape[0]):
+                            for j in range(i + 1, v3.shape[0]):
+                                for k in range(j + 1, v3.shape[0]):
+                                    # if (i != j and i != k and i != l and j != k and j != l and k != l ): # all different
+                                    for p in itertools.permutations([i, j, k]):
+                                        v3[p] = 0
+
                         if self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
                             for i in range(v3.shape[0]):
                                 if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
-                                    v3[i, i, :] = v3[i, :, i] = v3[:, i, i] = v3[i, i, :]
+                                    r = np.arange(i, v3.shape[0])
+                                    v3[i, i, r] = v3[i, r, i] = v3[r, i, i] = v3[i, i, r]
                                 elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                                    r = np.arange(i, v3.shape[0])
                                     # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
-                                    v3[i, i, :] = v3[i, :, i] = v3[:, i, i] = v3[:, i, i]
+                                    v3[i, i, r] = v3[i, r, i] = v3[r, i, i] = v3[r, i, i]
                                     # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[:, :, i]
                                 elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
-                                    v3[i, i, :] = v3[i, :, i] = v3[:, i, i] = v3[:, i, i] = np.average(
+                                    r = np.arange(i, v3.shape[0])
+                                    v3[i, i, r] = v3[i, r, i] = v3[r, i, i] = v3[r, i, i] = np.average(
                                         [
-                                            v3[i, i, :], v3[:, i, i]
+                                            v3[i, i, r],
+                                            v3[r, i, i]
                                         ],
                                         axis=0
                                     )

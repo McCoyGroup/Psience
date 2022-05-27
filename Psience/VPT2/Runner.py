@@ -100,8 +100,16 @@ class VPTSystem:
         if mode_selection is not None:
             self.mol.normal_modes.modes = self.mol.normal_modes.modes[mode_selection]
 
-        if eckart_embed:
+        if eckart_embed is True:
             self.mol = self.mol.get_embedded_molecule()
+        else:
+            if isinstance(eckart_embed, np.ndarray):
+                ref = self.mol.copy()
+                ref.coords = eckart_embed
+                eckart_embed = ref
+            if isinstance(eckart_embed, Molecule):
+                self.mol = self.mol.get_embedded_molecule(eckart_embed)
+
 
     @property
     def nmodes(self):
@@ -149,7 +157,8 @@ class VPTStateSpace:
     )
     def __init__(self,
                  states,
-                 degeneracy_specs=None
+                 degeneracy_specs=None,
+                 system=None
                  ):
         """
         :param states: A list of states or a number of quanta to target
@@ -157,16 +166,31 @@ class VPTStateSpace:
         :param degeneracy_specs: A specification of degeneracies, either as polyads or explicit groups of states
         :type degeneracy_specs: list | dict
         """
-        self.state_list = states
-        self.degenerate_states = self.build_degenerate_state_spaces(degeneracy_specs)
+        if not isinstance(states, BasisStateSpace):
+            states = BasisStateSpace(
+                HarmonicOscillatorProductBasis(len(states[0])),
+                states
+            )
+        self.state_list = states.excitations.tolist()
+        self.degenerate_states = self.build_degenerate_state_spaces(degeneracy_specs, states, system=system)
         if self.degenerate_states is not None:
-            self.degenerate_states = [np.array(x).tolist() for x in self.degenerate_states]
-            states = np.array(self.state_list).tolist()
-            for pair in self.degenerate_states:
-                for p in pair:
-                    if p not in states:
-                        states.append(p)
-            self.state_list = states
+            if isinstance(self.degenerate_states, tuple) and isinstance(self.degenerate_states[0], DegeneracySpec):
+                self.degenerate_states, new_states = self.degenerate_states
+                if isinstance(new_states, BasisStateSpace):
+                    new_states = new_states.excitations.tolist()
+                states = np.asanyarray(self.state_list).tolist()
+                for state in new_states:
+                    if state not in states:
+                        states.append(state)
+                self.state_list = states
+            else:
+                self.degenerate_states = [np.array(x).tolist() for x in self.degenerate_states]
+                states = np.asanyarray(self.state_list).tolist()
+                for pair in self.degenerate_states:
+                    for p in pair:
+                        if p not in states:
+                            states.append(p)
+                self.state_list = states
 
     @classmethod
     def from_system_and_quanta(cls, system, quanta, target_modes=None, only_target_modes=False, **opts):
@@ -193,6 +217,7 @@ class VPTStateSpace:
 
         return cls(
             states,
+            system=system,
             **opts
         )
 
@@ -226,7 +251,7 @@ class VPTStateSpace:
                 whee = [p for p in whee if all(j in target_modes or x == 0 for j,x in enumerate(p))]
         return whee
 
-    def build_degenerate_state_spaces(self, degeneracy_specs):
+    def build_degenerate_state_spaces(self, degeneracy_specs, states, system=None):
         """
         :param degeneracy_specs:
         :type degeneracy_specs:
@@ -235,10 +260,15 @@ class VPTStateSpace:
         """
 
         spec = DegeneracySpec.from_spec(degeneracy_specs)
+        if hasattr(spec, 'frequencies') and spec.frequencies is None:
+            spec.frequencies = system.mol.normal_modes.modes.freqs
+        # raise Exception(spec)
         if spec is None:
             return None
+        elif hasattr(spec, 'prep_states'):
+            return (spec, spec.prep_states(states))
         else:
-            return spec.get_groups(self.state_list)
+            return spec.get_groups(states)
 
         # elif isinstance(degeneracy_specs, dict):
         #     # dispatch on mode
@@ -935,6 +965,7 @@ class VPTRunner:
         else:
             states = VPTStateSpace(
                 states,
+                system=sys,
                 **par.filter(VPTStateSpace)
             )
 
@@ -1434,6 +1465,11 @@ class AnneInputHelpers:
                 dipole_terms,
                 sorting=sorting
             )
+            # if dipole_terms is not None:
+            #     dipole_terms = [
+            #         [0] + [d[a] for d in dipole_terms]
+            #         for a in range(3)
+            #     ]
 
             if calculate_intensities is None:
                 calculate_intensities = dipole_terms is not None

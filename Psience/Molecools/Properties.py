@@ -1455,11 +1455,12 @@ class DipoleSurfaceManager(PropertyManager):
         if new._surf is not None:
             new._surf = new._surf.transform(transf)
         if new._derivs is not None:
-            rot_dip = transf.transformation_function.transform@new._derivs[0]
-            new._derivs = (
-                    (rot_dip,) +
+            tf = transf.transformation_function.transform
+            base_derivs = (
+                    (new._derivs[0],) +
                     tuple(new._transform_derivatives(new._derivs[1:], transf))
             )
+            new._derivs = tuple(np.tensordot(d, tf, axes=[-1, -1]) for d in base_derivs)
         return new
 
     def insert_atoms(self, atoms, coords, where):

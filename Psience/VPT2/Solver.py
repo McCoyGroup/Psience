@@ -11,7 +11,7 @@ from McUtils.Combinatorics import LatticePathGenerator
 from ..BasisReps import Representation, BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace
 
 from .StateFilters import PerturbationTheoryStateSpaceFilter
-from .DegeneracySpecs import DegenerateMultiStateSpace
+from .DegeneracySpecs import DegenerateMultiStateSpace, DegeneracySpec
 from .Common import *
 from .Corrections import *
 
@@ -214,7 +214,14 @@ class PerturbationTheorySolver:
         :rtype:
         """
         if self._deg_states is None:
-            self._deg_states = DegenerateMultiStateSpace.from_spec(self.degeneracy_spec, solver=self, full_basis=self.full_basis)
+            spec = self.degeneracy_spec
+            if isinstance(spec, DegeneracySpec) and spec.application_order == 'post':
+                spec = None
+            self._deg_states = DegenerateMultiStateSpace.from_spec(
+                spec,
+                solver=self,
+                full_basis=self.full_basis
+            )
         return self._deg_states
 
     @property
@@ -701,7 +708,9 @@ class PerturbationTheorySolver:
 
         return flat_space, new_spaces
 
-    def load_coupled_spaces(self, degenerate_spaces=None, spaces=None,
+    def load_coupled_spaces(self,
+                            degenerate_spaces=None,
+                            spaces=None,
                             wavefunction_terms=None,
                             property_filter=None,
                             filter_spaces=None
@@ -857,7 +866,6 @@ class PerturbationTheorySolver:
                         return False
             except TypeError:
                 return False
-
     def _could_be_rules(self, test):
         # selection rule options
         if test is None:
@@ -2082,75 +2090,75 @@ class PerturbationTheorySolver:
 
     #endregion
 
-    def _martin_test(cls, h_reps, states, threshold, total_coupled_space):
-        """
-        Applies the Martin Test to a set of states and perturbations to determine which resonances need to be
-        treated variationally. Everything is done within the set of indices for the representations.
-
-        :param h_reps: The representation matrices of the perturbations we're applying.
-        :type h_reps: Iterable[np.ndarray | SparseArray]
-        :param states: The indices of the states to which we're going apply to the Martin test.
-        :type states: np.ndarray
-        :param threshold: The threshold for what should be treated variationally (in the same energy units as the Hamiltonians)
-        :type threshold: float
-        :return: Pairs of coupled states
-        :rtype: tuple[BasisStateSpace, BasisStateSpace]
-        """
-
-        raise NotImplementedError("This is fucked up :weep:; need to do full non-degenerate calc per pair of states")
-
-        H0 = h_reps[0]
-        H1 = h_reps[1]
-        energies = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
-
-        # the 'states' should already be indices within the space over which we do the H1 calculation
-        # basically whichever states we need to treat as degenerate for
-        state_energies = energies[states]
-        diffs = state_energies[:, np.newaxis] - energies[np.newaxis, :]
-        for n, s in enumerate(states):
-            diffs[n, s] = 1
-
-        deg_states = []
-        for s in states:
-            # pull the blocks out of H1 that correspond to each the `states` we fed in...
-            H1_block = H1[s, :]
-            if isinstance(H1_block, SparseArray):
-                nzvals = H1_block.block_vals
-                nzinds, _ = H1_block.block_inds
-                H1_block = nzvals
-                diffs = energies[s] - energies[nzinds]  # do I need an abs ?
-            else:
-                # compute the energy differences
-                diffs = energies[s] - energies  # do I need an abs ?
-                nzinds = np.arange(len(energies))
-
-            s_pos = np.where(nzinds == s)[0]
-            H1_block[s_pos] = 0
-            diffs[s_pos] = 1
-
-            anh_eff = (np.abs(H1_block) ** 4) / (diffs ** 3)
-            big = np.where(np.abs(anh_eff) > threshold)[0]
-            if len(big) > 0:
-                deg_states.extend((s, nzinds[d]) for d in big)
-
-        if len(deg_states) == 0:
-            return None
-        else:
-            new_degs = np.array(deg_states).T
-
-            # raise Exception(new_degs)
-
-            # we now have indices inside the space of coupled states...
-            # so now we need to broadcast these back into their indices in the overall basis of states
-            tc_inds = total_coupled_space.indices
-            basis = total_coupled_space.basis
-
-            degs = (
-                BasisStateSpace(basis, tc_inds[new_degs[0]], mode='indices'),
-                BasisStateSpace(basis, tc_inds[new_degs[1]], mode='indices')
-            )
-
-            return degs
+    # def _martin_test(cls, h_reps, states, threshold, total_coupled_space):
+    #     """
+    #     Applies the Martin Test to a set of states and perturbations to determine which resonances need to be
+    #     treated variationally. Everything is done within the set of indices for the representations.
+    #
+    #     :param h_reps: The representation matrices of the perturbations we're applying.
+    #     :type h_reps: Iterable[np.ndarray | SparseArray]
+    #     :param states: The indices of the states to which we're going apply to the Martin test.
+    #     :type states: np.ndarray
+    #     :param threshold: The threshold for what should be treated variationally (in the same energy units as the Hamiltonians)
+    #     :type threshold: float
+    #     :return: Pairs of coupled states
+    #     :rtype: tuple[BasisStateSpace, BasisStateSpace]
+    #     """
+    #
+    #     raise NotImplementedError("This is fucked up :weep:; need to do full non-degenerate calc per pair of states")
+    #
+    #     H0 = h_reps[0]
+    #     H1 = h_reps[1]
+    #     energies = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
+    #
+    #     # the 'states' should already be indices within the space over which we do the H1 calculation
+    #     # basically whichever states we need to treat as degenerate for
+    #     state_energies = energies[states]
+    #     diffs = state_energies[:, np.newaxis] - energies[np.newaxis, :]
+    #     for n, s in enumerate(states):
+    #         diffs[n, s] = 1
+    #
+    #     deg_states = []
+    #     for s in states:
+    #         # pull the blocks out of H1 that correspond to each the `states` we fed in...
+    #         H1_block = H1[s, :]
+    #         if isinstance(H1_block, SparseArray):
+    #             nzvals = H1_block.block_vals
+    #             nzinds, _ = H1_block.block_inds
+    #             H1_block = nzvals
+    #             diffs = energies[s] - energies[nzinds]  # do I need an abs ?
+    #         else:
+    #             # compute the energy differences
+    #             diffs = energies[s] - energies  # do I need an abs ?
+    #             nzinds = np.arange(len(energies))
+    #
+    #         s_pos = np.where(nzinds == s)[0]
+    #         H1_block[s_pos] = 0
+    #         diffs[s_pos] = 1
+    #
+    #         anh_eff = (np.abs(H1_block) ** 4) / (diffs ** 3)
+    #         big = np.where(np.abs(anh_eff) > threshold)[0]
+    #         if len(big) > 0:
+    #             deg_states.extend((s, nzinds[d]) for d in big)
+    #
+    #     if len(deg_states) == 0:
+    #         return None
+    #     else:
+    #         new_degs = np.array(deg_states).T
+    #
+    #         # raise Exception(new_degs)
+    #
+    #         # we now have indices inside the space of coupled states...
+    #         # so now we need to broadcast these back into their indices in the overall basis of states
+    #         tc_inds = total_coupled_space.indices
+    #         basis = total_coupled_space.basis
+    #
+    #         degs = (
+    #             BasisStateSpace(basis, tc_inds[new_degs[0]], mode='indices'),
+    #             BasisStateSpace(basis, tc_inds[new_degs[1]], mode='indices')
+    #         )
+    #
+    #         return degs
 
     # def _prep_degeneracies_spec(self, degeneracies):
     #     if (

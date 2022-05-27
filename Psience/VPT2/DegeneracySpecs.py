@@ -3,7 +3,7 @@
 import numpy as np, enum, abc, scipy.sparse as sp
 from McUtils.Combinatorics import SymmetricGroupGenerator, PermutationRelationGraph
 import McUtils.Numputils as nput
-from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, BraKetSpace
+from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
 
 __all__ = [
     "DegeneracySpec",
@@ -14,11 +14,12 @@ __reload_hook__ = ["..BasisReps"]
 
 class DegenerateSpaceInputFormat(enum.Enum):
     Groups = "groups"
-    QuantaSpecRules = "n_T"
+    QuantaSpecRules = "nT"
     Polyads = "polyads"
-    StrongCouplings = "strong_couplings"
+    StrongCouplings = "couplings"
     EnergyCutoff = "energy_cutoff"
     Callable = "callable"
+    MartinTest = "martin_threshold"
 
 class DegeneracySpec(metaclass=abc.ABCMeta):
     """
@@ -27,6 +28,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
     """
 
     format = None
+    application_order = 'pre'
     @classmethod
     def get_format_mapping(cls):
         return {
@@ -36,6 +38,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
             DegenerateSpaceInputFormat.StrongCouplings: StronglyCoupledDegeneracySpec,
             DegenerateSpaceInputFormat.EnergyCutoff: EnergyCutoffDegeneracySpec,
             DegenerateSpaceInputFormat.Callable: CallableDegeneracySpec,
+            DegenerateSpaceInputFormat.MartinTest: MartinTestDegeneracySpec,
         }
 
     @classmethod
@@ -76,14 +79,15 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         if fmt is not None:
             return spec, fmt
 
-        for key,fmt in [
-            ['states', DegenerateSpaceInputFormat.Groups],
-            ['nT', DegenerateSpaceInputFormat.QuantaSpecRules],
-            ['energy', DegenerateSpaceInputFormat.EnergyCutoff],
-            ['polyads', DegenerateSpaceInputFormat.Polyads],
-            ['couplings', DegenerateSpaceInputFormat.StrongCouplings],
-            ['callable', DegenerateSpaceInputFormat.Callable]
-        ]:
+        for fmt in DegenerateSpaceInputFormat:
+            key = fmt.value
+        #     ['states', DegenerateSpaceInputFormat.Groups],
+        #     ['nT', DegenerateSpaceInputFormat.QuantaSpecRules],
+        #     ['energy_cutoff', DegenerateSpaceInputFormat.EnergyCutoff],
+        #     ['polyads', DegenerateSpaceInputFormat.Polyads],
+        #     ['couplings', DegenerateSpaceInputFormat.StrongCouplings],
+        #     ['callable', DegenerateSpaceInputFormat.Callable]
+        # ]:
             val = cls._key(spec, key)
             if val is not None:
                 opts = cls._key(spec, 'options')
@@ -116,49 +120,6 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def canonicalize(cls, spec):
         raise NotImplementedError("abstract interface")
-
-class TotalQuantaDegeneracySpec(DegeneracySpec):
-    """
-
-    """
-
-    format = DegenerateSpaceInputFormat.QuantaSpecRules
-    def __init__(self, n_T_vector):
-        self.n_T = n_T_vector
-
-    def get_groups(self, input_states, solver=None):
-        return self._group_states_by_nt_spec(input_states, self.n_T)
-    @classmethod
-    def canonicalize(cls, n_T_vector):
-        try:
-            test_el = n_T_vector[0]
-        except TypeError:
-            test_el = None
-        if isinstance(test_el, (int, np.integer)):
-            return np.asanyarray(n_T_vector)
-        else:
-            return None
-
-    @classmethod
-    def _group_states_by_nt_spec(cls, states, q_vec):
-        """
-        :type H: Iterable[SparseArray]
-        :type states: BasisStateSpace
-        :type total_state_space: BasisMultiStateSpace
-        :type cutoff: Iterable[int]
-        :rtype: Iterable[BasisStateSpace]
-        """
-        # we build the total N_t to compare against once...
-        tot_n_t = np.dot(states.excitations, q_vec)
-        degenerate_groups = {}
-        # then we look through the input states
-        for vec in states.excitations:
-            # base n_t
-            n_t = np.dot(q_vec, vec)
-            if n_t not in degenerate_groups:
-                degenerate_groups[n_t] = np.where(tot_n_t == n_t)[0]
-        degenerate_groups = [states.take_subspace(np.array(d)) for d in degenerate_groups.values()]
-        return degenerate_groups
 
 class EnergyCutoffDegeneracySpec(DegeneracySpec):
     """
@@ -203,6 +164,39 @@ class EnergyCutoffDegeneracySpec(DegeneracySpec):
         # raise Exception(degenerate_groups)
         degenerate_groups = [states.take_subspace(np.array(list(d), dtype=int)) for d in degenerate_groups]
         return degenerate_groups
+
+class MartinTestDegeneracySpec(DegeneracySpec):
+    application_order = 'post'
+    def __init__(self, threshold=4.5e-5, energy_cutoff=4.5e-3, convert=True, frequencies=None):
+        if convert and threshold > 1e-2:
+            threshold = threshold / 219465 # only need a rough conversion...
+        self.threshold = threshold
+        self.frequencies = frequencies
+        self.energy_cutoff = energy_cutoff
+        self._test_groups = None
+    def prep_states(self, states:BasisStateSpace):
+        state_list = states.excitations
+        zo_engs = np.dot(state_list, self.frequencies)
+        extended_states = states.basis.operator('x', 'x', 'x').get_transformed_space(states).to_single()
+        extended_states = extended_states.difference(states)
+        full_engs = np.dot(extended_states.excitations, self.frequencies)
+        eng_diffs = zo_engs[:, np.newaxis] - full_engs[np.newaxis, :]
+        self._test_groups = pos = np.where(eng_diffs < self.energy_cutoff)
+        new = states
+        if len(pos) > 0:
+            if len(pos[1]) > 0:
+                new = states.union(extended_states.take_subspace(np.unique(pos)))
+        return new
+    # @classmethod
+    def get_groups(self, input_states, solver=None):
+        if self._test_groups is None:
+            self.prep_states(input_states)
+        if solver is None:
+            raise ValueError("need a solver with fully evaluated perturbations first...")
+
+    @classmethod
+    def canonicalize(cls, spec):
+        return isinstance(spec.threshold, float)
 
 class GroupsDegeneracySpec(DegeneracySpec):
     """
@@ -285,6 +279,8 @@ class PolyadDegeneracySpec(DegeneracySpec):
         :return:
         :rtype:
         """
+        if isinstance(input_states, BasisStateSpace):
+            input_states = input_states.excitations
         return self.get_degenerate_polyad_space(
             input_states,
             self.polyads,
@@ -333,6 +329,64 @@ class PolyadDegeneracySpec(DegeneracySpec):
             )
         except TypeError:
             return False
+
+
+class TotalQuantaDegeneracySpec(PolyadDegeneracySpec):
+    """
+
+    """
+
+    format = DegenerateSpaceInputFormat.QuantaSpecRules
+    def __init__(self, n_T_vectors, max_quanta=3):
+        self.max_quanta = max_quanta
+        self.nt_vecs = [n_T_vectors] if isinstance(n_T_vectors[0], int) else n_T_vectors
+        rules = sum((self.make_nt_polyad(v, max_quanta=max_quanta) for v in self.nt_vecs), [])
+        # raise Exception(rules)
+        super().__init__(rules)
+
+    @classmethod
+    def reduce_rule(cls, a, b):
+        a = a.copy()
+        b = b.copy()
+
+        m1 = np.min(a[a>0])
+        m2 = np.min(b[b>0])
+        if m2 > m1:
+            m1, m2 = m2, m1
+        if m1 % m2 == 0:
+            a = a//m2
+            b = b//m2
+        reduce_pos = np.where(np.logical_and(a > 0, b > 0))
+        if len(reduce_pos) > 0:
+            reduce_pos = reduce_pos[0]
+            if len(reduce_pos) > 0:
+                pairs = np.concatenate([a[reduce_pos][:, np.newaxis], b[reduce_pos][:, np.newaxis]], axis=1)
+                min_vals = np.min(pairs, axis=1)
+                a[reduce_pos] = a[reduce_pos] - min_vals
+                b[reduce_pos] = b[reduce_pos] - min_vals
+        return a,b
+
+    @classmethod
+    def make_nt_polyad(cls, nt, max_quanta=3):  # this should be of the form num of quanta give same E
+        # we want to choose different subsets of the nT vector to construct rules
+        # we'll do this in a kinda dumb way where we force a max number of quanta for these polyad
+        # rules and explicitly test states of a given form
+        states = BasisStateSpace.from_quanta(
+            HarmonicOscillatorProductBasis(len(nt)),
+            list(range(1, max_quanta+1))
+        ).excitations
+
+        nts = np.dot(states, nt)
+        (keys, groups), _ = nput.group_by(states, nts)
+        rules = set()
+
+        for k,g in zip(keys, groups):
+            if k > 0:
+                for n,i in enumerate(g):
+                    for j in g[n+1:]:
+                        a, b = cls.reduce_rule(i, j)
+                        rules.add((tuple(a), tuple(b)))
+        return list(rules)
 
 class StronglyCoupledDegeneracySpec(DegeneracySpec):
     """

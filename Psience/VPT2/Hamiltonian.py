@@ -861,7 +861,7 @@ class PerturbationTheoryHamiltonian:
         if "default" in expansion_order:
             default = expansion_order["default"]
         else:
-            default = expansion_order
+            default = expansion_order if isinstance(expansion_order, int) else order
         if "kinetic" in expansion_order:
             ke_default = expansion_order["kinetic"]
         else:
