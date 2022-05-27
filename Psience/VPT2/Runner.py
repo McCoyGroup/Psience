@@ -1504,8 +1504,10 @@ class AnneInputHelpers:
             if isinstance(expansion_order, dict):
                 if 'potential' not in expansion_order:
                     expansion_order['potential'] = len(potential_terms) - 1
+                if 'kinetic' not in expansion_order:
+                    expansion_order['kinetic'] = 2
                 if dipole_terms is not None and 'dipole' not in expansion_order:
-                    expansion_order['dipole'] = len(potential_terms) - 2
+                    expansion_order['dipole'] = len(dipole_terms) - 2
             # raise Exception([a.shape for a in dipole_terms])
 
             res = runner(
