@@ -1328,11 +1328,26 @@ class AnneInputHelpers:
         return F, G
 
     @classmethod
-    def renormalize_modes(cls, freqs, modes, inv, sorting=None):
-        F, G = cls.get_internal_FG(freqs, modes, inv, sorting=sorting)
-        freq, modes = scipy.linalg.eigh(F, G, type=2)
-        modes = modes * np.sqrt(freqs)[np.newaxis, :]
-        return np.sqrt(freq), modes, np.linalg.inv(modes)
+    def renormalize_modes(cls, freqs, modes, inv, sorting=None, type=2):
+        if type == 0:
+            modes = modes[sorting, :]
+            inv = inv[:, sorting]
+            modes, inv = inv.T, modes.T
+            freq = freqs
+            # modes = modes / freqs[np.newaxis, :]
+            # inv = inv * freqs[:, np.newaxis]
+        else:
+            F, G = cls.get_internal_FG(freqs, modes, inv, sorting=sorting)
+            if type==1:
+                G = np.linalg.inv(G)
+            freq, modes = scipy.linalg.eigh(F, G, type=type)
+            if type == 2:
+                modes = modes * np.sqrt(freqs)[np.newaxis, :]
+                inv = np.linalg.inv(modes)
+            else:
+                inv = (modes.T / np.sqrt(freqs)[:, np.newaxis])
+                modes = np.linalg.inv(inv)
+        return np.sqrt(freq), modes, inv
 
     @classmethod
     def rerotate_force_field(cls, old_inv, new_modes, old_field, dim_skips=0, sorting=None):
@@ -1354,20 +1369,15 @@ class AnneInputHelpers:
         return new_field, mid_field
 
     @classmethod
-    def reexpress_normal_modes(cls, base_modes, old_field, dipole, sorting=None):
-        freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting)
+    def reexpress_normal_modes(cls, base_modes, old_field, dipole, sorting=None, type=2):
+        freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting, type=type)
         # print(freq, matrix, inv)
         # freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting)
         potential_terms = cls.rerotate_force_field(
             base_modes[1],
-            matrix.T,#/np.sqrt(freq)[np.newaxis, :],  # we divide by the sqrt of the frequencies to get the units to work
+            matrix.T,
             old_field,
             sorting=sorting
-            # [
-            #     np.diag(freq),  # in the file I was given the frequencies were in Hartree
-            #     cubics * helpers.convert("Wavenumbers", "Hartrees"),
-            #     quartics * helpers.convert("Wavenumbers", "Hartrees")
-            # ]
         )[0]
         if dipole is not None:
             # print(dipole[0].shape, base_modes[1].shape, matrix.shape)
@@ -1412,6 +1422,7 @@ class AnneInputHelpers:
                      potential_files=('cub.dat', 'quart.dat'),
                      dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat"),
                      energy_units=None,
+                     type=0,
                      **opts
                      ):
         from .Analyzer import VPTAnalyzer
@@ -1458,13 +1469,16 @@ class AnneInputHelpers:
             else:
                 dipole_terms = None
             # raise Exception(sorting)
-
             (freq, matrix, inv), potential_terms, dipole_terms = cls.reexpress_normal_modes(
                 (base_freqs, base_mat, base_inv),
                 [np.diag(base_freqs)] + potential,
                 dipole_terms,
-                sorting=sorting
+                sorting=sorting,
+                type=type
             )
+            # if type == 0:
+            #     # (freq, matrix, inv) = (base_freqs, base_mat, base_inv)
+            #     potential_terms = [np.diag(base_freqs)] + potential
             # if dipole_terms is not None:
             #     dipole_terms = [
             #         [0] + [d[a] for d in dipole_terms]

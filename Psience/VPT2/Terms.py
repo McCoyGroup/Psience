@@ -1851,20 +1851,21 @@ class PotentialTerms(ExpansionTerms):
                             self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
                             or self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Unhandled
                     ):
-                        r = range(i, v4.shape[0])
-                        v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[r, r, i, i] = v4[i, i, r, r]
+                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
                     elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
                         r = range(i, v4.shape[0])
-                        v4[i, i, r, r] = v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[r, r, i, i]
+                        v4[i, i, r, r] = v4[r, r, i, i]
+                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
                     elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
                         r = range(i, v4.shape[0])
-                        v4[i, i, r, r] = v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[r, r, i, i] = np.average(
+                        v4[i, i, r, r] = np.average(
                             [
                                 v4[r, r, i, i],
                                 v4[i, i, r, r]
                                 ],
                             axis=0
                         )
+                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
                     else:
                         raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(self.mixed_derivative_handling_mode))
 
