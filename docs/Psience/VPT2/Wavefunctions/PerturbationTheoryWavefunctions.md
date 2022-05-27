@@ -259,7 +259,7 @@ Computes the oscillator strengths for transitions from the ground state to the o
 oscillator_strengths_to_order(self, order): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L812)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L812?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L820)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L820?message=Update%20Docs)]
 </div>
 
 
@@ -273,7 +273,7 @@ oscillator_strengths_to_order(self, order):
 deperturbed_oscillator_strengths_to_order(self, order): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L826)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L826?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L834)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L834?message=Update%20Docs)]
 </div>
 
 
@@ -313,7 +313,7 @@ Computes the intensities for transitions from the ground state to the other stat
 intensities_to_order(self, order): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L874)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L874?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L882)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L882?message=Update%20Docs)]
 </div>
 
 Computes the intensities for transitions from the ground state to the other states
@@ -325,7 +325,7 @@ Computes the intensities for transitions from the ground state to the other stat
 deperturbed_intensities_to_order(self, order): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L883)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L883?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L891)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L891?message=Update%20Docs)]
 </div>
 
 Computes the intensities for transitions from the ground state to the other states
@@ -350,7 +350,7 @@ Computes the harmonic intensities for transitions from the ground state to the o
 generate_intensity_breakdown(self, include_wavefunctions=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L931)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L931?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L939)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L939?message=Update%20Docs)]
 </div>
 
 Generates a breakdown of the terms that contribute to the intensity
@@ -363,7 +363,7 @@ Generates a breakdown of the terms that contribute to the intensity
 write_CSV_breakdown(file, intensity_breakdown, padding=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1016)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1016?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1024)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1024?message=Update%20Docs)]
 </div>
 
 Writes an intensity breakdown to a CSV by annoyingly flattening all the arrays
@@ -379,7 +379,7 @@ Writes an intensity breakdown to a CSV by annoyingly flattening all the arrays
 format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1142)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1142?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1150)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1150?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_deperturbed_energies_table" class="docs-object-method">&nbsp;</a> 
@@ -387,7 +387,7 @@ format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5
 format_deperturbed_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1167)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1167?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1175)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1175?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_property_matrices" class="docs-object-method">&nbsp;</a> 
@@ -395,7 +395,7 @@ format_deperturbed_energies_table(self, states=None, zpe=None, freqs=None, real_
 format_property_matrices(self, states, prop_corrs, real_fmt='{:>.8e}', padding_fmt='{:>16}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1192)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1192?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1200)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1200?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_dipole_contribs_tables" class="docs-object-method">&nbsp;</a> 
@@ -403,7 +403,7 @@ format_property_matrices(self, states, prop_corrs, real_fmt='{:>.8e}', padding_f
 format_dipole_contribs_tables(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1231)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1231?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1239)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1239?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_deperturbed_dipole_contribs_tables" class="docs-object-method">&nbsp;</a> 
@@ -411,7 +411,7 @@ format_dipole_contribs_tables(self):
 format_deperturbed_dipole_contribs_tables(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1242)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1242?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1250)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1250?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_energy_corrections_table" class="docs-object-method">&nbsp;</a> 
@@ -419,7 +419,7 @@ format_deperturbed_dipole_contribs_tables(self):
 format_energy_corrections_table(self, real_fmt='{:>12.5f}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1253)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1253?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1261)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1261?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_intensities_table" class="docs-object-method">&nbsp;</a> 
@@ -427,7 +427,7 @@ format_energy_corrections_table(self, real_fmt='{:>12.5f}'):
 format_intensities_table(self, real_fmt='{:>12.5f}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1316)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1316?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1324)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1324?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_deperturbed_intensities_table" class="docs-object-method">&nbsp;</a> 
@@ -435,7 +435,7 @@ format_intensities_table(self, real_fmt='{:>12.5f}'):
 format_deperturbed_intensities_table(self, real_fmt='{:>12.5f}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1331)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1331?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L1339)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L1339?message=Update%20Docs)]
 </div>
 
  </div>
