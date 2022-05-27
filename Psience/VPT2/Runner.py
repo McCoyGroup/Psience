@@ -171,6 +171,7 @@ class VPTStateSpace:
                 HarmonicOscillatorProductBasis(len(states[0])),
                 states
             )
+        basis = states.basis
         self.state_list = states.excitations.tolist()
         self.degenerate_states = self.build_degenerate_state_spaces(degeneracy_specs, states, system=system)
         if self.degenerate_states is not None:
@@ -182,6 +183,7 @@ class VPTStateSpace:
                 for state in new_states:
                     if state not in states:
                         states.append(state)
+                self.states = BasisStateSpace(basis, states)
                 self.state_list = states
             else:
                 self.degenerate_states = [np.array(x).tolist() for x in self.degenerate_states]

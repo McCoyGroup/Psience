@@ -1290,6 +1290,18 @@ class PerturbationTheorySolver:
         logger = self.logger
 
         degenerate_states = self.degenerate_spaces
+        if isinstance(self.degeneracy_spec, DegeneracySpec):
+            if self.degeneracy_spec.group_filter is not None:
+                group_filter = self.get_degenerate_group_filter(group_filter=self.degeneracy_spec.group_filter)
+            else:
+                group_filter = None
+            degenerate_states = DegenerateMultiStateSpace.from_spec(
+                self.degeneracy_spec,
+                solver=self,
+                full_basis=self.full_basis,
+                group_filter=group_filter
+            )#self.degeneracy_spec.get_groups(states, solver=self)
+
         if handle_strong_couplings is None:
             handle_strong_couplings = self.handle_strong_couplings
         # degenerate_states = None,
@@ -1351,21 +1363,17 @@ class PerturbationTheorySolver:
         sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold, state_filter=state_filter)
         return sc, degenerate_correction_threshold
 
-    def construct_strong_coupling_spaces(self, sc, corrs, states, threshold):
-        sc = corrs.collapse_strong_couplings(sc)
-        with self.logger.block(tag='unpruned spaces states', log_level=self.logger.LogLevel.Never):
-            for s in sc.values():
-                self.logger.log_print(
-                    s,
-                    message_prepper=lambda a: str(a.excitations).splitlines(),
-                    log_level=self.logger.LogLevel.Never
-                )
-        group_filter = self.strongly_coupled_group_filter
-        zero_order_energy_cutoff = self.strong_coupling_zero_order_energy_cutoff
-        test_modes = self.strong_coupling_test_modes
-        if test_modes is None:
-            test_modes = self.high_frequency_modes
+    def get_degenerate_group_filter(self, corrs=None, threshold=None, group_filter=None):
         if group_filter is None:
+            group_filter = self.strongly_coupled_group_filter
+        elif isinstance(group_filter, str) and group_filter == 'default':
+            group_filter = None
+        if group_filter is None:
+
+            zero_order_energy_cutoff = self.strong_coupling_zero_order_energy_cutoff
+            test_modes = self.strong_coupling_test_modes
+            if test_modes is None:
+                test_modes = self.high_frequency_modes
             group_filter = lambda group: DegenerateMultiStateSpace.default_group_filter(group,
                                                                                         corrections=corrs,
                                                                                         energy_cutoff=zero_order_energy_cutoff,
@@ -1375,6 +1383,18 @@ class PerturbationTheorySolver:
                                                                                         )
         elif isinstance(group_filter, str) and group_filter == 'unfiltered':
             group_filter = None
+        return group_filter
+
+    def construct_strong_coupling_spaces(self, sc, corrs, states, threshold):
+        sc = corrs.collapse_strong_couplings(sc)
+        with self.logger.block(tag='unpruned spaces states', log_level=self.logger.LogLevel.Never):
+            for s in sc.values():
+                self.logger.log_print(
+                    s,
+                    message_prepper=lambda a: str(a.excitations).splitlines(),
+                    log_level=self.logger.LogLevel.Never
+                )
+        group_filter = self.get_degenerate_group_filter()
         degenerate_states = DegenerateMultiStateSpace.from_spec(
             {'couplings': sc},
             solver=self,
