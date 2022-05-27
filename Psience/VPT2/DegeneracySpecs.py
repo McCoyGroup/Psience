@@ -3,7 +3,7 @@
 import numpy as np, enum, abc, scipy.sparse as sp
 from McUtils.Combinatorics import SymmetricGroupGenerator, PermutationRelationGraph
 import McUtils.Numputils as nput
-from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
+from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
 
 __all__ = [
     "DegeneracySpec",
@@ -29,6 +29,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
 
     format = None
     application_order = 'pre'
+    group_filter = None
     @classmethod
     def get_format_mapping(cls):
         return {
@@ -167,7 +168,8 @@ class EnergyCutoffDegeneracySpec(DegeneracySpec):
 
 class MartinTestDegeneracySpec(DegeneracySpec):
     application_order = 'post'
-    def __init__(self, threshold=4.5e-5, energy_cutoff=4.5e-3, convert=True, frequencies=None):
+    group_filter = 'default'
+    def __init__(self, threshold=4.6e-6, energy_cutoff=4.5e-3, convert=True, frequencies=None):
         if convert and threshold > 1e-2:
             threshold = threshold / 219465 # only need a rough conversion...
         self.threshold = threshold
@@ -177,22 +179,67 @@ class MartinTestDegeneracySpec(DegeneracySpec):
     def prep_states(self, states:BasisStateSpace):
         state_list = states.excitations
         zo_engs = np.dot(state_list, self.frequencies)
-        extended_states = states.basis.operator('x', 'x', 'x').get_transformed_space(states).to_single()
-        extended_states = extended_states.difference(states)
-        full_engs = np.dot(extended_states.excitations, self.frequencies)
-        eng_diffs = zo_engs[:, np.newaxis] - full_engs[np.newaxis, :]
-        self._test_groups = pos = np.where(eng_diffs < self.energy_cutoff)
-        new = states
-        if len(pos) > 0:
-            if len(pos[1]) > 0:
-                new = states.union(extended_states.take_subspace(np.unique(pos)))
+        extended_states = states.basis.operator('x', 'x', 'x').get_transformed_space(states)
+        key_inds = []
+        exc_groups = []
+        for i, (s, e0, exc) in enumerate(zip(state_list, zo_engs, extended_states)):
+            e1 = np.dot(exc.excitations, self.frequencies)
+            eng_diffs = e1 - e0
+            pos = np.where(np.abs(eng_diffs < self.energy_cutoff))
+            if len(pos) > 0 and len(pos[0]) > 0:
+                key_inds.append(i)
+                exc_groups.append(exc.take_subspace(pos[0]))
+        if len(key_inds) > 0:
+            self._test_groups = SelectionRuleStateSpace(
+                states.take_subspace(key_inds),
+                exc_groups
+            )
+            new = states.union(self._test_groups.to_single().take_unique())
+        else:
+            new = states
+            self._test_groups = []
         return new
-    # @classmethod
-    def get_groups(self, input_states, solver=None):
+    def get_coupled_spaces(self, input_states:BasisStateSpace, solver=None):
+        # raise NotImplementedError("...")
         if self._test_groups is None:
             self.prep_states(input_states)
+        elif len(self._test_groups) == 0:
+            return []
         if solver is None:
             raise ValueError("need a solver with fully evaluated perturbations first...")
+        total_basis = solver.flat_total_space
+        engs = solver.zero_order_energies
+        h1 = solver.representations[1]
+        groups = self._test_groups #type:SelectionRuleStateSpace
+        keys = groups.representative_space
+        key_inds = total_basis.find(keys)
+        spaces = []
+        for i, (k, subspace) in enumerate(zip(key_inds, groups.flat)):
+            p = total_basis.find(subspace)
+            e_diffs = np.abs(engs[p] - engs[k])
+            repr_elems = h1[k, p].asarray()
+            # diffs = subspace.excitations - keys.excitations[np.newaxis, k]
+            # diff_sums = np.sum(np.abs(diffs), axis=1)
+            # raise Exception(diffs, keys.excitations[np.newaxis, k], subspace.excitations)
+            # weights = 1
+            test_val = (repr_elems**4)/(e_diffs**3)
+            pos = np.where(test_val > self.threshold)
+            if len(pos) > 0 and len(pos[0]) > 0:
+                # print(pos[0], subspace.excitations)
+                new = np.concatenate([
+                        keys.excitations[i:i+1],
+                        subspace.excitations[pos[0],]#.take_subspace(pos[0]).excitations
+                    ], axis=0)
+                # print(keys.excitations[i:i+1], new)
+                spaces.append(new)
+        # raise Exception("...")
+        return spaces
+    # @classmethod
+    def get_groups(self, input_states:BasisStateSpace, solver=None):
+        groups = self.get_coupled_spaces(input_states, solver=solver)
+        indexer = SymmetricGroupGenerator(input_states.ndim)
+        groups = PermutationRelationGraph.merge_groups([(indexer.to_indices(g), g) for g in groups])
+        return [g[1] for g in groups]
 
     @classmethod
     def canonicalize(cls, spec):
@@ -472,10 +519,9 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         :return:
         :rtype:
         """
+
         if len(group) < 2:
             return group
-
-        # print(">>>", group.excitations)
 
         if target_modes is not None:
             sub = group.take_subdimensions(target_modes)
@@ -513,7 +559,6 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         diff_sums = np.sum(np.abs(diffs), axis=2)  # (s, s)
         tots_sums = np.sum(np.abs(tots), axis=2)  # (s, s)
         elims = []
-
         if threshold is not None and corr_mat is not None:
             if energy_cutoff is None:
                 bad_pos = np.where(np.logical_and(
@@ -568,63 +613,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                             else:
                                 groups = _
 
-                    # print(np.array([
-                    #     group.take_subspace(bad_pos[0]).excitations,
-                    #     group.take_subspace(bad_pos[1]).excitations
-                    # ]).transpose(1, 0, 2))
-                    # print(bad_pairs[A[bad_pos] > 0])
-                    # print(A)
-                    # print("__"*100)
-
-                # # Attempt to fix bad pos by pruning
-                # A = corr_mat
-                # for i in range(len(corr_mat)):
-                #     B = (np.dot(corr_mat, A) > 0).astype(int)
-                #     now_bad = B[bad_pos] > 0
-                #     for (pi, pj) in bad_pairs[now_bad]:
-                #         kill_pos = A[pj] > 0
-                #         corr_mat[pi][kill_pos] = 0
-                #         corr_mat[:, pi][kill_pos] = 0
-                #     A = (np.dot(corr_mat, A) > 0).astype(int)
-                # A = (np.linalg.matrix_power(corr_mat, len(corr_mat)) > 0).astype(int)
-                # print(A)
-
                 group = [group.take_subspace(g) for g in groups if len(g) > 1]
-                # for n,l in enumerate(A):
-                #     pos = np.where(l > 0)
-                #     if len(pos) > 0:
-                #         pos = set(pos[0])
-                #         pos.add(n)
-                #     for g in groups:
-                #         if len(pos.intersection(g)) > 0:
-                #             g.update(pos)
-                #             print("!", group.take_subspace(list(g)).excitations)
-                #             break
-                #     else:
-                #         if len(pos) > 1:
-                #             print("!", group.take_subspace(list(pos)).excitations)
-                #         groups.append(pos)
-                #
-                # group = [group.take_subspace(list(g)) for g in groups if len(g) > 1]
-
-                # for g in group:
-                #     print(">", g.excitations)
-                # raise Exception("...")
-                #
-                #
-                # raise Exception([group.take_subspace(list(g)).excitations for g in groups])
-                #
-                # print("__" * 100)
-                # print(A)
-                # raise Exception(A[bad_pos] > 0)
-
-                # A = corr_mat
-                # for i in range(len(corr_mat)):
-                #     A = (np.dot(corr_mat, A) > 0).astype(int)
-                # print("__" * 100)
-                # print(A)
-
-                # raise Exception((A>0).astype(int))
 
         else:
             for n in np.arange(len(exc)):
@@ -640,26 +629,6 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             if len(elims) > 0:
                 mask = np.setdiff1d(np.arange(len(exc)), elims)
                 group = group.take_subspace(mask)
-            # raise Exception(group.excitations, gs)  # , np.array(bad_pos).T)
-
-            # if len(bad_pos) > 0 and len(bad_pos[0]) > 0:
-            #     kills = np.unique(bad_pos[1][bad_pos[1] > bad_pos[0]]) # upper triangle
-            #     # prek = kills
-            #     kills = sorting[kills] # OG indices
-            #     # raise Exception(prek, kills, exc[prek], group.excitations[kills])
-            #
-            #     # now drop all of these from the total space
-            #     mask = np.setdiff1d(np.arange(len(exc)), kills)
-            #     print(">>>", group.excitations)
-            #     group = group.take_subspace(mask)
-            #     print("> ", bad_pos)
-            #     print("> ", group.excitations)
-
-        # if isinstance(group, BasisStateSpace):
-        #     group
-        # if isinstance(group, list):
-        #     print(group)
-        # print("<  ", group.excitations)
 
         return group
 
