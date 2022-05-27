@@ -614,6 +614,9 @@ class PerturbationTheoryCorrections:
             new[k] = s
         return new
 
+    # def apply_martin_test(self, hams):
+    #     zoos =
+    #     (np.abs(H1_block) ** 4) / (diffs ** 3)
 
     @staticmethod
     def _fmt_operator_rep(full_ops, operator_symbol, conversion, real_fmt="{:>.8e}", padding_fmt='{:>16}'):

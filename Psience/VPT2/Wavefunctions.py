@@ -415,11 +415,19 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         """
 
         if order is None:
-            order = (
-                self.order
-                if 'expansion_order' not in self.expansion_options or self.expansion_options['expansion_order'] is None else
-                self.expansion_options['expansion_order'] + 1
-            )
+            exp_order = None if 'expansion_order' not in self.expansion_options else self.expansion_options['expansion_order']
+            if exp_order is None:
+                exp_order = self.order
+            elif isinstance(exp_order, int):
+                exp_order = exp_order + 1
+            else:
+                if 'dipole' in exp_order:
+                    exp_order = exp_order['dipole'] + 1
+                elif 'default' in exp_order:
+                    exp_order = exp_order['default'] + 1
+                else:
+                    exp_order = self.order
+            order = exp_order
 
         logger = self.logger
         with logger.block(tag="Calculating intensities:", printoptions={'linewidth':int(1e8)}):
