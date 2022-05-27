@@ -109,10 +109,18 @@ class VPTResultsLoader:
         raise ValueError("no dispatch")
     @kinetic_terms.register("checkpoint")
     def _(self):
+        try:
+            corr = self.data["coriolis_terms"]
+        except KeyError:
+            corr = None
+        try:
+            u = self.data["pseudopotential_terms"]
+        except KeyError:
+            u = None
         return {
             "G_matrix": self.data["gmatrix_terms"],
-            "coriolis": self.data["coriolis_terms"],
-            "pseudopotential": self.data["pseudopotential_terms"]
+            "coriolis": corr,
+            "pseudopotential": u
         }
     @kinetic_terms.register("wavefunctions")
     def _(self):
