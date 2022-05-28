@@ -1423,6 +1423,7 @@ class AnneInputHelpers:
                      zmat_file='z_mat.dat',
                      potential_files=('cub.dat', 'quart.dat', 'quintic.dat', 'sextic.dat'),
                      dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat", "lin_quart.dat", 'lin_quint.dat'),
+                     order=None,
                      expansion_order=None,
                      energy_units=None,
                      type=0,
@@ -1507,7 +1508,15 @@ class AnneInputHelpers:
                 if 'kinetic' not in expansion_order:
                     expansion_order['kinetic'] = 2
                 if dipole_terms is not None and 'dipole' not in expansion_order:
-                    expansion_order['dipole'] = len(dipole_terms) - 2
+                    expansion_order['dipole'] = len(dipole_terms) - 1
+            if order is None:
+                if isinstance(expansion_order, int):
+                    if expansion_order > 2:
+                        order = expansion_order
+                    else:
+                        order = 2
+                else:
+                    order = expansion_order['potential']
             # raise Exception([a.shape for a in dipole_terms])
 
             res = runner(
@@ -1521,6 +1530,7 @@ class AnneInputHelpers:
                 potential_terms=potential_terms,
                 dipole_terms=dipole_terms,
                 internals=zmat,
+                order=order,
                 expansion_order=expansion_order,
                 **opts
             )
