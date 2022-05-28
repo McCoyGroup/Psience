@@ -1422,7 +1422,7 @@ class AnneInputHelpers:
                      coords_file='cart_ref.dat',
                      zmat_file='z_mat.dat',
                      potential_files=('cub.dat', 'quart.dat', 'quintic.dat', 'sextic.dat'),
-                     dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat", "lin_quart.dat", 'lin_quint.dat'),
+                     dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat", "quart_dip.dat", 'quintic_dip.dat'),
                      order=None,
                      expansion_order=None,
                      energy_units=None,
