@@ -21,7 +21,7 @@ def get_version():
 
 setup(
     # Self-descriptive entries which should always be present
-    name='mccoygroup-Psience',
+    name='mccoygroup-psience',
     author='Mark Boyer',
     author_email='b3m2a1@uw.edu',
     description=short_description[0],
