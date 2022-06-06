@@ -124,8 +124,11 @@ class PerturbationTheoryHamiltonian:
         self._input_coriolis = coriolis_terms
         if (
                 include_coriolis_coupling and
-                (self.molecule.internal_coordinates is None or (
-                        'backpropagate_internals' in expansion_options and expansion_options['backpropagate_internals']
+                (self.molecule.internal_coordinates is None or any(
+                    k in expansion_options and expansion_options[k] for k in [
+                        'use_cartesian_kinetic_energy',
+                        'backpropagate_internals'
+                        ]
                 ))
         ):
             self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection,

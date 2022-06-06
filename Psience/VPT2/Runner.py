@@ -414,7 +414,8 @@ class VPTHamiltonianOptions:
          "grad_tolerance",
          "freq_tolerance",
          "g_derivative_threshold",
-         "gmatrix_tolerance"
+         "gmatrix_tolerance",
+        'use_cartesian_kinetic_energy'
     )
 
     def __init__(self,
@@ -450,7 +451,8 @@ class VPTHamiltonianOptions:
                  freq_tolerance=None,
                  g_derivative_threshold=None,
                  gmatrix_tolerance=None,
-                 use_internal_modes=None
+                 use_internal_modes=None,
+                 use_cartesian_kinetic_energy=None
                  ):
         """
         :param include_coriolis_coupling: whether or not to include Coriolis coupling in Cartesian normal mode calculation
@@ -537,7 +539,8 @@ class VPTHamiltonianOptions:
             grad_tolerance=grad_tolerance,
             freq_tolerance=freq_tolerance,
             g_derivative_threshold=g_derivative_threshold,
-            gmatrix_tolerance=gmatrix_tolerance
+            gmatrix_tolerance=gmatrix_tolerance,
+            use_cartesian_kinetic_energy=use_cartesian_kinetic_energy
         )
 
         real_opts = {}
@@ -1332,12 +1335,11 @@ class AnneInputHelpers:
     @classmethod
     def renormalize_modes(cls, freqs, modes, inv, sorting=None, type=2):
         if type == 0:
-            modes = modes[sorting, :]
-            inv = inv[:, sorting]
+            if sorting is not None:
+                modes = modes[sorting, :]
+                inv = inv[:, sorting]
             modes, inv = inv.T, modes.T
             freq = freqs
-            # modes = modes / freqs[np.newaxis, :]
-            # inv = inv * freqs[:, np.newaxis]
         else:
             F, G = cls.get_internal_FG(freqs, modes, inv, sorting=sorting)
             if type==1:
@@ -1373,8 +1375,6 @@ class AnneInputHelpers:
     @classmethod
     def reexpress_normal_modes(cls, base_modes, old_field, dipole, sorting=None, type=2):
         freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting, type=type)
-        # print(freq, matrix, inv)
-        # freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting)
         potential_terms = cls.rerotate_force_field(
             base_modes[1],
             matrix.T,
