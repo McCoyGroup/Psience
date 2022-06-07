@@ -28,9 +28,9 @@ __init__(self, include_coriolis_coupling=None, include_pseudopotential=None, pot
 - `include_pseudopotential`: `bool`
     >whether or not to include the pseudopotential/Watson term
 - `potential_terms`: `Iterable[np.ndarray]`
-    >explicit values for the potential terms (e.g. from analytic models)
+    >explicit values for the potential terms (e.g. from analytic models), should be a list of tensors starting with the Hessian with each axis of length `nmodes`
 - `kinetic_terms`: `Iterable[np.ndarray]`
-    >explicit values for the kinetic terms (e.g. from analytic models)
+    >explicit values for the kinetic terms (e.g. from analytic models), same format as for the potential
 - `coriolis_terms`: `Iterable[np.ndarray]`
     >explicit values for the Coriolis terms
 - `pseudopotential_terms`: `Iterable[np.ndarray]`
