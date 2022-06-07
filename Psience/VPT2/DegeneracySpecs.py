@@ -16,8 +16,8 @@ class DegenerateSpaceInputFormat(enum.Enum):
     Groups = "groups"
     QuantaSpecRules = "nT"
     Polyads = "polyads"
-    StrongCouplings = "couplings"
-    EnergyCutoff = "energy_cutoff"
+    StrongCouplings = "wfc_threshold"
+    EnergyCutoff = "energy_window"
     Callable = "callable"
     MartinTest = "martin_threshold"
 
@@ -27,9 +27,39 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
     in a way that can be cleanly canonicalized
     """
 
-    format = None
     application_order = 'pre'
     group_filter = None
+    def __init__(self, application_order=None, group_filter=None, energy_cutoff=4.5e-3, test_modes=None):
+        if application_order is None:
+            application_order = self.application_order
+        self.application_order = application_order
+        self.energy_cutoff = energy_cutoff
+        if group_filter is None:
+            group_filter = self.group_filter
+        self.group_filter = group_filter
+        self.test_modes = test_modes
+
+    def get_degenerate_group_filter(self, solver, corrs=None, threshold=None):
+        group_filter = self.group_filter
+        if isinstance(group_filter, str) and group_filter == 'default':
+            group_filter = None
+        if group_filter is None:
+            zero_order_energy_cutoff = self.energy_cutoff
+            test_modes = self.test_modes
+            if test_modes is None:
+                test_modes = solver.high_frequency_modes
+            group_filter = dict(
+                corrections=corrs,
+                energy_cutoff=zero_order_energy_cutoff,
+                energies=solver.zero_order_energies,
+                threshold=threshold,
+                target_modes=test_modes
+            )
+        elif isinstance(group_filter, str) and group_filter == 'unfiltered':
+            group_filter = None
+        return group_filter
+
+    format = None
     @classmethod
     def get_format_mapping(cls):
         return {
@@ -43,9 +73,17 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         }
 
     @classmethod
+    def get_default_spec(cls):
+        return StronglyCoupledDegeneracySpec()
+    @classmethod
     def from_spec(cls, spec, format=None, **kwargs):
         if spec is None:
             return None
+        elif (
+                isinstance(spec, str) and spec == 'auto'
+                or spec is True
+        ):
+            return cls.get_default_spec()
 
         if format is None:
             (spec, opts), format = cls.infer_format(spec)
@@ -105,7 +143,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                 return (None, None), None
 
     @abc.abstractmethod
-    def get_groups(self, input_states, solver=None):
+    def get_groups(self, input_states, solver=None, **kwargs):
         """
         :param solver:
         :type solver:
@@ -131,7 +169,8 @@ class EnergyCutoffDegeneracySpec(DegeneracySpec):
     """
 
     format = DegenerateSpaceInputFormat.EnergyCutoff
-    def __init__(self, cutoff):
+    def __init__(self, cutoff, **opts):
+        super().__init__(**opts)
         self.cutoff = cutoff
 
     @classmethod
@@ -170,9 +209,10 @@ class EnergyCutoffDegeneracySpec(DegeneracySpec):
         return degenerate_groups
 
 class MartinTestDegeneracySpec(DegeneracySpec):
-    application_order = 'post'
+    application_order = 'mid'
     group_filter = 'default'
-    def __init__(self, threshold=4.6e-6, energy_cutoff=4.5e-3, convert=True, frequencies=None):
+    def __init__(self, threshold=4.6e-6, energy_cutoff=4.5e-3, convert=True, frequencies=None, **opts):
+        super().__init__(**opts)
         if convert and threshold > 1e-2:
             threshold = threshold / 219465 # only need a rough conversion...
         self.threshold = threshold
@@ -258,7 +298,7 @@ class MartinTestDegeneracySpec(DegeneracySpec):
         # raise Exception("...")
         return spaces
     # @classmethod
-    def get_groups(self, input_states:BasisStateSpace, solver=None):
+    def get_groups(self, input_states:BasisStateSpace, solver=None, **kwargs):
         groups = self.get_coupled_spaces(input_states, solver=solver)
         indexer = SymmetricGroupGenerator(input_states.ndim)
         groups = PermutationRelationGraph.merge_groups([(indexer.to_indices(g), g) for g in groups])
@@ -278,13 +318,89 @@ class MartinTestDegeneracySpec(DegeneracySpec):
             **kwargs
         )
 
+class StronglyCoupledDegeneracySpec(DegeneracySpec):
+    """
+
+    """
+    application_order = 'post'
+    format = DegenerateSpaceInputFormat.StrongCouplings
+    default_threshold=.3
+    def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, **opts):
+        super().__init__(**opts)
+        if wfc_threshold is None or isinstance(wfc_threshold, str) and wfc_threshold == 'auto':
+            wfc_threshold = self.default_threshold
+        self.wfc_threshold = wfc_threshold
+        self.state_filter = state_filter
+        self.extend_spaces=extend_spaces
+
+    def prep_states(self, input_states):
+        return input_states
+
+    def identify_strong_couplings(self, solver, corrs):
+        degenerate_correction_threshold = self.wfc_threshold
+        test_modes = self.test_modes
+        if test_modes is None:
+            test_modes = solver.high_frequency_modes
+
+            # raise Exception(test_modes, test_freqs * 219465, fundamentals.excitations, where)
+
+        state_filter = self.state_filter
+        zero_order_energy_cutoff = self.energy_cutoff
+        if state_filter is None:
+            state_filter = lambda state, couplings: corrs.default_state_filter(state, couplings,
+                                                                               energy_cutoff=zero_order_energy_cutoff,
+                                                                               energies=solver.zero_order_energies,
+                                                                               basis=solver.flat_total_space,
+                                                                               target_modes=test_modes
+                                                                               )
+        sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold, state_filter=state_filter)
+        return sc
+
+    def get_groups(self, input_states, couplings=None, solver=None, **kwargs):
+        """
+        :param input_states:
+        :type input_states:
+        :param solver:
+        :type solver:
+        :return:
+        :rtype:
+        """
+        if couplings is None:
+            raise ValueError("need couplings")
+        return self.get_strong_coupling_space(input_states, couplings)
+
+    @classmethod
+    def canonicalize(cls, spec):
+        if isinstance(spec, (int, float, np.integer, np.floating)):
+            return spec
+        else:
+            try:
+                return {k:GroupsDegeneracySpec._validate_grp(v) for k,v in spec.items()}
+            except (np.VisibleDeprecationWarning, AttributeError, StopIteration):
+                return None
+
+    @classmethod
+    def get_strong_coupling_space(cls, states: BasisStateSpace, couplings: dict):
+        indexer = SymmetricGroupGenerator(states.ndim)
+        groups = [None] * len(states.indices)
+        for n, i in enumerate(states.indices):
+            if i in couplings:
+                groups[n] = [i] + list(couplings[i].indices)
+            else:
+                groups[n] = [i]
+
+        groups = PermutationRelationGraph.merge_groups([(g, indexer.from_indices(g)) for g in groups])
+
+        return [g[1] for g in groups]
+
 class GroupsDegeneracySpec(DegeneracySpec):
     """
 
     """
 
     format = DegenerateSpaceInputFormat.Groups
-    def __init__(self, groups):
+    def __init__(self, groups, **opts):
+        super().__init__(**opts)
         self.groups = groups
 
     @staticmethod
@@ -302,7 +418,7 @@ class GroupsDegeneracySpec(DegeneracySpec):
         except (np.VisibleDeprecationWarning, AttributeError, StopIteration):
             return None
 
-    def get_groups(self, input_states, solver=None):
+    def get_groups(self, input_states, solver=None, **kwargs):
         """
         :param solver:
         :type solver:
@@ -322,8 +438,9 @@ class PolyadDegeneracySpec(DegeneracySpec):
     format = DegenerateSpaceInputFormat.Polyads
     def __init__(self, polyads,
                  max_quanta=None, max_iterations=2,
-                 require_converged=False, extra_groups=None
-                 ):
+                 require_converged=False, extra_groups=None,
+                 **opts):
+        super().__init__(**opts)
         self.polyads = polyads
         self.max_quanta = max_quanta
         self.max_iterations = max_iterations
@@ -350,7 +467,7 @@ class PolyadDegeneracySpec(DegeneracySpec):
         except (np.VisibleDeprecationWarning, AttributeError, StopIteration):
             return None
 
-    def get_groups(self, input_states, solver=None):
+    def get_groups(self, input_states, solver=None, **kwargs):
         """
         :param solver:
         :type solver:
@@ -416,12 +533,12 @@ class TotalQuantaDegeneracySpec(PolyadDegeneracySpec):
     """
 
     format = DegenerateSpaceInputFormat.QuantaSpecRules
-    def __init__(self, n_T_vectors, max_quanta=3):
+    def __init__(self, n_T_vectors, max_quanta=3, **opts):
         self.max_quanta = max_quanta
         self.nt_vecs = [n_T_vectors] if isinstance(n_T_vectors[0], int) else n_T_vectors
         rules = sum((self.make_nt_polyad(v, max_quanta=max_quanta) for v in self.nt_vecs), [])
         # raise Exception(rules)
-        super().__init__(rules)
+        super().__init__(rules, **opts)
 
     @classmethod
     def reduce_rule(cls, a, b):
@@ -467,57 +584,17 @@ class TotalQuantaDegeneracySpec(PolyadDegeneracySpec):
                         rules.add((tuple(a), tuple(b)))
         return list(rules)
 
-class StronglyCoupledDegeneracySpec(DegeneracySpec):
-    """
-
-    """
-
-    format = DegenerateSpaceInputFormat.StrongCouplings
-    def __init__(self, couplings):
-        self.couplings = couplings
-
-    def get_groups(self, input_states, solver=None):
-        """
-        :param input_states:
-        :type input_states:
-        :param solver:
-        :type solver:
-        :return:
-        :rtype:
-        """
-        return self.get_strong_coupling_space(input_states, self.couplings)
-
-    @classmethod
-    def canonicalize(cls, spec):
-        try:
-            return {k:GroupsDegeneracySpec._validate_grp(v) for k,v in spec.items()}
-        except (np.VisibleDeprecationWarning, AttributeError, StopIteration):
-            return None
-
-    @classmethod
-    def get_strong_coupling_space(cls, states: BasisStateSpace, couplings: dict):
-        indexer = SymmetricGroupGenerator(states.ndim)
-        groups = [None] * len(states.indices)
-        for n, i in enumerate(states.indices):
-            if i in couplings:
-                groups[n] = [i] + list(couplings[i].indices)
-            else:
-                groups[n] = [i]
-
-        groups = PermutationRelationGraph.merge_groups([(g, indexer.from_indices(g)) for g in groups])
-
-        return [g[1] for g in groups]
-
 class CallableDegeneracySpec(DegeneracySpec):
     """
 
     """
 
     format = DegenerateSpaceInputFormat.Callable
-    def __init__(self, callable):
+    def __init__(self, callable, **opts):
+        super().__init__(**opts)
         self.callable = callable
 
-    def get_groups(self, input_states, solver=None):
+    def get_groups(self, input_states, solver=None, **kwargs):
         """
         :param input_states:
         :type input_states:
@@ -526,7 +603,7 @@ class CallableDegeneracySpec(DegeneracySpec):
         :return:
         :rtype:
         """
-        return self.callable(input_states, solver=solver)
+        return self.callable(input_states, solver=solver, **kwargs)
 
 class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
@@ -715,7 +792,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                   solver=None,
                   full_basis=None,
                   format=None,
-                  group_filter=None
+                  group_filter=None,
+                  **kwargs
                   ):
         """
         Generates a DegenerateMultiStateSpace object from a number
@@ -734,7 +812,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             if not isinstance(degenerate_states, DegeneracySpec):
                 degenerate_states = DegeneracySpec.from_spec(degenerate_states, format=format)
             with logger.block(tag="getting degeneracies"):
-                deg_states = degenerate_states.get_groups(states, solver=solver)
+                deg_states = degenerate_states.get_groups(states, solver=solver, **kwargs)
                 if hasattr(group_filter, 'items'):
                     group_filter = cls.construct_filer(**dict(group_filter, spec=degenerate_states))
                 new = GroupsDegeneracySpec.canonicalize(deg_states)
