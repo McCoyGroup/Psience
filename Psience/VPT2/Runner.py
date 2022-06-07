@@ -459,9 +459,9 @@ class VPTHamiltonianOptions:
         :type include_coriolis_coupling: bool
         :param include_pseudopotential: whether or not to include the pseudopotential/Watson term
         :type include_pseudopotential: bool
-        :param potential_terms: explicit values for the potential terms (e.g. from analytic models)
+        :param potential_terms: explicit values for the potential terms (e.g. from analytic models), should be a list of tensors starting with the Hessian with each axis of length `nmodes`
         :type potential_terms: Iterable[np.ndarray]
-        :param kinetic_terms: explicit values for the kinetic terms (e.g. from analytic models)
+        :param kinetic_terms: explicit values for the kinetic terms (e.g. from analytic models), same format as for the potential
         :type kinetic_terms: Iterable[np.ndarray]
         :param coriolis_terms: explicit values for the Coriolis terms
         :type coriolis_terms: Iterable[np.ndarray]
@@ -651,11 +651,11 @@ class VPTSolverOptions:
         "degenerate_states",
         "zero_order_energy_corrections",
         "handle_strong_couplings",
-        "strong_coupling_test_modes",
-        "strong_couplings_state_filter",
-        "strongly_coupled_group_filter",
-        "extend_strong_coupling_spaces",
-        "strong_coupling_zero_order_energy_cutoff",
+        # "strong_coupling_test_modes",
+        # "strong_couplings_state_filter",
+        # "strongly_coupled_group_filter",
+        # "extend_strong_coupling_spaces",
+        # "strong_coupling_zero_order_energy_cutoff",
         "low_frequency_mode_cutoff"
     )
     def __init__(self,
