@@ -1369,18 +1369,17 @@ class PerturbationTheorySolver:
         elif isinstance(group_filter, str) and group_filter == 'default':
             group_filter = None
         if group_filter is None:
-
             zero_order_energy_cutoff = self.strong_coupling_zero_order_energy_cutoff
             test_modes = self.strong_coupling_test_modes
             if test_modes is None:
                 test_modes = self.high_frequency_modes
-            group_filter = lambda group: DegenerateMultiStateSpace.default_group_filter(group,
-                                                                                        corrections=corrs,
-                                                                                        energy_cutoff=zero_order_energy_cutoff,
-                                                                                        energies=self.zero_order_energies,
-                                                                                        threshold=threshold,
-                                                                                        target_modes=test_modes
-                                                                                        )
+            group_filter = dict(
+                corrections=corrs,
+                energy_cutoff=zero_order_energy_cutoff,
+                energies=self.zero_order_energies,
+                threshold=threshold,
+                target_modes=test_modes
+            )
         elif isinstance(group_filter, str) and group_filter == 'unfiltered':
             group_filter = None
         return group_filter

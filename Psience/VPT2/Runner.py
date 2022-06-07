@@ -414,7 +414,8 @@ class VPTHamiltonianOptions:
          "grad_tolerance",
          "freq_tolerance",
          "g_derivative_threshold",
-         "gmatrix_tolerance"
+         "gmatrix_tolerance",
+        'use_cartesian_kinetic_energy'
     )
 
     def __init__(self,
@@ -450,7 +451,8 @@ class VPTHamiltonianOptions:
                  freq_tolerance=None,
                  g_derivative_threshold=None,
                  gmatrix_tolerance=None,
-                 use_internal_modes=None
+                 use_internal_modes=None,
+                 use_cartesian_kinetic_energy=None
                  ):
         """
         :param include_coriolis_coupling: whether or not to include Coriolis coupling in Cartesian normal mode calculation
@@ -537,7 +539,8 @@ class VPTHamiltonianOptions:
             grad_tolerance=grad_tolerance,
             freq_tolerance=freq_tolerance,
             g_derivative_threshold=g_derivative_threshold,
-            gmatrix_tolerance=gmatrix_tolerance
+            gmatrix_tolerance=gmatrix_tolerance,
+            use_cartesian_kinetic_energy=use_cartesian_kinetic_energy
         )
 
         real_opts = {}
@@ -600,6 +603,7 @@ class VPTRuntimeOptions:
             operator_chunk_size=operator_chunk_size,
             logger=logger,
             checkpoint=checkpoint,
+            results=results,
             parallelizer=parallelizer
         )
         real_ham_opts = {}
@@ -613,7 +617,7 @@ class VPTRuntimeOptions:
             memory_constrained=memory_constrained,
             verbose=verbose,
             checkpoint_keys=checkpoint_keys,
-            results=results,
+            # results=results,
             use_cached_representations=use_cached_representations,
             use_cached_basis=use_cached_basis
         )
@@ -1258,6 +1262,29 @@ class AnneInputHelpers:
         return [AtomData[x]["Symbol"] for x in coords]
 
     @classmethod
+    def parse_masses(cls, block):
+        coords = []
+        if os.path.isfile(block):
+            with open(block) as f:
+                for line in f:
+                    line = line.strip()
+                    if len(line) > 0:
+                        try:
+                            coords.extend([float(x) for x in line.split()])
+                        except ValueError:
+                            pass
+        else:
+            cls._check_file(block)
+            for line in block.splitlines():
+                line = line.strip()
+                if len(line) > 0:
+                    try:
+                        coords.extend([float(x) for x in line.split()])
+                    except ValueError:
+                        pass
+        return coords
+
+    @classmethod
     def parse_zmatrix(cls, block):
         _ = 10000
         zmat = [[0, _, _, _]]
@@ -1332,12 +1359,11 @@ class AnneInputHelpers:
     @classmethod
     def renormalize_modes(cls, freqs, modes, inv, sorting=None, type=2):
         if type == 0:
-            modes = modes[sorting, :]
-            inv = inv[:, sorting]
+            if sorting is not None:
+                modes = modes[sorting, :]
+                inv = inv[:, sorting]
             modes, inv = inv.T, modes.T
             freq = freqs
-            # modes = modes / freqs[np.newaxis, :]
-            # inv = inv * freqs[:, np.newaxis]
         else:
             F, G = cls.get_internal_FG(freqs, modes, inv, sorting=sorting)
             if type==1:
@@ -1373,8 +1399,6 @@ class AnneInputHelpers:
     @classmethod
     def reexpress_normal_modes(cls, base_modes, old_field, dipole, sorting=None, type=2):
         freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting, type=type)
-        # print(freq, matrix, inv)
-        # freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting)
         potential_terms = cls.rerotate_force_field(
             base_modes[1],
             matrix.T,
@@ -1410,6 +1434,75 @@ class AnneInputHelpers:
     def mass(atom):
         return AtomData[atom]["Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
 
+    @classmethod
+    def extract_term_lists(cls, checkpoint, terms, skip_dimensions=0, threshold=0, aggregator=None):
+        from McUtils.Scaffolding import Checkpointer
+
+        data = Checkpointer.from_file(checkpoint)
+        terms = data[terms]
+        if aggregator is not None:
+            terms = aggregator(terms)
+
+        term_files = []
+        for t in terms:
+            term_list = []
+            ndim = t.ndim - skip_dimensions
+            use_t = threshold<=0
+            for idx in  np.ndindex(*t.shape):
+                if (use_t or t[idx] > threshold) and all(idx[i] < idx[i+1] for i in range(ndim-1)):
+                    term_list.append(tuple(idx) + (t[idx],))
+            term_files.append(term_list)
+        return term_files
+
+    @classmethod
+    def write_term_lists(cls, terms, file_template=None, int_fmt="{:>3.0f}", float_fmt="{:>16.8e}"):
+        import io
+
+        res = []
+        for i, t in enumerate(terms):
+            if file_template is None:
+                file = io.StringIO()
+            else:
+                file = file_template.format(i+1)
+            with file if file_template is None else open(file, 'w+') as out:
+                out.writelines(
+                    " ".join((int_fmt if isinstance(x, int) else float_fmt).format(x) for x in row)+"\n"
+                    for row in t
+                )
+            res.append(file)
+        return res
+
+    @classmethod
+    def extract_terms(cls, chk, out, terms, aggregator=None):
+        if os.path.isdir(chk):
+            woof = os.getcwd()
+            try:
+                os.chdir(chk)
+                return cls.write_term_lists(
+                    cls.extract_term_lists('output.hdf5', terms, aggregator=aggregator),
+                    file_template=out
+                )
+            finally:
+                os.chdir(woof)
+        else:
+            return cls.write_term_lists(
+                cls.extract_term_lists(chk, terms, aggregator=aggregator),
+                file_template=out
+            )
+    @classmethod
+    def extract_potential(cls, chk, out='potential_expansion_{}.dat'):
+        return cls.extract_terms(chk, out, 'potential_terms')
+    @classmethod
+    def extract_gmatrix(cls, chk, out='gmatrix_expansion_{}.dat'):
+        return cls.extract_terms(chk, out, 'gmatrix_terms')
+    @classmethod
+    def extract_dipole_expansion(cls, chk, out='dipole_expansion_{}.dat'):
+        def agg(terms):
+            return [
+                np.array([terms[a][i] for a in ['x', 'y', 'z']])
+                for i in range(len(terms['x']))
+            ]
+        return cls.extract_terms(chk, out, 'dipole_terms', aggregator=agg)
 
     @classmethod
     def run_anne_job(cls, base_dir,
@@ -1419,10 +1512,12 @@ class AnneInputHelpers:
                      return_runner=False,
                      modes_file='nm_int.dat',
                      atoms_file='atom.dat',
+                     masses_file='mass.dat',
                      coords_file='cart_ref.dat',
                      zmat_file='z_mat.dat',
                      potential_files=('cub.dat', 'quart.dat', 'quintic.dat', 'sextic.dat'),
                      dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat", "quart_dip.dat", 'quintic_dip.dat'),
+                     results_file=None,#'output.hdf5',
                      order=None,
                      expansion_order=None,
                      energy_units=None,
@@ -1454,12 +1549,26 @@ class AnneInputHelpers:
             else:
                 conv = cls.convert(energy_units, "Hartrees")
             potential = [t * conv for t in potential]
-            atoms = cls.parse_atoms(atoms_file)
+            if os.path.exists(masses_file):
+                masses = cls.parse_masses(masses_file)
+            else:
+                masses = None
+            if masses is not None:
+                masses = np.asanyarray(masses)
+                if np.min(np.abs(masses)) < 100:
+                    masses = cls.convert('AtomicMassUnits', 'AtomicUnitOfMass')*masses
+            if masses is None or os.path.isfile(atoms_file):
+                atoms = cls.parse_atoms(atoms_file)
+            else:
+                atoms = ['H']*len(masses)
             coords = cls.parse_coords(coords_file)
             if zmat_file is None:
                 zmat = None
             else:
-                zmat = cls.parse_zmatrix(zmat_file)
+                if os.path.isfile(zmat_file):
+                    zmat = cls.parse_zmatrix(zmat_file)
+                else:
+                    zmat = None
             sorting = cls.standard_sorting(zmat)  # we need to re-sort our internal coordinates
             if os.path.exists(dipole_files[0]):
                 dipole_terms = [cls.parse_dipole_tensor(f) for f in dipole_files if os.path.isfile(f)]
@@ -1520,7 +1629,7 @@ class AnneInputHelpers:
             # raise Exception([a.shape for a in dipole_terms])
 
             res = runner(
-                [atoms, coords],
+                [atoms, coords, dict(masses=masses)],
                 states,
                 modes={
                     "freqs": freq,
@@ -1532,6 +1641,7 @@ class AnneInputHelpers:
                 internals=zmat,
                 order=order,
                 expansion_order=expansion_order,
+                results=results_file,
                 **opts
             )
             if return_analyzer:
@@ -1544,6 +1654,61 @@ class AnneInputHelpers:
             os.chdir(og_dir)
 
         return res
+    @classmethod
+    def run_fchk_job(cls,
+                     base_dir,
+                     states=2,
+                     calculate_intensities=None,
+                     return_analyzer=False,
+                     return_runner=False,
+                     # modes_file='nm_int.dat',
+                     # atoms_file='atom.dat',
+                     # masses_file='mass.dat',
+                     # coords_file='cart_ref.dat',
+                     zmat_file='z_mat.dat',
+                     # potential_files=('cub.dat', 'quart.dat', 'quintic.dat', 'sextic.dat'),
+                     # dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat", "quart_dip.dat", 'quintic_dip.dat'),
+                     fchk_file='fchk.fchk',
+                     results_file='output.hdf5',
+                     **opts
+                     ):
+        from .Analyzer import VPTAnalyzer
+
+        curdir = os.getcwd()
+        try:
+            os.chdir(base_dir)
+
+            if return_analyzer:
+                runner = lambda *a, **kw:VPTAnalyzer.run_VPT(*a, calculate_intensities=calculate_intensities, **kw)
+            elif return_runner:
+                runner = VPTRunner.construct
+            else:
+                runner = lambda *a, **kw:VPTRunner.run_simple(*a, calculate_intensities=calculate_intensities, **kw)
+            # raise Exception([a.shape for a in dipole_terms])
+
+            if zmat_file is None:
+                zmat = None
+            else:
+                if os.path.isfile(zmat_file):
+                    zmat = cls.parse_zmatrix(zmat_file)
+                else:
+                    zmat = None
+
+            res = runner(
+                fchk_file,
+                states,
+                internals=zmat,
+                results=results_file,
+                **opts
+            )
+            if return_analyzer:
+                res.print_output_tables(
+                    print_intensities=calculate_intensities,
+                    print_energies=not calculate_intensities
+                )
+
+        finally:
+            os.chdir(curdir)
 
     @classmethod
     def get_internal_expansion(cls, fchk, internals, states=2, **opts):

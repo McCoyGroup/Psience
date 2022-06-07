@@ -122,6 +122,9 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
     def canonicalize(cls, spec):
         raise NotImplementedError("abstract interface")
 
+    def get_group_filter(self, **kwargs):
+        return DegenerateMultiStateSpace.construct_filer(**kwargs)
+
 class EnergyCutoffDegeneracySpec(DegeneracySpec):
     """
 
@@ -176,6 +179,9 @@ class MartinTestDegeneracySpec(DegeneracySpec):
         self.frequencies = frequencies
         self.energy_cutoff = energy_cutoff
         self._test_groups = None
+        self._states = None
+        self._basis = None
+        self._matrix = None
     def prep_states(self, states:BasisStateSpace):
         state_list = states.excitations
         zo_engs = np.dot(state_list, self.frequencies)
@@ -214,6 +220,8 @@ class MartinTestDegeneracySpec(DegeneracySpec):
         keys = groups.representative_space
         key_inds = total_basis.find(keys)
         spaces = []
+        martin_inds = [[], []]
+        martin_vals = []
         for i, (k, subspace) in enumerate(zip(key_inds, groups.flat)):
             p = total_basis.find(subspace)
             e_diffs = np.abs(engs[p] - engs[k])
@@ -223,6 +231,9 @@ class MartinTestDegeneracySpec(DegeneracySpec):
             # raise Exception(diffs, keys.excitations[np.newaxis, k], subspace.excitations)
             # weights = 1
             test_val = (repr_elems**4)/(e_diffs**3)
+            martin_inds[0].extend([i]*len(subspace))
+            martin_inds[1].extend(p)
+            martin_vals.extend(test_val)
             pos = np.where(test_val > self.threshold)
             if len(pos) > 0 and len(pos[0]) > 0:
                 # print(pos[0], subspace.excitations)
@@ -231,7 +242,19 @@ class MartinTestDegeneracySpec(DegeneracySpec):
                         subspace.excitations[pos[0],]#.take_subspace(pos[0]).excitations
                     ], axis=0)
                 # print(keys.excitations[i:i+1], new)
+                new_sums = np.sum(new, axis=1)
+                new = new[new_sums > 0]
                 spaces.append(new)
+
+        self._states = keys
+        self._basis = solver.flat_total_space
+        self._matrix = nput.SparseArray.from_data(
+            (
+                np.array(martin_vals),
+                tuple(np.array(x) for x in martin_inds)
+            ),
+            shape=(len(self._states), len(self._basis))
+        )
         # raise Exception("...")
         return spaces
     # @classmethod
@@ -244,6 +267,16 @@ class MartinTestDegeneracySpec(DegeneracySpec):
     @classmethod
     def canonicalize(cls, spec):
         return isinstance(spec.threshold, float)
+
+    def get_group_filter(self, threshold=None, states=None, basis=None, corrections=None, **kwargs):
+        return DegenerateMultiStateSpace.construct_filer(
+            states=self._states,
+            basis=self._basis,
+            corrections=self._matrix,
+            threshold=self.threshold,
+            threshold_step_size=1/219465,
+            **kwargs
+        )
 
 class GroupsDegeneracySpec(DegeneracySpec):
     """
@@ -377,7 +410,6 @@ class PolyadDegeneracySpec(DegeneracySpec):
         except TypeError:
             return False
 
-
 class TotalQuantaDegeneracySpec(PolyadDegeneracySpec):
     """
 
@@ -500,13 +532,16 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
     @staticmethod
     def default_group_filter(group,
+                             states=None,
+                             basis=None,
                              corrections=None,
                              threshold=None,
                              energy_cutoff=None,
                              energies=None,
-                             decoupling_overide=100,
+                             decoupling_overide=-1,
                              maximize_groups=True,
-                             target_modes=None
+                             target_modes=None,
+                             threshold_step_size=.1
                              ):
         """
         Excludes modes that differ in only one position, prioritizing states with fewer numbers of quanta
@@ -532,26 +567,56 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             exc = group.excitations
 
         if corrections is not None:
-            group_inds = corrections.total_basis.find(group)
-            state_inds = corrections.states.find(group, missing_val=-1)
-            kill_spots = (np.arange(len(group_inds))[state_inds > 0], state_inds[state_inds > 0])
-            corr_mat = [np.abs(x[:, group_inds].asarray().T) for x in corrections.wfn_corrections[1:]]
-            max_corr = None
-            for c in corr_mat:
-                c[kill_spots] = 0
-                if max_corr is None:
-                    max_corr = np.max(c, axis=1)
+            if isinstance(corrections, np.ndarray):
+                state_inds = basis.find(group)
+                group_inds = state_inds
+                found_pos = state_inds < len(states)
+            elif hasattr(corrections, 'total_basis'): # PT corrections
+                group_inds = corrections.total_basis.find(group)
+                state_inds = corrections.states.find(group, dtype=int, missing_val=len(states))
+                found_pos = state_inds < len(states)
+                kill_spots = (np.arange(len(group_inds))[found_pos], state_inds[found_pos])
+                corr_mat = [np.abs(x[:, group_inds].asarray().T) for x in corrections.wfn_corrections[1:]]
+                max_corr = None
+                for c in corr_mat:
+                    c[kill_spots] = 0
+                    if max_corr is None:
+                        max_corr = np.max(c, axis=1)
+                    else:
+                        submax = np.max(c, axis=1)
+                        p = submax > max_corr
+                        max_corr[p] = submax[p]
+                corrections = sum(corr_mat)
+                if threshold is not None:
+                    sorting = np.arange(len(max_corr))
                 else:
-                    submax = np.max(c, axis=1)
+                    sorting = np.argsort(-max_corr - 1 * (found_pos))  # prioritize states inside requested packet for marginal cases
+            elif basis is not None and states is not None:
+                group_inds = basis.find(group)
+                state_inds = states.find(group, dtype=int, missing_val=len(states))
+                found_pos = state_inds < len(states)
+                found_states = state_inds[found_pos]
+                kill_spots = (np.arange(len(group_inds))[found_pos], found_states)
+                corrections = np.abs(corrections[:, group_inds].asarray().T)
+                max_corr = None
+                corrections[kill_spots] = 0
+                # print(group.excitations)
+                # print(states.excitations)
+                # raise Exception(corrections)
+                if max_corr is None:
+                    max_corr = np.max(corrections, axis=1)
+                else:
+                    submax = np.max(corrections, axis=1)
                     p = submax > max_corr
                     max_corr[p] = submax[p]
-            if threshold is not None:
-                sorting = np.arange(len(max_corr))
-            else:
-                sorting = np.argsort(-max_corr - 1*(state_inds > 0)) # prioritize states inside requested packet for marginal cases
+                if threshold is not None:
+                    sorting = np.arange(len(max_corr))
+                else:
+                    sorting = np.argsort(-max_corr - 1*found_pos)  # prioritize states inside requested packet for marginal cases
+
         else:
             sorting = np.argsort(inds)
-            corr_mat = None
+            corrections = None
 
         exc = exc[sorting]
         diffs = exc[:, np.newaxis] - exc[np.newaxis, :]  # difference matrix (s, s, m)
@@ -559,7 +624,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         diff_sums = np.sum(np.abs(diffs), axis=2)  # (s, s)
         tots_sums = np.sum(np.abs(tots), axis=2)  # (s, s)
         elims = []
-        if threshold is not None and corr_mat is not None:
+        if threshold is not None and corrections is not None:
             if energy_cutoff is None:
                 bad_pos = np.where(np.logical_and(
                     diff_sums == 1,
@@ -568,14 +633,19 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             else:
                 e_vec = energies[group_inds]
                 bad_pos = np.where(np.abs(np.subtract.outer(e_vec, e_vec)) > energy_cutoff)
+                # print(">>>", group.excitations)
+                # print(bad_pos)
             if len(bad_pos) > 0 and len(bad_pos[0]) > 0:
                 N = len(group_inds)
-                base_corr = sum(corr_mat)
-                base_vals = base_corr[:, state_inds[state_inds > 0]]
-                base_mat = np.zeros((N, N), dtype=int)
-                base_mat[:, np.where(state_inds > 0)[0]] = base_vals
+                base_corr = corrections
+                base_vals = base_corr[:, state_inds[found_pos]]
+                base_mat = np.zeros((N, N), dtype=float)
+                base_mat[:, np.where(found_pos)[0]] = base_vals
                 base_mat = (base_mat.T + base_mat) - 2*np.diag(np.diag(base_mat))
-                truly_bad = base_mat[bad_pos] < decoupling_overide
+                if decoupling_overide > 0:
+                    truly_bad = base_mat[bad_pos] < decoupling_overide
+                else:
+                    truly_bad = np.full(len(base_mat[bad_pos]), True)
                 # introduce an override so things that are super strongly coupled can remain coupled
                 bad_pos = tuple(b[truly_bad] for b in bad_pos)
                 base_mat[bad_pos] = 0  # refuse to couple problem states
@@ -593,7 +663,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                 groups, A = get_groups(corr_mat)
 
                 target_threshold = threshold
-                step_size = .1
+                step_size = threshold_step_size
                 while (A[bad_pos] > 0).any():
                     threshold = threshold + step_size
                     corr_mat = (base_mat > threshold).astype(int)
@@ -633,6 +703,13 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         return group
 
     @classmethod
+    def construct_filer(cls, spec=None, **kwargs):
+        if spec is not None:
+            return spec.get_group_filter(**kwargs)
+        else:
+            return lambda group:cls.default_group_filter(group, **kwargs)
+
+    @classmethod
     def from_spec(cls,
                   degenerate_states,
                   solver=None,
@@ -658,6 +735,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                 degenerate_states = DegeneracySpec.from_spec(degenerate_states, format=format)
             with logger.block(tag="getting degeneracies"):
                 deg_states = degenerate_states.get_groups(states, solver=solver)
+                if hasattr(group_filter, 'items'):
+                    group_filter = cls.construct_filer(**dict(group_filter, spec=degenerate_states))
                 new = GroupsDegeneracySpec.canonicalize(deg_states)
                 if new is None:
                     raise ValueError("{} returned invalid degenerate subspace spec {}".format(

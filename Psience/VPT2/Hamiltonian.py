@@ -49,6 +49,7 @@ class PerturbationTheoryHamiltonian:
                  operator_chunk_size=None,
                  logger=None,
                  checkpoint=None,
+                 results=None,
                  parallelizer=None,
                  **expansion_options
                  ):
@@ -84,6 +85,7 @@ class PerturbationTheoryHamiltonian:
             parallelizer = "VPT"
         self.parallelizer = parallelizer
 
+        self.results = Checkpointer.build_canonical(results) if results is not None else results
         self.checkpointer = Checkpointer.build_canonical(checkpoint)
 
         if molecule is None:
@@ -104,7 +106,7 @@ class PerturbationTheoryHamiltonian:
         self.mode_selection = mode_selection
 
         expansion_options['logger'] = self.logger
-        expansion_options['checkpointer'] = self.checkpointer
+        expansion_options['checkpointer'] = self.results if self.results is not None else self.checkpointer
         expansion_options['parallelizer'] = self.parallelizer
         expansion_params = ParameterManager(expansion_options)
 
@@ -124,8 +126,11 @@ class PerturbationTheoryHamiltonian:
         self._input_coriolis = coriolis_terms
         if (
                 include_coriolis_coupling and
-                (self.molecule.internal_coordinates is None or (
-                        'backpropagate_internals' in expansion_options and expansion_options['backpropagate_internals']
+                (self.molecule.internal_coordinates is None or any(
+                    k in expansion_options and expansion_options[k] for k in [
+                        'use_cartesian_kinetic_energy',
+                        'backpropagate_internals'
+                        ]
                 ))
         ):
             self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection,
@@ -968,6 +973,8 @@ class PerturbationTheoryHamiltonian:
                 if memory_constrained is None:
                     memory_constrained = states.ndim > 20 if memory_constrained is None else memory_constrained
 
+                if results is None:
+                    results = self.results
                 if results is None:
                     results = NullCheckpointer(None)
                 elif isinstance(results, str):
