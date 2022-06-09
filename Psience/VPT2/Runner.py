@@ -1448,22 +1448,24 @@ class AnneInputHelpers:
             term_list = []
             ndim = t.ndim - skip_dimensions
             use_t = threshold<=0
-            for idx in  np.ndindex(*t.shape):
-                if (use_t or t[idx] > threshold) and all(idx[i] < idx[i+1] for i in range(ndim-1)):
-                    term_list.append(tuple(idx) + (t[idx],))
+            for idx in np.ndindex(*t.shape):
+                if (use_t or np.abs(t[idx]) > threshold) and all(idx[i] <= idx[i+1] for i in range(skip_dimensions, ndim-1)):
+                    term_list.append(tuple(i+1 for i in idx) + (t[idx],))
             term_files.append(term_list)
         return term_files
 
     @classmethod
-    def write_term_lists(cls, terms, file_template=None, int_fmt="{:>3.0f}", float_fmt="{:>16.8e}"):
+    def write_term_lists(cls, terms, file_template=None, int_fmt="{:>3.0f}", float_fmt="{:>16.8e}", index_function=None):
         import io
 
         res = []
+        if index_function is None:
+            index_function = lambda i:i
         for i, t in enumerate(terms):
             if file_template is None:
                 file = io.StringIO()
             else:
-                file = file_template.format(i+1)
+                file = file_template.format(index_function(i))
             with file if file_template is None else open(file, 'w+') as out:
                 out.writelines(
                     " ".join((int_fmt if isinstance(x, int) else float_fmt).format(x) for x in row)+"\n"
@@ -1473,25 +1475,27 @@ class AnneInputHelpers:
         return res
 
     @classmethod
-    def extract_terms(cls, chk, out, terms, aggregator=None):
+    def extract_terms(cls, chk, out, terms, default_output='output.hdf5', aggregator=None, index_function=None, skip_dimensions=0):
         if os.path.isdir(chk):
             woof = os.getcwd()
             try:
                 os.chdir(chk)
                 return cls.write_term_lists(
-                    cls.extract_term_lists('output.hdf5', terms, aggregator=aggregator),
-                    file_template=out
+                    cls.extract_term_lists(default_output, terms, aggregator=aggregator, skip_dimensions=skip_dimensions),
+                    file_template=out,
+                    index_function=index_function
                 )
             finally:
                 os.chdir(woof)
         else:
             return cls.write_term_lists(
-                cls.extract_term_lists(chk, terms, aggregator=aggregator),
-                file_template=out
+                cls.extract_term_lists(chk, terms, aggregator=aggregator, skip_dimensions=skip_dimensions),
+                file_template=out,
+                index_function=index_function
             )
     @classmethod
     def extract_potential(cls, chk, out='potential_expansion_{}.dat'):
-        return cls.extract_terms(chk, out, 'potential_terms')
+        return cls.extract_terms(chk, out, 'potential_terms', index_function=lambda i:i+2)
     @classmethod
     def extract_gmatrix(cls, chk, out='gmatrix_expansion_{}.dat'):
         return cls.extract_terms(chk, out, 'gmatrix_terms')
@@ -1502,7 +1506,7 @@ class AnneInputHelpers:
                 np.array([terms[a][i] for a in ['x', 'y', 'z']])
                 for i in range(len(terms['x']))
             ]
-        return cls.extract_terms(chk, out, 'dipole_terms', aggregator=agg)
+        return cls.extract_terms(chk, out, 'dipole_terms', aggregator=agg, skip_dimensions=1)
 
     @classmethod
     def run_anne_job(cls, base_dir,

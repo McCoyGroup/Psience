@@ -29,7 +29,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
 
     application_order = 'pre'
     group_filter = None
-    def __init__(self, application_order=None, group_filter=None, energy_cutoff=4.5e-3, test_modes=None):
+    def __init__(self, application_order=None, group_filter=None, energy_cutoff=2.25e-3, test_modes=None, maximize_filtered_groups=True):
         if application_order is None:
             application_order = self.application_order
         self.application_order = application_order
@@ -38,6 +38,11 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
             group_filter = self.group_filter
         self.group_filter = group_filter
         self.test_modes = test_modes
+        self.maximize_filtered_groups = maximize_filtered_groups
+
+    repr_opts = ['energy_cutoff']
+    def __repr__(self):
+        return "{}({})".format(type(self).__name__, ", ".join('{}={}'.format(k, getattr(self, k)) for k in self.repr_opts))
 
     def get_degenerate_group_filter(self, solver, corrs=None, threshold=None):
         group_filter = self.group_filter
@@ -53,7 +58,8 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                 energy_cutoff=zero_order_energy_cutoff,
                 energies=solver.zero_order_energies,
                 threshold=threshold,
-                target_modes=test_modes
+                target_modes=test_modes,
+                maximize_groups=self.maximize_filtered_groups
             )
         elif isinstance(group_filter, str) and group_filter == 'unfiltered':
             group_filter = None
@@ -211,17 +217,19 @@ class EnergyCutoffDegeneracySpec(DegeneracySpec):
 class MartinTestDegeneracySpec(DegeneracySpec):
     application_order = 'mid'
     group_filter = 'default'
-    def __init__(self, threshold=4.6e-6, energy_cutoff=4.5e-3, convert=True, frequencies=None, **opts):
+    def __init__(self, threshold=4.6e-6, test_energy_window=4.6e-3, convert=True, frequencies=None, **opts):
         super().__init__(**opts)
-        if convert and threshold > 1e-2:
+        if convert and threshold > 1e-2: # help coerce it into Hartrees
             threshold = threshold / 219465 # only need a rough conversion...
         self.threshold = threshold
+        self.window = test_energy_window
         self.frequencies = frequencies
-        self.energy_cutoff = energy_cutoff
         self._test_groups = None
         self._states = None
         self._basis = None
         self._matrix = None
+
+    repr_opts = ['energy_cutoff', 'threshold']
     def prep_states(self, states:BasisStateSpace):
         state_list = states.excitations
         zo_engs = np.dot(state_list, self.frequencies)
@@ -231,7 +239,7 @@ class MartinTestDegeneracySpec(DegeneracySpec):
         for i, (s, e0, exc) in enumerate(zip(state_list, zo_engs, extended_states)):
             e1 = np.dot(exc.excitations, self.frequencies)
             eng_diffs = e1 - e0
-            pos = np.where(np.abs(eng_diffs < self.energy_cutoff))
+            pos = np.where(np.abs(eng_diffs < self.window))
             if len(pos) > 0 and len(pos[0]) > 0:
                 key_inds.append(i)
                 exc_groups.append(exc.take_subspace(pos[0]))
@@ -254,7 +262,7 @@ class MartinTestDegeneracySpec(DegeneracySpec):
         if solver is None:
             raise ValueError("need a solver with fully evaluated perturbations first...")
         total_basis = solver.flat_total_space
-        engs = solver.zero_order_energies
+        # engs = solver.zero_order_energies
         h1 = solver.representations[1]
         groups = self._test_groups #type:SelectionRuleStateSpace
         keys = groups.representative_space
@@ -263,14 +271,20 @@ class MartinTestDegeneracySpec(DegeneracySpec):
         martin_inds = [[], []]
         martin_vals = []
         for i, (k, subspace) in enumerate(zip(key_inds, groups.flat)):
+            e0 = np.dot(keys.excitations[i], self.frequencies)
+            e1 = np.dot(subspace.excitations, self.frequencies)
             p = total_basis.find(subspace)
-            e_diffs = np.abs(engs[p] - engs[k])
+            e_diffs = np.abs(e1 - e0)
             repr_elems = h1[k, p].asarray()
             # diffs = subspace.excitations - keys.excitations[np.newaxis, k]
             # diff_sums = np.sum(np.abs(diffs), axis=1)
             # raise Exception(diffs, keys.excitations[np.newaxis, k], subspace.excitations)
             # weights = 1
             test_val = (repr_elems**4)/(e_diffs**3)
+            # if (keys.excitations[i] == np.array([0, 0, 0, 1, 0, 0, 0, 0, 0])).all():
+            #     raise Exception(test_val*219465, repr_elems, e_diffs, subspace.excitations)
+            # if (keys.excitations[i] == np.array([0, 0, 0, 0, 0, 0, 1, 0, 0])).all():
+            #     raise Exception(test_val*219465, repr_elems, e_diffs, subspace.excitations)
             martin_inds[0].extend([i]*len(subspace))
             martin_inds[1].extend(p)
             martin_vals.extend(test_val)
@@ -333,6 +347,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         self.state_filter = state_filter
         self.extend_spaces=extend_spaces
 
+    repr_opts = ['energy_cutoff', 'wfc_threshold']
     def prep_states(self, input_states):
         return input_states
 
@@ -649,6 +664,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                 group_inds = state_inds
                 found_pos = state_inds < len(states)
             elif hasattr(corrections, 'total_basis'): # PT corrections
+                states = corrections.states
+                basis = corrections.total_basis
                 group_inds = corrections.total_basis.find(group)
                 state_inds = corrections.states.find(group, dtype=int, missing_val=len(states))
                 found_pos = state_inds < len(states)
@@ -793,6 +810,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                   full_basis=None,
                   format=None,
                   group_filter=None,
+                  log_groups=False,
                   **kwargs
                   ):
         """
@@ -831,11 +849,17 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                     for s in degenerate_states
                 ]
 
-                logger.log_print(
-                    "{n} degenerate state sets found",
-                    n=len([x for x in degenerate_states if len(x) > 1]),
-                    # s=[x for x in degenerate_states if len(x) > 1]
-                )
+                if log_groups:
+                    with logger.block(tag="initial degenerate groups:"):
+                        for g in degenerate_states:
+                            if len(g) > 1:
+                                logger.log_print(str(g.excitations).splitlines())
+                else:
+                    logger.log_print(
+                        "{n} degenerate state sets found",
+                        n=len([x for x in degenerate_states if len(x) > 1]),
+                        # s=[x for x in degenerate_states if len(x) > 1]
+                    )
 
         # build groups of degenerate states for use later
         if degenerate_states is None:
@@ -858,6 +882,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         # now turn these into proper BasisStateSpace objects so we can work with them more easily
         ugh = []
         for i,g in enumerate(groups):
+            if g is None:
+                continue #???
             # g = np.sort(np.array(g))
             if not isinstance(g, BasisStateSpace):
                 # if np.any(np.asanyarray(g) < 0):
