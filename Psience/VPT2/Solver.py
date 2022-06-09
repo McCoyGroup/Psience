@@ -1309,7 +1309,8 @@ class PerturbationTheorySolver:
                 None if handle_strong_couplings else self.degeneracy_spec,
                 solver=self,
                 full_basis=self.full_basis,
-                group_filter=group_filter
+                group_filter=group_filter,
+                log_groups=True
             )#self.degeneracy_spec.get_groups(states, solver=self)
         # degenerate_states = None,
         # degeneracy_mode = None,
@@ -1344,10 +1345,13 @@ class PerturbationTheorySolver:
 
     default_strong_coupling_threshold = .3
     def identify_strong_couplings(self, corrs):
-        return self.degeneracy_spec.identify_strong_couplings(
+        spec = self.degeneracy_spec
+        if spec is None:
+            spec = DegeneracySpec.from_spec('auto')
+        return spec.identify_strong_couplings(
             self,
             corrs
-        )
+        ), spec.wfc_threshold
 
     def get_degenerate_group_filter(self, corrs=None, threshold=None, group_filter=None):
         return self.degeneracy_spec.get_degenerate_group_filter(
@@ -1366,12 +1370,13 @@ class PerturbationTheorySolver:
                     log_level=self.logger.LogLevel.Never
                 )
 
-        group_filter = self.get_degenerate_group_filter()
+        group_filter = self.get_degenerate_group_filter(corrs=corrs, threshold=threshold)
         degenerate_states = DegenerateMultiStateSpace.from_spec(
             self.degeneracy_spec,
             couplings=sc,
             solver=self,
-            group_filter=group_filter
+            group_filter=group_filter,
+            log_groups=True
         )
 
         if self.degeneracy_spec.extend_spaces:
@@ -1599,8 +1604,7 @@ class PerturbationTheorySolver:
                     degenerate_states is None
                     or all(len(x) == 1 for x in degenerate_states)
             ):
-                sc = self.identify_strong_couplings(corrs)
-                degenerate_correction_threshold = self.degeneracy_spec.wfc_threshold
+                sc, degenerate_correction_threshold = self.identify_strong_couplings(corrs)
                 if len(sc) > 0:
                     with self.logger.block(tag="Strongly coupled states (threshold={})".format(degenerate_correction_threshold)):
                         self.logger.log_print(
