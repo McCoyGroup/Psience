@@ -257,7 +257,7 @@ class ExpansionTerms:
 
         self.internal_coordinates = molecule.internal_coordinates
         self.coords = molecule.coords
-        self.masses = molecule.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        self.masses = molecule._atomic_masses()# * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         self.use_internal_modes = use_internal_modes
         if modes is None:
             modes = molecule.normal_modes.modes
@@ -549,7 +549,7 @@ class ExpansionTerms:
             #  I've got moments of inertia in amu * bohr^2 at the moment
             #  So we convert (amu * bohr^2) to (m_e * bohr^2) since hb^2/(m_e bohr^2) == E_h
             mom_i, eigs = self.molecule.inertial_eigensystem
-            B_e = 1 / (2 * mom_i * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
+            B_e = 1 / (2 * mom_i)# * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
             # print(B_e * UnitsData.convert("Hartrees", "Wavenumbers") )
             self._inert_frame = B_e, eigs
 
@@ -2486,8 +2486,8 @@ class PotentialLikeTerm(KineticTerms):
             detG = g_terms.QX(0).det()
 
             # oooh this is a dangerous thing to have here
-            amu2me = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-            I0 = amu2me * self.molecule.inertia_tensor
+            # amu2me = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            I0 = self.molecule.inertia_tensor
             I0_terms = [I0] + I0Q_derivs
             I_terms = TensorExpansionTerms(I0_terms[1:], None, base_qx=I0_terms[0], q_name='I')
             detI = I_terms.QX(0).det()

@@ -457,7 +457,7 @@ class PerturbationTheoryHamiltonian:
 
         return self._expansions[o]
 
-    def get_perturbations(self, expansion_orders):
+    def get_perturbations(self, expansion_orders, order=None):
         """
         Gets the `Representation` objects for the perturbations up through second order
 
@@ -469,7 +469,8 @@ class PerturbationTheoryHamiltonian:
         # we get a benefit from going high first
         if isinstance(expansion_orders, int):
             expansion_orders = self._get_expansion_orders(None, expansion_orders)
-        order = max(expansion_orders.values())
+        if order is None:
+            order = max(expansion_orders.values())
         perts = []
         for i in range(order, -1, -1):
             perts.append(

@@ -224,6 +224,11 @@ class Molecule(AbstractMolecule):
             return np.array([a["Mass"] for a in self._ats])
         else:
             return self._mass
+    def _atomic_masses(self):
+        m = self.masses
+        if min(m) < 100:
+            m = m*UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        return m
     @property
     def bonds(self):
         if self._bonds is None and self.guess_bonds:
