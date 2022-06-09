@@ -424,7 +424,7 @@ class StructuralProperties:
 
         n = len(masses)
         # explicitly put masses in m_e from AMU
-        masses = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass") * masses
+        # masses = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass") * masses
         mT = np.sqrt(np.sum(masses))
         mvec = np.sqrt(masses)
 
@@ -694,7 +694,7 @@ class MolecularProperties:
         :return:
         :rtype:
         """
-        masses = mol.masses * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        masses = mol._atomic_masses()
         return StructuralProperties.get_prop_g_matrix(masses, mol.coords, mol.internal_coordinates)
 
     @classmethod
@@ -708,7 +708,7 @@ class MolecularProperties:
         :rtype:
         """
 
-        return StructuralProperties.get_prop_center_of_mass(mol.coords, mol.masses)
+        return StructuralProperties.get_prop_center_of_mass(mol.coords, mol._atomic_masses())
 
     @classmethod
     def inertia_tensor(cls, mol):
@@ -721,7 +721,7 @@ class MolecularProperties:
         :rtype:
         """
 
-        return StructuralProperties.get_prop_inertia_tensors(mol.coords, mol.masses)
+        return StructuralProperties.get_prop_inertia_tensors(mol.coords, mol._atomic_masses())
 
     @classmethod
     def moments_of_inertia(cls, mol):
@@ -734,7 +734,7 @@ class MolecularProperties:
         :rtype:
         """
 
-        return StructuralProperties.get_prop_moments_of_inertia(mol.coords, mol.masses)
+        return StructuralProperties.get_prop_moments_of_inertia(mol.coords, mol._atomic_masses())
 
     @classmethod
     def principle_axis_data(cls, mol, sel=None):
@@ -747,7 +747,7 @@ class MolecularProperties:
         :rtype:
         """
         coords = mol.coords
-        masses = mol.masses
+        masses = mol._atomic_masses()
         if sel is not None:
             coords = coords[..., sel, :]
             masses = masses[sel]
@@ -763,7 +763,7 @@ class MolecularProperties:
         :return:
         :rtype:
         """
-        return StructuralProperties.get_prop_principle_axis_rotation(mol.coords, mol.masses, sel=sel, inverse=inverse)
+        return StructuralProperties.get_prop_principle_axis_rotation(mol.coords, mol._atomic_masses(), sel=sel, inverse=inverse)
 
     @classmethod
     def eckart_embedding_data(cls, mol, coords, sel=None, planar_ref_tolerance=None):
@@ -778,7 +778,7 @@ class MolecularProperties:
         :return:
         :rtype:
         """
-        masses = mol.masses
+        masses = mol._atomic_masses()
         ref = mol.coords
         coords = CoordinateSet(coords)
         return StructuralProperties.get_eckart_embedding_data(masses, ref, coords, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
@@ -796,8 +796,8 @@ class MolecularProperties:
         :return:
         :rtype:
         """
-        m1 = ref_mol.masses
-        m2 = mol.masses
+        m1 = ref_mol._atomic_masses()
+        m2 = mol._atomic_masses()
         if not np.all(m1 == m2):
             raise ValueError("Eckart reference has different masses from scan ({}) vs. ({})".format(
                 m1,
@@ -818,7 +818,7 @@ class MolecularProperties:
         :return:
         :rtype:
         """
-        masses = mol.masses
+        masses = mol._atomic_masses()
         ref = mol.coords
         coords = CoordinateSet(coords)
         return StructuralProperties.get_eckart_embedded_coords(masses, ref, coords, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
@@ -836,7 +836,7 @@ class MolecularProperties:
         """
         if sel is not None:
             raise NotImplementedError("Still need to add coordinate subselection")
-        return StructuralProperties.get_prop_translation_rotation_eigenvectors(mol.coords, mol.masses)
+        return StructuralProperties.get_prop_translation_rotation_eigenvectors(mol.coords, mol._atomic_masses())
 
     @classmethod
     def fragments(cls, mol):

@@ -1559,8 +1559,8 @@ class AnneInputHelpers:
                 masses = None
             if masses is not None:
                 masses = np.asanyarray(masses)
-                if np.min(np.abs(masses)) < 100:
-                    masses = cls.convert('AtomicMassUnits', 'AtomicUnitOfMass')*masses
+            #     if np.min(np.abs(masses)) < 100:
+            #         masses = cls.convert('AtomicMassUnits', 'AtomicUnitOfMass')*masses
             if masses is None or os.path.isfile(atoms_file):
                 atoms = cls.parse_atoms(atoms_file)
             else:
