@@ -427,7 +427,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                     exp_order = exp_order['default'] + 1
                 else:
                     exp_order = self.order
-            order = exp_order
+            order = min([exp_order, self.order])
 
         logger = self.logger
         with logger.block(tag="Calculating intensities:", printoptions={'linewidth':int(1e8)}):

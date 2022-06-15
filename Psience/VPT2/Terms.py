@@ -215,9 +215,9 @@ class ExpansionTerms:
                  direct_propagate_cartesians=False,
                  zero_mass_term=1e7,
                  internal_fd_mesh_spacing=1.0e-3,
-                 internal_fd_stencil=9,
-                 cartesian_fd_mesh_spacing=1.0e-3,
-                 cartesian_fd_stencil=9,
+                 internal_fd_stencil=None,
+                 cartesian_fd_mesh_spacing=1.0e-2,
+                 cartesian_fd_stencil=None,
                  cartesian_analytic_deriv_order=0,
                  internal_by_cartesian_order=3,
                  cartesian_by_internal_order=4,
@@ -296,6 +296,13 @@ class ExpansionTerms:
 
         if coordinate_transformations is not None:
             self._cached_transforms[molecule] = coordinate_transformations
+        else:
+            try:
+                transf = self.checkpointer['coordinate_transforms']
+            except (OSError, KeyError):
+                pass
+            else:
+                self._cached_transforms[molecule] = {JacobianKeys(k):v for k,v in transf.items()}
 
         if not isinstance(mixed_derivative_handling_mode, MixedDerivativeHandlingModes):
             self.mixed_derivative_handling_mode = MixedDerivativeHandlingModes(mixed_derivative_handling_mode)
@@ -467,12 +474,15 @@ class ExpansionTerms:
         max_jac = max(jacs)
         need_jacs = [x+1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
         if len(need_jacs) > 0:
+            stencil = (max(need_jacs) + 2 + (1+max(need_jacs))%2) if self.internal_fd_stencil is None else self.internal_fd_stencil
+            # odd behaves better
             with Parallelizer.lookup(self.parallelizer) as par:
                 new_jacs = [
                     x.squeeze() if isinstance(x, np.ndarray) else x
                     for x in intcds.jacobian(carts, need_jacs,
+                                             # odd behaves better
                                              mesh_spacing=self.internal_fd_mesh_spacing,
-                                             stencil=self.internal_fd_stencil,
+                                             stencil=stencil,
                                              all_numerical=self.all_numerical,
                                              converter_options=dict(
                                                  reembed=self.reembed,
@@ -513,12 +523,14 @@ class ExpansionTerms:
         max_jac = max(jacs)
         need_jacs = [x+1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
         if len(need_jacs) > 0:
+            stencil = (max(need_jacs) + 2 + (1+max(need_jacs))%2) if self.cartesian_fd_stencil is None else self.cartesian_fd_stencil
+            # odd behaves better
             with Parallelizer.lookup(self.parallelizer) as par:
                 new_jacs = [
                     x.squeeze() if isinstance(x, np.ndarray) else x
                     for x in ccoords.jacobian(internals, need_jacs,
                                                           mesh_spacing=self.cartesian_fd_mesh_spacing,
-                                                          stencil=self.cartesian_fd_stencil,
+                                                          stencil=stencil,
                                                           # all_numerical=True,
                                                           analytic_deriv_order=self.cartesian_analytic_deriv_order,
                                                           converter_options=dict(strip_dummies=self.strip_dummies),
@@ -1573,6 +1585,31 @@ class PotentialTerms(ExpansionTerms):
                 ]).convert(order=order)#, check_arrays=True)
             else:
                 terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
+
+            if mixed_derivs and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
+                v4 = terms[3]
+                for i in range(v4.shape[0]):
+                    if (
+                            self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
+                            or self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Unhandled
+                    ):
+                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+                    elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                        r = range(i, v4.shape[0])
+                        v4[i, i, r, r] = v4[r, r, i, i]
+                    elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
+                        r = range(i, v4.shape[0])
+                        v4[i, i, r, r] = np.average(
+                            [
+                                v4[r, r, i, i],
+                                v4[i, i, r, r]
+                                ],
+                            axis=0
+                        )
+                        # v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+                    else:
+                        raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(self.mixed_derivative_handling_mode))
+                terms[3] = v4
         elif self._check_internal_modes() and not self._check_mode_terms():
             raise NotImplementedError("...")
             # It should be very rare that we are actually able to make it here
@@ -1851,7 +1888,7 @@ class KineticTerms(ExpansionTerms):
         self.gmatrix_tolerance = gmatrix_tolerance
         self.use_cartesian_kinetic_energy = use_cartesian_kinetic_energy
 
-    def get_terms(self, order=None, logger=None):
+    def get_terms(self, order=None, logger=None, return_expressions=False):
 
         if logger is None:
             logger = self.logger
@@ -1868,6 +1905,7 @@ class KineticTerms(ExpansionTerms):
                 terms = [G]
             else:
                 terms = [G] + [0]*(order)
+            G_terms = None
         else:
             # should work this into the new layout
             uses_internal_modes = self._check_internal_modes()
@@ -1884,8 +1922,18 @@ class KineticTerms(ExpansionTerms):
             J = term_getter.XV(1)
             G_terms = [J.dot(J, 1, 1)]
             for i in range(1, order+1):
-                g_cur = G_terms[-1].dQ()#.simplify()
+                g_cur = G_terms[-1].dQ()#.simplify(check_arrays=True)
                 G_terms.append(g_cur)
+            terms = []
+            # for i,x in enumerate(G_terms):
+            #     if i > 0:
+            #         print(x)
+            #         arr = x.asarray(print_terms=True)
+            #         print(">>>>")
+            #         print((arr,))
+            #         terms.append(arr)
+            #     else:
+            #         terms.append(x.array)
             terms = [x.array for x in G_terms]
 
             if uses_internal_modes:
@@ -1897,7 +1945,6 @@ class KineticTerms(ExpansionTerms):
                     for j in range(i):
                         g = np.tensordot(RQ, g, axes=[1, -1])
                     terms[i] = g
-
 
             for i,t in enumerate(terms):
                 if i == 0:
@@ -1924,7 +1971,10 @@ class KineticTerms(ExpansionTerms):
             #         # + dot(YQ, dot(YQ, dot(QYY, QYY, axes=[[0, 0]]), axes=[[-1, 0]]), axes=[[1, 2]])
             # )
 
-        G_terms = terms
+        if return_expressions:
+            G_terms = terms, G_terms
+        else:
+            G_terms = terms
         try:
             self.checkpointer['gmatrix_terms'] = G_terms
         except (OSError, KeyError):
@@ -2224,19 +2274,20 @@ class DipoleTerms(ExpansionTerms):
             ]
 
             if mixed_derivs:
-                if (  # handle mixed derivative resymmetrization
-                        self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled
-                        and order > 1
-                ):
-                    # d^2X/dQ^2@dU/dX + dX/dQ@dU/dQdX
-                    xQ = self.modes.inverse
-                    v1, v2, v3 = TensorDerivativeConverter(
-                        [xQ] + [0] * (order-1),
-                        u_derivs,
-                        mixed_terms=mixed_terms,
-                        values_name="U"
-                    ).convert(order=3)  # , check_arrays=True)
-                    if self.mixed_derivs:  # and intcds is None:
+                if intcds is not None:
+                    if (  # handle mixed derivative resymmetrization
+                            self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled
+                            and order > 1
+                    ):
+                        # d^2X/dQ^2@dU/dX + dX/dQ@dU/dQdX
+                        xQ = self.modes.inverse
+                        v1, v2, v3 = TensorDerivativeConverter(
+                            [xQ] + [0] * (order-1),
+                            u_derivs,
+                            mixed_terms=mixed_terms,
+                            values_name="U"
+                        ).convert(order=3)  # , check_arrays=True)
+
                         # Gaussian gives slightly different constants
                         # depending on whether the analytic or numerical derivs
                         # were transformed
@@ -2258,46 +2309,46 @@ class DipoleTerms(ExpansionTerms):
                                         self.mixed_derivative_handling_mode
                                     )
                                 )
-                    Qx = self.modes.matrix
-                    v1, v2, v3 = TensorDerivativeConverter(
-                        [Qx] + [0] * (order - 1),
-                        [v1, v2, v3],
-                        values_name="U"
-                    ).convert(order=3)  # , check_arrays=True)
-                    u_derivs = [v1, v2, v3]
-                    mixed_terms = None
+                        Qx = self.modes.matrix
+                        v1, v2, v3 = TensorDerivativeConverter(
+                            [Qx] + [0] * (order - 1),
+                            [v1, v2, v3],
+                            values_name="U"
+                        ).convert(order=3)  # , check_arrays=True)
+                        u_derivs = [v1, v2, v3]
+                        mixed_terms = None
 
                 # d^2X/dQ^2@dU/dX + dX/dQ@dU/dQdX
                 terms = TensorDerivativeConverter(x_derivs, u_derivs,
                                                   mixed_terms=mixed_terms,
                                                   values_name="U"
                                                   ).convert(order=order)  # , check_arrays=True)
-                # terms = list(terms)
-                # if order > 1:
-                #     v2 = terms[1]
-                #     if self.mixed_derivs:  # and intcds is None:
-                #         # Gaussian gives slightly different constants
-                #         # depending on whether the analytic or numerical derivs
-                #         # were transformed
-                #         if self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
-                #             for i in range(v2.shape[0]):
-                #                 if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
-                #                     v2[i, :] = v2[:, i] = v2[i, :]
-                #                 elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
-                #                     v2[i, :] = v2[:, i] = v2[:, i]
-                #                 elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
-                #                     v2[i, :] = v2[:, i] = np.average(
-                #                         [
-                #                             v2[i, :], v2[:, i]
-                #                         ],
-                #                         axis=0
-                #                     )
-                #                 else:
-                #                     raise ValueError(
-                #                         "don't know what to do with `mixed_derivative_handling_mode` {} ".format(
-                #                             self.mixed_derivative_handling_mode
-                #                         )
-                #                     )
+                terms = list(terms)
+                if order > 1:
+                    v2 = terms[1]
+                    if intcds is None and mixed_derivs:  # and intcds is None:
+                        # Gaussian gives slightly different constants
+                        # depending on whether the analytic or numerical derivs
+                        # were transformed
+                        if self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
+                            for i in range(v2.shape[0]):
+                                if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
+                                    v2[i, :] = v2[:, i] = v2[i, :]
+                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                                    v2[i, :] = v2[:, i] = v2[:, i]
+                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
+                                    v2[i, :] = v2[:, i] = np.average(
+                                        [
+                                            v2[i, :], v2[:, i]
+                                        ],
+                                        axis=0
+                                    )
+                                else:
+                                    raise ValueError(
+                                        "don't know what to do with `mixed_derivative_handling_mode` {} ".format(
+                                            self.mixed_derivative_handling_mode
+                                        )
+                                    )
 
                 if order > 2:
                     v3 = terms[2]
@@ -2483,20 +2534,81 @@ class PotentialLikeTerm(KineticTerms):
             #     raise Exception(2+order)
 
             g_terms = TensorExpansionTerms(G_terms[1:], None, base_qx=G_terms[0], q_name='G')
-            detG = g_terms.QX(0).det()
+            # detG = g_terms.QX(0).det()
 
             # oooh this is a dangerous thing to have here
             # amu2me = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
             I0 = self.molecule.inertia_tensor
             I0_terms = [I0] + I0Q_derivs
             I_terms = TensorExpansionTerms(I0_terms[1:], None, base_qx=I0_terms[0], q_name='I')
-            detI = I_terms.QX(0).det()
+            # detI = I_terms.QX(0).det()
 
             # we skip the gamma term from Pickett altogether because it never directly
-            # enters, instead only ever being treated as detIdQ - detGdQ
-            gamdQ = (detI.dQ()/detI + -1*detG.dQ()/detG).simplify()#check_arrays=True)
+            # enters, instead only ever being treated as ln(detI) - ln(detG)
+            # and then we can make use of an identity from the Matrix Cookbook to say
+            # ln(detX).dQ() = (X.inverse().dot(X.dQ)).tr()
+            G0 = g_terms.QX(0)
+            I0 = I_terms.QX(0)
+            lndetdQ = lambda X:-(X.inverse().dot(X.dQ(), 2, 2).shift(2, 1)).tr(2, 3)
+            gamdQ = lndetdQ(I0)+-lndetdQ(G0)
             gamdQ.name = "dQ(gam)"
-            gamdQQ = gamdQ.dQ().simplify()#check_arrays=True)
+            gamdQQ = gamdQ.dQ().simplify()
+
+            # terms = [x.asarray() for x in gamdQQ.dQ().simplify().terms]
+            # for t in gamdQQ.simplify().terms:
+            #     print(t)
+            # print("-=---==--==---")
+            # for t in gamdQQ.dQ().simplify().terms:
+            #     print(t)
+            # raise Exception(gamdQQ.dQ().array)
+
+            # print(terms)
+            # print(gamdQQ.terms[0])
+            # print(gamdQQ.dQ().simplify().terms[1])
+            # sums = [terms[0]]
+            # terms[0].transpose(1, 2, 0) + terms[2] +
+            # b = terms[2]
+            # for i in range(len(b)):
+            #     for j in range(i+1, len(b)):
+            #         for k in range(j + 1, len(b)):
+            #             terms = []
+            #             for p in itertools.permutations([i, j, k]):
+            #                 terms.append(b[i, j, k]-b[p])
+            #             if max(abs(x) for x in terms) > 1e-14:
+            #                 raise ValueError("ugh")
+            # for t in gamdQQ.dQ().terms:
+            #     print(t)
+            #     print(t.asarray(print_terms=True))
+            # print(terms[1]+terms[3])
+            # for s in terms:
+            #     print(s)
+            # for x in terms[1:]:
+            #     sums.append(sums[-1]+x)
+            # for s in sums:
+            #     print(s)
+
+
+            # raise Exception(...)
+            #
+
+            # a = gamdQQ.dQ().dQ().array
+            # b = gamdQQ.dQ().array
+            # for i in range(len(b)):
+            #     for j in range(i+1, len(b)):
+            #         for k in range(j + 1, len(b)):
+            #             terms = []
+            #             for p in itertools.permutations([i, j, k]):
+            #                 terms.append(b[i, j, k]-b[p])
+            #             if max(abs(x) for x in terms) > 1e-14:
+            #                 raise ValueError("ugh")
+            # ugh = gamdQQ.dQ().dQ().simplify()
+            # raise Exception(ugh.array)
+            # print(sum(u.array for u in ugh.terms))
+            # for p in itertools.permutations([0, 1, 2, 3]):
+            #     b = ugh.terms[0].array + ugh.terms[1].array.transpose(p)
+            #     if abs(b[0, 0, 0, 1] - b[1, 0, 0, 0]) < 1e-6:
+            #         print(b)
+            # raise Exception(type(ugh.terms[0]))
 
             v_term_1 = g_terms.QX(0).dot(gamdQQ, [1, 2], [1, 2])
             v_term_2 = g_terms.QX(1).dot(gamdQ, 3, 1).tr()
@@ -2519,7 +2631,10 @@ class PotentialLikeTerm(KineticTerms):
                 except TensorDerivativeConverter.TensorExpansionError:
                     raise ValueError("failed to construct U({})".format(i))
                 else:
+                    if arr.shape == ():
+                        arr = np.float(arr)
                     wat_terms.append(arr)
+            # print(wat_terms)
 
         try:
             self.checkpointer['psuedopotential_terms'] = wat_terms

@@ -61,8 +61,8 @@ class PerturbationTheorySolver:
                  checkpointer=None,
                  results=None,
                  checkpoint_keys=None,
-                 use_cached_representations=True,
-                 use_cached_basis=True
+                 use_cached_representations=False,
+                 use_cached_basis=False
                  ):
         """
 

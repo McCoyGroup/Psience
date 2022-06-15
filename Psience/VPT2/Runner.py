@@ -36,7 +36,6 @@ class VPTSystem:
     __props__ = (
         "internals",
         "modes",
-        "mode_selection",
         "potential_derivatives",
         "potential_function",
         "order",
@@ -49,7 +48,6 @@ class VPTSystem:
                  internals=None,
                  dummy_atoms=None,
                  modes=None,
-                 mode_selection=None,
                  potential_derivatives=None,
                  potential_function=None,
                  order=2,
@@ -63,8 +61,6 @@ class VPTSystem:
         :type internals:
         :param modes: the normal modes to use if not already supplied by the Molecule
         :type modes:
-        :param mode_selection: the subset of normal modes to do perturbation theory on
-        :type mode_selection:
         :param potential_derivatives: the derivatives of the potential to use for expansions
         :type potential_derivatives: Iterable[np.ndarray]
         :param dipole_derivatives: the set of dipole derivatives to use for expansions
@@ -96,9 +92,6 @@ class VPTSystem:
             self.get_potential_derivatives(potential_function, order=order)
         if dipole_derivatives is not None:
             self.mol.dipole_derivatives = dipole_derivatives
-
-        if mode_selection is not None:
-            self.mol.normal_modes.modes = self.mol.normal_modes.modes[mode_selection]
 
         if eckart_embed is True:
             self.mol = self.mol.get_embedded_molecule()
@@ -382,6 +375,9 @@ class VPTHamiltonianOptions:
     """
 
     __props__ = (
+        "mode_selection",
+        "include_potential",
+        "include_gmatrix",
          "include_coriolis_coupling",
          "include_pseudopotential",
          "potential_terms",
@@ -419,6 +415,9 @@ class VPTHamiltonianOptions:
     )
 
     def __init__(self,
+                 mode_selection=None,
+                 include_potential=None,
+                 include_gmatrix=None,
                  include_coriolis_coupling=None,
                  include_pseudopotential=None,
                  potential_terms=None,
@@ -455,6 +454,8 @@ class VPTHamiltonianOptions:
                  use_cartesian_kinetic_energy=None
                  ):
         """
+        :param mode_selection: the subset of normal modes to do perturbation theory on
+        :type mode_selection:
         :param include_coriolis_coupling: whether or not to include Coriolis coupling in Cartesian normal mode calculation
         :type include_coriolis_coupling: bool
         :param include_pseudopotential: whether or not to include the pseudopotential/Watson term
@@ -507,6 +508,9 @@ class VPTHamiltonianOptions:
         :type g_derivative_threshold: float
         """
         all_opts = dict(
+            mode_selection=mode_selection,
+            include_potential=include_potential,
+            include_gmatrix=include_gmatrix,
             include_coriolis_coupling=include_coriolis_coupling,
             include_pseudopotential=include_pseudopotential,
             potential_terms=potential_terms,
