@@ -61,8 +61,8 @@ class PerturbationTheorySolver:
                  checkpointer=None,
                  results=None,
                  checkpoint_keys=None,
-                 use_cached_representations=True,
-                 use_cached_basis=True
+                 use_cached_representations=False,
+                 use_cached_basis=False
                  ):
         """
 
@@ -123,7 +123,8 @@ class PerturbationTheorySolver:
                 handle_strong_couplings = True
             if handle_strong_couplings is not False:
                 self.degeneracy_spec = DegeneracySpec.from_spec({
-                    'wfc_threshold':'auto' if handle_strong_couplings is True else handle_strong_couplings
+                    'wfc_threshold':'auto' if handle_strong_couplings is True else handle_strong_couplings,
+                    'iterations':order//2
                 })
         self.handle_strong_couplings = hasattr(self.degeneracy_spec, 'wfc_threshold')
 
@@ -1471,7 +1472,7 @@ class PerturbationTheorySolver:
                     ],
                     o=order,
                     n=len(states.indices),
-                    d=len([1 for x in degenerate_states if len(x) > 1]),
+                    d=0 if degenerate_states is None else len([1 for x in degenerate_states if len(x) > 1]),
                     dm=(
                         'Sakurai' if self.allow_sakurai_degs else
                         'mod. H' if self.drop_perturbation_degs else
@@ -1481,6 +1482,8 @@ class PerturbationTheorySolver:
                 start = time.time()
 
                 _ = []
+                if degenerate_states is None:
+                    degenerate_states = [[i] for i in states.indices]
                 for deg_group in degenerate_states:
                     if not hasattr(deg_group, 'indices'):
                         deg_group = BasisStateSpace(flat_total_space.basis, deg_group, full_basis=self.full_basis)
@@ -1502,7 +1505,6 @@ class PerturbationTheorySolver:
                                                                                  non_zero_cutoff=non_zero_cutoff,
                                                                                  perturbations=perturbations
                                                                                  )
-
                             res_index = states.find(n)
                             all_energies[res_index] = energies
                             all_energy_corrs[res_index] = ecorrs
@@ -1511,11 +1513,9 @@ class PerturbationTheorySolver:
                 else:
                     # loop over the degenerate sets
                     for deg_group in degenerate_states:
-                        # logger.log_print(str(deg_group.excitations))
                         # we use this to build a pertubation operator that removes
                         # then entire set of degenerate states
                         deg_inds = flat_total_space.find(deg_group)
-
                         if len(deg_group) > 1:
                             if self.allow_sakurai_degs:
                                 raise NotImplementedError("True degeneracy handling was purged")
@@ -1614,12 +1614,27 @@ class PerturbationTheorySolver:
                         if handle_strong_couplings and (sc is not None and len(sc) > 0):
                             degenerate_states, meta = self.construct_strong_coupling_spaces(sc, corrs, states, degenerate_correction_threshold)
                             states, perturbations, flat_total_space, N = meta
-                            with self.logger.block(tag="Redoing PT with strong couplings handled"):
-                                with self.logger.block(tag="Degenerate groups:"):
-                                    for g in degenerate_states.flat:
-                                        if len(g) > 1:
-                                            self.logger.log_print(str(g.excitations).splitlines())
-
+                            if self.degeneracy_spec.iterations > 1:
+                                self.degeneracy_spec.iterations -= 1
+                                degenerate_states = None
+                                corrs = self._get_corrections(
+                                    perturbations,
+                                    states,
+                                    order,
+                                    flat_total_space,
+                                    N,
+                                    checkpointer,
+                                    logger,
+                                    None,
+                                    handle_strong_couplings=True,
+                                    non_zero_cutoff=non_zero_cutoff
+                                )
+                            else:
+                                with self.logger.block(tag="Redoing PT with strong couplings handled"):
+                                    with self.logger.block(tag="Degenerate groups:"):
+                                        for g in degenerate_states.flat:
+                                            if len(g) > 1:
+                                                self.logger.log_print(str(g.excitations).splitlines())
                                 corrs = self._get_corrections(
                                     perturbations,
                                     states,

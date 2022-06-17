@@ -29,7 +29,11 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
 
     application_order = 'pre'
     group_filter = None
-    def __init__(self, application_order=None, group_filter=None, energy_cutoff=2.25e-3, test_modes=None, maximize_filtered_groups=True):
+    def __init__(self, application_order=None, group_filter=None, energy_cutoff=2.25e-3,
+                 test_modes=None,
+                 maximize_filtered_groups=True,
+                 decoupling_overide=100
+                 ):
         if application_order is None:
             application_order = self.application_order
         self.application_order = application_order
@@ -39,6 +43,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         self.group_filter = group_filter
         self.test_modes = test_modes
         self.maximize_filtered_groups = maximize_filtered_groups
+        self.decoupling_overide = decoupling_overide
 
     repr_opts = ['energy_cutoff']
     def __repr__(self):
@@ -59,7 +64,8 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                 energies=solver.zero_order_energies,
                 threshold=threshold,
                 target_modes=test_modes,
-                maximize_groups=self.maximize_filtered_groups
+                maximize_groups=self.maximize_filtered_groups,
+                decoupling_overide=self.decoupling_overide
             )
         elif isinstance(group_filter, str) and group_filter == 'unfiltered':
             group_filter = None
@@ -339,13 +345,15 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
     application_order = 'post'
     format = DegenerateSpaceInputFormat.StrongCouplings
     default_threshold=.3
-    def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, **opts):
+    def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=1, **opts):
         super().__init__(**opts)
         if wfc_threshold is None or isinstance(wfc_threshold, str) and wfc_threshold == 'auto':
             wfc_threshold = self.default_threshold
         self.wfc_threshold = wfc_threshold
         self.state_filter = state_filter
         self.extend_spaces=extend_spaces
+        self._iterations = iterations
+        self.iterations = iterations
 
     repr_opts = ['energy_cutoff', 'wfc_threshold']
     def prep_states(self, input_states):
@@ -449,16 +457,18 @@ class PolyadDegeneracySpec(DegeneracySpec):
     """
 
     """
-
     format = DegenerateSpaceInputFormat.Polyads
     def __init__(self, polyads,
-                 max_quanta=None, max_iterations=2,
-                 require_converged=False, extra_groups=None,
-                 **opts):
+                 max_quanta=None,
+                 iterations=2,
+                 require_converged=False,
+                 extra_groups=None,
+                 **opts
+                 ):
         super().__init__(**opts)
         self.polyads = polyads
         self.max_quanta = max_quanta
-        self.max_iterations = max_iterations
+        self.iterations = iterations
         self.require_converged= require_converged
         self.extra_groups = extra_groups
 
@@ -475,6 +485,14 @@ class PolyadDegeneracySpec(DegeneracySpec):
                 return pair
             else:
                 raise StopIteration("malformatted")
+    @classmethod
+    def _check_rule(cls, pair):
+        try:
+            cls._validate_rule(pair)
+        except StopIteration:
+            return False
+        else:
+            return True
     @classmethod
     def canonicalize(cls, spec):
         try:
@@ -497,14 +515,14 @@ class PolyadDegeneracySpec(DegeneracySpec):
             input_states,
             self.polyads,
             max_quanta=self.max_quanta,
-            max_iterations=self.max_iterations,
+            iterations=self.iterations,
             require_converged=self.require_converged,
             extra_groups=self.extra_groups
         )
 
     @classmethod
     def get_degenerate_polyad_space(cls, states, polyadic_pairs,
-                                    max_quanta=None, max_iterations=2,
+                                    max_quanta=None, iterations=2,
                                     require_converged=False, extra_groups=None):
         """
         Gets degenerate spaces by using pairs of transformation rules to
@@ -520,16 +538,34 @@ class PolyadDegeneracySpec(DegeneracySpec):
         :rtype:
         """
 
-        graph = PermutationRelationGraph(polyadic_pairs)
-        groups = graph.build_state_graph(states,
-                                         extra_groups=extra_groups,
-                                         max_sum=max_quanta,
-                                         max_iterations=max_iterations,
-                                         raise_iteration_error=require_converged
-                                         )
+        if cls._check_rule(polyadic_pairs[0]): # we only have one space
+            polyadic_pairs = [polyadic_pairs]
+        if isinstance(iterations, int):
+            iterations = [iterations]*len(polyadic_pairs)
 
-        grp = [g for g in groups if len(g) > 1]
-        return grp
+        groups = None
+        for polyad, iterations in zip(polyadic_pairs, iterations):
+            graph = PermutationRelationGraph(polyad)
+            if groups is None:
+                groups = graph.build_state_graph(states,
+                                                 extra_groups=extra_groups,
+                                                 max_sum=max_quanta,
+                                                 max_iterations=iterations,
+                                                 raise_iteration_error=require_converged
+                                                 )
+            else:
+                _ = []
+                for states in groups:
+                    sub = np.concatenate(graph.build_state_graph(states,
+                                                     extra_groups=extra_groups,
+                                                     max_sum=max_quanta,
+                                                     max_iterations=iterations,
+                                                     raise_iteration_error=require_converged
+                                                     ))
+                    _.append(sub)
+                groups = _
+            groups = [g for g in groups if len(g) > 1]
+        return groups
 
     @staticmethod
     def _is_polyad_rule(d, n_modes):
@@ -548,10 +584,17 @@ class TotalQuantaDegeneracySpec(PolyadDegeneracySpec):
     """
 
     format = DegenerateSpaceInputFormat.QuantaSpecRules
-    def __init__(self, n_T_vectors, max_quanta=3, **opts):
+    def __init__(self, n_T_vectors, max_quanta=3, target_modes=None, extra_polyads=None, **opts):
         self.max_quanta = max_quanta
+        self.target_modes = target_modes
         self.nt_vecs = [n_T_vectors] if isinstance(n_T_vectors[0], int) else n_T_vectors
-        rules = sum((self.make_nt_polyad(v, max_quanta=max_quanta) for v in self.nt_vecs), [])
+        if extra_polyads is None:
+            extra_polyads = []
+        if len(extra_polyads) > 0 and self._check_rule(extra_polyads[0]):
+            extra_polyads = [extra_polyads]
+        rules = [
+                    self.make_nt_polyad(v, max_quanta=max_quanta) for v in self.nt_vecs
+                ] + extra_polyads
         # raise Exception(rules)
         super().__init__(rules, **opts)
 
@@ -578,10 +621,17 @@ class TotalQuantaDegeneracySpec(PolyadDegeneracySpec):
         return a,b
 
     @classmethod
-    def make_nt_polyad(cls, nt, max_quanta=3):  # this should be of the form num of quanta give same E
+    def make_nt_polyad(cls, nt, target_modes=None, max_quanta=3):  # this should be of the form num of quanta give same E
         # we want to choose different subsets of the nT vector to construct rules
         # we'll do this in a kinda dumb way where we force a max number of quanta for these polyad
         # rules and explicitly test states of a given form
+        ndim = len(nt)
+        nt = np.asanyarray(nt)
+        if target_modes is None:
+            # target_modes = np.arange(len(nt))
+            target_modes = np.where(nt != 0)[0]
+
+        nt = nt[target_modes]
         states = BasisStateSpace.from_quanta(
             HarmonicOscillatorProductBasis(len(nt)),
             list(range(1, max_quanta+1))
@@ -590,13 +640,22 @@ class TotalQuantaDegeneracySpec(PolyadDegeneracySpec):
         nts = np.dot(states, nt)
         (keys, groups), _ = nput.group_by(states, nts)
         rules = set()
-
         for k,g in zip(keys, groups):
             if k > 0:
                 for n,i in enumerate(g):
                     for j in g[n+1:]:
                         a, b = cls.reduce_rule(i, j)
-                        rules.add((tuple(a), tuple(b)))
+                        # insert zeros at dropped positions
+                        if len(target_modes) < ndim:
+                            _ = np.zeros(ndim, dtype=int)
+                            _[target_modes] = a
+                            a = _
+                            _ = np.zeros(ndim, dtype=int)
+                            _[target_modes] = b
+                            b = _
+                        a = tuple(a)
+                        b = tuple(b)
+                        rules.add((a, b))
         return list(rules)
 
 class CallableDegeneracySpec(DegeneracySpec):
@@ -630,7 +689,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                              threshold=None,
                              energy_cutoff=None,
                              energies=None,
-                             decoupling_overide=-1,
+                             decoupling_overide=10,
                              maximize_groups=True,
                              target_modes=None,
                              threshold_step_size=.1
@@ -720,6 +779,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         elims = []
         if threshold is not None and corrections is not None:
             if energy_cutoff is None:
+                e_vec = None
                 bad_pos = np.where(np.logical_and(
                     diff_sums == 1,
                     tots_sums > 0
@@ -736,12 +796,12 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                 base_mat = np.zeros((N, N), dtype=float)
                 base_mat[:, np.where(found_pos)[0]] = base_vals
                 base_mat = (base_mat.T + base_mat) - 2*np.diag(np.diag(base_mat))
-                if decoupling_overide > 0:
-                    truly_bad = base_mat[bad_pos] < decoupling_overide
-                else:
-                    truly_bad = np.full(len(base_mat[bad_pos]), True)
-                # introduce an override so things that are super strongly coupled can remain coupled
-                bad_pos = tuple(b[truly_bad] for b in bad_pos)
+                # if decoupling_overide > 0:
+                #     truly_bad = base_mat[bad_pos] < decoupling_overide
+                # else:
+                #     truly_bad = np.full(len(base_mat[bad_pos]), True)
+                # # introduce an override so things that are super strongly coupled can remain coupled
+                bad_pos = tuple(b for b in bad_pos)
                 base_mat[bad_pos] = 0  # refuse to couple problem states
                 base_mat[bad_pos[1], bad_pos[0]] = 0  # refuse to couple problem states
 
@@ -763,19 +823,91 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                     corr_mat = (base_mat > threshold).astype(int)
                     groups, A = get_groups(corr_mat)
 
-                if maximize_groups:
-                    dropped_pos = np.where(np.logical_and(base_mat > target_threshold, base_mat < threshold))
+                if maximize_groups or (decoupling_overide > 0 and decoupling_overide < threshold):
+                    base_thresh = target_threshold
+                    if not maximize_groups:
+                        base_thresh = decoupling_overide
+                    dropped_pos = np.where(np.logical_and(base_mat > base_thresh, base_mat < threshold))
                     if len(dropped_pos) > 0:
                         # figure out if any can be added without causing breakdowns
-                        sorting = np.argsort(base_mat[dropped_pos])
+                        sorting = np.argsort(-base_mat[dropped_pos])
                         dropped_pos = tuple(d[sorting] for d in dropped_pos)
                         for i,j in zip(*dropped_pos): # this could be very expensive...
+                            if e_vec is not None:
+                                # we can maybe take a shortcut on figuring out if we can extend the group
+                                g_i = None
+                                g_j = None
+                                # first we check if we have a group with `i` or `j` in it
+                                for n,g in enumerate(groups):
+                                    ix,jx = np.searchsorted(g, [i, j])
+                                    if ix < len(g) and g[ix] == i:
+                                        g_i = [n, g]
+                                    if jx < len(g) and g[jx] == j:
+                                        g_j = [n, g]
+                                    if g_i is not None and g_j is not None: # need proper graph tools
+                                        break
+                                else:
+                                    # we're just adding to a group, not merging
+                                    if g_j is not None:
+                                        g_i, g_j = g_j, g_i
+                                        i, j = j, i
+                                    if g_i is not None:
+                                        e_g = e_vec[g_i[1]]
+                                        w = max(abs(e_vec[i] - np.min(e_g)), abs(e_vec[i] - np.max(e_g)))
+                                        if w < energy_cutoff:
+                                            groups[g_i[0]] = np.sort(np.concatenate([g_i[1], [j]]))
+                                        continue
+                                    # else: # should never matter: would mean states were dropped but are within the energy window
+
                             corr_mat[i, j] = base_mat[i, j]
                             _, A = get_groups(corr_mat)
                             if (A[bad_pos] > 0).any():
                                 corr_mat[i, j] = 0.
                             else:
                                 groups = _
+
+                    if (decoupling_overide > 0 and decoupling_overide < threshold):
+                        # states with blowups that we need to reinsert
+                        need_pos = np.where(np.logical_and(base_mat > decoupling_overide, base_mat < threshold))
+                        if len(need_pos) > 0:
+                            sorting = np.argsort(base_mat[need_pos])
+                            need_pos = tuple(d[sorting] for d in need_pos)
+                            for i,j in zip(*need_pos):
+                                # we try to find a group to insert into
+                                g_i = None
+                                g_j = None
+                                # first we check if we have a group with `i` or `j` in it
+                                new_groups = False
+                                for n,g in enumerate(groups):
+                                    ix,jx = np.searchsorted(g, [i, j])
+                                    if ix < len(g):
+                                        g_i = [n, g]
+                                    if jx < len(g):
+                                        g_j = [n, g]
+                                    if g_i is not None and g_j is not None:
+                                        if g_i[0] == g_j[0]: # nothing needed to do
+                                            break
+                                        # we move j from its group into i's group
+                                        # or vice versa
+                                        i_couplings = base_mat[i, g_i[1]]
+                                        j_couplings = base_mat[j, g_j[1]]
+                                        if np.linalg.norm(j_couplings) > np.linalg.norm(i_couplings):
+                                            # swap which gets moved
+                                            g_i, g_j = g_j, g_i
+                                            i, j = j, i
+                                        groups[g_i[0]] = np.sort(np.concatenate([g_i[1], [j]]))
+                                        groups[g_j[0]] = np.setdiff1d([g_j[1], [j]])
+                                        break
+                                else:
+                                    # we're just adding to a group, not merging
+                                    if g_j is not None:
+                                        g_i, g_j = g_j, g_i
+                                        i, j = j, i
+                                    if g_i is not None:
+                                        groups[g_i[0]] = np.sort(np.concatenate([g_i[1], [j]]))
+                                        continue
+                                    else: # I don't think we'll ever get here but...?
+                                        groups.append(np.array([i, j]))
 
                 group = [group.take_subspace(g) for g in groups if len(g) > 1]
 

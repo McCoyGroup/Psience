@@ -1,7 +1,8 @@
 # G-matrix and V' terms pulled from Mathematica notebook very kindly provided by John Frederick
 
-from Psience.AnalyticModels import sym, SymbolicCaller, AnalyticModelBase
+from Psience.AnalyticModels import SymbolicCaller, AnalyticModelBase
 
+sym = AnalyticModelBase.sym
 m = SymbolicCaller(AnalyticModelBase.symbolic_m)
 r = SymbolicCaller(AnalyticModelBase.symbolic_r)
 a = SymbolicCaller(AnalyticModelBase.symbolic_a)

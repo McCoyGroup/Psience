@@ -288,36 +288,96 @@ class AnalyticModel:
             new.inverse = mode_inv
             return new, freqs
 
-    def get_VPT_expansions(self, order=2, evaluate=True):
-        terms = dict(
-            kinetic_terms=self.g(order, evaluate=evaluate),
-            potential_terms=self.v(order+2, evaluate=evaluate)[2:],
-            pseudopotential_terms=self.vp(order-2, evaluate=evaluate)
-        )
+    def get_VPT_expansions(self,
+                           order=2,
+                           expansion_order=None,
+                           include_potential=None,
+                           include_gmatrix=None,
+                           include_pseudopotential=None,
+                           evaluate=True
+                           ):
+        if expansion_order is None:
+            expansion_order = {}
+        if 'potential' in expansion_order:
+            pot_order = expansion_order['potential']
+        elif 'default' in expansion_order:
+            pot_order = expansion_order['default']
+        else:
+            pot_order = order
+        if 'kinetic' in expansion_order:
+            ke_order = expansion_order['kinetic']
+        elif 'default' in expansion_order:
+            ke_order = expansion_order['default']
+        else:
+            ke_order = order
+        if 'pseudopotential' in expansion_order:
+            u_order = expansion_order['pseudopotential']
+        elif 'default' in expansion_order:
+            u_order = expansion_order['default']
+        else:
+            u_order = order
+
+        terms = {}
+        if include_gmatrix is not False:
+            terms['kinetic_terms'] = self.g(ke_order, evaluate=evaluate)
+        if include_potential is not False:
+            terms['potential_terms'] = self.v(pot_order+2, evaluate=evaluate)[2:]
+        if include_pseudopotential is not False:
+            terms['pseudopotential_terms'] = self.vp(u_order, evaluate=evaluate)
+
+
+        if 'dipole' in expansion_order:
+            d_order = expansion_order['dipole']
+        elif 'default' in expansion_order:
+            d_order = expansion_order['default']
+        else:
+            d_order = order
         if self.dip is not None:
-            terms['dipole_terms'] = self.mu(order+1, evaluate=evaluate)
+            terms['dipole_terms'] = self.mu(d_order+1, evaluate=evaluate)
         return terms
-    def run_VPT(self, order=2):
-        from ..VPT2 import VPTAnalyzer
+    def run_VPT(self, order=2, return_analyzer=True,
+                expansion_order=None,
+                include_potential=None,
+                include_gmatrix=None,
+                include_pseudopotential=None,
+                **kwargs
+    ):
+        from ..VPT2 import VPTAnalyzer, VPTRunner
 
         if self.rotation is None:
             self, _ = self.to_normal_modes()
-        expansions = self.get_VPT_expansions(order=order, evaluate=True)
+        expansions = self.get_VPT_expansions(order=order,
+                                             expansion_order=expansion_order,
+                                             include_potential=include_potential,
+                                             include_gmatrix=include_gmatrix,
+                                             include_pseudopotential=include_pseudopotential,
+                                             evaluate=True
+                                             )
         freqs = np.diag(expansions['potential_terms'][0])
         ncoords = len(freqs)
         natoms = (ncoords + 6) // 3
-        analyzer = VPTAnalyzer.run_VPT(
+        if return_analyzer:
+            runner = VPTAnalyzer.run_VPT
+        else:
+            runner = VPTRunner.run_simple
+        analyzer = runner(
             [["H"] * natoms, np.zeros((natoms, 3))],  # dummy data since this won't be used at all
             2,
             modes={
                 "freqs": freqs,
                 "matrix": np.zeros((3 * natoms, len(freqs)))  # dummy data since this won't be used at all
             },
-            **expansions,
+            order=order,
+            **dict(expansions, **kwargs),
+            expansion_order=expansion_order,
+            include_potential=include_potential,
+            include_gmatrix=include_gmatrix,
+            include_pseudopotential=include_pseudopotential,
             include_coriolis_coupling=False,  # tell the job not to try to calculate the Coriolis coupling tensor
             calculate_intensities=self.dip is not None # no dipole so we can't get intensities
         )
-        analyzer.print_output_tables(print_intensities=self.dip is not None, print_energies=self.dip is None)
+        if return_analyzer:
+            analyzer.print_output_tables(print_intensities=self.dip is not None, print_energies=self.dip is None)
         return analyzer
 
     def evaluate(self, expr):
