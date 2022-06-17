@@ -2549,9 +2549,15 @@ class PotentialLikeTerm(KineticTerms):
             # ln(detX).dQ() = (X.inverse().dot(X.dQ)).tr()
             G0 = g_terms.QX(0)
             I0 = I_terms.QX(0)
-            lndetdQ = lambda X:-(X.inverse().dot(X.dQ(), 2, 2).shift(2, 1)).tr(2, 3)
+            lndetdQ = lambda X:(X.inverse().dot(X.dQ(), 2, 2).shift(2, 1)).tr(2, 3)
             gamdQ = lndetdQ(I0)+-lndetdQ(G0)
             gamdQ.name = "dQ(gam)"
+
+            # detG = G0.det()
+            # detI = I0.det()
+            # gamdQ_alt = (detI.dQ() / detI + -1 * detG.dQ() / detG).simplify()  # check_arrays=True)
+            # raise Exception(gamdQ.array, gamdQ_alt.array)
+
             gamdQQ = gamdQ.dQ().simplify()
 
             # terms = [x.asarray() for x in gamdQQ.dQ().simplify().terms]
