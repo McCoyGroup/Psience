@@ -1,6 +1,6 @@
 ## <a id="Psience.VPT2.Runner.VPTHamiltonianOptions">VPTHamiltonianOptions</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L378)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L378?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L371)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L371?message=Update%20Docs)]
 </div>
 
 Provides a helper to keep track of the levers available for
@@ -16,13 +16,15 @@ setting up the Hamiltonian
 
 <a id="Psience.VPT2.Runner.VPTHamiltonianOptions.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, include_coriolis_coupling=None, include_pseudopotential=None, potential_terms=None, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None, dipole_terms=None, dipole_derivatives=None, undimensionalize_normal_modes=None, use_numerical_jacobians=None, eckart_embed_derivatives=None, eckart_embed_planar_ref_tolerance=None, strip_dummy_atoms=None, strip_embedding_coordinates=None, mixed_derivative_handling_mode=None, backpropagate_internals=None, direct_propagate_cartesians=None, zero_mass_term=None, internal_fd_mesh_spacing=None, internal_fd_stencil=None, cartesian_fd_mesh_spacing=None, cartesian_fd_stencil=None, cartesian_analytic_deriv_order=None, internal_by_cartesian_order=None, cartesian_by_internal_order=None, jacobian_warning_threshold=None, check_input_force_constants=None, hessian_tolerance=None, grad_tolerance=None, freq_tolerance=None, g_derivative_threshold=None, gmatrix_tolerance=None, use_internal_modes=None, use_cartesian_kinetic_energy=None): 
+__init__(self, mode_selection=None, include_potential=None, include_gmatrix=None, include_coriolis_coupling=None, include_pseudopotential=None, potential_terms=None, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None, dipole_terms=None, dipole_derivatives=None, undimensionalize_normal_modes=None, use_numerical_jacobians=None, eckart_embed_derivatives=None, eckart_embed_planar_ref_tolerance=None, strip_dummy_atoms=None, strip_embedding_coordinates=None, mixed_derivative_handling_mode=None, backpropagate_internals=None, direct_propagate_cartesians=None, zero_mass_term=None, internal_fd_mesh_spacing=None, internal_fd_stencil=None, cartesian_fd_mesh_spacing=None, cartesian_fd_stencil=None, cartesian_analytic_deriv_order=None, internal_by_cartesian_order=None, cartesian_by_internal_order=None, jacobian_warning_threshold=None, check_input_force_constants=None, hessian_tolerance=None, grad_tolerance=None, freq_tolerance=None, g_derivative_threshold=None, gmatrix_tolerance=None, use_internal_modes=None, use_cartesian_kinetic_energy=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L421)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L421?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L417)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L417?message=Update%20Docs)]
 </div>
 
 
+- `mode_selection`: `Any`
+    >the subset of normal modes to do perturbation theory on
 - `include_coriolis_coupling`: `bool`
     >whether or not to include Coriolis coupling in Cartesian normal mode calculation
 - `include_pseudopotential`: `bool`
@@ -86,4 +88,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTHamiltonianOptions.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTHamiltonianOptions.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTHamiltonianOptions.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L378?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L371?message=Update%20Docs)

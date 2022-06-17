@@ -16,10 +16,10 @@ system for a VPT job
 
 <a id="Psience.VPT2.Runner.VPTSystem.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, mol, internals=None, dummy_atoms=None, modes=None, mode_selection=None, potential_derivatives=None, potential_function=None, order=2, dipole_derivatives=None, eckart_embed=False): 
+__init__(self, mol, internals=None, dummy_atoms=None, modes=None, potential_derivatives=None, potential_function=None, order=2, dipole_derivatives=None, eckart_embed=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L47)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L47?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L46)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L46?message=Update%20Docs)]
 </div>
 
 
@@ -29,8 +29,6 @@ __init__(self, mol, internals=None, dummy_atoms=None, modes=None, mode_selection
     >the Z-matrix for the internal coordinates (in the future will support a general function for this too)
 - `modes`: `Any`
     >the normal modes to use if not already supplied by the Molecule
-- `mode_selection`: `Any`
-    >the subset of normal modes to do perturbation theory on
 - `potential_derivatives`: `Iterable[np.ndarray]`
     >the derivatives of the potential to use for expansions
 - `dipole_derivatives`: `Iterable[np.ndarray]`
@@ -54,7 +52,7 @@ Provides the number of modes in the system
 get_potential_derivatives(self, potential_function, order=2, **fd_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L124)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L124?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L117)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L117?message=Update%20Docs)]
 </div>
 
 Computes potential derivatives for the given function through finite difference
@@ -72,7 +70,7 @@ Computes potential derivatives for the given function through finite difference
 from_harmonic_scan(scan_array): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L145)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L145?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L138)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L138?message=Update%20Docs)]
 </div>
 
  </div>
