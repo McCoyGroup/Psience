@@ -579,7 +579,7 @@ class VPT2Tests(TestCase):
                 [re_1, 0.000000, 0.000000],
                 [0.000000, re_2, 0.000000],
             ]),
-            zmatrix=internals,
+            internals=internals,
             guess_bonds=False,
         )
 
@@ -700,7 +700,7 @@ class VPT2Tests(TestCase):
                 [re_1, 0.000000, 0.000000],
                 [0.000000, re_2, 0.000000],
             ]),
-            zmatrix=internals,
+            internals=internals,
             guess_bonds=False,
         )
 
@@ -887,7 +887,7 @@ class VPT2Tests(TestCase):
                     [re_2, 0.000000, 0.000000]
                 )
             ]),
-            zmatrix=internals,
+            internals=internals,
             guess_bonds=False,
         )
 
@@ -1043,7 +1043,7 @@ class VPT2Tests(TestCase):
                     [re_2, 0.000000, 0.000000]
                 )
             ]),
-            zmatrix=internals,
+            internals=internals,
             guess_bonds=False,
         )
 
@@ -2227,9 +2227,9 @@ class VPT2Tests(TestCase):
 
         internals = [
             [0, -1, -1, -1],
-            [1, 0, -1, -1],
-            [2, 1, 0, -1],
-            [3, 1, 0, 2]
+            [1,  0, -1, -1],
+            [2,  1,  0, -1],
+            [3,  1,  0,  2]
         ]
 
         n_atoms = 4

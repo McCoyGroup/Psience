@@ -3,7 +3,6 @@ Defines useful extended internal coordinate frames
 """
 
 
-
 import numpy as np
 import McUtils.Numputils as nput
 from McUtils.Coordinerds import (
@@ -79,6 +78,7 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
     Mirrors the standard ZMatrix coordinate system in _almost_ all regards, but forces an embedding
     """
     name = "MolecularZMatrix"
+    embedding_coords =  [0, 1, 2, 4, 5, 8]
     def __init__(self, molecule, converter_options=None, **opts):
         """
 
@@ -104,6 +104,7 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         return self.converter_options['axes']
 
     def pre_convert(self, system):
+        self.converter_options['molecule'] = self.molecule
         self.set_embedding()
 
     def set_embedding(self):
@@ -175,11 +176,6 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
                 if dummies is not None:
                     for i in range(ext_dim):
                         j = np.take(j, main_excludes, axis=2*i)
-
-                #     j.shape[:i]
-                #     + (j.shape[i] // 3, 3)
-                #     + j.shape[i+1:]
-                # )
                 raw_jacs.append(j)
             jacs = raw_jacs
             return jacs
@@ -210,6 +206,7 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         super().__init__(converter_options=converter_options, dimension=(nats, 3), opts=opts)
 
     def pre_convert(self, system):
+        self.converter_options['molecule'] = self.molecule
         self.set_embedding()
 
     def set_embedding(self):
@@ -304,7 +301,12 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
     """
     ...
     """
-    types = (MolecularCartesianCoordinateSystem, MolecularZMatrixCoordinateSystem)
+    def __init__(self, cart_system, zmat_system, **opts):
+        self._types = (cart_system, zmat_system)
+        super().__init__(**opts)
+    @property
+    def types(self):
+        return self._types
     def convert(self, coords, molecule=None, origins=None, axes=None, ordering=None, **kwargs):
         """
         Converts from Cartesian to ZMatrix coords, preserving the embedding
@@ -405,6 +407,7 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
             ordering = ordering + 3
             ordering = np.concatenate([ [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]], ordering])
             # print("...?", ordering)
+        # raise Exception(CartesianCoordinates3D.converter(ZMatrixCoordinates))
         res = CoordinateSet(coords, CartesianCoordinates3D).convert(ZMatrixCoordinates,
                                                                     ordering=ordering,
                                                                     origins=origins,
@@ -449,15 +452,19 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
             zmcs = zmcs[..., sub_excludes, :]
             # raise Exception(derivs.shape)
         return zmcs, opts
-
-MolecularCartesianToZMatrixConverter = MolecularCartesianToZMatrixConverter()
-MolecularCartesianToZMatrixConverter.register(CoordinateSystemConverters)
-
+# MolecularCartesianToZMatrixConverter = MolecularCartesianToZMatrixConverter()
+# MolecularCartesianToZMatrixConverter.register(CoordinateSystemConverters)
 class MolecularCartesianToRegularCartesianConverter(CoordinateSystemConverter):
     """
     ...
     """
-    types = (MolecularCartesianCoordinateSystem, CartesianCoordinateSystem)
+
+    def __init__(self, cart_system, **opts):
+        self._types = (CartesianCoordinates3D, cart_system)
+        super().__init__(**opts)
+    @property
+    def types(self):
+        return self._types
     def convert(self, coords, **kw):
         return coords, kw
 
@@ -466,14 +473,40 @@ class MolecularCartesianToRegularCartesianConverter(CoordinateSystemConverter):
         Converts from Cartesian to ZMatrix coords, preserving the embedding
         """
         return coords, kwargs
-MolecularCartesianToRegularCartesianConverter = MolecularCartesianToRegularCartesianConverter()
-MolecularCartesianToRegularCartesianConverter.register()
+# MolecularCartesianToRegularCartesianConverter = MolecularCartesianToRegularCartesianConverter()
+# MolecularCartesianToRegularCartesianConverter.register()
+class RegularCartesianToMolecularCartesianConverter(CoordinateSystemConverter):
+    """
+    ...
+    """
+
+    def __init__(self, cart_system, **opts):
+        self._types = (cart_system, CartesianCoordinates3D)
+        super().__init__(**opts)
+    @property
+    def types(self):
+        return self._types
+
+    def convert(self, coords, **kw):
+        return coords, kw
+
+    def convert_many(self, coords, **kwargs):
+        """
+        Converts from Cartesian to ZMatrix coords, preserving the embedding
+        """
+        return coords, kwargs
 
 class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
     """
     ...
     """
-    types = (MolecularZMatrixCoordinateSystem, MolecularCartesianCoordinateSystem)
+    def __init__(self, zmat_system, cart_system, **opts):
+        self._types = (zmat_system, cart_system)
+        super().__init__(**opts)
+    @property
+    def types(self):
+        return self._types
+
     def convert(self, coords, **kw):
         total_points, opts = self.convert_many(coords[np.newaxis], **kw)
         return total_points[0], opts
@@ -596,21 +629,42 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
             carts = carts[..., main_excludes, :]
 
         return carts, opts
-
-MolecularZMatrixToCartesianConverter = MolecularZMatrixToCartesianConverter()
-MolecularZMatrixToCartesianConverter.register()
+# MolecularZMatrixToCartesianConverter = MolecularZMatrixToCartesianConverter()
+# MolecularZMatrixToCartesianConverter.register()
 
 class MolecularZMatrixToRegularZMatrixConverter(CoordinateSystemConverter):
     """
     ...
     """
-    types = (MolecularZMatrixCoordinateSystem, ZMatrixCoordinateSystem)
+    def __init__(self, zmat_system, **opts):
+        self._types = (zmat_system, ZMatrixCoordinateSystem)
+        super().__init__(**opts)
+    @property
+    def types(self):
+        return self._types
+
     def convert(self, coords, **kw):
         return coords, kw
 
     def convert_many(self, coords, **kwargs):
         return coords, kwargs
-MolecularZMatrixToRegularZMatrixConverter = MolecularZMatrixToRegularZMatrixConverter()
-MolecularZMatrixToRegularZMatrixConverter.register()
 
+class RegularZMatrixToMolecularZMatrixConverter(CoordinateSystemConverter):
+    """
+    ...
+    """
 
+    def __init__(self, zmat_system, **opts):
+        self._types = (ZMatrixCoordinateSystem, zmat_system)
+        super().__init__(**opts)
+    @property
+    def types(self):
+        return self._types
+
+    def convert(self, coords, **kw):
+        return coords, kw
+
+    def convert_many(self, coords, **kwargs):
+        return coords, kwargs
+# MolecularZMatrixToRegularZMatrixConverter = MolecularZMatrixToRegularZMatrixConverter()
+# MolecularZMatrixToRegularZMatrixConverter.register()

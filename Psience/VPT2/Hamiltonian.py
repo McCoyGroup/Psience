@@ -192,7 +192,7 @@ class PerturbationTheoryHamiltonian:
         """
 
         molecule = Molecule.from_file(file,
-                                      zmatrix=internals,
+                                      internals=internals,
                                       mode='fchk'
                                       )
         return cls(molecule=molecule, mode_selection=mode_selection, **kw)

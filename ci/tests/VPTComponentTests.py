@@ -2473,7 +2473,7 @@ class VPT2Tests(TestCase):
                 [0.000000, 1.000000, 0.000000],
                 [re_2,     1.000000, 0.000000]
                 ]),
-            zmatrix=internals,
+            internals=internals,
             guess_bonds=False,
         )
 
@@ -2638,7 +2638,7 @@ class VPT2Tests(TestCase):
                 [re_1, 0.000000, 0.000000],
                 [0.000000, re_2, 0.000000],
             ]),
-            zmatrix=internals,
+            internals=internals,
             guess_bonds=False,
         )
 
@@ -2757,7 +2757,7 @@ class VPT2Tests(TestCase):
                 [re_1, 0.000000, 0.000000],
                 [0.000000, re_2, 0.000000],
             ]),
-            zmatrix=internals,
+            internals=internals,
             guess_bonds=False,
         )
 
@@ -2942,7 +2942,7 @@ class VPT2Tests(TestCase):
                     [re_2, 0.000000, 0.000000]
                 )
             ]),
-            zmatrix=internals,
+            internals=internals,
             guess_bonds=False,
         )
 
@@ -3094,7 +3094,7 @@ class VPT2Tests(TestCase):
                     [re_2, 0.000000, 0.000000]
                 )
             ]),
-            zmatrix=internals,
+            internals=internals,
             guess_bonds=False,
         )
 

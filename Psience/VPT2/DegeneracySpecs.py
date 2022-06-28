@@ -226,7 +226,7 @@ class MartinTestDegeneracySpec(DegeneracySpec):
     def __init__(self, threshold=4.6e-6, test_energy_window=4.6e-3, convert=True, frequencies=None, **opts):
         super().__init__(**opts)
         if convert and threshold > 1e-2: # help coerce it into Hartrees
-            threshold = threshold / 219465 # only need a rough conversion...
+            threshold = threshold / 219475 # only need a rough conversion...
         self.threshold = threshold
         self.window = test_energy_window
         self.frequencies = frequencies
@@ -334,7 +334,7 @@ class MartinTestDegeneracySpec(DegeneracySpec):
             basis=self._basis,
             corrections=self._matrix,
             threshold=self.threshold,
-            threshold_step_size=1/219465,
+            threshold_step_size=1/219475,
             **kwargs
         )
 
