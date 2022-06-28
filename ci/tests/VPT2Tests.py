@@ -357,7 +357,7 @@ class VPT2Tests(TestCase):
           0 0 0 0 2 1    5592.48466      0.00000      5053.08138      7.79496
         """
 
-    @debugTest
+    @validationTest
     def test_AnalyticModels(self):
         from Psience.AnalyticModels import AnalyticModel as Model
         from McUtils.Data import AtomData, UnitsData
@@ -521,3 +521,45 @@ class VPT2Tests(TestCase):
             expansion_order=expansion_order
         )
         # analyzer.print_output_tables(print_intensities=False, print_energies=True)
+
+    @debugTest
+    def test_OCHHInternals(self):
+
+        tag = 'OCHH Internals'
+        file_name = "OCHH_freq.fchk"
+
+        zmatrix = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  1,  0, -1],
+            [3,  1,  0,  2]
+        ]
+
+        def conv(r, t, f, **kwargs):
+            return np.array([r**2+1, t, f])
+        def inv(r2, t, f, **kwargs):
+            return np.array([np.sqrt(r2-1), t, f])
+
+        # def conv(crds, **kwargs):
+        #     return crds
+        # def inv(crds, **kwargs):
+        #     return crds
+
+        from McUtils.Coordinerds import ZMatrixCoordinateSystem
+        internals = {
+            'zmatrix':zmatrix,
+            'conversion':conv,
+            'inverse':inv,
+            # 'converter_options':{
+            #     'pointwise':False,
+            #     # 'jacobian_prep':ZMatrixCoordinateSystem.jacobian_prep_coordinates
+            # }
+        }
+
+        print("Cart:")
+        # VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2).print_output_tables()
+        print("ZMat:")
+        # VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2, internals=zmatrix).print_output_tables()
+        print("Custom:")
+        # VPTRunner.run_simple(TestManager.test_data(file_name), 2, internals=internals)
+        VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2, internals=internals).print_output_tables()

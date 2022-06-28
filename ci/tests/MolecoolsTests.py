@@ -685,7 +685,7 @@ class MolecoolsTests(TestCase):
         print(UnitsData.convert("Hartrees", "Wavenumbers") * np.sqrt(np.diag(np.dot(np.dot(mm.T, fcs), mm))))
         # print(modes._basis.matrix.T.dot(m.force_constants).shape)
 
-    @debugTest
+    @validationTest
     def test_VisualizeNormalModes(self):
 
         from Psience.Molecools.Vibrations import MolecularVibrations, MolecularNormalModes
@@ -781,3 +781,43 @@ class MolecoolsTests(TestCase):
         self.assertAlmostEquals(meh22[1, 1, 0, 0], .009235, places=6)
         self.assertTrue(np.allclose(meh12, meh22))
 
+    @debugTest
+    def test_CompositeCoordinates(self):
+        def conv(r, t, f, **kwargs):
+            return [r**2, np.cos(t), np.sin(f)]
+        def inv(r2, t, f, **kwargs):
+            return [np.sqrt(r2), np.arccos(t), np.arcsin(f)]
+
+        mol = Molecule.from_file(
+            TestManager.test_data('HOONO_freq.fchk'),
+            internals = {
+                'zmatrix':[
+                    [1, -1, -1, -1],
+                    [2,  1, -1, -1],
+                    [3,  2,  1, -1],
+                    [0,  1,  2,  3],
+                    [4,  3,  2,  1]
+                ],
+                'conversion':conv,
+                'inverse':inv,
+                'converter_options':{'pointwise':True}
+            }
+        )
+
+        mol2 = Molecule.from_file(
+            TestManager.test_data('HOONO_freq.fchk'),
+            internals = {
+                'zmatrix':[
+                    [1, -1, -1, -1],
+                    [2,  1, -1, -1],
+                    [3,  2,  1, -1],
+                    [0,  1,  2,  3],
+                    [4,  3,  2,  1]
+                ]
+            }
+        )
+
+        ic1 = mol.internal_coordinates
+        ic2 = mol2.internal_coordinates
+
+        self.assertAlmostEquals(np.sum(ic1.convert(ic2.system)-ic2)[()], 0.)

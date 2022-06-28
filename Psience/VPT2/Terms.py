@@ -341,20 +341,22 @@ class ExpansionTerms:
         if not self.strip_embedding and QR.shape[0] != 3 * self.num_atoms:
             _QR = QR
             QR = np.zeros((3 * self.num_atoms, _QR.shape[1]))
-            embedding_coords = [0, 1, 2, 4, 5, 8]
-            good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
-            QR[good_coords, :] = _QR
-            self._modes.matrix = QR
+            if hasattr(self.internal_coordinates.system, 'embedding_coords'):
+                embedding_coords = self.internal_coordinates.system.embedding_coords
+                good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
+                QR[good_coords, :] = _QR
+                self._modes.matrix = QR
 
         RQ = self._modes.inverse  # derivatives of internals with respect to Q
         if not self.strip_embedding and RQ.shape[1] != 3 * self.num_atoms:
             _RQ = RQ
             # we need to add zeros for the orientation coordinates
             RQ = np.zeros((_RQ.shape[0], 3 * self.num_atoms))
-            embedding_coords = [0, 1, 2, 4, 5, 8]
-            good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
-            RQ[:, good_coords] = _RQ
-            self._modes.inverse = RQ
+            if hasattr(self.internal_coordinates.system, 'embedding_coords'):
+                embedding_coords = self.internal_coordinates.system.embedding_coords
+                good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
+                RQ[:, good_coords] = _RQ
+                self._modes.inverse = RQ
 
     @property
     def modes(self):
@@ -562,7 +564,6 @@ class ExpansionTerms:
             #  So we convert (amu * bohr^2) to (m_e * bohr^2) since hb^2/(m_e bohr^2) == E_h
             mom_i, eigs = self.molecule.inertial_eigensystem
             B_e = 1 / (2 * mom_i)# * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
-            # print(B_e * UnitsData.convert("Hartrees", "Wavenumbers") )
             self._inert_frame = B_e, eigs
 
         return self._inert_frame
@@ -633,6 +634,15 @@ class ExpansionTerms:
 
         return all_derivs
 
+    def _get_embedding_coords(self):
+        try:
+            embedding = self.internal_coordinates.system.embedding_coords
+        except AttributeError:
+            try:
+                embedding = self.internal_coordinates.system.converter_options['embedding_coords']
+            except KeyError:
+                embedding = None
+        return embedding
     _cached_transforms = {}
     def get_coordinate_transforms(self,
                                   internal_by_cartesian_order=None,
@@ -658,15 +668,17 @@ class ExpansionTerms:
                 current_cache = {}
 
             if self.logger is not None:
-                self.logger.log_print(
-                    [
-                        "Getting coordinate transforms for {m}",
-                        "Embedding axes: {a}"
-                    ],
-                    m=self.molecule,
-                    a=self.internal_coordinates.system.converter_options["axes_labels"]
-                )
+                msg = [
+                        "Getting coordinate transforms for {m}"
+                    ]
+                opt = dict(m=self.molecule)
+                if 'axes_labels' in self.internal_coordinates.system.converter_options:
+                    msg.append("Embedding axes: {a}")
+                    opt['a'] = self.internal_coordinates.system.converter_options["axes_labels"]
 
+                self.logger.log_print(msg, **opt)
+
+            embedding_coords = self._get_embedding_coords() if self.strip_embedding else None
             # fill out
             if (
                     JacobianKeys.CartesiansByInternals not in current_cache
@@ -680,6 +692,7 @@ class ExpansionTerms:
                         o=cartesian_by_internal_order
                     )
                 cart_by_internal_jacobs = self.get_int_jacobs(list(range(1, cartesian_by_internal_order+1)))
+
                 if self.logger is not None:
                     end = time.time()
                     self.logger.log_print(
@@ -702,8 +715,7 @@ class ExpansionTerms:
                 cart_by_internal_jacobs = _
 
                 # we'll strip off the embedding coords just in case
-                if self.strip_embedding:
-                    embedding_coords = [0, 1, 2, 4, 5, 8]
+                if embedding_coords is not None:
                     good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
 
                 for i, x in enumerate(cart_by_internal_jacobs):
@@ -739,7 +751,7 @@ class ExpansionTerms:
                         _.append(x)
                     else:
                         x = x * internal_weighting
-                        if self.strip_embedding:
+                        if embedding_coords is not None:
                             for j in range(i+1):
                                 x = np.take(x, good_coords, axis=j)
                         _.append(x)
@@ -785,8 +797,7 @@ class ExpansionTerms:
                 int_by_cartesian_jacobs = _
 
                 # we'll strip off the embedding coords just in case
-                if self.strip_embedding:
-                    embedding_coords = [0, 1, 2, 4, 5, 8]
+                if embedding_coords is not None:
                     good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
 
                 for i,x in enumerate(int_by_cartesian_jacobs):
@@ -821,7 +832,7 @@ class ExpansionTerms:
                         _.append(x)
                     else:
                         x = x / cartesian_weighting
-                        if self.strip_embedding:
+                        if embedding_coords is not None:
                             x = np.take(x, good_coords, axis=-1)
                         _.append(x)
                     mc = np.expand_dims(mc, 0)
@@ -840,20 +851,22 @@ class ExpansionTerms:
                 if not self.strip_embedding and QR.shape[0] != 3*self.num_atoms:
                     _QR = QR
                     QR = np.zeros((3*self.num_atoms, _QR.shape[1]))
-                    embedding_coords = [0, 1, 2, 4, 5, 8]
-                    good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
-                    QR[good_coords, :] = _QR
-                    self.modes.matrix = QR
+                    if hasattr(self.internal_coordinates.system, 'embedding_coords'):
+                        embedding_coords = self.internal_coordinates.system.embedding_coords
+                        good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
+                        QR[good_coords, :] = _QR
+                        self.modes.matrix = QR
 
                 RQ = self.modes.inverse # derivatives of internals with respect to Q
                 if not self.strip_embedding and RQ.shape[1] != 3 * self.num_atoms:
                     _RQ = RQ
                     # we need to add zeros for the orientation coordinates
                     RQ = np.zeros((_RQ.shape[0], 3*self.num_atoms))
-                    embedding_coords = [0, 1, 2, 4, 5, 8]
-                    good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
-                    RQ[:, good_coords] = _RQ
-                    self.modes.inverse = RQ
+                    if hasattr(self.internal_coordinates.system, 'embedding_coords'):
+                        embedding_coords = self.internal_coordinates.system.embedding_coords
+                        good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
+                        RQ[:, good_coords] = _RQ
+                        self.modes.inverse = RQ
 
                 if (
                         JacobianKeys.CartesiansByInternalModes not in current_cache
@@ -1018,10 +1031,6 @@ class ExpansionTerms:
     def cartesian_L_matrix(self):
         return self.get_cartesians_by_cartesian_modes(1)[0]
     def get_cartesians_by_cartesian_modes(self, order=None):
-        # print(dict(
-        #     cartesian_by_internal_order=order,
-        #     internal_by_cartesian_order=min(order, self.internal_by_cartesian_order)
-        # ))
         base = self.get_coordinate_transforms(
             cartesian_by_internal_order=order,
             internal_by_cartesian_order=None if order is None else min(order, self.internal_by_cartesian_order)
@@ -1073,8 +1082,9 @@ class ExpansionTerms:
                     order
                 ))
             base = base[:order]
-        if strip_embedding and not self.strip_embedding:
-            embedding_coords = [0, 1, 2, 4, 5, 8]
+
+        embedding_coords = self._get_embedding_coords() if (self.strip_embedding or strip_embedding) else None
+        if embedding_coords is not None and (strip_embedding and not self.strip_embedding):
             good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
             base = [t[good_coords,] if not isinstance(t, int) else t for t in base]
         return base
@@ -1094,8 +1104,8 @@ class ExpansionTerms:
                     order
                 ))
             base = base[:order]
-        if strip_embedding and not self.strip_embedding:
-            embedding_coords = [0, 1, 2, 4, 5, 8]
+        embedding_coords = self._get_embedding_coords() if (self.strip_embedding or strip_embedding) else None
+        if embedding_coords is not None and (strip_embedding and not self.strip_embedding):
             good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
             base = [t[..., good_coords] if not isinstance(t, int) else t for t in base]
         return base
@@ -1154,8 +1164,8 @@ class ExpansionTerms:
                 ))
             base = base[:order]
 
-        if strip_embedding and not self.strip_embedding:
-            embedding_coords = [0, 1, 2, 4, 5, 8]
+        embedding_coords = self._get_embedding_coords() if (self.strip_embedding or strip_embedding) else None
+        if embedding_coords is not None and (strip_embedding and not self.strip_embedding):
             good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
             base = [t[np.ix_(*((good_coords,)*(t.ndim-1)))] for t in base]
         return base
@@ -1175,8 +1185,8 @@ class ExpansionTerms:
                     order
                 ))
             base = base[:order]
-        if strip_embedding and not self.strip_embedding:
-            embedding_coords = [0, 1, 2, 4, 5, 8]
+        embedding_coords = self._get_embedding_coords() if (self.strip_embedding or strip_embedding) else None
+        if embedding_coords is not None and (strip_embedding and not self.strip_embedding):
             good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
             base = [t[..., good_coords] for t in base]
         return base

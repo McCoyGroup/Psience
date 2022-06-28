@@ -7,11 +7,16 @@ Uses AtomData to get properties and whatnot
 import os, numpy as np
 
 from McUtils.Data import AtomData, UnitsData
-from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
+from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D, CompositeCoordinateSystem
 import McUtils.Numputils as nput
 
 from .MoleculeInterface import *
-from .CoordinateSystems import MolecularCartesianCoordinateSystem, MolecularZMatrixCoordinateSystem
+from .CoordinateSystems import (
+    MolecularCartesianCoordinateSystem, MolecularZMatrixCoordinateSystem,
+    MolecularZMatrixToCartesianConverter, MolecularCartesianToZMatrixConverter,
+    MolecularCartesianToRegularCartesianConverter, RegularCartesianToMolecularCartesianConverter,
+    MolecularZMatrixToRegularZMatrixConverter, RegularZMatrixToMolecularZMatrixConverter
+)
 from .Properties import *
 from .Transformations import *
 
@@ -33,7 +38,7 @@ class Molecule(AbstractMolecule):
                  bonds=None,
                  masses=None,
                  name=None,
-                 zmatrix=None,
+                 internals=None,
                  obmol=None,
                  dipole_surface=None,
                  dipole_derivatives=None,
@@ -58,7 +63,7 @@ class Molecule(AbstractMolecule):
         :type charge: int | None
         :param name: Name for the molecule
         :type name: str | None
-        :param name: The internal coordinate Z-matrix specification for the molecule
+        :param name: The internal coordinate specification for the molecule
         :type name: np.ndarray[int] | None
         :param dipole_surface: The dipole surface for the system
         :type dipole_surface: DipoleSurface | None
@@ -87,12 +92,12 @@ class Molecule(AbstractMolecule):
         self._coords = coords
         self._sys = MolecularCartesianCoordinateSystem(self)
         self._coords = CoordinateSet(self._coords, self._sys)
-        if zmatrix is not None:
-            zmatrix = np.asanyarray(zmatrix).astype(int)
-            if zmatrix.shape[1] != 4:
-                raise ValueError("can't understand Z-matrix {}".format(zmatrix))
-        self._zmat = zmatrix
-        self._ints = None
+        if isinstance(internals, CoordinateSet):
+            self._int_spec = None
+            self._ints = internals
+        else:
+            self._int_spec = self.canonicalize_internal_coordinate_spec(internals)
+            self._ints = None
 
         self._bonds = bonds
 
@@ -377,7 +382,6 @@ class Molecule(AbstractMolecule):
                 name
             ))
 
-
     #region Coordinate Embeddings
 
     @property
@@ -431,32 +435,145 @@ class Molecule(AbstractMolecule):
         """
         return self.prop('translation_rotation_eigenvectors')
 
+    # @property
+    # def zmatrix(self):
+    #     """
+    #     :return:
+    #     :rtype:
+    #     """
+    #     return self._zmat
+    # @zmatrix.setter
+    # def zmatrix(self, zmatrix):
+    #     """
+    #     :return:
+    #     :rtype:
+    #     """
+    #     #TODO: add some validation
+    #     zmatrix = np.asanyarray(zmatrix).astype(int)
+    #     if zmatrix.shape[1] != 4:
+    #         raise ValueError("can't understand Z-matrix {}".format(zmatrix))
+    #     self._zmat = zmatrix
+    @classmethod
+    def canonicalize_internal_coordinate_spec(cls, spec):
+        if spec is not None:
+            if hasattr(spec, 'items'):
+                try:
+                    zmatrix = spec['zmatrix']
+                except KeyError:
+                    zmatrix = None
+                else:
+                    zmatrix = np.asanyarray(zmatrix).astype(int)
+                    if zmatrix.shape[1] != 4:
+                        raise ValueError("can't understand Z-matrix {}".format(zmatrix))
+                spec['zmatrix'] = zmatrix
+                try:
+                    conversion = spec['conversion']
+                except KeyError:
+                    conversion = None
+                spec['conversion'] = cls._wrap_conv(conversion)
+                try:
+                    inverse = spec['inverse']
+                except KeyError:
+                    inverse = None
+                spec['inverse'] = cls._wrap_conv(inverse)
+                try:
+                    converter_options = spec['converter_options']
+                except KeyError:
+                    converter_options = {}
+                else:
+                    if converter_options is None:
+                        converter_options = {}
+                if 'embedding_coords' not in converter_options:
+                    if spec['zmatrix'] is not None:
+                        converter_options['embedding_coords'] = MolecularZMatrixCoordinateSystem.embedding_coords
+                if 'jacobian_prep' not in converter_options:
+                    if spec['zmatrix'] is not None:
+                        converter_options['jacobian_prep'] = ZMatrixCoordinates.jacobian_prep_coordinates
+                spec['converter_options'] = converter_options
+            elif callable(spec):
+                zmatrix = None
+                conversion = cls._wrap_conv(spec)
+                spec = {'zmatrix':zmatrix, 'conversion':conversion, 'inverse':None, 'converter_options':{}}
+            else:
+                conversion = None
+                zmatrix = np.asanyarray(spec).astype(int)
+                if zmatrix.shape[1] != 4:
+                    raise ValueError("can't understand Z-matrix {}".format(zmatrix))
+                spec = {'zmatrix':zmatrix, 'conversion':conversion, 'inverse':None, 'converter_options':{}}
+        return spec
+    @staticmethod
+    def _wrap_conv(f):
+        if f is None:
+            return f
+        def wrapped(*args, **kwargs):
+            vals = f(*args, **kwargs)
+            if not isinstance(vals, np.ndarray):
+                vals, opts = vals
+            else:
+                opts = {}
+            opts = dict(kwargs, **opts)
+            return vals, opts
+        return wrapped
+
+    @property
+    def internals(self):
+        if self._int_spec is not None:
+            return self._int_spec
+    @internals.setter
+    def internals(self, internals):
+        self._int_spec = self.canonicalize_internal_coordinate_spec(internals)
+        self._ints = None
     @property
     def zmatrix(self):
-        """
-        :return:
-        :rtype:
-        """
-        return self._zmat
+        if self._int_spec is not None:
+            return self._int_spec['zmatrix']
     @zmatrix.setter
-    def zmatrix(self, zmatrix):
-        """
-        :return:
-        :rtype:
-        """
-        #TODO: add some validation
-        zmatrix = np.asanyarray(zmatrix).astype(int)
-        if zmatrix.shape[1] != 4:
-            raise ValueError("can't understand Z-matrix {}".format(zmatrix))
-        self._zmat = zmatrix
+    def zmatrix(self, zmat):
+        if zmat is not None:
+            zmat = np.asanyarray(zmat).astype(int)
+            if zmat.shape[1] != 4:
+                raise ValueError("can't understand Z-matrix {}".format(zmat))
+        if self._int_spec is None:
+            self._int_spec = self.canonicalize_internal_coordinate_spec(zmat)
+        else:
+            self._int_spec['zmatrix'] = zmat
+        self._ints = None
     @property
     def internal_coordinates(self):
-        if self._ints is None and self._zmat is not None:
-            zms = MolecularZMatrixCoordinateSystem(self, ordering=self._zmat)
+        if self._ints is None and (
+                self._int_spec is not None
+                and (self._int_spec['zmatrix'] is not None or self._int_spec['conversion'] is not None)
+        ):
+            coords = self.coords
+            if self._int_spec['zmatrix'] is not None:
+                zms = MolecularZMatrixCoordinateSystem(self, ordering=self._int_spec['zmatrix'])
+                MolecularCartesianToZMatrixConverter(self.coords.system, zms).register()
+                MolecularZMatrixToCartesianConverter(zms, self.coords.system).register()
+                MolecularCartesianToRegularCartesianConverter(self.coords.system).register()
+                RegularCartesianToMolecularCartesianConverter(self.coords.system).register()
+                MolecularZMatrixToRegularZMatrixConverter(zms).register()
+                RegularZMatrixToMolecularZMatrixConverter(zms).register()
+                coords = self.coords.convert(zms)
+            if self._int_spec['conversion'] is not None:
+                conv = CompositeCoordinateSystem.register(
+                    coords.system,
+                    self._int_spec['conversion'],
+                    inverse_conversion=self._int_spec['inverse'],
+                    **self._int_spec['converter_options']
+                )
+                coords = coords.convert(conv)
             # print(zms)
             # print(zms, self.coords, self.coords.system.converter(zms))
-            self._ints = self.coords.convert(zms)
+            self._ints = coords
         return self._ints
+    @internal_coordinates.setter
+    def internal_coordinates(self, ics):
+        if not isinstance(ics, CoordinateSet):
+            raise ValueError("{} must be a {} to be valid internal coordinates".format(
+                ics, CoordinateSet.__name__
+            ))
+        self._ints = ics
+
     @property
     def g_matrix(self):
         """
@@ -465,7 +582,7 @@ class Molecule(AbstractMolecule):
         :rtype:
         """
         if self.internal_coordinates is None:
-            raise ValueError("need an internal coordinate Z-matrix to calculate the G-matrix")
+            raise ValueError("need internal coordinates to calculate the G-matrix")
         return self.prop('g_matrix')
 
     def bond_length(self, i, j):
@@ -747,20 +864,18 @@ class Molecule(AbstractMolecule):
             return cls.from_zmat(zmat, **opts)
         else:
             raise NotImplementedError("don't have {} loading from format {} for spec {}".format(cls.__name__, fmt, spec))
-
     #endregion
-
-
 
     #region Visualization
     def plot(self,
              *geometries,
-             figure = None,
-             bond_radius = .1, atom_radius_scaling = .25,
-             atom_style = None,
-             bond_style = None,
-             mode = 'fast',
-             objects = False,
+             figure=None,
+             bond_radius=.1,
+             atom_radius_scaling=.25,
+             atom_style=None,
+             bond_style=None,
+             mode='fast',
+             objects=False,
              **plot_ops
              ):
 

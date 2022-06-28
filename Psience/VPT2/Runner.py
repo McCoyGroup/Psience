@@ -82,7 +82,7 @@ class VPTSystem:
                         pos = mol.coords[ref_2] + 2 * c / np.linalg.norm(c)
                     dummy_specs.append([where, pos])
                 mol = mol.insert_atoms(["X"]*len(dummy_atoms), [d[1] for d in dummy_specs], [d[0] for d in dummy_specs])
-            mol.zmatrix = internals
+            mol.internals = internals
         self.mol = mol
         if modes is not None:
             self.mol.normal_modes.modes = modes
