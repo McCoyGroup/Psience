@@ -148,7 +148,9 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         return {'x':self.x, 'p':self.p, 'I':self.I}
 
     selection_rules_mapping = {'x': None, 'p': None, 'I': [0]}
-    def operator(self, *terms, logger=None, parallelizer=None, chunk_size=None):
+    def operator(self, *terms, logger=None, parallelizer=None, chunk_size=None,
+                 **operator_settings
+                 ):
         """
         Provides an `Operator` to handle the given terms
 
@@ -166,7 +168,9 @@ class RepresentationBasis(metaclass=abc.ABCMeta):
         from .Operators import Operator
         funcs = [self.operator_mapping[f] if isinstance(f, str) else f for f in terms]
         q = (self.quanta,)
-        op = Operator(funcs, q, logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)
+        op = Operator(funcs, q, logger=logger, parallelizer=parallelizer, chunk_size=chunk_size,
+                 **operator_settings
+                      )
         return op
     def representation(self, *terms, logger=None, name=None, parallelizer=None, chunk_size=None, memory_constrained=False):
         """
@@ -434,7 +438,9 @@ class SimpleProductBasis(RepresentationBasis):
         return lambda *r, _fs=fs, **kw: np.prod(f(*r, **kw) for f in _fs)
 
     def operator(self, *terms, coeffs=None, axes=None,
-                 parallelizer=None, logger=None, chunk_size=None):
+                 parallelizer=None, logger=None, chunk_size=None,
+                 **operator_settings
+                 ):
         """
         Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -466,14 +472,20 @@ class SimpleProductBasis(RepresentationBasis):
                                     selection_rules=sel_rules,
                                     parallelizer=parallelizer,
                                     logger=logger,
-                                    chunk_size=chunk_size
+                                    chunk_size=chunk_size,
+                                    **operator_settings
                                     )
         else:
             op = Operator(funcs, q, symmetries=labels, selection_rules=sel_rules,
-                          parallelizer=parallelizer, logger=logger, chunk_size=chunk_size)
+                          parallelizer=parallelizer, logger=logger, chunk_size=chunk_size,
+                          **operator_settings
+                          )
         return op
-    def representation(self, *terms, coeffs=None, name=None, axes=None,
-                       logger=None, parallelizer=None, chunk_size=None, memory_constrained=False):
+    def representation(self, *terms,
+                       coeffs=None, name=None, axes=None,
+                       logger=None, parallelizer=None, chunk_size=None, memory_constrained=False,
+                       **operator_settings
+                       ):
         """
         Provides a representation of a product operator specified by _terms_.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -486,7 +498,9 @@ class SimpleProductBasis(RepresentationBasis):
         from .Representations import Representation
         return Representation(
             self.operator(*terms, coeffs=coeffs, axes=axes,
-                          parallelizer=parallelizer, logger=logger, chunk_size=chunk_size),
+                          parallelizer=parallelizer, logger=logger, chunk_size=chunk_size,
+                          **operator_settings
+                          ),
             self, logger=logger, name=name, memory_constrained=memory_constrained
         )
     def x(self, n):

@@ -374,7 +374,7 @@ class PerturbationTheoryCorrections:
                 for x in self.operator_representation(subhams, logger_symbol="H", logger_conversion=UnitsData.convert("Hartrees", "Wavenumbers"))
             ]
         return H_nd
-    def get_degenerate_rotation(self, deg_group, hams):
+    def get_degenerate_rotation(self, deg_group, hams, zero_point_energy=None):
         """
 
         :param deg_group:
@@ -404,11 +404,19 @@ class PerturbationTheoryCorrections:
         # for h in H_nd[1:]:
         #     np.fill_diagonal(h, 0.)
         H_nd_corrs = subdegs.get_transformed_Hamiltonians(hams, deg_group=None)
+        group_inds = self.states.find(deg_group)
+        # zero_order_engs = self.energy_corrs[group_inds, 0]
+        # raise Exception(
+        #     (H_nd_corrs[0]-np.diag(np.full(len(group_inds), self.energy_corrs[0, 0])))*UnitsData.convert("Hartrees", "Wavenumbers"),
+        #     (zero_order_engs-self.energy_corrs[0, 0])*UnitsData.convert("Hartrees", "Wavenumbers")
+        # )
+        # np.fill_diagonal(H_nd_corrs[0], zero_order_engs)
+
         # import McUtils.Plots as plt
         # plt.TensorPlot(np.array(H_nd)).show()
         H_nd = np.sum(H_nd_corrs, axis=0)
         if np.sum(H_nd) == 0:
-            raise Exception(subdegs.wfn_corrections)
+            raise ValueError("No corrections from ", subdegs.wfn_corrections)
         #     raise Exception(deg_group.excitations,
         #                     self.states.take_states(deg_group).excitations,
         #                     # self.coupled_states.take_states(deg_group).excitations
@@ -416,9 +424,11 @@ class PerturbationTheoryCorrections:
         # overlaps = np.sum(subdegs.get_overlap_matrices(), axis=0)
 
         with logger.block(tag="non-degenerate Hamiltonian"):
+            if zero_point_energy is None:
+                zero_point_energy = self.energies[0]
             logger.log_print(
                 str(
-                    np.round(H_nd * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
+                    np.round((H_nd - np.diag(np.full(len(group_inds), zero_point_energy))) * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
                 ).splitlines()
             )
 
@@ -467,7 +477,7 @@ class PerturbationTheoryCorrections:
 
         return H_nd_corrs, deg_engs, deg_transf
 
-    def get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=False):
+    def get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=False, zero_point_energy=None):
         # this will be built from a series of block-diagonal matrices
         # so we store the relevant values and indices to compose the SparseArray
 
@@ -490,7 +500,7 @@ class PerturbationTheoryCorrections:
                 gaussian_resonance_handling and np.max(np.sum(group.excitations, axis=1)) > 2):
             H_nd = deg_engs = deg_rot = None
         elif len(deg_inds) > 1:
-            H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group, hams)
+            H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group, hams, zero_point_energy=zero_point_energy)
         else:
             H_nd = deg_engs = deg_rot = None
             # raise NotImplementedError("Not sure what to do when no states in degeneracy spec are in total space")

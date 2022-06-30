@@ -223,7 +223,7 @@ class EnergyCutoffDegeneracySpec(DegeneracySpec):
 class MartinTestDegeneracySpec(DegeneracySpec):
     application_order = 'mid'
     group_filter = 'default'
-    def __init__(self, threshold=4.6e-6, test_energy_window=4.6e-3, convert=True, frequencies=None, **opts):
+    def __init__(self, threshold=4.6e-6, test_energy_window=4.6e-3, convert=True, frequencies=None, extra_groups=None, **opts):
         super().__init__(**opts)
         if convert and threshold > 1e-2: # help coerce it into Hartrees
             threshold = threshold / 219475 # only need a rough conversion...
@@ -234,6 +234,7 @@ class MartinTestDegeneracySpec(DegeneracySpec):
         self._states = None
         self._basis = None
         self._matrix = None
+        self.extra_groups = extra_groups
 
     repr_opts = ['energy_cutoff', 'threshold']
     def prep_states(self, states:BasisStateSpace):
@@ -318,10 +319,15 @@ class MartinTestDegeneracySpec(DegeneracySpec):
         # raise Exception("...")
         return spaces
     # @classmethod
-    def get_groups(self, input_states:BasisStateSpace, solver=None, **kwargs):
+    def get_groups(self, input_states:BasisStateSpace, solver=None, extra_groups=None, **kwargs):
         groups = self.get_coupled_spaces(input_states, solver=solver)
         indexer = SymmetricGroupGenerator(input_states.ndim)
-        groups = PermutationRelationGraph.merge_groups([(indexer.to_indices(g), g) for g in groups])
+        if extra_groups is None:
+            extra_groups = self.extra_groups
+        if extra_groups is None:
+            extra_groups = []
+        extra_groups = [(indexer.to_indices(g), np.asanyarray(g)) for g in extra_groups]
+        groups = PermutationRelationGraph.merge_groups([(indexer.to_indices(g), g) for g in groups] + extra_groups)
         return [g[1] for g in groups]
 
     @classmethod
@@ -345,7 +351,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
     application_order = 'post'
     format = DegenerateSpaceInputFormat.StrongCouplings
     default_threshold=.3
-    def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=1, **opts):
+    def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=1, extra_groups=None, **opts):
         super().__init__(**opts)
         if wfc_threshold is None or isinstance(wfc_threshold, str) and wfc_threshold == 'auto':
             wfc_threshold = self.default_threshold
@@ -354,6 +360,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         self.extend_spaces=extend_spaces
         self._iterations = iterations
         self.iterations = iterations
+        self.extra_groups = extra_groups
 
     repr_opts = ['energy_cutoff', 'wfc_threshold']
     def prep_states(self, input_states):
@@ -379,7 +386,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold, state_filter=state_filter)
         return sc
 
-    def get_groups(self, input_states, couplings=None, solver=None, **kwargs):
+    def get_groups(self, input_states, couplings=None, solver=None, extra_groups=None, **kwargs):
         """
         :param input_states:
         :type input_states:
@@ -390,7 +397,9 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         """
         if couplings is None:
             raise ValueError("need couplings")
-        return self.get_strong_coupling_space(input_states, couplings)
+        if extra_groups is None:
+            extra_groups = self.extra_groups
+        return self.get_strong_coupling_space(input_states, couplings, extra_groups=extra_groups)
 
     @classmethod
     def canonicalize(cls, spec):
@@ -403,7 +412,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
                 return None
 
     @classmethod
-    def get_strong_coupling_space(cls, states: BasisStateSpace, couplings: dict):
+    def get_strong_coupling_space(cls, states: BasisStateSpace, couplings: dict, extra_groups=None):
         indexer = SymmetricGroupGenerator(states.ndim)
         groups = [None] * len(states.indices)
         for n, i in enumerate(states.indices):
@@ -412,7 +421,13 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
             else:
                 groups[n] = [i]
 
-        groups = PermutationRelationGraph.merge_groups([(g, indexer.from_indices(g)) for g in groups])
+        if extra_groups is None:
+            extra_groups = []
+        extra_groups = [(indexer.to_indices(g), np.asanyarray(g)) for g in extra_groups]
+
+        groups = PermutationRelationGraph.merge_groups(
+            [(g, indexer.from_indices(g)) for g in groups] + extra_groups
+        )
 
         return [g[1] for g in groups]
 

@@ -1945,6 +1945,8 @@ class KineticTerms(ExpansionTerms):
             #     else:
             #         terms.append(x.array)
             terms = [x.array for x in G_terms]
+            # print(terms[0])
+            # print(self.modes.matrix)
 
             if uses_internal_modes:
                 QR = self.modes.matrix

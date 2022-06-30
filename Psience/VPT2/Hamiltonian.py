@@ -49,6 +49,7 @@ class PerturbationTheoryHamiltonian:
                  pseudopotential_terms=None,
                  selection_rules=None,
                  operator_chunk_size=None,
+                 matrix_element_threshold=None,
                  logger=None,
                  checkpoint=None,
                  results=None,
@@ -166,6 +167,7 @@ class PerturbationTheoryHamiltonian:
 
         self.operator_settings = {
             'chunk_size': operator_chunk_size,
+            'zero_threshold': matrix_element_threshold,
             'logger': self.logger,
             'parallelizer': self.parallelizer
         }
