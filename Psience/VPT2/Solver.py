@@ -55,6 +55,7 @@ class PerturbationTheorySolver:
                  low_frequency_mode_cutoff=1.15e-3,
                  # extend_strong_coupling_spaces=True,
                  zero_order_energy_corrections=None,
+                 nondeg_hamiltonian_precision=3,
                  memory_constrained=False,
                  keep_hamiltonians=None,
                  logger=None,
@@ -128,6 +129,7 @@ class PerturbationTheorySolver:
                     'iterations':order//2
                 })
         self.handle_strong_couplings = hasattr(self.degeneracy_spec, 'wfc_threshold')
+        self.nondeg_hamiltonian_precision=nondeg_hamiltonian_precision
 
         # self.handle_strong_couplings = handle_strong_couplings
         # self.extend_strong_coupling_spaces = extend_strong_coupling_spaces
@@ -685,7 +687,6 @@ class PerturbationTheorySolver:
                 start = time.time()
                 existing_spaces = {self.perts[0]:None}
                 for p,cs in zip(self.perts[1:], self.coupled_states):
-                    flat = cs.to_single().take_unique()
                     existing_spaces[p] = ({None:cs}, cs)
                 if self.state_space_filter_generator is not None:
                     filters = PerturbationTheoryStateSpaceFilter.from_data(new_targets, self.state_space_filter_generator(new_targets))
@@ -1621,6 +1622,7 @@ class PerturbationTheorySolver:
                     "degenerate_energies": None
                 }
                 , logger=self.logger
+                , nondeg_hamiltonian_precision=self.nondeg_hamiltonian_precision
             )
 
             if (

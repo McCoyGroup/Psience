@@ -32,6 +32,7 @@ class PerturbationTheoryCorrections:
                  degenerate_transformation=None,
                  degenerate_energies=None,
                  degenerate_hamiltonians=None,
+                 nondeg_hamiltonian_precision=3,
                  logger=None
                  ):
         """
@@ -63,6 +64,7 @@ class PerturbationTheoryCorrections:
         self.degenerate_energies = degenerate_energies
         self.degenerate_hamiltonians = degenerate_hamiltonians
         self.logger = logger
+        self.nondeg_hamiltonian_precision = nondeg_hamiltonian_precision
 
     @classmethod
     def from_dicts(cls,
@@ -426,11 +428,12 @@ class PerturbationTheoryCorrections:
         with logger.block(tag="non-degenerate Hamiltonian"):
             if zero_point_energy is None:
                 zero_point_energy = self.energies[0]
-            logger.log_print(
-                str(
-                    np.round((H_nd - np.diag(np.full(len(group_inds), zero_point_energy))) * UnitsData.convert("Hartrees", "Wavenumbers")).astype(int)
-                ).splitlines()
-            )
+            with np.printoptions(precision=self.nondeg_hamiltonian_precision, suppress=True):
+                logger.log_print(
+                    str(
+                        (H_nd - np.diag(np.full(len(group_inds), zero_point_energy))) * UnitsData.convert("Hartrees", "Wavenumbers")
+                    ).splitlines()
+                )
 
         deg_engs, deg_transf = np.linalg.eigh(H_nd)
 

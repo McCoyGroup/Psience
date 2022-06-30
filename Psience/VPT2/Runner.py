@@ -570,11 +570,13 @@ class VPTRuntimeOptions:
         "memory_constrained",
         "checkpoint_keys",
         "use_cached_representations",
-        "use_cached_basis"
+        "use_cached_basis",
+        "nondeg_hamiltonian_precision"
     )
     def __init__(self,
                  operator_chunk_size=None,
                  matrix_element_threshold=None,
+                 nondeg_hamiltonian_precision=None,
                  logger=None,
                  verbose=None,
                  checkpoint=None,
@@ -610,7 +612,8 @@ class VPTRuntimeOptions:
             logger=logger,
             checkpoint=checkpoint,
             results=results,
-            parallelizer=parallelizer
+            parallelizer=parallelizer,
+            matrix_element_threshold=matrix_element_threshold
         )
         real_ham_opts = {}
         for o, v in ham_run_opts.items():
@@ -625,7 +628,8 @@ class VPTRuntimeOptions:
             checkpoint_keys=checkpoint_keys,
             # results=results,
             use_cached_representations=use_cached_representations,
-            use_cached_basis=use_cached_basis
+            use_cached_basis=use_cached_basis,
+            nondeg_hamiltonian_precision=nondeg_hamiltonian_precision
         )
         real_solver_run_opts = {}
         for o, v in solver_run_opts.items():
@@ -1366,6 +1370,7 @@ class AnneInputHelpers:
     def renormalize_modes(cls, freqs, modes, inv, sorting=None, type=2):
         if type == 0:
             if sorting is not None:
+                om = inv
                 modes = modes[sorting, :]
                 inv = inv[:, sorting]
             modes, inv = inv.T, modes.T
@@ -1583,6 +1588,7 @@ class AnneInputHelpers:
                     zmat = cls.parse_zmatrix(zmat_file)
                 else:
                     zmat = None
+            sorting = cls.standard_sorting(zmat)  # we need to re-sort our internal coordinates
             if coordinate_transformation is not None:
                 if callable(coordinate_transformation) or len(coordinate_transformation) != 2:
                     raise ValueError("need both a coordinate transformation and inverse passed like `[tf, inv]`")
@@ -1591,7 +1597,6 @@ class AnneInputHelpers:
                     'conversion':coordinate_transformation[0],
                     'inverse':coordinate_transformation[1]
                 }
-            sorting = cls.standard_sorting(zmat)  # we need to re-sort our internal coordinates
             if os.path.exists(dipole_files[0]):
                 dipole_terms = [cls.parse_dipole_tensor(f) for f in dipole_files if os.path.isfile(f)]
                 # if energy_units is None:
