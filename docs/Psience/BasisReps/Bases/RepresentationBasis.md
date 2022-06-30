@@ -169,7 +169,7 @@ operator_mapping(self):
 
 <a id="Psience.BasisReps.Bases.RepresentationBasis.operator" class="docs-object-method">&nbsp;</a> 
 ```python
-operator(self, *terms, logger=None, parallelizer=None, chunk_size=None): 
+operator(self, *terms, logger=None, parallelizer=None, chunk_size=None, **operator_settings): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L151)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L151?message=Update%20Docs)]
@@ -192,7 +192,7 @@ Provides an `Operator` to handle the given terms
 representation(self, *terms, logger=None, name=None, parallelizer=None, chunk_size=None, memory_constrained=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L171)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L171?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L175)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L175?message=Update%20Docs)]
 </div>
 
 Provides a representation of a product operator specified by `terms`
@@ -206,7 +206,7 @@ Provides a representation of a product operator specified by `terms`
 selection_rule_steps(self, *terms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L268)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L268?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L272)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L272?message=Update%20Docs)]
 </div>
 
 Generates the full set of possible selection rules for terms
@@ -220,7 +220,7 @@ Generates the full set of possible selection rules for terms
 selection_rules(self, *terms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L290)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L290?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Bases.py#L294)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Bases.py#L294?message=Update%20Docs)]
 </div>
 
 Generates the full set of possible selection rules for terms

@@ -1,6 +1,6 @@
 ## <a id="Psience.VPT2.Terms.CoriolisTerm">CoriolisTerm</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2427)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2427?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2439)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2439?message=Update%20Docs)]
 </div>
 
 Calculates the Coriolis coupling term
@@ -18,7 +18,7 @@ Calculates the Coriolis coupling term
 get_zetas_and_momi(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2431)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2431?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2443)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2443?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.CoriolisTerm.get_zetas" class="docs-object-method">&nbsp;</a> 
@@ -26,7 +26,7 @@ get_zetas_and_momi(self):
 get_zetas(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2465)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2465?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2477)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2477?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.CoriolisTerm.get_terms" class="docs-object-method">&nbsp;</a> 
@@ -34,7 +34,7 @@ get_zetas(self):
 get_terms(self, order=None, J=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2471)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2471?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2483)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2483?message=Update%20Docs)]
 </div>
 
  </div>
@@ -49,4 +49,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Terms/CoriolisTerm.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Terms/CoriolisTerm.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Terms/CoriolisTerm.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2427?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2439?message=Update%20Docs)

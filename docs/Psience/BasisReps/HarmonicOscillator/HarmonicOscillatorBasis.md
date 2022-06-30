@@ -72,7 +72,7 @@ qmatrix_ho(n):
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis.operator" class="docs-object-method">&nbsp;</a> 
 ```python
-operator(self, *terms, logger=None, parallelizer=None, chunk_size=None): 
+operator(self, *terms, logger=None, parallelizer=None, chunk_size=None, **operator_settings): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/HarmonicOscillator.py#L96)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/HarmonicOscillator.py#L96?message=Update%20Docs)]
@@ -94,7 +94,7 @@ Builds an operator based on supplied terms, remapping names where possible.
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/HarmonicOscillator.py#L147)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/HarmonicOscillator.py#L147?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/HarmonicOscillator.py#L153)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/HarmonicOscillator.py#L153?message=Update%20Docs)]
 </div>
 
  </div>

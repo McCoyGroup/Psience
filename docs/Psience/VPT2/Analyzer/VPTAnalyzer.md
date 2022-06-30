@@ -525,6 +525,254 @@ print_output_tables(self, print_energy_corrections=False, print_energies=False, 
 
 
 
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+ </div>
+<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
+
+- [OCHHInternals](#OCHHInternals)
+- [NH3Units](#NH3Units)
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
+
+Before we can run our examples we should get a bit of setup out of the way.
+Since these examples were harvested from the unit tests not all pieces
+will be necessary for all situations.
+```python
+try:
+    from Peeves.TestUtils import *
+    from Peeves import BlockProfiler
+except:
+    pass
+from unittest import TestCase
+from Psience.VPT2 import *
+from Psience.Molecools import Molecule
+from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
+from McUtils.Data import UnitsData
+import McUtils.Plots as plt
+import McUtils.Numputils as nput
+from McUtils.Scaffolding import *
+from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
+from McUtils.Zachary import FiniteDifferenceDerivative
+import sys, os, numpy as np, itertools as ip
+```
+
+All tests are wrapped in a test class
+```python
+class VPT2Tests(TestCase):
+```
+
+ </div>
+</div>
+
+#### <a name="OCHHInternals">OCHHInternals</a>
+```python
+    def test_OCHHInternals(self):
+
+        tag = 'OCHH Internals'
+        file_name = "OCHH_freq.fchk"
+
+        zmatrix = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  1,  0, -1],
+            [3,  1,  0,  2]
+        ]
+
+        def conv(r, t, f, **kwargs):
+            return np.array([r**2+1, t, f])
+        def inv(r2, t, f, **kwargs):
+            return np.array([np.sqrt(r2-1), t, f])
+
+        # def conv(crds, **kwargs):
+        #     return crds
+        # def inv(crds, **kwargs):
+        #     return crds
+
+        internals = {
+            'zmatrix':zmatrix,
+            'conversion':conv,
+            'inverse':inv,
+            # 'converter_options':{
+            #     'pointwise':False,
+            #     # 'jacobian_prep':ZMatrixCoordinateSystem.jacobian_prep_coordinates
+            # }
+        }
+
+        print("Cart:")
+        # VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2).print_output_tables()
+        print("ZMat:")
+        # VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2, internals=zmatrix).print_output_tables()
+        print("Custom:")
+        # VPTRunner.run_simple(TestManager.test_data(file_name), 2, internals=internals)
+        VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2, internals=internals).print_output_tables()
+```
+#### <a name="NH3Units">NH3Units</a>
+```python
+    def test_NH3Units(self):
+
+        tag = 'NH3 Internals'
+        file_name = "nh3.fchk"
+
+        _ = -1
+        zmatrix = [
+            [0, _, _, _],
+            [1, 0, _, _],
+            [2, 0, 1, _],
+            [3, 0, 1, 2]
+        ]
+
+        def conv(r, t, f, **kwargs):
+            cp1 = np.cos(f[..., 3])  # skip three for embedding
+            ct1 = np.cos(t[..., 2])  # skip two for embedding
+            ct2 = np.cos(t[..., 3])
+            st1 = np.sin(t[..., 2])
+            st2 = np.sin(t[..., 3])
+            f[..., 3] = np.arccos(st1*st2*cp1+ct1*ct2)
+            return np.array([r, t, f])
+        def inv(r, t, f, **kwargs):
+            cp1 = np.cos(f[..., 3])
+            ct1 = np.cos(t[..., 2])
+            ct2 = np.cos(t[..., 3])
+            st1 = np.sin(t[..., 2])
+            st2 = np.sin(t[..., 3])
+            f[..., 3] = np.arccos((cp1-ct1*ct2)/(st1*st2))
+            return np.array([r, t, f])
+
+        # def conv(crds, **kwargs):
+        #     return crds
+        # def inv(crds, **kwargs):
+        #     return crds
+
+        # internals = {
+        #     'zmatrix':zmatrix,
+        #     'conversion':conv,
+        #     'inverse':inv,
+        #     # 'converter_options':{
+        #     #     'pointwise':False,
+        #     #     # 'jacobian_prep':ZMatrixCoordinateSystem.jacobian_prep_coordinates
+        #     # }
+        # }
+
+        file = TestManager.test_data(file_name)
+        print("Cart:")
+        VPTAnalyzer.run_VPT(file, 2).print_output_tables()
+        print("ZMat:")
+        # VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2, internals=zmatrix).print_output_tables()
+        print("Custom:")
+        # VPTRunner.run_simple(TestManager.test_data(file_name), 2, internals=internals)
+        # VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2, internals=internals, handle_strong_couplings=True).print_output_tables()
+
+        """ With Cartesian coordinates
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 0 0 0 1    3649.84753      8.40063      3673.97101      8.16596
+  0 0 0 0 1 0    3649.84749      8.40063      3673.99153      8.16597
+  0 0 0 1 0 0    3502.88652      3.39049      3504.89231      4.29459
+  0 0 1 0 0 0    1668.90366     14.31874      1611.87387     15.15334
+  0 1 0 0 0 0    1668.90366     14.31874      1611.87470     15.15358
+  1 0 0 0 0 0    1037.51781    139.18086       907.20372    146.77249
+  0 0 0 0 0 2    7299.69506      0.00000      7358.46413      0.23938
+  0 0 0 0 2 0    7299.69499      0.00000      7322.01149      0.00313
+  0 0 0 2 0 0    7005.77304      0.00000      6948.64326      0.01480
+  0 0 2 0 0 0    3337.80732      0.00000      3216.64730      0.29740
+  0 2 0 0 0 0    3337.80733      0.00000      3191.38576      0.04236
+  2 0 0 0 0 0    2075.03561      0.00000      1716.91900      0.05990
+  0 0 0 0 1 1    7299.69502      0.00000      7541.05092      0.25778
+  0 0 0 1 0 1    7152.73405      0.00000      7166.06224      0.21966
+  0 0 1 0 0 1    5318.75119      0.00000      5240.10874      0.00432
+  0 1 0 0 0 1    5318.75119      0.00000      5279.00970      1.21013
+  1 0 0 0 0 1    4687.36534      0.00000      4547.87059      0.68588
+  0 0 0 1 1 0    7152.73402      0.00000      7202.90789      0.20904
+  0 0 1 0 1 0    5318.75115      0.00000      5274.40898      0.00033
+  0 1 0 0 1 0    5318.75116      0.00000      5235.65311      1.20013
+  1 0 0 0 1 0    4687.36530      0.00000      4547.88276      0.68588
+  0 0 1 1 0 0    5171.79018      0.00000      5099.83410      0.04409
+  0 1 0 1 0 0    5171.79019      0.00000      5099.83542      0.04422
+  1 0 0 1 0 0    4540.40433      0.00000      4425.74209      0.84746
+  0 1 1 0 0 0    3337.80732      0.00000      3216.43526      0.29740
+  1 0 1 0 0 0    2706.42147      0.00000      2512.73682      0.00177
+  1 1 0 0 0 0    2706.42147      0.00000      2512.73850      0.00177
+  0 2 0 1 0 0    6840.69385      0.00000      6713.79845      0.00011
+  0 0 2 1 0 0    6840.69384      0.00000      6698.61681      0.00040
+  0 3 0 0 0 0    5006.71099      0.00000      4789.39177      0.00714
+  0 0 3 0 0 0    5006.71098      0.00000      4789.38260      0.00626
+                """
+        """ With regular Z-matrix coordinates
+============================================= IR Data ==============================================
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 0 0 0 1    3649.84753      8.40063      3726.14107      8.01000
+  0 0 0 0 1 0    3649.84749      8.40063      3720.43203      8.14962
+  0 0 0 1 0 0    3502.88652      3.39049      3504.98059      4.27590
+  0 0 1 0 0 0    1668.90366     14.31874      1635.12777     15.11316
+  0 1 0 0 0 0    1668.90367     14.31874      1634.58245     15.13005
+  1 0 0 0 0 0    1037.51781    139.18086       951.20470    148.04683
+  0 0 0 0 0 2    7299.69506      0.00000      7443.94606      0.24253
+  0 0 0 0 2 0    7299.69499      0.00000      7420.05073      0.00705
+  0 0 0 2 0 0    7005.77304      0.00000      6958.79881      0.01981
+  0 0 2 0 0 0    3337.80732      0.00000      3263.93164      0.30176
+  0 2 0 0 0 0    3337.80733      0.00000      3234.19765      0.04307
+  2 0 0 0 0 0    2075.03562      0.00000      1804.93029      0.06297
+  0 0 0 0 1 1    7299.69502      0.00000      7636.09541      0.26285
+  0 0 0 1 0 1    7152.73405      0.00000      7227.52952      0.22936
+  0 0 1 0 0 1    5318.75119      0.00000      5338.82560      0.28104
+  0 1 0 0 0 1    5318.75120      0.00000      5378.12318      1.09984
+  1 0 0 0 0 1    4687.36534      0.00000      4697.63552      0.70847
+  0 0 0 1 1 0    7152.73402      0.00000      7257.29782      0.19690
+  0 0 1 0 1 0    5318.75115      0.00000      5374.55183      0.13318
+  0 1 0 0 1 0    5318.75116      0.00000      5333.95854      0.94634
+  1 0 0 0 1 0    4687.36530      0.00000      4675.38562      0.70511
+  0 0 1 1 0 0    5171.79018      0.00000      5128.93044      0.04608
+  0 1 0 1 0 0    5171.79019      0.00000      5129.48827      0.04659
+  1 0 0 1 0 0    4540.40433      0.00000      4469.82653      0.85590
+  0 1 1 0 0 0    3337.80732      0.00000      3257.94962      0.30112
+  1 0 1 0 0 0    2706.42147      0.00000      2577.72518      0.00182
+  1 1 0 0 0 0    2706.42147      0.00000      2579.04652      0.00182
+  0 3 0 0 0 0    5006.71100      0.00000      4848.28115      0.00859
+  0 0 3 0 0 0    5006.71098      0.00000      4848.52584      0.00458
+        """
+        """ With symmetrized coordinates
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 0 0 0 1    3649.84753      8.40063      3723.70074      8.02349
+  0 0 0 0 1 0    3649.84749      8.40063      3723.72163      8.02350
+  0 0 0 1 0 0    3502.88652      3.39049      3504.97874      4.27470
+  0 0 1 0 0 0    1668.90366     14.31874      1634.65206     15.13159
+  0 1 0 0 0 0    1668.90367     14.31874      1634.64634     15.13156
+  1 0 0 0 0 0    1037.51781    139.18086       952.40922    148.07587
+  0 0 0 0 0 2    7299.69506      0.00000      7444.16390      0.24658
+  0 0 0 0 2 0    7299.69499      0.00000      7421.28673      0.00317
+  0 0 0 2 0 0    7005.77305      0.00000      6958.79513      0.01981
+  0 0 2 0 0 0    3337.80732      0.00000      3263.57753      0.30173
+  0 2 0 0 0 0    3337.80733      0.00000      3233.82922      0.04292
+  2 0 0 0 0 0    2075.03561      0.00000      1807.33816      0.06305
+  0 0 0 0 1 1    7299.69503      0.00000      7637.00847      0.26180
+  0 0 0 1 0 1    7152.73405      0.00000      7229.66109      0.21733
+  0 0 1 0 0 1    5318.75119      0.00000      5339.24402      0.00449
+  0 1 0 0 0 1    5318.75120      0.00000      5376.53040      1.23248
+  1 0 0 0 0 1    4687.36534      0.00000      4689.39755      0.70723
+  0 0 0 1 1 0    7152.73402      0.00000      7256.19539      0.20990
+  0 0 1 0 1 0    5318.75115      0.00000      5373.43275      0.00026
+  0 1 0 0 1 0    5318.75116      0.00000      5336.29143      1.22319
+  1 0 0 0 1 0    4687.36530      0.00000      4689.40994      0.70723
+  0 0 1 1 0 0    5171.79018      0.00000      5129.06995      0.04504
+  0 1 0 1 0 0    5171.79019      0.00000      5129.06553      0.04502
+  1 0 0 1 0 0    4540.40433      0.00000      4471.02511      0.85613
+  0 1 1 0 0 0    3337.80733      0.00000      3257.49832      0.30121
+  1 0 1 0 0 0    2706.42147      0.00000      2579.33175      0.00182
+  1 1 0 0 0 0    2706.42147      0.00000      2579.32464      0.00182
+  0 3 0 0 0 0    5006.71100      0.00000      4847.85818      0.00744
+  0 0 3 0 0 0    5006.71098      0.00000      4847.85797      0.00578
+  """
+```
+
+ </div>
+</div>
 
 ___
 

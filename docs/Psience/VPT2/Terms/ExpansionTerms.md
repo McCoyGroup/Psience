@@ -58,7 +58,7 @@ modes(self):
 undimensionalize(self, masses, modes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L368)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L368?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L370)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L370?message=Update%20Docs)]
 </div>
 
 Removes units from normal modes
@@ -74,7 +74,7 @@ Removes units from normal modes
 get_terms(self, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L402)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L402?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L404)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L404?message=Update%20Docs)]
 </div>
 
 Gets the terms up to the given order
@@ -88,7 +88,7 @@ Gets the terms up to the given order
 get_term(self, t): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L413)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L413?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L415)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L415?message=Update%20Docs)]
 </div>
 
 Provides the term at order `t`
@@ -111,7 +111,7 @@ terms(self):
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L432)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L432?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L434)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L434?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.get_int_jacobs" class="docs-object-method">&nbsp;</a> 
@@ -119,7 +119,7 @@ __getitem__(self, item):
 get_int_jacobs(self, jacs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L455)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L455?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L457)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L457?message=Update%20Docs)]
 </div>
 
 Gets the specified Internal->Cartesian Jacobians
@@ -133,7 +133,7 @@ Gets the specified Internal->Cartesian Jacobians
 get_cart_jacobs(self, jacs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L504)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L504?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L506)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L506?message=Update%20Docs)]
 </div>
 
 Gets the specified Cartesian->Internal Jacobians
@@ -160,7 +160,7 @@ Provides the inertial axis frame
 inertial_frame_derivatives(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L570)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L570?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L571)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L571?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.moment_of_inertia_derivs" class="docs-object-method">&nbsp;</a> 
@@ -168,7 +168,7 @@ inertial_frame_derivatives(self):
 moment_of_inertia_derivs(self, order): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L612)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L612?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L613)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L613?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.get_coordinate_transforms" class="docs-object-method">&nbsp;</a> 
@@ -176,7 +176,7 @@ moment_of_inertia_derivs(self, order):
 get_coordinate_transforms(self, internal_by_cartesian_order=None, cartesian_by_internal_order=None, current_cache=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L637)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L637?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L647)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L647?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.cartesian_L_matrix" class="docs-object-method">&nbsp;</a> 
@@ -193,7 +193,7 @@ cartesian_L_matrix(self):
 get_cartesians_by_cartesian_modes(self, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1020)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1020?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1033)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1033?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.cartesian_L_inverse" class="docs-object-method">&nbsp;</a> 
@@ -210,7 +210,7 @@ cartesian_L_inverse(self):
 get_cartesian_modes_by_cartesians(self, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1041)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1041?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1050)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1050?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.internal_L_matrix" class="docs-object-method">&nbsp;</a> 
@@ -227,7 +227,7 @@ internal_L_matrix(self):
 get_internal_modes_by_internals(self, order=None, strip_embedding=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1059)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1059?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1068)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1068?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.internal_L_inverse" class="docs-object-method">&nbsp;</a> 
@@ -244,7 +244,7 @@ internal_L_inverse(self):
 get_internals_by_internal_modes(self, order=None, strip_embedding=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1084)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1084?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1094)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1094?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.cartesians_by_modes" class="docs-object-method">&nbsp;</a> 
@@ -261,7 +261,7 @@ cartesians_by_modes(self):
 get_cartesians_by_modes(self, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1105)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1105?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1115)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1115?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.modes_by_cartesians" class="docs-object-method">&nbsp;</a> 
@@ -278,7 +278,7 @@ modes_by_cartesians(self):
 get_modes_by_cartesians(self, order=None, strip_embedding=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1126)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1126?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1136)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1136?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.cartesians_by_internals" class="docs-object-method">&nbsp;</a> 
@@ -295,7 +295,7 @@ cartesians_by_internals(self):
 get_cartesians_by_internals(self, order=None, strip_embedding=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1143)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1143?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1153)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1153?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.internals_by_cartesians" class="docs-object-method">&nbsp;</a> 
@@ -312,7 +312,7 @@ internals_by_cartesians(self):
 get_internals_by_cartesians(self, order=None, strip_embedding=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1165)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1165?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1175)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1175?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.cartesian_modes_by_internal_modes" class="docs-object-method">&nbsp;</a> 
@@ -329,7 +329,7 @@ cartesian_modes_by_internal_modes(self):
 get_cartesian_modes_by_internal_modes(self, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1187)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1187?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1197)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1197?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.internal_modes_by_cartesian_modes" class="docs-object-method">&nbsp;</a> 
@@ -346,7 +346,7 @@ internal_modes_by_cartesian_modes(self):
 get_internal_modes_by_cartesian_modes(self, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1206)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1206?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1216)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1216?message=Update%20Docs)]
 </div>
 
  </div>
