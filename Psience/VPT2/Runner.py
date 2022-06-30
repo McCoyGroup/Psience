@@ -411,7 +411,7 @@ class VPTHamiltonianOptions:
          "freq_tolerance",
          "g_derivative_threshold",
          "gmatrix_tolerance",
-        'use_cartesian_kinetic_energy'
+         'use_cartesian_kinetic_energy'
     )
 
     def __init__(self,
@@ -666,7 +666,8 @@ class VPTSolverOptions:
         # "strongly_coupled_group_filter",
         # "extend_strong_coupling_spaces",
         # "strong_coupling_zero_order_energy_cutoff",
-        "low_frequency_mode_cutoff"
+        "low_frequency_mode_cutoff",
+        "check_overlap"
     )
     def __init__(self,
                  order=2,
@@ -691,7 +692,8 @@ class VPTSolverOptions:
                  extend_strong_coupling_spaces=None,
                  strong_coupling_zero_order_energy_cutoff=None,
                  low_frequency_mode_cutoff=None,
-                 zero_order_energy_corrections=None
+                 zero_order_energy_corrections=None,
+                 check_overlap=None
                  ):
         """
         :param order: the order of perturbation theory to apply
@@ -750,7 +752,8 @@ class VPTSolverOptions:
             ignore_odd_order_energies=ignore_odd_order_energies,
             intermediate_normalization=intermediate_normalization,
             zero_element_warning=zero_element_warning,
-            zero_order_energy_corrections=zero_order_energy_corrections
+            zero_order_energy_corrections=zero_order_energy_corrections,
+            check_overlap=check_overlap
         )
 
         real_opts = {}
