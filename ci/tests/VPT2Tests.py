@@ -522,6 +522,19 @@ class VPT2Tests(TestCase):
         )
         # analyzer.print_output_tables(print_intensities=False, print_energies=True)
 
+    @debugTest
+    def test_HOHCorrected(self):
+        VPTRunner.run_simple(
+            TestManager.test_data('HOH_freq.fchk'),
+            2,
+            zero_order_energy_corrections=[
+                [(0, 1, 0), (4681.56364+3800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+                [(0, 2, 0), (4681.56364+7800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+                [(0, 0, 2), (4681.56364+7801) * UnitsData.convert("Wavenumbers", "Hartrees")],
+            ],
+            degeneracy_specs='auto'
+        )
+
     @validationTest
     def test_OCHHInternals(self):
 
@@ -599,23 +612,24 @@ class VPT2Tests(TestCase):
         # def inv(crds, **kwargs):
         #     return crds
 
-        internals = {
-            'zmatrix':zmatrix,
-            'conversion':conv,
-            'inverse':inv,
-            # 'converter_options':{
-            #     'pointwise':False,
-            #     # 'jacobian_prep':ZMatrixCoordinateSystem.jacobian_prep_coordinates
-            # }
-        }
+        # internals = {
+        #     'zmatrix':zmatrix,
+        #     'conversion':conv,
+        #     'inverse':inv,
+        #     # 'converter_options':{
+        #     #     'pointwise':False,
+        #     #     # 'jacobian_prep':ZMatrixCoordinateSystem.jacobian_prep_coordinates
+        #     # }
+        # }
 
+        file = TestManager.test_data(file_name)
         print("Cart:")
-        # VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2).print_output_tables()
+        VPTAnalyzer.run_VPT(file, 2).print_output_tables()
         print("ZMat:")
         # VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2, internals=zmatrix).print_output_tables()
         print("Custom:")
         # VPTRunner.run_simple(TestManager.test_data(file_name), 2, internals=internals)
-        VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2, internals=internals, handle_strong_couplings=True).print_output_tables()
+        # VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2, internals=internals, handle_strong_couplings=True).print_output_tables()
 
         """ With Cartesian coordinates
                          Harmonic                  Anharmonic

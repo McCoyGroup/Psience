@@ -93,7 +93,9 @@ class HarmonicOscillatorBasis(RepresentationBasis):
         ]
         return sp.csr_matrix(sp.diags([b[0] for b in bands], [b[1] for b in bands]))
 
-    def operator(self, *terms, logger=None, parallelizer=None, chunk_size=None):
+    def operator(self, *terms, logger=None, parallelizer=None, chunk_size=None,
+                 **operator_settings
+                 ):
         """
         Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -115,10 +117,14 @@ class HarmonicOscillatorBasis(RepresentationBasis):
                     raise ValueError("multidimensional index by one-dimensional basis ?_?")
                 return term_eval, term_eval.selection_rules
             return Operator(computer, (self.quanta,), prod_dim=1,
-                            logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)
+                            logger=logger, parallelizer=parallelizer, chunk_size=chunk_size,
+                            **operator_settings
+                            )
         else:
             return super().operator(*terms,
-                                    logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)
+                                    logger=logger, parallelizer=parallelizer, chunk_size=chunk_size,
+                                    **operator_settings
+                                    )
 
         # funcs = [self.bases[0].operator_mapping[f] if isinstance(f, str) else f for f in terms]
         # q = self.quanta
@@ -177,7 +183,7 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
     def from_state(cls, data, serializer=None):
         return cls(data['quanta'], indexer=serializer.deserialize(data['indexer']))
 
-    def operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None, chunk_size=None):
+    def operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None, chunk_size=None, **operator_settings):
         """
         Builds an operator based on supplied terms, remapping names where possible.
         If `coeffs` are supplied, a `ContractedOperator` is built.
@@ -206,14 +212,18 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
                               selection_rules=self.selection_rules(*terms),
                               selection_rule_steps=self.selection_rule_steps(*terms),
                               symmetries=labels,
-                              logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)#, axes=axes)
+                              logger=logger, parallelizer=parallelizer, chunk_size=chunk_size,
+                              **operator_settings
+                              )#, axes=axes)
             else:
                 op = ContractedOperator(coeffs, computer, self.quanta,
                                         prod_dim=len(terms),
                                         selection_rules=self.selection_rules(*terms),
                                         selection_rule_steps=self.selection_rule_steps(*terms),
                                         symmetries=labels, axes=axes,
-                                        logger=logger, parallelizer=parallelizer, chunk_size=chunk_size)
+                                        logger=logger, parallelizer=parallelizer, chunk_size=chunk_size,
+                                        **operator_settings
+                                        )
             return op
         else:
             return super().operator(*terms, coeffs=coeffs, axes=axes,

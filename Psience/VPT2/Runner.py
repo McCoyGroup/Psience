@@ -562,6 +562,7 @@ class VPTRuntimeOptions:
 
     __props__ = (
         "operator_chunk_size",
+        'matrix_element_threshold',
         "logger",
         "verbose",
         "checkpoint",
@@ -569,10 +570,13 @@ class VPTRuntimeOptions:
         "memory_constrained",
         "checkpoint_keys",
         "use_cached_representations",
-        "use_cached_basis"
+        "use_cached_basis",
+        "nondeg_hamiltonian_precision"
     )
     def __init__(self,
                  operator_chunk_size=None,
+                 matrix_element_threshold=None,
+                 nondeg_hamiltonian_precision=None,
                  logger=None,
                  verbose=None,
                  checkpoint=None,
@@ -608,7 +612,8 @@ class VPTRuntimeOptions:
             logger=logger,
             checkpoint=checkpoint,
             results=results,
-            parallelizer=parallelizer
+            parallelizer=parallelizer,
+            matrix_element_threshold=matrix_element_threshold
         )
         real_ham_opts = {}
         for o, v in ham_run_opts.items():
@@ -623,7 +628,8 @@ class VPTRuntimeOptions:
             checkpoint_keys=checkpoint_keys,
             # results=results,
             use_cached_representations=use_cached_representations,
-            use_cached_basis=use_cached_basis
+            use_cached_basis=use_cached_basis,
+            nondeg_hamiltonian_precision=nondeg_hamiltonian_precision
         )
         real_solver_run_opts = {}
         for o, v in solver_run_opts.items():
@@ -1364,6 +1370,7 @@ class AnneInputHelpers:
     def renormalize_modes(cls, freqs, modes, inv, sorting=None, type=2):
         if type == 0:
             if sorting is not None:
+                om = inv
                 modes = modes[sorting, :]
                 inv = inv[:, sorting]
             modes, inv = inv.T, modes.T
@@ -1513,7 +1520,8 @@ class AnneInputHelpers:
         return cls.extract_terms(chk, out, 'dipole_terms', aggregator=agg, skip_dimensions=1)
 
     @classmethod
-    def run_anne_job(cls, base_dir,
+    def run_anne_job(cls,
+                     base_dir,
                      states=2,
                      calculate_intensities=None,
                      return_analyzer=False,
@@ -1525,6 +1533,7 @@ class AnneInputHelpers:
                      zmat_file='z_mat.dat',
                      potential_files=('cub.dat', 'quart.dat', 'quintic.dat', 'sextic.dat'),
                      dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat", "quart_dip.dat", 'quintic_dip.dat'),
+                     coordinate_transformation=None,
                      results_file=None,#'output.hdf5',
                      order=None,
                      expansion_order=None,
@@ -1535,6 +1544,8 @@ class AnneInputHelpers:
         from .Analyzer import VPTAnalyzer
 
         og_dir = os.getcwd()
+        if base_dir is not None and base_dir == ".":
+            base_dir = None
         try:
             if base_dir is not None:
                 os.chdir(base_dir)
@@ -1578,6 +1589,14 @@ class AnneInputHelpers:
                 else:
                     zmat = None
             sorting = cls.standard_sorting(zmat)  # we need to re-sort our internal coordinates
+            if coordinate_transformation is not None:
+                if callable(coordinate_transformation) or len(coordinate_transformation) != 2:
+                    raise ValueError("need both a coordinate transformation and inverse passed like `[tf, inv]`")
+                zmat = {
+                    'zmatrix':zmat,
+                    'conversion':coordinate_transformation[0],
+                    'inverse':coordinate_transformation[1]
+                }
             if os.path.exists(dipole_files[0]):
                 dipole_terms = [cls.parse_dipole_tensor(f) for f in dipole_files if os.path.isfile(f)]
                 # if energy_units is None:

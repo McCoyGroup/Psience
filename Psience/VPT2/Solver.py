@@ -44,6 +44,7 @@ class PerturbationTheorySolver:
                  gaussian_resonance_handling=False,
                  ignore_odd_order_energies=False,
                  intermediate_normalization=False,
+                 check_overlap=True,
                  zero_element_warning=True,
                  degenerate_states=None,
                  handle_strong_couplings=False,
@@ -54,6 +55,7 @@ class PerturbationTheorySolver:
                  low_frequency_mode_cutoff=1.15e-3,
                  # extend_strong_coupling_spaces=True,
                  zero_order_energy_corrections=None,
+                 nondeg_hamiltonian_precision=3,
                  memory_constrained=False,
                  keep_hamiltonians=None,
                  logger=None,
@@ -127,6 +129,7 @@ class PerturbationTheorySolver:
                     'iterations':order//2
                 })
         self.handle_strong_couplings = hasattr(self.degeneracy_spec, 'wfc_threshold')
+        self.nondeg_hamiltonian_precision=nondeg_hamiltonian_precision
 
         # self.handle_strong_couplings = handle_strong_couplings
         # self.extend_strong_coupling_spaces = extend_strong_coupling_spaces
@@ -142,6 +145,7 @@ class PerturbationTheorySolver:
         self.ignore_odd_orders = ignore_odd_order_energies
         self.drop_perturbation_degs = modify_degenerate_perturbations
         self.intermediate_normalization = intermediate_normalization
+        self.check_overlap = check_overlap
         self.gaussian_resonance_handling = gaussian_resonance_handling
         self.zero_element_warning = zero_element_warning
 
@@ -195,12 +199,16 @@ class PerturbationTheorySolver:
             self.load_state_spaces()
         return self._total_space
 
-    class PastIndexableTuple(tuple):
+    class PastIndexableTuple(list):
         def __getitem__(self, item):
             if isinstance(item, (int, np.integer)) and item >= len(self):
                 return 0
             else:
                 return super().__getitem__(item)
+        def __setitem__(self, key, value):
+            if isinstance(key, (int, np.integer)) and key >= len(self):
+                self.extend([0]*(len(self)-key))
+            return super().__setitem__(key, value)
 
     @property
     def representations(self):
@@ -245,17 +253,31 @@ class PerturbationTheorySolver:
                 e_vec_full = e_vec_full.asarray()
             self._zo_engs = e_vec_full
             if self.zero_order_energy_corrections is not None:
-                for k,v in self.zero_order_energy_corrections:
-                    if not isinstance(k, int):
-                        k = self.flat_total_space.find([k]) # slow but w/e
-                    if k >= len(self._zo_engs):
-                        self.logger.log_print(
-                            "WARNING: zero-order correction {} for state {} not used as state is not in basis".format(
-                                v * UnitsData.convert("Hartrees", "Wavenumbers"),
-                                k
+                states=np.asarray([s[0] for s in self.zero_order_energy_corrections])
+                energies=np.asarray([s[1] for s in self.zero_order_energy_corrections])
+                inds = self.flat_total_space.find(states) # slow but w/e
+                biggies = np.where(inds >= len(self._zo_engs))
+                if len(biggies) > 0:
+                    if len(biggies[0]) > 0:
+                        for k,v in zip(states[biggies], energies[biggies]):
+                            self.logger.log_print(
+                                "WARNING: zero-order correction {} for state {} not used as state is not in basis".format(
+                                    v * UnitsData.convert("Hartrees", "Wavenumbers"),
+                                    k
+                                )
                             )
-                        )
-                    self._zo_engs[k] = v
+                # for k,v in self.zero_order_energy_corrections:
+                #     if not isinstance(k, int):
+                #         k = self.flat_total_space.find([k]) # slow but w/e
+                #     if k >= len(self._zo_engs):
+                #         self.logger.log_print(
+                #             "WARNING: zero-order correction {} for state {} not used as state is not in basis".format(
+                #                 v * UnitsData.convert("Hartrees", "Wavenumbers"),
+                #                 k
+                #             )
+                #         )
+                self._zo_engs[inds] = energies
+                self.representations[0] = SparseArray.from_diag(self._zo_engs)
         return self._zo_engs
 
     def apply_VPT(self):
@@ -514,8 +536,8 @@ class PerturbationTheorySolver:
             else:
                 raise ValueError(
                     "degeneracies encountered: states {} and {} are degenerate (average energy: {} stddev: {})".format(
-                        degenerate_subspace,
-                        zero_checks,
+                        self.flat_total_space.take_subspace(degenerate_subspace).excitations,
+                        self.flat_total_space.take_subspace(zero_checks).excitations,
                         np.average(bad_vec),
                         np.std(bad_vec)
                     ))
@@ -665,7 +687,6 @@ class PerturbationTheorySolver:
                 start = time.time()
                 existing_spaces = {self.perts[0]:None}
                 for p,cs in zip(self.perts[1:], self.coupled_states):
-                    flat = cs.to_single().take_unique()
                     existing_spaces[p] = ({None:cs}, cs)
                 if self.state_space_filter_generator is not None:
                     filters = PerturbationTheoryStateSpaceFilter.from_data(new_targets, self.state_space_filter_generator(new_targets))
@@ -1272,7 +1293,7 @@ class PerturbationTheorySolver:
     def get_corrections(self,
                         non_zero_cutoff=None,
                         handle_strong_couplings=None,
-                        check_overlap=True
+                        check_overlap=None
                         ):
         """
         Applies the perturbation theory equations to obtain
@@ -1506,6 +1527,9 @@ class PerturbationTheorySolver:
                                                                                  perturbations=perturbations
                                                                                  )
                             res_index = states.find(n)
+                            # need to explicitly update zero order energy in case we supplied a correction
+                            if d2.deg_find_inds is not None:
+                                energies[0] = self.zero_order_energies[d2.deg_find_inds[0]]
                             all_energies[res_index] = energies
                             all_energy_corrs[res_index] = ecorrs
                             all_corrs[res_index] = corrs
@@ -1598,6 +1622,7 @@ class PerturbationTheorySolver:
                     "degenerate_energies": None
                 }
                 , logger=self.logger
+                , nondeg_hamiltonian_precision=self.nondeg_hamiltonian_precision
             )
 
             if (
@@ -1753,7 +1778,7 @@ class PerturbationTheorySolver:
                                    deg_group,
                                    perturbations=None,
                                    non_zero_cutoff=None,
-                                   check_overlap=True,
+                                   check_overlap=None,
                                    intermediate_normalization=False,
                                    ignore_odd_orders=False
                                    ):
@@ -1769,6 +1794,8 @@ class PerturbationTheorySolver:
 
         if intermediate_normalization:
             check_overlap=False
+        elif check_overlap is None:
+            check_overlap = self.check_overlap
 
         n = state_index
         e_vec_full = self.zero_order_energies
@@ -1993,7 +2020,11 @@ class PerturbationTheorySolver:
 
         ndeg_ham_corrs = []
         for group in degenerate_states:
-            deg_inds, H_nd, deg_rot, deg_engs = corrs.get_degenerate_transformation(group, self.representations, gaussian_resonance_handling=self.gaussian_resonance_handling)
+            deg_inds, H_nd, deg_rot, deg_engs = corrs.get_degenerate_transformation(
+                group,
+                self.representations,
+                gaussian_resonance_handling=self.gaussian_resonance_handling
+            )
             if H_nd is not None:
                 ndeg_ham_corrs.append(H_nd)
                 rotations.append(deg_rot)

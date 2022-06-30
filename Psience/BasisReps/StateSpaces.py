@@ -318,6 +318,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
                                    freqs=None,
                                    freq_threshold=None
                                    ):
+        #TODO: find a way to ignore some subset of transformations
         """
         Returns bra and ket indices that can be used as indices to generate representations
 

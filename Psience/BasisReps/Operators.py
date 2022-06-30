@@ -34,7 +34,8 @@ class Operator:
                  selection_rule_steps=None, # for product operators
                  parallelizer=None,
                  logger=None,
-                 zero_threshold=1.0e-14,
+                 zero_threshold=None,
+                 skipped_indices=None,
                  chunk_size=None
                  ):
         """
@@ -66,13 +67,16 @@ class Operator:
         self.symmetry_inds = symmetries
         self.quanta = tuple(quanta)
         self.mode_n = len(quanta)
-        self.zero_threshold = zero_threshold
+        self.zero_threshold = 1.0e-14 if zero_threshold is None else zero_threshold
         # self._tensor = None
         if logger is None:
             logger = NullLogger()
         self.logger = logger
         self._parallelizer = parallelizer
         self.chunk_size = chunk_size
+        if skipped_indices is not None:
+            skipped_indices = {tuple(i) for i in skipped_indices}
+        self.skipped_indices = skipped_indices
 
     def clear_cache(self):
         """
@@ -407,8 +411,11 @@ class Operator:
 
         # determine how many states aren't potentially coupled by the operator
         # & then determine which of those are non-orthogonal
-
         nstates = len(states)
+
+        if self.skipped_indices is not None and tuple(inds) in self.skipped_indices:
+            return sp.csr_matrix((1, nstates), dtype='float')
+
         if check_orthogonality:
             # TODO: selection rules are actually _cheaper_ to apply than this in general, esp. if we focus
             #       only on the number of quanta that can change within the set of indices
@@ -1072,8 +1079,11 @@ class ContractedOperator(Operator):
                  selection_rules=None,
                  selection_rule_steps=None,
                  zero_threshold=1.0e-14,
+                 skipped_indices=None,
+                 skipped_coefficient_threshold=None,
                  chunk_size=None,
-                 parallelizer=None, logger=None
+                 parallelizer=None,
+                 logger=None
                  ):
         """
 
@@ -1102,12 +1112,15 @@ class ContractedOperator(Operator):
         """
         self.coeffs = coeffs
         self.axes = axes
+        if skipped_indices is None and skipped_coefficient_threshold is not None:
+            skipped_indices = np.array(np.where(np.abs(coeffs) > skipped_coefficient_threshold)).T
         super().__init__(funcs, quanta, symmetries=symmetries, prod_dim=prod_dim,
                          selection_rules=selection_rules,
                          selection_rule_steps=selection_rule_steps,
                          zero_threshold=zero_threshold,
                          parallelizer=parallelizer,
-                         logger=logger
+                         logger=logger,
+                         skipped_indices=skipped_indices
                          )
         self.chunk_size = chunk_size
 
