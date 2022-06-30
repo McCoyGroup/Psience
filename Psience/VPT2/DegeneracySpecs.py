@@ -833,7 +833,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
                 target_threshold = threshold
                 step_size = threshold_step_size
-                while (A[bad_pos] > 0).any():
+                while (A[bad_pos] > 0).any() and decoupling_overide > threshold:
                     threshold = threshold + step_size
                     corr_mat = (base_mat > threshold).astype(int)
                     groups, A = get_groups(corr_mat)
