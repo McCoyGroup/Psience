@@ -531,6 +531,7 @@ print_output_tables(self, print_energy_corrections=False, print_energies=False, 
  </div>
 <div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
 
+- [HOHCorrectedPostfilters](#HOHCorrectedPostfilters)
 - [OCHHInternals](#OCHHInternals)
 - [NH3Units](#NH3Units)
 
@@ -570,6 +571,37 @@ class VPT2Tests(TestCase):
  </div>
 </div>
 
+#### <a name="HOHCorrectedPostfilters">HOHCorrectedPostfilters</a>
+```python
+    def test_HOHCorrectedPostfilters(self):
+
+        # VPTAnalyzer.run_VPT(
+        #     TestManager.test_data('HOH_freq.fchk'),
+        #     2,
+        #     zero_order_energy_corrections=[
+        #         [(0, 1, 0), (4681.56364 + 3800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #         [(0, 2, 0), (4681.56364 + 7800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #         [(0, 0, 2), (4681.56364 + 7801) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #     ],
+        #     degeneracy_specs='auto',
+        #     basis_filters={'max_quanta':[0, -1, -1]}
+        # ).print_output_tables()
+
+        VPTAnalyzer.run_VPT(
+            TestManager.test_data('HOH_freq.fchk'),
+            2,
+            zero_order_energy_corrections=[
+                [(0, 1, 0), (4681.56364 + 3800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+                [(0, 2, 0), (4681.56364 + 7800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+                [(0, 0, 2), (4681.56364 + 7801) * UnitsData.convert("Wavenumbers", "Hartrees")],
+            ],
+            degeneracy_specs='auto',
+            basis_filters=[
+                {'max_quanta': [2, -1, -1]},
+                {'excluded_transitions': [[1, 0, 0], [0, 1, 0], [0, 0, 1]]}
+            ]
+        ).print_output_tables()
+```
 #### <a name="OCHHInternals">OCHHInternals</a>
 ```python
     def test_OCHHInternals(self):

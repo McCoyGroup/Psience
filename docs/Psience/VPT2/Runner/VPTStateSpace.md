@@ -83,7 +83,7 @@ build_degenerate_state_spaces(self, degeneracy_specs, states, system=None):
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.filter_generator" class="docs-object-method">&nbsp;</a> 
 ```python
-filter_generator(self, target_property, order=2): 
+filter_generator(self, target_property, order=2, postfilters=None): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L291)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L291?message=Update%20Docs)]
@@ -91,7 +91,7 @@ filter_generator(self, target_property, order=2):
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.get_filter" class="docs-object-method">&nbsp;</a> 
 ```python
-get_filter(self, target_property, order=2): 
+get_filter(self, target_property, order=2, postfilters=None): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L295)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L295?message=Update%20Docs)]
@@ -108,10 +108,10 @@ Obtains a state space filter for the given target property
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.get_state_space_filter" class="docs-object-method">&nbsp;</a> 
 ```python
-get_state_space_filter(states, n_modes=None, order=2, target='wavefunctions'): 
+get_state_space_filter(states, n_modes=None, order=2, target='wavefunctions', postfilters=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L311)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L311?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L312)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L312?message=Update%20Docs)]
 </div>
 
 Gets `state_space_filters` for the input `states` targeting some property

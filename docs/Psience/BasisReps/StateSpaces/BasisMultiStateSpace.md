@@ -44,12 +44,20 @@ Just a way to index the space but with type checking
 - `:returns`: `BasisStateSpace`
     >No description...
 
+<a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.map" class="docs-object-method">&nbsp;</a> 
+```python
+map(self, f): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1841)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1841?message=Update%20Docs)]
+</div>
+
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.to_state" class="docs-object-method">&nbsp;</a> 
 ```python
 to_state(self, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1841)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1841?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1848)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1848?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.from_state" class="docs-object-method">&nbsp;</a> 
@@ -57,7 +65,7 @@ to_state(self, serializer=None):
 from_state(data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1847)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1847?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1854)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1854?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.representative_space" class="docs-object-method">&nbsp;</a> 
@@ -101,7 +109,7 @@ ndim(self):
 __iter__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1890)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1890?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1897)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1897?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.flat" class="docs-object-method">&nbsp;</a> 
@@ -118,7 +126,7 @@ flat(self):
 get_mode(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1896)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1896?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1903)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1903?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.as_indices" class="docs-object-method">&nbsp;</a> 
@@ -126,7 +134,7 @@ get_mode(self):
 as_indices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1904)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1904?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1913)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1913?message=Update%20Docs)]
 </div>
 
 Pulls the full set of indices out of all of the
@@ -139,7 +147,7 @@ Pulls the full set of indices out of all of the
 as_excitations(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1932)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1932?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1941)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1941?message=Update%20Docs)]
 </div>
 
 Pulls the full set excitations out of all of the
@@ -152,7 +160,7 @@ Pulls the full set excitations out of all of the
 check_indices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1964)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1964?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1973)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1973?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.to_single" class="docs-object-method">&nbsp;</a> 
@@ -160,7 +168,7 @@ check_indices(self):
 to_single(self, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1969)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1969?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1978)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1978?message=Update%20Docs)]
 </div>
 
 Condenses the multi state space down to
@@ -173,7 +181,7 @@ Condenses the multi state space down to
 take_states(self, states, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2004)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2004?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2012)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2012?message=Update%20Docs)]
 </div>
 
 Takes the intersection of each held space and the specified states
@@ -187,7 +195,7 @@ Takes the intersection of each held space and the specified states
 take_subspace(self, sel, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2031)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2031?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2039)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2039?message=Update%20Docs)]
 </div>
 
 Takes the specified states, making sure each held space
@@ -202,7 +210,7 @@ Takes the specified states, making sure each held space
 take_subdimensions(self, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2049)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2049?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2057)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2057?message=Update%20Docs)]
 </div>
 
 Takes the subdimensions from each space
@@ -216,7 +224,7 @@ Takes the subdimensions from each space
 drop_states(self, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2062)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2062?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2070)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2070?message=Update%20Docs)]
 </div>
 
 Take the difference of each held space and the specified states
@@ -230,7 +238,7 @@ Take the difference of each held space and the specified states
 drop_subspace(self, sel): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2080)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2080?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2088)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2088?message=Update%20Docs)]
 </div>
 
 Takes the specified states, making sure each held space
@@ -245,7 +253,7 @@ Takes the specified states, making sure each held space
 drop_subdimensions(self, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2092)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2092?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2100)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2100?message=Update%20Docs)]
 </div>
 
 Takes the subdimensions from each space
@@ -259,7 +267,7 @@ Takes the subdimensions from each space
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2105)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2105?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2113)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2113?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.__getitem__" class="docs-object-method">&nbsp;</a> 
@@ -267,7 +275,7 @@ __repr__(self):
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2113)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2113?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2121)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2121?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.StateSpaces.BasisMultiStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a> 
@@ -275,7 +283,7 @@ __getitem__(self, item):
 get_representation_indices(self, freqs=None, freq_threshold=None, other=None, selection_rules=None, return_filter=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2120)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2120?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2128)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2128?message=Update%20Docs)]
 </div>
 
 Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
@@ -289,7 +297,7 @@ Generates a set of indices that can be fed into a `Representation` to provide a 
 get_representation_brakets(self, freqs=None, freq_threshold=None, other=None, selection_rules=None, filter=None, return_filter=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2165)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2165?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L2173)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L2173?message=Update%20Docs)]
 </div>
 
  </div>
