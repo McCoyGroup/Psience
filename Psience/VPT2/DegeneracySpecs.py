@@ -1,4 +1,4 @@
-
+import itertools
 
 import numpy as np, enum, abc, scipy.sparse as sp
 from McUtils.Combinatorics import SymmetricGroupGenerator, PermutationRelationGraph
@@ -32,7 +32,8 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
     def __init__(self, application_order=None, group_filter=None, energy_cutoff=2.25e-3,
                  test_modes=None,
                  maximize_filtered_groups=True,
-                 decoupling_overide=100
+                 decoupling_overide=100,
+                 extra_groups=None
                  ):
         if application_order is None:
             application_order = self.application_order
@@ -44,6 +45,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         self.test_modes = test_modes
         self.maximize_filtered_groups = maximize_filtered_groups
         self.decoupling_overide = decoupling_overide
+        self.extra_groups=extra_groups
 
     repr_opts = ['energy_cutoff']
     def __repr__(self):
@@ -65,7 +67,8 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                 threshold=threshold,
                 target_modes=test_modes,
                 maximize_groups=self.maximize_filtered_groups,
-                decoupling_overide=self.decoupling_overide
+                decoupling_overide=self.decoupling_overide,
+                extra_groups=self.extra_groups
             )
         elif isinstance(group_filter, str) and group_filter == 'unfiltered':
             group_filter = None
@@ -223,7 +226,7 @@ class EnergyCutoffDegeneracySpec(DegeneracySpec):
 class MartinTestDegeneracySpec(DegeneracySpec):
     application_order = 'mid'
     group_filter = 'default'
-    def __init__(self, threshold=4.6e-6, test_energy_window=4.6e-3, convert=True, frequencies=None, extra_groups=None, **opts):
+    def __init__(self, threshold=4.6e-6, test_energy_window=4.6e-3, convert=True, frequencies=None, **opts):
         super().__init__(**opts)
         if convert and threshold > 1e-2: # help coerce it into Hartrees
             threshold = threshold / 219475 # only need a rough conversion...
@@ -234,7 +237,6 @@ class MartinTestDegeneracySpec(DegeneracySpec):
         self._states = None
         self._basis = None
         self._matrix = None
-        self.extra_groups = extra_groups
 
     repr_opts = ['energy_cutoff', 'threshold']
     def prep_states(self, states:BasisStateSpace):
@@ -341,6 +343,7 @@ class MartinTestDegeneracySpec(DegeneracySpec):
             corrections=self._matrix,
             threshold=self.threshold,
             threshold_step_size=1/219475,
+            extra_groups=self.extra_groups,
             **kwargs
         )
 
@@ -351,7 +354,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
     application_order = 'post'
     format = DegenerateSpaceInputFormat.StrongCouplings
     default_threshold=.3
-    def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=1, extra_groups=None, **opts):
+    def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=1, **opts):
         super().__init__(**opts)
         if wfc_threshold is None or isinstance(wfc_threshold, str) and wfc_threshold == 'auto':
             wfc_threshold = self.default_threshold
@@ -360,7 +363,6 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         self.extend_spaces=extend_spaces
         self._iterations = iterations
         self.iterations = iterations
-        self.extra_groups = extra_groups
 
     repr_opts = ['energy_cutoff', 'wfc_threshold']
     def prep_states(self, input_states):
@@ -707,7 +709,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                              decoupling_overide=10,
                              maximize_groups=True,
                              target_modes=None,
-                             threshold_step_size=.1
+                             threshold_step_size=.1,
+                             extra_groups=None
                              ):
         """
         Excludes modes that differ in only one position, prioritizing states with fewer numbers of quanta
@@ -740,8 +743,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             elif hasattr(corrections, 'total_basis'): # PT corrections
                 states = corrections.states
                 basis = corrections.total_basis
-                group_inds = corrections.total_basis.find(group)
-                state_inds = corrections.states.find(group, dtype=int, missing_val=len(states))
+                group_inds = basis.find(group)
+                state_inds = states.find(group, dtype=int, missing_val=len(states))
                 found_pos = state_inds < len(states)
                 kill_spots = (np.arange(len(group_inds))[found_pos], state_inds[found_pos])
                 corr_mat = [np.abs(x[:, group_inds].asarray().T) for x in corrections.wfn_corrections[1:]]
@@ -881,9 +884,31 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                             else:
                                 groups = _
 
-                    if (decoupling_overide > 0 and decoupling_overide < threshold):
+                    if (
+                            (decoupling_overide > 0 and decoupling_overide < threshold)
+                            or extra_groups is not None
+                    ):
                         # states with blowups that we need to reinsert
-                        need_pos = np.where(np.logical_and(base_mat > decoupling_overide, base_mat < threshold))
+                        if (decoupling_overide > 0 and decoupling_overide < threshold) is not None:
+                            need_pos = np.where(np.logical_and(base_mat > decoupling_overide, base_mat < threshold))
+                        else:
+                            need_pos = ()
+                        if extra_groups is not None:
+                            for g in extra_groups:
+                                try:
+                                    new_inds = group.find(g)
+                                except IndexError:
+                                    pass
+                                else:
+                                    new_inds = list(itertools.combinations(new_inds, 2))
+                                    new_inds = ([x[0] for x in new_inds], [x[1] for x in new_inds])
+                                    if len(need_pos) > 0:
+                                        need_pos = (
+                                            np.concatenate([need_pos[0], new_inds[0]]),
+                                            np.concatenate([need_pos[1], new_inds[1]]),
+                                        )
+                                    else:
+                                        need_pos = new_inds
                         if len(need_pos) > 0:
                             sorting = np.argsort(base_mat[need_pos])
                             need_pos = tuple(d[sorting] for d in need_pos)
@@ -895,9 +920,9 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                                 new_groups = False
                                 for n,g in enumerate(groups):
                                     ix,jx = np.searchsorted(g, [i, j])
-                                    if ix < len(g):
+                                    if ix < len(g) and g[ix] == i:
                                         g_i = [n, g]
-                                    if jx < len(g):
+                                    if jx < len(g) and g[jx] == j:
                                         g_j = [n, g]
                                     if g_i is not None and g_j is not None:
                                         if g_i[0] == g_j[0]: # nothing needed to do
@@ -911,7 +936,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                                             g_i, g_j = g_j, g_i
                                             i, j = j, i
                                         groups[g_i[0]] = np.sort(np.concatenate([g_i[1], [j]]))
-                                        groups[g_j[0]] = np.setdiff1d([g_j[1], [j]])
+                                        groups[g_j[0]] = np.setdiff1d(g_j[1], [j])
                                         break
                                 else:
                                     # we're just adding to a group, not merging

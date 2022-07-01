@@ -523,7 +523,7 @@ class VPT2Tests(TestCase):
         # analyzer.print_output_tables(print_intensities=False, print_energies=True)
 
     @debugTest
-    def test_HOHCorrected(self):
+    def test_HOHCorrectedDegeneracies(self):
         VPTRunner.run_simple(
             TestManager.test_data('HOH_freq.fchk'),
             2,
@@ -532,8 +532,79 @@ class VPT2Tests(TestCase):
                 [(0, 2, 0), (4681.56364+7800) * UnitsData.convert("Wavenumbers", "Hartrees")],
                 [(0, 0, 2), (4681.56364+7801) * UnitsData.convert("Wavenumbers", "Hartrees")],
             ],
-            degeneracy_specs='auto'
+            degeneracy_specs={
+                'wfc_threshold':.3,
+                'extra_groups':[
+                    [[0, 2, 0], [0, 1, 1]]
+                ]
+            }
         )
+
+    @validationTest
+    def test_HOHCorrectedPostfilters(self):
+
+        # VPTAnalyzer.run_VPT(
+        #     TestManager.test_data('HOH_freq.fchk'),
+        #     2,
+        #     zero_order_energy_corrections=[
+        #         [(0, 1, 0), (4681.56364 + 3800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #         [(0, 2, 0), (4681.56364 + 7800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #         [(0, 0, 2), (4681.56364 + 7801) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #     ],
+        #     degeneracy_specs='auto',
+        #     basis_filters={'max_quanta':[0, -1, -1]}
+        # ).print_output_tables()
+
+        VPTAnalyzer.run_VPT(
+            TestManager.test_data('HOH_freq.fchk'),
+            2,
+            zero_order_energy_corrections=[
+                [(0, 1, 0), (4681.56364 + 3800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+                [(0, 2, 0), (4681.56364 + 7800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+                [(0, 0, 2), (4681.56364 + 7801) * UnitsData.convert("Wavenumbers", "Hartrees")],
+            ],
+            degeneracy_specs='auto',
+            basis_filters=[
+                {'max_quanta': [2, -1, -1]},
+                {'excluded_transitions': [[1, 0, 0], [0, 1, 0], [0, 0, 1]]}
+            ]
+        ).print_output_tables()
+
+        # VPTAnalyzer.run_VPT(
+        #     TestManager.test_data('HOH_freq.fchk'),
+        #     2,
+        #     zero_order_energy_corrections=[
+        #         [(0, 1, 0), (4681.56364 + 3800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #         [(0, 2, 0), (4681.56364 + 7800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #         [(0, 0, 2), (4681.56364 + 7801) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #     ],
+        #     degeneracy_specs='auto',
+        #     basis_filters={'max_quanta': [4, -1, -1]}
+        # ).print_output_tables()
+
+        # VPTAnalyzer.run_VPT(
+        #     TestManager.test_data('HOH_freq.fchk'),
+        #     2,
+        #     zero_order_energy_corrections=[
+        #         [(0, 1, 0), (4681.56364 + 3800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #         [(0, 2, 0), (4681.56364 + 7800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #         [(0, 0, 2), (4681.56364 + 7801) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #     ],
+        #     degeneracy_specs='auto',
+        #     basis_filters={'max_quanta': [6, -1, -1]}
+        # ).print_output_tables()
+        #
+        # VPTAnalyzer.run_VPT(
+        #     TestManager.test_data('HOH_freq.fchk'),
+        #     2,
+        #     zero_order_energy_corrections=[
+        #         [(0, 1, 0), (4681.56364 + 3800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #         [(0, 2, 0), (4681.56364 + 7800) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #         [(0, 0, 2), (4681.56364 + 7801) * UnitsData.convert("Wavenumbers", "Hartrees")],
+        #     ],
+        #     degeneracy_specs='auto',
+        #     basis_filters={'max_quanta': [-1, -1, -1]}
+        # ).print_output_tables()
 
     @validationTest
     def test_OCHHInternals(self):
@@ -576,7 +647,7 @@ class VPT2Tests(TestCase):
         # VPTRunner.run_simple(TestManager.test_data(file_name), 2, internals=internals)
         VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2, internals=internals).print_output_tables()
 
-    @debugTest
+    @validationTest
     def test_NH3Units(self):
 
         tag = 'NH3 Internals'
