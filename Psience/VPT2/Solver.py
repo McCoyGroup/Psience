@@ -932,10 +932,10 @@ class PerturbationTheorySolver:
 
         if filter_space is not None:
             prefilters = filter_space.prefilters
-            postfilter = filter_space.postfilter
+            postfilters = filter_space.postfilters
         else:
             prefilters = None
-            postfilter = None
+            postfilters = None
 
         if prefilters is not None:
             # this means we are able to filter _before_ we apply the selection rules
@@ -974,12 +974,12 @@ class PerturbationTheorySolver:
             new = a.get_transformed_space(b, **opts)
 
         if new is not None: # possible to have None if we had to do no work
-            if postfilter is not None:
-                if not isinstance(postfilter, (BasisStateSpace, BasisMultiStateSpace)):
-                    postfilter = BasisStateSpace(b.basis, postfilter)
-                if isinstance(postfilter, SelectionRuleStateSpace):
-                    postfilter = postfilter.to_single().take_unique()
-                new = new.take_states(postfilter)
+            if postfilters is not None:
+                for filter in postfilters:
+                    if isinstance(new, BasisMultiStateSpace):
+                        new = new.map(filter.apply)
+                    else:
+                        new = filter.apply(new)
 
         return new
 

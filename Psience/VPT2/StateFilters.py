@@ -1,15 +1,87 @@
 
-import numpy as np
+import numpy as np, abc
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, HarmonicOscillatorProductBasis
 
 __all__ = [
     "PerturbationTheoryStateSpaceFilter"
 ]
 
+
+class Postfilter(metaclass=abc.ABCMeta):
+    def __init__(self, input_space=None):
+        self.input_space = input_space
+    @abc.abstractmethod
+    def apply(self, state_space:BasisStateSpace)->BasisStateSpace:
+        pass
+    @classmethod
+    def get_spec_map(cls):
+        return {
+            'test':ExclusionTestFilter,
+            'max_quanta':MaxQuantaFilter,
+            'intersected_space':IntersectionSpaceFilter,
+            'excluded_space':DifferenceSpaceFilter,
+            'excluded_transitions':ExcludedTransitionFilter,
+        }
+    @classmethod
+    def construct(cls, input_space, spec):
+        if isinstance(spec, BasisStateSpace):
+            spec = {'intersected_space':spec}
+        for k,c in cls.get_spec_map().items():
+            if k in spec:
+                return c(input_space=input_space, **spec)
+        else:
+            raise ValueError("Don't know how to build filter from spec {}".format(spec))
+
+class ExclusionTestFilter(Postfilter):
+    def __init__(self, test=None, **opts):
+        super().__init__(**opts)
+        self.test = test
+    def apply(self, state_space:BasisStateSpace) ->BasisStateSpace:
+        vals = self.test(state_space)
+        where = np.where(vals)
+        if len(where) > 0:
+            where = where[0]
+        return state_space.take_subspace(where)
+class MaxQuantaFilter(ExclusionTestFilter):
+    def __init__(self, max_quanta=None, input_space:BasisStateSpace=None, **opts):
+        if isinstance(max_quanta, (int, np.integer)):
+            max_quanta = [max_quanta] * input_space.ndim
+        self.max_quanta = np.asanyarray(max_quanta)
+        super().__init__(self.check_mode_quanta, input_space=input_space, **opts)
+    def check_mode_quanta(self, state_space):
+        exc = state_space.excitations
+        qs = self.max_quanta.copy()
+        qs[qs < 0] = np.max(exc)+1
+        return np.all(exc <= qs[np.newaxis], axis=1)
+class IntersectionSpaceFilter(Postfilter):
+    def __init__(self, intersected_space=None, **opts):
+        super().__init__(**opts)
+        self.space = intersected_space
+    def apply(self, state_space:BasisStateSpace) ->BasisStateSpace:
+        return state_space.intersection(self.space)
+class DifferenceSpaceFilter(Postfilter):
+    def __init__(self, excluded_space=None, **opts):
+        super().__init__(**opts)
+        self.space = excluded_space
+    def apply(self, state_space:BasisStateSpace) ->BasisStateSpace:
+        return state_space.difference(self.space)
+class ExcludedTransitionFilter(DifferenceSpaceFilter):
+    def __init__(self, excluded_transitions=None, input_space=None, **opts):
+        bad_transitions = np.asanyarray(excluded_transitions)
+        perms = (
+                input_space.excitations[:, np.newaxis, :]
+                + bad_transitions[np.newaxis, :, :]
+        ).reshape(-1, bad_transitions.shape[-1])
+        excluded_space = BasisStateSpace(input_space.basis, perms)
+        super().__init__(excluded_space=excluded_space, input_space=input_space, **opts)
+    def apply(self, state_space:BasisStateSpace) ->BasisStateSpace:
+        return state_space.difference(self.space)
+
 class PerturbationTheoryStateSpaceFilter:
     """
     Provides an easier constructor for the VPT state space filters
     """
+
     def __init__(self, input_space, prefilters, postfilters):
         """
         :param input_space:
@@ -19,11 +91,11 @@ class PerturbationTheoryStateSpaceFilter:
         :param postfilters:
         :type postfilters:
         """
-
         self.input_space = input_space
         self._prefilters = None
         self._raw_prefilters = prefilters
-        self._postfilters = postfilters
+        self._postfilters = None
+        self._raw_postfilters = postfilters
 
     @classmethod
     def from_data(cls, input_space, data):
@@ -95,7 +167,7 @@ class PerturbationTheoryStateSpaceFilter:
             filters[(h_term, y_term)] = cls(
                 input_space,
                 r['prefilters'] if 'prefilters' in r else None,
-                r['postfilter'] if 'postfilter' in r else None
+                r['postfilters'] if 'postfilters' in r else None
             )
 
         return filters
@@ -113,13 +185,27 @@ class PerturbationTheoryStateSpaceFilter:
         return self._prefilters
 
     @property
-    def postfilter(self):
+    def postfilters(self):
         """
 
         :return:
         :rtype:
         """
+        if self._postfilters is None:
+            self._postfilters = self.canonicalize_postfilters(self.input_space,
+                                                            self._raw_postfilters)
         return self._postfilters
+    @classmethod
+    def canonicalize_postfilters(self, input_space, filters):
+        if filters is None:
+            return None
+        else:
+            if hasattr(filters, 'items') or isinstance(filters, BasisStateSpace):
+                filters = [filters]
+            return [
+                Postfilter.construct(input_space, f) for f in filters
+            ]
+
 
     def _could_be_a_space(self, test): # nasty checking code that I don't want to redupe all the time
         if isinstance(test, (BasisStateSpace, BasisMultiStateSpace)):
@@ -233,7 +319,8 @@ class PerturbationTheoryStateSpaceFilter:
                             target_space,
                             perturbation_rules,
                             property_rules,
-                            order=2
+                            order=2,
+                            postfilters=None
                             ):
         """
 
@@ -265,12 +352,23 @@ class PerturbationTheoryStateSpaceFilter:
             ndim = len(initial_space[0])
             basis = HarmonicOscillatorProductBasis(ndim)
 
+        if postfilters is None:
+            postfilters = {}
+            single_post = False
+        else:
+            single_post = not hasattr(postfilters, 'items')
+            if not single_post:
+                single_post = not any(
+                    len(k) == 2 and isinstance(k[0], (int, np.integer)) and isinstance(k[1], (int, np.integer))
+                    for k in postfilters
+                )
+
         full_rules = {
-            k:tuple(
-                (BasisStateSpace.from_quanta(basis, [i]), r) for i,r in v.items()
-            ) for k,v in int_rules.items()
+            k:{
+                'prefilters':tuple((BasisStateSpace.from_quanta(basis, [i]), r) for i,r in v.items()),
+                'postfilters':(postfilters if single_post else (None if k not in postfilters else postfilters[k]))
+            } for k,v in int_rules.items()
         }
-        # raise Exception(full_rules[(2, 0)])
         return full_rules
 
     @classmethod
@@ -403,6 +501,7 @@ class PerturbationTheoryStateSpaceFilter:
     def _prune_full_rules(self, init_space, targ_space, full_rules, property_rules, order):
         # we now check which rules truly can get us from the init space
         # to the targ space in under the target order
+        raise NotImplementedError("???")
         for key, states in full_rules.items():
             ...
 

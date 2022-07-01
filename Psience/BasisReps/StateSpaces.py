@@ -1838,6 +1838,13 @@ class BasisMultiStateSpace(AbstractStateSpace):
         """
         return self.spaces[item]
 
+    def map(self, f):
+        def _map_slice(sl):
+            arr = np.empty(len(sl), dtype=object)
+            arr[:] = [f(x) for x in sl]
+            return arr
+        return type(self)(np.apply_along_axis(_map_slice, -1, self.spaces))
+
     def to_state(self, serializer=None):
         return {
             'basis':self.basis,
@@ -1894,7 +1901,9 @@ class BasisMultiStateSpace(AbstractStateSpace):
         return self.spaces.flat
 
     def get_mode(self):
-        if all(s.has_indices for s in self.spaces.flat):
+        if len(self) == 0:
+            return self.StateSpaceSpec.Indices
+        elif all(s.has_indices for s in self.spaces.flat):
             return self.StateSpaceSpec.Indices
         elif all(s.has_excitations for s in self.spaces.flat):
             return self.StateSpaceSpec.Excitations
@@ -1979,7 +1988,6 @@ class BasisMultiStateSpace(AbstractStateSpace):
         """
         if self.representative_space.full_basis is not None:
             track_excitations = False
-
 
         if track_excitations and self.mode == self.StateSpaceSpec.Excitations:
             states = BasisStateSpace(
@@ -3202,6 +3210,17 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         self._excitations = None
         self._indexer = None
         self._uinds = None
+
+    def map(self, f):
+        def _map_slice(sl):
+            arr = np.empty(len(sl), dtype=object)
+            arr[:] = [f(x) for x in sl]
+            return arr
+        # new_spaces = np.apply_along_axis(_map_slice, -1, self.spaces)
+        return type(self)(
+            self.representative_space,
+            np.apply_along_axis(_map_slice, -1, self.spaces)
+        )
 
     def __repr__(self):
         return "{}(ogstates={}, nstates={}, basis={})".format(

@@ -288,11 +288,11 @@ class VPTStateSpace:
         # else:
         #     raise NotImplementedError("don't know what to do with degeneracy spec {}".format(degeneracy_specs))
 
-    def filter_generator(self, target_property, order=2):
+    def filter_generator(self, target_property, order=2, postfilters=None):
         def filter(states):
-            return self.get_state_space_filter(states, target=target_property, order=order)
+            return self.get_state_space_filter(states, target=target_property, order=order, postfilters=postfilters)
         return filter
-    def get_filter(self, target_property, order=2):
+    def get_filter(self, target_property, order=2, postfilters=None):
         """
         Obtains a state space filter for the given target property
         using the states we want to get corrections for
@@ -306,10 +306,11 @@ class VPTStateSpace:
         """
         return self.get_state_space_filter(self.state_list,
                                            target=target_property,
-                                           order=order
+                                           order=order,
+                                           postfilters=postfilters
                                            )
     @classmethod
-    def get_state_space_filter(cls, states, n_modes=None, order=2, target='wavefunctions'):
+    def get_state_space_filter(cls, states, n_modes=None, order=2, target='wavefunctions', postfilters=None):
         """
         Gets `state_space_filters` for the input `states` targeting some property
 
@@ -343,7 +344,8 @@ class VPTStateSpace:
                 [
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"]*i) for i in range(1, order+2)
                 ],
-                order=order
+                order=order,
+                postfilters=postfilters
             )
         elif target == 'frequencies':
             # return {
@@ -357,7 +359,8 @@ class VPTStateSpace:
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"] * i) for i in range(3, order + 3)
                 ],
                 None,
-                order=order
+                order=order,
+                postfilters=postfilters
                 # [
                 #     # (),
                 #     # (),
@@ -953,6 +956,7 @@ class VPTRunner:
                system,
                states,
                target_property=None,
+               basis_filters=None,
                corrected_fundamental_frequencies=None,
                **opts
                ):
@@ -996,7 +1000,7 @@ class VPTRunner:
                 expansion_order = opts['expansion_order']
             else:
                 expansion_order = order
-            par.ops['state_space_filters'] = states.filter_generator(target_property, order=order)
+            par.ops['state_space_filters'] = states.filter_generator(target_property, order=order, postfilters=basis_filters)
 
             # print(par.ops['state_space_filters'])
 
