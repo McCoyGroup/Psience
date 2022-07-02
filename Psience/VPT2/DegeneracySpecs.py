@@ -910,14 +910,13 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                                     else:
                                         need_pos = new_inds
                         if len(need_pos) > 0:
-                            sorting = np.argsort(base_mat[need_pos])
+                            sorting = np.argsort(-base_mat[need_pos])
                             need_pos = tuple(d[sorting] for d in need_pos)
                             for i,j in zip(*need_pos):
                                 # we try to find a group to insert into
                                 g_i = None
                                 g_j = None
                                 # first we check if we have a group with `i` or `j` in it
-                                new_groups = False
                                 for n,g in enumerate(groups):
                                     ix,jx = np.searchsorted(g, [i, j])
                                     if ix < len(g) and g[ix] == i:

@@ -531,11 +531,13 @@ class VPT2Tests(TestCase):
                 [(0, 1, 0), (4681.56364+3800) * UnitsData.convert("Wavenumbers", "Hartrees")],
                 [(0, 2, 0), (4681.56364+7800) * UnitsData.convert("Wavenumbers", "Hartrees")],
                 [(0, 0, 2), (4681.56364+7801) * UnitsData.convert("Wavenumbers", "Hartrees")],
+                [(0, 3, 1), (4681.56364+3801) * UnitsData.convert("Wavenumbers", "Hartrees")],
             ],
             degeneracy_specs={
                 'wfc_threshold':.3,
                 'extra_groups':[
-                    [[0, 2, 0], [0, 1, 1]]
+                    [[0, 2, 0], [0, 1, 1]],
+                    [[0, 0, 2], [0, 3, 1]],
                 ]
             }
         )
