@@ -619,6 +619,31 @@ class VPT2Tests(TestCase):
             operator_coefficient_threshold=(1.0e-8)
         )  # .print_output_tables()
 
+    @debugTest
+    def test_H2COModeSel(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  1,  0, -1],
+            [3,  1,  0,  2]
+        ]
+
+        VPTRunner.run_simple(
+            TestManager.test_data('OCHH_freq.fchk'),
+            1,
+            degeneracy_specs='auto',
+            mode_selection=[1, 2, 3, 4, 5]
+        )
+
+        VPTRunner.run_simple(
+            TestManager.test_data('OCHH_freq.fchk'),
+            1,
+            degeneracy_specs='auto',
+            internals=internals,
+            mode_selection=[1, 2, 3, 4, 5]
+        )
+
     @validationTest
     def test_H2COSkippedCouplings(self):
 
@@ -827,7 +852,7 @@ class VPT2Tests(TestCase):
   0 1 0 1 0 0    2979.24662      0.00000      2966.50387     43.86153
     """
 
-    @debugTest
+    @validationTest
     def test_WaterDimerSkippedCouplings(self):
 
         COM = -3
@@ -855,10 +880,11 @@ class VPT2Tests(TestCase):
             1,
             degeneracy_specs='auto',
             # operator_coefficient_threshold=0.005/219475,
-            basis_filters=[
-                {'max_quanta': [3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]}
-            ],
-            internals=internals
+            # basis_filters=[
+            #     {'max_quanta': [3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]}
+            # ],
+            # internals=internals,
+            mode_selection=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         )#.print_output_tables()
 
         # VPTAnalyzer.run_VPT(
