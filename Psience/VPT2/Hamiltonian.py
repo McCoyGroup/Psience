@@ -49,6 +49,7 @@ class PerturbationTheoryHamiltonian:
                  pseudopotential_terms=None,
                  selection_rules=None,
                  operator_chunk_size=None,
+                 operator_coefficient_threshold=None,
                  matrix_element_threshold=None,
                  logger=None,
                  checkpoint=None,
@@ -169,7 +170,8 @@ class PerturbationTheoryHamiltonian:
             'chunk_size': operator_chunk_size,
             'zero_threshold': matrix_element_threshold,
             'logger': self.logger,
-            'parallelizer': self.parallelizer
+            'parallelizer': self.parallelizer,
+            'skipped_coefficient_threshold':operator_coefficient_threshold
         }
 
         # from ..BasisReps import SimpleProductBasis, HarmonicOscillatorBasis

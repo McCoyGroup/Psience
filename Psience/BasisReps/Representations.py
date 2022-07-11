@@ -7,6 +7,7 @@ __all__ = [
     "ExpansionRepresentation"
 ]
 
+import itertools
 import tracemalloc
 
 import numpy as np, itertools as ip, scipy.sparse as sp, time, gc, tempfile as tf
@@ -369,6 +370,31 @@ class Representation:
         else:
             return self._selection_rule_steps
 
+    @property
+    def is_diagonal(self):
+        if self.operator is not None:
+            return self.operator.is_diagonal
+        else:
+            return False
+    @property
+    def is_zero(self):
+        if self.operator is not None:
+            return self.operator.is_zero
+        else:
+            return False
+
+    @property
+    def skipped_indices(self):
+        """
+
+        :return:
+        :rtype:
+        """
+        if self.operator is not None:
+            return self.operator.skipped_indices
+        else:
+            return None
+
     def get_transformed_space(self, space, parallelizer=None, logger=None, **opts):
         """
         Returns the state space obtained by using the
@@ -388,9 +414,13 @@ class Representation:
                                                        **opts
                                                        )
         elif self.selection_rules is not None:
-            return space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger,
+            new = space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger,
                                                **opts
                                                )
+            skips = Operator._get_skip_trans(self.skipped_indices, space.ndim)
+            if skips is not None:
+                new = new.filter_transitions(skips)
+            return new
         else:
             raise ValueError("can't get a transformed space without a held operator or selection rules")
 
@@ -885,6 +915,44 @@ class ExpansionRepresentation(Representation):
         self.computers = [Representation(c, basis) if not isinstance(c, Representation) else c for c in computers]
         super().__init__(None, basis, name=name, logger=logger, memory_constrained=memory_constrained)
 
+    @property
+    def is_diagonal(self):
+        if self.operator is not None:
+            return self.operator.is_diagonal
+        else:
+            return all(c.is_diagonal for c in self.computers)
+    @property
+    def is_zero(self):
+        if self.operator is not None:
+            return self.operator.is_zero
+        else:
+            return all(c.is_zero for c in self.computers)
+
+    @property
+    def skipped_indices(self):
+        """
+        :return:
+        :rtype:
+        """
+        if self.operator is not None:
+            return self.operator.is_diagonal
+        else:
+            skip_sets = [c.skipped_indices for c,s in zip(self.computers, self.coeffs) if (
+                    not c.is_diagonal and
+                    not c.is_zero and
+                    s != 0
+            )]
+
+            if len(skip_sets) > 0 and all(skips is not None and len(skips) > 0 for skips in skip_sets):
+                # raise Exception(skip_sets)
+                skips = list(skip_sets[0])
+                for s in skip_sets[1:]:
+                    skips, _, _ = nput.intersection(skips, list(s))
+                # raise Exception(skips)
+            else:
+                skips = None
+            return skips
+
     def clear_cache(self):
         for c in self.computers:
             c.clear_cache()
@@ -1048,6 +1116,7 @@ class ExpansionRepresentation(Representation):
         :return:
         :rtype: SelectionRuleStateSpace
         """
+
         import functools
 
         if parallelizer is None:
@@ -1055,13 +1124,20 @@ class ExpansionRepresentation(Representation):
 
         # we take a union of all transformation rules and just apply that
         # if possible
+        if rules is None:
+            rules = self.selection_rules
         if rules is not None:
             ooooh_shiz = space.apply_selection_rules(rules, parallelizer=parallelizer, logger=logger, **opts)
-        elif self.selection_rules is not None:
-            ooooh_shiz = space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger, **opts)
         else:
-            spaces = [r.get_transformed_space(space, parallelizer=parallelizer, logger=logger, **opts) for r in self.computers]
+            spaces = [
+                r.get_transformed_space(space, parallelizer=parallelizer, logger=logger, **opts)
+                for r in self.computers
+            ]
             ooooh_shiz = functools.reduce(lambda s1,s2: s1.union(s2), spaces[1:], spaces[0])
+
+        skips = Operator._get_skip_trans(self.skipped_indices, space.ndim)
+        if skips is not None:
+            ooooh_shiz = ooooh_shiz.filter_transitions(skips)
 
         return ooooh_shiz
 

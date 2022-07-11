@@ -511,8 +511,18 @@ class BasisStateSpace(AbstractStateSpace):
         if len(self._init_states) > 0:
             if self.infer_state_inds_type() == self.StateSpaceSpec.Indices:
                 self._indices = self._init_states.astype(int)
+                if self._indices.ndim != 1:
+                    raise ValueError("excitations shape {} is incompatible with {}".format(
+                        self._indices.shape,
+                        type(self).__name__
+                    ))
             else:
                 self._excitations = self._init_states.astype(self.excitations_dtype)
+                if self._excitations.ndim != 2:
+                    raise ValueError("excitations shape {} is incompatible with {}".format(
+                        self._excitations.shape,
+                        type(self).__name__
+                    ))
             if not self.keep_excitations:
                 self.indices # caching
                 self._excitations = None
@@ -689,8 +699,6 @@ class BasisStateSpace(AbstractStateSpace):
                                                                 return_inverse=True
                                                                 )
             self._uinds = np.sort(uinds)
-            # if len(states) > 1000:
-            #     raise Exception('why')
             raw_inds = self.basis.ravel_state_inds(np.reshape(states, (-1, self.ndim)))
             return raw_inds[inv]
         elif states_type is self.StateSpaceSpec.Indices:
@@ -2873,6 +2881,28 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 return cls(space, new, selection_rules)
             else:
                 return cls(space, new, selection_rules), filter
+
+    @classmethod
+    def _filter_transitions(cls, space:BasisStateSpace, excitations:"Iterable[BasisStateSpace]", excluded_transitions):
+        excluded_transitions = np.asanyarray(excluded_transitions)
+        if len(excluded_transitions) == 0:
+            return excitations
+        new = np.empty(len(space), dtype=object)
+        #TODO: do fewer comps in the future to make this faster
+        for i,(s,e) in enumerate(zip(space.excitations, excitations)):
+            diffs = e.excitations - s[np.newaxis, :]
+            matches = np.any(np.all(diffs[:, np.newaxis, :] == excluded_transitions[np.newaxis, :, :], axis=2), axis=1)
+            # now we drop the match states
+            e = e.take_subspace(np.where(np.logical_not(matches))[0])
+            new[i] = e
+        return new
+    def filter_transitions(self, excluded_transitions, in_place=False):
+        if not in_place:
+            import copy
+            new = copy.copy(self)
+            return new.filter_transitions(excluded_transitions, in_place=True)
+        self.spaces = self._filter_transitions(self.representative_space, self.spaces, excluded_transitions)
+        return self
 
     @classmethod
     def _find_space_intersections(cls, space, filter_space, perms, selection_rules):

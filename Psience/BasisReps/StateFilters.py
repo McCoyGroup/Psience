@@ -1,11 +1,10 @@
 
 import numpy as np, abc
-from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, HarmonicOscillatorProductBasis
+from .StateSpaces import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace
 
 __all__ = [
-    "PerturbationTheoryStateSpaceFilter"
+    "BasisStateSpaceFilter"
 ]
-
 
 class Postfilter(metaclass=abc.ABCMeta):
     def __init__(self, input_space=None):
@@ -49,6 +48,8 @@ class MaxQuantaFilter(ExclusionTestFilter):
         self.max_quanta = np.asanyarray(max_quanta)
         super().__init__(self.check_mode_quanta, input_space=input_space, **opts)
     def check_mode_quanta(self, state_space):
+        if len(state_space) == 0:
+            return np.array([], dtype=bool)
         exc = state_space.excitations
         qs = self.max_quanta.copy()
         qs[qs < 0] = np.max(exc)+1
@@ -72,12 +73,13 @@ class ExcludedTransitionFilter(DifferenceSpaceFilter):
                 input_space.excitations[:, np.newaxis, :]
                 + bad_transitions[np.newaxis, :, :]
         ).reshape(-1, bad_transitions.shape[-1])
+        perms = perms[np.all(perms > 0, axis=1)]
         excluded_space = BasisStateSpace(input_space.basis, perms)
         super().__init__(excluded_space=excluded_space, input_space=input_space, **opts)
     def apply(self, state_space:BasisStateSpace) ->BasisStateSpace:
         return state_space.difference(self.space)
 
-class PerturbationTheoryStateSpaceFilter:
+class BasisStateSpaceFilter:
     """
     Provides an easier constructor for the VPT state space filters
     """
@@ -349,6 +351,7 @@ class PerturbationTheoryStateSpaceFilter:
             basis = initial_space.basis
             ndim = initial_space.ndim
         else:
+            from .HarmonicOscillator import HarmonicOscillatorProductBasis
             ndim = len(initial_space[0])
             basis = HarmonicOscillatorProductBasis(ndim)
 

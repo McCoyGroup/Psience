@@ -17,3 +17,5 @@ from .StateSpaces import *
 __all__ += StateSpaces.__all__
 from .StateIndexers import *
 __all__ += StateIndexers.__all__
+from .StateFilters import *
+__all__ += StateIndexers.__all__
