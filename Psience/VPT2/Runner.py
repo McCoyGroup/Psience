@@ -35,6 +35,7 @@ class VPTSystem:
     __props__ = (
         "internals",
         "modes",
+        "mode_selection",
         "potential_derivatives",
         "potential_function",
         "order",
@@ -47,6 +48,7 @@ class VPTSystem:
                  internals=None,
                  dummy_atoms=None,
                  modes=None,
+                 mode_selection=None,
                  potential_derivatives=None,
                  potential_function=None,
                  order=2,
@@ -85,6 +87,7 @@ class VPTSystem:
         self.mol = mol
         if modes is not None:
             self.mol.normal_modes.modes = modes
+        self.mode_selection = mode_selection
         if potential_derivatives is not None:
             self.mol.potential_derivatives = potential_derivatives
         elif potential_function is not None:
@@ -111,7 +114,10 @@ class VPTSystem:
         :return:
         :rtype:
         """
-        return len(self.mol.normal_modes.modes.freqs)
+        if self.mode_selection is not None:
+            return len(self.mode_selection)
+        else:
+            return len(self.mol.normal_modes.modes.freqs)
 
     def get_potential_derivatives(self, potential_function, order=2, **fd_opts):
         """
