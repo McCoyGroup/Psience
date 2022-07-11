@@ -94,6 +94,22 @@ BasisReps manages useful functions for generating & working with basis-set repre
 [PermutationStateIndexer](BasisReps/StateIndexers/PermutationStateIndexer.md)   
 </div>
 </div>
+  <div class="row">
+   <div class="col" markdown="1">
+[BaseStateIndexer](BasisReps/StateIndexers/BaseStateIndexer.md)   
+</div>
+   <div class="col" markdown="1">
+[ArrayStateIndexer](BasisReps/StateIndexers/ArrayStateIndexer.md)   
+</div>
+   <div class="col" markdown="1">
+[SpaceStateIndexer](BasisReps/StateIndexers/SpaceStateIndexer.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[PermutationStateIndexer](BasisReps/StateIndexers/PermutationStateIndexer.md)   
+</div>
+</div>
 </div>
 
 

@@ -1,6 +1,6 @@
 ## <a id="Psience.BasisReps.Operators.ContractedOperator">ContractedOperator</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1070)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1070?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1097)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1097?message=Update%20Docs)]
 </div>
 
 Provides support for terms that look like `pGp` or `p(dG/dQ)Qp` by
@@ -20,7 +20,7 @@ and doing the appropriate tensor contractions with the expansion coefficients (i
 __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None, selection_rules=None, selection_rule_steps=None, zero_threshold=1e-14, skipped_indices=None, skipped_coefficient_threshold=None, chunk_size=None, parallelizer=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1077)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1077?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1104)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1104?message=Update%20Docs)]
 </div>
 
 
@@ -47,12 +47,21 @@ __init__(self, coeffs, funcs, quanta, prod_dim=None, axes=None, symmetries=None,
 - `chunk_size`: `int | None`
     >number of elements that can be evaluated at once (for memory reasons)
 
+<a id="Psience.BasisReps.Operators.ContractedOperator.is_zero" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+is_zero(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L?message=Update%20Docs)]
+</div>
+
 <a id="Psience.BasisReps.Operators.ContractedOperator.get_elements" class="docs-object-method">&nbsp;</a> 
 ```python
 get_elements(self, idx, parallelizer=None, check_orthogonality=True, memory_constrained=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1170)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1170?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1212)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1212?message=Update%20Docs)]
 </div>
 
 Computes the operator values over the specified indices
@@ -66,7 +75,7 @@ Computes the operator values over the specified indices
 apply_reduced(self, base_space, parallelizer=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1201)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1201?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1244)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1244?message=Update%20Docs)]
 </div>
 
 <a id="Psience.BasisReps.Operators.ContractedOperator.__repr__" class="docs-object-method">&nbsp;</a> 
@@ -74,7 +83,7 @@ apply_reduced(self, base_space, parallelizer=None, logger=None):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1244)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1244?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Operators.py#L1287)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1287?message=Update%20Docs)]
 </div>
 
  </div>
@@ -89,4 +98,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/Operators/ContractedOperator.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Operators/ContractedOperator.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Operators/ContractedOperator.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1070?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Operators.py#L1097?message=Update%20Docs)
