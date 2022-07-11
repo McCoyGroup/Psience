@@ -8,12 +8,11 @@ from McUtils.Data import UnitsData, AtomData
 from McUtils.Scaffolding import ParameterManager, Checkpointer
 from McUtils.Zachary import FiniteDifferenceDerivative
 
-from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
+from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis, BasisStateSpaceFilter
 from ..Molecools import Molecule
 
 from .DegeneracySpecs import DegeneracySpec
 from .Hamiltonian import PerturbationTheoryHamiltonian
-from .StateFilters import PerturbationTheoryStateSpaceFilter
 
 __all__ = [
     "VPTRunner",
@@ -335,7 +334,7 @@ class VPTStateSpace:
         if target == 'wavefunctions':
             return None
         elif target == 'intensities':
-            return PerturbationTheoryStateSpaceFilter.from_property_rules(
+            return BasisStateSpaceFilter.from_property_rules(
                 cls.get_state_list_from_quanta(0, n_modes),
                 states,
                 [
@@ -352,7 +351,7 @@ class VPTStateSpace:
             #     (1, 1): ([],),
             #     (2, 0): (None, [[0]])
             # }
-            return PerturbationTheoryStateSpaceFilter.from_property_rules(
+            return BasisStateSpaceFilter.from_property_rules(
                 cls.get_state_list_from_quanta(0, n_modes),
                 states,
                 [
@@ -414,7 +413,8 @@ class VPTHamiltonianOptions:
          "freq_tolerance",
          "g_derivative_threshold",
          "gmatrix_tolerance",
-         'use_cartesian_kinetic_energy'
+         'use_cartesian_kinetic_energy',
+         'operator_coefficient_threshold'
     )
 
     def __init__(self,
@@ -454,7 +454,8 @@ class VPTHamiltonianOptions:
                  g_derivative_threshold=None,
                  gmatrix_tolerance=None,
                  use_internal_modes=None,
-                 use_cartesian_kinetic_energy=None
+                 use_cartesian_kinetic_energy=None,
+                 operator_coefficient_threshold=None
                  ):
         """
         :param mode_selection: the subset of normal modes to do perturbation theory on
@@ -547,7 +548,8 @@ class VPTHamiltonianOptions:
             freq_tolerance=freq_tolerance,
             g_derivative_threshold=g_derivative_threshold,
             gmatrix_tolerance=gmatrix_tolerance,
-            use_cartesian_kinetic_energy=use_cartesian_kinetic_energy
+            use_cartesian_kinetic_energy=use_cartesian_kinetic_energy,
+            operator_coefficient_threshold=operator_coefficient_threshold
         )
 
         real_opts = {}

@@ -3,9 +3,7 @@ Provides the operator representations needed when building a Hamiltonian represe
 I chose to only implement direct product operators. Not sure if we'll need a 1D base class...
 """
 
-import tracemalloc
-
-import numpy as np, scipy.sparse as sp, os, tempfile as tf, time, gc
+import numpy as np, scipy.sparse as sp, os, tempfile as tf, time, gc, itertools
 from collections import OrderedDict
 from McUtils.Numputils import SparseArray
 import McUtils.Numputils as nput
@@ -13,6 +11,7 @@ from McUtils.Scaffolding import Logger, NullLogger
 from McUtils.Parallelizers import Parallelizer, SerialNonParallelizer
 
 from .StateSpaces import BasisStateSpace, SelectionRuleStateSpace, PermutationallyReducedStateSpace, BraKetSpace
+from .StateFilters import BasisStateSpaceFilter
 
 __all__ = [
     "Operator",
@@ -124,7 +123,12 @@ class Operator:
             return self.load_parallelizer()
         else:
             return self._parallelizer
-
+    @property
+    def is_diagonal(self):
+        return self.fdim == 0
+    @property
+    def is_zero(self):
+        return False
     def get_inner_indices(self, reduced_inds=False):
         """
         Gets the n-dimensional array of ijkl (e.g.) indices that functions will map over
@@ -554,7 +558,6 @@ class Operator:
         """
 
         inds = parallelizer.scatter(inds)
-        # print(f"Num inds={len(idx)}")
         parallelizer.print("evaluating over inds of shape {s}", s=inds.shape, log_level=parallelizer.logger.LogLevel.Debug)
         start = time.time()
         dump = self._get_pop_sequential(inds, idx, save_to_disk=False, check_orthogonality=check_orthogonality)
@@ -771,7 +774,6 @@ class Operator:
         idx_splits = self._split_idx(idx)
 
         inds = self.get_inner_indices()
-        # print(">>>>>", inds.size)
         if inds is None:
             return self._get_elements(inds, idx, check_orthogonality=check_orthogonality)
 
@@ -801,6 +803,23 @@ class Operator:
             self.funcs
         )
 
+    @classmethod
+    def _get_skip_trans(cls, inds, ndim):
+        # TODO: this needs generalization to work properly with different
+        #       forms of selection rules
+        if inds is None:
+            return None
+
+        skips = set()
+        for i in inds:
+            # get every possible transition phase
+            for phase in itertools.product(*[[-1, 1] for i in range(len(i))]):
+                base = [0] * ndim
+                for j, p in zip(i, phase):
+                    base[j] += p
+                skips.add(tuple(base))
+        return np.array(list(skips))
+
     def get_transformed_space(self, base_space, rules=None, parallelizer=None, logger=None, **opts):
         """
         Returns the space one would get from applying
@@ -815,7 +834,15 @@ class Operator:
             rules = self.selection_rules
         if parallelizer is None:
             parallelizer = self.parallelizer
-        return base_space.apply_selection_rules(rules, parallelizer=parallelizer, logger=logger, **opts)
+        new = base_space.apply_selection_rules(rules,
+                                                parallelizer=parallelizer,
+                                                logger=logger,
+                                                **opts
+                                                )
+        skips = self._get_skip_trans(self.skipped_indices, base_space.ndim)
+        if skips is not None:
+            new = new.filter_transitions(skips)
+        return new
 
     def _calculate_single_transf(self, inds, funcs, base_space, sel_rules):
         """
@@ -1112,8 +1139,19 @@ class ContractedOperator(Operator):
         """
         self.coeffs = coeffs
         self.axes = axes
-        if skipped_indices is None and skipped_coefficient_threshold is not None:
-            skipped_indices = np.array(np.where(np.abs(coeffs) > skipped_coefficient_threshold)).T
+        if (
+                skipped_indices is None
+                and skipped_coefficient_threshold is not None
+                and not (isinstance(self.coeffs, (int, float, np.integer, np.floating)) and self.coeffs == 0)
+        ):
+            skipped_indices = np.where(np.abs(coeffs) < skipped_coefficient_threshold)
+            if len(skipped_indices) > 0 and len(skipped_indices[0]) > 0:
+                # print("!", len(skipped_indices), self.coeffs.ndim, skipped_indices)
+                # if len(skipped_indices) > 5:
+                #     raise Exception(skipped_indices)
+                skipped_indices = np.array(skipped_indices).T
+            else:
+                skipped_indices = None
         super().__init__(funcs, quanta, symmetries=symmetries, prod_dim=prod_dim,
                          selection_rules=selection_rules,
                          selection_rule_steps=selection_rule_steps,
@@ -1123,6 +1161,10 @@ class ContractedOperator(Operator):
                          skipped_indices=skipped_indices
                          )
         self.chunk_size = chunk_size
+
+    @property
+    def is_zero(self):
+        return (isinstance(self.coeffs, (int, float, np.integer, np.floating)) and self.coeffs == 0)
 
     def _get_element_block(self, idx, parallelizer=None, check_orthogonality=True, memory_constrained=False):
         c = self.coeffs
@@ -1182,6 +1224,7 @@ class ContractedOperator(Operator):
 
         idx_splits = self._split_idx(idx)
 
+        # need a special case for diagonal tensors
         chunks = [self._get_element_block(idx, check_orthogonality=check_orthogonality, memory_constrained=memory_constrained) for idx in idx_splits]
         if all(isinstance(x, np.ndarray) for x in chunks):
             subchunks = [np.array([y]) if y.shape == () else y for y in chunks]

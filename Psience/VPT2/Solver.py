@@ -8,14 +8,13 @@ from McUtils.Parallelizers import Parallelizer, SerialNonParallelizer
 from McUtils.Data import UnitsData
 from McUtils.Combinatorics import LatticePathGenerator
 
-from ..BasisReps import Representation, BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace
+from ..BasisReps import Representation, BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BasisStateSpaceFilter
 
-from .StateFilters import PerturbationTheoryStateSpaceFilter
 from .DegeneracySpecs import DegenerateMultiStateSpace, DegeneracySpec
 from .Common import *
 from .Corrections import *
 
-__reload_hook__ = [ "..BasisReps", ".DegeneracySpecs", ".Corrections", ".StateFilters", ".Common" ]
+__reload_hook__ = [ "..BasisReps", ".DegeneracySpecs", ".Corrections", ".Common" ]
 
 __all__ = [
     "PerturbationTheorySolver"
@@ -101,10 +100,10 @@ class PerturbationTheorySolver:
 
         if isinstance(state_space_filters, (types.FunctionType, types.MethodType, types.LambdaType)):
             self.state_space_filter_generator = state_space_filters
-            self.state_space_filters = PerturbationTheoryStateSpaceFilter.from_data(states, self.state_space_filter_generator(states))
+            self.state_space_filters = BasisStateSpaceFilter.from_data(states, self.state_space_filter_generator(states))
         else:
             self.state_space_filter_generator = None
-            self.state_space_filters = PerturbationTheoryStateSpaceFilter.from_data(states, state_space_filters)
+            self.state_space_filters = BasisStateSpaceFilter.from_data(states, state_space_filters)
         self.target_property_rules=target_property_rules
 
         self.logger = logger
@@ -689,7 +688,7 @@ class PerturbationTheorySolver:
                 for p,cs in zip(self.perts[1:], self.coupled_states):
                     existing_spaces[p] = ({None:cs}, cs)
                 if self.state_space_filter_generator is not None:
-                    filters = PerturbationTheoryStateSpaceFilter.from_data(new_targets, self.state_space_filter_generator(new_targets))
+                    filters = BasisStateSpaceFilter.from_data(new_targets, self.state_space_filter_generator(new_targets))
                     # raise Exception(filters[(1, 1)].prefilters)
                 else:
                     filters = None
@@ -928,7 +927,7 @@ class PerturbationTheorySolver:
                     and self._could_be_rules(test[1])
             )
         )
-    def _apply_transformation_with_filters(self, a, b, filter_space:PerturbationTheoryStateSpaceFilter, **opts):
+    def _apply_transformation_with_filters(self, a, b, filter_space:BasisStateSpaceFilter, **opts):
 
         if filter_space is not None:
             prefilters = filter_space.prefilters

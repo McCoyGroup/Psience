@@ -96,6 +96,9 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             expansion_options = {}
         self.expansion_options = expansion_options
         self.operator_settings = operator_settings if operator_settings is not None else {}
+        if 'skipped_coefficient_threshold' in self.operator_settings:
+            self.operator_settings = self.operator_settings.copy()
+            del self.operator_settings['skipped_coefficient_threshold']
         self._order = None
         self.degenerate_transformation_layout="column" if degenerate_transformation_layout is None else degenerate_transformation_layout
         # super().__init__(
