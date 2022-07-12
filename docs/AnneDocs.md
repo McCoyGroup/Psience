@@ -12,7 +12,7 @@ To do that we'll set up what python calls a [virtual environment](https://docs.p
 which just means python makes a copy of its dependency directories so you can
 install things without worrying about global conflicts.
 
-First, we need to install Python 3.8+,
+First, we need to install Python 3.9+,
 which just means going to the [python downloads page](https://www.python.org/downloads/)
 and using the correct installer.
 
@@ -20,7 +20,7 @@ Once we have python installed, we can `cd` into this directory and create an
 environment (which I'm calling `mcenv`) like
 
 ```lang-shell
-python3.8 -m venv mcenv
+python3.9 -m venv mcenv
 ```
 
 Next, we'll activate this environment.
@@ -62,11 +62,14 @@ It's worth checking out the [JupyterLab documentation](https://jupyterlab.readth
 
 ## Running Scripts
 
-Most of my calculations are run through python scripts. I've included two of them.
-The first is really simple (and the script is called `run_simple.py`).
-The second is how I tend to run my results for papers, when the number of
-systems and options for the runs changes frequently.
-That script is `results.py`.
+Most of my calculations are run through python scripts.
+The main thing we need to do for scripts (and Jupyter) is add the line
+
+```python
+from Psience.VPT2 import *
+```
+
+and all of the helpers should be loaded.
 
 ## Anne Input Helpers
 
@@ -75,7 +78,6 @@ This object exists to enable people who aren't comfortable with python and stand
 It exposes one core function `run_anne_job`, that will take a folder with the appropriate files and run a VPT job.
 
 The signature of the function [can be found on GitHub](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#:~:text=run_anne_job) and looks like
-
 
 ```python
 VPTRunner.helpers.run_anne_job(
