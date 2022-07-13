@@ -123,6 +123,7 @@ run_simple(system, states, target_property=None, corrected_fundamental_frequenci
 - [AnalyticModels](#AnalyticModels)
 - [HOHCorrectedDegeneracies](#HOHCorrectedDegeneracies)
 - [WaterSkippedCouplings](#WaterSkippedCouplings)
+- [H2COPolyads](#H2COPolyads)
 - [H2COModeSel](#H2COModeSel)
 - [H2COSkippedCouplings](#H2COSkippedCouplings)
 - [WaterDimerSkippedCouplings](#WaterDimerSkippedCouplings)
@@ -873,6 +874,26 @@ class VPT2Tests(TestCase):
             operator_coefficient_threshold=(1.0e-8)
         )
 ```
+#### <a name="H2COPolyads">H2COPolyads</a>
+```python
+    def test_H2COPolyads(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 1, 0, -1],
+            [3, 1, 0, 2]
+        ]
+
+        VPTRunner.run_simple(
+            TestManager.test_data('OCHH_freq.fchk'),
+            2,
+            degeneracy_specs=True
+            # degeneracy_specs={
+            #     'nT':[1, 1, 1, 1, 2, 2]
+            # }
+        )
+```
 #### <a name="H2COModeSel">H2COModeSel</a>
 ```python
     def test_H2COModeSel(self):
@@ -887,15 +908,7 @@ class VPT2Tests(TestCase):
         VPTRunner.run_simple(
             TestManager.test_data('OCHH_freq.fchk'),
             1,
-            degeneracy_specs='auto',
-            mode_selection=[1, 2, 3, 4, 5]
-        )
-
-        VPTRunner.run_simple(
-            TestManager.test_data('OCHH_freq.fchk'),
-            1,
-            degeneracy_specs='auto',
-            internals=internals,
+            degeneracy_specs=True,
             mode_selection=[1, 2, 3, 4, 5]
         )
 ```
