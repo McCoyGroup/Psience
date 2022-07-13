@@ -581,7 +581,15 @@ class PolyadDegeneracySpec(DegeneracySpec):
                                                      ))
                     _.append(sub)
                 groups = _
-            groups = [g for g in groups if len(g) > 1]
+        groups = [g for g in groups if len(g) > 1]
+        # new = []
+        # for g in groups:
+        #     inds = SymmetricGroupGenerator(len(g[0])).to_indices(g)
+        #     print(inds)
+        #     print(g)
+        #     print("-"*50)
+        #     new.append(g[np.argsort(inds)])
+        # groups = new
         return groups
 
     @staticmethod

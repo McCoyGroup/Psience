@@ -548,7 +548,9 @@ class VPTAnalyzer:
         :rtype:
         """
         freqs = self.deperturbed_frequencies
-        tmom = self.deperturbed_transition_moments[0]
+        # if np.max(freqs) < 1:
+        #     freqs = freqs * UnitsData.convert("Hartrees", "Wavenumbers")
+        tmom = self.deperturbed_transition_moments[:, 0]
         osc = np.linalg.norm(tmom, axis=0) ** 2
         units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
         ints = units * freqs * osc[1:]

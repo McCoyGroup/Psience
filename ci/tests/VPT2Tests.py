@@ -23,6 +23,17 @@ class VPT2Tests(TestCase):
 
     # region Water Analogs
 
+    # @debugTest
+    # def test_HODVPTRunner(self):
+    #
+    #     file_name = "OCHH_freq_16.fchk"
+    #     VPTRunner.run_simple(
+    #         TestManager.test_data(file_name),
+    #         2,
+    #         # memory_constrained=True,
+    #         # logger=True
+    #     )
+
     @validationTest
     def test_HOHVPTRunner(self):
 
@@ -620,6 +631,25 @@ class VPT2Tests(TestCase):
         )  # .print_output_tables()
 
     @debugTest
+    def test_H2COPolyads(self):
+
+        internals = [
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 1, 0, -1],
+            [3, 1, 0, 2]
+        ]
+
+        VPTRunner.run_simple(
+            TestManager.test_data('OCHH_freq.fchk'),
+            2,
+            degeneracy_specs=True
+            # degeneracy_specs={
+            #     'nT':[1, 1, 1, 1, 2, 2]
+            # }
+        )
+
+    @validationTest
     def test_H2COModeSel(self):
 
         internals = [
@@ -632,17 +662,17 @@ class VPT2Tests(TestCase):
         VPTRunner.run_simple(
             TestManager.test_data('OCHH_freq.fchk'),
             1,
-            degeneracy_specs='auto',
+            degeneracy_specs=True,
             mode_selection=[1, 2, 3, 4, 5]
         )
 
-        VPTRunner.run_simple(
-            TestManager.test_data('OCHH_freq.fchk'),
-            1,
-            degeneracy_specs='auto',
-            internals=internals,
-            mode_selection=[1, 2, 3, 4, 5]
-        )
+        # VPTRunner.run_simple(
+        #     TestManager.test_data('OCHH_freq.fchk'),
+        #     1,
+        #     degeneracy_specs='auto',
+        #     internals=internals,
+        #     mode_selection=[1, 2, 3, 4, 5]
+        # )
 
     @validationTest
     def test_H2COSkippedCouplings(self):
