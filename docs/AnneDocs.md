@@ -264,7 +264,7 @@ As are total quanta vectors
     'nT': [1, 1, 1, 0, 2, 2, 0] # e.g.
 }
 ```
-- `mode_selection` (`list[int]`): the subset of normal modes to use in the calculation as a `list` of `int`s corresponding to the desired modes (can also be used to rearrange from freq. ordering to Herzberg)
+- `mode_selection` (`list[int]`): the subset of normal modes to use in the calculation as a `list` of `int`s corresponding to the desired modes. This can also be used to rearrange from freq. ordering to Herzberg by supplying a list like `[1, 2, 3, 4, 0, 5]` to swap some modes around.
 - `basis_filters` (`list[dict]`): a list of filters to apply sequentially to the basis of states used in the PT, each filter can look like one of the following
   - for excluding quanta
 
