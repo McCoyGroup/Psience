@@ -214,6 +214,10 @@ State       Frequency    Intensity       Frequency    Intensity
 - [WaterSkippedCouplings](#WaterSkippedCouplings)
 - [H2COPolyads](#H2COPolyads)
 - [H2COModeSel](#H2COModeSel)
+- [HODRephase](#HODRephase)
+- [HOHRephase](#HOHRephase)
+- [NH3](#NH3)
+- [HOONO](#HOONO)
 - [H2COSkippedCouplings](#H2COSkippedCouplings)
 - [WaterDimerSkippedCouplings](#WaterDimerSkippedCouplings)
 - [OCHHInternals](#OCHHInternals)
@@ -1051,8 +1055,59 @@ class VPT2Tests(TestCase):
         VPTRunner.run_simple(
             TestManager.test_data('OCHH_freq.fchk'),
             1,
-            degeneracy_specs=True,
+            degeneracy_specs=None,
             mode_selection=[1, 2, 3, 4, 5]
+        )
+```
+#### <a name="HODRephase">HODRephase</a>
+```python
+    def test_HODRephase(self):
+        VPTRunner.run_simple(
+            TestManager.test_data('HOD_freq_16.fchk'),
+            1,
+            degeneracy_specs=None,
+            # order=4,
+            # expansion_order=2
+        )
+```
+#### <a name="HOHRephase">HOHRephase</a>
+```python
+    def test_HOHRephase(self):
+        VPTRunner.run_simple(
+            TestManager.test_data('HOH_freq.fchk'),
+            1,
+            degeneracy_specs=None,
+            # order=4,
+            # expansion_order=2
+        )
+```
+#### <a name="NH3">NH3</a>
+```python
+    def test_NH3(self):
+
+        VPTRunner.run_simple(
+            TestManager.test_data('OCHD_freq.fchk'),
+            4,
+            # degeneracy_specs=False,
+            order=4,
+            expansion_order=2,
+            target_property='intensities',
+            zero_element_warning=False
+            # basis_filters={
+            #     'max_quanta':[2, -1, -1, -1, -1, -1]
+            # }
+        )
+```
+#### <a name="HOONO">HOONO</a>
+```python
+    def test_HOONO(self):
+
+        VPTRunner.run_simple(
+            TestManager.test_data('HOONO_freq.fchk'),
+            1,
+            degeneracy_specs=None,
+            # order=4,
+            # expansion_order=2
         )
 ```
 #### <a name="H2COSkippedCouplings">H2COSkippedCouplings</a>

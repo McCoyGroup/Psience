@@ -171,12 +171,26 @@ Multiplies each mode by some scaling factor
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.Molecools.Vibrations.MolecularVibrations.rotate" class="docs-object-method">&nbsp;</a> 
+```python
+rotate(self, scaling): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L269)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L269?message=Update%20Docs)]
+</div>
+
+Multiplies each mode by some scaling factor
+- `phases`: `Any`
+    >No description...
+- `:returns`: `_`
+    >No description...
+
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.__repr__" class="docs-object-method">&nbsp;</a> 
 ```python
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L270)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L270?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L284)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L284?message=Update%20Docs)]
 </div>
 
  </div>
