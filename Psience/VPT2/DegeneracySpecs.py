@@ -354,7 +354,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
     application_order = 'post'
     format = DegenerateSpaceInputFormat.StrongCouplings
     default_threshold=.3
-    def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=1, **opts):
+    def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=None, **opts):
         super().__init__(**opts)
         if wfc_threshold is None or isinstance(wfc_threshold, str) and wfc_threshold == 'auto':
             wfc_threshold = self.default_threshold

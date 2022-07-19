@@ -1384,7 +1384,7 @@ class DipoleSurfaceManager(PropertyManager):
     def load_dipole_surface(self):
         raise NotImplementedError("haven't needed general dipole surfaces yet")
 
-    def _load_gaussian_fchk_dipoles(self, file):
+    def _load_gaussian_fchk_dipoles(self, file, masses=None, freqs=None):
         try:
             keys = ['DipoleMoment', 'DipoleDerivatives', 'DipoleHigherDerivatives', 'DipoleNumDerivatives']
             with GaussianFChkReader(file) as gr:
@@ -1413,6 +1413,19 @@ class DipoleSurfaceManager(PropertyManager):
         if thirds is not None:
             amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
             thirds = thirds / amu_conv
+
+        if num_grad is not None:
+            amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            # freqs = self.mol.normal_modes._freqs # badness for now
+            # sqrt_freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
+            conv = np.sqrt(amu_conv) #(sqrt_freqs * np.sqrt(amu_conv))
+            num_grad = num_grad / conv
+        if num_secs is not None:
+            amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            # freqs = self.mol.normal_modes._freqs  # badness for now
+            # sqrt_freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
+            conv = amu_conv # (sqrt_freqs * np.sqrt(amu_conv))
+            num_secs = num_secs * conv
 
         return {
             "analytic": (mom, grad, seconds, thirds),
@@ -1667,6 +1680,7 @@ class NormalModesManager(PropertyManager):
     def __init__(self, mol, normal_modes=None):
         super().__init__(mol)
         self._modes = normal_modes
+        self._freqs = None # implementation detail
 
     def set_molecule(self, mol):
         super().set_molecule(mol)
@@ -1781,6 +1795,7 @@ class NormalModesManager(PropertyManager):
             modes = modes.T
 
             modes = MolecularNormalModes(self.mol, modes, inverse=modes.T, freqs=freqs)
+            self._freqs = freqs # important for rephasing to work right...
 
             if rephase:
                 try:
@@ -1789,7 +1804,7 @@ class NormalModesManager(PropertyManager):
                     pass
                 else:
                     if phases is not None:
-                        modes = modes.rescale(phases)
+                        modes = modes.rotate(phases)
 
             if recalculate:
                 fcs = self.mol.potential_surface.force_constants
@@ -1870,55 +1885,41 @@ class NormalModesManager(PropertyManager):
         # raise Exception(d1_analytic.shape, d1_numerical.shape
 
         if modes is None:
-            modes = self.modes.basis
+            modes = self.modes.basis # in dimensionless coordinates
 
         mode_basis = modes.matrix
-        rot_analytic = 42.69529853*np.dot(d1_analytic.T, mode_basis) # magic scaling from Gaussian units
-        # pax_tf = self.mol.principle_axis_frame()
-        # # tf = pax_tf.transformation_function.transform
-        # raise Exception(
-        #     np.linalg.norm(d1_numerical, axis=1)/np.linalg.norm(rot_analytic, axis=0),
-        #     np.linalg.norm(d1_numerical, axis=1)
-        # )
-        # raise Exception(np.linalg.norm(rot_analytic))
+        rot_analytic = np.dot(d1_analytic.T, mode_basis)
+        # normalize
+        rot_analytic = rot_analytic / np.linalg.norm(rot_analytic, axis=0)[np.newaxis, :]
+        d1_numerical = d1_numerical / np.linalg.norm(d1_numerical, axis=1)[:, np.newaxis]
 
-        # # we'll use Kasbach to find the optimal rotation between the two
-        # # https://en.wikipedia.org/wiki/Kabsch_algorithm
-        # # note the similarity to the Eckart problem
-     #        h_mat = np.dot(d1_numerical, rot_analytic)
-     #        u, _, vh = np.linalg.svd(h_mat)
-     #        rot = np.dot(u, vh).T
-     #        """
-     #        [[ 6.48641287e-12  1.91237289e-10  3.77844837e-01]
-     # [ 3.09800233e-13 -1.21192605e-01 -7.72894398e-09]
-     # [ 1.21192604e-01  2.58992246e-12 -2.64296098e-11]
-     # [-1.05027339e-11  1.49235462e-09  5.89732766e-02]
-     # [-3.20808504e-12  9.28281429e-02  1.36433982e-09]
-     # [-9.28281420e-02 -4.56185268e-13 -1.57201929e-11]]
-     # [[ 3.34385111e-03  6.73877320e-11  9.81811366e-13  5.21901687e-04 -1.63056815e-12  1.12077477e-11]
-     # [-6.91437956e-11 -3.43824729e-04 -1.13158238e-05 -1.58597488e-11  1.30362190e-05 -2.63174363e-04]
-     # [-2.08104389e-13 -1.13158234e-05  3.43824725e-04  2.42712434e-13  2.63174356e-04  1.30362193e-05]
-     # [ 5.21901683e-04  1.46679667e-11  2.57125757e-13  8.14573855e-05 -4.36817560e-13  4.92393353e-12]
-     # [ 1.26441503e-11  2.63354444e-04  8.66741752e-06  5.85527644e-12 -9.98516373e-06  2.01579852e-04]
-     # [-1.58876360e-13  8.66741721e-06 -2.63354440e-04 -2.35582669e-13 -2.01579847e-04 -9.98516391e-06]]
-     # """
-        # with np.printoptions(linewidth=1e8):
-        #     print("????")
-        #     print(h_mat)
-        #     print(rot)
-        #     print(np.sign(rot)*np.round(np.abs(rot)))
-        #     print(np.sign(np.diag(np.dot(d1_numerical, rot_analytic))))
-        # #
-        # raise Exception("...")
+        # we assume that these should be the same up to a rephasing
+        # so we the inner product matrix
+        h_mat = np.dot(d1_numerical, rot_analytic)
 
-        # rot_analytic = np.nan_to_num(np.array([x/np.linalg.norm(x) for x in rot_analytic]), nan=0.0)
-        # d1_numerical = np.nan_to_num(np.array([x/np.linalg.norm(x) for x in d1_numerical.T]), nan=0.0)
+        # then we find the places where the magnitude of the diagonal
+        # is significantly less than 1
+        norms = np.diag(h_mat)
+        rot_pos = np.where(np.abs(norms) < .95)
+        if len(rot_pos) > 0:
+            rot_pos = rot_pos[0]
 
+        rephasing_matrix = np.zeros_like(h_mat)
+        # any place where the diagonal is 1, we insert the rephasing directly
+        clean_pos = np.setdiff1d(np.arange(len(h_mat), dtype=int), rot_pos)
+        rephasing_matrix[clean_pos, clean_pos] = np.sign(norms[clean_pos])
 
-        # could force some orientation relative to PAX frame?
-        phases = np.sign(np.diag(np.dot(d1_numerical, rot_analytic)))
+        if len(rot_pos) > 0:
+            # find the subrotations we need
+            subrotations = []
+            subrot = h_mat[np.ix_(rot_pos, rot_pos)]
+            while np.linalg.det(subrot) < .95:
+                raise Exception(np.linalg.det(subrot))
+            subrotations.append((rot_pos, subrot))
+            for rot_pos, subrot in subrotations:
+                rephasing_matrix[np.ix_(rot_pos, rot_pos)] = subrot
 
-        return phases
+        return rephasing_matrix.T
 
     def apply_transformation(self, transf):
         # self.modes # load in for some reason?
