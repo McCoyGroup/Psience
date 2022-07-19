@@ -127,6 +127,8 @@ class PerturbationTheorySolver:
                     'wfc_threshold':'auto' if handle_strong_couplings is True else handle_strong_couplings,
                     'iterations':order//2
                 })
+        elif hasattr(self.degeneracy_spec, 'wfc_threshold') and self.degeneracy_spec.iterations is None:
+            self.degeneracy_spec.iterations = order//2
         self.handle_strong_couplings = hasattr(self.degeneracy_spec, 'wfc_threshold')
         self.nondeg_hamiltonian_precision=nondeg_hamiltonian_precision
 
@@ -1019,6 +1021,7 @@ class PerturbationTheorySolver:
             raise NotImplementedError("we shouldn't be here")
             new = a * b
         elif isinstance(a, self.ProjectionOperatorWrapper):
+            raise NotImplementedError("we shouldn't be here")
             # uhhh...
             new = a.get_transformed_space(b, parallelizer=self.parallelizer, logger=logger)
         elif isinstance(a, (self.ProjectedOperator, Representation)):
@@ -1098,7 +1101,7 @@ class PerturbationTheorySolver:
                             )
 
                             if new_new is None:
-                                new = b
+                                new = b.to_single().take_unique()
                             else:
                                 # next we add the new stuff to the cache
                                 cur = cur.union(new_new)
@@ -1109,9 +1112,9 @@ class PerturbationTheorySolver:
                                 if ret_space:
                                     new = existing.union(new_new).to_single(track_excitations=not self.memory_constrained).take_unique()
                                 else:
-                                    new = b
+                                    new = b.to_single().take_unique()
                         else:
-                            new = b
+                            new = b.to_single().take_unique()
 
                     else:
                         # means we already calculated everything
@@ -1383,6 +1386,10 @@ class PerturbationTheorySolver:
 
     def construct_strong_coupling_spaces(self, sc, corrs, states, threshold):
         sc = corrs.collapse_strong_couplings(sc)
+        # self.logger.log_print(
+        #     corrs.states.excitations,
+        #     message_prepper=lambda a: str(np.array(a)).splitlines()
+        # )
         with self.logger.block(tag='unpruned spaces states', log_level=self.logger.LogLevel.Never):
             for s in sc.values():
                 self.logger.log_print(
@@ -1474,6 +1481,8 @@ class PerturbationTheorySolver:
         :return:
         :rtype:
         """
+
+        # print("????", states.excitations)
 
         with checkpointer:
 
@@ -1649,7 +1658,7 @@ class PerturbationTheorySolver:
                                     N,
                                     checkpointer,
                                     logger,
-                                    None,
+                                    degenerate_states,
                                     handle_strong_couplings=True,
                                     non_zero_cutoff=non_zero_cutoff
                                 )

@@ -630,7 +630,7 @@ class VPT2Tests(TestCase):
             operator_coefficient_threshold=(1.0e-8)
         )  # .print_output_tables()
 
-    @debugTest
+    @validationTest
     def test_H2COPolyads(self):
 
         internals = [
@@ -662,8 +662,63 @@ class VPT2Tests(TestCase):
         VPTRunner.run_simple(
             TestManager.test_data('OCHH_freq.fchk'),
             1,
-            degeneracy_specs=True,
+            degeneracy_specs=None,
             mode_selection=[1, 2, 3, 4, 5]
+        )
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data('OCHH_freq.fchk'),
+        #     1,
+        #     degeneracy_specs='auto',
+        #     internals=internals,
+        #     mode_selection=[1, 2, 3, 4, 5]
+        # )
+
+    @validationTest
+    def test_HODRephase(self):
+        VPTRunner.run_simple(
+            TestManager.test_data('HOD_freq_16.fchk'),
+            1,
+            degeneracy_specs=None,
+            # order=4,
+            # expansion_order=2
+        )
+
+    @validationTest
+    def test_HOHRephase(self):
+        VPTRunner.run_simple(
+            TestManager.test_data('HOH_freq.fchk'),
+            1,
+            degeneracy_specs=None,
+            # order=4,
+            # expansion_order=2
+        )
+
+    @debugTest
+    def test_NH3(self):
+
+        VPTRunner.run_simple(
+            TestManager.test_data('OCHD_freq.fchk'),
+            4,
+            # degeneracy_specs=False,
+            order=4,
+            expansion_order=2,
+            target_property='intensities',
+            zero_element_warning=False
+            # basis_filters={
+            #     'max_quanta':[2, -1, -1, -1, -1, -1]
+            # }
+        )
+
+    @validationTest
+    def test_HOONO(self):
+
+        VPTRunner.run_simple(
+            TestManager.test_data('HOONO_freq.fchk'),
+            1,
+            degeneracy_specs=None,
+            # order=4,
+            # expansion_order=2
         )
 
         # VPTRunner.run_simple(

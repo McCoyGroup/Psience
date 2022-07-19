@@ -5,8 +5,9 @@ A little package of utilities for setting up/running VPT jobs
 import numpy as np, sys, os, itertools, scipy
 
 from McUtils.Data import UnitsData, AtomData
-from McUtils.Scaffolding import ParameterManager, Checkpointer
+from McUtils.Scaffolding import ParameterManager
 from McUtils.Zachary import FiniteDifferenceDerivative
+from McUtils.Extensions import ModuleLoader
 
 from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis, BasisStateSpaceFilter
 from ..Molecools import Molecule
@@ -24,7 +25,7 @@ __all__ = [
     "VPTSolverOptions"
 ]
 
-__reload_hook__ = ["..BasisRepss", "..Molecools", ".DegeneracySpecs", ".Hamiltonian", ".StateFilters"]
+__reload_hook__ = ["..BasisReps", "..Molecools", ".DegeneracySpecs", ".Hamiltonian", ".StateFilters"]
 
 class VPTSystem:
     """
@@ -1001,7 +1002,7 @@ class VPTRunner:
             )
 
         order = 2 if 'order' not in opts.keys() else opts['order']
-        if target_property is None and order == 2:
+        if target_property is None:
             target_property = 'intensities'
         if target_property is not None and 'state_space_filters' not in opts:
             if 'expansion_order' in opts.keys():
@@ -1549,6 +1550,7 @@ class AnneInputHelpers:
                      potential_files=('cub.dat', 'quart.dat', 'quintic.dat', 'sextic.dat'),
                      dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat", "quart_dip.dat", 'quintic_dip.dat'),
                      coordinate_transformation=None,
+                     coordinate_transformation_file='coordinate_transformation.py',
                      results_file=None,#'output.hdf5',
                      order=None,
                      expansion_order=None,
@@ -1604,6 +1606,16 @@ class AnneInputHelpers:
                 else:
                     zmat = None
             sorting = cls.standard_sorting(zmat)  # we need to re-sort our internal coordinates
+            if coordinate_transformation is None:
+                if os.path.isfile(coordinate_transformation_file):
+                    tf_mod = ModuleLoader().load(coordinate_transformation_file)
+                    if not hasattr(tf_mod, 'transformation') or not hasattr(tf_mod, 'inverse'):
+                        raise ValueError("Coordinate transformation module {} needs both '{}' and '{}' methods".format(
+                            coordinate_transformation_file,
+                            'transformation',
+                            'inverse'
+                        ))
+                    coordinate_transformation = [tf_mod.transformation, tf_mod.inverse]
             if coordinate_transformation is not None:
                 if callable(coordinate_transformation) or len(coordinate_transformation) != 2:
                     raise ValueError("need both a coordinate transformation and inverse passed like `[tf, inv]`")
@@ -1659,7 +1671,7 @@ class AnneInputHelpers:
                 if 'kinetic' not in expansion_order:
                     expansion_order['kinetic'] = 2
                 if dipole_terms is not None and 'dipole' not in expansion_order:
-                    expansion_order['dipole'] = len(dipole_terms) - 1
+                    expansion_order['dipole'] = len(dipole_terms[0]) - 2
             if order is None:
                 if isinstance(expansion_order, int):
                     if expansion_order > 2:
@@ -1668,7 +1680,6 @@ class AnneInputHelpers:
                         order = 2
                 else:
                     order = expansion_order['potential']
-            # raise Exception([a.shape for a in dipole_terms])
 
             res = runner(
                 [atoms, coords, dict(masses=masses)],
