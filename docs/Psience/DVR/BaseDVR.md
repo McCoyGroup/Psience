@@ -17,6 +17,17 @@ Redoes what was originally PyDVR but in the _right_ way using proper subclassing
 [DVRException](BaseDVR/DVRException.md)   
 </div>
 </div>
+  <div class="row">
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
 </div>
 
 

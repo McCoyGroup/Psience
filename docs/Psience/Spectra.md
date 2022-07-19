@@ -21,6 +21,12 @@
    <div class="col" markdown="1">
 [BroadenedSpectrum](Spectra/BaseSpectrum/BroadenedSpectrum.md)   
 </div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
 </div>
 </div>
 

@@ -109,6 +109,12 @@ BasisReps manages useful functions for generating & working with basis-set repre
    <div class="col" markdown="1">
 [PermutationStateIndexer](BasisReps/StateIndexers/PermutationStateIndexer.md)   
 </div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
 </div>
 </div>
 

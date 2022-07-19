@@ -55,6 +55,12 @@ Provides and extensible DVR framework with an easy-to-write structure.
    <div class="col" markdown="1">
 [DVRWavefunction](DVR/Wavefunctions/DVRWavefunction.md)   
 </div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
 </div>
 </div>
 

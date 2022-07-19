@@ -21,6 +21,12 @@ Provides a general base spectrum class that can be extended to new fancy spectra
    <div class="col" markdown="1">
 [BroadenedSpectrum](BaseSpectrum/BroadenedSpectrum.md)   
 </div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
 </div>
 </div>
 
