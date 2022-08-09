@@ -5,8 +5,9 @@ Redoes what was originally PyDVR but in the _right_ way using proper subclassing
 import abc, numpy as np, scipy.sparse as sp, scipy.interpolate as interp
 
 from McUtils.Data import UnitsData
+from McUtils.Scaffolding import Logger, NullLogger
 
-__all__ = ["BaseDVR", "DVRResults", "DVRException"]
+__all__ = ["BaseDVR", "DVR", "DVRResults", "DVRException"]
 
 class BaseDVR(metaclass=abc.ABCMeta):
     """
@@ -19,6 +20,7 @@ class BaseDVR(metaclass=abc.ABCMeta):
                  domain=None,
                  divs=None,
                  potential_function=None,
+                 logger=None,
                  **base_opts
                  ):
         """
@@ -32,6 +34,15 @@ class BaseDVR(metaclass=abc.ABCMeta):
         self.potential_function = potential_function
         base_opts['potential_function'] = potential_function
         self.opts = base_opts
+
+        if isinstance(logger, Logger):
+            self.logger = logger
+        elif logger is True:
+            self.logger = Logger()
+        elif logger is False or logger is None:
+            self.logger = NullLogger()
+        else:
+            self.logger = Logger(logger)
 
     def __repr__(self):
         if self.potential_function is not None:
@@ -49,11 +60,12 @@ class BaseDVR(metaclass=abc.ABCMeta):
                 self.potential_function
             )
 
+    def _logger(self, logger):
+        return self.logger if logger is None else logger
 
     @abc.abstractmethod
     def get_grid(self, domain=None, divs=None, **kwargs):
         raise NotImplementedError("abstract interface")
-
     def grid(self, domain=None, divs=None, **kwargs):
         if domain is None:
             domain = self.domain
@@ -64,11 +76,45 @@ class BaseDVR(metaclass=abc.ABCMeta):
             raise ValueError("need a value for `domain`")
         if divs is None:
             raise ValueError("need a value for `divs`")
+
         return self.get_grid(domain=domain, divs=divs, **kwargs)
 
     @abc.abstractmethod
     def get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs):
         raise NotImplementedError("abstract interface")
+    def handle_kinetic_coupling(self, grid, ke_1D, g, g_deriv, hb=1, logger=None, **kwargs):
+        logger = self._logger(logger)
+        if g is not None:
+            with logger.block(tag="handling kinetic coupling"):
+                if g_deriv is None:
+                    raise ValueError(
+                        "if a function for `g` is supplied, also need a function, `g_deriv` for the second derivative of `g`"
+                    )
+                # add the average value of `g` across the grid points
+                if isinstance(g, (int, float, np.integer, np.floating)):
+                    logger.log_print("constant G-matrix element")
+                    g_vals = np.full(grid.shape, g)
+                    g_deriv_vals = np.zeros(grid.shape)
+                else:
+                    logger.log_print("variable G-matrix element")
+                    try:
+                        iter(g)
+                    except TypeError:
+                        g_vals = g(grid)
+                    else:
+                        g_vals = np.asanyarray(g)
+
+                    try:
+                        iter(g_deriv)
+                    except TypeError:
+                        g_deriv_vals = g_deriv(grid)
+                    else:
+                        g_deriv_vals = np.asanyarray(g_deriv)
+
+                g_vals = 1 / 2 * (g_vals[:, np.newaxis] + g_vals[np.newaxis, :])
+                g_deriv_vals = (hb ** 2) / 2 * np.diag(g_deriv_vals)
+                ke_1D = ke_1D * g_vals + g_deriv_vals
+        return ke_1D
     def kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, **kwargs):
 
         if grid is None:
@@ -79,41 +125,21 @@ class BaseDVR(metaclass=abc.ABCMeta):
 
         if mass is None:
             raise ValueError("need a value for the mass")
-        ke_1D = self.get_kinetic_energy(grid=grid, mass=mass, hb=hb, **kwargs)
 
-        if g is not None:
-            if g_deriv is None:
-                raise ValueError(
-                    "if a function for `g` is supplied, also need a function, `g_deriv` for the second derivative of `g`")
-            # add the average value of `g` across the grid points
-            try:
-                iter(g)
-            except TypeError:
-                g_vals = g(grid)
-            else:
-                print(g)
-                g_vals = np.asanyarray(g)
-
-            try:
-                iter(g_deriv)
-            except TypeError:
-                g_deriv_vals = g_deriv(grid)
-            else:
-                g_deriv_vals = np.asanyarray(g_deriv)
-
-            g_vals = 1 / 2 * (g_vals[:, np.newaxis] + g_vals[np.newaxis, :])
-            g_deriv_vals = (hb ** 2) / 2 * np.diag(g_deriv_vals)
-            ke_1D = ke_1D * g_vals + g_deriv_vals
+        ke_1D = self.get_kinetic_energy(grid=grid, mass=mass, g=g, g_deriv=g_deriv, hb=hb, **kwargs)
+        ke_1D = self.handle_kinetic_coupling(grid, ke_1D, g, g_deriv, hb=hb, **kwargs)
 
         return ke_1D
 
     def real_momentum(self, grid=None, mass=None, hb=1, **kwargs):
         raise NotImplementedError("real momentum needs to be implemented")
 
-    def potential_energy(self, grid=None,
+    def potential_energy(self,
+                         grid=None,
                          potential_function=None,
                          potential_values=None,
                          potential_grid=None,
+                         logger=None,
                          **pars
                          ):
         """
@@ -140,7 +166,9 @@ class BaseDVR(metaclass=abc.ABCMeta):
         if potential_function is None and potential_grid is None and potential_values is None:
             potential_function = self.potential_function
 
+        logger = self._logger(logger)
         if potential_function is not None:
+            logger.log_print('evaluating potential function over grid')
             # explicit potential function passed; map over coords
             pf=potential_function
 
@@ -151,8 +179,8 @@ class BaseDVR(metaclass=abc.ABCMeta):
                 pot = sp.diags([pf(grid)], [0])
             else:
                 pot = np.diag(pf(grid))
-
         elif potential_values is not None:
+            logger.log_print('constructing potential matrix from diagonal values')
             # array of potential values at coords passed
             dim = len(grid.shape)
             if dim > 1:
@@ -160,6 +188,7 @@ class BaseDVR(metaclass=abc.ABCMeta):
             else:
                 pot = np.diag(potential_values)
         elif potential_grid is not None:
+            logger.log_print('interpolating potential over grid')
             # TODO: extend to include ND, scipy.griddata
 
             dim = len(grid.shape)
@@ -227,7 +256,7 @@ class BaseDVR(metaclass=abc.ABCMeta):
         else:
             return kinetic_energy + potential_energy
 
-    def wavefunctions(self, hamiltonian=None, num_wfns=25, nodeless_ground_state=False, diag_mode=None, **pars):
+    def wavefunctions(self, hamiltonian=None, num_wfns=25, nodeless_ground_state=False, diag_mode=None, logger=None, **pars):
         """
         Calculates the wavefunctions for the given Hamiltonian.
         Doesn't support any kind of pruning based on potential values although that might be a good feature
@@ -247,23 +276,36 @@ class BaseDVR(metaclass=abc.ABCMeta):
         :rtype:
         """
 
-        if isinstance(hamiltonian, sp.spmatrix) and diag_mode == 'dense':
-            hamiltonian = hamiltonian.toarray()
-        if isinstance(hamiltonian, sp.spmatrix):
-            import scipy.sparse.linalg as la
-            engs, wfns = la.eigsh(hamiltonian, num_wfns, which='SM')
-        else:
-            engs, wfns = np.linalg.eigh(hamiltonian)
-            if num_wfns is not None:
-                engs = engs[:num_wfns]
-                wfns = wfns[:, :num_wfns]
+
+        logger = self._logger(logger)
+        with logger.block(tag="diagonalizing Hamiltonian"):
+            logger.log_print([
+                "dimension={dimension}",
+                "density={density:.3f}%",
+                "mode={mode}"
+            ],
+                dimension=hamiltonian.shape,
+                density=100 * hamiltonian.nnz/np.prod(hamiltonian.shape) if isinstance(hamiltonian, sp.spmatrix) else 100,
+                mode=diag_mode
+            )
+            if isinstance(hamiltonian, sp.spmatrix) and diag_mode == 'dense':
+                hamiltonian = hamiltonian.toarray()
+            if isinstance(hamiltonian, sp.spmatrix):
+                import scipy.sparse.linalg as la
+                engs, wfns = la.eigsh(hamiltonian, num_wfns, which='SM')
+            else:
+                engs, wfns = np.linalg.eigh(hamiltonian)
+                if num_wfns is not None:
+                    engs = engs[:num_wfns]
+                    wfns = wfns[:, :num_wfns]
 
         if nodeless_ground_state:
+            logger.log_print('correcting phases to construct nodeless ground state')
             s = np.sign(wfns[:, 0])
             wfns *= s[:, np.newaxis]
         return engs, wfns
 
-    def run(self, result='wavefunctions', **opts):
+    def run(self, result='wavefunctions', logger=None, **opts):
         """
         :return:
         :rtype: DVRResults
@@ -272,45 +314,168 @@ class BaseDVR(metaclass=abc.ABCMeta):
 
         opts = dict(self.opts, **opts)
 
-        res = DVRResults(parent=self, **opts)
+        logger = self._logger(logger)
+        with logger.block(tag="Running DVR"):
+            logger.log_print("{dvr}", dvr=self)
+            logger.log_print(opts, message_prepper=logger.prep_dict)
+            opts['logger'] = logger
 
-        grid = self.grid(**opts)
-        res.grid = grid
-        if result == 'grid':
+            res = DVRResults(parent=self, **opts)
+
+            with logger.block(tag="constructing grid"):
+                grid = self.grid(**opts)
+                res.grid = grid
+                if result == 'grid':
+                    return res
+
+
+            with logger.block(tag="constructing potential matrix"):
+                pe = self.potential_energy(grid=res.grid, **opts)
+                res.potential_energy = pe
+                if result == 'potential_energy':
+                    return res
+
+
+            with logger.block(tag="constructing kinetic matrix"):
+                ke = self.kinetic_energy(grid=res.grid, **opts)
+                res.kinetic_energy = ke
+                if result == 'kinetic_energy':
+                    return res
+
+
+            with logger.block(tag="building Hamiltonian"):
+                h = self.hamiltonian(
+                    kinetic_energy=res.kinetic_energy,
+                    potential_energy=res.potential_energy,
+                    **opts
+                )
+                res.hamiltonian = h
+                if result == 'hamiltonian':
+                    return res
+
+
+            with logger.block(tag="evaluating wavefunctions"):
+                energies, wfn_data = self.wavefunctions(
+                    hamiltonian=res.hamiltonian,
+                    **opts
+                )
+                wfns = DVRWavefunctions(energies=energies, wavefunctions=wfn_data, results=res, **opts)
+                res.wavefunctions = wfns
+
             return res
-
-        pe = self.potential_energy(grid=res.grid, **opts)
-        res.potential_energy = pe
-        if result == 'potential_energy':
-            return res
-
-        ke = self.kinetic_energy(grid=res.grid, **opts)
-        res.kinetic_energy = ke
-        if result == 'kinetic_energy':
-            return res
-
-        h = self.hamiltonian(
-            kinetic_energy=res.kinetic_energy,
-            potential_energy=res.potential_energy,
-            **opts
-        )
-        res.hamiltonian = h
-        if result == 'hamiltonian':
-            return res
-
-        energies, wfn_data = self.wavefunctions(
-            hamiltonian=res.hamiltonian,
-            **opts
-        )
-        wfns = DVRWavefunctions(energies=energies, wavefunctions=wfn_data, results=res, **opts)
-        res.wavefunctions = wfns
-
-        return res
 
 class DVRException(Exception):
     """
     Base exception class for working with DVRs
     """
+
+class DVRConstructor:
+
+    _domain_map = None
+    @classmethod
+    def load_domain_map(cls):
+        from .ColbertMiller import PolarDVR, RingDVR, CartesianDVR
+
+        return {
+            (0, np.pi): PolarDVR,
+            (0, 2*np.pi): RingDVR,
+            None: CartesianDVR
+        }
+    @classmethod
+    def infer_DVR_type(cls, domain):
+        if cls._domain_map is None:
+            cls._domain_map = cls.load_domain_map()
+        for k,v in cls._domain_map.items():
+            if k is not None:
+                if np.allclose(k, domain):
+                    return v
+        else:
+            return cls._domain_map[None]
+    @classmethod
+    def construct(cls,
+        domain=None,
+        divs=None,
+        potential_function=None,
+        g=None,
+        g_deriv=None,
+        classes=None,
+        logger=None,
+        **base_opts
+    ):
+        from .DirectProduct import DirectProductDVR
+
+        # dispatches based on domain to construct the appropriate DVR
+        if domain is None or divs is None:
+            raise ValueError("can't have `None` for `domain` or `divs`")
+        if isinstance(domain[0], (int, float, np.integer, np.floating)): # 1D
+            domain = [domain]
+            divs = [divs]
+        if classes is None:
+            classes = [None] * len(domain)
+        dvrs_1D = [
+            cls.infer_DVR_type(r)(domain=r, divs=n) if c is None else c(domain=r, divs=n)
+            for r,n,c in zip(domain, divs, classes)
+        ]
+        if len(dvrs_1D) == 1:
+            return type(dvrs_1D[0])(
+                domain=domain[0],
+                divs=divs[0],
+                potential_function=potential_function,
+                g=g,
+                g_deriv=g_deriv,
+                **base_opts
+            )
+        else:
+            return DirectProductDVR(
+                dvrs_1D,
+                domain=domain,
+                divs=divs,
+                potential_function=potential_function,
+                g=g,
+                g_deriv=g_deriv,
+                logger=logger,
+                **base_opts
+            )
+
+
+def DVR(
+        domain=None,
+        divs=None,
+        classes=None,
+        potential_function=None,
+        g=None,
+        g_deriv=None,
+        **base_opts
+):
+    """
+    Constructs a DVR object
+
+    :param domain:
+    :type domain:
+    :param divs:
+    :type divs:
+    :param classes:
+    :type classes:
+    :param potential_function:
+    :type potential_function:
+    :param g:
+    :type g:
+    :param g_deriv:
+    :type g_deriv:
+    :param base_opts:
+    :type base_opts:
+    :return:
+    :rtype:
+    """
+    return DVRConstructor.construct(
+        domain=domain,
+        divs=divs,
+        classes=classes,
+        potential_function=potential_function,
+        g=g,
+        g_deriv=g_deriv,
+        **base_opts
+    )
 
 class DVRResults:
     """
@@ -326,13 +491,13 @@ class DVRResults:
                  **opts
                  ):
 
-        self.parent=None,
-        self.grid=grid
-        self.kinetic_energy=kinetic_energy
-        self.potential_energy=potential_energy
-        self.parent=parent
-        self.wavefunctions=wavefunctions
-        self.hamiltonian=hamiltonian
+        self.parent = None,
+        self.grid = grid
+        self.kinetic_energy = kinetic_energy
+        self.potential_energy = potential_energy
+        self.parent = parent
+        self.wavefunctions = wavefunctions
+        self.hamiltonian = hamiltonian
         self.opts = opts
 
     @property

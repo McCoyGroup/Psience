@@ -96,7 +96,7 @@ class Wavefunctions:
     def frequencies(self, start_at = 0):
         return self.energies[1+start_at:] - self.energies[start_at]
 
-    def plot(self, figure = None, graphics_class = None, plot_style = None, **opts):
+    def plot(self, figure=None, graphics_class=None, **opts):
         """Plots all of the wavefunctions on one set of axes
 
         :param opts:
@@ -122,14 +122,12 @@ class Wavefunctions:
                             type(self).__name__, 'plot', dim
                         )
                     )
-            figure = graphics_class(**opts)
+            figure = graphics_class(strict=False, **opts)
 
-        if plot_style is None:
-            plot_style = {}
         for i, wfn in enumerate(self):
             ind = wfn.index
             if ind is None:
                 ind = i
-            wfn.plot(figure, index=ind, **opts, **plot_style)
+            wfn.plot(figure, index=ind, **opts)
 
         return figure

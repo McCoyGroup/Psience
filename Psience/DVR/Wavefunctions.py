@@ -46,15 +46,9 @@ class DVRWavefunction(Wavefunction):
             shift = shift[index]
 
         if dim == 1:
-            if figure is None:
-                return Plot(grid, self.data*scaling+shift, **opts)
-            else:
-                return figure.plot(grid, self.data*scaling+shift, **opts)
+            return Plot(grid, self.data*scaling+shift, figure=figure, **opts)
         else:
-            if figure is None:
-                return Plot3D(*grid, self.data.reshape(grid[0].shape), **opts)
-            else:
-                return figure.plot(*grid, self.data.reshape(grid[0].shape), **opts)
+            return Plot3D(*grid, self.data.reshape(grid[0].shape), figure=figure, **opts)
 
     def expectation(self, op, other):
         """Computes the expectation value of operator op over the wavefunction other and self

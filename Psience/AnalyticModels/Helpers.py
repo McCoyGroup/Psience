@@ -43,7 +43,7 @@ class AnalyticModelBase:
     Provides a base class for analytic models
     """
     sym = sym
-
+    numeric_types = (int, float, np.integer, np.floating, np.ndarray, sym.Float, sym.Integer, sym.Rational)
     @classmethod
     def take_derivs(cls, expr, vars):
         """
@@ -88,7 +88,7 @@ class AnalyticModelBase:
                 expr = sym.Array(expr)
             except ValueError:
                 pass
-        if isinstance(expr, (int, float, np.integer, np.floating, np.ndarray)):
+        if isinstance(expr, cls.numeric_types):
             return expr
         elif not isinstance(expr, list):
             return expr.subs(subs)
@@ -122,7 +122,10 @@ class AnalyticModelBase:
         return sym.Symbol('m[{i}]'.format(i=i), positive=True)
     @staticmethod
     def symbol(base, *args, **kwargs):
-        template = "{}["+",".join(["{}"]*len(args))+"]"
+        if len(args) == 0:
+            template = "{}"
+        else:
+            template = "{}["+",".join(["{}"]*len(args))+"]"
         return sym.Symbol(template.format(base, *args), **kwargs)
     @staticmethod
     def symbolic_r(i, j):
@@ -194,7 +197,11 @@ class AnalyticModelBase:
         return sym.Symbol('y[{i},{j},{k},{l}]'.format(i=i, j=j, k=k, l=l), real=True)
     @classmethod
     def var(cls, *args):
-        if len(args) == 2:
+        if len(args) == 0:
+            return sym.Symbol("x", real=True)
+        elif len(args) == 1:
+            return cls.symbolic_m(*args)
+        elif len(args) == 2:
             return cls.symbolic_r(*args)
         elif len(args) == 3:
             return cls.symbolic_a(*args)
@@ -295,11 +302,16 @@ class AnalyticModelBase:
                 axes = (a.rank()-1, a.rank())
             else:
                 axa, axb = axes
+                if isinstance(axa, int) and axa < 0:
+                    axa = a.rank() + axa + 1
                 if isinstance(axb, int):
+                    if axb < 0:
+                        axb = b.rank() + axb + 1
                     axb += a.rank()-1
                 else:
                     ar = a.rank()-1
-                    axb = [ar + x for x in axb]
+                    s = b.rank() + 1
+                    axb = [ar + (x + s if x < 0 else x) for x in axb]
                 axes = [axa, axb]
             return sym.tensorcontraction(sym.tensorproduct(a, b), axes)
     @classmethod
@@ -307,3 +319,19 @@ class AnalyticModelBase:
         if isinstance(a, list):
             a = sym.Array(a)
         return sym.tensorcontraction(a, axes)
+
+    @classmethod
+    def transform_coordinates(cls, rotation, coord_vec=None, coord_name_fmt="q{id}[{num}]"):
+        if coord_vec is None:
+            import random
+
+            rand_id = random.randint(100, 999)
+            coord_vec = [
+                coord_name_fmt.format(
+                    id=rand_id,
+                    num=i+1
+                ) for i in range(len(rotation[0]))
+            ]
+        coord_vec = [sym.Symbol(s) if isinstance(s, str) else s for s in coord_vec]
+
+        return coord_vec, cls.dot(rotation, coord_vec)
