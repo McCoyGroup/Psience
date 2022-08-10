@@ -1,12 +1,16 @@
 
 import numpy as np
 from ..VSCF import GridSCF
-from .BaseDVR import BaseDVR
-from .DirectProduct import DirectProductDVR
 from McUtils.Scaffolding import ParameterManager
 
+from .BaseDVR import BaseDVR
+from .Wavefunctions import DVRWavefunctions
+from .DirectProduct import DirectProductDVR
+from .FiniteBasisDVR import WavefunctionBasisDVR
+
 __all__ = [
-    "SelfConsistentDVR"
+    "SelfConsistentDVR",
+    "PotentialOptimizedDVR"
 ]
 
 class SCFWavefunctionGenerator:
@@ -49,4 +53,31 @@ class SelfConsistentDVR(GridSCF):
         return "{}({})".format(
             type(self).__name__,
             self.base_dvr
+        )
+
+class PotentialOptimizedDVR(DirectProductDVR):
+    def __init__(self,
+                 wfns_1D:'Iterable[DVRWavefunctions]',
+                 **base_opts
+                 ):
+        base_opts = {k:base_opts[k] for k in base_opts.keys() - {'mass', 'g', 'g_deriv', 'include_kinetic_coupling'}}
+        super().__init__(
+            [WavefunctionBasisDVR(w) for w in wfns_1D],
+            mass=1,
+            g=None, #
+            g_deriv=None,
+            include_kinetic_coupling=False,
+            **base_opts
+        )
+
+    @classmethod
+    def from_scf(cls, scf_dvr:SelfConsistentDVR, wfns=None, **opts):
+        if wfns is None:
+            wfns = scf_dvr.run().wavefunctions
+        return cls(
+            wfns,
+            **dict(
+                scf_dvr.base_dvr.opts,
+                **opts
+            )
         )

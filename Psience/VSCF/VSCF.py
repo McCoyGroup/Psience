@@ -131,7 +131,10 @@ class GridSCF(SelfConsistentOptimizer):
         return self.vals[center]
     def get_SCF_potential(self, axis, wavefunctions:'list[SCFComponentWavefunctions]', target:'Iterable[int]'):
         v = np.moveaxis(self.vals, axis, -1) # shift final remaining axis to the back
+        # import McUtils.Plots as plt
+        # plt.ContourPlot(*self.grid.transpose(2, 0, 1), v, plot_range=[[1, 2], [1, 2]]).show()
         for i,w in enumerate(wavefunctions):
             if i != axis:
                 v = w[(target[i],)].expectation(v).squeeze()
+        # plt.Plot(wavefunctions[axis].grid, v).show()
         return v

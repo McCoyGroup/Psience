@@ -11,6 +11,8 @@ from .Representations import *
 __all__ += Representations.__all__
 from .HarmonicOscillator import *
 __all__ += HarmonicOscillator.__all__
+from .ClassicalBases import *
+__all__ += ClassicalBases.__all__
 from .Wavefunctions import *
 __all__ += Wavefunctions.__all__
 from .StateSpaces import *

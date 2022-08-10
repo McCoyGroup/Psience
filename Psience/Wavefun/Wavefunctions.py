@@ -44,6 +44,8 @@ class Wavefunction:
         :rtype:
         """
         pass
+    def overlap(self, other):
+        return self.expectation(lambda w:w, other=other)
     @abstractmethod
     def probability_density(self):
         """Computes the probability density of the current wavefunction
@@ -52,7 +54,6 @@ class Wavefunction:
         :rtype:
         """
         return self.expectation(lambda a:a, self)
-
 
 class Wavefunctions:
     """An object representing a set of wavefunctions.
@@ -131,3 +132,60 @@ class Wavefunctions:
             wfn.plot(figure, index=ind, **opts)
 
         return figure
+
+    def expectation(self, op, other=None):
+        """
+        Computes the expectation value of operator op over the wavefunction other and self
+
+        :param other:
+        :type other: Wavefunctions
+        :param op:
+        :type op:
+        :return:
+        :rtype:
+        """
+        if other is None:
+            other = self
+
+        res = []
+        for wfn in self:
+            subres = []
+            for ofn in other:
+                subres.append(wfn.expectation(op, ofn))
+            res.append(subres)
+        return np.array(res)
+    def overlap(self, other):
+        return self.expectation(lambda w:w, other=other)
+
+    def coordinate(self):
+        """
+        Provides the coordinate operator in the wavefunction basis
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("no coordinate rep implemented for {}".format(self))
+    def momentum(self):
+        """
+        Provides the real part of the representation of the momentum operator in the wavefunction basis
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("no momentum implemented for {}".format(self))
+    def laplacian(self):
+        """
+        Provides the representation of the laplacian in the wavefunction basis
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("no momentum implemented for {}".format(self))
+    def kinetic_energy(self):
+        """
+        Provides the representation of the KE in the wavefunction basis
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("no KE implemented for {}".format(self))

@@ -4,8 +4,7 @@ from McUtils.Scaffolding import ParameterManager
 
 from .ColbertMiller import PolarDVR, RingDVR, CartesianDVR
 from .DirectProduct import DirectProductDVR
-from .SCF import SelfConsistentDVR
-from .PotentialOptimized import PotentialOptimizedDVR
+from .Extensions import SelfConsistentDVR, PotentialOptimizedDVR
 
 __all__ = [
     "DVR"
@@ -92,12 +91,12 @@ class DVRConstructor:
                 g=g,
                 g_deriv=g_deriv,
                 logger=logger,
-                **ParameterManager(base_opts).exclude((SelfConsistentDVR))#, PotentialOptimizedDVR))
+                **ParameterManager(base_opts).exclude((SelfConsistentDVR, PotentialOptimizedDVR))
             )
-            if potential_optimize:
-                raise NotImplementedError("...")
-            elif scf:
+            if potential_optimize or scf:
                 dvr = SelfConsistentDVR(dvr, **ParameterManager(base_opts).filter(SelfConsistentDVR))
+                if potential_optimize:
+                    dvr = PotentialOptimizedDVR.from_scf(dvr, **ParameterManager(base_opts).filter(PotentialOptimizedDVR))
         return dvr
 
 

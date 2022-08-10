@@ -163,6 +163,9 @@ class BaseDVR(metaclass=abc.ABCMeta):
         if grid is None:
             grid = self.grid()
 
+        if isinstance(grid, tuple) and len(grid) == 2: # for FBR DVRs
+            grid, tfs = grid
+
         if potential_function is None and potential_grid is None and potential_values is None:
             potential_function = self.potential_function
 
@@ -314,59 +317,65 @@ class BaseDVR(metaclass=abc.ABCMeta):
 
         opts = dict(self.opts, **opts)
 
-        logger = self._logger(logger)
-        with logger.block(tag="Running DVR"):
-            logger.log_print("{dvr}", dvr=self)
-            logger.log_print(opts, message_prepper=logger.prep_dict)
-            opts['logger'] = logger
+        try:
+            self._opts = self.opts
+            self.opts = opts
 
-            res = DVRResults(parent=self, **opts)
+            logger = self._logger(logger)
+            with logger.block(tag="Running DVR"):
+                logger.log_print("{dvr}", dvr=self)
+                logger.log_print(opts, message_prepper=logger.prep_dict)
+                opts['logger'] = logger
 
-            with logger.block(tag="constructing grid"):
-                if grid is None:
-                    grid = self.grid(**opts)
-                res.grid = grid
-                if result == 'grid':
-                    return res
+                res = DVRResults(parent=self, **self.opts)
 
-
-            with logger.block(tag="constructing potential matrix"):
-                if potential_energy is None:
-                    potential_energy = self.potential_energy(grid=res.grid, **opts)
-                res.potential_energy = potential_energy
-                if result == 'potential_energy':
-                    return res
+                with logger.block(tag="constructing grid"):
+                    if grid is None:
+                        grid = self.grid(**self.opts)
+                    res.grid = grid
+                    if result == 'grid':
+                        return res
 
 
-            with logger.block(tag="constructing kinetic matrix"):
-                if kinetic_energy is None:
-                    kinetic_energy = self.kinetic_energy(grid=res.grid, **opts)
-                res.kinetic_energy = kinetic_energy
-                if result == 'kinetic_energy':
-                    return res
+                with logger.block(tag="constructing potential matrix"):
+                    if potential_energy is None:
+                        potential_energy = self.potential_energy(grid=res.grid, **opts)
+                    res.potential_energy = potential_energy
+                    if result == 'potential_energy':
+                        return res
 
 
-            with logger.block(tag="building Hamiltonian"):
-                if hamiltonian is None:
-                    hamiltonian = self.hamiltonian(
-                        kinetic_energy=res.kinetic_energy,
-                        potential_energy=res.potential_energy,
+                with logger.block(tag="constructing kinetic matrix"):
+                    if kinetic_energy is None:
+                        kinetic_energy = self.kinetic_energy(grid=res.grid, **opts)
+                    res.kinetic_energy = kinetic_energy
+                    if result == 'kinetic_energy':
+                        return res
+
+
+                with logger.block(tag="building Hamiltonian"):
+                    if hamiltonian is None:
+                        hamiltonian = self.hamiltonian(
+                            kinetic_energy=res.kinetic_energy,
+                            potential_energy=res.potential_energy,
+                            **opts
+                        )
+                    res.hamiltonian = hamiltonian
+                    if result == 'hamiltonian':
+                        return res
+
+
+                with logger.block(tag="evaluating wavefunctions"):
+                    energies, wfn_data = self.wavefunctions(
+                        hamiltonian=res.hamiltonian,
                         **opts
                     )
-                res.hamiltonian = hamiltonian
-                if result == 'hamiltonian':
-                    return res
+                    wfns = DVRWavefunctions(energies=energies, wavefunctions=wfn_data, grid=res.grid, results=res, **opts)
+                    res.wavefunctions = wfns
 
-
-            with logger.block(tag="evaluating wavefunctions"):
-                energies, wfn_data = self.wavefunctions(
-                    hamiltonian=res.hamiltonian,
-                    **opts
-                )
-                wfns = DVRWavefunctions(energies=energies, wavefunctions=wfn_data, grid=res.grid, results=res, **opts)
-                res.wavefunctions = wfns
-
-            return res
+                return res
+        finally:
+            self.opts = self._opts
 
 class DVRResults:
     """
@@ -382,7 +391,7 @@ class DVRResults:
                  **opts
                  ):
 
-        self.parent = None,
+        # self.parent = None
         self.grid = grid
         self.kinetic_energy = kinetic_energy
         self.potential_energy = potential_energy

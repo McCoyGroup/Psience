@@ -169,14 +169,25 @@ class DVRWavefunctions(Wavefunctions):
         if other is None:
             other = self
         if isinstance(op, np.ndarray):
-            wfs = op * self.wavefunctions
+            wfs = self.wavefunctions
+            for _ in range(op.ndim-1):
+                wfs = np.expand_dims(wfs, -1)
+            # print(np.expand_dims(op, 1).shape, wfs.shape)
+            wfs = np.expand_dims(op, 1) * wfs
+            # print(self.wavefunctions.shape, wfs.shape)
         else:
             wfs = op(self.wavefunctions)
         if not isinstance(other, np.ndarray):
             other = other.wavefunctions
-        return np.tensordot(wfs, other, axes=[0, 0])
-    def overlap(self, other):
-        return self.expectation(lambda w:w, other=other)
+        ev = np.tensordot(other, wfs, axes=[0, 0])
+        ev = ev.transpose([1, 0] + list(range(2, ev.ndim)))
+        # print("--->", wfs.shape, other.shape, ev.shape)
+        return ev
+
+    def transform_operator(self, M):
+        if hasattr(M, 'toarray'):
+            M = M.toarray()
+        return np.dot(np.dot(self.wavefunctions.T, M), self.wavefunctions)
 
     def probability_density(self):
         """Computes the probability density of the set of wavefunctions
@@ -184,5 +195,24 @@ class DVRWavefunctions(Wavefunctions):
         :return:
         :rtype:
         """
-
         return np.power(self.wavefunctions, 2)
+
+    def coordinate(self):
+        return self.expectation(self.results.grid)
+    def momentum(self):
+        dvr = self.results.parent
+        p = dvr.real_momentum(grid=self.results.grid, **dvr.opts)
+        return self.transform_operator(p)
+    def laplacian(self):
+        dvr = self.results.parent
+        res = dvr.run(mass=1, g=None, hb=1, potential_function=lambda g:np.zeros(len(g)), result='kinetic_energy')
+        p2 = -2*res.kinetic_energy
+        return self.transform_operator(p2)
+    def kinetic_energy(self):
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(self.results.kinetic_energy)
+        # plt.ArrayPlot(self.transform_operator(self.results.kinetic_energy)).show()
+        # print(self.results.kinetic_energy)
+        return self.transform_operator(self.results.kinetic_energy)
+    def potential_energy(self):
+        return self.transform_operator(self.results.kinetic_energy)
