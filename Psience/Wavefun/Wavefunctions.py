@@ -33,7 +33,7 @@ class Wavefunction:
         """
         pass
     @abstractmethod
-    def expectation(self, op, other):
+    def expectation(self, op, other=None):
         """Computes the expectation value of operator op over the wavefunction other and self
 
         :param other:
@@ -59,13 +59,13 @@ class Wavefunctions:
     Provides concrete, but potentially inefficient methods for doing all the wavefunction ops.
 
     """
-
+    wavefunction_class = Wavefunction
     def __init__(self,
                  energies=None, wavefunctions=None,
                  indices=None, wavefunction_class=None, **opts):
         self.wavefunctions = wavefunctions
         self.energies = energies
-        self.wavefunction_class = wavefunction_class
+        self.wavefunction_class = self.wavefunction_class if wavefunction_class is None else wavefunction_class
         self.indices = indices
         self.opts = opts
 

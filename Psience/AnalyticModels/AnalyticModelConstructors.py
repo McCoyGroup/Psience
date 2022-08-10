@@ -442,11 +442,12 @@ class AnalyticModel:
         return self._inv_coords
 
     class SympyExpr:
-        def __init__(self, expr, ndim):
+        def __init__(self, expr, core, ndim):
             self.expr = expr
+            self.lam = core
             self.ndim = ndim
         def __call__(self, grid, **kwargs):
-            core = self.expr
+            core = self.lam
             ndim = self.ndim
             if grid.ndim == 1:
                 return core(grid)
@@ -456,7 +457,7 @@ class AnalyticModel:
         def __repr__(self):
             return "{}({})".format(
                 type(self).__name__,
-
+                self.expr
             )
     def wrap_function(self, expr, transform_coordinates=True):
         if isinstance(expr, AnalyticModelBase.numeric_types):
@@ -472,7 +473,7 @@ class AnalyticModel:
         core = sym.lambdify(coord_vec, expr)
         ndim = len(coord_vec)
 
-        return self.SympyExpr(core, ndim)
+        return self.SympyExpr(expr, core, ndim)
 
     def expand_potential(self, order, lambdify=True, evaluate=True):
         potential_expansions = self.v(order, evaluate=evaluate)

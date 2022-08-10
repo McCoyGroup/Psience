@@ -79,9 +79,10 @@ class DVRWavefunction(Wavefunction):
 
 class DVRWavefunctions(Wavefunctions):
     # most evaluations are most efficient done in batch for DVR wavefunctions so we focus on the batch object
-    def __init__(self, energies=None, wavefunctions=None, wavefunction_class=DVRWavefunction, results:DVRResults=None, **opts):
+    def __init__(self, energies=None, wavefunctions=None, grid=None, wavefunction_class=DVRWavefunction, results:DVRResults=None, **opts):
         super().__init__(energies=energies, wavefunctions=wavefunctions, wavefunction_class=wavefunction_class, **opts)
         self.results = results
+        self.grid = grid
     def __repr__(self):
         return "{}(num={}, DVR={})".format(
             type(self).__name__,
@@ -108,6 +109,7 @@ class DVRWavefunctions(Wavefunctions):
                 wavefunctions=self.wavefunctions[:, item].reshape((len(self.wavefunctions), -1)),
                 wavefunction_class=self.wavefunction_class,
                 results=self.results,
+                grid=self.grid,
                 **self.opts
             )
         else:
@@ -138,7 +140,7 @@ class DVRWavefunctions(Wavefunctions):
         :rtype: Graphics
         """
 
-        grid = self.results.grid
+        grid = self.grid
 
         dim = len(grid.shape)
         if dim > 1 and grid.shape[-1] == dim-1: # check whether we have a mesh of points that we need to reshape
@@ -154,7 +156,7 @@ class DVRWavefunctions(Wavefunctions):
             **opts
         )
 
-    def expectation(self, op, other):
+    def expectation(self, op, other=None):
         """Computes the expectation value of operator op over the wavefunction other and self
 
         :param other:
@@ -164,11 +166,17 @@ class DVRWavefunctions(Wavefunctions):
         :return:
         :rtype:
         """
-
-        wfs = op(self.wavefunctions)
+        if other is None:
+            other = self
+        if isinstance(op, np.ndarray):
+            wfs = op * self.wavefunctions
+        else:
+            wfs = op(self.wavefunctions)
         if not isinstance(other, np.ndarray):
             other = other.wavefunctions
-        return np.dot(wfs, other)
+        return np.tensordot(wfs, other, axes=[0, 0])
+    def overlap(self, other):
+        return self.expectation(lambda w:w, other=other)
 
     def probability_density(self):
         """Computes the probability density of the set of wavefunctions

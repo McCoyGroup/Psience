@@ -7,7 +7,7 @@ import abc, numpy as np, scipy.sparse as sp, scipy.interpolate as interp
 from McUtils.Data import UnitsData
 from McUtils.Scaffolding import Logger, NullLogger
 
-__all__ = ["BaseDVR", "DVR", "DVRResults", "DVRException"]
+__all__ = ["BaseDVR", "DVRResults", "DVRException"]
 
 class BaseDVR(metaclass=abc.ABCMeta):
     """
@@ -305,7 +305,7 @@ class BaseDVR(metaclass=abc.ABCMeta):
             wfns *= s[:, np.newaxis]
         return engs, wfns
 
-    def run(self, result='wavefunctions', logger=None, **opts):
+    def run(self, result='wavefunctions', logger=None, grid=None, potential_energy=None, kinetic_energy=None, hamiltonian=None, **opts):
         """
         :return:
         :rtype: DVRResults
@@ -323,33 +323,37 @@ class BaseDVR(metaclass=abc.ABCMeta):
             res = DVRResults(parent=self, **opts)
 
             with logger.block(tag="constructing grid"):
-                grid = self.grid(**opts)
+                if grid is None:
+                    grid = self.grid(**opts)
                 res.grid = grid
                 if result == 'grid':
                     return res
 
 
             with logger.block(tag="constructing potential matrix"):
-                pe = self.potential_energy(grid=res.grid, **opts)
-                res.potential_energy = pe
+                if potential_energy is None:
+                    potential_energy = self.potential_energy(grid=res.grid, **opts)
+                res.potential_energy = potential_energy
                 if result == 'potential_energy':
                     return res
 
 
             with logger.block(tag="constructing kinetic matrix"):
-                ke = self.kinetic_energy(grid=res.grid, **opts)
-                res.kinetic_energy = ke
+                if kinetic_energy is None:
+                    kinetic_energy = self.kinetic_energy(grid=res.grid, **opts)
+                res.kinetic_energy = kinetic_energy
                 if result == 'kinetic_energy':
                     return res
 
 
             with logger.block(tag="building Hamiltonian"):
-                h = self.hamiltonian(
-                    kinetic_energy=res.kinetic_energy,
-                    potential_energy=res.potential_energy,
-                    **opts
-                )
-                res.hamiltonian = h
+                if hamiltonian is None:
+                    hamiltonian = self.hamiltonian(
+                        kinetic_energy=res.kinetic_energy,
+                        potential_energy=res.potential_energy,
+                        **opts
+                    )
+                res.hamiltonian = hamiltonian
                 if result == 'hamiltonian':
                     return res
 
@@ -359,123 +363,10 @@ class BaseDVR(metaclass=abc.ABCMeta):
                     hamiltonian=res.hamiltonian,
                     **opts
                 )
-                wfns = DVRWavefunctions(energies=energies, wavefunctions=wfn_data, results=res, **opts)
+                wfns = DVRWavefunctions(energies=energies, wavefunctions=wfn_data, grid=res.grid, results=res, **opts)
                 res.wavefunctions = wfns
 
             return res
-
-class DVRException(Exception):
-    """
-    Base exception class for working with DVRs
-    """
-
-class DVRConstructor:
-
-    _domain_map = None
-    @classmethod
-    def load_domain_map(cls):
-        from .ColbertMiller import PolarDVR, RingDVR, CartesianDVR
-
-        return {
-            (0, np.pi): PolarDVR,
-            (0, 2*np.pi): RingDVR,
-            None: CartesianDVR
-        }
-    @classmethod
-    def infer_DVR_type(cls, domain):
-        if cls._domain_map is None:
-            cls._domain_map = cls.load_domain_map()
-        for k,v in cls._domain_map.items():
-            if k is not None:
-                if np.allclose(k, domain):
-                    return v
-        else:
-            return cls._domain_map[None]
-    @classmethod
-    def construct(cls,
-        domain=None,
-        divs=None,
-        potential_function=None,
-        g=None,
-        g_deriv=None,
-        classes=None,
-        logger=None,
-        **base_opts
-    ):
-        from .DirectProduct import DirectProductDVR
-
-        # dispatches based on domain to construct the appropriate DVR
-        if domain is None or divs is None:
-            raise ValueError("can't have `None` for `domain` or `divs`")
-        if isinstance(domain[0], (int, float, np.integer, np.floating)): # 1D
-            domain = [domain]
-            divs = [divs]
-        if classes is None:
-            classes = [None] * len(domain)
-        dvrs_1D = [
-            cls.infer_DVR_type(r)(domain=r, divs=n) if c is None else c(domain=r, divs=n)
-            for r,n,c in zip(domain, divs, classes)
-        ]
-        if len(dvrs_1D) == 1:
-            return type(dvrs_1D[0])(
-                domain=domain[0],
-                divs=divs[0],
-                potential_function=potential_function,
-                g=g,
-                g_deriv=g_deriv,
-                **base_opts
-            )
-        else:
-            return DirectProductDVR(
-                dvrs_1D,
-                domain=domain,
-                divs=divs,
-                potential_function=potential_function,
-                g=g,
-                g_deriv=g_deriv,
-                logger=logger,
-                **base_opts
-            )
-
-
-def DVR(
-        domain=None,
-        divs=None,
-        classes=None,
-        potential_function=None,
-        g=None,
-        g_deriv=None,
-        **base_opts
-):
-    """
-    Constructs a DVR object
-
-    :param domain:
-    :type domain:
-    :param divs:
-    :type divs:
-    :param classes:
-    :type classes:
-    :param potential_function:
-    :type potential_function:
-    :param g:
-    :type g:
-    :param g_deriv:
-    :type g_deriv:
-    :param base_opts:
-    :type base_opts:
-    :return:
-    :rtype:
-    """
-    return DVRConstructor.construct(
-        domain=domain,
-        divs=divs,
-        classes=classes,
-        potential_function=potential_function,
-        g=g,
-        g_deriv=g_deriv,
-        **base_opts
-    )
 
 class DVRResults:
     """
@@ -551,5 +442,10 @@ class DVRResults:
             pot[pot > energy_threshold] = energy_threshold
 
         return plot_class(*mesh, pot.reshape(mesh[0].shape), figure=figure, **opts)
+
+class DVRException(Exception):
+    """
+    Base exception class for working with DVRs
+    """
 
 
