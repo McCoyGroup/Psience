@@ -40,10 +40,11 @@ class DVRConstructor:
                   g=None,
                   g_deriv=None,
                   mass=None,
+                  po_divs=25,
                   classes=None,
-                  logger=None,
                   scf=False,
                   potential_optimize=False,
+                  logger=True,
                   **base_opts
                   ):
 
@@ -67,6 +68,9 @@ class DVRConstructor:
             subg = [None]*len(mass)
             g_deriv = [None]*len(mass)
 
+        if isinstance(po_divs, int):
+            po_divs = [po_divs]*len(mass)
+
         ndim = len(list(zip(domain, divs, classes, mass, subg, g_deriv)))
         if ndim == 1:
             dvr = classes[0](
@@ -76,12 +80,13 @@ class DVRConstructor:
                 g=g,
                 mass=mass,
                 g_deriv=g_deriv,
+                logger=logger,
                 **base_opts
             )
         else:
             dvrs_1D = [
-                cls.infer_DVR_type(r)(domain=r, divs=n, mass=m, g=sg, g_deriv=gd) if c is None else c(domain=r, divs=n)
-                for r, n, c, m, sg, gd in zip(domain, divs, classes, mass, subg, g_deriv)
+                cls.infer_DVR_type(r)(domain=r, divs=n, mass=m, g=sg, g_deriv=gd, num_wfns=nwf) if c is None else c(domain=r, divs=n)
+                for r, n, c, m, sg, gd, nwf in zip(domain, divs, classes, mass, subg, g_deriv, po_divs)
             ]
             dvr = DirectProductDVR(
                 dvrs_1D,
@@ -90,13 +95,22 @@ class DVRConstructor:
                 potential_function=potential_function,
                 g=g,
                 g_deriv=g_deriv,
-                logger=logger,
+                logger=logger if not potential_optimize or scf else None,
                 **ParameterManager(base_opts).exclude((SelfConsistentDVR, PotentialOptimizedDVR))
             )
             if potential_optimize or scf:
-                dvr = SelfConsistentDVR(dvr, **ParameterManager(base_opts).filter(SelfConsistentDVR))
-                if potential_optimize:
-                    dvr = PotentialOptimizedDVR.from_scf(dvr, **ParameterManager(base_opts).filter(PotentialOptimizedDVR))
+                if potential_optimize and scf is False:
+                    dvr = PotentialOptimizedDVR.from_minimum(dvr,
+                                                         logger=logger,
+                                                         **ParameterManager(base_opts).filter(PotentialOptimizedDVR)
+                                                         )
+                else:
+                    dvr = SelfConsistentDVR(dvr, logger=logger if not potential_optimize else None, **ParameterManager(base_opts).filter(SelfConsistentDVR))
+                    if potential_optimize:
+                        dvr = PotentialOptimizedDVR.from_scf(dvr,
+                                                             logger=logger,
+                                                             **ParameterManager(base_opts).filter(PotentialOptimizedDVR)
+                                                             )
         return dvr
 
 

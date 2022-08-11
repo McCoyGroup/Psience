@@ -34,17 +34,17 @@ class FiniteBasisDVR(BaseDVR):
 
     def get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs):
         gps, tf = grid
+        # try:
+        #     base_ke = self.basis.kinetic_energy(self.divs)
+        # except (AttributeError, NotImplementedError):
         try:
-            base_ke = self.basis.kinetic_energy(self.divs)
+            p2 = self.basis.p2(self.divs)
         except (AttributeError, NotImplementedError):
-            try:
-                p2 = self.basis.p2(self.divs)
-            except (AttributeError, NotImplementedError):
-                p = self.basis.p(self.divs)
-                if hasattr(p, 'toarray'):
-                    p = p.toarray()
-                p2 = np.dot(p, p)
-            base_ke = -hb / (2 * mass) * p2
+            p = self.basis.p(self.divs)
+            if hasattr(p, 'toarray'):
+                p = p.toarray()
+            p2 = np.dot(p, p)
+        base_ke = -hb / (2 * mass) * p2
         return np.dot(np.dot(tf.T, base_ke), tf)
 
     def potential_energy(self,

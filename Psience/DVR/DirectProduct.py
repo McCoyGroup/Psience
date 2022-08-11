@@ -18,7 +18,6 @@ class DirectProductDVR(BaseDVR):
     def __init__(self,
                  dvrs_1D,
                  zero_threshold=1e-14,
-                 include_kinetic_coupling=False,
                  **base_opts
                  ):
         """
@@ -27,7 +26,7 @@ class DirectProductDVR(BaseDVR):
         :param base_opts:
         :type base_opts:
         """
-        super().__init__(include_kinetic_coupling=include_kinetic_coupling, **base_opts)
+        super().__init__(**base_opts)
         self.zero_threshold=zero_threshold
         self.dvrs = dvrs_1D
     def __repr__(self):

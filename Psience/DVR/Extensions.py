@@ -60,18 +60,29 @@ class PotentialOptimizedDVR(DirectProductDVR):
                  wfns_1D:'Iterable[DVRWavefunctions]',
                  **base_opts
                  ):
-        base_opts = {k:base_opts[k] for k in base_opts.keys() - {'mass', 'g', 'g_deriv', 'include_kinetic_coupling'}}
+        # base_opts = {k:base_opts[k] for k in base_opts.keys() - {'mass', 'g', 'g_deriv', 'include_kinetic_coupling'}}
         super().__init__(
             [WavefunctionBasisDVR(w) for w in wfns_1D],
-            mass=1,
-            g=None, #
-            g_deriv=None,
-            include_kinetic_coupling=False,
             **base_opts
         )
 
     @classmethod
-    def from_scf(cls, scf_dvr:SelfConsistentDVR, wfns=None, **opts):
+    def from_minimum(cls, base_dvr:"DirectProductDVR|SelfConsistentDVR", **opts):
+        if not isinstance(base_dvr, SelfConsistentDVR):
+            base_dvr = SelfConsistentDVR(base_dvr)
+        wfns = base_dvr.initialize().wavefunctions
+        return cls(
+            wfns,
+            **dict(
+                base_dvr.base_dvr.opts,
+                **opts
+            )
+        )
+
+    @classmethod
+    def from_scf(cls, scf_dvr:"DirectProductDVR|SelfConsistentDVR", wfns=None, **opts):
+        if not isinstance(scf_dvr, SelfConsistentDVR):
+            scf_dvr = SelfConsistentDVR(scf_dvr)
         if wfns is None:
             wfns = scf_dvr.run().wavefunctions
         return cls(
