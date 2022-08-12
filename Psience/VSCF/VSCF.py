@@ -113,8 +113,10 @@ class GridSCF(SelfConsistentOptimizer):
         self.grid = Mesh(mesh)
         self.vals = potential_values
         super().__init__(None, solvers, **opts)
-    def get_initial_point(self):
-        pos = np.unravel_index(np.argmin(self.vals), self.vals.shape)
+    def get_initial_point(self, vals=None):
+        if vals is None:
+            vals = self.vals
+        pos = np.unravel_index(np.argmin(vals), vals.shape)
         return pos
     def get_cut_potential(self, axis, center):
         """

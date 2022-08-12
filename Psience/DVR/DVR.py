@@ -98,6 +98,7 @@ class DVRConstructor:
                 logger=logger if not potential_optimize or scf else None,
                 **ParameterManager(base_opts).exclude((SelfConsistentDVR, PotentialOptimizedDVR))
             )
+            
             if potential_optimize or scf:
                 if potential_optimize and scf is False:
                     dvr = PotentialOptimizedDVR.from_minimum(dvr,

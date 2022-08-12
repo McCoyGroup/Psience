@@ -1904,6 +1904,9 @@ class NormalModesManager(PropertyManager):
         if len(rot_pos) > 0:
             rot_pos = rot_pos[0]
 
+        if len(rot_pos) == 1: # one mode is messed up but we just have to roll with it...
+            rot_pos = ()
+
         rephasing_matrix = np.zeros_like(h_mat)
         # any place where the diagonal is 1, we insert the rephasing directly
         clean_pos = np.setdiff1d(np.arange(len(h_mat), dtype=int), rot_pos)
@@ -1914,7 +1917,7 @@ class NormalModesManager(PropertyManager):
             subrotations = []
             subrot = h_mat[np.ix_(rot_pos, rot_pos)]
             while np.linalg.det(subrot) < .95:
-                raise Exception(np.linalg.det(subrot))
+                raise NotImplementedError("only manage a single rotation for now...", np.linalg.det(subrot))
             subrotations.append((rot_pos, subrot))
             for rot_pos, subrot in subrotations:
                 rephasing_matrix[np.ix_(rot_pos, rot_pos)] = subrot

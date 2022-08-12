@@ -1,3 +1,4 @@
+import functools
 
 import numpy as np
 from ..VSCF import GridSCF
@@ -32,15 +33,8 @@ class SelfConsistentDVR(GridSCF):
     def __init__(self, base_dvr:"DirectProductDVR", **opts):
         props = ParameterManager(**opts)
         self.base_dvr = base_dvr
-        generators = [SCFWavefunctionGenerator(d) for d in self.base_dvr.dvrs]
-        pot_data = self.base_dvr.run(result='potential_energy')
-        grid = pot_data.grid
-        pe = pot_data.potential_energy
-        if hasattr(pe, 'diagonal'):
-            pe = pe.diagonal()
-        else:
-            pe = np.diag(pe)
-        pe = pe.reshape(grid.shape[:-1])
+        grid, pe = self.create_grid_vals()
+        generators = self.create_solvers(grid, pe)
         super().__init__(grid, pe, generators, **props.filter(GridSCF))
     # def initialize(self):
     #     d = super().initialize()
@@ -49,6 +43,65 @@ class SelfConsistentDVR(GridSCF):
     #     import McUtils.Plots as plt
     #     plt.DensityPlot(*self.grid.transpose(2, 0, 1), self.vals, plot_style=dict(vmin=0, vmax=1)).show()
     #     return d
+    def create_grid_vals(self):
+        pot_data = self.base_dvr.run(result='potential_energy')
+        grid = pot_data.grid
+        pe = pot_data.potential_energy
+        if hasattr(pe, 'diagonal'):
+            pe = pe.diagonal()
+        else:
+            pe = np.diag(pe)
+        pe = pe.reshape(grid.shape[:-1])
+        return grid, pe
+    def create_solvers(self, grid, pe):
+        # rebind the
+        init = self.get_initial_point(pe)
+        gp = grid[init]
+        for i, d in enumerate(self.base_dvr.dvrs):
+            g = d.opts.get('g', None)
+            if g is not None:
+                try:
+                    iter(g)
+                except TypeError:
+                    g = self._wrap_g(g, gp, i)
+                else:
+                    g = [
+                        [self._wrap_g(el, gp, i) for el in _]
+                        for _ in g
+                    ]
+                d.opts['g'] = g
+
+                gd = d.opts.get('g_deriv', None)
+                if gd is not None:
+                    try:
+                        iter(gd)
+                    except TypeError:
+                        gd = self._wrap_g(gd, gp, i)
+                    else:
+                        gd = [self._wrap_g(el, gp, i) for el in gd]
+                    d.opts['g_deriv'] = gd
+
+        generators = [
+            SCFWavefunctionGenerator(d)
+            for d in self.base_dvr.dvrs
+        ]
+
+        return generators
+    @staticmethod
+    def _wrap_g(g, gp, i):
+        if not callable(g):
+            return g
+        @functools.wraps(g)
+        def eval_g(grid, g=g):
+            full_ars = [np.full_like(grid, x) for x in gp]
+            full_ars[i] = grid
+            grid = np.concatenate(
+                [np.expand_dims(a, -1) for a in full_ars],
+                axis=1
+            )
+            return g(grid)
+        return eval_g
+
     def __repr__(self):
         return "{}({})".format(
             type(self).__name__,
