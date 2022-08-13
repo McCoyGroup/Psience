@@ -1,5 +1,7 @@
 
 import numpy as np, scipy
+import sympy as sym
+
 from McUtils.Data import AtomData, UnitsData
 from .Helpers import AnalyticModelBase
 from ..Data import KEData
@@ -63,6 +65,44 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
             AnalyticModelBase.var(*args),
             AnalyticModelBase.symbol("xe", *args) if xe is None else xe
         )
+
+    @classmethod
+    def multiwell(cls, *args, turning_points=None, origin=0, minimum=0, depth=None):
+        """
+
+        :param args:
+        :type args:
+        :param turning_points:
+        :type turning_points:
+        :param depth:
+        :type depth:
+        :return:
+        :rtype:
+        """
+        if turning_points is None:
+            raise ValueError("need turning points for multiwell")
+        turning_points = [origin+t for t in turning_points]
+        x = AnalyticModelBase.var(*args)
+        D = AnalyticModelBase.symbol("D", *args) if depth is None else depth
+        terms = [x-t for t in turning_points]
+        integrand = terms[0]
+        for t in terms[1:]:
+            integrand *= t
+        poly = sym.integrate(integrand, x)
+        min_val = np.inf
+        min_pos = None
+        turning_vals = [poly.subs([[x, t]]) for t in turning_points]
+        for n, v in enumerate(turning_vals):
+            if v < min_val:
+                min_val = v
+                min_pos = n
+        if min_pos == 0:
+            barrier_height = turning_vals[min_pos+1] - turning_vals[min_pos]
+        elif min_pos == len(turning_vals) - 1:
+            barrier_height = turning_vals[min_pos-1] - turning_vals[min_pos]
+        else:
+            barrier_height = min(turning_vals[min_pos+1], turning_vals[min_pos-1]) - turning_vals[min_pos]
+        return D/barrier_height * (poly - min_val) + minimum
 
 class AnalyticKineticEnergyConstructor(AnalyticModelBase):
     """
@@ -252,14 +292,18 @@ class AnalyticModel:
             inverse = None
         self.rotation = rotation
         self.inverse = inverse
+        self._rot_coords = None
 
     @property
     def internal_coordinates(self):
         if self._syms is None:
             self._load_symbols()
         return self._syms[0]
+    @property
+    def constants(self):
+        return {k:self.vals[k] for k in self.vals.keys() - set(self.internal_coordinates)}
 
-    def normal_modes(self):
+    def normal_modes(self, dimensionless=True):
         v = self.v(evaluate=True)[-1]
         g = self.g(evaluate=True)[-1]
         freqs2, mode_inv = scipy.linalg.eigh(v, g, type=2) # modes come out as a (internals, normal_mode) array
@@ -268,20 +312,25 @@ class AnalyticModel:
         # normalization = np.broadcast_to(1 / np.linalg.norm(modes, axis=0), modes.shape)
         # mode_inv = mode_inv  # now as (normal_mode, internals) with frequency dimension removed
         modes = np.linalg.inv(mode_inv)
-        mode_inv = mode_inv * np.sqrt(freqs[np.newaxis, :])
-        modes = modes / np.sqrt(freqs[:, np.newaxis])
+        if dimensionless:
+            mode_inv = mode_inv * np.sqrt(freqs[np.newaxis, :])
+            modes = modes / np.sqrt(freqs[:, np.newaxis])
+        else:
+            modes = modes / np.linalg.norm(modes, axis=1)[:, np.newaxis]
+            mode_inv = mode_inv / np.linalg.norm(mode_inv, axis=0)[np.newaxis, :]
+
 
         # coords = [AnalyticModelBase.dot(v, self.coords) for v in modes]
 
         return freqs, modes, mode_inv
 
-    def to_normal_modes(self):
+    def to_normal_modes(self, dimensionless=True):
         import copy
 
         if self.rotation is not None:
             raise ValueError("already rotated")
         else:
-            freqs, modes, mode_inv = self.normal_modes()
+            freqs, modes, mode_inv = self.normal_modes(dimensionless=dimensionless)
             new = copy.copy(self)
             new._base_g = new._g = new._u = None
             new.rotation = modes
@@ -335,7 +384,10 @@ class AnalyticModel:
         if self.dip is not None:
             terms['dipole_terms'] = self.mu(d_order+1, evaluate=evaluate)
         return terms
-    def run_VPT(self, order=2, return_analyzer=True,
+    def run_VPT(self,
+                order=2,
+                states=2,
+                return_analyzer=True,
                 expansion_order=None,
                 include_potential=None,
                 include_gmatrix=None,
@@ -362,7 +414,7 @@ class AnalyticModel:
             runner = VPTRunner.run_simple
         analyzer = runner(
             [["H"] * natoms, np.zeros((natoms, 3))],  # dummy data since this won't be used at all
-            2,
+            states,
             modes={
                 "freqs": freqs,
                 "matrix": np.zeros((3 * natoms, len(freqs)))  # dummy data since this won't be used at all
@@ -380,17 +432,137 @@ class AnalyticModel:
             analyzer.print_output_tables(print_intensities=self.dip is not None, print_energies=self.dip is None)
         return analyzer
 
-    def evaluate(self, expr):
-        if self.vals is None:
-            raise ValueError("ugh")
-        a = AnalyticModelBase.eval_exprs(expr, self.vals)
-        try:
-            a = np.array(a, dtype=float)
-        except ValueError:
-            pass
+    def _get_rotated_coordinates(self):
+        if self._rot_coords is None:
+            self._rot_coords = AnalyticModelBase.transform_coordinates(AnalyticModelBase.transpose(self.rotation))
+        return self._rot_coords
+    def _get_inverse_coordinates(self):
+        if self._inv_coords is None:
+            self._inv_coords = AnalyticModelBase.transform_coordinates(self.inverse, coord_vec=self.coords)
+        return self._inv_coords
+
+    class SympyExpr:
+        def __init__(self, expr, core, ndim):
+            self.expr = expr
+            self.lam = core
+            self.ndim = ndim
+        def __call__(self, grid, **kwargs):
+            core = self.lam
+            ndim = self.ndim
+            if grid.ndim == 1:
+                return core(grid)
+            if grid.shape[-1] == ndim and grid.shape[0] != ndim:
+                grid = grid.transpose(np.roll(np.arange(grid.ndim), 1))
+            return core(*grid)
+        def __repr__(self):
+            return "{}({})".format(
+                type(self).__name__,
+                self.expr
+            )
+    def wrap_function(self, expr, transform_coordinates=True):
+        if isinstance(expr, AnalyticModelBase.numeric_types):
+            return float(expr)
+
+        coord_vec = self.coords
+        if transform_coordinates and self.rotation is not None:
+            coord_vec, new_coords = self._get_rotated_coordinates()
+            # subtract off equilibrium values since we have a rotation...
+            shift_subs = [(s, s+self.vals[s]) for s in self.coords if s in self.vals]
+            expr = expr.subs(shift_subs)
+            expr = expr.subs([(old, new) for old,new in zip(self.coords, new_coords)])
+        core = sym.lambdify(coord_vec, expr)
+        ndim = len(coord_vec)
+
+        return self.SympyExpr(expr, core, ndim)
+
+    def expand_potential(self, order, lambdify=True, evaluate=True):
+        potential_expansions = self.v(order, evaluate=evaluate)
+        coord_vec = self.coords
+        pots = []
+        for i, d in enumerate(potential_expansions):
+            for j in range(i):
+                d = AnalyticModelBase.dot(coord_vec, d, axes=[0, -1])
+            pots.append(1/np.math.factorial(i)*d)
+        if lambdify:
+            pots = self.wrap_function(sum(pots))
+
+        return pots
+    def get_DVR_parameters(self,
+                           expansion_order=None,
+                           lambdify=True,
+                           evaluate='constants'
+                           ):
+        if expansion_order is not None:
+            potential_function = self.expand_potential(expansion_order, lambdify=lambdify)
         else:
-            if a.ndim == 0:
-                a = a.tolist()
+            potential_function = self.pot
+            if lambdify:
+                potential_function = self.wrap_function(potential_function)
+        gds = self.g(order=2, evaluate=evaluate)
+        g = gds[0]
+        g_deriv = [gds[2][i][i][i][i] for i in range(len(self.coords))]
+
+        # print(g)
+        # print(g_deriv)
+        if lambdify:
+            g = [
+                [
+                    self.wrap_function(g[i][j])
+                    for j in range(len(self.coords))
+                ]
+                for i in range(len(self.coords))
+            ]
+            g_deriv = [
+                self.wrap_function(g_deriv[i])
+                for i in range(len(self.coords))
+            ]
+        if len(g_deriv) == 1:
+            g = g[0][0]
+            g_deriv = g_deriv[0]
+        return {
+            'potential_function':potential_function,
+            'g':g,
+            'g_deriv':g_deriv
+        }
+        # raise Exception(potential_function, g)
+    def setup_DVR(self,
+                  domain=None, divs=None,
+                  use_normal_modes=False,
+                  expansion_order=None,
+                  **params
+                  ):
+        if use_normal_modes:
+            if self.rotation is None:
+                self, _ = self.to_normal_modes(dimensionless=True)
+            return self.setup_DVR(
+                domain=domain, divs=divs,
+                use_normal_modes=False,
+                expansion_order=expansion_order,
+                **params
+            )
+
+        from ..DVR import DVR
+        params = dict(self.get_DVR_parameters(expansion_order=expansion_order), **params)
+        return DVR(
+            domain=domain,
+            divs=divs,
+            **params
+        )
+
+    def evaluate(self, expr, mode='all', numericize=False):
+        if self.vals is None:
+            raise ValueError("can't evaluate without values for parameters")
+        if mode == True:
+            mode = 'all'
+        a = AnalyticModelBase.eval_exprs(expr, self.constants if mode == 'constants' else self.vals)
+        if mode != 'constants':
+            try:
+                a = np.array(a, dtype=float)
+            except ValueError:
+                pass
+            else:
+                if a.ndim == 0:
+                    a = a.tolist()
         return a
 
     def _load_symbols(self):
@@ -419,9 +591,9 @@ class AnalyticModel:
             for i in range(order):
                 jac = AnalyticModelBase.take_derivs(jac, ics)
         elif evaluate and self.rotation is not None:
-                jac = AnalyticModelBase.dot(self.evaluate(jac), self.rotation)
+                jac = AnalyticModelBase.dot(self.evaluate(jac, mode=evaluate), self.rotation)
         if evaluate:
-            jac = self.evaluate(jac)
+            jac = self.evaluate(jac, mode=evaluate)
         else:
             jac = AnalyticModelBase.sym.Matrix(jac)
         return jac
@@ -440,9 +612,9 @@ class AnalyticModel:
             for i in range(order):
                 jac = AnalyticModelBase.take_derivs(jac, crd)
         elif evaluate and self.inverse is not None:
-                jac = AnalyticModelBase.dot(self.inverse, self.evaluate(jac))
+                jac = AnalyticModelBase.dot(self.inverse, self.evaluate(jac, mode=evaluate))
         if evaluate:
-            jac = self.evaluate(jac)
+            jac = self.evaluate(jac, mode=evaluate)
         else:
             jac = AnalyticModelBase.sym.Matrix(jac)
         # if self.inverse is not None:
@@ -479,7 +651,7 @@ class AnalyticModel:
                 all_gs.append(AnalyticModelBase.take_derivs(all_gs[-1], self.internal_coordinates))
         if evaluate:
             for i,g in enumerate(all_gs):
-                all_gs[i] = self.evaluate(g)
+                all_gs[i] = self.evaluate(g, mode=evaluate)
         for i in range(1, len(all_gs)):
             g = all_gs[i]
             for j in range(i):
@@ -496,7 +668,7 @@ class AnalyticModel:
             all_vs.append(AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates))
         if evaluate:
             for i,v in enumerate(all_vs):
-                all_vs[i] = self.evaluate(v)
+                all_vs[i] = self.evaluate(v, mode=evaluate)
         for i in range(1, len(all_vs)):
             v = all_vs[i]
             for j in range(i):
@@ -527,7 +699,7 @@ class AnalyticModel:
             all_vs.append(AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates))
         if evaluate:
             for i, v in enumerate(all_vs):
-                all_vs[i] = self.evaluate(v)
+                all_vs[i] = self.evaluate(v, mode=evaluate)
         for i in range(1, len(all_vs)):
             v = all_vs[i]
             for j in range(i):
@@ -546,7 +718,7 @@ class AnalyticModel:
                 all_vs.append(AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates))
             if evaluate:
                 for i, v in enumerate(all_vs):
-                    all_vs[i] = self.evaluate(v)
+                    all_vs[i] = self.evaluate(v, mode=evaluate)
             for i in range(1, len(all_vs)):
                 v = all_vs[i]
                 for j in range(i):

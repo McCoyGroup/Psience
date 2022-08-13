@@ -33,7 +33,7 @@ class Wavefunction:
         """
         pass
     @abstractmethod
-    def expectation(self, op, other):
+    def expectation(self, op, other=None):
         """Computes the expectation value of operator op over the wavefunction other and self
 
         :param other:
@@ -44,6 +44,8 @@ class Wavefunction:
         :rtype:
         """
         pass
+    def overlap(self, other):
+        return self.expectation(lambda w:w, other=other)
     @abstractmethod
     def probability_density(self):
         """Computes the probability density of the current wavefunction
@@ -53,19 +55,18 @@ class Wavefunction:
         """
         return self.expectation(lambda a:a, self)
 
-
 class Wavefunctions:
     """An object representing a set of wavefunctions.
     Provides concrete, but potentially inefficient methods for doing all the wavefunction ops.
 
     """
-
+    wavefunction_class = Wavefunction
     def __init__(self,
                  energies=None, wavefunctions=None,
                  indices=None, wavefunction_class=None, **opts):
         self.wavefunctions = wavefunctions
         self.energies = energies
-        self.wavefunction_class = wavefunction_class
+        self.wavefunction_class = self.wavefunction_class if wavefunction_class is None else wavefunction_class
         self.indices = indices
         self.opts = opts
 
@@ -96,7 +97,7 @@ class Wavefunctions:
     def frequencies(self, start_at = 0):
         return self.energies[1+start_at:] - self.energies[start_at]
 
-    def plot(self, figure = None, graphics_class = None, plot_style = None, **opts):
+    def plot(self, figure=None, graphics_class=None, **opts):
         """Plots all of the wavefunctions on one set of axes
 
         :param opts:
@@ -122,14 +123,69 @@ class Wavefunctions:
                             type(self).__name__, 'plot', dim
                         )
                     )
-            figure = graphics_class(**opts)
+            figure = graphics_class(strict=False, **opts)
 
-        if plot_style is None:
-            plot_style = {}
         for i, wfn in enumerate(self):
             ind = wfn.index
             if ind is None:
                 ind = i
-            wfn.plot(figure, index=ind, **opts, **plot_style)
+            wfn.plot(figure, index=ind, **opts)
 
         return figure
+
+    def expectation(self, op, other=None):
+        """
+        Computes the expectation value of operator op over the wavefunction other and self
+
+        :param other:
+        :type other: Wavefunctions
+        :param op:
+        :type op:
+        :return:
+        :rtype:
+        """
+        if other is None:
+            other = self
+
+        res = []
+        for wfn in self:
+            subres = []
+            for ofn in other:
+                subres.append(wfn.expectation(op, ofn))
+            res.append(subres)
+        return np.array(res)
+    def overlap(self, other):
+        return self.expectation(lambda w:w, other=other)
+
+    def coordinate(self):
+        """
+        Provides the coordinate operator in the wavefunction basis
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("no coordinate rep implemented for {}".format(self))
+    def momentum(self):
+        """
+        Provides the real part of the representation of the momentum operator in the wavefunction basis
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("no momentum implemented for {}".format(self))
+    def laplacian(self):
+        """
+        Provides the representation of the laplacian in the wavefunction basis
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("no momentum implemented for {}".format(self))
+    def kinetic_energy(self):
+        """
+        Provides the representation of the KE in the wavefunction basis
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("no KE implemented for {}".format(self))

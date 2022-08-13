@@ -7,6 +7,7 @@ from McUtils.Plots import *
 
 from ..Wavefun import *
 
+from .Bases import RepresentationBasis
 from .Representations import Representation
 from .Operators import Operator
 
@@ -14,8 +15,28 @@ __all__ = [
     "AnalyticWavefunctions",
     "AnalyticWavefunction",
     "ExpansionWavefunctions",
-    "ExpansionWavefunction"
+    "ExpansionWavefunction",
+    "WavefunctionBasis"
 ]
+
+class WavefunctionBasis(RepresentationBasis):
+    def __init__(self, wavefunctions:Wavefunctions):
+        self.wfns = wavefunctions
+        super().__init__(
+            self.wfns.__getitem__,
+            len(self.wfns)
+        )
+
+    def __eq__(self, other):
+        return isinstance(other, type(self)) and self.wfns == other.wfns
+    def x(self, n):
+        return self.wfns.coordinate()[:n, :n]
+    def p(self, n):
+        return self.wfns.momentum()[:n, :n]
+    def p2(self, n):
+        return self.wfns.laplacian()[:n, :n]
+    def kinetic_energy(self, n):
+        return self.wfns.kinetic_energy()[:n, :n]
 
 class AnalyticWavefunction(Wavefunction):
     """

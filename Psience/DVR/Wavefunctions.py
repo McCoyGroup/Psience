@@ -46,15 +46,9 @@ class DVRWavefunction(Wavefunction):
             shift = shift[index]
 
         if dim == 1:
-            if figure is None:
-                return Plot(grid, self.data*scaling+shift, **opts)
-            else:
-                return figure.plot(grid, self.data*scaling+shift, **opts)
+            return Plot(grid, self.data*scaling+shift, figure=figure, **opts)
         else:
-            if figure is None:
-                return Plot3D(*grid, self.data.reshape(grid[0].shape), **opts)
-            else:
-                return figure.plot(*grid, self.data.reshape(grid[0].shape), **opts)
+            return Plot3D(*grid, self.data.reshape(grid[0].shape), figure=figure, **opts)
 
     def expectation(self, op, other):
         """Computes the expectation value of operator op over the wavefunction other and self
@@ -85,9 +79,10 @@ class DVRWavefunction(Wavefunction):
 
 class DVRWavefunctions(Wavefunctions):
     # most evaluations are most efficient done in batch for DVR wavefunctions so we focus on the batch object
-    def __init__(self, energies=None, wavefunctions=None, wavefunction_class=DVRWavefunction, results:DVRResults=None, **opts):
+    def __init__(self, energies=None, wavefunctions=None, grid=None, wavefunction_class=DVRWavefunction, results:DVRResults=None, **opts):
         super().__init__(energies=energies, wavefunctions=wavefunctions, wavefunction_class=wavefunction_class, **opts)
         self.results = results
+        self.grid = grid
     def __repr__(self):
         return "{}(num={}, DVR={})".format(
             type(self).__name__,
@@ -114,6 +109,7 @@ class DVRWavefunctions(Wavefunctions):
                 wavefunctions=self.wavefunctions[:, item].reshape((len(self.wavefunctions), -1)),
                 wavefunction_class=self.wavefunction_class,
                 results=self.results,
+                grid=self.grid,
                 **self.opts
             )
         else:
@@ -144,7 +140,7 @@ class DVRWavefunctions(Wavefunctions):
         :rtype: Graphics
         """
 
-        grid = self.results.grid
+        grid = self.grid
 
         dim = len(grid.shape)
         if dim > 1 and grid.shape[-1] == dim-1: # check whether we have a mesh of points that we need to reshape
@@ -160,7 +156,7 @@ class DVRWavefunctions(Wavefunctions):
             **opts
         )
 
-    def expectation(self, op, other):
+    def expectation(self, op, other=None):
         """Computes the expectation value of operator op over the wavefunction other and self
 
         :param other:
@@ -170,11 +166,28 @@ class DVRWavefunctions(Wavefunctions):
         :return:
         :rtype:
         """
-
-        wfs = op(self.wavefunctions)
+        if other is None:
+            other = self
+        if isinstance(op, np.ndarray):
+            wfs = self.wavefunctions
+            for _ in range(op.ndim-1):
+                wfs = np.expand_dims(wfs, -1)
+            # print(np.expand_dims(op, 1).shape, wfs.shape)
+            wfs = np.expand_dims(op, 1) * wfs
+            # print(self.wavefunctions.shape, wfs.shape)
+        else:
+            wfs = op(self.wavefunctions)
         if not isinstance(other, np.ndarray):
             other = other.wavefunctions
-        return np.dot(wfs, other)
+        ev = np.tensordot(other, wfs, axes=[0, 0])
+        ev = ev.transpose([1, 0] + list(range(2, ev.ndim)))
+        # print("--->", wfs.shape, other.shape, ev.shape)
+        return ev
+
+    def transform_operator(self, M):
+        if hasattr(M, 'toarray'):
+            M = M.toarray()
+        return np.dot(np.dot(self.wavefunctions.T, M), self.wavefunctions)
 
     def probability_density(self):
         """Computes the probability density of the set of wavefunctions
@@ -182,5 +195,24 @@ class DVRWavefunctions(Wavefunctions):
         :return:
         :rtype:
         """
-
         return np.power(self.wavefunctions, 2)
+
+    def coordinate(self):
+        return self.expectation(self.results.grid)
+    def momentum(self):
+        dvr = self.results.parent
+        p = dvr.real_momentum(grid=self.results.grid, **dvr.opts)
+        return self.transform_operator(p)
+    def laplacian(self):
+        dvr = self.results.parent
+        res = dvr.run(mass=1, g=None, hb=1, potential_function=lambda g:np.zeros(len(g)), result='kinetic_energy')
+        p2 = -2*res.kinetic_energy
+        return self.transform_operator(p2)
+    def kinetic_energy(self):
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(self.results.kinetic_energy)
+        # plt.ArrayPlot(self.transform_operator(self.results.kinetic_energy)).show()
+        # print(self.results.kinetic_energy)
+        return self.transform_operator(self.results.kinetic_energy)
+    def potential_energy(self):
+        return self.transform_operator(self.results.kinetic_energy)

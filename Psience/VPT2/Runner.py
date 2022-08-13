@@ -1609,13 +1609,13 @@ class AnneInputHelpers:
             if coordinate_transformation is None:
                 if os.path.isfile(coordinate_transformation_file):
                     tf_mod = ModuleLoader().load(coordinate_transformation_file)
-                    if not hasattr(tf_mod, 'transformation') or not hasattr(tf_mod, 'inverse'):
+                    if not hasattr(tf_mod, 'conversion') or not hasattr(tf_mod, 'inverse'):
                         raise ValueError("Coordinate transformation module {} needs both '{}' and '{}' methods".format(
                             coordinate_transformation_file,
-                            'transformation',
+                            'conversion',
                             'inverse'
                         ))
-                    coordinate_transformation = [tf_mod.transformation, tf_mod.inverse]
+                    coordinate_transformation = [tf_mod.conversion, tf_mod.inverse]
             if coordinate_transformation is not None:
                 if callable(coordinate_transformation) or len(coordinate_transformation) != 2:
                     raise ValueError("need both a coordinate transformation and inverse passed like `[tf, inv]`")

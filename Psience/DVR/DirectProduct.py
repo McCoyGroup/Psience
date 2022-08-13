@@ -15,9 +15,9 @@ __all__ = [
 ]
 
 class DirectProductDVR(BaseDVR):
-
     def __init__(self,
                  dvrs_1D,
+                 zero_threshold=1e-14,
                  **base_opts
                  ):
         """
@@ -27,6 +27,7 @@ class DirectProductDVR(BaseDVR):
         :type base_opts:
         """
         super().__init__(**base_opts)
+        self.zero_threshold=zero_threshold
         self.dvrs = dvrs_1D
     def __repr__(self):
         return "{}({}, pot={})".format(
@@ -41,10 +42,15 @@ class DirectProductDVR(BaseDVR):
             subgrids = [dvr.grid() for dvr in self.dvrs]
         else:
             subgrids = [dvr.grid(domain=dom, divs=div) for dvr,dom,div in zip(self.dvrs, domain, divs)]
+        tfs = [g[1] if isinstance(g, tuple) and len(g) == 2 else None for g in subgrids] # FBR DVRs return a tf as well
+        subgrids = [g[0] if isinstance(g, tuple) and len(g) == 2 else g for g in subgrids] # FBR DVRs return a tf as well
         mesh = np.array(np.meshgrid(*subgrids, indexing='ij'))
         MEHSH = np.moveaxis(mesh, 0, len(subgrids))
 
-        return MEHSH
+        if any(t is not None for t in tfs):
+            return MEHSH, tfs
+        else:
+            return MEHSH
 
     def grid(self, domain=None, divs=None, **kwargs):
         if domain is None:
@@ -56,9 +62,15 @@ class DirectProductDVR(BaseDVR):
         #     raise ValueError("need a value for `domain`")
         # if divs is None:
         #     raise ValueError("need a value for `divs`")
+
         return self.get_grid(domain=domain, divs=divs, **kwargs)
 
-    def get_kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, **kwargs):
+    def get_kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, logger=None, include_kinetic_coupling=True, **kwargs):
+
+        if isinstance(grid, tuple) and len(grid) == 2:
+            grid, tfs = grid
+        else:
+            tfs = None
 
         ndims = grid.shape[-1]
         try:
@@ -81,11 +93,11 @@ class DirectProductDVR(BaseDVR):
                 raise ValueError(
                     "if functions for `g` are supplied, also need functions, `g_deriv` for the second derivative of `g`")
 
-            include_coupling = any(
+            include_coupling = include_kinetic_coupling and any(
                 i != j
                 and not (
                         isinstance(g[i][j], (int, float, np.integer, np.floating))
-                        and g[i][j] == 0
+                        and abs(g[i][j]) < self.zero_threshold
                 )
                 for i in range(ndim) for j in range(ndim)
             )
@@ -95,12 +107,15 @@ class DirectProductDVR(BaseDVR):
         else:
             include_coupling = False
 
+        if tfs is None:
+            tfs = [None]*len(ms)
         kes = [
-            dvr.kinetic_energy(subg, mass=m, hb=hb)
-            for dvr, subg, m, hb in zip(self.dvrs, grids, ms, hbs)
+            dvr.kinetic_energy((subg, tf) if tf is not None else subg, mass=m, hb=hb)
+            for dvr, subg, tf, m, hb in zip(self.dvrs, grids, tfs, ms, hbs)
         ]
         kes = [sp.csr_matrix(mat) for mat in kes]
         if g is None:  # we passed constant masses
+            logger.log_print('no kinetic coupling')
             def _kron_sum(a, b):
                 '''Computes a Kronecker sum to build our Kronecker-Delta tensor product expression'''
                 n_1 = a.shape[0]
@@ -119,9 +134,12 @@ class DirectProductDVR(BaseDVR):
                 # evaluate g over the terms and average
                 if not (
                         isinstance(g[i][i], (int, float, np.integer, np.floating))
-                        and g[i][i] == 0
+                        and abs(g[i][i]) < self.zero_threshold
                 ):
-                    g_vals = np.reshape(g[i][i](flat_grid), grid.shape[:-1])
+                    if isinstance(g[i][i], (int, float, np.integer, np.floating)):
+                        g_vals = np.full(grid.shape[:-1], g[i][i])
+                    else:
+                        g_vals = np.reshape(g[i][i](flat_grid), grid.shape[:-1])
 
                     # construct the basic kinetic energy kronecker product
                     sub_kes = [  # set up all the subtensors we'll need for this
@@ -155,17 +173,27 @@ class DirectProductDVR(BaseDVR):
 
                     ke += ke_mat
 
-                    gd_vals = 1 / 4 * g_deriv[i](flat_grid)
+                    if isinstance(g_deriv[i], (int, float, np.integer, np.floating)):
+                        gd_vals = np.full(flat_grid.shape[:-1], g_deriv[i])
+                    else:
+                        gd_vals = g_deriv[i](flat_grid)
+
+                    gd_vals = 1 / 4 * gd_vals
                     ke_contrib = sp.diags([gd_vals], [0])
                     ke += ke_contrib
 
             if include_coupling:
-                momenta = [dvr.real_momentum(subg, hb=hb) for dvr,subg in zip(self.dvrs, grids)]
+                logger.log_print('evaluating kinetic coupling')
+                momenta = [dvr.real_momentum((subg, tf) if tf is not None else subg, hb=hb) for dvr,subg,tf in zip(self.dvrs, grids, tfs)]
                 kinetic_coupling = sp.csr_matrix(ke.shape, dtype=ke.dtype)  # initialize empty tensor
                 for i in range(len(momenta)):  # build out all of the coupling term products
                     for j in range(i + 1, len(momenta)):
-                        if i!= j and not (isinstance(g[i][j], (int, float, np.integer, np.floating)) and g[i][j] == 0):
-                            g_vals = np.reshape(g[i][j](flat_grid), grid.shape[:-1])
+                        if i != j and not (isinstance(g[i][j], (int, float, np.integer, np.floating)) and abs(g[i][j]) < self.zero_threshold):
+
+                            if isinstance(g[i][j], (int, float, np.integer, np.floating)):
+                                g_vals = np.full(grid.shape[:-1], g[i][j])
+                            else:
+                                g_vals = np.reshape(g[i][j](flat_grid), grid.shape[:-1])
 
                             # construct the basic momenta Kroenecker product
                             sub_momenta = [  # set up all the subtensors we'll need for this
@@ -194,9 +222,14 @@ class DirectProductDVR(BaseDVR):
                             # finally we take the sum of the two and put them into a sparse matrix
                             # that can be multiplied by the base momentum matrix values
                             sum_g_vals = (row_vals + col_vals)
+                            coupling_vals = 1/2 * sum_g_vals * mom_prod_vals
+                            mask = np.abs(coupling_vals) > self.zero_threshold
+                            coupling_vals = coupling_vals[mask]
+                            flat_rows = flat_rows[mask]
+                            flat_cols = flat_cols[mask]
                             coupling_term = sp.csr_matrix(
                                 (
-                                    1/2 * sum_g_vals * mom_prod_vals,
+                                    coupling_vals,
                                     (flat_rows, flat_cols)
                                 ),
                                 shape=momentum_mat.shape,
@@ -205,13 +238,12 @@ class DirectProductDVR(BaseDVR):
 
                             kinetic_coupling -= coupling_term  # negative sign from the two factors of i
                 ke += kinetic_coupling
-                # print(ke.getnnz(), np.prod(ke.shape))
                 if ke.getnnz() >= 1 / 2 * np.prod(ke.shape):
                     ke = ke.toarray()
 
         return ke
 
-    def kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, **kwargs):
+    def kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, logger=None, **kwargs):
         """
         Computes the N-dimensional kinetic energy
         :param grid:
@@ -231,7 +263,8 @@ class DirectProductDVR(BaseDVR):
         if grid is None:
             grid = self.grid()
 
-        return self.get_kinetic_energy(grid=grid, mass=mass, hb=hb, g=g, g_deriv=g_deriv, **kwargs)
+        logger = self._logger(logger)
+        return self.get_kinetic_energy(grid=grid, mass=mass, hb=hb, g=g, g_deriv=g_deriv, logger=logger, **kwargs)
 
 class CartesianNDDVR(DirectProductDVR):
     """
