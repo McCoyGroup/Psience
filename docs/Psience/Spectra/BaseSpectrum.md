@@ -34,6 +34,8 @@ Provides a general base spectrum class that can be extended to new fancy spectra
 
 
 
+
+
 ___
 
 [Edit Examples](https://github.com/McCoyGroup/Psience/edit/master/ci/examples/Psience/Spectra/BaseSpectrum.md) or 

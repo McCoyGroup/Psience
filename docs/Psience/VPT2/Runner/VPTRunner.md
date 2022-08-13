@@ -943,13 +943,12 @@ class VPT2Tests(TestCase):
     def test_NH3(self):
 
         VPTRunner.run_simple(
-            TestManager.test_data('OCHD_freq.fchk'),
-            4,
+            TestManager.test_data('NH3_freq.fchk'),
+            2,
             # degeneracy_specs=False,
             order=4,
             expansion_order=2,
-            target_property='intensities',
-            zero_element_warning=False
+
             # basis_filters={
             #     'max_quanta':[2, -1, -1, -1, -1, -1]
             # }

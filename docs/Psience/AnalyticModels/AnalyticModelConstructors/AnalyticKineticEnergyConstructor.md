@@ -1,6 +1,6 @@
 ## <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticKineticEnergyConstructor">AnalyticKineticEnergyConstructor</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L67)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L67?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L107)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L107?message=Update%20Docs)]
 </div>
 
 Provides G and V' elements from Frederick and Woywood
@@ -18,7 +18,7 @@ Provides G and V' elements from Frederick and Woywood
 g(inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbols=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L98)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L98?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L138)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L138?message=Update%20Docs)]
 </div>
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticKineticEnergyConstructor.vp" class="docs-object-method">&nbsp;</a> 
@@ -26,7 +26,7 @@ g(inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbo
 vp(inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbols=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L140)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L140?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L180)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L180?message=Update%20Docs)]
 </div>
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticKineticEnergyConstructor.infer_coord_type" class="docs-object-method">&nbsp;</a> 
@@ -34,7 +34,7 @@ vp(inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symb
 infer_coord_type(inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L183)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L183?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L223)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L223?message=Update%20Docs)]
 </div>
 
  </div>
@@ -49,4 +49,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L67?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L107?message=Update%20Docs)

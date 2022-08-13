@@ -36,18 +36,29 @@ BasisReps manages useful functions for generating & working with basis-set repre
 [HarmonicOscillatorProductBasis](BasisReps/HarmonicOscillator/HarmonicOscillatorProductBasis.md)   
 </div>
    <div class="col" markdown="1">
-[AnalyticWavefunctions](BasisReps/Wavefunctions/AnalyticWavefunctions.md)   
+[LegendreBasis](BasisReps/ClassicalBases/LegendreBasis.md)   
 </div>
 </div>
   <div class="row">
    <div class="col" markdown="1">
+[ChebyshevBasis](BasisReps/ClassicalBases/ChebyshevBasis.md)   
+</div>
+   <div class="col" markdown="1">
+[AnalyticWavefunctions](BasisReps/Wavefunctions/AnalyticWavefunctions.md)   
+</div>
+   <div class="col" markdown="1">
 [AnalyticWavefunction](BasisReps/Wavefunctions/AnalyticWavefunction.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [ExpansionWavefunctions](BasisReps/Wavefunctions/ExpansionWavefunctions.md)   
 </div>
    <div class="col" markdown="1">
 [ExpansionWavefunction](BasisReps/Wavefunctions/ExpansionWavefunction.md)   
+</div>
+   <div class="col" markdown="1">
+[WavefunctionBasis](BasisReps/Wavefunctions/WavefunctionBasis.md)   
 </div>
 </div>
   <div class="row">
@@ -117,6 +128,8 @@ BasisReps manages useful functions for generating & working with basis-set repre
 </div>
 </div>
 </div>
+
+
 
 
 

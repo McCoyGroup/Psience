@@ -1,6 +1,6 @@
 ## <a id="Psience.DVR.BaseDVR.BaseDVR">BaseDVR</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L11)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L11?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L12)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L12?message=Update%20Docs)]
 </div>
 
 Provides the abstract interface for creating a
@@ -17,10 +17,10 @@ extensions
 
 <a id="Psience.DVR.BaseDVR.BaseDVR.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, domain=None, divs=None, potential_function=None, **base_opts): 
+__init__(self, domain=None, divs=None, potential_function=None, logger=None, **base_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L18)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L18?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L19)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L19?message=Update%20Docs)]
 </div>
 
 
@@ -32,7 +32,7 @@ __init__(self, domain=None, divs=None, potential_function=None, **base_opts):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L36)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L36?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L47)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L47?message=Update%20Docs)]
 </div>
 
 <a id="Psience.DVR.BaseDVR.BaseDVR.get_grid" class="docs-object-method">&nbsp;</a> 
@@ -40,7 +40,7 @@ __repr__(self):
 get_grid(self, domain=None, divs=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L53)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L53?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L66)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L66?message=Update%20Docs)]
 </div>
 
 <a id="Psience.DVR.BaseDVR.BaseDVR.grid" class="docs-object-method">&nbsp;</a> 
@@ -48,7 +48,7 @@ get_grid(self, domain=None, divs=None, **kwargs):
 grid(self, domain=None, divs=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L57)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L57?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L69)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L69?message=Update%20Docs)]
 </div>
 
 <a id="Psience.DVR.BaseDVR.BaseDVR.get_kinetic_energy" class="docs-object-method">&nbsp;</a> 
@@ -56,7 +56,15 @@ grid(self, domain=None, divs=None, **kwargs):
 get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L69)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L69?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L82)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L82?message=Update%20Docs)]
+</div>
+
+<a id="Psience.DVR.BaseDVR.BaseDVR.handle_kinetic_coupling" class="docs-object-method">&nbsp;</a> 
+```python
+handle_kinetic_coupling(self, grid, ke_1D, g, g_deriv, hb=1, logger=None, **kwargs): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L85)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L85?message=Update%20Docs)]
 </div>
 
 <a id="Psience.DVR.BaseDVR.BaseDVR.kinetic_energy" class="docs-object-method">&nbsp;</a> 
@@ -64,7 +72,7 @@ get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs):
 kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L72)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L72?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L118)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L118?message=Update%20Docs)]
 </div>
 
 <a id="Psience.DVR.BaseDVR.BaseDVR.real_momentum" class="docs-object-method">&nbsp;</a> 
@@ -72,15 +80,15 @@ kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, **kwargs)
 real_momentum(self, grid=None, mass=None, hb=1, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L110)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L110?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L134)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L134?message=Update%20Docs)]
 </div>
 
 <a id="Psience.DVR.BaseDVR.BaseDVR.potential_energy" class="docs-object-method">&nbsp;</a> 
 ```python
-potential_energy(self, grid=None, potential_function=None, potential_values=None, potential_grid=None, **pars): 
+potential_energy(self, grid=None, potential_function=None, potential_values=None, potential_grid=None, logger=None, **pars): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L113)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L113?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L137)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L137?message=Update%20Docs)]
 </div>
 
 Calculates the potential energy at the grid points based
@@ -103,7 +111,7 @@ Calculates the potential energy at the grid points based
 hamiltonian(self, kinetic_energy=None, potential_energy=None, potential_threshold=None, **pars): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L198)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L198?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L230)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L230?message=Update%20Docs)]
 </div>
 
 Calculates the total Hamiltonian from the kinetic and potential matrices
@@ -120,10 +128,10 @@ Calculates the total Hamiltonian from the kinetic and potential matrices
 
 <a id="Psience.DVR.BaseDVR.BaseDVR.wavefunctions" class="docs-object-method">&nbsp;</a> 
 ```python
-wavefunctions(self, hamiltonian=None, num_wfns=25, nodeless_ground_state=False, diag_mode=None, **pars): 
+wavefunctions(self, hamiltonian=None, num_wfns=25, nodeless_ground_state=False, diag_mode=None, logger=None, **pars): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L230)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L230?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L262)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L262?message=Update%20Docs)]
 </div>
 
 Calculates the wavefunctions for the given Hamiltonian.
@@ -144,10 +152,10 @@ Calculates the wavefunctions for the given Hamiltonian.
 
 <a id="Psience.DVR.BaseDVR.BaseDVR.run" class="docs-object-method">&nbsp;</a> 
 ```python
-run(self, result='wavefunctions', **opts): 
+run(self, result='wavefunctions', logger=None, grid=None, potential_energy=None, kinetic_energy=None, hamiltonian=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L266)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L266?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L311)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L311?message=Update%20Docs)]
 </div>
 
 
@@ -166,4 +174,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/DVR/BaseDVR/BaseDVR.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/BaseDVR/BaseDVR.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/BaseDVR/BaseDVR.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L11?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L12?message=Update%20Docs)

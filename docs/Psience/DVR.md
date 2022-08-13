@@ -9,53 +9,64 @@ Provides and extensible DVR framework with an easy-to-write structure.
 <div class="container alert alert-secondary bg-light">
   <div class="row">
    <div class="col" markdown="1">
+[DVR](DVR/DVR/DVR.md)   
+</div>
+   <div class="col" markdown="1">
 [BaseDVR](DVR/BaseDVR/BaseDVR.md)   
 </div>
    <div class="col" markdown="1">
 [DVRResults](DVR/BaseDVR/DVRResults.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [DVRException](DVR/BaseDVR/DVRException.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [CartesianDVR](DVR/ColbertMiller/CartesianDVR.md)   
 </div>
    <div class="col" markdown="1">
 [RingDVR](DVR/ColbertMiller/RingDVR.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [RadialDVR](DVR/ColbertMiller/RadialDVR.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [PolarDVR](DVR/ColbertMiller/PolarDVR.md)   
 </div>
    <div class="col" markdown="1">
 [DirectProductDVR](DVR/DirectProduct/DirectProductDVR.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [CartesianNDDVR](DVR/DirectProduct/CartesianNDDVR.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [RingNDDVR](DVR/DirectProduct/RingNDDVR.md)   
 </div>
    <div class="col" markdown="1">
 [SphericalDVR](DVR/DirectProduct/SphericalDVR.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [DVRWavefunctions](DVR/Wavefunctions/DVRWavefunctions.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [DVRWavefunction](DVR/Wavefunctions/DVRWavefunction.md)   
 </div>
    <div class="col" markdown="1">
+[SelfConsistentDVR](DVR/Extensions/SelfConsistentDVR.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[PotentialOptimizedDVR](DVR/Extensions/PotentialOptimizedDVR.md)   
+</div>
+   <div class="col" markdown="1">
    
 </div>
    <div class="col" markdown="1">
@@ -63,6 +74,8 @@ Provides and extensible DVR framework with an easy-to-write structure.
 </div>
 </div>
 </div>
+
+
 
 
 

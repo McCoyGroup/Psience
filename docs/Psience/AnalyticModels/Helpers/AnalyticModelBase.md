@@ -15,6 +15,7 @@ Provides a base class for analytic models
 
 ```python
 sym: SympyShim
+numeric_types: tuple
 ```
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.take_derivs" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -91,7 +92,7 @@ symbol(base, *args, **kwargs):
 symbolic_r(i, j): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L127)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L127?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L130)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L130?message=Update%20Docs)]
 </div>
 
 Provides a symbolic representation of a bond length
@@ -107,7 +108,7 @@ Provides a symbolic representation of a bond length
 symbolic_a(i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L142)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L142?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L145)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L145?message=Update%20Docs)]
 </div>
 
 Provides a symbolic representation of a bond angle
@@ -125,7 +126,7 @@ Provides a symbolic representation of a bond angle
 symbolic_t(i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L159)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L159?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L162)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L162?message=Update%20Docs)]
 </div>
 
 Provides a symbolic representation of a dihedral angle
@@ -145,7 +146,7 @@ Provides a symbolic representation of a dihedral angle
 symbolic_y(i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L178)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L178?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L181)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L181?message=Update%20Docs)]
 </div>
 
 Provides a symbolic representation of a book angle
@@ -165,7 +166,7 @@ Provides a symbolic representation of a book angle
 var(*args): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L195)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L195?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L198)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L198?message=Update%20Docs)]
 </div>
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.reindex_symbol" class="docs-object-method">&nbsp;</a> 
@@ -173,7 +174,7 @@ var(*args):
 reindex_symbol(symbol, mapping, target_symbols=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L206)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L206?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L213)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L213?message=Update%20Docs)]
 </div>
 
 Changes the indices on symbols using the given mapping
@@ -189,7 +190,7 @@ Changes the indices on symbols using the given mapping
 lam(i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L243)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L243?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L250)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L250?message=Update%20Docs)]
 </div>
 
 Provides the `lambda` expression from Frederick and Woywood
@@ -207,7 +208,7 @@ Provides the `lambda` expression from Frederick and Woywood
 is_identity(A): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L262)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L262?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L269)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L269?message=Update%20Docs)]
 </div>
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.transpose" class="docs-object-method">&nbsp;</a> 
@@ -215,7 +216,7 @@ is_identity(A):
 transpose(A): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L273)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L273?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L280)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L280?message=Update%20Docs)]
 </div>
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.dot" class="docs-object-method">&nbsp;</a> 
@@ -223,7 +224,7 @@ transpose(A):
 dot(a, b, axes=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L278)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L278?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L285)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L285?message=Update%20Docs)]
 </div>
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.contract" class="docs-object-method">&nbsp;</a> 
@@ -231,7 +232,15 @@ dot(a, b, axes=None):
 contract(a, axes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L305)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L305?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L317)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L317?message=Update%20Docs)]
+</div>
+
+<a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.transform_coordinates" class="docs-object-method">&nbsp;</a> 
+```python
+transform_coordinates(rotation, coord_vec=None, coord_name_fmt='q{id}[{num}]'): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L323)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L323?message=Update%20Docs)]
 </div>
 
  </div>

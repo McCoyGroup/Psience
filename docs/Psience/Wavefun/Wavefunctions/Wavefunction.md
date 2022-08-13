@@ -37,7 +37,7 @@ Uses McUtils to plot the wavefunction on the passed figure (makes a new one if n
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunction.expectation" class="docs-object-method">&nbsp;</a> 
 ```python
-expectation(self, op, other): 
+expectation(self, op, other=None): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Wavefun/Wavefunctions.py#L35)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L35?message=Update%20Docs)]
@@ -51,12 +51,20 @@ Computes the expectation value of operator op over the wavefunction other and se
 - `:returns`: `_`
     >No description...
 
+<a id="Psience.Wavefun.Wavefunctions.Wavefunction.overlap" class="docs-object-method">&nbsp;</a> 
+```python
+overlap(self, other): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Wavefun/Wavefunctions.py#L47)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L47?message=Update%20Docs)]
+</div>
+
 <a id="Psience.Wavefun.Wavefunctions.Wavefunction.probability_density" class="docs-object-method">&nbsp;</a> 
 ```python
 probability_density(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Wavefun/Wavefunctions.py#L47)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L47?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Wavefun/Wavefunctions.py#L49)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Wavefun/Wavefunctions.py#L49?message=Update%20Docs)]
 </div>
 
 Computes the probability density of the current wavefunction
