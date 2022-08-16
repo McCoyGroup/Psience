@@ -25,8 +25,8 @@ __init__(self, states, degeneracy_specs=None, system=None):
 
 - `states`: `list | int`
     >A list of states or a number of quanta to target
-- `degeneracy_specs`: `list | dict`
-    >A specification of degeneracies, either as polyads or explicit groups of states
+- `degeneracy_specs`: `'auto' | list | dict`
+    >A specification of degeneracies, either as polyads, explicit groups of states, or parameters to a method
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.from_system_and_quanta" class="docs-object-method">&nbsp;</a> 
 ```python

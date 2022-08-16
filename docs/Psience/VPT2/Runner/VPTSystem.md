@@ -23,11 +23,11 @@ __init__(self, mol, internals=None, dummy_atoms=None, modes=None, mode_selection
 </div>
 
 
-- `mol`: `str | Molecule`
+- `mol`: `str | list | Molecule`
     >the molecule or system specification to use (doesn't really even need to be a molecule)
-- `internals`: `Any`
-    >the Z-matrix for the internal coordinates (in the future will support a general function for this too)
-- `modes`: `Any`
+- `internals`: `list | dict`
+    >the Z-matrix for the internal coordinates optionally with a specification of a `conversion` and `inverse`
+- `modes`: `MolecularVibrations|dict`
     >the normal modes to use if not already supplied by the Molecule
 - `potential_derivatives`: `Iterable[np.ndarray]`
     >the derivatives of the potential to use for expansions

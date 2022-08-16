@@ -23,24 +23,28 @@ __init__(self, operator_chunk_size=None, matrix_element_threshold=None, nondeg_h
 </div>
 
 
-- `operator_chunk_size`: `int`
-    >the number of representation matrix elements to calculate at once
-- `logger`: `Logger`
-    >the `Logger` object to use when logging the status of the calculation
-- `verbose`: `bool`
-    >whether or not to be verbose in log output
-- `checkpoint`: `str`
-    >the checkpoint file or `Checkpointer` object to use
-- `parallelizer`: `Parallelizer`
-    >the `Parallelizer` object to use when parallelizing pieces of the calculation
-- `memory_constrained`: `bool`
-    >whether or not to attempt memory optimizations
-- `checkpoint_keys`: `Iterable[str]`
-    >the keys to write to the checkpoint file
+- `operator_chunk_size`: `int|None default:None`
+    >the number of representation matrix elements to calculate in at one time
+- `matrix_element_threshold`: `float|None default:None`
+    >the minimum size of matrix element to keep
+- `nondeg_hamiltonian_precision`: `int`
+    >the precision with which to print out elements in the degenerate coupling Hamiltonians in the log file
+- `logger`: `str|Logger|bool|None default:None`
+    >the `Logger` object to use when logging the status of the calculation (`True` means log normally)
+- `results`: `str|Checkpointer|None default:None`
+    >the `Checkpointer` to write corrections out to
+- `parallelizer`: `Parallelizer|None default:None`
+    >the `Parallelizer` to use for parallelizing the evaluation of matrix elements
+- `memory_constrained`: `bool|None`
+    >whether or not to attempt memory optimizations (`None` means attempt for >20D problems)
+- `checkpoint`: `str|Checkpointer|None default:None`
+    >the `Checkpointer` to write Hamiltonians and other bits out to
+- `checkpoint_keys`: `Iterable[str]|None`
+    >which keys to save in the checkpoint
 - `use_cached_representations`: `bool`
-    >whether or not to try to load representation matrices from the checkpoint
+    >whether other not to use Hamiltonian reps from the checkpoint
 - `use_cached_basis`: `bool`
-    >whether or not to try to load the bases to use from the checkpoint
+    >whether other not to use bases from the checkpoint
 
  </div>
 </div>

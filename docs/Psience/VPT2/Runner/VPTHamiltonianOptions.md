@@ -23,8 +23,8 @@ __init__(self, mode_selection=None, include_potential=None, include_gmatrix=None
 </div>
 
 
-- `mode_selection`: `Any`
-    >the subset of normal modes to do perturbation theory on
+- `mode_selection`: `Iterable[int]|None`
+    >the set of the supplied normal modes to do perturbation theory on
 - `include_coriolis_coupling`: `bool`
     >whether or not to include Coriolis coupling in Cartesian normal mode calculation
 - `include_pseudopotential`: `bool`
@@ -51,8 +51,6 @@ __init__(self, mode_selection=None, include_potential=None, include_gmatrix=None
     >how to handle differences between numerical/analytical mixed derivatives of potential/dipole terms
 - `backpropagate_internals`: `bool`
     >whether or not to do Cartesian coordinate calculations with values backpropagated from internals
-- `zero_mass_term`: `float`
-    >a placeholder value for dummy atom masses
 - `internal_fd_mesh_spacing`: `float`
     >mesh spacing for finite difference of Cartesian coordinates with internals
 - `internal_fd_stencil`: `int`
@@ -75,6 +73,8 @@ __init__(self, mode_selection=None, include_potential=None, include_gmatrix=None
     >the deviation from the input frequencies to allow when transforming from Cartesians to internals
 - `g_derivative_threshold`: `float`
     >the size of the norm of any G-matrix derivative above which to print a warning
+- `operator_coefficient_threshold`: `float|None`
+    >the minimum size of a coefficient to keep when evaluating representation terms
 
  </div>
 </div>
