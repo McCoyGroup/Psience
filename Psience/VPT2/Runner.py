@@ -58,11 +58,11 @@ class VPTSystem:
                  ):
         """
         :param mol: the molecule or system specification to use (doesn't really even need to be a molecule)
-        :type mol: str | Molecule
-        :param internals: the Z-matrix for the internal coordinates (in the future will support a general function for this too)
-        :type internals:
+        :type mol: str | list | Molecule
+        :param internals: the Z-matrix for the internal coordinates optionally with a specification of a `conversion` and `inverse`
+        :type internals: list | dict
         :param modes: the normal modes to use if not already supplied by the Molecule
-        :type modes:
+        :type modes: MolecularVibrations|dict
         :param potential_derivatives: the derivatives of the potential to use for expansions
         :type potential_derivatives: Iterable[np.ndarray]
         :param dipole_derivatives: the set of dipole derivatives to use for expansions
@@ -162,8 +162,8 @@ class VPTStateSpace:
         """
         :param states: A list of states or a number of quanta to target
         :type states: list | int
-        :param degeneracy_specs: A specification of degeneracies, either as polyads or explicit groups of states
-        :type degeneracy_specs: list | dict
+        :param degeneracy_specs: A specification of degeneracies, either as polyads, explicit groups of states, or parameters to a method
+        :type degeneracy_specs: 'auto' | list | dict
         """
         if not isinstance(states, BasisStateSpace):
             states = BasisStateSpace(
@@ -465,8 +465,8 @@ class VPTHamiltonianOptions:
                  operator_coefficient_threshold=None
                  ):
         """
-        :param mode_selection: the subset of normal modes to do perturbation theory on
-        :type mode_selection:
+        :param mode_selection: the set of the supplied normal modes to do perturbation theory on
+        :type mode_selection: Iterable[int]|None
         :param include_coriolis_coupling: whether or not to include Coriolis coupling in Cartesian normal mode calculation
         :type include_coriolis_coupling: bool
         :param include_pseudopotential: whether or not to include the pseudopotential/Watson term
@@ -493,8 +493,6 @@ class VPTHamiltonianOptions:
         :type mixed_derivative_handling_mode: bool
         :param backpropagate_internals: whether or not to do Cartesian coordinate calculations with values backpropagated from internals
         :type backpropagate_internals: bool
-        :param zero_mass_term: a placeholder value for dummy atom masses
-        :type zero_mass_term: float
         :param internal_fd_mesh_spacing: mesh spacing for finite difference of Cartesian coordinates with internals
         :type internal_fd_mesh_spacing: float
         :param internal_fd_stencil: stencil for finite difference of Cartesian coordinates with internals
@@ -517,6 +515,8 @@ class VPTHamiltonianOptions:
         :type freq_tolerance: float
         :param g_derivative_threshold: the size of the norm of any G-matrix derivative above which to print a warning
         :type g_derivative_threshold: float
+        :param operator_coefficient_threshold: the minimum size of a coefficient to keep when evaluating representation terms
+        :type operator_coefficient_threshold: float|None
         """
         all_opts = dict(
             mode_selection=mode_selection,
@@ -600,23 +600,27 @@ class VPTRuntimeOptions:
                  use_cached_basis=None
                  ):
         """
-        :param operator_chunk_size: the number of representation matrix elements to calculate at once
-        :type operator_chunk_size: int
-        :param logger: the `Logger` object to use when logging the status of the calculation
-        :type logger: Logger
-        :param verbose: whether or not to be verbose in log output
-        :type verbose: bool
-        :param checkpoint: the checkpoint file or `Checkpointer` object to use
-        :type checkpoint: str
-        :param parallelizer: the `Parallelizer` object to use when parallelizing pieces of the calculation
-        :type parallelizer: Parallelizer
-        :param memory_constrained: whether or not to attempt memory optimizations
-        :type memory_constrained: bool
-        :param checkpoint_keys: the keys to write to the checkpoint file
-        :type checkpoint_keys: Iterable[str]
-        :param use_cached_representations: whether or not to try to load representation matrices from the checkpoint
+        :param operator_chunk_size: the number of representation matrix elements to calculate in at one time
+        :type operator_chunk_size: int|None default:None
+        :param matrix_element_threshold: the minimum size of matrix element to keep
+        :type matrix_element_threshold: float|None default:None
+        :param nondeg_hamiltonian_precision: the precision with which to print out elements in the degenerate coupling Hamiltonians in the log file
+        :type nondeg_hamiltonian_precision: int
+        :param logger: the `Logger` object to use when logging the status of the calculation (`True` means log normally)
+        :type logger: str|Logger|bool|None default:None
+        :param results: the `Checkpointer` to write corrections out to
+        :type results: str|Checkpointer|None default:None
+        :param parallelizer: the `Parallelizer` to use for parallelizing the evaluation of matrix elements
+        :type parallelizer: Parallelizer|None default:None
+        :param memory_constrained: whether or not to attempt memory optimizations (`None` means attempt for >20D problems)
+        :type memory_constrained: bool|None
+        :param checkpoint: the `Checkpointer` to write Hamiltonians and other bits out to
+        :type checkpoint: str|Checkpointer|None default:None
+        :param checkpoint_keys: which keys to save in the checkpoint
+        :type checkpoint_keys: Iterable[str]|None
+        :param use_cached_representations: whether other not to use Hamiltonian reps from the checkpoint
         :type use_cached_representations: bool
-        :param use_cached_basis: whether or not to try to load the bases to use from the checkpoint
+        :param use_cached_basis: whether other not to use bases from the checkpoint
         :type use_cached_basis: bool
         """
         ham_run_opts = dict(
@@ -738,8 +742,17 @@ class VPTSolverOptions:
         :type intermediate_normalization: bool
         :param zero_element_warning: whether or not to warn if an element of the representations evaluated to zero (i.e. we wasted effort)
         :type zero_element_warning: bool
+        :param low_frequency_mode_cutoff: the energy below which to consider a mode to be "low frequency"
+        :type low_frequency_mode_cutoff: float (default:500 cm-1)
         :param zero_order_energy_corrections: energies to use for the zero-order states instead of the diagonal of `H(0)`
         :type zero_order_energy_corrections: dict
+        :param check_overlap: whether or not to ensure states are normalized in the VPT
+        :type check_overlap: bool default:True
+        """
+        """
+        
+        
+        
         """
         all_opts = dict(
             order=order,
@@ -1043,6 +1056,24 @@ class VPTRunner:
                    calculate_intensities=True,
                    **opts
                    ):
+        """
+        The standard runner for VPT.
+        Makes a runner using the `construct` method and then calls that
+        runner's `print_tables` method after printing out run info.
+
+        :param system: the system spec, either as a `Molecule`, molecule spec (atoms, coords, opts) or a file to construct a `Molecule`
+        :type system: list|str|Molecule
+        :param states: the states to get corrections for either an `int` (up to that many quanta) or an explicit state list
+        :type states: int|list
+        :param target_property: the target property to get corrections for (one of 'frequencies', 'intensities', 'wavefunctions')
+        :type target_property: str
+        :param corrected_fundamental_frequencies: a set of fundamental frequencies to use to get new zero-order energies
+        :type corrected_fundamental_frequencies: Iterable[float]|None
+        :param calculate_intensities: whether or not to calculate energies
+        :type calculate_intensities: bool default:True
+        :param opts: options that work for a `RuntimeOptions`, `SolverOptions`, or `HamiltonianOptions` object which will be filtered automatically
+        :type opts:
+        """
 
         runner, (system, states, hops, rops, sops) = cls.construct(
             system,

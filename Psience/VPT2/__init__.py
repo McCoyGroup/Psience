@@ -10,6 +10,12 @@ For the purposes of papers, we've been calling this implementation `PyVibPTn`
 The code flow is detailed below
 
 ![pt design](/Psience/img/PyVibPTnDesign.png){:width="100%"}
+
+The easiest way to run jobs is through the `VPTRunner.run_simple` interface.
+The options for jobs along with short descriptions are detailed in
+[`VPTHamiltonianOptions`](VPTHamiltonianOptions.md) for expansion-related options,
+[`VPTSolverOptions`](VPTSolverOptions.md) for options related to constructing representations and applying VPT,
+and [`VPTRuntimeOptions`](VPTRuntimeOptions.md) for options related to the runtime/logging
 """
 
 __long_description__ = """
