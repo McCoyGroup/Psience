@@ -1,6 +1,6 @@
 ## <a id="Psience.VPT2.Runner.VPTSolverOptions">VPTSolverOptions</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L656)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L656?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L756)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L756?message=Update%20Docs)]
 </div>
 
 Provides a helper to keep track of the options available
@@ -19,14 +19,22 @@ for configuring the way the perturbation theory is applied
 __init__(self, order=2, expansion_order=None, coupled_states=None, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, state_space_filters=None, allow_post_PT_calc=None, modify_degenerate_perturbations=None, gaussian_resonance_handling=None, ignore_odd_order_energies=None, intermediate_normalization=None, zero_element_warning=None, degenerate_states=None, handle_strong_couplings=None, strong_coupling_test_modes=None, strong_couplings_state_filter=None, strongly_coupled_group_filter=None, extend_strong_coupling_spaces=None, strong_coupling_zero_order_energy_cutoff=None, low_frequency_mode_cutoff=None, zero_order_energy_corrections=None, check_overlap=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L688)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L688?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L788)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L788?message=Update%20Docs)]
 </div>
 
-
-- `order`: `int`
-    >the order of perturbation theory to apply
-- `expansion_order`: `int`
-    >the order to go to in the expansions of the perturbations
+:param order: the order of perturbation theory to apply
+        :type order: int
+        :type order: int
+        :param expansion_order: the order to go to in the expansions of the perturbations, this can be supplied for different properties independently, like
+```python
+{
+    'potential':int,
+    'kinetic':int,
+    'dipole':int,
+}
+```
+- `expansion_order`: `int | dict`
+    >No description...
 - `degenerate_states`: `Iterable[BasisStateSpace]`
     >the set of degeneracies to handle
 - `coupled_states`: `Iterable[SelectionRuleStateSpace]`
@@ -65,7 +73,7 @@ __init__(self, order=2, expansion_order=None, coupled_states=None, total_space=N
 get_zero_order_energies(corrected_fundamental_freqs, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L791)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L791?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L899)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L899?message=Update%20Docs)]
 </div>
 
 
@@ -349,4 +357,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTSolverOptions.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTSolverOptions.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTSolverOptions.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L656?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L756?message=Update%20Docs)

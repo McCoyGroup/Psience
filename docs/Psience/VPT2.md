@@ -9,17 +9,19 @@ Makes heavy use of the `BasisReps` package as well as `McUtils.Coordinerds` to o
 of the corrections to the vibrational Hamiltonian.
 Is technically not restricted to VPT in a harmonic basis, but no other forms of PT are likely to
 be implemented in the near future.
-For the purposes of papers, we've been calling this implementation `PyVibPTn`
-
-The code flow is detailed below
-
-![pt design](/Psience/img/PyVibPTnDesign.png){:width="100%"}
+For the purposes of papers, we've been calling this implementation `PyVibPTn`.
 
 The easiest way to run jobs is through the `VPTRunner.run_simple` interface.
 The options for jobs along with short descriptions are detailed in
-[`VPTHamiltonianOptions`](VPTHamiltonianOptions.md) for expansion-related options,
-[`VPTSolverOptions`](VPTSolverOptions.md) for options related to constructing representations and applying VPT,
-and [`VPTRuntimeOptions`](VPTRuntimeOptions.md) for options related to the runtime/logging
+[`VPTHamiltonianOptions`](Runner/VPTHamiltonianOptions.md) for expansion-related options,
+[`VPTSolverOptions`](Runner/VPTSolverOptions.md) for options related to constructing representations and applying VPT,
+and [`VPTRuntimeOptions`](Runner/VPTRuntimeOptions.md) for options related to the runtime/logging
+
+A basic tutorial to provide more extensive hand-holding can be found [here](tutorial.md).
+
+Finally, the general code flow is detailed below
+
+![pt design](/Psience/img/PyVibPTnDesign.png){:width="100%"}
 
 <div class="container alert alert-secondary bg-light">
   <div class="row">
