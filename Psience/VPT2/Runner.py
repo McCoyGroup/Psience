@@ -162,7 +162,107 @@ class VPTStateSpace:
         """
         :param states: A list of states or a number of quanta to target
         :type states: list | int
-        :param degeneracy_specs: A specification of degeneracies, either as polyads, explicit groups of states, or parameters to a method
+        :param degeneracy_specs: A specification of degeneracies, either as polyads, explicit groups of states, or parameters to a method.
+
+There are multiple possible values for this spec.
+The simplest is to use the automatic approach, in which we supply a numeric type (`int`, `float`, etc.) to use as the `WFC` threshold.
+The next simplest is to explicitly supply the groups we want, like
+
+```python
+[
+    [ # the first resonant space
+        state_1,
+        state_2,
+        state_3
+    ],
+    [ # the second
+        state_5, state_11, ...
+    ],
+    ...
+]
+```
+
+We can also supply pairs of relations for determining resonances, like
+
+```python
+[
+    [state_1,  state_2], # A first relation
+    [state_3,  state_4],  # another relation
+    ...
+]
+```
+
+To allow for extra options, you can also supply a `dict`. If you wanted to have a different `wfc_threshold` and you wanted to do the secondary resonant space splitting step with a very large threshold, you could do that by supplying
+
+```python
+{
+    'wfc_threshold':.1,
+    'energy_cutoff':1.0 # in Hartree
+}
+```
+
+or you can explicitly add extra groups to the pairs of polyad rules by saying
+
+```python
+{
+    'polyads':[
+            [state_1,  state_2], # A first relation
+            [state_3,  state_4],  # another relation
+            ...
+        ],
+    'extra_groups': [
+        [ # the first resonant space
+            state_a,
+            state_b,
+            state_c
+        ],
+        [ # the second
+            state_d, state_e, ...
+        ],
+        ...
+    ]
+}
+```
+
+This also allows us to define more resonance handling strategies.
+
+The Martin Test is supported,
+```python
+{
+    'martin_threshold':.1/219465, #in Hartree
+}
+```
+As are total quanta vectors
+```python
+{
+    'nT': [1, 1, 1, 0, 2, 2, 0] # e.g.
+}
+```
+- `mode_selection` (`list[int]`): the subset of normal modes to use in the calculation as a `list` of `int`s corresponding to the desired modes (can also be used to rearrange from freq. ordering to Herzberg)
+- `basis_postfilters` (`list[dict]`): a list of filters to apply sequentially to the basis of states used in the PT, each filter can look like one of the following
+  - for excluding quanta
+
+```python
+{
+    'max_quanta': [2, -1, 1, -1, ...] # the max number of quanta allowed in a given mode in the basis (-1 means infinity)
+}
+```
+
+  - for excluding transitions
+
+```python
+{
+    'excluded_transitions': [[0, 0, 1, 0, ...], [1, 0, 0, 0, ...], ...] # a set of transitions that are forbidden on the input states
+}
+```
+
+  - for excluding transitions
+
+```python
+{
+    'test': func # a function that takes the basis and tests if states should be allowed
+}
+```
         :type degeneracy_specs: 'auto' | list | dict
         """
         if not isinstance(states, BasisStateSpace):
@@ -714,8 +814,16 @@ class VPTSolverOptions:
         """
         :param order: the order of perturbation theory to apply
         :type order: int
-        :param expansion_order: the order to go to in the expansions of the perturbations
-        :type expansion_order: int
+        :type order: int
+        :param expansion_order: the order to go to in the expansions of the perturbations, this can be supplied for different properties independently, like
+```python
+{
+    'potential':int,
+    'kinetic':int,
+    'dipole':int,
+}
+```
+        :type expansion_order: int | dict
         :param degenerate_states: the set of degeneracies to handle
         :type degenerate_states: Iterable[BasisStateSpace]
         :param coupled_states: explicit bases of states to use at each order in the perturbation theory
@@ -1071,7 +1179,7 @@ class VPTRunner:
         :type corrected_fundamental_frequencies: Iterable[float]|None
         :param calculate_intensities: whether or not to calculate energies
         :type calculate_intensities: bool default:True
-        :param opts: options that work for a `RuntimeOptions`, `SolverOptions`, or `HamiltonianOptions` object which will be filtered automatically
+        :param opts: options that work for a `VPTSystem`, `VPTStateSpace`, `VPTRuntimeOptions`, `VPTSolverOptions`, or `VPTHamiltonianOptions` object which will be filtered automatically
         :type opts:
         """
 
