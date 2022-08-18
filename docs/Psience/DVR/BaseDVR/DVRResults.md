@@ -5,8 +5,6 @@
 
 A subclass that can wrap all of the DVR run parameters and results into a clean interface for reuse and extension
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -51,6 +49,8 @@ Should be updated to deal with higher dimensional cases
 
  </div>
 </div>
+
+
 
 
 

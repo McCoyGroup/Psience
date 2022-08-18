@@ -7,8 +7,6 @@ A DataHandler that's built for use with the G-matrix and V' terms
 from the 1999 Frederick and Woywood paper
 Usually used through the `KETermData` object.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -39,6 +37,8 @@ find_expressions(self, k, return_permutation=False):
 
  </div>
 </div>
+
+
 
 
 

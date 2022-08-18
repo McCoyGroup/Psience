@@ -7,8 +7,6 @@ Provides the abstract interface for creating a
 convenient runnable DVR that can be cleanly subclassed to provide
 extensions
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -166,6 +164,8 @@ run(self, result='wavefunctions', logger=None, grid=None, potential_energy=None,
 
  </div>
 </div>
+
+
 
 
 

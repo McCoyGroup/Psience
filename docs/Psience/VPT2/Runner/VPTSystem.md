@@ -6,27 +6,6 @@
 Provides a little helper for setting up the input
 system for a VPT job
 
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-9a1377" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-9a1377"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse " id="Details-9a1377" markdown="1">
- When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
-```python
-def conv(r, t, f, **kwargs):
-    '''
-    Takes the bond lengths (`r`), angles `(t)` and dihedrals `(f)`,
-    and returns new coordinates that are functions of these coordinates
-    '''
-    ... # convert the coordinates
-    return np.array([r, t, f])
-```
-and then the inverse function will take the output of `conv` and return the original Z-matrix/polyspherical coordinates.
- </div>
-</div>
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -104,6 +83,27 @@ from_harmonic_scan(scan_array):
 
  </div>
 </div>
+
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+## <a class="collapse-link" data-toggle="collapse" href="#Details-5f3ae6" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-5f3ae6"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse " id="Details-5f3ae6" markdown="1">
+ When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
+```python
+def conv(r, t, f, **kwargs):
+    '''
+    Takes the bond lengths (`r`), angles `(t)` and dihedrals `(f)`,
+    and returns new coordinates that are functions of these coordinates
+    '''
+    ... # convert the coordinates
+    return np.array([r, t, f])
+```
+and then the inverse function will take the output of `conv` and return the original Z-matrix/polyspherical coordinates.
+ </div>
+</div>
+
 
 
 

@@ -5,8 +5,6 @@
 
 Represents wavefunctions with analytic forms, most commonly harmonic oscillators
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -33,6 +31,8 @@ get_wavefunctions(self, which):
 
  </div>
 </div>
+
+
 
 
 

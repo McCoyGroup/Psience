@@ -6,8 +6,6 @@
 A tiny but useful class to make states based on their quanta
 of excitation
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -42,6 +40,8 @@ __call__(self, *specs, mode=None):
 
  </div>
 </div>
+
+
 
 
 

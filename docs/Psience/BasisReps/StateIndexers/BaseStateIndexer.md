@@ -5,8 +5,6 @@
 
 Provides a base class for indexing states
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -45,6 +43,8 @@ Converts the set of states to numerical indices
 
  </div>
 </div>
+
+
 
 
 

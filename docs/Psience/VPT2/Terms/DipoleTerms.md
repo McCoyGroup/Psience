@@ -5,8 +5,6 @@
 
 
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -43,6 +41,8 @@ get_terms(self, order=None):
 
  </div>
 </div>
+
+
 
 
 

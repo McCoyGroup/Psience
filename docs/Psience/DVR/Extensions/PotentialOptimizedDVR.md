@@ -5,8 +5,6 @@
 
 
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -41,6 +39,8 @@ from_scf(scf_dvr: 'DirectProductDVR|SelfConsistentDVR', wfns=None, **opts):
 
  </div>
 </div>
+
+
 
 
 

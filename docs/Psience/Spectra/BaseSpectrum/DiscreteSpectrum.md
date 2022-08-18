@@ -6,8 +6,6 @@
 Concrete implementation of `BaseSpectrum` that exists
 solely to allow for plotting and broadening.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -50,6 +48,8 @@ Applies a broadening to the spectrum
 
  </div>
 </div>
+
+
 
 
 

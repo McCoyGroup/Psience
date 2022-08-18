@@ -5,8 +5,6 @@
 
 Provides a DVR for working on the (0, 2Pi) range with periodicity from Colbert and Miller
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -81,6 +79,8 @@ Provides the real part of the momentum for the [0, 2pi] range
 
  </div>
 </div>
+
+
 
 
 

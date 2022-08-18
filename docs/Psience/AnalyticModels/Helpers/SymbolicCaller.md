@@ -5,8 +5,6 @@
 
 Delegates to `__call__` through `__getitem__` for symbolics
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -33,6 +31,8 @@ __getitem__(self, item):
 
  </div>
 </div>
+
+
 
 
 

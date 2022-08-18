@@ -5,8 +5,6 @@
 
 A helper class that can transform the derivatives of the potential from Cartesian to normal coordinates
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -52,6 +50,8 @@ get_terms(self, order=None, logger=None):
 
  </div>
 </div>
+
+
 
 
 

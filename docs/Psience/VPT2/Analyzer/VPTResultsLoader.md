@@ -7,8 +7,6 @@ Provides tools for loading results into canonical
 sources from a simulation, both from checkpoint files and from
 `PerturbationTheoryWavefunctions` objects and potentially more
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -271,6 +269,8 @@ Returns the log_file for the run
 
  </div>
 </div>
+
+
 
 
 

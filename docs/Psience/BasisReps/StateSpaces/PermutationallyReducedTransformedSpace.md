@@ -7,8 +7,6 @@ A specialized wrapper that overloads some key operations so that they
 can be done more efficiently with permutationally reduced spaces.
 Currently just delegates getting brakets
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -31,6 +29,8 @@ Returns the SelectionRuleStateSpace for the equivalence classes
 
  </div>
 </div>
+
+
 
 
 

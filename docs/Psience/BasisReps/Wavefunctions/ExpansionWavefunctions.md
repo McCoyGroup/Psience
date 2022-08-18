@@ -12,8 +12,6 @@ which means `AnalyticWavefunctions` needs to track a basis...
 but `AnalyticWavefunctions` wasn't really designed for that, so I need to go back and figure out how
 that binding is going to be managed.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -42,6 +40,8 @@ __init__(self, energies, coefficients, basis_wfns, **ops):
 
  </div>
 </div>
+
+
 
 
 

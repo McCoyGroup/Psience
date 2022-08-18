@@ -5,8 +5,6 @@
 
 A stick spectrum with associated broadening function
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -61,6 +59,8 @@ Applies the broadening then plots it using `McUtils.Plots.Plot`
 
  </div>
 </div>
+
+
 
 
 

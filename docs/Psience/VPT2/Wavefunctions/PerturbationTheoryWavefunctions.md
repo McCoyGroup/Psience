@@ -5,8 +5,6 @@
 
 These things are fed the first and second order corrections
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -442,6 +440,8 @@ format_deperturbed_intensities_table(self, real_fmt='{:>12.5f}'):
 
  </div>
 </div>
+
+
 
 
 

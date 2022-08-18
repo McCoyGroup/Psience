@@ -6,8 +6,6 @@
 Very simple indexer that takes a set of max state dimensions and
 provides the appropriate indices in that space
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -58,6 +56,8 @@ from_indices(self, indices):
 
  </div>
 </div>
+
+
 
 
 

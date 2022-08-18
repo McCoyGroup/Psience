@@ -6,8 +6,6 @@
 A `Representation` provides a simple interface to build matrix representations of operators expressed
 in high-dimensional spaces.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -309,6 +307,8 @@ Actively constructs a perturbation theory Hamiltonian representation
 
  </div>
 </div>
+
+
 
 
 

@@ -7,8 +7,6 @@ Provides a concrete implementation of RepresentationBasis using the H.O.
 Need to make it handle units a bit better.
 Currently 1D, need to make multidimensional in the future.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -101,6 +99,8 @@ __repr__(self):
 
  </div>
 </div>
+
+
 
 
 

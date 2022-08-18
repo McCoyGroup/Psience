@@ -8,8 +8,6 @@ Uses a harmonic oscillator basis for representing H0, H1, H2 etc.
 The PT process is split into a PerturbationTheorySolver and a PerturbationTheoryHamiltonian
 where the Hamiltonian just implements the split of the perturbation and the Solver manages the equations.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -267,6 +265,8 @@ get_breakdown(self, states, coupled_states=None, degeneracies=None, order=2):
 
  </div>
 </div>
+
+
 
 
 

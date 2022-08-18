@@ -5,8 +5,6 @@
 
 Provides support for terms that look like `1/2 pGp + 1/2 dV/dQdQ QQ` by computing each term on its own
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -170,6 +168,8 @@ __repr__(self):
 
  </div>
 </div>
+
+
 
 
 

@@ -6,8 +6,6 @@
 Represents a set of corrections from perturbation theory.
 Can be used to correct other operators in the basis of the original calculation.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -358,6 +356,8 @@ from_state(data, serializer=None):
 
  </div>
 </div>
+
+
 
 
 

@@ -5,8 +5,6 @@
 
 Provides analysis tools on VPT results
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -524,6 +522,8 @@ print_output_tables(self, print_energy_corrections=False, print_energies=False, 
 
  </div>
 </div>
+
+
 
 
 

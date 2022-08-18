@@ -5,8 +5,6 @@
 
 Provides an ND-DVR for products of periodic (0, 2Pi) ranges
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -25,6 +23,8 @@ __init__(self, divs, **base_opts):
 
  </div>
 </div>
+
+
 
 
 

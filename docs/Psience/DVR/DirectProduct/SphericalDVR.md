@@ -5,8 +5,6 @@
 
 
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -25,6 +23,8 @@ __init__(self, r_max, divs, **base_opts):
 
  </div>
 </div>
+
+
 
 
 

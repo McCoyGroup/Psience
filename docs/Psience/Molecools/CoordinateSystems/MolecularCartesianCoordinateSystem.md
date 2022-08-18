@@ -5,8 +5,6 @@
 
 Mirrors the standard Cartesian coordinate system in _almost_ all regards, but forces an embedding
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -64,6 +62,8 @@ jacobian(self, coords, system, strip_dummies=None, converter_options=None, analy
 
  </div>
 </div>
+
+
 
 
 

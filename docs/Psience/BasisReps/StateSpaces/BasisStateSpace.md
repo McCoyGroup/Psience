@@ -7,8 +7,6 @@ Represents a subspace of states inside a representation basis.
 Useful largely to provide consistent, unambiguous representations of multiple states across
 the different representation-generating methods in the code base.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -477,6 +475,8 @@ __eq__(self, other):
 
  </div>
 </div>
+
+
 
 
 

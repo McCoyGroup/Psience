@@ -7,8 +7,6 @@ Defines a basis state space where terms are reduced over their
 permutationally equivalent operations, making many operations
 dramatically faster
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -164,6 +162,8 @@ dropped
 
  </div>
 </div>
+
+
 
 
 

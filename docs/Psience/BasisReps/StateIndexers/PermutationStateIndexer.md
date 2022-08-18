@@ -11,8 +11,6 @@ Is likely about as stable as an indexer can be expected to be over large
 numbers of states. Unlikely to exhaust the max integers available for most
 systems.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -79,6 +77,8 @@ This is not assured to be a fast process in any way.
 
  </div>
 </div>
+
+
 
 
 

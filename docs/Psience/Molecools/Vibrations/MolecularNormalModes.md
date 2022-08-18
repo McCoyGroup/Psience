@@ -6,8 +6,6 @@
 A Coordinerds CoordinateSystem object that manages all of the data needed to
 work with normal mode coordinates + some convenience functions for generating and whatnot
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -147,6 +145,8 @@ Takes a slice of the modes
 
  </div>
 </div>
+
+
 
 
 

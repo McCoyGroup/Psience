@@ -7,8 +7,6 @@ Provides a (usually) _lazy_ representation of an operator, which allows things l
 QQQ and pQp to be calculated block-by-block.
 Crucially, the underlying basis for the operator is assumed to be orthonormal.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -238,6 +236,8 @@ elements, returning then the final generated space
 
  </div>
 </div>
+
+
 
 
 

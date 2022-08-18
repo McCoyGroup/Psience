@@ -11,8 +11,6 @@ TODO: The idea is good, but calculating what is "in" the array and what is "out"
 every single time this is applied could be slow...
 We'll need to test to see how slow
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -156,6 +154,8 @@ __repr__(self):
 
  </div>
 </div>
+
+
 
 
 

@@ -7,8 +7,6 @@ Provides a unified interface to working with dipole surfaces.
 Currently basically no fancier than a regular surface (although with convenient loading functions), but dipole-specific
 stuff could come
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -100,6 +98,8 @@ Explicitly overrides the Surface-level evaluation because we know the Taylor sur
 
  </div>
 </div>
+
+
 
 
 

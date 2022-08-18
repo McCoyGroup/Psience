@@ -5,8 +5,6 @@
 
 Base class to support spectral operation
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -149,6 +147,8 @@ A stub so that subclasses can implement their own `plot` methods
 
  </div>
 </div>
+
+
 
 
 

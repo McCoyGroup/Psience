@@ -5,8 +5,6 @@
 
 
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -85,6 +83,8 @@ Computes the N-dimensional kinetic energy
 
  </div>
 </div>
+
+
 
 
 

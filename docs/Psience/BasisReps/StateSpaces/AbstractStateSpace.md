@@ -6,8 +6,6 @@
 Represents a generalized state space which will provide core
 methods to index into a basis and generate representations
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -438,6 +436,8 @@ unshare(self, shared_memory_manager):
 
  </div>
 </div>
+
+
 
 
 

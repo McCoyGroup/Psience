@@ -122,9 +122,9 @@ Finally, the general code flow is detailed below
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Examples-fb5e7c" markdown="1"> Examples</a> </a>
+## <a class="collapse-link" data-toggle="collapse" href="#Examples-f67213" markdown="1"> Examples</a> 
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Examples-fb5e7c" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Examples-f67213" markdown="1">
  
 In the following we provide some basic examples.
 More complex cases can be composed from the many settings provided in the Hamiltonian, solver, and runtime objects.

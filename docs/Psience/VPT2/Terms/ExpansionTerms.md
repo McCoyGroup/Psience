@@ -5,8 +5,6 @@
 
 Base class for kinetic, potential, and dipole derivative terms
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -353,6 +351,8 @@ get_internal_modes_by_cartesian_modes(self, order=None):
 
  </div>
 </div>
+
+
 
 
 

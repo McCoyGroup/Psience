@@ -6,92 +6,6 @@
 Provides a helper to make it easier to set up the input
 state spaces/degenerate spaces to run the perturbation theory
 
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-d2433e" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-d2433e"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse " id="Details-d2433e" markdown="1">
- 
-There are multiple possible values for the `degeneracy_specs`.
-The simplest is to use the automatic approach, in which we supply a numeric type (`int`, `float`, etc.) to use as the `WFC` threshold.
-The next simplest is to explicitly supply the groups we want, like
-
-```python
-[
-    [ # the first resonant space
-        state_1,
-        state_2,
-        state_3
-    ],
-    [ # the second
-        state_5, state_11, ...
-    ],
-    ...
-]
-```
-
-We can also supply pairs of relations for determining resonances, like
-
-```python
-[
-    [state_1,  state_2], # A first relation
-    [state_3,  state_4],  # another relation
-    ...
-]
-```
-
-To allow for extra options, you can also supply a `dict`. If you wanted to have a different `wfc_threshold` and you wanted to do the secondary resonant space splitting step with a very large threshold, you could do that by supplying
-
-```python
-{
-    'wfc_threshold':.1,
-    'energy_cutoff':1.0 # in Hartree
-}
-```
-
-or you can explicitly add extra groups to the pairs of polyad rules by saying
-
-```python
-{
-    'polyads':[
-            [state_1,  state_2], # A first relation
-            [state_3,  state_4],  # another relation
-            ...
-        ],
-    'extra_groups': [
-        [ # the first resonant space
-            state_a,
-            state_b,
-            state_c
-        ],
-        [ # the second
-            state_d, state_e, ...
-        ],
-        ...
-    ]
-}
-```
-
-This also allows us to define more resonance handling strategies.
-
-The Martin Test is supported,
-```python
-{
-    'martin_threshold':.1/219465, #in Hartree
-}
-```
-
-As are total quanta vectors/polyads
-```python
-{
-    'nT': [1, 1, 1, 0, 2, 2, 0] # e.g.
-}
-```
- </div>
-</div>
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -212,6 +126,92 @@ Gets `state_space_filters` for the input `states` targeting some property
 
  </div>
 </div>
+
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+## <a class="collapse-link" data-toggle="collapse" href="#Details-4c132a" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-4c132a"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse " id="Details-4c132a" markdown="1">
+ 
+There are multiple possible values for the `degeneracy_specs`.
+The simplest is to use the automatic approach, in which we supply a numeric type (`int`, `float`, etc.) to use as the `WFC` threshold.
+The next simplest is to explicitly supply the groups we want, like
+
+```python
+[
+    [ # the first resonant space
+        state_1,
+        state_2,
+        state_3
+    ],
+    [ # the second
+        state_5, state_11, ...
+    ],
+    ...
+]
+```
+
+We can also supply pairs of relations for determining resonances, like
+
+```python
+[
+    [state_1,  state_2], # A first relation
+    [state_3,  state_4],  # another relation
+    ...
+]
+```
+
+To allow for extra options, you can also supply a `dict`. If you wanted to have a different `wfc_threshold` and you wanted to do the secondary resonant space splitting step with a very large threshold, you could do that by supplying
+
+```python
+{
+    'wfc_threshold':.1,
+    'energy_cutoff':1.0 # in Hartree
+}
+```
+
+or you can explicitly add extra groups to the pairs of polyad rules by saying
+
+```python
+{
+    'polyads':[
+            [state_1,  state_2], # A first relation
+            [state_3,  state_4],  # another relation
+            ...
+        ],
+    'extra_groups': [
+        [ # the first resonant space
+            state_a,
+            state_b,
+            state_c
+        ],
+        [ # the second
+            state_d, state_e, ...
+        ],
+        ...
+    ]
+}
+```
+
+This also allows us to define more resonance handling strategies.
+
+The Martin Test is supported,
+```python
+{
+    'martin_threshold':.1/219465, #in Hartree
+}
+```
+
+As are total quanta vectors/polyads
+```python
+{
+    'nT': [1, 1, 1, 0, 2, 2, 0] # e.g.
+}
+```
+ </div>
+</div>
+
 
 
 

@@ -6,8 +6,6 @@
 A potential surface structure to go along with the DipoleSurface.
 Provides convenient access to dipole data + a unified interface to things like energy minimization
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -67,6 +65,8 @@ Loads potential from a Gaussian formatted checkpoint file and builds a potential
 
  </div>
 </div>
+
+
 
 
 

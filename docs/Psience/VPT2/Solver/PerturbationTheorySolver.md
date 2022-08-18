@@ -7,8 +7,6 @@ A solver that applies perturbation theory
 given a series of corrections and population of states.
 Supports degenerate and non-degenerate PT.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -394,6 +392,8 @@ drop_deg_pert_els(self, perts, deg_groups):
 
  </div>
 </div>
+
+
 
 
 

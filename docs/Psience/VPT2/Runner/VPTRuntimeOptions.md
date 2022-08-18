@@ -6,8 +6,6 @@
 Provides a helper to keep track of the options available
 for configuring the way the code runs
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -50,6 +48,8 @@ __init__(self, operator_chunk_size=None, matrix_element_threshold=None, nondeg_h
 
  </div>
 </div>
+
+
 
 
 

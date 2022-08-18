@@ -8,8 +8,6 @@ Mixed product bases aren't currently supported, but this provides
 at least a sample for how that kind of things could be
 generated.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -306,6 +304,8 @@ get_state_space(self, quanta):
 
  </div>
 </div>
+
+
 
 
 

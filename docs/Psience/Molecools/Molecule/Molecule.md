@@ -5,8 +5,6 @@
 
 General purpose 'Molecule' class where the 'Molecule' need not be a molecule at all
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -673,6 +671,8 @@ to_widget(self):
 
  </div>
 </div>
+
+
 
 
 

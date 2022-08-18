@@ -7,8 +7,6 @@ Simple wave function that takes a set of expansion coefficients alongside its ba
 Technically this should be called a _linear expansion wave function_, but
 that was too long for my taste.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -138,6 +136,8 @@ Computes the probability density of the current wavefunction
 
  </div>
 </div>
+
+
 
 
 

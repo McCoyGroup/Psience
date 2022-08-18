@@ -6,8 +6,6 @@
 Tiny, tiny layer on `SimpleProductBasis` that makes use of some analytic work done
 to support representations of `p` and `x`.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -88,6 +86,8 @@ __repr__(self):
 
  </div>
 </div>
+
+
 
 
 

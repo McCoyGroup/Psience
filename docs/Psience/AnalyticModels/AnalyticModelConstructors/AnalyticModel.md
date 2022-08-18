@@ -6,8 +6,6 @@
 Provides a symbolic representation of an analytically evaluatable Hamiltonian
 which can be used to get derived expressions to evaluate.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -277,6 +275,8 @@ mass(atom):
 
  </div>
 </div>
+
+
 
 
 

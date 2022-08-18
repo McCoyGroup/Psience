@@ -5,8 +5,6 @@
 
 Provides the Colbert Miller DVR on the Cartesian [-inf, inf] range
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -63,6 +61,8 @@ Provides the real part of the momentum for the [0, 2pi] range
 
  </div>
 </div>
+
+
 
 
 

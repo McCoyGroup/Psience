@@ -6,8 +6,6 @@
 An object representing a set of wavefunctions.
 Provides concrete, but potentially inefficient methods for doing all the wavefunction ops.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -149,6 +147,8 @@ Provides the representation of the KE in the wavefunction basis
 
  </div>
 </div>
+
+
 
 
 

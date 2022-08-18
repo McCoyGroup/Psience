@@ -6,8 +6,6 @@
 Metaclass for representations.
 Requires concrete implementations of the position and momentum operators.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -300,6 +298,8 @@ Generates the full set of possible selection rules for terms
 
  </div>
 </div>
+
+
 
 
 

@@ -5,8 +5,6 @@
 
 Represents a single wavefunction object
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -75,6 +73,8 @@ Computes the probability density of the current wavefunction
 
  </div>
 </div>
+
+
 
 
 

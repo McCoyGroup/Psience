@@ -6,8 +6,6 @@
 Concrete implementation of `BaseSpectrum` that exists
 solely to allow for plotting & maybe some day for interchange with like experimental formats
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -34,6 +32,8 @@ Plots a spectrum using `McUtils.Plots.Plot`
 
  </div>
 </div>
+
+
 
 
 

@@ -6,8 +6,6 @@
 Provides a helper to keep track of the levers available for
 setting up the Hamiltonian
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -80,6 +78,8 @@ __init__(self, mode_selection=None, include_potential=None, include_gmatrix=None
 
  </div>
 </div>
+
+
 
 
 

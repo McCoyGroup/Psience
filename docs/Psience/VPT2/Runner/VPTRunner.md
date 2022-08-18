@@ -6,8 +6,6 @@
 A helper class to make it easier to run jobs by making the inputs/options
 clear and making it easier to customize run options
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -124,6 +122,8 @@ runner's `print_tables` method after printing out run info.
 
  </div>
 </div>
+
+
 
 
 

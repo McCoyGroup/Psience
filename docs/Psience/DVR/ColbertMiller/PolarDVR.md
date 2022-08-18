@@ -5,8 +5,6 @@
 
 Provides a DVR for working on the (0, pi) range from Colbert and Miller
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -63,6 +61,8 @@ Colbert-Miller kinetic energy for the [0, pi] range
 
  </div>
 </div>
+
+
 
 
 

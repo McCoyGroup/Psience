@@ -8,8 +8,6 @@ to efficiently tell it what terms it need to calculate.
 This basically just implements a bunch of stuff for generating a Graph defining
 the connections between states.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -273,6 +271,8 @@ concatenate(self, other):
 
  </div>
 </div>
+
+
 
 
 

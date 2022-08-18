@@ -6,8 +6,6 @@
 Very simple indexer that takes a set of states and indexes based on that.
 Needs some testing to make sure everything works as cleanly as hoped.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -42,6 +40,8 @@ from_indices(self, indices):
 
  </div>
 </div>
+
+
 
 
 

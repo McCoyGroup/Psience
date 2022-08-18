@@ -5,8 +5,6 @@
 
 Provides a base class for analytic models
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -247,6 +245,8 @@ transform_coordinates(rotation, coord_vec=None, coord_name_fmt='q{id}[{num}]'):
 
  </div>
 </div>
+
+
 
 
 

@@ -6,40 +6,6 @@
 Provides a helper to keep track of the options available
 for configuring the way the perturbation theory is applied
 
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-8cde78" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-8cde78"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse " id="Details-8cde78" markdown="1">
- The `basis_postfilters` have multiple possible values.
-Here are the currently supported cases
-
-```python
-{
-    'max_quanta': [2, -1, 1, -1, ...] # the max number of quanta allowed in a given mode in the basis (-1 means infinity)
-}
-```
-
-- for excluding transitions
-
-```python
-{
-    'excluded_transitions': [[0, 0, 1, 0, ...], [1, 0, 0, 0, ...], ...] # a set of transitions that are forbidden on the input states
-}
-```
-
-- for excluding based on a test
-
-```python
-{
-    'test': func # a function that takes the basis and tests if states should be allowed
-}
-```
- </div>
-</div>
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -119,6 +85,40 @@ get_zero_order_energies(corrected_fundamental_freqs, states):
 
  </div>
 </div>
+
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+## <a class="collapse-link" data-toggle="collapse" href="#Details-ff945d" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-ff945d"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse " id="Details-ff945d" markdown="1">
+ The `basis_postfilters` have multiple possible values.
+Here are the currently supported cases
+
+```python
+{
+    'max_quanta': [2, -1, 1, -1, ...] # the max number of quanta allowed in a given mode in the basis (-1 means infinity)
+}
+```
+
+- for excluding transitions
+
+```python
+{
+    'excluded_transitions': [[0, 0, 1, 0, ...], [1, 0, 0, 0, ...], ...] # a set of transitions that are forbidden on the input states
+}
+```
+
+- for excluding based on a test
+
+```python
+{
+    'test': func # a function that takes the basis and tests if states should be allowed
+}
+```
+ </div>
+</div>
+
 
 
 

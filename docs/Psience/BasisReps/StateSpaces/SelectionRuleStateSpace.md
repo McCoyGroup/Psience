@@ -6,8 +6,6 @@
 A `BasisMultiStateSpace` subclass that is only built from applying selection rules to an initial space
 This really should have been called `TransformedStateSpace` but I am dumb
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -327,6 +325,8 @@ __repr__(self):
 
  </div>
 </div>
+
+
 
 
 

@@ -7,8 +7,6 @@ Provides support for terms that look like `pGp` or `p(dG/dQ)Qp` by
 expanding them out as the pure operator component that depends on the basis states (i.e. `pp` or `pQp`)
 and doing the appropriate tensor contractions with the expansion coefficients (i.e. `G` or `dG/dQ`)
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -90,6 +88,8 @@ __repr__(self):
 
  </div>
 </div>
+
+
 
 
 

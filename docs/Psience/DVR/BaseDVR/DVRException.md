@@ -5,8 +5,6 @@
 
 Base exception class for working with DVRs
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -19,6 +17,8 @@ Base exception class for working with DVRs
 
  </div>
 </div>
+
+
 
 
 

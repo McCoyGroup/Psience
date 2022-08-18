@@ -8,8 +8,6 @@ to evaluate out matrix elements and stuff.
 This will be more progressively more tightly meshed with RepresentationBasis in the future,
 but for now I just want to provide the scaffolding so that I can build off of it.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -93,6 +91,8 @@ Computes the probability density of the current wavefunction
 
  </div>
 </div>
+
+
 
 
 

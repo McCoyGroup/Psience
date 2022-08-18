@@ -5,8 +5,6 @@
 
 
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -65,6 +63,8 @@ kinetic_energy(self, n):
 
  </div>
 </div>
+
+
 
 
 

@@ -7,8 +7,6 @@ This accounts for the potential-like term.
 In Cartesian diplacement modes this is the Watson U.
 In proper internals, this is the V' term.
 
-
-
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -27,6 +25,8 @@ get_terms(self, order=None, logger=None):
 
  </div>
 </div>
+
+
 
 
 
