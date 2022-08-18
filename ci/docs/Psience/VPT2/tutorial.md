@@ -97,9 +97,111 @@ where the properties are as follows
     >whether or not to calculate energies
 - `opts`: `Any`
     >options that work for a `VPTSystem`, `VPTStateSpace`, `VPTRuntimeOptions`, `VPTSolverOptions`, or `VPTHamiltonianOptions` object which will be filtered automatically
-  
-A few commonly used properties are  
 
+This can be used quite simply if one has an `fchk` file containing a partial quartic expansion of a potential (e.g. from a `freq=Anh` job in Gaussian)
+
+<div class="card in-out-block" markdown="1" id="Markdown_code">
+
+```python
+VPTRunner.run_simple(
+        "HOH_freq.fchk",
+        3 # up through three quanta of excitation
+    )
+```
+
+<div class="card-body out-block" markdown="1">
+
+```lang-none
+...
+                   Harmonic                  Anharmonic
+State       Frequency    Intensity       Frequency    Intensity
+  0 0 1    3937.52466     67.02051      3744.74223     64.17167
+  0 1 0    3803.29960      4.14283      3621.97931      3.11401
+  1 0 0    1622.30302     67.45626      1572.70734     68.32367
+  0 0 2    7875.04932      0.00000      7391.41648      0.01483
+  0 2 0    7606.59919      0.00000      7155.85397      0.31496
+  2 0 0    3244.60604      0.00000      3117.39090      0.55473
+  0 1 1    7740.82426      0.00000      7200.36337      2.20979
+  1 0 1    5559.82768      0.00000      5294.37886      3.76254
+  1 1 0    5425.60262      0.00000      5174.61359      0.06232
+  0 0 3   11812.57398      0.00000     10940.02275      0.04985
+  0 3 0   11409.89879      0.00000     10601.62396      0.00898
+  3 0 0    4866.90906      0.00000      4634.05068      0.00350
+  0 1 2   11678.34892      0.00000     10680.67944      0.00001
+  1 0 2    9497.35234      0.00000      8917.98240      0.00333
+  0 2 1   11544.12385      0.00000     10567.87984      0.08362
+  2 0 1    7182.13070      0.00000      6815.99171      0.16303
+  1 2 0    9228.90221      0.00000      8688.41518      0.00427
+  2 1 0    7047.90564      0.00000      6699.22408      0.00661
+  1 1 1    9363.12728      0.00000      8729.92693      0.09713
+```
+
+</div>
+</div>
+
+For more sophisticated calculations, many other flags are provided
+
+### (from [`VPTStateSpace`](../VPT2/Runner/VPTStateSpace.md))
+
+- `degeneracy_specs`: `'auto' | list | dict`
+    >A specification of degeneracies, either as polyads, explicit groups of states, or parameters to a method. (see Details for more info)
+
+### (from [`VPTHamiltonianOptions`](../VPT2/Runner/VPTHamiltonianOptions.md))
+
+- `mode_selection`: `Iterable[int]|None`
+    >the set of the supplied normal modes to do perturbation theory on (can also be used to rearrange modes to put them in ordering from Herzberg notation)
+- `operator_coefficient_threshold`: `float|None`
+    >the minimum size of a coefficient to keep when evaluating representation terms
+- `pseudopotential_terms`: `Iterable[np.ndarray]`
+    >explicit values for the psuedopotential terms
+- `coriolis_terms`: `Iterable[np.ndarray]`
+    >explicit values for the Coriolis terms
+- `kinetic_terms`: `Iterable[np.ndarray]`
+    >explicit values for the kinetic terms (e.g. from analytic models), same format as for the potential
+- `potential_terms`: `Iterable[np.ndarray]`
+    >explicit values for the potential terms (e.g. from analytic models), should be a list of tensors starting with the Hessian with each axis of length `nmodes`
+- `include_pseudopotential`: `bool`
+    >whether or not to include the pseudopotential/Watson term
+- `include_coriolis_coupling`: `bool`
+    >whether or not to include Coriolis coupling in Cartesian normal mode calculation
+- `backpropagate_internals`: `bool`
+    >whether or not to do Cartesian coordinate calculations with values backpropagated from internals
+
+
+### (from [`VPTSolverOptions`](../VPT2/Runner/VPTSolverOptions.md))
+- `check_overlap`: `bool default:True`
+    >whether or not to ensure states are normalized in the VPT
+- `zero_order_energy_corrections`: `dict`
+    >energies to use for the zero-order states instead of the diagonal of `H(0)`
+- `low_frequency_mode_cutoff`: `float (default:500 cm-1)`
+    >the energy below which to consider a mode to be "low frequency"
+- `state_space_filters`: `dict`
+    >filters that can be used to cut down on the size of bases (see `VPTRunner.get_state_space_filter`)
+- `order`: `int`
+    >the order of perturbation theory to apply
+- `expansion_order`: `int | dict`
+    >the order to go to in the expansions of the perturbations, this can be supplied for different properties independently, like
+    > ```python
+    > expansion_order = {
+    >  'potential':some_int,
+    >  'kinetic':some_int,
+    >  'dipole':some_int
+    >  }
+    >```
+- `zero_element_warning`: `bool`
+    >whether or not to warn if an element of the representations evaluated to zero (i.e. we wasted effort)
+
+### (from [`VPTRuntimeOptions`](../VPT2/Runner/VPTRuntimeOptions.md))
+- `results`: `str|Checkpointer|None default:None`
+    >the `Checkpointer` to write corrections out to
+- `logger`: `str|Logger|bool|None default:None`
+    >the `Logger` object to use when logging the status of the calculation (`True` means log normally)
+- `nondeg_hamiltonian_precision`: `int`
+    >the precision with which to print out elements in the degenerate coupling Hamiltonians in the log file
+- `matrix_element_threshold`: `float|None default:None`
+    >the minimum size of matrix element to keep
+- `operator_chunk_size`: `int|None default:None`
+    >the number of representation matrix elements to calculate in at one time
 
 ## Anne Input Helpers
 
