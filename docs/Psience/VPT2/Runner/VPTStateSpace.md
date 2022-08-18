@@ -9,9 +9,9 @@ state spaces/degenerate spaces to run the perturbation theory
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-48d069" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-48d069"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-d2433e" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-d2433e"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse " id="Details-48d069" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse " id="Details-d2433e" markdown="1">
  
 There are multiple possible values for the `degeneracy_specs`.
 The simplest is to use the automatic approach, in which we supply a numeric type (`int`, `float`, etc.) to use as the `WFC` threshold.
@@ -110,7 +110,7 @@ __init__(self, states, degeneracy_specs=None, system=None):
 
 
 - `degeneracy_specs`: `'auto' | list | dict`
-    >A specification of degeneracies, either as polyads, explicit groups of states, or parameters to a method.
+    >A specification of degeneracies, either as polyads, explicit groups of states, or parameters to a method. (see Details for more info)
 - `states`: `list | int`
     >A list of states or a number of quanta to target
 

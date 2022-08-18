@@ -13,6 +13,9 @@ For the purposes of papers, we've been calling this implementation `PyVibPTn`.
 
 The easiest way to run jobs is through the `VPTRunner.run_simple` interface.
 The options for jobs along with short descriptions are detailed in
+[`VPTSystem`](VPT2/Runner/VPTSystem.md) for molecule/system-related options,
+[`VPTStateSpace`](VPT2/Runner/VPTStateSpace.md) for state-space & degeneracy-related options,
+[`VPTHamiltonianOptions`](VPT2/Runner/VPTHamiltonianOptions.md) for expansion-related options,
 [`VPTHamiltonianOptions`](VPT2/Runner/VPTHamiltonianOptions.md) for expansion-related options,
 [`VPTSolverOptions`](VPT2/Runner/VPTSolverOptions.md) for options related to constructing representations and applying VPT,
 and [`VPTRuntimeOptions`](VPT2/Runner/VPTRuntimeOptions.md) for options related to the runtime/logging
@@ -119,9 +122,9 @@ Finally, the general code flow is detailed below
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Examples-2e25f0" markdown="1"> Examples</a> </a>
+## <a class="collapse-link" data-toggle="collapse" href="#Examples-fb5e7c" markdown="1"> Examples</a> </a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Examples-2e25f0" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Examples-fb5e7c" markdown="1">
  
 In the following we provide some basic examples.
 More complex cases can be composed from the many settings provided in the Hamiltonian, solver, and runtime objects.
