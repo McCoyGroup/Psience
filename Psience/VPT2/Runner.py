@@ -261,7 +261,7 @@ class VPTStateSpace:
         """
         :param states: A list of states or a number of quanta to target
         :type states: list | int
-        :param degeneracy_specs: A specification of degeneracies, either as polyads, explicit groups of states, or parameters to a method.
+        :param degeneracy_specs: A specification of degeneracies, either as polyads, explicit groups of states, or parameters to a method. (see Details for more info)
         :type degeneracy_specs: 'auto' | list | dict
         """
         if not isinstance(states, BasisStateSpace):
@@ -841,13 +841,13 @@ class VPTSolverOptions:
         :type order: int
         :type order: int
         :param expansion_order: the order to go to in the expansions of the perturbations, this can be supplied for different properties independently, like
-```python
-expansion_order = {
-    'potential':some_int,
-    'kinetic':some_int,
-    'dipole':some_int
-}
-```
+        ```python
+        expansion_order = {
+            'potential':some_int,
+            'kinetic':some_int,
+            'dipole':some_int
+        }
+        ```
         :type expansion_order: int | dict
         :param degenerate_states: the set of degeneracies to handle
         :type degenerate_states: Iterable[BasisStateSpace]
