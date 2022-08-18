@@ -9,6 +9,9 @@ For the purposes of papers, we've been calling this implementation `PyVibPTn`.
 
 The easiest way to run jobs is through the `VPTRunner.run_simple` interface.
 The options for jobs along with short descriptions are detailed in
+[`VPTSystem`](VPT2/Runner/VPTSystem.md) for molecule/system-related options,
+[`VPTStateSpace`](VPT2/Runner/VPTStateSpace.md) for state-space & degeneracy-related options,
+[`VPTHamiltonianOptions`](VPT2/Runner/VPTHamiltonianOptions.md) for expansion-related options,
 [`VPTHamiltonianOptions`](VPT2/Runner/VPTHamiltonianOptions.md) for expansion-related options,
 [`VPTSolverOptions`](VPT2/Runner/VPTSolverOptions.md) for options related to constructing representations and applying VPT,
 and [`VPTRuntimeOptions`](VPT2/Runner/VPTRuntimeOptions.md) for options related to the runtime/logging
