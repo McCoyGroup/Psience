@@ -31,6 +31,19 @@ class VPTSystem:
     """
     Provides a little helper for setting up the input
     system for a VPT job
+
+    :details:
+    When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
+    ```python
+    def conv(r, t, f, **kwargs):
+        '''
+        Takes the bond lengths (`r`), angles `(t)` and dihedrals `(f)`,
+        and returns new coordinates that are functions of these coordinates
+        '''
+        ... # convert the coordinates
+        return np.array([r, t, f])
+    ```
+    and then the inverse function will take the output of `conv` and return the original Z-matrix/polyspherical coordinates.
     """
 
     __props__ = (
@@ -60,6 +73,14 @@ class VPTSystem:
         :param mol: the molecule or system specification to use (doesn't really even need to be a molecule)
         :type mol: str | list | Molecule
         :param internals: the Z-matrix for the internal coordinates optionally with a specification of a `conversion` and `inverse`
+        To supply a conversion function, provide a `dict` like so
+        ```python
+        {
+            'zmatrix': [[atom1, bond1, angle1, dihed1], [atom2, bond2, angle2, dihed2], ...] or None,
+            'conversion': 'a function to convert from Z-matrix coordinates to desired coordinates',
+            'inverse': 'the inverse conversion'
+        }
+        ```
         :type internals: list | dict
         :param modes: the normal modes to use if not already supplied by the Molecule
         :type modes: MolecularVibrations|dict
@@ -151,8 +172,8 @@ class VPTStateSpace:
     state spaces/degenerate spaces to run the perturbation theory
 
     :details:
-    
-    There are multiple possible values for this spec.
+
+    There are multiple possible values for the `degeneracy_specs`.
     The simplest is to use the automatic approach, in which we supply a numeric type (`int`, `float`, etc.) to use as the `WFC` threshold.
     The next simplest is to explicitly supply the groups we want, like
 
@@ -220,35 +241,11 @@ class VPTStateSpace:
         'martin_threshold':.1/219465, #in Hartree
     }
     ```
-    As are total quanta vectors
+
+    As are total quanta vectors/polyads
     ```python
     {
         'nT': [1, 1, 1, 0, 2, 2, 0] # e.g.
-    }
-    ```
-    - `mode_selection` (`list[int]`): the subset of normal modes to use in the calculation as a `list` of `int`s corresponding to the desired modes (can also be used to rearrange from freq. ordering to Herzberg)
-    - `basis_postfilters` (`list[dict]`): a list of filters to apply sequentially to the basis of states used in the PT, each filter can look like one of the following
-      - for excluding quanta
-
-    ```python
-    {
-        'max_quanta': [2, -1, 1, -1, ...] # the max number of quanta allowed in a given mode in the basis (-1 means infinity)
-    }
-    ```
-
-      - for excluding transitions
-
-    ```python
-    {
-        'excluded_transitions': [[0, 0, 1, 0, ...], [1, 0, 0, 0, ...], ...] # a set of transitions that are forbidden on the input states
-    }
-    ```
-
-      - for excluding transitions
-
-    ```python
-    {
-        'test': func # a function that takes the basis and tests if states should be allowed
     }
     ```
     """
@@ -759,6 +756,32 @@ class VPTSolverOptions:
     """
     Provides a helper to keep track of the options available
     for configuring the way the perturbation theory is applied
+
+    :details:
+    The `basis_postfilters` have multiple possible values.
+    Here are the currently supported cases
+
+    ```python
+    {
+        'max_quanta': [2, -1, 1, -1, ...] # the max number of quanta allowed in a given mode in the basis (-1 means infinity)
+    }
+    ```
+
+    - for excluding transitions
+
+    ```python
+    {
+        'excluded_transitions': [[0, 0, 1, 0, ...], [1, 0, 0, 0, ...], ...] # a set of transitions that are forbidden on the input states
+    }
+    ```
+
+    - for excluding based on a test
+
+    ```python
+    {
+        'test': func # a function that takes the basis and tests if states should be allowed
+    }
+    ```
     """
 
     __props__ = (
@@ -819,10 +842,10 @@ class VPTSolverOptions:
         :type order: int
         :param expansion_order: the order to go to in the expansions of the perturbations, this can be supplied for different properties independently, like
 ```python
-{
-    'potential':int,
-    'kinetic':int,
-    'dipole':int,
+expansion_order = {
+    'potential':some_int,
+    'kinetic':some_int,
+    'dipole':some_int
 }
 ```
         :type expansion_order: int | dict

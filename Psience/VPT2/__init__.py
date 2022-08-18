@@ -9,11 +9,11 @@ For the purposes of papers, we've been calling this implementation `PyVibPTn`.
 
 The easiest way to run jobs is through the `VPTRunner.run_simple` interface.
 The options for jobs along with short descriptions are detailed in
-[`VPTHamiltonianOptions`](Runner/VPTHamiltonianOptions.md) for expansion-related options,
-[`VPTSolverOptions`](Runner/VPTSolverOptions.md) for options related to constructing representations and applying VPT,
-and [`VPTRuntimeOptions`](Runner/VPTRuntimeOptions.md) for options related to the runtime/logging
+[`VPTHamiltonianOptions`](VPT2/Runner/VPTHamiltonianOptions.md) for expansion-related options,
+[`VPTSolverOptions`](VPT2/Runner/VPTSolverOptions.md) for options related to constructing representations and applying VPT,
+and [`VPTRuntimeOptions`](VPT2/Runner/VPTRuntimeOptions.md) for options related to the runtime/logging
 
-A basic tutorial to provide more extensive hand-holding can be found [here](tutorial.md).
+A basic tutorial to provide more extensive hand-holding can be found [here](VPT2/tutorial.md).
 
 Finally, the general code flow is detailed below
 

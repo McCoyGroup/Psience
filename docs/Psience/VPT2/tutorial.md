@@ -103,12 +103,11 @@ A few commonly used properties are
 
 ## Anne Input Helpers
 
-I've attached an object called `AnneInputHelpers` to the [`VPTRunner`](https://mccoygroup.github.io/Psience/Psience/VPT2/Runner/VPTRunner.html) object set up to make running VPT jobs a little bit simpler.
+I've also attached an object called `AnneInputHelpers` to [`VPTRunner`](https://mccoygroup.github.io/Psience/Psience/VPT2/Runner/VPTRunner.html) object set up to make running VPT jobs a little bit simpler.
 This object exists to enable people who aren't comfortable with python and standard python data loading to supply their custom job input data as text files.
 It exposes one core function `run_anne_job`, that will take a folder with the appropriate files and run a VPT job.
 
-The signature of the function [can be found on GitHub](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#:~:text=run_anne_job) and looks like
-
+The signature of the function (as of when this is being written) looks like
 
 ```python
 VPTRunner.helpers.run_anne_job(
