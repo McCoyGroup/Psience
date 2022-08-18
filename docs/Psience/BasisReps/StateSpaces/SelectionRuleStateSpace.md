@@ -6,6 +6,8 @@
 A `BasisMultiStateSpace` subclass that is only built from applying selection rules to an initial space
 This really should have been called `TransformedStateSpace` but I am dumb
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -26,12 +28,12 @@ __init__(self, init_space, excitations, selection_rules=None, ignore_shapes=Fals
 </div>
 
 
-- `init_space`: `Any`
-    >No description...
-- `excitations`: `Any`
-    >No description...
 - `selection_rules`: `Any`
-    >No description...
+    >
+- `excitations`: `Any`
+    >
+- `init_space`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.to_state" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -58,9 +60,9 @@ as_indices(self):
 </div>
 
 Pulls the full set indices out of all of the
-        held spaces and returns them as a flat vector
+held spaces and returns them as a flat vector
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.as_excitations" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -71,9 +73,9 @@ as_excitations(self):
 </div>
 
 Pulls the full set excitations out of all of the
-        held spaces and returns them as a flat vector
+held spaces and returns them as a flat vector
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.representative_space" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -110,10 +112,10 @@ take_states(self, states, track_excitations=True, track_indices=True):
 </div>
 
 Takes the intersection of each held space and the specified states
-- `states`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `states`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.take_subspace" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -124,10 +126,10 @@ take_subspace(self, states):
 </div>
 
 Takes the intersection of each held space and the specified states
-- `states`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `states`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.take_subdimensions" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -138,10 +140,10 @@ take_subdimensions(self, inds):
 </div>
 
 Takes the subdimensions from each space
-- `inds`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `inds`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.drop_states" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -152,10 +154,10 @@ drop_states(self, states):
 </div>
 
 Takes the intersection of each held space and the specified states
-- `states`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `states`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.drop_subspace" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -166,10 +168,10 @@ drop_subspace(self, inds):
 </div>
 
 Takes the intersection of each held space and the specified states
-- `states`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `states`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.drop_subdimensions" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -180,10 +182,10 @@ drop_subdimensions(self, inds):
 </div>
 
 Takes the subdimensions from each space
-- `inds`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `inds`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -194,9 +196,9 @@ get_representation_indices(self, other=None, freqs=None, freq_threshold=None, se
 </div>
 
 This is where this pays dividends, as we know that only the init_space and the held excitations can couple
-        which reduces the combinatoric work by a factor of like 2.
+which reduces the combinatoric work by a factor of like 2.
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.filter_representation_inds" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -207,13 +209,13 @@ filter_representation_inds(self, ind_pairs, q_changes):
 </div>
 
 Filters representation indices by the allowed #quantum changes.
-        Not sure I'll even need this, if `get_representation_indices` is tight enough.
-- `ind_pairs`: `Any`
-    >No description...
-- `q_changes`: `Any`
-    >No description...
+Not sure I'll even need this, if `get_representation_indices` is tight enough.
 - `:returns`: `_`
-    >No description...
+    >
+- `q_changes`: `Any`
+    >
+- `ind_pairs`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.from_rules" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -224,16 +226,16 @@ from_rules(space, selection_rules, target_dimensions=None, filter_space=None, it
 </div>
 
 
-- `space`: `BasisStateSpace | BasisMultiStateSpace`
-    >initial space to which to apply the transformations
-- `selection_rules`: `Iterable[Iterable[int]]`
-    >different possible transformations
-- `iterations`: `int`
-    >number of times to apply the transformations
+- `:returns`: `SelectionRuleStateSpace`
+    >
 - `filter_space`: `BasisStateSpace | None`
     >a space within which all generated `BasisStateSpace` objects must be contained
-- `:returns`: `SelectionRuleStateSpace`
-    >No description...
+- `iterations`: `int`
+    >number of times to apply the transformations
+- `selection_rules`: `Iterable[Iterable[int]]`
+    >different possible transformations
+- `space`: `BasisStateSpace | BasisMultiStateSpace`
+    >initial space to which to apply the transformations
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.filter_transitions" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -252,11 +254,11 @@ union(self, other, handle_subspaces=True, track_excitations=True, track_indices=
 </div>
 
 Returns a merged version of self and other, adding
-        any states in other to self and merging where they intersect
-- `other`: `SelectionRuleStateSpace`
-    >No description...
+any states in other to self and merging where they intersect
 - `:returns`: `_`
-    >No description...
+    >
+- `other`: `SelectionRuleStateSpace`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.intersection" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -267,10 +269,10 @@ intersection(self, other, handle_subspaces=True, use_indices=False, track_excita
 </div>
 
 Returns an intersected self and other
-- `other`: `SelectionRuleStateSpace`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `other`: `SelectionRuleStateSpace`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.difference" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -281,15 +283,15 @@ difference(self, other, handle_subspaces=True):
 </div>
 
 Returns an diff'ed self and other.
-        We get fundamentally different behaviour for `handle_subspaces` than without it.
-        If we have it _on_ then differences are computed for each states in the intersection of
-          the primary (key) states.
-        If we have it off then the difference in the key states is computed and nothing more is
-        done.
-- `other`: `SelectionRuleStateSpace`
-    >No description...
+We get fundamentally different behaviour for `handle_subspaces` than without it.
+If we have it _on_ then differences are computed for each states in the intersection of
+the primary (key) states.
+If we have it off then the difference in the key states is computed and nothing more is
+done.
 - `:returns`: `SelectionRuleStateSpace`
-    >No description...
+    >
+- `other`: `SelectionRuleStateSpace`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.__getitem__" class="docs-object-method">&nbsp;</a> 
 ```python

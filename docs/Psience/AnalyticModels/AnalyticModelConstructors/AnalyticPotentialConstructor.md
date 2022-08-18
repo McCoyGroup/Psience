@@ -5,6 +5,8 @@
 
 
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -23,7 +25,7 @@ morse(*args, De=None, a=None, re=None):
 
 Returns a fully symbolic form of a Morse potential
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.calc_morse" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -51,7 +53,7 @@ harmonic(*args, k=None, qe=None):
 
 Returns a fully symbolic form of a Morse potential
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.lin" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -71,7 +73,7 @@ linear(*args, k=1, xe=None):
 
 Returns a fully symbolic form of a linear function
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.multiwell" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -82,14 +84,14 @@ multiwell(*args, turning_points=None, origin=0, minimum=0, depth=None):
 </div>
 
 
-- `args`: `Any`
-    >No description...
-- `turning_points`: `Any`
-    >No description...
-- `depth`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `depth`: `Any`
+    >
+- `turning_points`: `Any`
+    >
+- `args`: `Any`
+    >
 
  </div>
 </div>

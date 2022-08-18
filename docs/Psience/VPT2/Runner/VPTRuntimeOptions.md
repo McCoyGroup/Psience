@@ -1,10 +1,12 @@
 ## <a id="Psience.VPT2.Runner.VPTRuntimeOptions">VPTRuntimeOptions</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L671)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L671?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L668)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L668?message=Update%20Docs)]
 </div>
 
 Provides a helper to keep track of the options available
 for configuring the way the code runs
+
+
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
@@ -19,32 +21,32 @@ for configuring the way the code runs
 __init__(self, operator_chunk_size=None, matrix_element_threshold=None, nondeg_hamiltonian_precision=None, logger=None, verbose=None, checkpoint=None, results=None, parallelizer=None, memory_constrained=None, checkpoint_keys=None, use_cached_representations=None, use_cached_basis=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L690)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L690?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L687)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L687?message=Update%20Docs)]
 </div>
 
 
-- `operator_chunk_size`: `int|None default:None`
-    >the number of representation matrix elements to calculate in at one time
-- `matrix_element_threshold`: `float|None default:None`
-    >the minimum size of matrix element to keep
-- `nondeg_hamiltonian_precision`: `int`
-    >the precision with which to print out elements in the degenerate coupling Hamiltonians in the log file
-- `logger`: `str|Logger|bool|None default:None`
-    >the `Logger` object to use when logging the status of the calculation (`True` means log normally)
-- `results`: `str|Checkpointer|None default:None`
-    >the `Checkpointer` to write corrections out to
-- `parallelizer`: `Parallelizer|None default:None`
-    >the `Parallelizer` to use for parallelizing the evaluation of matrix elements
-- `memory_constrained`: `bool|None`
-    >whether or not to attempt memory optimizations (`None` means attempt for >20D problems)
-- `checkpoint`: `str|Checkpointer|None default:None`
-    >the `Checkpointer` to write Hamiltonians and other bits out to
-- `checkpoint_keys`: `Iterable[str]|None`
-    >which keys to save in the checkpoint
-- `use_cached_representations`: `bool`
-    >whether other not to use Hamiltonian reps from the checkpoint
 - `use_cached_basis`: `bool`
     >whether other not to use bases from the checkpoint
+- `use_cached_representations`: `bool`
+    >whether other not to use Hamiltonian reps from the checkpoint
+- `checkpoint_keys`: `Iterable[str]|None`
+    >which keys to save in the checkpoint
+- `checkpoint`: `str|Checkpointer|None default:None`
+    >the `Checkpointer` to write Hamiltonians and other bits out to
+- `memory_constrained`: `bool|None`
+    >whether or not to attempt memory optimizations (`None` means attempt for >20D problems)
+- `parallelizer`: `Parallelizer|None default:None`
+    >the `Parallelizer` to use for parallelizing the evaluation of matrix elements
+- `results`: `str|Checkpointer|None default:None`
+    >the `Checkpointer` to write corrections out to
+- `logger`: `str|Logger|bool|None default:None`
+    >the `Logger` object to use when logging the status of the calculation (`True` means log normally)
+- `nondeg_hamiltonian_precision`: `int`
+    >the precision with which to print out elements in the degenerate coupling Hamiltonians in the log file
+- `matrix_element_threshold`: `float|None default:None`
+    >the minimum size of matrix element to keep
+- `operator_chunk_size`: `int|None default:None`
+    >the number of representation matrix elements to calculate in at one time
 
  </div>
 </div>
@@ -319,4 +321,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTRuntimeOptions.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTRuntimeOptions.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTRuntimeOptions.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L671?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L668?message=Update%20Docs)

@@ -5,6 +5,8 @@
 
 Mirrors the standard ZMatrix coordinate system in _almost_ all regards, but forces an embedding
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -26,12 +28,12 @@ __init__(self, molecule, converter_options=None, **opts):
 </div>
 
 
-- `molecule`: `AbstractMolecule`
-    >No description...
-- `converter_options`: `Any`
-    >No description...
 - `opts`: `Any`
-    >No description...
+    >
+- `converter_options`: `Any`
+    >
+- `molecule`: `AbstractMolecule`
+    >
 
 <a id="Psience.Molecools.CoordinateSystems.MolecularZMatrixCoordinateSystem.origins" class="docs-object-method">&nbsp;</a> 
 ```python

@@ -6,10 +6,12 @@
 A sophisticated indexer that takes a state dimension and provides
 indices based on the `shortlex` ordering, where ordering is defined
 first by # of quanta of excitation, then by which partitioning of the #quanta,
- it represents, and finally by which permutation of that paritioning it is.
+it represents, and finally by which permutation of that paritioning it is.
 Is likely about as stable as an indexer can be expected to be over large
 numbers of states. Unlikely to exhaust the max integers available for most
 systems.
+
+
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
@@ -52,10 +54,10 @@ to_indices(self, states):
 </div>
 
 Finds the appropriate integer partitioning for each state
+- `:returns`: `_`
+    >
 - `states`: `np.ndarray`
     >2D array of states as excitations
-- `:returns`: `_`
-    >No description...
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.from_indices" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -66,14 +68,14 @@ from_indices(self, indices, check=False):
 </div>
 
 Inverts the index calculation.
-        First determines what number of quanta the index corresponds to,
-        then which integer partition, and finally just loops through the unique
-        permutations of the partition to get the right one.
-        This is not assured to be a fast process in any way.
-- `indices`: `Iterable[int]`
-    >No description...
+First determines what number of quanta the index corresponds to,
+then which integer partition, and finally just loops through the unique
+permutations of the partition to get the right one.
+This is not assured to be a fast process in any way.
 - `:returns`: `_`
-    >No description...
+    >
+- `indices`: `Iterable[int]`
+    >
 
  </div>
 </div>

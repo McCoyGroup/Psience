@@ -5,6 +5,8 @@
 
 These things are fed the first and second order corrections
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -26,12 +28,12 @@ __init__(self, mol, basis, corrections, modes=None, mode_selection=None, logger=
 </div>
 
 
-- `mol`: `Molecule`
-    >the molecule the wavefunction is for
-- `basis`: `SimpleProductBasis`
-    >the basis the expansion is being done in
 - `corrections`: `PerturbationTheoryCorrections`
     >the corrections to the terms
+- `basis`: `SimpleProductBasis`
+    >the basis the expansion is being done in
+- `mol`: `Molecule`
+    >the molecule the wavefunction is for
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.energies" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -187,7 +189,7 @@ transition_moments(self):
 
 Computes the transition moments between wavefunctions stored in the object
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_transition_moments" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -200,7 +202,7 @@ deperturbed_transition_moments(self):
 
 Computes the transition moments between wavefunctions stored in the object
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.transition_moment_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -213,7 +215,7 @@ transition_moment_corrections(self):
 
 Computes the transition moment corrections between wavefunctions stored in the object
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_transition_moment_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -226,7 +228,7 @@ deperturbed_transition_moment_corrections(self):
 
 Computes the transition moment corrections between wavefunctions stored in the object
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.oscillator_strengths" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -239,7 +241,7 @@ oscillator_strengths(self):
 
 Computes the oscillator strengths for transitions from the ground state to the other states
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_oscillator_strengths" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -252,7 +254,7 @@ deperturbed_oscillator_strengths(self):
 
 Computes the oscillator strengths for transitions from the ground state to the other states
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.oscillator_strengths_to_order" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -263,10 +265,10 @@ oscillator_strengths_to_order(self, order):
 </div>
 
 
-- `tms`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `tms`: `Any`
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_oscillator_strengths_to_order" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -277,10 +279,10 @@ deperturbed_oscillator_strengths_to_order(self, order):
 </div>
 
 
-- `tms`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `tms`: `Any`
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.intensities" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -293,7 +295,7 @@ intensities(self):
 
 Computes the intensities for transitions from the ground state to the other states
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_intensities" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -306,7 +308,7 @@ deperturbed_intensities(self):
 
 Computes the intensities for transitions from the ground state to the other states
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.intensities_to_order" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -318,7 +320,7 @@ intensities_to_order(self, order):
 
 Computes the intensities for transitions from the ground state to the other states
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.deperturbed_intensities_to_order" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -330,7 +332,7 @@ deperturbed_intensities_to_order(self, order):
 
 Computes the intensities for transitions from the ground state to the other states
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.zero_order_intensities" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -343,7 +345,7 @@ zero_order_intensities(self):
 
 Computes the harmonic intensities for transitions from the ground state to the other states
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.generate_intensity_breakdown" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -354,9 +356,9 @@ generate_intensity_breakdown(self, include_wavefunctions=True):
 </div>
 
 Generates a breakdown of the terms that contribute to the intensity
-        Returns in a format that can be directly exported to JSON if desired.
+Returns in a format that can be directly exported to JSON if desired.
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.write_CSV_breakdown" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -367,12 +369,12 @@ write_CSV_breakdown(file, intensity_breakdown, padding=None):
 </div>
 
 Writes an intensity breakdown to a CSV by annoyingly flattening all the arrays
-- `file`: `Any`
-    >No description...
-- `intensity_breakdown`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `intensity_breakdown`: `Any`
+    >
+- `file`: `Any`
+    >
 
 <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions.format_energies_table" class="docs-object-method">&nbsp;</a> 
 ```python

@@ -5,6 +5,8 @@
 
 
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -22,20 +24,20 @@ plot(self, figure=None, grid=None, index=0, scaling=1, shift=0, **opts):
 </div>
 
 Plots a single wave function on the grid
-- `figure`: `Any`
-    >No description...
-- `grid`: `Any`
-    >No description...
-- `index`: `Any`
-    >No description...
-- `scaling`: `Any`
-    >No description...
-- `shift`: `Any`
-    >No description...
-- `opts`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `opts`: `Any`
+    >
+- `shift`: `Any`
+    >
+- `scaling`: `Any`
+    >
+- `index`: `Any`
+    >
+- `grid`: `Any`
+    >
+- `figure`: `Any`
+    >
 
 <a id="Psience.DVR.Wavefunctions.DVRWavefunction.expectation" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -46,12 +48,12 @@ expectation(self, op, other):
 </div>
 
 Computes the expectation value of operator op over the wavefunction other and self
-- `other`: `Wavefunction | np.ndarray`
-    >No description...
-- `op`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `op`: `Any`
+    >
+- `other`: `Wavefunction | np.ndarray`
+    >
 
 <a id="Psience.DVR.Wavefunctions.DVRWavefunction.probability_density" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -63,7 +65,7 @@ probability_density(self):
 
 Computes the probability density of the current wavefunction
 - `:returns`: `_`
-    >No description...
+    >
 
  </div>
 </div>

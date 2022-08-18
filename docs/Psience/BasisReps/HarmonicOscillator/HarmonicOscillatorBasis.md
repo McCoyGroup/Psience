@@ -7,6 +7,8 @@ Provides a concrete implementation of RepresentationBasis using the H.O.
 Need to make it handle units a bit better.
 Currently 1D, need to make multidimensional in the future.
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -46,15 +48,15 @@ pmatrix_ho(n):
 </div>
 
 There's one big subtlety to what we're doing here, which is that
-          for efficiency reasons we return an entirely real matrix
-        The reason for that is we assumed people would mostly use it in the context
-          of stuff like pp, pQp, or pQQp, in which case the imaginary part pulls out
-          and becomes a negative sign
-        We actually use this assumption across _all_ of our representations
-- `n`: `Any`
-    >No description...
+for efficiency reasons we return an entirely real matrix
+The reason for that is we assumed people would mostly use it in the context
+of stuff like pp, pQp, or pQQp, in which case the imaginary part pulls out
+and becomes a negative sign
+We actually use this assumption across _all_ of our representations
 - `:returns`: `sp.csr_matrix`
-    >No description...
+    >
+- `n`: `Any`
+    >
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis.qmatrix_ho" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -65,10 +67,10 @@ qmatrix_ho(n):
 </div>
 
 
-- `n`: `Any`
-    >No description...
 - `:returns`: `sp.csr_matrix`
-    >No description...
+    >
+- `n`: `Any`
+    >
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis.operator" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -79,15 +81,15 @@ operator(self, *terms, logger=None, parallelizer=None, chunk_size=None, **operat
 </div>
 
 Builds an operator based on supplied terms, remapping names where possible.
-        If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
-- `terms`: `Any`
-    >No description...
-- `coeffs`: `Any`
-    >No description...
-- `axes`: `Any`
-    >No description...
+If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
 - `:returns`: `_`
-    >No description...
+    >
+- `axes`: `Any`
+    >
+- `coeffs`: `Any`
+    >
+- `terms`: `Any`
+    >
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis.__repr__" class="docs-object-method">&nbsp;</a> 
 ```python

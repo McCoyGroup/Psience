@@ -5,6 +5,8 @@
 
 Provides a base class for analytic models
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -26,12 +28,12 @@ take_derivs(expr, vars):
 </div>
 
 Takes derivatives of `expr` with respect to `vars` even if `expr` is an array
-- `expr`: `Any`
-    >No description...
-- `vars`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `vars`: `Any`
+    >
+- `expr`: `Any`
+    >
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.eval_exprs" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -42,12 +44,12 @@ eval_exprs(expr, subs):
 </div>
 
 Evaluates `expr` with the given substitutions
-- `expr`: `Any`
-    >No description...
-- `subs`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `subs`: `Any`
+    >
+- `expr`: `Any`
+    >
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbol_list" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -58,12 +60,12 @@ symbol_list(names, instance=None):
 </div>
 
 Gets a list of symbols for `names` with a given instance number
-- `names`: `Any`
-    >No description...
-- `instance`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `instance`: `Any`
+    >
+- `names`: `Any`
+    >
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbolic_m" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -74,10 +76,10 @@ symbolic_m(i):
 </div>
 
 Provides a symbolic representation of a mass
-- `i`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `i`: `Any`
+    >
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbol" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -96,12 +98,12 @@ symbolic_r(i, j):
 </div>
 
 Provides a symbolic representation of a bond length
-- `i`: `Any`
-    >No description...
-- `j`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `j`: `Any`
+    >
+- `i`: `Any`
+    >
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbolic_a" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -112,14 +114,14 @@ symbolic_a(i, j, k):
 </div>
 
 Provides a symbolic representation of a bond angle
-- `i`: `Any`
-    >No description...
-- `j`: `Any`
-    >No description...
-- `k`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `k`: `Any`
+    >
+- `j`: `Any`
+    >
+- `i`: `Any`
+    >
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbolic_t" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -130,16 +132,16 @@ symbolic_t(i, j, k, l):
 </div>
 
 Provides a symbolic representation of a dihedral angle
-- `i`: `Any`
-    >No description...
-- `j`: `Any`
-    >No description...
-- `k`: `Any`
-    >No description...
-- `l`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `l`: `Any`
+    >
+- `k`: `Any`
+    >
+- `j`: `Any`
+    >
+- `i`: `Any`
+    >
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbolic_y" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -150,16 +152,16 @@ symbolic_y(i, j, k, l):
 </div>
 
 Provides a symbolic representation of a book angle
-- `i`: `Any`
-    >No description...
-- `j`: `Any`
-    >No description...
-- `k`: `Any`
-    >No description...
-- `l`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `l`: `Any`
+    >
+- `k`: `Any`
+    >
+- `j`: `Any`
+    >
+- `i`: `Any`
+    >
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.var" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -178,12 +180,12 @@ reindex_symbol(symbol, mapping, target_symbols=None):
 </div>
 
 Changes the indices on symbols using the given mapping
-- `symbol`: `Any`
-    >No description...
-- `mapping`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `mapping`: `Any`
+    >
+- `symbol`: `Any`
+    >
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.lam" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -194,14 +196,14 @@ lam(i, j, k):
 </div>
 
 Provides the `lambda` expression from Frederick and Woywood
-- `i`: `Any`
-    >No description...
-- `j`: `Any`
-    >No description...
-- `k`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `k`: `Any`
+    >
+- `j`: `Any`
+    >
+- `i`: `Any`
+    >
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.is_identity" class="docs-object-method">&nbsp;</a> 
 ```python

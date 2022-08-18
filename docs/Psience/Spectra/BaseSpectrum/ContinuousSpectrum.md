@@ -6,6 +6,8 @@
 Concrete implementation of `BaseSpectrum` that exists
 solely to allow for plotting & maybe some day for interchange with like experimental formats
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -23,12 +25,12 @@ plot(self, figure=None, filled=False, plot_style=None, **opts):
 </div>
 
 Plots a spectrum using `McUtils.Plots.Plot`
-- `figure`: `None | McUtils.Plots.Graphics`
-    >figure to plot the spectrum on
+- `:returns`: `_`
+    >
 - `opts`: `Any`
     >any of the many, many options supported by `McUtils.Plots.Graphics`
-- `:returns`: `_`
-    >No description...
+- `figure`: `None | McUtils.Plots.Graphics`
+    >figure to plot the spectrum on
 
  </div>
 </div>

@@ -1,10 +1,12 @@
 ## <a id="Psience.VPT2.Runner.VPTRunner">VPTRunner</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L919)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L919?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L942)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L942?message=Update%20Docs)]
 </div>
 
 A helper class to make it easier to run jobs by making the inputs/options
 clear and making it easier to customize run options
+
+
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
@@ -22,25 +24,25 @@ helpers: type
 __init__(self, system, states, hamiltonian_options=None, solver_options=None, runtime_options=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L925)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L925?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L948)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L948?message=Update%20Docs)]
 </div>
 
 
-- `system`: `VPTSystem`
-    >the system to run perturbation theory on
-- `hamiltonian_options`: `VPTHamiltonianOptions`
-    >options to configure the Hamiltonian
-- `solver_options`: `VPTSolverOptions`
-    >options to configure the way the perturbation theory is applied
 - `runtime_options`: `VPTRuntimeOptions`
     >options to configure the way the code runs
+- `solver_options`: `VPTSolverOptions`
+    >options to configure the way the perturbation theory is applied
+- `hamiltonian_options`: `VPTHamiltonianOptions`
+    >options to configure the Hamiltonian
+- `system`: `VPTSystem`
+    >the system to run perturbation theory on
 
 <a id="Psience.VPT2.Runner.VPTRunner.get_Hamiltonian" class="docs-object-method">&nbsp;</a> 
 ```python
 get_Hamiltonian(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L966)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L966?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L989)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L989?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Runner.VPTRunner.hamiltonian" class="docs-object-method">&nbsp;</a> 
@@ -57,7 +59,7 @@ hamiltonian(self):
 get_wavefunctions(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L979)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L979?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1002)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1002?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Runner.VPTRunner.print_output_tables" class="docs-object-method">&nbsp;</a> 
@@ -65,35 +67,35 @@ get_wavefunctions(self):
 print_output_tables(wfns=None, file=None, print_intensities=True, print_energies=True, print_energy_corrections=True, print_transition_moments=True, logger=None, sep_char='=', sep_len=100): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L989)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L989?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1012)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1012?message=Update%20Docs)]
 </div>
 
 Prints a bunch of formatted output data from a PT run
-- `wfns`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `wfns`: `Any`
+    >
 
 <a id="Psience.VPT2.Runner.VPTRunner.print_tables" class="docs-object-method">&nbsp;</a> 
 ```python
 print_tables(self, wfns=None, file=None, print_intensities=True, print_energy_corrections=True, print_transition_moments=True, sep_char='=', sep_len=100): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1060)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1060?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1083)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1083?message=Update%20Docs)]
 </div>
 
 Prints a bunch of formatted output data from a PT run
-- `wfns`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `wfns`: `Any`
+    >
 
 <a id="Psience.VPT2.Runner.VPTRunner.construct" class="docs-object-method">&nbsp;</a> 
 ```python
 construct(system, states, target_property=None, basis_filters=None, corrected_fundamental_frequencies=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1086)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1086?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1109)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1109?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Runner.VPTRunner.run_simple" class="docs-object-method">&nbsp;</a> 
@@ -101,24 +103,24 @@ construct(system, states, target_property=None, basis_filters=None, corrected_fu
 run_simple(system, states, target_property=None, corrected_fundamental_frequencies=None, calculate_intensities=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1160)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1160?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1183)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1183?message=Update%20Docs)]
 </div>
 
 The standard runner for VPT.
-        Makes a runner using the `construct` method and then calls that
-        runner's `print_tables` method after printing out run info.
-- `system`: `list|str|Molecule`
-    >the system spec, either as a `Molecule`, molecule spec (atoms, coords, opts) or a file to construct a `Molecule`
-- `states`: `int|list`
-    >the states to get corrections for either an `int` (up to that many quanta) or an explicit state list
-- `target_property`: `str`
-    >the target property to get corrections for (one of 'frequencies', 'intensities', 'wavefunctions')
-- `corrected_fundamental_frequencies`: `Iterable[float]|None`
-    >a set of fundamental frequencies to use to get new zero-order energies
-- `calculate_intensities`: `bool default:True`
-    >whether or not to calculate energies
+Makes a runner using the `construct` method and then calls that
+runner's `print_tables` method after printing out run info.
 - `opts`: `Any`
     >options that work for a `VPTSystem`, `VPTStateSpace`, `VPTRuntimeOptions`, `VPTSolverOptions`, or `VPTHamiltonianOptions` object which will be filtered automatically
+- `calculate_intensities`: `bool default:True`
+    >whether or not to calculate energies
+- `corrected_fundamental_frequencies`: `Iterable[float]|None`
+    >a set of fundamental frequencies to use to get new zero-order energies
+- `target_property`: `str`
+    >the target property to get corrections for (one of 'frequencies', 'intensities', 'wavefunctions')
+- `states`: `int|list`
+    >the states to get corrections for either an `int` (up to that many quanta) or an explicit state list
+- `system`: `list|str|Molecule`
+    >the system spec, either as a `Molecule`, molecule spec (atoms, coords, opts) or a file to construct a `Molecule`
 
  </div>
 </div>
@@ -1039,4 +1041,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTRunner.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTRunner.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTRunner.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L919?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L942?message=Update%20Docs)

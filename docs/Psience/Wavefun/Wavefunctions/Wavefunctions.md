@@ -6,6 +6,8 @@
 An object representing a set of wavefunctions.
 Provides concrete, but potentially inefficient methods for doing all the wavefunction ops.
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -68,10 +70,10 @@ plot(self, figure=None, graphics_class=None, **opts):
 </div>
 
 Plots all of the wavefunctions on one set of axes
-- `opts`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `opts`: `Any`
+    >
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunctions.expectation" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -82,12 +84,12 @@ expectation(self, op, other=None):
 </div>
 
 Computes the expectation value of operator op over the wavefunction other and self
-- `other`: `Wavefunctions`
-    >No description...
-- `op`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `op`: `Any`
+    >
+- `other`: `Wavefunctions`
+    >
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunctions.overlap" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -107,7 +109,7 @@ coordinate(self):
 
 Provides the coordinate operator in the wavefunction basis
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunctions.momentum" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -119,7 +121,7 @@ momentum(self):
 
 Provides the real part of the representation of the momentum operator in the wavefunction basis
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunctions.laplacian" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -131,7 +133,7 @@ laplacian(self):
 
 Provides the representation of the laplacian in the wavefunction basis
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunctions.kinetic_energy" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -143,7 +145,7 @@ kinetic_energy(self):
 
 Provides the representation of the KE in the wavefunction basis
 - `:returns`: `_`
-    >No description...
+    >
 
  </div>
 </div>

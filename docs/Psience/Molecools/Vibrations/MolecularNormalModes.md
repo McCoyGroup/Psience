@@ -6,6 +6,8 @@
 A Coordinerds CoordinateSystem object that manages all of the data needed to
 work with normal mode coordinates + some convenience functions for generating and whatnot
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -26,22 +28,22 @@ __init__(self, molecule, coeffs, name=None, freqs=None, internal=False, origin=N
 </div>
 
 
-- `molecule`: `AbstractMolecule`
-    >No description...
-- `coeffs`: `Any`
-    >No description...
-- `name`: `Any`
-    >No description...
-- `freqs`: `Any`
-    >No description...
-- `internal`: `Any`
-    >No description...
-- `origin`: `Any`
-    >No description...
-- `basis`: `Any`
-    >No description...
 - `inverse`: `Any`
-    >No description...
+    >
+- `basis`: `Any`
+    >
+- `origin`: `Any`
+    >
+- `internal`: `Any`
+    >
+- `freqs`: `Any`
+    >
+- `name`: `Any`
+    >
+- `coeffs`: `Any`
+    >
+- `molecule`: `AbstractMolecule`
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.molecule" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -78,10 +80,10 @@ embed(self, frame):
 </div>
 
 
-- `frame`: `MolecularTransformation`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `frame`: `MolecularTransformation`
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.insert" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -92,12 +94,12 @@ insert(self, val, where):
 </div>
 
 Inserts values into the appropriate positions in the mode matrix
-- `val`: `Any`
-    >No description...
-- `where`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `where`: `Any`
+    >
+- `val`: `Any`
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.from_force_constants" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -108,26 +110,26 @@ from_force_constants(molecule, fcs, atoms=None, masses=None, mass_units='AtomicM
 </div>
 
 Generates normal modes from the specified force constants
-- `molecule`: `AbstractMolecule`
-    >No description...
-- `fcs`: `np.ndarray`
-    >force constants array
-- `atoms`: `Iterable[str]`
-    >atom list
-- `masses`: `Iterable[float]`
-    >mass list
-- `mass_units`: `str`
-    >units for the masses...not clear if this is useful or a distraction
-- `inverse_mass_matrix`: `bool`
-    >whether or not we have G or G^-1 (default: `False`)
-- `remove_transrot`: `bool`
-    >whether or not to remove the translations and rotations (default: `True`)
+- `:returns`: `MolecularNormalModes`
+    >
+- `opts`: `Any`
+    >
 - `normalize`: `bool`
     >whether or not to normalize the modes (default: `True`)
-- `opts`: `Any`
-    >No description...
-- `:returns`: `MolecularNormalModes`
-    >No description...
+- `remove_transrot`: `bool`
+    >whether or not to remove the translations and rotations (default: `True`)
+- `inverse_mass_matrix`: `bool`
+    >whether or not we have G or G^-1 (default: `False`)
+- `mass_units`: `str`
+    >units for the masses...not clear if this is useful or a distraction
+- `masses`: `Iterable[float]`
+    >mass list
+- `atoms`: `Iterable[str]`
+    >atom list
+- `fcs`: `np.ndarray`
+    >force constants array
+- `molecule`: `AbstractMolecule`
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.__getitem__" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -138,10 +140,10 @@ __getitem__(self, item):
 </div>
 
 Takes a slice of the modes
-- `item`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `item`: `Any`
+    >
 
  </div>
 </div>

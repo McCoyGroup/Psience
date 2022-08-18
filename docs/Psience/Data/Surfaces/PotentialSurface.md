@@ -6,6 +6,8 @@
 A potential surface structure to go along with the DipoleSurface.
 Provides convenient access to dipole data + a unified interface to things like energy minimization
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -31,13 +33,13 @@ from_log_file(log_file, coord_transf, keys=('StandardCartesianCoordinates', 'Sca
 </div>
 
 Loads dipoles from a Gaussian log file and builds a potential surface by interpolating.
-        Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
-        to furnish a function that'll take a set of Cartesian coordinates and convert them to "scan" coordinates.
-        Coordinerds can be helpful with this, as it provides a convenient syntax for Cartesian <-> ZMatrix conversions.
+Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
+to furnish a function that'll take a set of Cartesian coordinates and convert them to "scan" coordinates.
+Coordinerds can be helpful with this, as it provides a convenient syntax for Cartesian <-> ZMatrix conversions.
+- `:returns`: `_`
+    >
 - `log_file`: `str`
     >a Gaussian log file to pull from
-- `:returns`: `_`
-    >No description...
 
 <a id="Psience.Data.Surfaces.PotentialSurface.get_fchk_values" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -56,12 +58,12 @@ from_fchk_file(fchk_file, **opts):
 </div>
 
 Loads potential from a Gaussian formatted checkpoint file and builds a potential surface via a quartic approximation
+- `:returns`: `_`
+    >
+- `log_file`: `str`
+    >
 - `fchk_file`: `Any`
     >a Gaussian fchk file to pull from
-- `log_file`: `str`
-    >No description...
-- `:returns`: `_`
-    >No description...
 
  </div>
 </div>

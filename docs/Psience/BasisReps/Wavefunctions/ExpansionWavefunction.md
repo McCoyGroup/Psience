@@ -7,6 +7,8 @@ Simple wave function that takes a set of expansion coefficients alongside its ba
 Technically this should be called a _linear expansion wave function_, but
 that was too long for my taste.
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -24,12 +26,12 @@ __init__(self, energy, coefficients, basis_wfns):
 </div>
 
 
-- `energy`: `float`
-    >energy of the wavefunction
-- `coefficients`: `Iterable[float]`
-    >expansion coefficients
 - `basis_wfns`: `Wavefunctions`
     >basis functions for the expansion
+- `coefficients`: `Iterable[float]`
+    >expansion coefficients
+- `energy`: `float`
+    >energy of the wavefunction
 
 <a id="Psience.BasisReps.Wavefunctions.ExpansionWavefunction.coeffs" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -58,12 +60,37 @@ evaluate(self, *args, **kwargs):
 </div>
 
 Evaluates the wavecfunction as any other linear expansion.
-- `args`: `Any`
-    >coordinates + any other args the basis takes
+- `:returns`: `_`
+    >v
+a
+l
+u
+e
+s
+ 
+o
+f
+ 
+t
+h
+e
+ 
+w
+a
+v
+e
+f
+u
+n
+c
+t
+i
+o
+n
 - `kwargs`: `Any`
     >any keyword arguments the basis takes
-- `:returns`: `_`
-    >values of the wavefunction
+- `args`: `Any`
+    >coordinates + any other args the basis takes
 
 <a id="Psience.BasisReps.Wavefunctions.ExpansionWavefunction.expect" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -74,11 +101,11 @@ expect(self, operator):
 </div>
 
 Provides the expectation value of the operator `op`.
-        Uses the basis to compute the reps and then expands with the expansion coeffs.
-- `operator`: `Any`
-    >No description...
+Uses the basis to compute the reps and then expands with the expansion coeffs.
 - `:returns`: `_`
-    >No description...
+    >
+- `operator`: `Any`
+    >
 
 <a id="Psience.BasisReps.Wavefunctions.ExpansionWavefunction.expectation" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -89,13 +116,13 @@ expectation(self, op, other):
 </div>
 
 Computes the expectation value of operator `op` over the wavefunction `other` and `self`.
-        **Note**: _the basis of `other`, `self`, and `op` are assumed to be the same_.
-- `op`: `Operator`
-    >an operator represented in the basis of the expansion
+**Note**: _the basis of `other`, `self`, and `op` are assumed to be the same_.
+- `:returns`: `_`
+    >
 - `other`: `ExpansionWavefunction`
     >the other wavefunction to expand over
-- `:returns`: `_`
-    >No description...
+- `op`: `Operator`
+    >an operator represented in the basis of the expansion
 
 <a id="Psience.BasisReps.Wavefunctions.ExpansionWavefunction.probability_density" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -107,7 +134,7 @@ probability_density(self):
 
 Computes the probability density of the current wavefunction
 - `:returns`: `_`
-    >No description...
+    >
 
  </div>
 </div>

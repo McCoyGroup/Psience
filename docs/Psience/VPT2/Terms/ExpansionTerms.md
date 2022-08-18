@@ -5,6 +5,8 @@
 
 Base class for kinetic, potential, and dipole derivative terms
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -22,14 +24,14 @@ __init__(self, molecule, modes=None, mode_selection=None, use_internal_modes=Non
 </div>
 
 
-- `molecule`: `Molecule`
-    >the molecule we're doing the expansion for
-- `modes`: `MolecularVibrations`
-    >normal modes in Cartesian coordinates
-- `mode_selection`: `None | Iterable[int]`
-    >the selection of modes to use
 - `undimensionalize`: `bool`
     >whether or not we need to do some units fuckery on the modes
+- `mode_selection`: `None | Iterable[int]`
+    >the selection of modes to use
+- `modes`: `MolecularVibrations`
+    >normal modes in Cartesian coordinates
+- `molecule`: `Molecule`
+    >the molecule we're doing the expansion for
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.num_atoms" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -42,7 +44,7 @@ num_atoms(self):
 
 Gets the number of atoms (excluding dummies if `strip_dummies` is `True`)
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.modes" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -62,12 +64,12 @@ undimensionalize(self, masses, modes):
 </div>
 
 Removes units from normal modes
-- `masses`: `Any`
-    >No description...
-- `modes`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `modes`: `Any`
+    >
+- `masses`: `Any`
+    >
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.get_terms" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -78,10 +80,10 @@ get_terms(self, order=None):
 </div>
 
 Gets the terms up to the given order
-- `order`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `order`: `Any`
+    >
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.get_term" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -92,10 +94,10 @@ get_term(self, t):
 </div>
 
 Provides the term at order `t`
-- `t`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `t`: `Any`
+    >
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.terms" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -123,10 +125,10 @@ get_int_jacobs(self, jacs):
 </div>
 
 Gets the specified Internal->Cartesian Jacobians
-- `jacs`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `jacs`: `Any`
+    >
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.get_cart_jacobs" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -137,10 +139,10 @@ get_cart_jacobs(self, jacs):
 </div>
 
 Gets the specified Cartesian->Internal Jacobians
-- `jacs`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `jacs`: `Any`
+    >
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.inertial_frame" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -153,7 +155,7 @@ inertial_frame(self):
 
 Provides the inertial axis frame
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Terms.ExpansionTerms.inertial_frame_derivatives" class="docs-object-method">&nbsp;</a> 
 ```python

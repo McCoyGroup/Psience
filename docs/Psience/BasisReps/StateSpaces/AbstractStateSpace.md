@@ -6,6 +6,8 @@
 Represents a generalized state space which will provide core
 methods to index into a basis and generate representations
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -32,7 +34,7 @@ __init__(self, basis):
 
 
 - `basis`: `RepresentationBasis`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.to_state" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -43,11 +45,11 @@ to_state(self, serializer=None):
 </div>
 
 Provides just the state that is needed to
-        serialize the object
-- `serializer`: `Any`
-    >No description...
+serialize the object
 - `:returns`: `_`
-    >No description...
+    >
+- `serializer`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.from_state" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -58,10 +60,10 @@ from_state(state, serializer=None):
 </div>
 
 Loads from the stored state
-- `serializer`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `serializer`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.ndim" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -100,7 +102,7 @@ get_mode(self):
 
 Returns the mode (indices or excitations) for the held states
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.has_indices" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -156,10 +158,10 @@ find(self, to_search, check=True, minimal_dtype=False, dtype=None, missing_val='
 </div>
 
 Finds the indices of a set of indices inside the space
+- `:returns`: `_`
+    >
 - `to_search`: `np.ndarray | AbstractStateSpace`
     >array of ints
-- `:returns`: `_`
-    >No description...
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.__len__" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -189,7 +191,7 @@ unique_indices(self):
 
 Returns the unique indices
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.unique_excitations" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -202,7 +204,7 @@ unique_excitations(self):
 
 Returns the unique excitations
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.as_indices" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -214,7 +216,7 @@ as_indices(self):
 
 Returns the index version of the stored states
 - `:returns`: `np.ndarray`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.as_unique_indices" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -226,7 +228,7 @@ as_unique_indices(self, sort=False):
 
 Returns unique indices
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.as_excitations" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -238,7 +240,7 @@ as_excitations(self):
 
 Returns the excitation version of the stored states
 - `:returns`: `np.ndarray`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.as_unique_excitations" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -250,7 +252,7 @@ as_unique_excitations(self, sort=False):
 
 Returns unique excitations
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -261,16 +263,16 @@ get_representation_indices(self, other=None, selection_rules=None, freqs=None, f
 </div>
 
 Returns bra and ket indices that can be used as indices to generate representations
-- `other`: `Any`
-    >No description...
-- `selection_rules`: `Any`
-    >No description...
-- `freqs`: `Any`
-    >No description...
-- `freq_threshold`: `Any`
-    >No description...
 - `:returns`: `(np.ndarray, np.ndarray)`
-    >No description...
+    >
+- `freq_threshold`: `Any`
+    >
+- `freqs`: `Any`
+    >
+- `selection_rules`: `Any`
+    >
+- `other`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.get_representation_brakets" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -281,16 +283,16 @@ get_representation_brakets(self, other=None, selection_rules=None, freqs=None, f
 </div>
 
 Returns a BraKetSpace that can be used as generate representations
-- `other`: `Any`
-    >No description...
-- `selection_rules`: `Any`
-    >No description...
-- `freqs`: `Any`
-    >No description...
-- `freq_threshold`: `Any`
-    >No description...
 - `:returns`: `BraKetSpace`
-    >No description...
+    >
+- `freq_threshold`: `Any`
+    >
+- `freqs`: `Any`
+    >
+- `selection_rules`: `Any`
+    >
+- `other`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.take_states" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -301,10 +303,10 @@ take_states(self, states):
 </div>
 
 Takes the intersection of self and the specified states
-- `states`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `states`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.take_subspace" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -315,10 +317,10 @@ take_subspace(self, sel):
 </div>
 
 Takes a subset of the states
-- `sel`: `Any`
-    >No description...
 - `:returns`: `AbstractStateSpace`
-    >No description...
+    >
+- `sel`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.take_subdimensions" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -329,10 +331,10 @@ take_subdimensions(self, inds):
 </div>
 
 Takes a subset of the state dimensions
-- `sel`: `Any`
-    >No description...
 - `:returns`: `AbstractStateSpace`
-    >No description...
+    >
+- `sel`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.drop_states" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -343,10 +345,10 @@ drop_states(self, states):
 </div>
 
 Takes the difference of self and the specified states
-- `states`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `states`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.drop_subspace" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -357,10 +359,10 @@ drop_subspace(self, sel):
 </div>
 
 Drops a subset of the states
-- `sel`: `Any`
-    >No description...
 - `:returns`: `AbstractStateSpace`
-    >No description...
+    >
+- `sel`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.drop_subdimensions" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -371,10 +373,10 @@ drop_subdimensions(self, inds):
 </div>
 
 Drops a subset of the state dimensions
-- `sel`: `Any`
-    >No description...
 - `:returns`: `AbstractStateSpace`
-    >No description...
+    >
+- `sel`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.get_states_with_quanta" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -385,10 +387,10 @@ get_states_with_quanta(n, ndim):
 </div>
 
 Returns the states with number of quanta equal to n
-- `quanta`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `quanta`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.to_single" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -399,9 +401,9 @@ to_single(self, track_excitations=True, track_indices=True):
 </div>
 
 Flattens any complicated state space structure into a
-        single space like a `BasisStateSpace`
+single space like a `BasisStateSpace`
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.split" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -412,11 +414,11 @@ split(self, chunksize):
 </div>
 
 Subclass overridable function to allow for spaces to be
-        split up into chunks
-- `chunksize`: `Any`
-    >No description...
+split up into chunks
 - `:returns`: `_`
-    >No description...
+    >
+- `chunksize`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.share" class="docs-object-method">&nbsp;</a> 
 ```python

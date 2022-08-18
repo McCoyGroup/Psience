@@ -12,6 +12,8 @@ which means `AnalyticWavefunctions` needs to track a basis...
 but `AnalyticWavefunctions` wasn't really designed for that, so I need to go back and figure out how
 that binding is going to be managed.
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -29,14 +31,14 @@ __init__(self, energies, coefficients, basis_wfns, **ops):
 </div>
 
 
-- `energies`: `Iterable[float]`
-    >energies for the stored wavefunctions
-- `coefficients`: `Iterable[Iterable[float]]`
-    >expansion coefficients
-- `basis_wfns`: `Wavefunctions`
-    >wavefunctions to use as the basis for the expansion
 - `ops`: `Any`
     >extra options for feeding through to `Wavefunctions`
+- `basis_wfns`: `Wavefunctions`
+    >wavefunctions to use as the basis for the expansion
+- `coefficients`: `Iterable[Iterable[float]]`
+    >expansion coefficients
+- `energies`: `Iterable[float]`
+    >energies for the stored wavefunctions
 
  </div>
 </div>

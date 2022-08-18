@@ -5,6 +5,8 @@
 
 Mirrors the standard Cartesian coordinate system in _almost_ all regards, but forces an embedding
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -25,12 +27,12 @@ __init__(self, molecule, converter_options=None, **opts):
 </div>
 
 
-- `molecule`: `AbstractMolecule`
-    >No description...
-- `converter_options`: `Any`
-    >No description...
 - `opts`: `Any`
-    >No description...
+    >
+- `converter_options`: `Any`
+    >
+- `molecule`: `AbstractMolecule`
+    >
 
 <a id="Psience.Molecools.CoordinateSystems.MolecularCartesianCoordinateSystem.pre_convert" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -50,7 +52,7 @@ set_embedding(self):
 
 Sets up the embedding options...
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.Molecools.CoordinateSystems.MolecularCartesianCoordinateSystem.jacobian" class="docs-object-method">&nbsp;</a> 
 ```python

@@ -8,6 +8,8 @@ to efficiently tell it what terms it need to calculate.
 This basically just implements a bunch of stuff for generating a Graph defining
 the connections between states.
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -33,10 +35,10 @@ __init__(self, bra_space, ket_space):
 </div>
 
 
-- `bra_space`: `BasisStateSpace`
-    >No description...
 - `ket_space`: `BasisStateSpace`
-    >No description...
+    >
+- `bra_space`: `BasisStateSpace`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.state_pairs" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -104,10 +106,10 @@ share(self, shared_memory_manager):
 </div>
 
 Creates a shared memory version of the `BraKetSpace`
-- `shared_memory_manager`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `shared_memory_manager`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.unshare" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -142,10 +144,10 @@ get_non_orthog(self, inds, assume_unique=False, use_aggressive_caching=None, use
 </div>
 
 Returns whether the states are non-orthogonal under the set of indices.
-- `inds`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `inds`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.get_sel_rules_from1d" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -188,12 +190,12 @@ apply_non_orthogonality(self, inds, use_aggressive_caching=None, use_preindex_tr
 </div>
 
 Takes the bra-ket pairs that are non-orthogonal under the indices `inds`
-- `inds`: `Any`
-    >No description...
-- `assume_unique`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `assume_unique`: `Any`
+    >
+- `inds`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.apply_sel_rules_along" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -212,14 +214,14 @@ apply_sel_sums(self, rules, inds):
 </div>
 
 We reckon it's fast enough to just determine if the number
-        of quanta in the bra is compatible with the number of
-        quanta in the ket...
-- `rules`: `Any`
-    >No description...
-- `inds`: `Any`
-    >No description...
+of quanta in the bra is compatible with the number of
+quanta in the ket...
 - `:returns`: `_`
-    >No description...
+    >
+- `inds`: `Any`
+    >
+- `rules`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.apply_sel_rules" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -230,10 +232,10 @@ apply_sel_rules(self, rules):
 </div>
 
 Applies selections rules
-- `rules`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `rules`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.adjacency_matrix" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -245,7 +247,7 @@ adjacency_matrix(self, total_space=None):
 
 Generates the (sparse) unweighted adjacency matrix for the bras & kets
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.split" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -256,10 +258,10 @@ split(self, chunksize):
 </div>
 
 splits the brakets into blocks of at max chunksize
-- `chunksize`: `int`
-    >No description...
 - `:returns`: `Iterable[BraKetSpace]`
-    >No description...
+    >
+- `chunksize`: `int`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.concatenate" class="docs-object-method">&nbsp;</a> 
 ```python

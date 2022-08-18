@@ -5,6 +5,8 @@
 
 
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -50,15 +52,15 @@ p2(self, n):
 </div>
 
 0  -> (Which[# \[Equal] 1, 3, # \[Equal] 2, 1/2,
-     True, (-1 - 8 (# - 1) - 4 (# - 1)^2)]*1/8 &),
-    2  -> (If[# \[Equal] 1,
-    15/(8*Sqrt[2]), (15 + 16 (# - 1) + 4 (# - 1)^2)*1/16] &),
-    -2 -> (If[#2 \[Equal] 1,
-    15/(8*Sqrt[2]), (15 + 16 (#2 - 1) + 4 (#2 - 1)^2)*1/16] &)
-- `n`: `Any`
-    >No description...
-- `:returns`: `_`
-    >No description...
+True, (-1 - 8 (# - 1) - 4 (# - 1)^2)]*1/8 &),
+2  -> (If[# \[Equal] 1,
+15/(8*Sqrt[2]), (15 + 16 (# - 1) + 4 (# - 1)^2)*1/16] &),
+-2 -> (If[#2 \[Equal] 1,
+15/(8*Sqrt[2]), (15 + 16 (#2 - 1) + 4 (#2 - 1)^2)*1/16] &)
+:param n:
+:type n:
+:return:
+:rtype:
 
 <a id="Psience.BasisReps.ClassicalBases.ChebyshevBasis.x" class="docs-object-method">&nbsp;</a> 
 ```python

@@ -8,8 +8,10 @@ total set of states involved.
 By default is assumed real-symmetric. This can be relaxed in the future.
 
 TODO: The idea is good, but calculating what is "in" the array and what is "out"
-        every single time this is applied could be slow...
-      We'll need to test to see how slow
+every single time this is applied could be slow...
+We'll need to test to see how slow
+
+
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
@@ -29,7 +31,7 @@ __init__(self, initial_basis, initial_vals=None, column_space=None, symmetric=Tr
 
 
 - `initial_basis`: `BasisStateSpace | RepresentationBasis`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix.shape" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -51,7 +53,7 @@ basis(self):
 
 Returns the basis for the matrix rep
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix.brakets" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -64,7 +66,7 @@ brakets(self):
 
 Returns the BraKetSpace for the held indices
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix.identity_from_space" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -75,12 +77,12 @@ identity_from_space(space, column_space=None):
 </div>
 
 Returns a StateSpaceMatrix where the diagonal is filled with 1s
-- `space`: `Any`
-    >No description...
-- `column_space`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `column_space`: `Any`
+    >
+- `space`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix.extend_basis" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -91,10 +93,10 @@ extend_basis(self, states, extend_columns=True):
 </div>
 
 Extends the held state space and resizes the held array if need be
-- `states`: `BasisStateSpace`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `states`: `BasisStateSpace`
+    >
 
 <a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix.compute_values" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -105,13 +107,13 @@ compute_values(self, func, brakets):
 </div>
 
 Computes new values into the held `SparseArray` based on the function and brakets provided
-        and returns the entire array of values
-- `func`: `Any`
-    >A function that can take a braket spec and compute values
+and returns the entire array of values
+- `:returns`: `_`
+    >
 - `brakets`: `Any`
     >A set of brakets to compute values for
-- `:returns`: `_`
-    >No description...
+- `func`: `Any`
+    >A function that can take a braket spec and compute values
 
 <a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix.dot" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -122,11 +124,11 @@ dot(self, other):
 </div>
 
 Performs a dot product between the held SparseArray and another
-        StateSpaceMatrix
+StateSpaceMatrix
+- `:returns`: `_`
+    >
 - `other`: `StateSpaceMatrix`
     >other matrix
-- `:returns`: `_`
-    >No description...
 
 <a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix.__getitem__" class="docs-object-method">&nbsp;</a> 
 ```python

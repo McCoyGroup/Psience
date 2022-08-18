@@ -5,6 +5,8 @@
 
 Provides analysis tools on VPT results
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -23,7 +25,7 @@ __init__(self, res):
 
 
 - `res`: `Any`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.run_VPT" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -34,13 +36,13 @@ run_VPT(*args, logger=None, **kwargs):
 </div>
 
 Runs a VPT calculation through `VPTRunner.run_simple` and
-        stores the output wave functions to use
-- `args`: `Any`
-    >No description...
-- `kwargs`: `Any`
-    >No description...
+stores the output wave functions to use
 - `:returns`: `_`
-    >No description...
+    >
+- `kwargs`: `Any`
+    >
+- `args`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.potential_terms" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -53,7 +55,7 @@ potential_terms(self):
 
 Returns the expansion of the potential
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.kinetic_terms" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -66,7 +68,7 @@ kinetic_terms(self):
 
 Returns the expansion of the kinetic energy
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.dipole_terms" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -79,7 +81,7 @@ dipole_terms(self):
 
 Returns the expansion of the dipole moment
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.basis" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -92,7 +94,7 @@ basis(self):
 
 Returns the basis for the calculation
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.target_states" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -105,7 +107,7 @@ target_states(self):
 
 Returns the target states for the calculation
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -118,7 +120,7 @@ spectrum(self):
 
 Returns the IR spectrum calculated from perturbation theory
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.energy_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -131,7 +133,7 @@ energy_corrections(self):
 
 Returns the corrections to the energies
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.energies" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -144,7 +146,7 @@ energies(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.frequencies" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -157,7 +159,7 @@ frequencies(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.zero_order_spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -170,7 +172,7 @@ zero_order_spectrum(self):
 
 Returns the zero-order IR spectrum calculated from perturbation theory
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -183,7 +185,7 @@ deperturbed_spectrum(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_frequencies" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -196,7 +198,7 @@ deperturbed_frequencies(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.wavefunction_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -209,7 +211,7 @@ wavefunction_corrections(self):
 
 Returns the corrections to the wavefunctions
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -222,7 +224,7 @@ transition_moment_corrections(self):
 
 Returns the corrections to the wavefunctions
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moments" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -244,7 +246,7 @@ deperturbed_transition_moment_corrections(self):
 
 Returns the corrections to the wavefunctions
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_transition_moments" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -257,7 +259,7 @@ deperturbed_transition_moments(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_hamiltonians" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -270,7 +272,7 @@ deperturbed_hamiltonians(self):
 
 Returns the deperturbed Hamiltonians used to make the degenerate transform
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.deperturbed_energies" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -283,7 +285,7 @@ deperturbed_energies(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.degenerate_states" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -296,7 +298,7 @@ degenerate_states(self):
 
 Returns the deperturbed states used to make the degenerate transform
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.degenerate_energies" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -309,7 +311,7 @@ degenerate_energies(self):
 
 Returns the deperturbed states used to make the degenerate transform
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.shift_and_transform_hamiltonian" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -320,12 +322,12 @@ shift_and_transform_hamiltonian(self, hams, shifts):
 </div>
 
 
-- `hams`: `Any`
-    >No description...
-- `shifts`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `shifts`: `Any`
+    >
+- `hams`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.get_shifted_transformed_transition_moments" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -336,20 +338,20 @@ get_shifted_transformed_transition_moments(self, deg_states, target_states, hams
 </div>
 
 
-- `deg_states`: `Any`
-    >No description...
-- `target_states`: `Any`
-    >No description...
-- `hams`: `Any`
-    >No description...
-- `shifts`: `Any`
-    >No description...
-- `tmoms`: `Any`
-    >No description...
-- `handling_mode`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `handling_mode`: `Any`
+    >
+- `tmoms`: `Any`
+    >
+- `shifts`: `Any`
+    >
+- `hams`: `Any`
+    >
+- `target_states`: `Any`
+    >
+- `deg_states`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.get_shifted_transformed_spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -360,22 +362,22 @@ get_shifted_transformed_spectrum(self, zpe, deg_states, target_states, hams, shi
 </div>
 
 
-- `zpe`: `Any`
-    >No description...
-- `deg_states`: `Any`
-    >No description...
-- `target_states`: `Any`
-    >No description...
-- `hams`: `Any`
-    >No description...
-- `shifts`: `Any`
-    >No description...
-- `tmoms`: `Any`
-    >No description...
-- `handling_mode`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `handling_mode`: `Any`
+    >
+- `tmoms`: `Any`
+    >
+- `shifts`: `Any`
+    >
+- `hams`: `Any`
+    >
+- `target_states`: `Any`
+    >
+- `deg_states`: `Any`
+    >
+- `zpe`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.shifted_transformed_spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -386,18 +388,18 @@ shifted_transformed_spectrum(self, deg_states, hams, shifts, return_transformati
 </div>
 
 
-- `deg_states`: `Any`
-    >No description...
-- `hams`: `Any`
-    >No description...
-- `shifts`: `Any`
-    >No description...
-- `return_transformation`: `Any`
-    >No description...
-- `handling_mode`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `handling_mode`: `Any`
+    >
+- `return_transformation`: `Any`
+    >
+- `shifts`: `Any`
+    >
+- `hams`: `Any`
+    >
+- `deg_states`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_data" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -408,14 +410,14 @@ transition_data(self, states, keys=['frequency', 'transition_moment', 'intensity
 </div>
 
 
-- `states`: `Any`
-    >No description...
-- `keys`: `Any`
-    >No description...
-- `data`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `data`: `Any`
+    >
+- `keys`: `Any`
+    >
+- `states`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_term_sums" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -426,16 +428,16 @@ transition_moment_term_sums(self, states, terms=None, rotation=None, data='deper
 </div>
 
 
-- `states`: `Any`
-    >No description...
-- `terms`: `Any`
-    >No description...
-- `rotation`: `Any`
-    >No description...
-- `data`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `data`: `Any`
+    >
+- `rotation`: `Any`
+    >
+- `terms`: `Any`
+    >
+- `states`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.transition_moment_term_sums_first_order" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -446,14 +448,14 @@ transition_moment_term_sums_first_order(self, states, rotation=None, data='deper
 </div>
 
 
-- `states`: `Any`
-    >No description...
-- `rotation`: `Any`
-    >No description...
-- `data`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `data`: `Any`
+    >
+- `rotation`: `Any`
+    >
+- `states`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.intensity_breakdown" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -464,14 +466,14 @@ intensity_breakdown(self, states, terms=None, data='deperturbed'):
 </div>
 
 
-- `states`: `Any`
-    >No description...
-- `terms`: `Any`
-    >No description...
-- `data`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `data`: `Any`
+    >
+- `terms`: `Any`
+    >
+- `states`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.degenerate_coupling_element" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -482,12 +484,12 @@ degenerate_coupling_element(self, state1, state2):
 </div>
 
 
-- `state1`: `Any`
-    >No description...
-- `state2`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `state2`: `Any`
+    >
+- `state1`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.format_deperturbed_hamiltonian" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -498,10 +500,10 @@ format_deperturbed_hamiltonian(self, which):
 </div>
 
 
-- `which`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `which`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTAnalyzer.log_parser" class="docs-object-method">&nbsp;</a> 
 ```python

@@ -7,6 +7,8 @@ Provides tools for loading results into canonical
 sources from a simulation, both from checkpoint files and from
 `PerturbationTheoryWavefunctions` objects and potentially more
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -24,10 +26,10 @@ __init__(self, res, res_type=None):
 </div>
 
 
-- `res`: `Any`
-    >No description...
 - `res_type`: `Any`
-    >No description...
+    >
+- `res`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.get_res_type" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -38,10 +40,10 @@ get_res_type(self, res):
 </div>
 
 
-- `res`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `res`: `Any`
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.potential_terms" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -53,7 +55,7 @@ potential_terms(self):
 
 Returns the expansion of the potential
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.kinetic_terms" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -65,7 +67,7 @@ kinetic_terms(self):
 
 Returns the expansion of the kinetic energy
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.dipole_terms" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -77,7 +79,7 @@ dipole_terms(self):
 
 Returns the expansion of the dipole moment
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.basis" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -89,7 +91,7 @@ basis(self):
 
 Returns the basis for the calculation
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.target_states" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -101,7 +103,7 @@ target_states(self):
 
 Returns the target states for the calculation
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -113,7 +115,7 @@ spectrum(self):
 
 Returns the IR spectrum calculated from perturbation theory
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.zero_order_spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -125,7 +127,7 @@ zero_order_spectrum(self):
 
 Returns the zero-order IR spectrum calculated from perturbation theory
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.energy_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -137,7 +139,7 @@ energy_corrections(self):
 
 Returns the corrections to the energies
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.energies" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -149,7 +151,7 @@ energies(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.wavefunction_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -161,7 +163,7 @@ wavefunction_corrections(self):
 
 Returns the corrections to the wavefunctions
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.transition_moment_corrections" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -173,7 +175,7 @@ transition_moment_corrections(self):
 
 Returns the corrections to the wavefunctions
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.transition_moments" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -193,7 +195,7 @@ deperturbed_transition_moment_corrections(self):
 
 Returns the corrections to the wavefunctions
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.deperturbed_transition_moments" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -205,7 +207,7 @@ deperturbed_transition_moments(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.degenerate_states" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -217,7 +219,7 @@ degenerate_states(self):
 
 Returns the deperturbed states used to make the degenerate transform
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.deperturbed_hamiltonians" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -229,7 +231,7 @@ deperturbed_hamiltonians(self):
 
 Returns the deperturbed Hamiltonians used to make the degenerate transform
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.degenerate_energies" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -241,7 +243,7 @@ degenerate_energies(self):
 
 Returns the deperturbed states used to make the degenerate transform
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.degenerate_rotations" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -253,7 +255,7 @@ degenerate_rotations(self):
 
 Returns the deperturbed states used to make the degenerate transform
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Analyzer.VPTResultsLoader.log_file" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -265,7 +267,7 @@ log_file(self):
 
 Returns the log_file for the run
 - `:returns`: `_`
-    >No description...
+    >
 
  </div>
 </div>

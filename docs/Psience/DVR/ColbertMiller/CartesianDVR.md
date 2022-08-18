@@ -5,6 +5,8 @@
 
 Provides the Colbert Miller DVR on the Cartesian [-inf, inf] range
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -22,16 +24,16 @@ get_grid(self, domain=None, divs=None, **kw):
 </div>
 
 Provides the Colbert-Miller DVR grid for the [-inf, inf] range
-- `domain`: `Any`
-    >No description...
-- `divs`: `Any`
-    >No description...
-- `flavor`: `Any`
-    >No description...
-- `kw`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `kw`: `Any`
+    >
+- `flavor`: `Any`
+    >
+- `divs`: `Any`
+    >
+- `domain`: `Any`
+    >
 
 <a id="Psience.DVR.ColbertMiller.CartesianDVR.get_kinetic_energy" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -50,14 +52,14 @@ real_momentum(self, grid=None, mass=None, hb=1, **kwargs):
 </div>
 
 Provides the real part of the momentum for the [0, 2pi] range
-- `grid`: `Any`
-    >No description...
-- `hb`: `Any`
-    >No description...
-- `kw`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `kw`: `Any`
+    >
+- `hb`: `Any`
+    >
+- `grid`: `Any`
+    >
 
  </div>
 </div>

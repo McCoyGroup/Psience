@@ -5,6 +5,8 @@
 
 Provides a DVR for working on the (0, inf) range from Colbert and Miller
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -22,14 +24,14 @@ get_grid(self, domain=(0, 3.141592653589793), divs=None, **kwargs):
 </div>
 
 Provides the grid appropriate for the Colbert-Miller (0, Pi) range
-- `domain`: `Any`
-    >No description...
-- `divs`: `Any`
-    >No description...
-- `kwargs`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `kwargs`: `Any`
+    >
+- `divs`: `Any`
+    >
+- `domain`: `Any`
+    >
 
 <a id="Psience.DVR.ColbertMiller.RadialDVR.get_kinetic_energy" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -40,16 +42,16 @@ get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs):
 </div>
 
 Colbert-Miller kinetic energy for the (0, inf) range
-- `grid`: `Any`
-    >No description...
-- `mass`: `Any`
-    >No description...
-- `hb`: `Any`
-    >No description...
-- `kw`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `kw`: `Any`
+    >
+- `hb`: `Any`
+    >
+- `mass`: `Any`
+    >
+- `grid`: `Any`
+    >
 
  </div>
 </div>

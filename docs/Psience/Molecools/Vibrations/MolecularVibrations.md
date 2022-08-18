@@ -5,6 +5,8 @@
 
 
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -22,12 +24,12 @@ __init__(self, molecule, basis, freqs=None, init=None):
 </div>
 
 Sets up a vibration for a Molecule object over the CoordinateSystem basis
-- `molecule`: `AbstractMolecule`
-    >No description...
-- `init`: `None | CoordinateSet`
-    >No description...
 - `basis`: `MolecularNormalModes`
-    >No description...
+    >
+- `init`: `None | CoordinateSet`
+    >
+- `molecule`: `AbstractMolecule`
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.basis" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -67,7 +69,7 @@ coords(self):
 
 
 - `:returns`: `CoordinateSet`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.__len__" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -86,16 +88,16 @@ displace(self, displacements=None, amt=0.1, n=1, which=0):
 </div>
 
 Displaces along the vibrational mode specified by `which`
-- `displacements`: `Any`
-    >No description...
-- `amt`: `Any`
-    >No description...
-- `n`: `Any`
-    >No description...
-- `which`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `which`: `Any`
+    >
+- `n`: `Any`
+    >
+- `amt`: `Any`
+    >
+- `displacements`: `Any`
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.visualize" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -106,20 +108,20 @@ visualize(self, step_size=5, steps=(2, 2), which=0, anim_opts=None, mode='fast',
 </div>
 
 
-- `step_size`: `Any`
-    >No description...
-- `steps`: `Any`
-    >No description...
-- `which`: `Any`
-    >No description...
-- `anim_opts`: `Any`
-    >No description...
-- `mode`: `Any`
-    >No description...
-- `plot_args`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `plot_args`: `Any`
+    >
+- `mode`: `Any`
+    >
+- `anim_opts`: `Any`
+    >
+- `which`: `Any`
+    >
+- `steps`: `Any`
+    >
+- `step_size`: `Any`
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.to_widget" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -138,10 +140,10 @@ __getitem__(self, item):
 </div>
 
 Takes a slice of the modes
-- `item`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `item`: `Any`
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.embed" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -152,10 +154,10 @@ embed(self, frame):
 </div>
 
 
-- `frame`: `MolecularTransformation`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `frame`: `MolecularTransformation`
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.rescale" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -166,10 +168,10 @@ rescale(self, scaling):
 </div>
 
 Multiplies each mode by some scaling factor
-- `phases`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `phases`: `Any`
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.rotate" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -180,10 +182,10 @@ rotate(self, scaling):
 </div>
 
 Multiplies each mode by some scaling factor
-- `phases`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `phases`: `Any`
+    >
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.__repr__" class="docs-object-method">&nbsp;</a> 
 ```python

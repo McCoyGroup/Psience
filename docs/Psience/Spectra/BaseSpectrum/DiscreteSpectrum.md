@@ -6,6 +6,8 @@
 Concrete implementation of `BaseSpectrum` that exists
 solely to allow for plotting and broadening.
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -23,12 +25,12 @@ plot(self, figure=None, plot_style=None, **opts):
 </div>
 
 Plots a spectrum using `McUtils.Plots.StickSpectrum`
-- `figure`: `None | McUtils.Plots.Graphics`
-    >figure to plot the spectrum on
+- `:returns`: `_`
+    >
 - `opts`: `Any`
     >any of the many, many options supported by `McUtils.Plots.Graphics`
-- `:returns`: `_`
-    >No description...
+- `figure`: `None | McUtils.Plots.Graphics`
+    >figure to plot the spectrum on
 
 <a id="Psience.Spectra.BaseSpectrum.DiscreteSpectrum.broaden" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -39,12 +41,12 @@ broaden(self, broadening_type='gaussian', breadth=10):
 </div>
 
 Applies a broadening to the spectrum
-- `broadening_type`: `Any`
-    >No description...
-- `breadth`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `breadth`: `Any`
+    >
+- `broadening_type`: `Any`
+    >
 
  </div>
 </div>

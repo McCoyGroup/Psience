@@ -1,10 +1,44 @@
 ## <a id="Psience.VPT2.Runner.VPTSolverOptions">VPTSolverOptions</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L758)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L758?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L755)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L755?message=Update%20Docs)]
 </div>
 
 Provides a helper to keep track of the options available
 for configuring the way the perturbation theory is applied
+
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+## <a class="collapse-link" data-toggle="collapse" href="#Details-d62e91" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-d62e91"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse " id="Details-d62e91" markdown="1">
+ The `basis_postfilters` have multiple possible values.
+Here are the currently supported cases
+
+```python
+{
+    'max_quanta': [2, -1, 1, -1, ...] # the max number of quanta allowed in a given mode in the basis (-1 means infinity)
+}
+```
+
+- for excluding transitions
+
+```python
+{
+    'excluded_transitions': [[0, 0, 1, 0, ...], [1, 0, 0, 0, ...], ...] # a set of transitions that are forbidden on the input states
+}
+```
+
+- for excluding based on a test
+
+```python
+{
+    'test': func # a function that takes the basis and tests if states should be allowed
+}
+```
+ </div>
+</div>
+
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
@@ -19,70 +53,71 @@ for configuring the way the perturbation theory is applied
 __init__(self, order=2, expansion_order=None, coupled_states=None, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, state_space_filters=None, allow_post_PT_calc=None, modify_degenerate_perturbations=None, gaussian_resonance_handling=None, ignore_odd_order_energies=None, intermediate_normalization=None, zero_element_warning=None, degenerate_states=None, handle_strong_couplings=None, strong_coupling_test_modes=None, strong_couplings_state_filter=None, strongly_coupled_group_filter=None, extend_strong_coupling_spaces=None, strong_coupling_zero_order_energy_cutoff=None, low_frequency_mode_cutoff=None, zero_order_energy_corrections=None, check_overlap=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L790)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L790?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L813)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L813?message=Update%20Docs)]
 </div>
 
-:param order: the order of perturbation theory to apply
+
+- `order`: `Any`
+    >the order of perturbation theory to apply
         :type order: int
         :type order: int
         :param expansion_order: the order to go to in the expansions of the perturbations, this can be supplied for different properties independently, like
 ```python
-{
-    'potential':int,
-    'kinetic':int,
-    'dipole':int,
+expansion_order = {
+    'potential':some_int,
+    'kinetic':some_int,
+    'dipole':some_int
 }
 ```
-- `expansion_order`: `int | dict`
-    >No description...
-- `degenerate_states`: `Iterable[BasisStateSpace]`
-    >the set of degeneracies to handle
-- `coupled_states`: `Iterable[SelectionRuleStateSpace]`
-    >explicit bases of states to use at each order in the perturbation theory
-- `total_space`: `Iterable[BasisStateSpace]`
-    >the total state spaces at each order in the perturbation theory
-- `flat_total_space`: `BasisStateSpace`
-    >the union of all of the total state spaces
-- `state_space_iterations`: `int`
-    >the order to go to when getting the `coupled_states`
-- `state_space_terms`: `Iterable[(int, int)]`
-    >the explicit set of terms to include, as a tuple `(i, j)` which indicates `(H(i), |n(j)>)`
-- `state_space_filters`: `dict`
-    >filters that can be used to cut down on the size of bases (see `VPTRunner.get_state_space_filter`)
-- `allow_post_PT_calc`: `bool`
-    >whether to do the post-perturbation theory variational calculation for degeneracy handling
-- `modify_degenerate_perturbations`: `bool`
-    >whether to modify the perturbation representation matrices themselves when doing degeneracy handling
-- `gaussian_resonance_handling`: `bool`
-    >whether or not to skip the post-PT variational calculation for states with more than two quanta of excitation
-- `ignore_odd_order_energies`: `bool`
-    >whether or not to skip actually calculating the energy corrections for odd orders
-- `intermediate_normalization`: `bool`
-    >whether or not to use 'intermediate normalization' in the wavefunctions
-- `zero_element_warning`: `bool`
-    >whether or not to warn if an element of the representations evaluated to zero (i.e. we wasted effort)
-- `low_frequency_mode_cutoff`: `float (default:500 cm-1)`
-    >the energy below which to consider a mode to be "low frequency"
-- `zero_order_energy_corrections`: `dict`
-    >energies to use for the zero-order states instead of the diagonal of `H(0)`
-- `check_overlap`: `bool default:True`
-    >whether or not to ensure states are normalized in the VPT
+        :type expansion_order: int | dict
+        :param degenerate_states: the set of degeneracies to handle
+        :type degenerate_states: Iterable[BasisStateSpace]
+        :param coupled_states: explicit bases of states to use at each order in the perturbation theory
+        :type coupled_states: Iterable[SelectionRuleStateSpace]
+        :param total_space: the total state spaces at each order in the perturbation theory
+        :type total_space: Iterable[BasisStateSpace]
+        :param flat_total_space: the union of all of the total state spaces
+        :type flat_total_space: BasisStateSpace
+        :param state_space_iterations: the order to go to when getting the `coupled_states`
+        :type state_space_iterations: int
+        :param state_space_terms: the explicit set of terms to include, as a tuple `(i, j)` which indicates `(H(i), |n(j)>)`
+        :type state_space_terms: Iterable[(int, int)]
+        :param state_space_filters: filters that can be used to cut down on the size of bases (see `VPTRunner.get_state_space_filter`)
+        :type state_space_filters: dict
+        :param allow_post_PT_calc: whether to do the post-perturbation theory variational calculation for degeneracy handling
+        :type allow_post_PT_calc: bool
+        :param modify_degenerate_perturbations: whether to modify the perturbation representation matrices themselves when doing degeneracy handling
+        :type modify_degenerate_perturbations: bool
+        :param gaussian_resonance_handling: whether or not to skip the post-PT variational calculation for states with more than two quanta of excitation
+        :type gaussian_resonance_handling: bool
+        :param ignore_odd_order_energies: whether or not to skip actually calculating the energy corrections for odd orders
+        :type ignore_odd_order_energies: bool
+        :param intermediate_normalization: whether or not to use 'intermediate normalization' in the wavefunctions
+        :type intermediate_normalization: bool
+        :param zero_element_warning: whether or not to warn if an element of the representations evaluated to zero (i.e. we wasted effort)
+        :type zero_element_warning: bool
+        :param low_frequency_mode_cutoff: the energy below which to consider a mode to be "low frequency"
+        :type low_frequency_mode_cutoff: float (default:500 cm-1)
+        :param zero_order_energy_corrections: energies to use for the zero-order states instead of the diagonal of `H(0)`
+        :type zero_order_energy_corrections: dict
+        :param check_overlap: whether or not to ensure states are normalized in the VPT
+        :type check_overlap: bool default:True
 
 <a id="Psience.VPT2.Runner.VPTSolverOptions.get_zero_order_energies" class="docs-object-method">&nbsp;</a> 
 ```python
 get_zero_order_energies(corrected_fundamental_freqs, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L901)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L901?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L924)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L924?message=Update%20Docs)]
 </div>
 
 
-- `corrected_fundamental_freqs`: `Any`
-    >No description...
-- `states`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `states`: `Any`
+    >
+- `corrected_fundamental_freqs`: `Any`
+    >
 
  </div>
 </div>
@@ -357,4 +392,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTSolverOptions.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTSolverOptions.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTSolverOptions.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L758?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L755?message=Update%20Docs)

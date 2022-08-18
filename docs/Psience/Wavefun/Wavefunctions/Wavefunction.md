@@ -5,6 +5,8 @@
 
 Represents a single wavefunction object
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -30,10 +32,10 @@ plot(self, figure=None, index=None, **opts):
 </div>
 
 Uses McUtils to plot the wavefunction on the passed figure (makes a new one if none)
-- `figure`: `Graphics | Graphics3D`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `figure`: `Graphics | Graphics3D`
+    >
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunction.expectation" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -44,12 +46,12 @@ expectation(self, op, other=None):
 </div>
 
 Computes the expectation value of operator op over the wavefunction other and self
-- `other`: `Wavefunction`
-    >No description...
-- `op`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `op`: `Any`
+    >
+- `other`: `Wavefunction`
+    >
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunction.overlap" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -69,7 +71,7 @@ probability_density(self):
 
 Computes the probability density of the current wavefunction
 - `:returns`: `_`
-    >No description...
+    >
 
  </div>
 </div>

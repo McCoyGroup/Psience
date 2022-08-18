@@ -5,6 +5,8 @@
 
 A subclass that can wrap all of the DVR run parameters and results into a clean interface for reuse and extension
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -39,13 +41,13 @@ plot_potential(self, plot_class=None, figure=None, plot_units=None, energy_thres
 </div>
 
 Simple plotting function for the potential.
-        Should be updated to deal with higher dimensional cases
-- `plot_class`: `McUtils.Plots.Graphics`
-    >the graphics class to use for the plot
+Should be updated to deal with higher dimensional cases
+- `:returns`: `McUtils.Plots.Graphics`
+    >
 - `opts`: `Any`
     >plot styling options
-- `:returns`: `McUtils.Plots.Graphics`
-    >No description...
+- `plot_class`: `McUtils.Plots.Graphics`
+    >the graphics class to use for the plot
 
  </div>
 </div>

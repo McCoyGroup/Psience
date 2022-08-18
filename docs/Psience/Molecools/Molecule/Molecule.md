@@ -5,6 +5,8 @@
 
 General purpose 'Molecule' class where the 'Molecule' need not be a molecule at all
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -22,32 +24,33 @@ __init__(self, atoms, coords, bonds=None, masses=None, name=None, internals=None
 </div>
 
 
-- `atoms`: `Iterable[str]`
-    >atoms specified by name, either full name or short
-- `coords`: `np.ndarray`
-    >coordinates for the molecule, assumed to be in Bohr by default
-- `bonds`: `Iterable[Iterable[int]] | None`
-    >bond specification for the molecule
-- `obmol`: `Any`
-    >OpenBabel molecule for doing conversions
-- `charge`: `int | None`
-    >Net charge on the molecule
-- `name`: `str | None`
-    >Name for the molecule
-- `dipole_surface`: `DipoleSurface | None`
-    >The dipole surface for the system
-- `dipole_derivatives`: `Iterable[np.ndarray] | None`
-    >Derivatives of the dipole surface
-- `potential_surface`: `PotentialSurface | None`
-    >The potential surface for the system
-- `potential_derivatives`: `Iterable[np.ndarray] | None`
-    >Derivatives of the potential surface
-- `guess_bonds`: `bool`
-    >Whether or not to guess the bonding arrangement when that would be used
-- `source_file`: `str`
-    >The data file the molecule was loaded from
 - `kw`: `Any`
     >Other bound parameters that might be useful
+- `source_file`: `str`
+    >The data file the molecule was loaded from
+- `guess_bonds`: `bool`
+    >Whether or not to guess the bonding arrangement when that would be used
+- `potential_derivatives`: `Iterable[np.ndarray] | None`
+    >Derivatives of the potential surface
+- `potential_surface`: `PotentialSurface | None`
+    >The potential surface for the system
+- `dipole_derivatives`: `Iterable[np.ndarray] | None`
+    >Derivatives of the dipole surface
+- `dipole_surface`: `DipoleSurface | None`
+    >The dipole surface for the system
+- `name`: `np.ndarray[int] | None`
+    >Name for the molecule
+The internal coordinate specification for the molecule
+- `charge`: `int | None`
+    >Net charge on the molecule
+- `obmol`: `Any`
+    >OpenBabel molecule for doing conversions
+- `bonds`: `Iterable[Iterable[int]] | None`
+    >bond specification for the molecule
+- `coords`: `np.ndarray`
+    >coordinates for the molecule, assumed to be in Bohr by default
+- `atoms`: `Iterable[str]`
+    >atoms specified by name, either full name or short
 
 <a id="Psience.Molecools.Molecule.Molecule.dipole_surface" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -60,7 +63,7 @@ dipole_surface(self):
 
 
 - `:returns`: `DipoleSurfaceManager`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.dipole_derivatives" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -82,7 +85,7 @@ potential_surface(self):
 
 
 - `:returns`: `PotentialSurfaceManager`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.potential_derivatives" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -104,7 +107,7 @@ normal_modes(self):
 
 
 - `:returns`: `NormalModesManager`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.metadata" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -142,10 +145,10 @@ atom_positions(self):
 </div>
 
 A mapping of atom types to positions
-- `spec`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `spec`: `Any`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.dummy_positions" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -262,11 +265,11 @@ take_submolecule(self, spec):
 </div>
 
 Takes a 'slice' of a molecule if working with Cartesian coords.
-        If not, need to do some corner case handling for that.
-- `spec`: `Any`
-    >No description...
+If not, need to do some corner case handling for that.
 - `:returns`: `_`
-    >No description...
+    >
+- `spec`: `Any`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.shape" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -328,7 +331,7 @@ mass_weighted_coords(self):
 
 
 - `:returns`: `CoordinateSet`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.center_of_mass" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -341,7 +344,7 @@ center_of_mass(self):
 
 
 - `:returns`: `CoordinateSet`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.inertia_tensor" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -354,7 +357,7 @@ inertia_tensor(self):
 
 
 - `:returns`: `(np.ndarray, np.ndarray)`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.inertial_eigensystem" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -367,7 +370,7 @@ inertial_eigensystem(self):
 
 
 - `:returns`: `(np.ndarray, np.ndarray)`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.moments_of_inertia" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -380,7 +383,7 @@ moments_of_inertia(self):
 
 
 - `:returns`: `np.ndarray`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.inertial_axes" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -393,7 +396,7 @@ inertial_axes(self):
 
 
 - `:returns`: `np.ndarray`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.translation_rotation_modes" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -406,7 +409,7 @@ translation_rotation_modes(self):
 
 
 - `:returns`: `np.ndarray`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.canonicalize_internal_coordinate_spec" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -454,7 +457,7 @@ g_matrix(self):
 
 Returns the molecular g-matrix for the system
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.bond_length" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -465,12 +468,12 @@ bond_length(self, i, j):
 </div>
 
 Returns the bond length of the coordinates
-- `i`: `Any`
-    >No description...
-- `j`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `j`: `Any`
+    >
+- `i`: `Any`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.bond_angle" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -481,12 +484,12 @@ bond_angle(self, i, j, k):
 </div>
 
 Returns the bond angle of the specified coordinates
-- `i`: `Any`
-    >No description...
-- `j`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `j`: `Any`
+    >
+- `i`: `Any`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.dihedral" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -497,12 +500,12 @@ dihedral(self, i, j, k, l):
 </div>
 
 Returns the dihedral angle of the specified coordinates
-- `i`: `Any`
-    >No description...
-- `j`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `j`: `Any`
+    >
+- `i`: `Any`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.principle_axis_frame" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -513,14 +516,14 @@ principle_axis_frame(self, sel=None, inverse=False):
 </div>
 
 Gets the principle axis frame(s) for the molecule
-- `mol`: `Any`
-    >No description...
-- `sel`: `Any`
-    >selection of atoms to use when getting the Eckart frame
+- `:returns`: `MolecularTransformation | List[MolecularTransformation]`
+    >
 - `inverse`: `bool`
     >whether to return the inverse of the rotations or not
-- `:returns`: `MolecularTransformation | List[MolecularTransformation]`
-    >No description...
+- `sel`: `Any`
+    >selection of atoms to use when getting the Eckart frame
+- `mol`: `Any`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.principle_axis_data" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -533,7 +536,7 @@ principle_axis_data(self):
 
 Gets the principle axis embedded coords and embedding parameters for the molecule
 - `:returns`: `MolecularTransformation | List[MolecularTransformation]`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.eckart_frame" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -544,14 +547,14 @@ eckart_frame(self, mol, sel=None, inverse=False, planar_ref_tolerance=None):
 </div>
 
 Gets the Eckart frame(s) for the molecule
-- `mol`: `Any`
-    >No description...
-- `sel`: `Any`
-    >selection of atoms to use when getting the Eckart frame
+- `:returns`: `MolecularTransformation`
+    >
 - `inverse`: `bool`
     >whether to return the inverse of the rotations or not
-- `:returns`: `MolecularTransformation`
-    >No description...
+- `sel`: `Any`
+    >selection of atoms to use when getting the Eckart frame
+- `mol`: `Any`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.embed_coords" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -562,10 +565,10 @@ embed_coords(self, crds, sel=None, planar_ref_tolerance=None):
 </div>
 
 Embeds coords in the Eckart frame using `self` as a reference
-- `crds`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `crds`: `Any`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.get_embedding_data" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -576,10 +579,10 @@ get_embedding_data(self, crds, sel=None):
 </div>
 
 Gets the necessary data to embed crds in the Eckart frame using `self` as a reference
-- `crds`: `Any`
-    >No description...
 - `:returns`: `tuple[np.ndarray, tuple[np.ndarray], tuple[np.ndarray]]`
-    >No description...
+    >
+- `crds`: `Any`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.get_embedded_molecule" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -590,9 +593,9 @@ get_embedded_molecule(self, ref=None, embed_properties=True):
 </div>
 
 Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
-        a principle-axis embedded Molecule
+a principle-axis embedded Molecule
 - `:returns`: `Molecule`
-    >No description...
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.from_zmat" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -603,10 +606,10 @@ from_zmat(zmat, **opts):
 </div>
 
 Little z-matrix importer
-- `zmat`: `str | tuple`
-    >No description...
 - `:returns`: `Molecule`
-    >No description...
+    >
+- `zmat`: `str | tuple`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.from_pybel" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -617,10 +620,10 @@ from_pybel(mol, **opts):
 </div>
 
 
-- `mol`: `pybel.mol`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `mol`: `pybel.mol`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.from_file" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -631,10 +634,10 @@ from_file(file, mode=None, **opts):
 </div>
 
 In general we'll delegate to pybel except for like Fchk and Log files
-- `file`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `file`: `Any`
+    >
 
 <a id="Psience.Molecools.Molecule.Molecule.from_spec" class="docs-object-method">&nbsp;</a> 
 ```python

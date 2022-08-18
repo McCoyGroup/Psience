@@ -5,6 +5,8 @@
 
 Base class to support spectral operation
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -22,12 +24,12 @@ __init__(self, frequencies, intensities, **meta):
 </div>
 
 
-- `frequencies`: `np.ndarray`
-    >frequency list
-- `intensities`: `np.ndarray`
-    >intensity list
 - `meta`: `Any`
     >metadata
+- `intensities`: `np.ndarray`
+    >intensity list
+- `frequencies`: `np.ndarray`
+    >frequency list
 
 <a id="Psience.Spectra.BaseSpectrum.BaseSpectrum.take_subspectrum" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -38,10 +40,10 @@ take_subspectrum(self, pos):
 </div>
 
 Takes a subset of frequencies/intensities specified by `pos`
-- `pos`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `pos`: `Any`
+    >
 
 <a id="Psience.Spectra.BaseSpectrum.BaseSpectrum.__getitem__" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -60,12 +62,22 @@ frequency_filter(self, freq_min, freq_max):
 </div>
 
 Filters by frequencies >= `freq_min` and <= `freq_max`
-- `freq_min`: `float`
-    >min frequency
+- `:returns`: `BaseSpectrum`
+    >s
+u
+b
+s
+p
+e
+c
+t
+r
+u
+m
 - `freq_max`: `float`
     >max frequency
-- `:returns`: `BaseSpectrum`
-    >subspectrum
+- `freq_min`: `float`
+    >min frequency
 
 <a id="Psience.Spectra.BaseSpectrum.BaseSpectrum.intensity_filter" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -76,12 +88,22 @@ intensity_filter(self, int_min, int_max):
 </div>
 
 Filters by intensities >= `int_min` and <= `int_max`
-- `int_min`: `float`
-    >min intensity
+- `:returns`: `BaseSpectrum`
+    >s
+u
+b
+s
+p
+e
+c
+t
+r
+u
+m
 - `int_max`: `float`
     >max intensity
-- `:returns`: `BaseSpectrum`
-    >subspectrum
+- `int_min`: `float`
+    >min intensity
 
 <a id="Psience.Spectra.BaseSpectrum.BaseSpectrum.save" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -92,10 +114,10 @@ save(self, file):
 </div>
 
 Saves the spectrum in JSON format
+- `:returns`: `_`
+    >
 - `file`: `Any`
     >str | file-like object
-- `:returns`: `_`
-    >No description...
 
 <a id="Psience.Spectra.BaseSpectrum.BaseSpectrum.load" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -106,10 +128,10 @@ load(file):
 </div>
 
 Saves a spectrum from a JSON file
+- `:returns`: `_`
+    >
 - `file`: `Any`
     >str | file-like object
-- `:returns`: `_`
-    >No description...
 
 <a id="Psience.Spectra.BaseSpectrum.BaseSpectrum.plot" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -120,10 +142,10 @@ plot(self, **opts):
 </div>
 
 A stub so that subclasses can implement their own `plot` methods
+- `:returns`: `_`
+    >
 - `opts`: `Any`
     >plotting options to be fed through to whatever the plotting function uses
-- `:returns`: `_`
-    >No description...
 
  </div>
 </div>

@@ -8,6 +8,8 @@ to evaluate out matrix elements and stuff.
 This will be more progressively more tightly meshed with RepresentationBasis in the future,
 but for now I just want to provide the scaffolding so that I can build off of it.
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -41,10 +43,10 @@ plot(self, figure=None, plot_class=None, domain=(-5, 5), **opts):
 </div>
 
 Uses McUtils to plot the wavefunction on the passed figure (makes a new one if none)
-- `figure`: `Graphics | Graphics3D`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `figure`: `Graphics | Graphics3D`
+    >
 
 <a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunction.expect" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -55,9 +57,9 @@ expect(self, operator):
 </div>
 
 Provides expectation values of operators, but the operators have to be Operator objects...
-          basically all the logic is inside the operator, but this is worth it for use in ExpansionWavefunction
-        We can also potentially add support for ExpansionOperators or SymbolicOperators in the future that are
-          able to very cleanly reuse stuff like the `p` matrix that a RepresentationBasis defines
+basically all the logic is inside the operator, but this is worth it for use in ExpansionWavefunction
+We can also potentially add support for ExpansionOperators or SymbolicOperators in the future that are
+able to very cleanly reuse stuff like the `p` matrix that a RepresentationBasis defines
 - `operator`: `Operator`
     >the operator to take the expectation of
 
@@ -70,12 +72,12 @@ expectation(self, op, other):
 </div>
 
 Computes the expectation value of operator op over the wavefunction other and self
-- `other`: `AnalyticWavefunction`
-    >the other wavefunction
+- `:returns`: `_`
+    >
 - `op`: `Operator`
     >the operator to take the matrix element of
-- `:returns`: `_`
-    >No description...
+- `other`: `AnalyticWavefunction`
+    >the other wavefunction
 
 <a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunction.probability_density" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -87,7 +89,7 @@ probability_density(self):
 
 Computes the probability density of the current wavefunction
 - `:returns`: `_`
-    >No description...
+    >
 
  </div>
 </div>

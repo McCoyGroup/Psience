@@ -5,6 +5,8 @@
 
 A stick spectrum with associated broadening function
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -22,16 +24,16 @@ __init__(self, frequencies, intensities, broadening_type='gaussian', breadth=10,
 </div>
 
 
-- `frequencies`: `Any`
-    >No description...
-- `intensities`: `Any`
-    >No description...
-- `broadening_type`: `"gaussian" | "lorentzian" | function`
-    >the type of broadening to apply (can be any function)
+- `meta`: `Any`
+    >
 - `breadth`: `Any`
     >the breadth or list of breads for the peaks in the spectrum
-- `meta`: `Any`
-    >No description...
+- `broadening_type`: `"gaussian" | "lorentzian" | function`
+    >the type of broadening to apply (can be any function)
+- `intensities`: `Any`
+    >
+- `frequencies`: `Any`
+    >
 
 <a id="Psience.Spectra.BaseSpectrum.BroadenedSpectrum.plot" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -42,20 +44,20 @@ plot(self, step_size=0.5, freq_min=None, freq_max=None, figure=None, plot_style=
 </div>
 
 Applies the broadening then plots it using `McUtils.Plots.Plot`
-- `step_size`: `Any`
-    >step size to use when getting evaluation points for evaluating the broadening
-- `freq_min`: `Any`
-    >min freq for evaluation
+- `:returns`: `_`
+    >
+- `opts`: `Any`
+    >
+- `plot_style`: `Any`
+    >
+- `figure`: `Any`
+    >
 - `freq_max`: `Any`
     >max freq for evaluation
-- `figure`: `Any`
-    >No description...
-- `plot_style`: `Any`
-    >No description...
-- `opts`: `Any`
-    >No description...
-- `:returns`: `_`
-    >No description...
+- `freq_min`: `Any`
+    >min freq for evaluation
+- `step_size`: `Any`
+    >step size to use when getting evaluation points for evaluating the broadening
 
  </div>
 </div>

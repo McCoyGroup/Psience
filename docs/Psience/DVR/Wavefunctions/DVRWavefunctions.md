@@ -5,6 +5,8 @@
 
 
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -54,10 +56,10 @@ __getitem__(self, item):
 </div>
 
 Provides a single `DVRWavefunction` or slice of `DVRWavefunctions`
-- `item`: `Any`
-    >No description...
 - `:returns`: `DVRWavefunction | DVRWavefunctions`
-    >No description...
+    >
+- `item`: `Any`
+    >
 
 <a id="Psience.DVR.Wavefunctions.DVRWavefunctions.plot" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -68,20 +70,20 @@ plot(self, figure=None, graphics_class=None, plot_style=None, scaling=1, shift=0
 </div>
 
 Plots the held wavefunctions
-- `figure`: `Any`
-    >No description...
-- `graphics_class`: `Any`
-    >No description...
-- `plot_style`: `Any`
-    >No description...
-- `scaling`: `Any`
-    >No description...
-- `shift`: `Any`
-    >No description...
-- `opts`: `Any`
-    >No description...
 - `:returns`: `Graphics`
-    >No description...
+    >
+- `opts`: `Any`
+    >
+- `shift`: `Any`
+    >
+- `scaling`: `Any`
+    >
+- `plot_style`: `Any`
+    >
+- `graphics_class`: `Any`
+    >
+- `figure`: `Any`
+    >
 
 <a id="Psience.DVR.Wavefunctions.DVRWavefunctions.expectation" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -92,12 +94,12 @@ expectation(self, op, other=None):
 </div>
 
 Computes the expectation value of operator op over the wavefunction other and self
-- `other`: `DVRWavefunctions | np.ndarray`
-    >No description...
-- `op`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `op`: `Any`
+    >
+- `other`: `DVRWavefunctions | np.ndarray`
+    >
 
 <a id="Psience.DVR.Wavefunctions.DVRWavefunctions.transform_operator" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -117,7 +119,7 @@ probability_density(self):
 
 Computes the probability density of the set of wavefunctions
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.DVR.Wavefunctions.DVRWavefunctions.coordinate" class="docs-object-method">&nbsp;</a> 
 ```python

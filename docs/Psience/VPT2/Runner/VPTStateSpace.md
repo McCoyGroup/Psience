@@ -1,14 +1,19 @@
 ## <a id="Psience.VPT2.Runner.VPTStateSpace">VPTStateSpace</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L148)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L148?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L169)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L169?message=Update%20Docs)]
 </div>
 
 Provides a helper to make it easier to set up the input
 state spaces/degenerate spaces to run the perturbation theory
 
-:details:
 
-There are multiple possible values for this spec.
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+## <a class="collapse-link" data-toggle="collapse" href="#Details-48d069" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-48d069"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse " id="Details-48d069" markdown="1">
+ 
+There are multiple possible values for the `degeneracy_specs`.
 The simplest is to use the automatic approach, in which we supply a numeric type (`int`, `float`, etc.) to use as the `WFC` threshold.
 The next simplest is to explicitly supply the groups we want, like
 
@@ -76,37 +81,16 @@ The Martin Test is supported,
     'martin_threshold':.1/219465, #in Hartree
 }
 ```
-As are total quanta vectors
+
+As are total quanta vectors/polyads
 ```python
 {
     'nT': [1, 1, 1, 0, 2, 2, 0] # e.g.
 }
 ```
-- `mode_selection` (`list[int]`): the subset of normal modes to use in the calculation as a `list` of `int`s corresponding to the desired modes (can also be used to rearrange from freq. ordering to Herzberg)
-- `basis_postfilters` (`list[dict]`): a list of filters to apply sequentially to the basis of states used in the PT, each filter can look like one of the following
-  - for excluding quanta
+ </div>
+</div>
 
-```python
-{
-    'max_quanta': [2, -1, 1, -1, ...] # the max number of quanta allowed in a given mode in the basis (-1 means infinity)
-}
-```
-
-  - for excluding transitions
-
-```python
-{
-    'excluded_transitions': [[0, 0, 1, 0, ...], [1, 0, 0, 0, ...], ...] # a set of transitions that are forbidden on the input states
-}
-```
-
-  - for excluding transitions
-
-```python
-{
-    'test': func # a function that takes the basis and tests if states should be allowed
-}
-```
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
@@ -121,74 +105,74 @@ As are total quanta vectors
 __init__(self, states, degeneracy_specs=None, system=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L259)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L259?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L256)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L256?message=Update%20Docs)]
 </div>
 
 
-- `states`: `list | int`
-    >A list of states or a number of quanta to target
 - `degeneracy_specs`: `'auto' | list | dict`
     >A specification of degeneracies, either as polyads, explicit groups of states, or parameters to a method.
+- `states`: `list | int`
+    >A list of states or a number of quanta to target
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.from_system_and_quanta" class="docs-object-method">&nbsp;</a> 
 ```python
 from_system_and_quanta(system, quanta, target_modes=None, only_target_modes=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L298)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L298?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L295)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L295?message=Update%20Docs)]
 </div>
 
 Takes a system and a number of quanta and constructs a state space
-        based on that
-- `system`: `Any`
-    >No description...
-- `quanta`: `Any`
-    >No description...
+based on that
+- `:returns`: `_`
+    >
 - `opts`: `Any`
     >any of the options supported by
-- `:returns`: `_`
-    >No description...
+- `quanta`: `Any`
+    >
+- `system`: `Any`
+    >
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.get_state_list_from_quanta" class="docs-object-method">&nbsp;</a> 
 ```python
 get_state_list_from_quanta(n_quanta, n_modes, target_modes=None, only_target_modes=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L327)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L327?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L324)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L324?message=Update%20Docs)]
 </div>
 
 Gets states up to `n_quanta` over `n_modes`
-- `n_quanta`: `int | Iterable[int]`
-    >the number of quanta to provide excitations for
-- `n_modes`: `int`
-    >the number of modes in the system
-- `target_modes`: `Iterable[int]`
-    >modes that must be excited
+- `:returns`: `_`
+    >
 - `only_target_modes`: `bool`
     >whether or not to _only_ support excitations in the `target_modes`
-- `:returns`: `_`
-    >No description...
+- `target_modes`: `Iterable[int]`
+    >modes that must be excited
+- `n_modes`: `int`
+    >the number of modes in the system
+- `n_quanta`: `int | Iterable[int]`
+    >the number of quanta to provide excitations for
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.build_degenerate_state_spaces" class="docs-object-method">&nbsp;</a> 
 ```python
 build_degenerate_state_spaces(self, degeneracy_specs, states, system=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L357)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L357?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L354)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L354?message=Update%20Docs)]
 </div>
 
 
-- `degeneracy_specs`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `degeneracy_specs`: `Any`
+    >
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.filter_generator" class="docs-object-method">&nbsp;</a> 
 ```python
 filter_generator(self, target_property, order=2, postfilters=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L399)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L399?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L396)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L396?message=Update%20Docs)]
 </div>
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.get_filter" class="docs-object-method">&nbsp;</a> 
@@ -196,35 +180,35 @@ filter_generator(self, target_property, order=2, postfilters=None):
 get_filter(self, target_property, order=2, postfilters=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L403)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L403?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L400)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L400?message=Update%20Docs)]
 </div>
 
 Obtains a state space filter for the given target property
-        using the states we want to get corrections for
-- `target_property`: `Any`
-    >No description...
-- `order`: `Any`
-    >No description...
+using the states we want to get corrections for
 - `:returns`: `_`
-    >No description...
+    >
+- `order`: `Any`
+    >
+- `target_property`: `Any`
+    >
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.get_state_space_filter" class="docs-object-method">&nbsp;</a> 
 ```python
 get_state_space_filter(states, n_modes=None, order=2, target='wavefunctions', postfilters=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L420)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L420?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L417)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L417?message=Update%20Docs)]
 </div>
 
 Gets `state_space_filters` for the input `states` targeting some property
-- `states`: `Any`
-    >the input states
-- `n_modes`: `int`
-    >No description...
+- `:returns`: `_`
+    >
 - `target`: `str`
     >the property to target, one of `('frequencies', 'intensities', 'wavefunctions')`
-- `:returns`: `_`
-    >No description...
+- `n_modes`: `int`
+    >
+- `states`: `Any`
+    >the input states
 
  </div>
 </div>
@@ -521,4 +505,4 @@ ___
 [Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTStateSpace.md) <br/>
 [Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTStateSpace.md) or 
 [Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTStateSpace.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L148?message=Update%20Docs)
+[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L169?message=Update%20Docs)

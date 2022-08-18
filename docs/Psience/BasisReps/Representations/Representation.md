@@ -6,6 +6,8 @@
 A `Representation` provides a simple interface to build matrix representations of operators expressed
 in high-dimensional spaces.
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -23,12 +25,12 @@ __init__(self, compute, basis, name=None, logger=None, selection_rules=None, sel
 </div>
 
 
-- `compute`: `callable | Operator`
-    >the function that turns indices into values
-- `basis`: `RepresentationBasis`
-    >the basis quanta used in the representations
 - `logger`: `None | Logger`
     >logger for printing out debug info
+- `basis`: `RepresentationBasis`
+    >the basis quanta used in the representations
+- `compute`: `callable | Operator`
+    >the function that turns indices into values
 
 <a id="Psience.BasisReps.Representations.Representation.parallelizer" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -108,12 +110,12 @@ get_brakets(self, states, check_orthogonality=True, memory_constrained=False):
 </div>
 
 Computes term elements based on getting a BraKetSpace.
-        Can directly pass element specs through, since the shape management shit
-        is managed by the BraKetSpace
-- `states`: `BraKetSpace | Tuple[np.ndarray, np.ndarray]`
-    >No description...
+Can directly pass element specs through, since the shape management shit
+is managed by the BraKetSpace
 - `:returns`: `_`
-    >No description...
+    >
+- `states`: `BraKetSpace | Tuple[np.ndarray, np.ndarray]`
+    >
 
 <a id="Psience.BasisReps.Representations.Representation.get_element" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -124,13 +126,13 @@ get_element(self, n, m):
 </div>
 
 Computes term elements.
-        Determines first whether it needs to pull single elements or blocks of them.
-- `n`: `Any`
-    >No description...
-- `m`: `Any`
-    >No description...
+Determines first whether it needs to pull single elements or blocks of them.
 - `:returns`: `_`
-    >No description...
+    >
+- `m`: `Any`
+    >
+- `n`: `Any`
+    >
 
 <a id="Psience.BasisReps.Representations.Representation.__getitem__" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -183,7 +185,7 @@ selection_rules(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.Representations.Representation.selection_rule_steps" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -196,7 +198,7 @@ selection_rule_steps(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.Representations.Representation.is_diagonal" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -227,7 +229,7 @@ skipped_indices(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.Representations.Representation.get_transformed_space" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -238,11 +240,32 @@ get_transformed_space(self, space, parallelizer=None, logger=None, **opts):
 </div>
 
 Returns the state space obtained by using the
-        held operator to transform `space`
-- `space`: `Any`
-    >No description...
+held operator to transform `space`
 - `:returns`: `SelectionRuleStateSpace`
-    >connected state spaces
+    >c
+o
+n
+n
+e
+c
+t
+e
+d
+ 
+s
+t
+a
+t
+e
+ 
+s
+p
+a
+c
+e
+s
+- `space`: `Any`
+    >
 
 <a id="Psience.BasisReps.Representations.Representation.apply" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -261,12 +284,12 @@ get_representation_matrix(self, coupled_space, total_space, filter_space=None, d
 </div>
 
 Actively constructs a perturbation theory Hamiltonian representation
-- `h`: `Any`
-    >No description...
-- `cs`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `cs`: `Any`
+    >
+- `h`: `Any`
+    >
 
 <a id="Psience.BasisReps.Representations.Representation.get_diagonal_representation" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -277,12 +300,12 @@ get_diagonal_representation(self, coupled_space, total_space, logger=None, zero_
 </div>
 
 Actively constructs a perturbation theory Hamiltonian representation
-- `h`: `Any`
-    >No description...
-- `cs`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `cs`: `Any`
+    >
+- `h`: `Any`
+    >
 
  </div>
 </div>

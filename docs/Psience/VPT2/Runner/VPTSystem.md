@@ -6,6 +6,27 @@
 Provides a little helper for setting up the input
 system for a VPT job
 
+
+<div class="collapsible-section">
+ <div class="collapsible-section collapsible-section-header" markdown="1">
+## <a class="collapse-link" data-toggle="collapse" href="#Details-e4e048" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-e4e048"><i class="fa fa-chevron-down"></i></a>
+ </div>
+ <div class="collapsible-section collapsible-section-body collapse " id="Details-e4e048" markdown="1">
+ When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
+```python
+def conv(r, t, f, **kwargs):
+    '''
+    Takes the bond lengths (`r`), angles `(t)` and dihedrals `(f)`,
+    and returns new coordinates that are functions of these coordinates
+    '''
+    ... # convert the coordinates
+    return np.array([r, t, f])
+```
+and then the inverse function will take the output of `conv` and return the original Z-matrix/polyspherical coordinates.
+ </div>
+</div>
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -19,20 +40,28 @@ system for a VPT job
 __init__(self, mol, internals=None, dummy_atoms=None, modes=None, mode_selection=None, potential_derivatives=None, potential_function=None, order=2, dipole_derivatives=None, eckart_embed=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L47)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L47?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L60)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L60?message=Update%20Docs)]
 </div>
 
 
-- `mol`: `str | list | Molecule`
-    >the molecule or system specification to use (doesn't really even need to be a molecule)
-- `internals`: `list | dict`
-    >the Z-matrix for the internal coordinates optionally with a specification of a `conversion` and `inverse`
-- `modes`: `MolecularVibrations|dict`
-    >the normal modes to use if not already supplied by the Molecule
-- `potential_derivatives`: `Iterable[np.ndarray]`
-    >the derivatives of the potential to use for expansions
 - `dipole_derivatives`: `Iterable[np.ndarray]`
     >the set of dipole derivatives to use for expansions
+- `potential_derivatives`: `Iterable[np.ndarray]`
+    >the derivatives of the potential to use for expansions
+- `modes`: `MolecularVibrations|dict`
+    >the normal modes to use if not already supplied by the Molecule
+- `internals`: `list | dict`
+    >the Z-matrix for the internal coordinates optionally with a specification of a `conversion` and `inverse`
+To supply a conversion function, provide a `dict` like so
+```python
+{
+    'zmatrix': [[atom1, bond1, angle1, dihed1], [atom2, bond2, angle2, dihed2], ...] or None,
+    'conversion': 'a function to convert from Z-matrix coordinates to desired coordinates',
+    'inverse': 'the inverse conversion'
+}
+```
+- `mol`: `str | list | Molecule`
+    >the molecule or system specification to use (doesn't really even need to be a molecule)
 
 <a id="Psience.VPT2.Runner.VPTSystem.nmodes" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -45,32 +74,32 @@ nmodes(self):
 
 Provides the number of modes in the system
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.VPT2.Runner.VPTSystem.get_potential_derivatives" class="docs-object-method">&nbsp;</a> 
 ```python
 get_potential_derivatives(self, potential_function, order=2, **fd_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L123)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L123?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L144)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L144?message=Update%20Docs)]
 </div>
 
 Computes potential derivatives for the given function through finite difference
-- `potential_function`: `Any`
-    >No description...
-- `order`: `Any`
-    >No description...
-- `fd_opts`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `fd_opts`: `Any`
+    >
+- `order`: `Any`
+    >
+- `potential_function`: `Any`
+    >
 
 <a id="Psience.VPT2.Runner.VPTSystem.from_harmonic_scan" class="docs-object-method">&nbsp;</a> 
 ```python
 from_harmonic_scan(scan_array): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L144)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L144?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L165)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L165?message=Update%20Docs)]
 </div>
 
  </div>

@@ -5,6 +5,8 @@
 
 Provides a base class for indexing states
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -22,10 +24,10 @@ to_indices(self, states):
 </div>
 
 Converts the set of states to numerical indices
-- `states`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `states`: `Any`
+    >
 
 <a id="Psience.BasisReps.StateIndexers.BaseStateIndexer.from_indices" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -36,10 +38,10 @@ from_indices(self, indices):
 </div>
 
 Converts the set of states to numerical indices
-- `states`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `states`: `Any`
+    >
 
  </div>
 </div>

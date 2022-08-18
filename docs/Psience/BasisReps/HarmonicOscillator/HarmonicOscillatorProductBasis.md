@@ -6,6 +6,8 @@
 Tiny, tiny layer on `SimpleProductBasis` that makes use of some analytic work done
 to support representations of `p` and `x`.
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -58,15 +60,15 @@ operator(self, *terms, coeffs=None, axes=None, parallelizer=None, logger=None, c
 </div>
 
 Builds an operator based on supplied terms, remapping names where possible.
-        If `coeffs` are supplied, a `ContractedOperator` is built.
-- `terms`: `Any`
-    >No description...
-- `coeffs`: `Any`
-    >No description...
-- `axes`: `Any`
-    >No description...
+If `coeffs` are supplied, a `ContractedOperator` is built.
 - `:returns`: `_`
-    >No description...
+    >
+- `axes`: `Any`
+    >
+- `coeffs`: `Any`
+    >
+- `terms`: `Any`
+    >
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorProductBasis.take_subdimensions" class="docs-object-method">&nbsp;</a> 
 ```python

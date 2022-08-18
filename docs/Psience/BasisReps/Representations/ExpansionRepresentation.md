@@ -5,6 +5,8 @@
 
 Provides support for terms that look like `1/2 pGp + 1/2 dV/dQdQ QQ` by computing each term on its own
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -22,12 +24,12 @@ __init__(self, coeffs, computers, basis, name=None, logger=None, memory_constrai
 </div>
 
 
-- `coeffs`: `Iterable[float]`
-    >The expansion coefficients
-- `compute`: `Iterable[callable | Operator]`
-    >the functions that turns indices into values
 - `n_quanta`: `tuple[int]`
     >the total quanta used in the representations (necessary for shape reasons)
+- `compute`: `Iterable[callable | Operator]`
+    >the functions that turns indices into values
+- `coeffs`: `Iterable[float]`
+    >The expansion coefficients
 
 <a id="Psience.BasisReps.Representations.ExpansionRepresentation.is_diagonal" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -58,7 +60,7 @@ skipped_indices(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.Representations.ExpansionRepresentation.clear_cache" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -128,7 +130,7 @@ selection_rules(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.Representations.ExpansionRepresentation.selection_rule_steps" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -141,7 +143,7 @@ selection_rule_steps(self):
 
 
 - `:returns`: `_`
-    >No description...
+    >
 
 <a id="Psience.BasisReps.Representations.ExpansionRepresentation.get_transformed_space" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -152,11 +154,11 @@ get_transformed_space(self, space, rules=None, parallelizer=None, logger=None, *
 </div>
 
 Returns the state space obtained by using the
-        held operators to transform `space`
-- `space`: `BasisStateSpace`
-    >No description...
+held operators to transform `space`
 - `:returns`: `SelectionRuleStateSpace`
-    >No description...
+    >
+- `space`: `BasisStateSpace`
+    >
 
 <a id="Psience.BasisReps.Representations.ExpansionRepresentation.__repr__" class="docs-object-method">&nbsp;</a> 
 ```python

@@ -7,6 +7,8 @@ Provides a unified interface to working with dipole surfaces.
 Currently basically no fancier than a regular surface (although with convenient loading functions), but dipole-specific
 stuff could come
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -24,12 +26,12 @@ __init__(self, mu_x, mu_y, mu_z):
 </div>
 
 
-- `mu_x`: `Surface`
-    >X-component of dipole moment
-- `mu_y`: `Surface`
-    >Y-component of dipole moment
 - `mu_z`: `Surface`
     >Z-component of dipole moment
+- `mu_y`: `Surface`
+    >Y-component of dipole moment
+- `mu_x`: `Surface`
+    >X-component of dipole moment
 
 <a id="Psience.Data.Surfaces.DipoleSurface.get_log_values" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -48,13 +50,13 @@ from_log_file(log_file, coord_transf, keys=('StandardCartesianCoordinates', 'Dip
 </div>
 
 Loads dipoles from a Gaussian log file and builds a dipole surface by interpolating.
-        Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
-        to furnish a function that'll take a set of Cartesian coordinates and convert them to "scan" coordinates.
-        Coordinerds can be helpful with this, as it provides a convenient syntax for Cartesian <-> ZMatrix conversions
+Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
+to furnish a function that'll take a set of Cartesian coordinates and convert them to "scan" coordinates.
+Coordinerds can be helpful with this, as it provides a convenient syntax for Cartesian <-> ZMatrix conversions
+- `:returns`: `_`
+    >
 - `log_file`: `str`
     >a Gaussian log file to pull from
-- `:returns`: `_`
-    >No description...
 
 <a id="Psience.Data.Surfaces.DipoleSurface.get_fchk_values" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -73,12 +75,12 @@ from_fchk_file(fchk_file, **opts):
 </div>
 
 Loads dipoles from a Gaussian formatted checkpoint file and builds a dipole surface via a linear approximation
+- `:returns`: `_`
+    >
+- `log_file`: `str`
+    >
 - `fchk_file`: `Any`
     >a Gaussian fchk file to pull from
-- `log_file`: `str`
-    >No description...
-- `:returns`: `_`
-    >No description...
 
 <a id="Psience.Data.Surfaces.DipoleSurface.__call__" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -89,12 +91,12 @@ __call__(self, gridpoints, **opts):
 </div>
 
 Explicitly overrides the Surface-level evaluation because we know the Taylor surface needs us to flatten our gridpoints
-- `gridpoints`: `Any`
-    >No description...
-- `opts`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `opts`: `Any`
+    >
+- `gridpoints`: `Any`
+    >
 
  </div>
 </div>

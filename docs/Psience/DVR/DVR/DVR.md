@@ -7,22 +7,24 @@
 DVR(domain=None, divs=None, classes=None, potential_function=None, g=None, g_deriv=None, scf=False, potential_optimize=False, **base_opts): 
 ```
 Constructs a DVR object
-- `domain`: `Any`
-    >No description...
-- `divs`: `Any`
-    >No description...
-- `classes`: `Any`
-    >No description...
-- `potential_function`: `Any`
-    >No description...
-- `g`: `Any`
-    >No description...
-- `g_deriv`: `Any`
-    >No description...
-- `base_opts`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description... 
+    >
+- `base_opts`: `Any`
+    >
+- `g_deriv`: `Any`
+    >
+- `g`: `Any`
+    >
+- `potential_function`: `Any`
+    >
+- `classes`: `Any`
+    >
+- `divs`: `Any`
+    >
+- `domain`: `Any`
+    > 
+
+
 
 
 

@@ -5,6 +5,8 @@
 
 
 
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
  
@@ -22,10 +24,10 @@ __init__(self, dvrs_1D, zero_threshold=1e-14, **base_opts):
 </div>
 
 
+- `base_opts`: `Any`
+    >
 - `dvrs_1D`: `Iterable[AbstractDVR]`
     >a series of 1D DVRs that can provide the inputs we'll product together
-- `base_opts`: `Any`
-    >No description...
 
 <a id="Psience.DVR.DirectProduct.DirectProductDVR.__repr__" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -68,18 +70,18 @@ kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, logger=No
 </div>
 
 Computes the N-dimensional kinetic energy
-- `grid`: `Any`
-    >No description...
-- `mass`: `Any`
-    >No description...
-- `hb`: `Any`
-    >No description...
-- `g`: `Any`
-    >No description...
-- `g_deriv`: `Any`
-    >No description...
 - `:returns`: `_`
-    >No description...
+    >
+- `g_deriv`: `Any`
+    >
+- `g`: `Any`
+    >
+- `hb`: `Any`
+    >
+- `mass`: `Any`
+    >
+- `grid`: `Any`
+    >
 
  </div>
 </div>
