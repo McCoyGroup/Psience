@@ -20,7 +20,7 @@ The options for jobs along with short descriptions are detailed in
 [`VPTSolverOptions`](VPT2/Runner/VPTSolverOptions.md) for options related to constructing representations and applying VPT,
 and [`VPTRuntimeOptions`](VPT2/Runner/VPTRuntimeOptions.md) for options related to the runtime/logging
 
-*A basic tutorial to provide more extensive hand-holding can be found [here](VPT2/tutorial.md).*
+**A basic tutorial to provide more extensive hand-holding can be found [here](VPT2/tutorial.md).**
 
 Finally, the general code flow is detailed below
 
@@ -122,9 +122,9 @@ Finally, the general code flow is detailed below
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Examples-70cca9" markdown="1"> Examples</a> 
+## <a class="collapse-link" data-toggle="collapse" href="#Examples-5a2cd1" markdown="1"> Examples</a> 
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Examples-70cca9" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Examples-5a2cd1" markdown="1">
  
 In the following we provide some basic examples.
 More complex cases can be composed from the many settings provided in the Hamiltonian, solver, and runtime objects.
