@@ -16,7 +16,7 @@ The options for jobs along with short descriptions are detailed in
 [`VPTSolverOptions`](VPT2/Runner/VPTSolverOptions.md) for options related to constructing representations and applying VPT,
 and [`VPTRuntimeOptions`](VPT2/Runner/VPTRuntimeOptions.md) for options related to the runtime/logging
 
-A basic tutorial to provide more extensive hand-holding can be found [here](VPT2/tutorial.md).
+*A basic tutorial to provide more extensive hand-holding can be found [here](VPT2/tutorial.md).*
 
 Finally, the general code flow is detailed below
 
