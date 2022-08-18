@@ -31,6 +31,19 @@ class VPTSystem:
     """
     Provides a little helper for setting up the input
     system for a VPT job
+
+    :details:
+    When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
+    ```python
+    def conv(r, t, f, **kwargs):
+        '''
+        Takes the bond lengths (`r`), angles `(t)` and dihedrals `(f)`,
+        and returns new coordinates that are functions of these coordinates
+        '''
+        ... # convert the coordinates
+        return np.array([r, t, f])
+    ```
+    and then the inverse function will take the output of `conv` and return the original Z-matrix/polyspherical coordinates.
     """
 
     __props__ = (
@@ -60,6 +73,14 @@ class VPTSystem:
         :param mol: the molecule or system specification to use (doesn't really even need to be a molecule)
         :type mol: str | list | Molecule
         :param internals: the Z-matrix for the internal coordinates optionally with a specification of a `conversion` and `inverse`
+        To supply a conversion function, provide a `dict` like so
+        ```python
+        {
+            'zmatrix': [[atom1, bond1, angle1, dihed1], [atom2, bond2, angle2, dihed2], ...] or None,
+            'conversion': 'a function to convert from Z-matrix coordinates to desired coordinates',
+            'inverse': 'the inverse conversion'
+        }
+        ```
         :type internals: list | dict
         :param modes: the normal modes to use if not already supplied by the Molecule
         :type modes: MolecularVibrations|dict
