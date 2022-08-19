@@ -150,8 +150,7 @@ For more sophisticated calculations, many other flags are provided
 
 - `mode_selection`: `Iterable[int]|None`
     >the set of the supplied normal modes to do perturbation theory on (can also be used to rearrange modes to put them in ordering from Herzberg notation)
-- `operator_coefficient_threshold`: `float|None`
-    >the minimum size of a coefficient to keep when evaluating representation terms
+    >for example one can use `[4, 5, 6]` to get the three highest-frequency modes in a 4 atom system or `[4, 3, 2, 1, 0, 5]` to put the modes of formaldehyde into Herzberg order (as the modes are initially ordered lowest to highest frequency)
 - `pseudopotential_terms`: `Iterable[np.ndarray]`
     >explicit values for the psuedopotential terms
 - `coriolis_terms`: `Iterable[np.ndarray]`
@@ -175,8 +174,6 @@ For more sophisticated calculations, many other flags are provided
     >energies to use for the zero-order states instead of the diagonal of `H(0)`
 - `low_frequency_mode_cutoff`: `float (default:500 cm-1)`
     >the energy below which to consider a mode to be "low frequency"
-- `state_space_filters`: `dict`
-    >filters that can be used to cut down on the size of bases (see `VPTRunner.get_state_space_filter`)
 - `order`: `int`
     >the order of perturbation theory to apply
 - `expansion_order`: `int | dict`
