@@ -49,17 +49,17 @@ __init__(self, domains, **base_opts):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-829b02" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-829b02"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-e1b8bc" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e1b8bc"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-829b02" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e1b8bc" markdown="1">
  - [energies_2D](#energies_2D)
 - [energies_3D](#energies_3D)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-614404" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-614404"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-b7ba52" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-b7ba52"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-614404" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-b7ba52" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces

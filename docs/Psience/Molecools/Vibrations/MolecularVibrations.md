@@ -239,16 +239,16 @@ __repr__(self):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-4298aa" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-4298aa"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-b89b9e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-b89b9e"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-4298aa" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-b89b9e" markdown="1">
  - [VisualizeNormalModes](#VisualizeNormalModes)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-1ac312" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-1ac312"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-68e576" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-68e576"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-1ac312" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-68e576" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces

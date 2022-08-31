@@ -109,17 +109,17 @@ This is not assured to be a fast process in any way.
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-ade0c1" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-ade0c1"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-4d3a1d" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-4d3a1d"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-ade0c1" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-4d3a1d" markdown="1">
  - [StateIndexing](#StateIndexing)
 - [PermIndices](#PermIndices)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-e899d9" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e899d9"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-dba401" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-dba401"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e899d9" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-dba401" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces

@@ -143,9 +143,9 @@ Gets `state_space_filters` for the input `states` targeting some property
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-7b7c26" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-7b7c26"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-9d927e" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-9d927e"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-7b7c26" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-9d927e" markdown="1">
  
 There are multiple possible values for the `degeneracy_specs`.
 The simplest is to use the automatic approach, in which we supply a numeric type (`int`, `float`, etc.) to use as the `WFC` threshold.
@@ -242,17 +242,17 @@ As are total quanta vectors/polyads
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-7a5f70" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-7a5f70"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-6da690" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-6da690"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-7a5f70" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-6da690" markdown="1">
  - [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
 - [GetDegenerateSpaces](#GetDegenerateSpaces)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-d8af9c" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-d8af9c"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-c91bba" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-c91bba"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-d8af9c" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-c91bba" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
