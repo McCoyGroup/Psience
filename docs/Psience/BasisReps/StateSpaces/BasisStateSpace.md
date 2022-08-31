@@ -1,59 +1,72 @@
 ## <a id="Psience.BasisReps.StateSpaces.BasisStateSpace">BasisStateSpace</a> 
+
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L479)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L479?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces.py#L479)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L479?message=Update%20Docs)]
 </div>
 
 Represents a subspace of states inside a representation basis.
 Useful largely to provide consistent, unambiguous representations of multiple states across
 the different representation-generating methods in the code base.
 
+
+
+
+
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
- 
-### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
-
+## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
+ 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, basis, states, full_basis=None, mode=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L485)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L485?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L485)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L485?message=Update%20Docs)]
 </div>
 
+  - `basis`: `RepresentationBasis`
+    > 
+  - `states`: `Iterable[int]`
+    > 
+  - `mode`: `None | str | StateSpaceSpec`
+    > whether the states were supplied as indices or as excitations
 
-- `mode`: `None | str | StateSpaceSpec`
-    >whether the states were supplied as indices or as excitations
-- `states`: `Iterable[int]`
-    >
-- `basis`: `RepresentationBasis`
-    >
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.check_indices" class="docs-object-method">&nbsp;</a> 
 ```python
 check_indices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L536)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L536?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L536)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L536?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.to_state" class="docs-object-method">&nbsp;</a> 
 ```python
 to_state(self, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L546)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L546?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L546)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L546?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.from_state" class="docs-object-method">&nbsp;</a> 
 ```python
 from_state(data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L552)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L552?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L552)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L552?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.indices" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -61,14 +74,15 @@ from_state(data, serializer=None):
 indices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L564)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L564?message=Update%20Docs)]
 </div>
-
 Returns held indices
-- `:returns`: `_`
+  - `inds`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `inds`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.excitations" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -76,27 +90,32 @@ Returns held indices
 excitations(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L586)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L586?message=Update%20Docs)]
 </div>
-
 Returns held excitations
-- `:returns`: `_`
+  - `inds`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `inds`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.from_quanta" class="docs-object-method">&nbsp;</a> 
 ```python
 from_quanta(basis, quants): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L607)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L607?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L607)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L607?message=Update%20Docs)]
 </div>
-
 Returns states with `quants` quanta of excitation
 using the basis `basis`
-- `:returns`: `_`
-    >B
+  - `basis`: `RepresentationBasis`
+    > 
+  - `quants`: `int | Iterable[int]`
+    > set of integers
+  - `:returns`: `_`
+    > B
 a
 s
 i
@@ -111,370 +130,408 @@ p
 a
 c
 e
-- `quants`: `int | Iterable[int]`
-    >set of integers
-- `basis`: `RepresentationBasis`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.get_mode" class="docs-object-method">&nbsp;</a> 
 ```python
 get_mode(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L633)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L633?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L633)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L633?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.infer_state_inds_type" class="docs-object-method">&nbsp;</a> 
 ```python
 infer_state_inds_type(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L636)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L636?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L636)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L636?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.as_excitations" class="docs-object-method">&nbsp;</a> 
 ```python
 as_excitations(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L647)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L647?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L647)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L647?message=Update%20Docs)]
 </div>
-
 Returns states as sets of excitations, rather than indices indo the basis functions.
 For 1D, this just means converting a list of states into tuples of length 1.
-- `:returns`: `_`
+  - `states`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `states`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.as_indices" class="docs-object-method">&nbsp;</a> 
 ```python
 as_indices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L681)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L681?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L681)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L681?message=Update%20Docs)]
 </div>
-
 Returns states as sets of excitations, rather than indices indo the basis functions.
 For 1D, this just means converting a list of states into tuples of length 1.
-- `:returns`: `_`
+  - `states`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `states`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.to_single" class="docs-object-method">&nbsp;</a> 
 ```python
 to_single(self, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L711)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L711?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L711)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L711?message=Update%20Docs)]
 </div>
-
 Basically a no-op
-- `:returns`: `_`
+  - `:returns`: `_`
     >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.is_unique" class="docs-object-method">&nbsp;</a> 
 ```python
 is_unique(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L727)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L727?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L727)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L727?message=Update%20Docs)]
 </div>
-
 Returns `True` if the number of states is equal to number of unique states
-- `:returns`: `_`
+  - `:returns`: `_`
     >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.is_sorted" class="docs-object-method">&nbsp;</a> 
 ```python
 is_sorted(self, allow_indeterminate=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L738)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L738?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L738)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L738?message=Update%20Docs)]
 </div>
-
 Checks and then sets a flag
-- `:returns`: `_`
+  - `:returns`: `_`
     >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_unique" class="docs-object-method">&nbsp;</a> 
 ```python
 take_unique(self, sort=False, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L751)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L751?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L751)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L751?message=Update%20Docs)]
 </div>
-
 Returns only the unique states, but preserves
 ordering and all of that unless explicitly allowed not to
-- `:returns`: `_`
+  - `:returns`: `_`
     >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.as_sorted" class="docs-object-method">&nbsp;</a> 
 ```python
 as_sorted(self, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L794)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L794?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L794)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L794?message=Update%20Docs)]
 </div>
-
 Returns a sorted version of the state space
-- `:returns`: `_`
+  - `:returns`: `_`
     >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.apply_selection_rules" class="docs-object-method">&nbsp;</a> 
 ```python
 apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None, logger=None, iterations=1, new_state_space_class=None, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L832)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L832?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L832)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L832?message=Update%20Docs)]
 </div>
-
 Generates a new state space from the application of `selection_rules` to the state space.
 Returns a `BasisMultiStateSpace` where each state tracks the effect of the application of the selection rules
 up to the number of iteration specified.
-- `:returns`: `SelectionRuleStateSpace`
+  - `basis`: `Any`
+    > 
+  - `selection_rules`: `Any`
+    > 
+  - `states`: `Any`
+    > 
+  - `iterations`: `Any`
+    > 
+  - `filter_space`: `Any`
+    > 
+  - `:returns`: `SelectionRuleStateSpace`
     >
-- `filter_space`: `Any`
-    >
-- `iterations`: `Any`
-    >
-- `states`: `Any`
-    >
-- `selection_rules`: `Any`
-    >
-- `basis`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.permutationally_reduce" class="docs-object-method">&nbsp;</a> 
 ```python
 permutationally_reduce(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L865)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L865?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L865)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L865?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.get_representation_indices" class="docs-object-method">&nbsp;</a> 
 ```python
 get_representation_indices(self, other=None, selection_rules=None, freqs=None, freq_threshold=None, filter=None, return_filter=False, parallelizer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L868)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L868?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L868)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L868?message=Update%20Docs)]
 </div>
-
 Generates a set of indices that can be fed into a `Representation` to provide a sub-representation
 in this state space.
 Basically just takes all pairs of indices.
 Only returns the upper-triangle indices
-- `:returns`: `_`
+  - `:returns`: `_`
     >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.get_representation_brakets" class="docs-object-method">&nbsp;</a> 
 ```python
 get_representation_brakets(self, other=None, selection_rules=None, freqs=None, freq_threshold=None, filter=None, return_filter=False, track_excitations=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L951)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L951?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L951)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L951?message=Update%20Docs)]
 </div>
-
 Generates a `BraKetSpace` that can be fed into a `Representation`
 Only returns the upper-triangle pairs because we assume symmetry
-- `:returns`: `_`
+  - `:returns`: `_`
     >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_subspace" class="docs-object-method">&nbsp;</a> 
 ```python
 take_subspace(self, sel, assume_sorted=False, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1024)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1024?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1024)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1024?message=Update%20Docs)]
 </div>
-
 Returns a subsample of the space.
 Intended to be a cheap operation, so samples
 along either the indices or the excitations, depending
 on which we have
 If we know the subsample is sorted then we can actually reuse more information
 and so we make use of that
-- `:returns`: `_`
+  - `sel`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `sel`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_subdimensions" class="docs-object-method">&nbsp;</a> 
 ```python
 take_subdimensions(self, inds, exc=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1081)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1081?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1081)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1081?message=Update%20Docs)]
 </div>
-
 Returns a subsample of the space with some dimensions
 dropped
-- `:returns`: `_`
+  - `inds`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `inds`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.take_states" class="docs-object-method">&nbsp;</a> 
 ```python
 take_states(self, states, sort=False, assume_sorted=False, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1099)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1099?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1099)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1099?message=Update%20Docs)]
 </div>
-
 Takes the set of specified states from the space.
 A lot like take_subspace, but operates on states, not indices
-- `:returns`: `_`
+  - `states`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `states`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.drop_subspace" class="docs-object-method">&nbsp;</a> 
 ```python
 drop_subspace(self, sel, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1121)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1121?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1121)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1121?message=Update%20Docs)]
 </div>
-
 Returns a subsample of the space.
 Intended to be a cheap operation, so samples
 along either the indices or the excitations, depending
 on which we have
-- `:returns`: `_`
+  - `sel`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `sel`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.drop_subdimensions" class="docs-object-method">&nbsp;</a> 
 ```python
 drop_subdimensions(self, inds, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1145)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1145?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1145)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1145?message=Update%20Docs)]
 </div>
-
 Returns a subsample of the space with some dimensions
 dropped
-- `:returns`: `_`
+  - `inds`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `inds`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.drop_states" class="docs-object-method">&nbsp;</a> 
 ```python
 drop_states(self, states, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1163)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1163?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1163)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1163?message=Update%20Docs)]
 </div>
-
 Takes the set of specified states from the space.
 A lot like take_subspace, but operates on states, not indices
-- `:returns`: `_`
+  - `states`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `states`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.split" class="docs-object-method">&nbsp;</a> 
 ```python
 split(self, chunksize): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1182)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1182?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1182)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1182?message=Update%20Docs)]
 </div>
-
 Splits the space up into chunks of at max chunksize
-- `:returns`: `Iterable[BasisStateSpace]`
+  - `chunksize`: `int`
+    > 
+  - `:returns`: `Iterable[BasisStateSpace]`
     >
-- `chunksize`: `int`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.concatenate" class="docs-object-method">&nbsp;</a> 
 ```python
 concatenate(self, other, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1216)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1216?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1216)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1216?message=Update%20Docs)]
 </div>
-
 Just does a direct concatenation with no unions or any
 of that
-- `:returns`: `_`
+  - `other`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `other`: `Any`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.union" class="docs-object-method">&nbsp;</a> 
 ```python
 union(self, other, sort=False, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1275)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1275?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1275)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1275?message=Update%20Docs)]
 </div>
-
 Returns a merged version of self and other, making
 use of as much of the information inherent in both as is possible
-- `:returns`: `_`
+  - `other`: `BasisStateSpace`
+    > 
+  - `:returns`: `_`
     >
-- `other`: `BasisStateSpace`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.intersection" class="docs-object-method">&nbsp;</a> 
 ```python
 intersection(self, other, sort=False, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1390)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1390?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1390)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1390?message=Update%20Docs)]
 </div>
-
 Returns an intersected self and other
-- `:returns`: `_`
+  - `other`: `BasisStateSpace`
+    > 
+  - `:returns`: `_`
     >
-- `other`: `BasisStateSpace`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.difference" class="docs-object-method">&nbsp;</a> 
 ```python
 difference(self, other, sort=False, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1518)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1518?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1518)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1518?message=Update%20Docs)]
 </div>
-
 Returns an diff'ed self and other
-- `:returns`: `_`
+  - `other`: `BasisStateSpace`
+    > 
+  - `:returns`: `_`
     >
-- `other`: `BasisStateSpace`
-    >
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.__repr__" class="docs-object-method">&nbsp;</a> 
 ```python
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1626)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1626?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1626)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1626?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.BasisReps.StateSpaces.BasisStateSpace.__eq__" class="docs-object-method">&nbsp;</a> 
 ```python
 __eq__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateSpaces.py#L1644)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L1644?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BasisStateSpace.py#L1644)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BasisStateSpace.py#L1644?message=Update%20Docs)]
 </div>
 
-
-- `:returns`: `_`
+  - `other`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `other`: `Any`
-    >
-
  </div>
 </div>
+
+
+
+
+## Examples
+
+
+
+
+
+
+
+
 
 
 
@@ -482,11 +539,10 @@ __eq__(self, other):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-e8deba" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e8deba"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [HOBasis2DPP](#HOBasis2DPP)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e8deba" markdown="1">
+ - [HOBasis2DPP](#HOBasis2DPP)
 - [HarmHam](#HarmHam)
 - [HOBasis3DPXP](#HOBasis3DPXP)
 - [HOBasis3DXXX2D](#HOBasis3DXXX2D)
@@ -504,23 +560,13 @@ __eq__(self, other):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-3c2a97" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-3c2a97"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-3c2a97" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-from Peeves import Timer, BlockProfiler
-from McUtils.Scaffolding import *
-import McUtils.Plots as plt
-from McUtils.Combinatorics import CompleteSymmetricGroupSpace
-from Peeves.TestUtils import *
-from unittest import TestCase
-from Psience.BasisReps import *
-import sys, os, numpy as np
-```
 
 All tests are wrapped in a test class
 ```python
@@ -586,6 +632,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 ```
+
 #### <a name="HarmHam">HarmHam</a>
 ```python
     def test_HarmHam(self):
@@ -615,6 +662,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(np.average(diags), 0.036932841734999985)
 ```
+
 #### <a name="HOBasis3DPXP">HOBasis3DPXP</a>
 ```python
     def test_HOBasis3DPXP(self):
@@ -704,6 +752,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 ```
+
 #### <a name="HOBasis3DXXX2D">HOBasis3DXXX2D</a>
 ```python
     def test_HOBasis3DXXX2D(self):
@@ -734,6 +783,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 2.0e-14)
 ```
+
 #### <a name="HOBasis3DXXX2DContracted">HOBasis3DXXX2DContracted</a>
 ```python
     def test_HOBasis3DXXX2DContracted(self):
@@ -764,6 +814,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 2.0e-14)
 ```
+
 #### <a name="HOSelRuleTerms">HOSelRuleTerms</a>
 ```python
     def test_HOSelRuleTerms(self):
@@ -804,6 +855,7 @@ class BasisSetTests(TestCase):
                 1
             )
 ```
+
 #### <a name="GenerateSelectionRuleSpace">GenerateSelectionRuleSpace</a>
 ```python
     def test_GenerateSelectionRuleSpace(self):
@@ -827,6 +879,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(h2_space.nstates, 120)
 ```
+
 #### <a name="GenerateFilteredSelectionRuleSpace">GenerateFilteredSelectionRuleSpace</a>
 ```python
     def test_GenerateFilteredSelectionRuleSpace(self):
@@ -860,6 +913,7 @@ class BasisSetTests(TestCase):
         # raise Exception(ind_tag)
         self.assertEquals(ind_tag, (320425735722628681, 4044592283957769633))
 ```
+
 #### <a name="StateIndexing">StateIndexing</a>
 ```python
     def test_StateIndexing(self):
@@ -892,6 +946,7 @@ class BasisSetTests(TestCase):
         self.assertTrue((states[some_sel,] == rev).all(),
                         msg="{} != {}".format(states[some_sel,], rev))
 ```
+
 #### <a name="FindIndices">FindIndices</a>
 ```python
     def test_FindIndices(self):
@@ -908,6 +963,7 @@ class BasisSetTests(TestCase):
         test_2 = states2.find(states2)
         self.assertEquals(tuple(test_2), tuple(np.arange(len(sel))))
 ```
+
 #### <a name="PermIndexingChange">PermIndexingChange</a>
 ```python
     def test_PermIndexingChange(self):
@@ -929,6 +985,7 @@ class BasisSetTests(TestCase):
 
             print(states.indices.tolist(), np.sort(h2_space.indices).tolist())
 ```
+
 #### <a name="NewOrthogonalityCalcs">NewOrthogonalityCalcs</a>
 ```python
     def test_NewOrthogonalityCalcs(self):
@@ -965,6 +1022,7 @@ class BasisSetTests(TestCase):
 
         self.assertTrue((orthog_1 == orthog_2).all())
 ```
+
 #### <a name="StateSpaceIntersections">StateSpaceIntersections</a>
 ```python
     def test_StateSpaceIntersections(self):
@@ -1005,6 +1063,7 @@ class BasisSetTests(TestCase):
             list(np.intersect1d(filter_inds, subinds))
         )
 ```
+
 #### <a name="BasisRepMatrixOps">BasisRepMatrixOps</a>
 ```python
     def test_BasisRepMatrixOps(self):
@@ -1029,6 +1088,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(mat2_vals.tolist(), mat_2[sub_brakets].tolist())
 ```
+
 #### <a name="OperatorAdjacencyGraph">OperatorAdjacencyGraph</a>
 ```python
     def test_OperatorAdjacencyGraph(self):
@@ -1079,10 +1139,61 @@ class BasisSetTests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/BasisReps/StateSpaces/BasisStateSpace.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/StateSpaces/BasisStateSpace.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateSpaces/BasisStateSpace.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateSpaces/BasisStateSpace.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateSpaces.py#L479?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/BasisReps/StateSpaces/BasisStateSpace.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/StateSpaces/BasisStateSpace.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateSpaces/BasisStateSpace.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateSpaces/BasisStateSpace.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L479?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

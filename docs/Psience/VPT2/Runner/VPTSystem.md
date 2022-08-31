@@ -1,36 +1,38 @@
 ## <a id="Psience.VPT2.Runner.VPTSystem">VPTSystem</a> 
+
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L30)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L30?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner.py#L30)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L30?message=Update%20Docs)]
 </div>
 
 Provides a little helper for setting up the input
 system for a VPT job
 
+
+
+
+
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
- 
-### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
-
+## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
+ 
 <a id="Psience.VPT2.Runner.VPTSystem.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, mol, internals=None, dummy_atoms=None, modes=None, mode_selection=None, potential_derivatives=None, potential_function=None, order=2, dipole_derivatives=None, eckart_embed=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L60)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L60?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSystem.py#L60)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSystem.py#L60?message=Update%20Docs)]
 </div>
 
-
-- `dipole_derivatives`: `Iterable[np.ndarray]`
-    >the set of dipole derivatives to use for expansions
-- `potential_derivatives`: `Iterable[np.ndarray]`
-    >the derivatives of the potential to use for expansions
-- `modes`: `MolecularVibrations|dict`
-    >the normal modes to use if not already supplied by the Molecule
-- `internals`: `list | dict`
-    >the Z-matrix for the internal coordinates optionally with a specification of a `conversion` and `inverse`
+  - `mol`: `str | list | Molecule`
+    > the molecule or system specification to use (doesn't really even need to be a molecule)
+  - `internals`: `list | dict`
+    > the Z-matrix for the internal coordinates optionally with a specification of a `conversion` and `inverse`
 To supply a conversion function, provide a `dict` like so
 ```python
 {
@@ -39,8 +41,13 @@ To supply a conversion function, provide a `dict` like so
     'inverse': 'the inverse conversion'
 }
 ```
-- `mol`: `str | list | Molecule`
-    >the molecule or system specification to use (doesn't really even need to be a molecule)
+  - `modes`: `MolecularVibrations|dict`
+    > the normal modes to use if not already supplied by the Molecule
+  - `potential_derivatives`: `Iterable[np.ndarray]`
+    > the derivatives of the potential to use for expansions
+  - `dipole_derivatives`: `Iterable[np.ndarray]`
+    > the set of dipole derivatives to use for expansions
+
 
 <a id="Psience.VPT2.Runner.VPTSystem.nmodes" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -48,48 +55,51 @@ To supply a conversion function, provide a `dict` like so
 nmodes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSystem.py#L131)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSystem.py#L131?message=Update%20Docs)]
 </div>
-
 Provides the number of modes in the system
-- `:returns`: `_`
+  - `:returns`: `_`
     >
+
 
 <a id="Psience.VPT2.Runner.VPTSystem.get_potential_derivatives" class="docs-object-method">&nbsp;</a> 
 ```python
 get_potential_derivatives(self, potential_function, order=2, **fd_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L144)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L144?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSystem.py#L144)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSystem.py#L144?message=Update%20Docs)]
 </div>
-
 Computes potential derivatives for the given function through finite difference
-- `:returns`: `_`
+  - `potential_function`: `Any`
+    > 
+  - `order`: `Any`
+    > 
+  - `fd_opts`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `fd_opts`: `Any`
-    >
-- `order`: `Any`
-    >
-- `potential_function`: `Any`
-    >
+
 
 <a id="Psience.VPT2.Runner.VPTSystem.from_harmonic_scan" class="docs-object-method">&nbsp;</a> 
 ```python
 from_harmonic_scan(scan_array): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L165)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L165?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSystem.py#L165)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSystem.py#L165?message=Update%20Docs)]
 </div>
-
  </div>
 </div>
+
 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-76cda4" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-76cda4"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-f2c57f" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-f2c57f"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse " id="Details-76cda4" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-f2c57f" markdown="1">
  When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
 ```python
 def conv(r, t, f, **kwargs):
@@ -105,43 +115,36 @@ and then the inverse function will take the output of `conv` and return the orig
 </div>
 
 
+## Examples
+
+
+
+
+
+
+
+
+
+
+
 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-e96064" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e96064"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e96064" markdown="1">
+ - [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-8c61cb" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-8c61cb"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-8c61cb" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-try:
-    from Peeves.TestUtils import *
-    from Peeves import BlockProfiler
-except:
-    pass
-from unittest import TestCase
-from Psience.VPT2 import *
-from Psience.Molecools import Molecule
-from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
-from McUtils.Data import UnitsData
-import McUtils.Plots as plt
-import McUtils.Numputils as nput
-from McUtils.Scaffolding import *
-from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
-from McUtils.Zachary import FiniteDifferenceDerivative
-import sys, os, numpy as np, itertools as ip
-```
 
 All tests are wrapped in a test class
 ```python
@@ -369,10 +372,61 @@ class VPT2Tests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Runner/VPTSystem.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTSystem.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTSystem.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTSystem.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L30?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Runner/VPTSystem.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTSystem.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTSystem.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTSystem.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L30?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

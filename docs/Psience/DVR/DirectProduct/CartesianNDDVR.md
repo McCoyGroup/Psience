@@ -1,28 +1,47 @@
 ## <a id="Psience.DVR.DirectProduct.CartesianNDDVR">CartesianNDDVR</a> 
+
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L269)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L269?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DirectProduct.py#L269)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct.py#L269?message=Update%20Docs)]
 </div>
 
 Provides an ND-DVR over different domains
 
+
+
+
+
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
- 
-### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
-
+## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
+ 
 <a id="Psience.DVR.DirectProduct.CartesianNDDVR.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, domains, **base_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L273)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L273?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DirectProduct/CartesianNDDVR.py#L273)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct/CartesianNDDVR.py#L273?message=Update%20Docs)]
 </div>
-
  </div>
 </div>
+
+
+
+
+## Examples
+
+
+
+
+
+
+
+
 
 
 
@@ -30,32 +49,21 @@ __init__(self, domains, **base_opts):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-829b02" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-829b02"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [energies_2D](#energies_2D)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-829b02" markdown="1">
+ - [energies_2D](#energies_2D)
 - [energies_3D](#energies_3D)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-614404" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-614404"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-614404" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-from Peeves.TestUtils import *
-from unittest import TestCase
-from McUtils.Data import UnitsData, PotentialData
-from McUtils.Zachary import Interpolator
-import McUtils.Plots as plt
-from Psience.DVR import *
-from Psience.Molecools import Molecule
-import numpy as np
-```
 
 All tests are wrapped in a test class
 ```python
@@ -84,6 +92,7 @@ class DVRTests(TestCase):
         res = dvr_2D.run(potential_function=self.ho_2D, mass=1)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 ```
+
 #### <a name="energies_3D">energies_3D</a>
 ```python
     def test_energies_3D(self):
@@ -96,10 +105,61 @@ class DVRTests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/DVR/DirectProduct/CartesianNDDVR.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/DVR/DirectProduct/CartesianNDDVR.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/DirectProduct/CartesianNDDVR.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/DirectProduct/CartesianNDDVR.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L269?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/DVR/DirectProduct/CartesianNDDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/DVR/DirectProduct/CartesianNDDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/DirectProduct/CartesianNDDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/DirectProduct/CartesianNDDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct.py#L269?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

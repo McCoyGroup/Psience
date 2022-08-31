@@ -1,33 +1,40 @@
 ## <a id="Psience.Molecools.Vibrations.MolecularVibrations">MolecularVibrations</a> 
+
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L19)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L19?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations.py#L19)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations.py#L19?message=Update%20Docs)]
 </div>
+
+
+
+
+
+
 
 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
- 
-### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
-
+## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
+ 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, molecule, basis, freqs=None, init=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L21)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L21?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L21)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L21?message=Update%20Docs)]
 </div>
-
 Sets up a vibration for a Molecule object over the CoordinateSystem basis
-- `basis`: `MolecularNormalModes`
+  - `molecule`: `AbstractMolecule`
+    > 
+  - `init`: `None | CoordinateSet`
+    > 
+  - `basis`: `MolecularNormalModes`
     >
-- `init`: `None | CoordinateSet`
-    >
-- `molecule`: `AbstractMolecule`
-    >
+
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.basis" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -35,8 +42,10 @@ Sets up a vibration for a Molecule object over the CoordinateSystem basis
 basis(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L43)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L43?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.molecule" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -44,8 +53,10 @@ basis(self):
 molecule(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L49)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L49?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.freqs" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -53,8 +64,10 @@ molecule(self):
 freqs(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L57)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L57?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.coords" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -62,139 +75,163 @@ freqs(self):
 coords(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L64)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L64?message=Update%20Docs)]
 </div>
 
-
-- `:returns`: `CoordinateSet`
+  - `:returns`: `CoordinateSet`
     >
+
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.__len__" class="docs-object-method">&nbsp;</a> 
 ```python
 __len__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L78)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L78?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L78)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L78?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.displace" class="docs-object-method">&nbsp;</a> 
 ```python
 displace(self, displacements=None, amt=0.1, n=1, which=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L81)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L81?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L81)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L81?message=Update%20Docs)]
 </div>
-
 Displaces along the vibrational mode specified by `which`
-- `:returns`: `_`
+  - `displacements`: `Any`
+    > 
+  - `amt`: `Any`
+    > 
+  - `n`: `Any`
+    > 
+  - `which`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `which`: `Any`
-    >
-- `n`: `Any`
-    >
-- `amt`: `Any`
-    >
-- `displacements`: `Any`
-    >
+
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.visualize" class="docs-object-method">&nbsp;</a> 
 ```python
 visualize(self, step_size=5, steps=(2, 2), which=0, anim_opts=None, mode='fast', **plot_args): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L113)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L113?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L113)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L113?message=Update%20Docs)]
 </div>
 
+  - `step_size`: `Any`
+    > 
+  - `steps`: `Any`
+    > 
+  - `which`: `Any`
+    > 
+  - `anim_opts`: `Any`
+    > 
+  - `mode`: `Any`
+    > 
+  - `plot_args`: `Any`
+    > 
+  - `:returns`: `_`
+    >
 
-- `:returns`: `_`
-    >
-- `plot_args`: `Any`
-    >
-- `mode`: `Any`
-    >
-- `anim_opts`: `Any`
-    >
-- `which`: `Any`
-    >
-- `steps`: `Any`
-    >
-- `step_size`: `Any`
-    >
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.to_widget" class="docs-object-method">&nbsp;</a> 
 ```python
 to_widget(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L196)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L196?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L196)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L196?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.__getitem__" class="docs-object-method">&nbsp;</a> 
 ```python
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L206)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L206?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L206)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L206?message=Update%20Docs)]
 </div>
-
 Takes a slice of the modes
-- `:returns`: `_`
+  - `item`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `item`: `Any`
-    >
+
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.embed" class="docs-object-method">&nbsp;</a> 
 ```python
 embed(self, frame): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L240)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L240?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L240)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L240?message=Update%20Docs)]
 </div>
 
+  - `frame`: `MolecularTransformation`
+    > 
+  - `:returns`: `_`
+    >
 
-- `:returns`: `_`
-    >
-- `frame`: `MolecularTransformation`
-    >
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.rescale" class="docs-object-method">&nbsp;</a> 
 ```python
 rescale(self, scaling): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L255)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L255?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L255)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L255?message=Update%20Docs)]
 </div>
-
 Multiplies each mode by some scaling factor
-- `:returns`: `_`
+  - `phases`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `phases`: `Any`
-    >
+
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.rotate" class="docs-object-method">&nbsp;</a> 
 ```python
 rotate(self, scaling): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L269)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L269?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L269)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L269?message=Update%20Docs)]
 </div>
-
 Multiplies each mode by some scaling factor
-- `:returns`: `_`
+  - `phases`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `phases`: `Any`
-    >
+
 
 <a id="Psience.Molecools.Vibrations.MolecularVibrations.__repr__" class="docs-object-method">&nbsp;</a> 
 ```python
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L284)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L284?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularVibrations.py#L284)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularVibrations.py#L284?message=Update%20Docs)]
 </div>
-
  </div>
 </div>
+
+
+
+
+## Examples
+
+
+
+
+
+
+
+
 
 
 
@@ -202,34 +239,20 @@ __repr__(self):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-4298aa" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-4298aa"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [VisualizeNormalModes](#VisualizeNormalModes)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-4298aa" markdown="1">
+ - [VisualizeNormalModes](#VisualizeNormalModes)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-1ac312" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-1ac312"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-1ac312" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-from Peeves.TestUtils import *
-from unittest import TestCase
-from Peeves import BlockProfiler
-from Psience.Molecools import Molecule, MolecularNormalModes
-from Psience.Data import DipoleSurface
-from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
-from McUtils.Plots import *
-from McUtils.Coordinerds import cartesian_to_zmatrix
-from McUtils.Data import UnitsData
-import numpy as np
-import McUtils.Numputils as nput
-```
 
 All tests are wrapped in a test class
 ```python
@@ -297,10 +320,61 @@ class MolecoolsTests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/Molecools/Vibrations/MolecularVibrations.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Molecools/Vibrations/MolecularVibrations.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Vibrations/MolecularVibrations.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Vibrations/MolecularVibrations.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L19?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/Molecools/Vibrations/MolecularVibrations.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Molecools/Vibrations/MolecularVibrations.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Vibrations/MolecularVibrations.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Vibrations/MolecularVibrations.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations.py#L19?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

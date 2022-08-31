@@ -1,84 +1,106 @@
 ## <a id="Psience.DVR.ColbertMiller.RingDVR">RingDVR</a> 
+
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L92)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L92?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller.py#L92)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L92?message=Update%20Docs)]
 </div>
 
 Provides a DVR for working on the (0, 2Pi) range with periodicity from Colbert and Miller
 
+
+
+
+
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
- 
-### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
-
+## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
+ 
 <a id="Psience.DVR.ColbertMiller.RingDVR.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, domain=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L97)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L97?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RingDVR.py#L97)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RingDVR.py#L97?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.DVR.ColbertMiller.RingDVR.get_grid" class="docs-object-method">&nbsp;</a> 
 ```python
 get_grid(self, domain=None, divs=None, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L102)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L102?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RingDVR.py#L102)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RingDVR.py#L102?message=Update%20Docs)]
 </div>
-
 Provides the Colbert-Miller 1D grid for the [0, 2Pi] range
-- `:returns`: `_`
+  - `domain`: `Any`
+    > 
+  - `divs`: `Any`
+    > 
+  - `kw`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `kw`: `Any`
-    >
-- `divs`: `Any`
-    >
-- `domain`: `Any`
-    >
+
 
 <a id="Psience.DVR.ColbertMiller.RingDVR.get_kinetic_energy" class="docs-object-method">&nbsp;</a> 
 ```python
 get_kinetic_energy(self, grid=None, mass=1, hb=1, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L120)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L120?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RingDVR.py#L120)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RingDVR.py#L120?message=Update%20Docs)]
 </div>
-
 Colbert-Miller kinetic energy for the [0, 2pi] range
-- `:returns`: `_`
+  - `grid`: `Any`
+    > 
+  - `mass`: `Any`
+    > 
+  - `hb`: `Any`
+    > 
+  - `kw`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `kw`: `Any`
-    >
-- `hb`: `Any`
-    >
-- `mass`: `Any`
-    >
-- `grid`: `Any`
-    >
+
 
 <a id="Psience.DVR.ColbertMiller.RingDVR.real_momentum" class="docs-object-method">&nbsp;</a> 
 ```python
 real_momentum(self, grid=None, hb=1, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L154)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L154?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RingDVR.py#L154)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RingDVR.py#L154?message=Update%20Docs)]
 </div>
-
 Provides the real part of the momentum for the [0, 2pi] range
-- `:returns`: `_`
+  - `grid`: `Any`
+    > 
+  - `hb`: `Any`
+    > 
+  - `kw`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `kw`: `Any`
-    >
-- `hb`: `Any`
-    >
-- `grid`: `Any`
-    >
-
  </div>
 </div>
+
+
+
+
+## Examples
+
+
+
+
+
+
+
+
 
 
 
@@ -86,33 +108,22 @@ Provides the real part of the momentum for the [0, 2pi] range
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-7effee" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-7effee"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [RingDVR1D](#RingDVR1D)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-7effee" markdown="1">
+ - [RingDVR1D](#RingDVR1D)
 - [RingDVR1DExplicitMass](#RingDVR1DExplicitMass)
 - [RingDVR1DCosMass](#RingDVR1DCosMass)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-e08843" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e08843"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e08843" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-from Peeves.TestUtils import *
-from unittest import TestCase
-from McUtils.Data import UnitsData, PotentialData
-from McUtils.Zachary import Interpolator
-import McUtils.Plots as plt
-from Psience.DVR import *
-from Psience.Molecools import Molecule
-import numpy as np
-```
 
 All tests are wrapped in a test class
 ```python
@@ -180,6 +191,7 @@ class DVRTests(TestCase):
                          )
         self.assertTrue(np.allclose(np.diag(res.potential_energy), np.sin(res.grid)))
 ```
+
 #### <a name="RingDVR1DExplicitMass">RingDVR1DExplicitMass</a>
 ```python
     def test_RingDVR1DExplicitMass(self):
@@ -199,6 +211,7 @@ class DVRTests(TestCase):
             )
             )
 ```
+
 #### <a name="RingDVR1DCosMass">RingDVR1DCosMass</a>
 ```python
     def test_RingDVR1DCosMass(self):
@@ -215,10 +228,61 @@ class DVRTests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/DVR/ColbertMiller/RingDVR.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/DVR/ColbertMiller/RingDVR.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/ColbertMiller/RingDVR.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/ColbertMiller/RingDVR.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L92?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/DVR/ColbertMiller/RingDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/DVR/ColbertMiller/RingDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/ColbertMiller/RingDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/ColbertMiller/RingDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L92?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

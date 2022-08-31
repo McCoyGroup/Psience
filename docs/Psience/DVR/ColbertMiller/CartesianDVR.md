@@ -1,66 +1,87 @@
 ## <a id="Psience.DVR.ColbertMiller.CartesianDVR">CartesianDVR</a> 
+
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L17)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L17?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller.py#L17)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L17?message=Update%20Docs)]
 </div>
 
 Provides the Colbert Miller DVR on the Cartesian [-inf, inf] range
 
+
+
+
+
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
- 
-### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
-
+## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
+ 
 <a id="Psience.DVR.ColbertMiller.CartesianDVR.get_grid" class="docs-object-method">&nbsp;</a> 
 ```python
 get_grid(self, domain=None, divs=None, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L22)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L22?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/CartesianDVR.py#L22)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/CartesianDVR.py#L22?message=Update%20Docs)]
 </div>
-
 Provides the Colbert-Miller DVR grid for the [-inf, inf] range
-- `:returns`: `_`
+  - `domain`: `Any`
+    > 
+  - `divs`: `Any`
+    > 
+  - `flavor`: `Any`
+    > 
+  - `kw`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `kw`: `Any`
-    >
-- `flavor`: `Any`
-    >
-- `divs`: `Any`
-    >
-- `domain`: `Any`
-    >
+
 
 <a id="Psience.DVR.ColbertMiller.CartesianDVR.get_kinetic_energy" class="docs-object-method">&nbsp;</a> 
 ```python
 get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L39)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L39?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/CartesianDVR.py#L39)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/CartesianDVR.py#L39?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.DVR.ColbertMiller.CartesianDVR.real_momentum" class="docs-object-method">&nbsp;</a> 
 ```python
 real_momentum(self, grid=None, mass=None, hb=1, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L64)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L64?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/CartesianDVR.py#L64)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/CartesianDVR.py#L64?message=Update%20Docs)]
 </div>
-
 Provides the real part of the momentum for the [0, 2pi] range
-- `:returns`: `_`
+  - `grid`: `Any`
+    > 
+  - `hb`: `Any`
+    > 
+  - `kw`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `kw`: `Any`
-    >
-- `hb`: `Any`
-    >
-- `grid`: `Any`
-    >
-
  </div>
 </div>
+
+
+
+
+## Examples
+
+
+
+
+
+
+
+
 
 
 
@@ -68,33 +89,22 @@ Provides the real part of the momentum for the [0, 2pi] range
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-0f273d" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-0f273d"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [1D](#1D)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-0f273d" markdown="1">
+ - [1D](#1D)
 - [energies_1D](#energies_1D)
 - [MoleculeDVR](#MoleculeDVR)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-f96716" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-f96716"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-f96716" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-from Peeves.TestUtils import *
-from unittest import TestCase
-from McUtils.Data import UnitsData, PotentialData
-from McUtils.Zachary import Interpolator
-import McUtils.Plots as plt
-from Psience.DVR import *
-from Psience.Molecools import Molecule
-import numpy as np
-```
 
 All tests are wrapped in a test class
 ```python
@@ -123,6 +133,7 @@ class DVRTests(TestCase):
         pot = dvr_1D.run(potential_function=self.ho, result='potential_energy')
         self.assertIsInstance(pot.potential_energy, np.ndarray)
 ```
+
 #### <a name="energies_1D">energies_1D</a>
 ```python
     def test_energies_1D(self):
@@ -132,6 +143,7 @@ class DVRTests(TestCase):
         self.assertIsInstance(res.wavefunctions.energies, np.ndarray)
         self.assertTrue(np.allclose(res.wavefunctions.energies[:5].tolist(), [1/2, 3/2, 5/2, 7/2, 9/2]))
 ```
+
 #### <a name="MoleculeDVR">MoleculeDVR</a>
 ```python
     def test_MoleculeDVR(self):
@@ -194,10 +206,61 @@ class DVRTests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/DVR/ColbertMiller/CartesianDVR.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/DVR/ColbertMiller/CartesianDVR.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/ColbertMiller/CartesianDVR.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/ColbertMiller/CartesianDVR.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L17?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/DVR/ColbertMiller/CartesianDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/DVR/ColbertMiller/CartesianDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/ColbertMiller/CartesianDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/ColbertMiller/CartesianDVR.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L17?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

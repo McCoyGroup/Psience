@@ -1,53 +1,71 @@
 ## <a id="Psience.VPT2.Runner.VPTRuntimeOptions">VPTRuntimeOptions</a> 
+
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L668)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L668?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner.py#L668)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L668?message=Update%20Docs)]
 </div>
 
 Provides a helper to keep track of the options available
 for configuring the way the code runs
 
+
+
+
+
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
- 
-### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
-
+## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
+ 
 <a id="Psience.VPT2.Runner.VPTRuntimeOptions.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, operator_chunk_size=None, matrix_element_threshold=None, nondeg_hamiltonian_precision=None, logger=None, verbose=None, checkpoint=None, results=None, parallelizer=None, memory_constrained=None, checkpoint_keys=None, use_cached_representations=None, use_cached_basis=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L687)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L687?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTRuntimeOptions.py#L687)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTRuntimeOptions.py#L687?message=Update%20Docs)]
 </div>
 
-
-- `use_cached_basis`: `bool`
-    >whether other not to use bases from the checkpoint
-- `use_cached_representations`: `bool`
-    >whether other not to use Hamiltonian reps from the checkpoint
-- `checkpoint_keys`: `Iterable[str]|None`
-    >which keys to save in the checkpoint
-- `checkpoint`: `str|Checkpointer|None default:None`
-    >the `Checkpointer` to write Hamiltonians and other bits out to
-- `memory_constrained`: `bool|None`
-    >whether or not to attempt memory optimizations (`None` means attempt for >20D problems)
-- `parallelizer`: `Parallelizer|None default:None`
-    >the `Parallelizer` to use for parallelizing the evaluation of matrix elements
-- `results`: `str|Checkpointer|None default:None`
-    >the `Checkpointer` to write corrections out to
-- `logger`: `str|Logger|bool|None default:None`
-    >the `Logger` object to use when logging the status of the calculation (`True` means log normally)
-- `nondeg_hamiltonian_precision`: `int`
-    >the precision with which to print out elements in the degenerate coupling Hamiltonians in the log file
-- `matrix_element_threshold`: `float|None default:None`
-    >the minimum size of matrix element to keep
-- `operator_chunk_size`: `int|None default:None`
-    >the number of representation matrix elements to calculate in at one time
-
+  - `operator_chunk_size`: `int|None default:None`
+    > the number of representation matrix elements to calculate in at one time
+  - `matrix_element_threshold`: `float|None default:None`
+    > the minimum size of matrix element to keep
+  - `nondeg_hamiltonian_precision`: `int`
+    > the precision with which to print out elements in the degenerate coupling Hamiltonians in the log file
+  - `logger`: `str|Logger|bool|None default:None`
+    > the `Logger` object to use when logging the status of the calculation (`True` means log normally)
+  - `results`: `str|Checkpointer|None default:None`
+    > the `Checkpointer` to write corrections out to
+  - `parallelizer`: `Parallelizer|None default:None`
+    > the `Parallelizer` to use for parallelizing the evaluation of matrix elements
+  - `memory_constrained`: `bool|None`
+    > whether or not to attempt memory optimizations (`None` means attempt for >20D problems)
+  - `checkpoint`: `str|Checkpointer|None default:None`
+    > the `Checkpointer` to write Hamiltonians and other bits out to
+  - `checkpoint_keys`: `Iterable[str]|None`
+    > which keys to save in the checkpoint
+  - `use_cached_representations`: `bool`
+    > whether other not to use Hamiltonian reps from the checkpoint
+  - `use_cached_basis`: `bool`
+    > whether other not to use bases from the checkpoint
  </div>
 </div>
+
+
+
+
+## Examples
+
+
+
+
+
+
+
+
 
 
 
@@ -55,39 +73,20 @@ __init__(self, operator_chunk_size=None, matrix_element_threshold=None, nondeg_h
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-b22ac1" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-b22ac1"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-b22ac1" markdown="1">
+ - [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-47ba0b" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-47ba0b"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-47ba0b" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-try:
-    from Peeves.TestUtils import *
-    from Peeves import BlockProfiler
-except:
-    pass
-from unittest import TestCase
-from Psience.VPT2 import *
-from Psience.Molecools import Molecule
-from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
-from McUtils.Data import UnitsData
-import McUtils.Plots as plt
-import McUtils.Numputils as nput
-from McUtils.Scaffolding import *
-from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
-from McUtils.Zachary import FiniteDifferenceDerivative
-import sys, os, numpy as np, itertools as ip
-```
 
 All tests are wrapped in a test class
 ```python
@@ -315,10 +314,61 @@ class VPT2Tests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Runner/VPTRuntimeOptions.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTRuntimeOptions.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTRuntimeOptions.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTRuntimeOptions.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L668?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Runner/VPTRuntimeOptions.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTRuntimeOptions.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTRuntimeOptions.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTRuntimeOptions.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L668?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

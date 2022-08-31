@@ -1,10 +1,12 @@
 # <a id="Psience.Molecools">Psience.Molecools</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/tree/master/Psience/Molecools)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/__init__.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/__init__.py#L1?message=Update%20Docs)]
 </div>
     
 Molecules provides wrapper utilities for working with and visualizing molecular systems
 
+### Members
 <div class="container alert alert-secondary bg-light">
   <div class="row">
    <div class="col" markdown="1">
@@ -45,14 +47,26 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 
 
+## Examples
+
+
+
+
+
+
+
+
+
+
+
+
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-3cee02" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-3cee02"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [NormalModeRephasing](#NormalModeRephasing)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-3cee02" markdown="1">
+ - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
 - [PrincipleAxisEmbedding](#PrincipleAxisEmbedding)
@@ -79,26 +93,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-142b6f" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-142b6f"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-142b6f" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-from Peeves.TestUtils import *
-from unittest import TestCase
-from Peeves import BlockProfiler
-from Psience.Molecools import Molecule, MolecularNormalModes
-from Psience.Data import DipoleSurface
-from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
-from McUtils.Plots import *
-from McUtils.Coordinerds import cartesian_to_zmatrix
-from McUtils.Data import UnitsData
-import numpy as np
-import McUtils.Numputils as nput
-```
 
 All tests are wrapped in a test class
 ```python
@@ -134,6 +135,7 @@ class MolecoolsTests(TestCase):
 
         self.assertEquals(np.sum(np.diff(phase_test)), 0)
 ```
+
 #### <a name="MolecularGMatrix">MolecularGMatrix</a>
 ```python
     def test_MolecularGMatrix(self):
@@ -147,6 +149,7 @@ class MolecoolsTests(TestCase):
 
         self.assertEquals(g.shape, (3, 3))
 ```
+
 #### <a name="ImportMolecule">ImportMolecule</a>
 ```python
     def test_ImportMolecule(self):
@@ -155,6 +158,7 @@ class MolecoolsTests(TestCase):
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(m.atoms, ("O", "H", "H"))
 ```
+
 #### <a name="PrincipleAxisEmbedding">PrincipleAxisEmbedding</a>
 ```python
     def test_PrincipleAxisEmbedding(self):
@@ -238,6 +242,7 @@ class MolecoolsTests(TestCase):
             -mathematica_coords[:, (2, 1, 0)]
         ))
 ```
+
 #### <a name="EckartEmbed">EckartEmbed</a>
 ```python
     def test_EckartEmbed(self):
@@ -245,6 +250,7 @@ class MolecoolsTests(TestCase):
         crd = m.embed_coords(m.coords)
         self.assertTrue(np.allclose(m.coords, crd))
 ```
+
 #### <a name="Eckart">Eckart</a>
 ```python
     def test_Eckart(self):
@@ -321,6 +327,7 @@ class MolecoolsTests(TestCase):
                             )
                             )
 ```
+
 #### <a name="HOONODihedral">HOONODihedral</a>
 ```python
     def test_HOONODihedral(self):
@@ -373,6 +380,7 @@ class MolecoolsTests(TestCase):
 
         raise Exception(new_jacs_num[1][2], new_jacs_anal[1][2])
 ```
+
 #### <a name="EckartEmbedDipoles">EckartEmbedDipoles</a>
 ```python
     def test_EckartEmbedDipoles(self):
@@ -391,6 +399,7 @@ class MolecoolsTests(TestCase):
         rot_dips = np.array([ np.dot(t.transformation_function.transform, d) for t,d in zip(transf, dips) ])
         self.assertTrue(np.allclose(np.linalg.norm(dips, axis=1)-np.linalg.norm(rot_dips, axis=1), 0.))
 ```
+
 #### <a name="EckartEmbedMolecule">EckartEmbedMolecule</a>
 ```python
     def test_EckartEmbedMolecule(self):
@@ -399,6 +408,7 @@ class MolecoolsTests(TestCase):
         ref = Molecule.from_file(ref_file)
         new = ref.get_embedded_molecule()
 ```
+
 #### <a name="EmbeddedMolecule">EmbeddedMolecule</a>
 ```python
     def test_EmbeddedMolecule(self):
@@ -463,6 +473,7 @@ class MolecoolsTests(TestCase):
                         msg="(HOONO) Normal modes renomalized: {} different from {}".format(norms_1, norms_2)
         )
 ```
+
 #### <a name="AddDummyAtoms">AddDummyAtoms</a>
 ```python
     def test_AddDummyAtoms(self):
@@ -512,6 +523,7 @@ class MolecoolsTests(TestCase):
             mol2.internal_coordinates[5, 2], -np.pi/2
         )
 ```
+
 #### <a name="AddDummyAtomProperties">AddDummyAtomProperties</a>
 ```python
     def test_AddDummyAtomProperties(self):
@@ -540,6 +552,7 @@ class MolecoolsTests(TestCase):
             mol.inertial_axes.tolist()
         )
 ```
+
 #### <a name="AddDummyAtomJacobians">AddDummyAtomJacobians</a>
 ```python
     def test_AddDummyAtomJacobians(self):
@@ -626,6 +639,7 @@ class MolecoolsTests(TestCase):
         self.assertEquals(jacobians[0].shape, (6, 3, 6, 3))
         self.assertEquals(jacobians[1].shape, (6, 3, 6, 3, 6, 3))
 ```
+
 #### <a name="InternalCoordOrder">InternalCoordOrder</a>
 ```python
     def test_InternalCoordOrder(self):
@@ -671,6 +685,7 @@ class MolecoolsTests(TestCase):
 
         self.assertTrue(np.allclose(jacs[3, 0], jacs2[1, 0]))
 ```
+
 #### <a name="Plotting">Plotting</a>
 ```python
     def test_Plotting(self):
@@ -708,24 +723,28 @@ class MolecoolsTests(TestCase):
             # atom_style= { "sphere_points": 24 }
             )
 ```
+
 #### <a name="BondGuessing">BondGuessing</a>
 ```python
     def test_BondGuessing(self):
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(m.bonds, [[0, 1, 1], [0, 2, 1]])
 ```
+
 #### <a name="Frags">Frags</a>
 ```python
     def test_Frags(self):
         m = Molecule.from_file(self.test_fchk)
         self.assertEquals(len(m.prop("fragments")), 1)
 ```
+
 #### <a name="AutoZMat">AutoZMat</a>
 ```python
     def test_AutoZMat(self):
         raise NotImplementedError("saddy")
         m = Molecule.from_file(self.test_fchk)
 ```
+
 #### <a name="HODModes">HODModes</a>
 ```python
     def test_HODModes(self):
@@ -738,6 +757,7 @@ class MolecoolsTests(TestCase):
             (1422.0, 2810.0, 3874.0)
         )
 ```
+
 #### <a name="H2OModes">H2OModes</a>
 ```python
     def test_H2OModes(self):
@@ -749,6 +769,7 @@ class MolecoolsTests(TestCase):
             (1622.0, 3803.0, 3938.0)
         )
 ```
+
 #### <a name="RenormalizeGaussianModes">RenormalizeGaussianModes</a>
 ```python
     def test_RenormalizeGaussianModes(self):
@@ -776,6 +797,7 @@ class MolecoolsTests(TestCase):
         print(np.dot(np.dot(mm.T, np.diag(masses)), mm))
         print(UnitsData.convert("Hartrees", "Wavenumbers") * np.sqrt(np.diag(np.dot(np.dot(mm.T, fcs), mm))))
 ```
+
 #### <a name="VisualizeNormalModes">VisualizeNormalModes</a>
 ```python
     def test_VisualizeNormalModes(self):
@@ -824,6 +846,7 @@ class MolecoolsTests(TestCase):
             tuple(np.round(test_freqs, 4))
         )
 ```
+
 #### <a name="InternalCartesianJacobians">InternalCartesianJacobians</a>
 ```python
     def test_InternalCartesianJacobians(self):
@@ -874,6 +897,7 @@ class MolecoolsTests(TestCase):
         self.assertAlmostEquals(meh22[1, 1, 0, 0], .009235, places=6)
         self.assertTrue(np.allclose(meh12, meh22))
 ```
+
 #### <a name="CompositeCoordinates">CompositeCoordinates</a>
 ```python
     def test_CompositeCoordinates(self):
@@ -920,10 +944,61 @@ class MolecoolsTests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/master/ci/examples/Psience/Molecools.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/examples/Psience/Molecools.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/Psience/Molecools.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/Molecools.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/__init__.py?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/Molecools.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Molecools.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/__init__.py#L1?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

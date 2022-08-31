@@ -1,47 +1,55 @@
 ## <a id="Psience.VPT2.Runner.VPTRunner">VPTRunner</a> 
+
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L942)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L942?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner.py#L955)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L955?message=Update%20Docs)]
 </div>
 
 A helper class to make it easier to run jobs by making the inputs/options
 clear and making it easier to customize run options
 
+
+
+
+
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
- 
-### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
-
+## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
-
-```python
-helpers: type
+ <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
+ ```python
+helpers: AnneInputHelpers
 ```
 <a id="Psience.VPT2.Runner.VPTRunner.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, system, states, hamiltonian_options=None, solver_options=None, runtime_options=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L948)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L948?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTRunner.py#L961)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTRunner.py#L961?message=Update%20Docs)]
 </div>
 
+  - `system`: `VPTSystem`
+    > the system to run perturbation theory on
+  - `hamiltonian_options`: `VPTHamiltonianOptions`
+    > options to configure the Hamiltonian
+  - `solver_options`: `VPTSolverOptions`
+    > options to configure the way the perturbation theory is applied
+  - `runtime_options`: `VPTRuntimeOptions`
+    > options to configure the way the code runs
 
-- `runtime_options`: `VPTRuntimeOptions`
-    >options to configure the way the code runs
-- `solver_options`: `VPTSolverOptions`
-    >options to configure the way the perturbation theory is applied
-- `hamiltonian_options`: `VPTHamiltonianOptions`
-    >options to configure the Hamiltonian
-- `system`: `VPTSystem`
-    >the system to run perturbation theory on
 
 <a id="Psience.VPT2.Runner.VPTRunner.get_Hamiltonian" class="docs-object-method">&nbsp;</a> 
 ```python
 get_Hamiltonian(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L989)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L989?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTRunner.py#L1002)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTRunner.py#L1002?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.VPT2.Runner.VPTRunner.hamiltonian" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -49,79 +57,99 @@ get_Hamiltonian(self):
 hamiltonian(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTRunner.py#L1009)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTRunner.py#L1009?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.VPT2.Runner.VPTRunner.get_wavefunctions" class="docs-object-method">&nbsp;</a> 
 ```python
 get_wavefunctions(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1002)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1002?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTRunner.py#L1015)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTRunner.py#L1015?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.VPT2.Runner.VPTRunner.print_output_tables" class="docs-object-method">&nbsp;</a> 
 ```python
 print_output_tables(wfns=None, file=None, print_intensities=True, print_energies=True, print_energy_corrections=True, print_transition_moments=True, logger=None, sep_char='=', sep_len=100): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1012)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1012?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTRunner.py#L1025)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTRunner.py#L1025?message=Update%20Docs)]
 </div>
-
 Prints a bunch of formatted output data from a PT run
-- `:returns`: `_`
+  - `wfns`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `wfns`: `Any`
-    >
+
 
 <a id="Psience.VPT2.Runner.VPTRunner.print_tables" class="docs-object-method">&nbsp;</a> 
 ```python
 print_tables(self, wfns=None, file=None, print_intensities=True, print_energy_corrections=True, print_transition_moments=True, sep_char='=', sep_len=100): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1083)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1083?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTRunner.py#L1096)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTRunner.py#L1096?message=Update%20Docs)]
 </div>
-
 Prints a bunch of formatted output data from a PT run
-- `:returns`: `_`
+  - `wfns`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `wfns`: `Any`
-    >
+
 
 <a id="Psience.VPT2.Runner.VPTRunner.construct" class="docs-object-method">&nbsp;</a> 
 ```python
 construct(system, states, target_property=None, basis_filters=None, corrected_fundamental_frequencies=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1109)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1109?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTRunner.py#L1122)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTRunner.py#L1122?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.VPT2.Runner.VPTRunner.run_simple" class="docs-object-method">&nbsp;</a> 
 ```python
 run_simple(system, states, target_property=None, corrected_fundamental_frequencies=None, calculate_intensities=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1183)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1183?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTRunner.py#L1198)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTRunner.py#L1198?message=Update%20Docs)]
 </div>
-
 The standard runner for VPT.
 Makes a runner using the `construct` method and then calls that
 runner's `print_tables` method after printing out run info.
-- `opts`: `Any`
-    >options that work for a `VPTSystem`, `VPTStateSpace`, `VPTRuntimeOptions`, `VPTSolverOptions`, or `VPTHamiltonianOptions` object which will be filtered automatically
-- `calculate_intensities`: `bool default:True`
-    >whether or not to calculate energies
-- `corrected_fundamental_frequencies`: `Iterable[float]|None`
-    >a set of fundamental frequencies to use to get new zero-order energies
-- `target_property`: `str`
-    >the target property to get corrections for (one of 'frequencies', 'intensities', 'wavefunctions')
-- `states`: `int|list`
-    >the states to get corrections for either an `int` (up to that many quanta) or an explicit state list
-- `system`: `list|str|Molecule`
-    >the system spec, either as a `Molecule`, molecule spec (atoms, coords, opts) or a file to construct a `Molecule`
-
+  - `system`: `list|str|Molecule`
+    > the system spec, either as a `Molecule`, molecule spec (atoms, coords, opts) or a file to construct a `Molecule`
+  - `states`: `int|list`
+    > the states to get corrections for either an `int` (up to that many quanta) or an explicit state list
+  - `target_property`: `str`
+    > the target property to get corrections for (one of 'frequencies', 'intensities', 'wavefunctions')
+  - `corrected_fundamental_frequencies`: `Iterable[float]|None`
+    > a set of fundamental frequencies to use to get new zero-order energies
+  - `calculate_intensities`: `bool default:True`
+    > whether or not to calculate energies
+  - `opts`: `Any`
+    > options that work for a `VPTSystem`, `VPTStateSpace`, `VPTRuntimeOptions`, `VPTSolverOptions`, or `VPTHamiltonianOptions` object which will be filtered automatically
  </div>
 </div>
+
+
+
+
+## Examples
+
+
+
+
+
+
+
+
 
 
 
@@ -129,11 +157,10 @@ runner's `print_tables` method after printing out run info.
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-e108e4" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e108e4"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [HOHVPTRunner](#HOHVPTRunner)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e108e4" markdown="1">
+ - [HOHVPTRunner](#HOHVPTRunner)
 - [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
 - [HOHVPTRunnerShifted](#HOHVPTRunnerShifted)
 - [HOHVPTRunner3rd](#HOHVPTRunner3rd)
@@ -152,31 +179,13 @@ runner's `print_tables` method after printing out run info.
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-1d9b26" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-1d9b26"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-1d9b26" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-try:
-    from Peeves.TestUtils import *
-    from Peeves import BlockProfiler
-except:
-    pass
-from unittest import TestCase
-from Psience.VPT2 import *
-from Psience.Molecools import Molecule
-from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
-from McUtils.Data import UnitsData
-import McUtils.Plots as plt
-import McUtils.Numputils as nput
-from McUtils.Scaffolding import *
-from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
-from McUtils.Zachary import FiniteDifferenceDerivative
-import sys, os, numpy as np, itertools as ip
-```
 
 All tests are wrapped in a test class
 ```python
@@ -393,6 +402,7 @@ class VPT2Tests(TestCase):
             logger=True
         )
 ```
+
 #### <a name="HOHVPTRunnerFlow">HOHVPTRunnerFlow</a>
 ```python
     def test_HOHVPTRunnerFlow(self):
@@ -412,6 +422,7 @@ class VPT2Tests(TestCase):
         runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
         runner.print_tables()
 ```
+
 #### <a name="HOHVPTRunnerShifted">HOHVPTRunnerShifted</a>
 ```python
     def test_HOHVPTRunnerShifted(self):
@@ -424,6 +435,7 @@ class VPT2Tests(TestCase):
             corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/UnitsData.convert("Hartrees", "Wavenumbers")
         )
 ```
+
 #### <a name="HOHVPTRunner3rd">HOHVPTRunner3rd</a>
 ```python
     def test_HOHVPTRunner3rd(self):
@@ -560,6 +572,7 @@ class VPT2Tests(TestCase):
                 ]
             )
 ```
+
 #### <a name="ClHOClRunner">ClHOClRunner</a>
 ```python
     def test_ClHOClRunner(self):
@@ -698,6 +711,7 @@ class VPT2Tests(TestCase):
           0 0 0 0 2 1    5592.48466      0.00000      5053.08138      7.79496
         """
 ```
+
 #### <a name="AnalyticModels">AnalyticModels</a>
 ```python
     def test_AnalyticModels(self):
@@ -863,6 +877,7 @@ class VPT2Tests(TestCase):
             expansion_order=expansion_order
         )
 ```
+
 #### <a name="HOHCorrectedDegeneracies">HOHCorrectedDegeneracies</a>
 ```python
     def test_HOHCorrectedDegeneracies(self):
@@ -885,6 +900,7 @@ class VPT2Tests(TestCase):
             # operator_chunk_size=int(12)
         )
 ```
+
 #### <a name="WaterSkippedCouplings">WaterSkippedCouplings</a>
 ```python
     def test_WaterSkippedCouplings(self):
@@ -896,6 +912,7 @@ class VPT2Tests(TestCase):
             operator_coefficient_threshold=(1.0e-8)
         )
 ```
+
 #### <a name="H2COPolyads">H2COPolyads</a>
 ```python
     def test_H2COPolyads(self):
@@ -916,6 +933,7 @@ class VPT2Tests(TestCase):
             # }
         )
 ```
+
 #### <a name="H2COModeSel">H2COModeSel</a>
 ```python
     def test_H2COModeSel(self):
@@ -934,6 +952,7 @@ class VPT2Tests(TestCase):
             mode_selection=[1, 2, 3, 4, 5]
         )
 ```
+
 #### <a name="HODRephase">HODRephase</a>
 ```python
     def test_HODRephase(self):
@@ -945,6 +964,7 @@ class VPT2Tests(TestCase):
             # expansion_order=2
         )
 ```
+
 #### <a name="HOHRephase">HOHRephase</a>
 ```python
     def test_HOHRephase(self):
@@ -956,12 +976,13 @@ class VPT2Tests(TestCase):
             # expansion_order=2
         )
 ```
+
 #### <a name="NH3">NH3</a>
 ```python
     def test_NH3(self):
 
         VPTRunner.run_simple(
-            TestManager.test_data('NH3_freq.fchk'),
+            TestManager.test_data('nh3.fchk'),
             2,
             # degeneracy_specs=False,
             order=4,
@@ -972,6 +993,7 @@ class VPT2Tests(TestCase):
             # }
         )
 ```
+
 #### <a name="HOONO">HOONO</a>
 ```python
     def test_HOONO(self):
@@ -984,6 +1006,7 @@ class VPT2Tests(TestCase):
             # expansion_order=2
         )
 ```
+
 #### <a name="H2COSkippedCouplings">H2COSkippedCouplings</a>
 ```python
     def test_H2COSkippedCouplings(self):
@@ -995,6 +1018,7 @@ class VPT2Tests(TestCase):
             operator_coefficient_threshold=1.00 / 219475
         )
 ```
+
 #### <a name="WaterDimerSkippedCouplings">WaterDimerSkippedCouplings</a>
 ```python
     def test_WaterDimerSkippedCouplings(self):
@@ -1035,10 +1059,61 @@ class VPT2Tests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Runner/VPTRunner.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTRunner.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTRunner.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTRunner.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L942?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Runner/VPTRunner.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTRunner.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTRunner.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTRunner.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L955?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

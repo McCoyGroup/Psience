@@ -1,6 +1,7 @@
 # <a id="Psience.VPT2">Psience.VPT2</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/tree/master/Psience/VPT2)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/__init__.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/__init__.py#L1?message=Update%20Docs)]
 </div>
     
 An implementation of vibrational perturbation theory (VPT) that uses sparse matrix methods to obtain
@@ -26,6 +27,7 @@ Finally, the general code flow is detailed below
 
 ![pt design](/Psience/img/PyVibPTnDesign.png){:width="100%"}
 
+### Members
 <div class="container alert alert-secondary bg-light">
   <div class="row">
    <div class="col" markdown="1">
@@ -117,15 +119,31 @@ Finally, the general code flow is detailed below
 </div>
 </div>
 
+The implementation of vibrational perturbation theory provided here uses a kernel/config/driver type of design.
+The kernel that actually solves the perturbation theory equations is the [`PerturbationTheorySolver`](PerturbationTheorySolver.md) object.
+The config comes the [`PerturbationTheoryHamiltonian`](PerturbationTheoryHamiltonian.md), which implements the expansion of the Hamiltonian
+with respect to normal modes.
+Finally, the driver is the [`VPTRunner`](VPTRunner.md) which through its `run_simple` method aggregates all of the possible options needed
+for VPT and sends them to the right parts of the architecture.
+
+Because of this, while it can be helpful to know how the `PerturbationTheorySolver` and `PerturbationTheoryHamiltonian` work, all that one
+usually needs to do to run VPT is to call `VPTRunner.run_simple`.
+The most basic call looks like
+```python
+VPTRunner.run_simple(system_spec, states)
+```
+where the `system_spec` is often an `fchk` file from an electronic structure calculation that provides a restricted quartic potential
+and the `states` is an `int` that specifies the max number of quanta of excitation in the states that will be corrected.
+
+The system spec can also be more explicit, being either a `Molecule` object or a list like `[atoms, coords, opts]`
+where `atoms` is a list of strings of the atoms, `coords` are the accompanying Cartesian coordinates, and `opts` is a `dict`
+of options for the molecule, such as the `masses`.
+It is also possible (and sometimes necessary) to supply custom normal modes, which can be done through the `modes` option (examples below).
 
 
 
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Examples-5a2cd1" markdown="1"> Examples</a> 
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Examples-5a2cd1" markdown="1">
- 
+## Examples
+
 In the following we provide some basic examples.
 More complex cases can be composed from the many settings provided in the Hamiltonian, solver, and runtime objects.
 
@@ -237,18 +255,24 @@ def conv(r, t, f, **kwargs):
 ```
 
 and `inv` will take the output of `conv` and return the original Z-matrix/polyspherical coordinates.
- </div>
-</div>
+
+
+
+
+
+
+
+
+
 
 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-48c407" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-48c407"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [HOHVPTRunner](#HOHVPTRunner)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-48c407" markdown="1">
+ - [HOHVPTRunner](#HOHVPTRunner)
 - [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
 - [HOHVPTRunnerShifted](#HOHVPTRunnerShifted)
 - [HOHVPTRunner3rd](#HOHVPTRunner3rd)
@@ -271,31 +295,13 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-5ac46a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-5ac46a"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-5ac46a" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-try:
-    from Peeves.TestUtils import *
-    from Peeves import BlockProfiler
-except:
-    pass
-from unittest import TestCase
-from Psience.VPT2 import *
-from Psience.Molecools import Molecule
-from Psience.BasisReps import HarmonicOscillatorProductBasis, BasisStateSpace
-from McUtils.Data import UnitsData
-import McUtils.Plots as plt
-import McUtils.Numputils as nput
-from McUtils.Scaffolding import *
-from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
-from McUtils.Zachary import FiniteDifferenceDerivative
-import sys, os, numpy as np, itertools as ip
-```
 
 All tests are wrapped in a test class
 ```python
@@ -512,6 +518,7 @@ class VPT2Tests(TestCase):
             logger=True
         )
 ```
+
 #### <a name="HOHVPTRunnerFlow">HOHVPTRunnerFlow</a>
 ```python
     def test_HOHVPTRunnerFlow(self):
@@ -531,6 +538,7 @@ class VPT2Tests(TestCase):
         runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
         runner.print_tables()
 ```
+
 #### <a name="HOHVPTRunnerShifted">HOHVPTRunnerShifted</a>
 ```python
     def test_HOHVPTRunnerShifted(self):
@@ -543,6 +551,7 @@ class VPT2Tests(TestCase):
             corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/UnitsData.convert("Hartrees", "Wavenumbers")
         )
 ```
+
 #### <a name="HOHVPTRunner3rd">HOHVPTRunner3rd</a>
 ```python
     def test_HOHVPTRunner3rd(self):
@@ -679,6 +688,7 @@ class VPT2Tests(TestCase):
                 ]
             )
 ```
+
 #### <a name="GetDegenerateSpaces">GetDegenerateSpaces</a>
 ```python
     def test_GetDegenerateSpaces(self):
@@ -700,6 +710,7 @@ class VPT2Tests(TestCase):
             ],
         )
 ```
+
 #### <a name="ClHOClRunner">ClHOClRunner</a>
 ```python
     def test_ClHOClRunner(self):
@@ -838,6 +849,7 @@ class VPT2Tests(TestCase):
           0 0 0 0 2 1    5592.48466      0.00000      5053.08138      7.79496
         """
 ```
+
 #### <a name="AnalyticModels">AnalyticModels</a>
 ```python
     def test_AnalyticModels(self):
@@ -1003,6 +1015,7 @@ class VPT2Tests(TestCase):
             expansion_order=expansion_order
         )
 ```
+
 #### <a name="HOHCorrectedDegeneracies">HOHCorrectedDegeneracies</a>
 ```python
     def test_HOHCorrectedDegeneracies(self):
@@ -1025,6 +1038,7 @@ class VPT2Tests(TestCase):
             # operator_chunk_size=int(12)
         )
 ```
+
 #### <a name="HOHCorrectedPostfilters">HOHCorrectedPostfilters</a>
 ```python
     def test_HOHCorrectedPostfilters(self):
@@ -1056,6 +1070,7 @@ class VPT2Tests(TestCase):
             ]
         ).print_output_tables()
 ```
+
 #### <a name="WaterSkippedCouplings">WaterSkippedCouplings</a>
 ```python
     def test_WaterSkippedCouplings(self):
@@ -1067,6 +1082,7 @@ class VPT2Tests(TestCase):
             operator_coefficient_threshold=(1.0e-8)
         )
 ```
+
 #### <a name="H2COPolyads">H2COPolyads</a>
 ```python
     def test_H2COPolyads(self):
@@ -1087,6 +1103,7 @@ class VPT2Tests(TestCase):
             # }
         )
 ```
+
 #### <a name="H2COModeSel">H2COModeSel</a>
 ```python
     def test_H2COModeSel(self):
@@ -1105,6 +1122,7 @@ class VPT2Tests(TestCase):
             mode_selection=[1, 2, 3, 4, 5]
         )
 ```
+
 #### <a name="HODRephase">HODRephase</a>
 ```python
     def test_HODRephase(self):
@@ -1116,6 +1134,7 @@ class VPT2Tests(TestCase):
             # expansion_order=2
         )
 ```
+
 #### <a name="HOHRephase">HOHRephase</a>
 ```python
     def test_HOHRephase(self):
@@ -1127,12 +1146,13 @@ class VPT2Tests(TestCase):
             # expansion_order=2
         )
 ```
+
 #### <a name="NH3">NH3</a>
 ```python
     def test_NH3(self):
 
         VPTRunner.run_simple(
-            TestManager.test_data('NH3_freq.fchk'),
+            TestManager.test_data('nh3.fchk'),
             2,
             # degeneracy_specs=False,
             order=4,
@@ -1143,6 +1163,7 @@ class VPT2Tests(TestCase):
             # }
         )
 ```
+
 #### <a name="HOONO">HOONO</a>
 ```python
     def test_HOONO(self):
@@ -1155,6 +1176,7 @@ class VPT2Tests(TestCase):
             # expansion_order=2
         )
 ```
+
 #### <a name="H2COSkippedCouplings">H2COSkippedCouplings</a>
 ```python
     def test_H2COSkippedCouplings(self):
@@ -1166,6 +1188,7 @@ class VPT2Tests(TestCase):
             operator_coefficient_threshold=1.00 / 219475
         )
 ```
+
 #### <a name="WaterDimerSkippedCouplings">WaterDimerSkippedCouplings</a>
 ```python
     def test_WaterDimerSkippedCouplings(self):
@@ -1202,6 +1225,7 @@ class VPT2Tests(TestCase):
             mode_selection=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         )
 ```
+
 #### <a name="OCHHInternals">OCHHInternals</a>
 ```python
     def test_OCHHInternals(self):
@@ -1244,6 +1268,7 @@ class VPT2Tests(TestCase):
         # VPTRunner.run_simple(TestManager.test_data(file_name), 2, internals=internals)
         VPTAnalyzer.run_VPT(TestManager.test_data(file_name), 2, internals=internals).print_output_tables()
 ```
+
 #### <a name="NH3Units">NH3Units</a>
 ```python
     def test_NH3Units(self):
@@ -1406,10 +1431,61 @@ State             Frequency    Intensity       Frequency    Intensity
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/master/ci/examples/Psience/VPT2.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/examples/Psience/VPT2.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/Psience/VPT2.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/VPT2.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/__init__.py?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/__init__.py#L1?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

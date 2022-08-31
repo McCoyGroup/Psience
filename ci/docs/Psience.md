@@ -1,6 +1,7 @@
 # <a id="Psience">Psience</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/tree/master/Psience)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1?message=Update%20Docs)]
 </div>
     
 The main package for working with core coordinate/molecule/wavefunction stuff.
@@ -12,6 +13,7 @@ implements arbitrary order perturbation theory with flexible coordinate choice.
 There are also a number of helper packages implementing things like a wavefunction interface, basis set representations,
 and spectrum handling.
 
+### Members
 <div class="container alert alert-secondary bg-light">
   <div class="row">
    <div class="col" markdown="1">
@@ -54,10 +56,62 @@ and spectrum handling.
 
 
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/master/ci/examples/Psience.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/examples/Psience.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/Psience.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/__init__.py?message=Update%20Docs)
+
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

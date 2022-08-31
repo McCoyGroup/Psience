@@ -1,6 +1,8 @@
 ## <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer">PermutationStateIndexer</a> 
+
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L90)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L90?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateIndexers.py#L90)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateIndexers.py#L90?message=Update%20Docs)]
 </div>
 
 A sophisticated indexer that takes a state dimension and provides
@@ -11,105 +13,117 @@ Is likely about as stable as an indexer can be expected to be over large
 numbers of states. Unlikely to exhaust the max integers available for most
 systems.
 
+
+
+
+
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
- 
-### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
-
+## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
+ 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, ndim): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L100)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L100?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L100)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L100?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.to_state" class="docs-object-method">&nbsp;</a> 
 ```python
 to_state(self, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L105)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L105?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L105)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L105?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.from_state" class="docs-object-method">&nbsp;</a> 
 ```python
 from_state(data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L109)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L109?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L109)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L109?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.to_indices" class="docs-object-method">&nbsp;</a> 
 ```python
 to_indices(self, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L113)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L113?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L113)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L113?message=Update%20Docs)]
 </div>
-
 Finds the appropriate integer partitioning for each state
-- `:returns`: `_`
+  - `states`: `np.ndarray`
+    > 2D array of states as excitations
+  - `:returns`: `_`
     >
-- `states`: `np.ndarray`
-    >2D array of states as excitations
+
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.from_indices" class="docs-object-method">&nbsp;</a> 
 ```python
 from_indices(self, indices, check=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/StateIndexers.py#L124)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L124?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L124)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L124?message=Update%20Docs)]
 </div>
-
 Inverts the index calculation.
 First determines what number of quanta the index corresponds to,
 then which integer partition, and finally just loops through the unique
 permutations of the partition to get the right one.
 This is not assured to be a fast process in any way.
-- `:returns`: `_`
+  - `indices`: `Iterable[int]`
+    > 
+  - `:returns`: `_`
     >
-- `indices`: `Iterable[int]`
-    >
-
  </div>
 </div>
 
 
 
 
+## Examples
+
+
+
+
+
+
+
+
+
+
+
+
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-ade0c1" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-ade0c1"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [StateIndexing](#StateIndexing)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-ade0c1" markdown="1">
+ - [StateIndexing](#StateIndexing)
 - [PermIndices](#PermIndices)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-e899d9" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e899d9"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e899d9" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-from Peeves import Timer, BlockProfiler
-from McUtils.Scaffolding import *
-import McUtils.Plots as plt
-from McUtils.Combinatorics import CompleteSymmetricGroupSpace
-from Peeves.TestUtils import *
-from unittest import TestCase
-from Psience.BasisReps import *
-import sys, os, numpy as np
-```
 
 All tests are wrapped in a test class
 ```python
@@ -156,6 +170,7 @@ class BasisSetTests(TestCase):
         self.assertTrue((states[some_sel,] == rev).all(),
                         msg="{} != {}".format(states[some_sel,], rev))
 ```
+
 #### <a name="PermIndices">PermIndices</a>
 ```python
     def test_PermIndices(self):
@@ -196,10 +211,61 @@ class BasisSetTests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/BasisReps/StateIndexers/PermutationStateIndexer.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/StateIndexers/PermutationStateIndexer.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateIndexers/PermutationStateIndexer.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateIndexers/PermutationStateIndexer.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/StateIndexers.py#L90?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/BasisReps/StateIndexers/PermutationStateIndexer.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps/StateIndexers/PermutationStateIndexer.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateIndexers/PermutationStateIndexer.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateIndexers/PermutationStateIndexer.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateIndexers.py#L90?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

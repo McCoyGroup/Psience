@@ -1,6 +1,7 @@
 # <a id="Psience.Data">Psience.Data</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/tree/master/Psience/Data)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/__init__.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/__init__.py#L1?message=Update%20Docs)]
 </div>
     
 Provides core Data-related types and data structures.
@@ -9,6 +10,7 @@ That means including stuff like dipole and potential energy surfaces that know h
 Currently...well that's all we have. But wrappers for commonly-used potentials & bases could well come.
 Not sure at this point, though.
 
+### Members
 <div class="container alert alert-secondary bg-light">
   <div class="row">
    <div class="col" markdown="1">
@@ -38,34 +40,38 @@ Not sure at this point, though.
 
 
 
+## Examples
+
+
+
+
+
+
+
+
+
+
+
+
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-464d6a" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-464d6a"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [FChkFileDipoleSurface](#FChkFileDipoleSurface)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-464d6a" markdown="1">
+ - [FChkFileDipoleSurface](#FChkFileDipoleSurface)
 - [LogFileDipoleSurface](#LogFileDipoleSurface)
 - [LogFilePotentialSurface](#LogFilePotentialSurface)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-5196af" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-5196af"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-5196af" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-from Peeves.TestUtils import *
-from Psience.Data import *
-from McUtils.Coordinerds import cartesian_to_zmatrix
-from McUtils.Plots import *
-from unittest import TestCase
-import sys, h5py, math, numpy as np
-```
 
 All tests are wrapped in a test class
 ```python
@@ -92,6 +98,7 @@ class DataTests(TestCase):
             [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
         ]).shape, (2, 3))
 ```
+
 #### <a name="LogFileDipoleSurface">LogFileDipoleSurface</a>
 ```python
     def test_LogFileDipoleSurface(self):
@@ -103,6 +110,7 @@ class DataTests(TestCase):
         dips = surf(np.arange(.5, 2, .1))
         self.assertEquals(dips.shape, ((2-.5)/.1, 3))
 ```
+
 #### <a name="LogFilePotentialSurface">LogFilePotentialSurface</a>
 ```python
     def test_LogFilePotentialSurface(self):
@@ -116,10 +124,61 @@ class DataTests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/master/ci/examples/Psience/Data.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/examples/Psience/Data.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/Psience/Data.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/Data.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/__init__.py?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/Data.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Data.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Data/__init__.py#L1?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

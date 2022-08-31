@@ -1,20 +1,25 @@
 ## <a id="Psience.Molecools.Vibrations.MolecularNormalModes">MolecularNormalModes</a> 
+
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L286)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L286?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations.py#L286)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations.py#L286?message=Update%20Docs)]
 </div>
 
 A Coordinerds CoordinateSystem object that manages all of the data needed to
 work with normal mode coordinates + some convenience functions for generating and whatnot
 
+
+
+
+
+
+
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
- 
-### <a class="collapse-link" data-toggle="collapse" href="#methods">Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
-
+## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="methods" markdown="1">
-
-```python
+ <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
+ ```python
 name: str
 ```
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.__init__" class="docs-object-method">&nbsp;</a> 
@@ -22,26 +27,27 @@ name: str
 __init__(self, molecule, coeffs, name=None, freqs=None, internal=False, origin=None, basis=None, inverse=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L292)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L292?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L292)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L292?message=Update%20Docs)]
 </div>
 
+  - `molecule`: `AbstractMolecule`
+    > 
+  - `coeffs`: `Any`
+    > 
+  - `name`: `Any`
+    > 
+  - `freqs`: `Any`
+    > 
+  - `internal`: `Any`
+    > 
+  - `origin`: `Any`
+    > 
+  - `basis`: `Any`
+    > 
+  - `inverse`: `Any`
+    >
 
-- `inverse`: `Any`
-    >
-- `basis`: `Any`
-    >
-- `origin`: `Any`
-    >
-- `internal`: `Any`
-    >
-- `freqs`: `Any`
-    >
-- `name`: `Any`
-    >
-- `coeffs`: `Any`
-    >
-- `molecule`: `AbstractMolecule`
-    >
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.molecule" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -49,16 +55,20 @@ __init__(self, molecule, coeffs, name=None, freqs=None, internal=False, origin=N
 molecule(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L347)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L347?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.to_internals" class="docs-object-method">&nbsp;</a> 
 ```python
 to_internals(self, intcrds=None, dYdR=None, dRdY=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L357)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L357?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L357)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L357?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.origin" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -66,120 +76,123 @@ to_internals(self, intcrds=None, dYdR=None, dRdY=None):
 origin(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L389)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L389?message=Update%20Docs)]
 </div>
+
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.embed" class="docs-object-method">&nbsp;</a> 
 ```python
 embed(self, frame): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L397)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L397?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L397)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L397?message=Update%20Docs)]
 </div>
 
+  - `frame`: `MolecularTransformation`
+    > 
+  - `:returns`: `_`
+    >
 
-- `:returns`: `_`
-    >
-- `frame`: `MolecularTransformation`
-    >
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.insert" class="docs-object-method">&nbsp;</a> 
 ```python
 insert(self, val, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L461)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L461?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L461)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L461?message=Update%20Docs)]
 </div>
-
 Inserts values into the appropriate positions in the mode matrix
-- `:returns`: `_`
+  - `val`: `Any`
+    > 
+  - `where`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `where`: `Any`
-    >
-- `val`: `Any`
-    >
+
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.from_force_constants" class="docs-object-method">&nbsp;</a> 
 ```python
 from_force_constants(molecule, fcs, atoms=None, masses=None, mass_units='AtomicMassUnits', inverse_mass_matrix=False, remove_transrot=True, normalize=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L514)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L514?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L514)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L514?message=Update%20Docs)]
 </div>
-
 Generates normal modes from the specified force constants
-- `:returns`: `MolecularNormalModes`
+  - `molecule`: `AbstractMolecule`
+    > 
+  - `fcs`: `np.ndarray`
+    > force constants array
+  - `atoms`: `Iterable[str]`
+    > atom list
+  - `masses`: `Iterable[float]`
+    > mass list
+  - `mass_units`: `str`
+    > units for the masses...not clear if this is useful or a distraction
+  - `inverse_mass_matrix`: `bool`
+    > whether or not we have G or G^-1 (default: `False`)
+  - `remove_transrot`: `bool`
+    > whether or not to remove the translations and rotations (default: `True`)
+  - `normalize`: `bool`
+    > whether or not to normalize the modes (default: `True`)
+  - `opts`: `Any`
+    > 
+  - `:returns`: `MolecularNormalModes`
     >
-- `opts`: `Any`
-    >
-- `normalize`: `bool`
-    >whether or not to normalize the modes (default: `True`)
-- `remove_transrot`: `bool`
-    >whether or not to remove the translations and rotations (default: `True`)
-- `inverse_mass_matrix`: `bool`
-    >whether or not we have G or G^-1 (default: `False`)
-- `mass_units`: `str`
-    >units for the masses...not clear if this is useful or a distraction
-- `masses`: `Iterable[float]`
-    >mass list
-- `atoms`: `Iterable[str]`
-    >atom list
-- `fcs`: `np.ndarray`
-    >force constants array
-- `molecule`: `AbstractMolecule`
-    >
+
 
 <a id="Psience.Molecools.Vibrations.MolecularNormalModes.__getitem__" class="docs-object-method">&nbsp;</a> 
 ```python
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L592)/[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L592?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L592)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L592?message=Update%20Docs)]
 </div>
-
 Takes a slice of the modes
-- `:returns`: `_`
+  - `item`: `Any`
+    > 
+  - `:returns`: `_`
     >
-- `item`: `Any`
-    >
-
  </div>
 </div>
 
 
 
 
+## Examples
+
+
+
+
+
+
+
+
+
+
+
+
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-885ea7" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-885ea7"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [VisualizeNormalModes](#VisualizeNormalModes)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-885ea7" markdown="1">
+ - [VisualizeNormalModes](#VisualizeNormalModes)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-4ed276" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-4ed276"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-4ed276" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-from Peeves.TestUtils import *
-from unittest import TestCase
-from Peeves import BlockProfiler
-from Psience.Molecools import Molecule, MolecularNormalModes
-from Psience.Data import DipoleSurface
-from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
-from McUtils.Plots import *
-from McUtils.Coordinerds import cartesian_to_zmatrix
-from McUtils.Data import UnitsData
-import numpy as np
-import McUtils.Numputils as nput
-```
 
 All tests are wrapped in a test class
 ```python
@@ -247,10 +260,61 @@ class MolecoolsTests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/Molecools/Vibrations/MolecularNormalModes.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Molecools/Vibrations/MolecularNormalModes.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Vibrations/MolecularNormalModes.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Vibrations/MolecularNormalModes.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L286?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/Molecools/Vibrations/MolecularNormalModes.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Molecools/Vibrations/MolecularNormalModes.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Vibrations/MolecularNormalModes.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Vibrations/MolecularNormalModes.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations.py#L286?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>

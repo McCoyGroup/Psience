@@ -1,10 +1,12 @@
 # <a id="Psience.BasisReps">Psience.BasisReps</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/tree/master/Psience/BasisReps)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/__init__.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/__init__.py#L1?message=Update%20Docs)]
 </div>
     
 BasisReps manages useful functions for generating & working with basis-set representations of data
 
+### Members
 <div class="container alert alert-secondary bg-light">
   <div class="row">
    <div class="col" markdown="1">
@@ -133,14 +135,26 @@ BasisReps manages useful functions for generating & working with basis-set repre
 
 
 
+## Examples
+
+
+
+
+
+
+
+
+
+
+
+
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#tests">Tests</a> <a class="float-right" data-toggle="collapse" href="#tests"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-141e9e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-141e9e"><i class="fa fa-chevron-down"></i></a>
  </div>
-<div class="collapsible-section collapsible-section-body collapse show" id="tests" markdown="1">
-
-- [HOBasis1DX](#HOBasis1DX)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-141e9e" markdown="1">
+ - [HOBasis1DX](#HOBasis1DX)
 - [HOBasis1DXX](#HOBasis1DXX)
 - [HOBasis1DPXP](#HOBasis1DPXP)
 - [HOBasis1DPP](#HOBasis1DPP)
@@ -174,23 +188,13 @@ BasisReps manages useful functions for generating & working with basis-set repre
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-#### <a class="collapse-link" data-toggle="collapse" href="#test-setup">Setup</a> <a class="float-right" data-toggle="collapse" href="#test-setup"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-67df42" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-67df42"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse" id="test-setup" markdown="1">
-
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-67df42" markdown="1">
+ 
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
 will be necessary for all situations.
-```python
-from Peeves import Timer, BlockProfiler
-from McUtils.Scaffolding import *
-import McUtils.Plots as plt
-from McUtils.Combinatorics import CompleteSymmetricGroupSpace
-from Peeves.TestUtils import *
-from unittest import TestCase
-from Psience.BasisReps import *
-import sys, os, numpy as np
-```
 
 All tests are wrapped in a test class
 ```python
@@ -220,6 +224,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
 ```
+
 #### <a name="HOBasis1DXX">HOBasis1DXX</a>
 ```python
     def test_HOBasis1DXX(self):
@@ -244,6 +249,7 @@ class BasisSetTests(TestCase):
         self.assertLess(np.average(np.abs(x2 - targ)), 1e-14)
         self.assertLess(np.average(np.abs(xx - targ)), 1e-14)
 ```
+
 #### <a name="HOBasis1DPXP">HOBasis1DPXP</a>
 ```python
     def test_HOBasis1DPXP(self):
@@ -259,6 +265,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
 ```
+
 #### <a name="HOBasis1DPP">HOBasis1DPP</a>
 ```python
     def test_HOBasis1DPP(self):
@@ -281,6 +288,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
 ```
+
 #### <a name="HOBasis1DXXX">HOBasis1DXXX</a>
 ```python
     def test_HOBasis1DXXX(self):
@@ -296,6 +304,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
 ```
+
 #### <a name="HOBasis1DPPXX">HOBasis1DPPXX</a>
 ```python
     def test_HOBasis1DPPXX(self):
@@ -320,6 +329,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
 ```
+
 #### <a name="HOBasis2DXX">HOBasis2DXX</a>
 ```python
     def test_HOBasis2DXX(self):
@@ -363,6 +373,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 ```
+
 #### <a name="HOBasis2DPP">HOBasis2DPP</a>
 ```python
     def test_HOBasis2DPP(self):
@@ -414,6 +425,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 ```
+
 #### <a name="HarmHam">HarmHam</a>
 ```python
     def test_HarmHam(self):
@@ -443,6 +455,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(np.average(diags), 0.036932841734999985)
 ```
+
 #### <a name="HOBasis3DPXP">HOBasis3DPXP</a>
 ```python
     def test_HOBasis3DPXP(self):
@@ -532,6 +545,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 ```
+
 #### <a name="HOBasis3DXXX">HOBasis3DXXX</a>
 ```python
     def test_HOBasis3DXXX(self):
@@ -567,6 +581,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 ```
+
 #### <a name="HOBasis3DXXX2D">HOBasis3DXXX2D</a>
 ```python
     def test_HOBasis3DXXX2D(self):
@@ -597,6 +612,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 2.0e-14)
 ```
+
 #### <a name="HOBasis3DXXX2DContracted">HOBasis3DXXX2DContracted</a>
 ```python
     def test_HOBasis3DXXX2DContracted(self):
@@ -627,6 +643,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 2.0e-14)
 ```
+
 #### <a name="HOBasis4DPXXP">HOBasis4DPXXP</a>
 ```python
     def test_HOBasis4DPXXP(self):
@@ -659,6 +676,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.max(np.abs(v1 - v2)), 1.0e-14)
 ```
+
 #### <a name="HOSelRuleTerms">HOSelRuleTerms</a>
 ```python
     def test_HOSelRuleTerms(self):
@@ -699,6 +717,7 @@ class BasisSetTests(TestCase):
                 1
             )
 ```
+
 #### <a name="GenerateSelectionRuleSpace">GenerateSelectionRuleSpace</a>
 ```python
     def test_GenerateSelectionRuleSpace(self):
@@ -722,6 +741,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(h2_space.nstates, 120)
 ```
+
 #### <a name="GenerateFilteredSelectionRuleSpace">GenerateFilteredSelectionRuleSpace</a>
 ```python
     def test_GenerateFilteredSelectionRuleSpace(self):
@@ -755,6 +775,7 @@ class BasisSetTests(TestCase):
         # raise Exception(ind_tag)
         self.assertEquals(ind_tag, (320425735722628681, 4044592283957769633))
 ```
+
 #### <a name="StateIndexing">StateIndexing</a>
 ```python
     def test_StateIndexing(self):
@@ -787,6 +808,7 @@ class BasisSetTests(TestCase):
         self.assertTrue((states[some_sel,] == rev).all(),
                         msg="{} != {}".format(states[some_sel,], rev))
 ```
+
 #### <a name="FindIndices">FindIndices</a>
 ```python
     def test_FindIndices(self):
@@ -803,6 +825,7 @@ class BasisSetTests(TestCase):
         test_2 = states2.find(states2)
         self.assertEquals(tuple(test_2), tuple(np.arange(len(sel))))
 ```
+
 #### <a name="PermIndices">PermIndices</a>
 ```python
     def test_PermIndices(self):
@@ -839,6 +862,7 @@ class BasisSetTests(TestCase):
          [6, 0, 0]]
         raise Exception(indexer.to_indices(states))
 ```
+
 #### <a name="PermIndexingChange">PermIndexingChange</a>
 ```python
     def test_PermIndexingChange(self):
@@ -860,6 +884,7 @@ class BasisSetTests(TestCase):
 
             print(states.indices.tolist(), np.sort(h2_space.indices).tolist())
 ```
+
 #### <a name="NewOrthogonalityCalcs">NewOrthogonalityCalcs</a>
 ```python
     def test_NewOrthogonalityCalcs(self):
@@ -896,6 +921,7 @@ class BasisSetTests(TestCase):
 
         self.assertTrue((orthog_1 == orthog_2).all())
 ```
+
 #### <a name="NewSelRulesFilterCalcs">NewSelRulesFilterCalcs</a>
 ```python
     def test_NewSelRulesFilterCalcs(self):
@@ -1000,6 +1026,7 @@ class BasisSetTests(TestCase):
             ).any()
         )
 ```
+
 #### <a name="StateSpaceIntersections">StateSpaceIntersections</a>
 ```python
     def test_StateSpaceIntersections(self):
@@ -1040,6 +1067,7 @@ class BasisSetTests(TestCase):
             list(np.intersect1d(filter_inds, subinds))
         )
 ```
+
 #### <a name="StateConnections">StateConnections</a>
 ```python
     def test_StateConnections(self):
@@ -1055,6 +1083,7 @@ class BasisSetTests(TestCase):
             for i in range(15):
                 tf = x_rep.get_transformed_space(init_state)
 ```
+
 #### <a name="StateSpaceTakeProfile">StateSpaceTakeProfile</a>
 ```python
     def test_StateSpaceTakeProfile(self):
@@ -1068,6 +1097,7 @@ class BasisSetTests(TestCase):
         init_space.full_basis = CompleteSymmetricGroupSpace(m)
         tf = x_rep.get_transformed_space(init_space)
 ```
+
 #### <a name="BasisRepMatrixOps">BasisRepMatrixOps</a>
 ```python
     def test_BasisRepMatrixOps(self):
@@ -1092,6 +1122,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(mat2_vals.tolist(), mat_2[sub_brakets].tolist())
 ```
+
 #### <a name="ImprovedRepresentations">ImprovedRepresentations</a>
 ```python
     def test_ImprovedRepresentations(self):
@@ -1116,6 +1147,7 @@ class BasisSetTests(TestCase):
 
         self.assertTrue(np.allclose(x2.array.asarray(), x22.array.asarray()))
 ```
+
 #### <a name="PermutationallyReducedStateSpace">PermutationallyReducedStateSpace</a>
 ```python
     def test_PermutationallyReducedStateSpace(self):
@@ -1154,6 +1186,7 @@ class BasisSetTests(TestCase):
             np.sort(old_rep.indices).tolist()
         )
 ```
+
 #### <a name="TransformedReduced">TransformedReduced</a>
 ```python
     def test_TransformedReduced(self):
@@ -1173,6 +1206,7 @@ class BasisSetTests(TestCase):
             tf, bk = x_rep.operator.apply_reduced(init_space)
         self.assertEquals(np.sort(tf).tolist(), np.sort(tf_els).tolist())
 ```
+
 #### <a name="OperatorAdjacencyGraph">OperatorAdjacencyGraph</a>
 ```python
     def test_OperatorAdjacencyGraph(self):
@@ -1223,10 +1257,61 @@ class BasisSetTests(TestCase):
  </div>
 </div>
 
-___
 
-[Edit Examples](https://github.com/McCoyGroup/Psience/edit/master/ci/examples/Psience/BasisReps.md) or 
-[Create New Examples](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/examples/Psience/BasisReps.md) <br/>
-[Edit Template](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/Psience/BasisReps.md) or 
-[Create New Template](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/BasisReps.md) <br/>
-[Edit Docstrings](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/__init__.py?message=Update%20Docs)
+
+
+
+
+---
+
+
+<div markdown="1" class="text-secondary">
+<div class="container">
+  <div class="row">
+   <div class="col" markdown="1">
+**Feedback**   
+</div>
+   <div class="col" markdown="1">
+**Examples**   
+</div>
+   <div class="col" markdown="1">
+**Templates**   
+</div>
+   <div class="col" markdown="1">
+**Documentation**   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/BasisReps.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/BasisReps.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps.md)   
+</div>
+   <div class="col" markdown="1">
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/__init__.py#L1?message=Update%20Docs)   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+</div>
+</div>
+</div>
