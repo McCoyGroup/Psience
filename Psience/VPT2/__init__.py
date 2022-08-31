@@ -21,10 +21,8 @@ and [`VPTRuntimeOptions`](VPT2/Runner/VPTRuntimeOptions.md) for options related 
 Finally, the general code flow is detailed below
 
 ![pt design](/Psience/img/PyVibPTnDesign.png){:width="100%"}
-"""
 
-__long_description__ = """
-The implementation of vibrational perturbation theory provided here uses a kernel/config/driver type of design.
+:long_description: The implementation of vibrational perturbation theory provided here uses a kernel/config/driver type of design.
 The kernel that actually solves the perturbation theory equations is the [`PerturbationTheorySolver`](PerturbationTheorySolver.md) object.
 The config comes the [`PerturbationTheoryHamiltonian`](PerturbationTheoryHamiltonian.md), which implements the expansion of the Hamiltonian
 with respect to normal modes.

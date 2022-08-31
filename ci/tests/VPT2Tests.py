@@ -63,7 +63,7 @@ class VPT2Tests(TestCase):
         runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
         runner.print_tables()
 
-    @validationTest
+    @debugTest
     def test_HOHVPTRunnerShifted(self):
 
         file_name = "HOH_freq.fchk"
@@ -694,11 +694,11 @@ class VPT2Tests(TestCase):
             # expansion_order=2
         )
 
-    @debugTest
+    @validationTest
     def test_NH3(self):
 
         VPTRunner.run_simple(
-            TestManager.test_data('NH3_freq.fchk'),
+            TestManager.test_data('nh3.fchk'),
             2,
             # degeneracy_specs=False,
             order=4,
