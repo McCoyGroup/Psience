@@ -1,23 +1,29 @@
 ### Molecular Visualization
 
-{alert$:'[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})'}
+[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})
+{:alert alert-warning}
 
 ### Analytic Model DVRs
 
-{alert$:'[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})'}
+[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})
+{:alert alert-warning}
 
 ### Automatic DVRs on potential scans
 
-{alert$:'[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})'}
+[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})
+{:alert alert-warning}
 
 ### VSCF
 
-{alert$:'[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})'}
+[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})
+{:alert alert-warning}
 
 ### Fourth-Order VPT
 
-{alert$:'[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})'}
+[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})
+{:alert alert-warning}
 
 ### Analytic Model VPT
 
-{alert$:'[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})'}
+[Edit](https://github.com/{gh_username}/{gh_repo}/edit/gh-pages/ci/examples/{url})
+{:alert alert-warning}
