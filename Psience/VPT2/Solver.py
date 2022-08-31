@@ -254,30 +254,34 @@ class PerturbationTheorySolver:
                 e_vec_full = e_vec_full.asarray()
             self._zo_engs = e_vec_full
             if self.zero_order_energy_corrections is not None:
-                states=np.asarray([s[0] for s in self.zero_order_energy_corrections])
-                energies=np.asarray([s[1] for s in self.zero_order_energy_corrections])
-                inds = self.flat_total_space.find(states) # slow but w/e
-                biggies = np.where(inds >= len(self._zo_engs))
-                if len(biggies) > 0:
-                    if len(biggies[0]) > 0:
-                        for k,v in zip(states[biggies], energies[biggies]):
-                            self.logger.log_print(
-                                "WARNING: zero-order correction {} for state {} not used as state is not in basis".format(
-                                    v * UnitsData.convert("Hartrees", "Wavenumbers"),
-                                    k
+                if callable(self.zero_order_energy_corrections):
+                    energies = self.zero_order_energy_corrections(self.flat_total_space.excitations)
+                    self._zo_engs = energies
+                else:
+                    states=np.asarray([s[0] for s in self.zero_order_energy_corrections])
+                    energies=np.asarray([s[1] for s in self.zero_order_energy_corrections])
+                    inds = self.flat_total_space.find(states) # slow but w/e
+                    biggies = np.where(inds >= len(self._zo_engs))
+                    if len(biggies) > 0:
+                        if len(biggies[0]) > 0:
+                            for k,v in zip(states[biggies], energies[biggies]):
+                                self.logger.log_print(
+                                    "WARNING: zero-order correction {} for state {} not used as state is not in basis".format(
+                                        v * UnitsData.convert("Hartrees", "Wavenumbers"),
+                                        k
+                                    )
                                 )
-                            )
-                # for k,v in self.zero_order_energy_corrections:
-                #     if not isinstance(k, int):
-                #         k = self.flat_total_space.find([k]) # slow but w/e
-                #     if k >= len(self._zo_engs):
-                #         self.logger.log_print(
-                #             "WARNING: zero-order correction {} for state {} not used as state is not in basis".format(
-                #                 v * UnitsData.convert("Hartrees", "Wavenumbers"),
-                #                 k
-                #             )
-                #         )
-                self._zo_engs[inds] = energies
+                    # for k,v in self.zero_order_energy_corrections:
+                    #     if not isinstance(k, int):
+                    #         k = self.flat_total_space.find([k]) # slow but w/e
+                    #     if k >= len(self._zo_engs):
+                    #         self.logger.log_print(
+                    #             "WARNING: zero-order correction {} for state {} not used as state is not in basis".format(
+                    #                 v * UnitsData.convert("Hartrees", "Wavenumbers"),
+                    #                 k
+                    #             )
+                    #         )
+                    self._zo_engs[inds] = energies
                 self.representations[0] = SparseArray.from_diag(self._zo_engs)
         return self._zo_engs
 

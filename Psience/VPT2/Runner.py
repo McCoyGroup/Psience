@@ -922,6 +922,20 @@ class VPTSolverOptions:
         self.opts = real_opts
 
     @staticmethod
+    def _harmonic_energies(corrected_fundamental_freqs, states):
+        """
+
+        :param corrected_fundamental_freqs:
+        :type corrected_fundamental_freqs:
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+        corrected_fundamental_freqs = np.asanyarray(corrected_fundamental_freqs)
+        return np.dot(np.array(states) + 1 / 2, corrected_fundamental_freqs)
+
+    @staticmethod
     def get_zero_order_energies(corrected_fundamental_freqs, states):
         """
 
@@ -933,7 +947,6 @@ class VPTSolverOptions:
         :rtype:
         """
         corrected_fundamental_freqs = np.asanyarray(corrected_fundamental_freqs)
-
         return [
             (s, np.dot(np.array(s) + 1 / 2, corrected_fundamental_freqs))
             for s in states
@@ -1157,16 +1170,18 @@ class VPTRunner:
                 expansion_order = order
             par.ops['state_space_filters'] = states.filter_generator(target_property, order=order, postfilters=basis_filters)
 
-            # print(par.ops['state_space_filters'])
-
         if corrected_fundamental_frequencies is not None and (
                 'zero_order_energy_corrections' not in opts
                 or opts['zero_order_energy_corrections'] is None
         ):
-            par.ops['zero_order_energy_corrections'] = VPTSolverOptions.get_zero_order_energies(
+            par.ops['zero_order_energy_corrections'] = lambda states: VPTSolverOptions._harmonic_energies(
                 corrected_fundamental_frequencies,
-                states.state_list
+                states
             )
+            # par.ops['zero_order_energy_corrections'] = VPTSolverOptions.get_zero_order_energies(
+            #     corrected_fundamental_frequencies,
+            #     states.state_list
+            # )
 
         hops = VPTHamiltonianOptions(**par.filter(VPTHamiltonianOptions))
         rops = VPTRuntimeOptions(**par.filter(VPTRuntimeOptions))

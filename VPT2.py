@@ -6,4 +6,3 @@ Mostly useful during development
 from .Psience.VPT2 import *
 from .Psience.VPT2 import __all__
 from .Psience.VPT2 import __doc__
-from .Psience.VPT2 import __long_description__

@@ -12,19 +12,18 @@ doc_config = {
         "gh_username": "McCoyGroup",
         "gh_repo": "Psience",
         "gh_branch": "master",
-        "footer": "Brought to you by the McCoy Group",
-        'url_base':"Psience"
+        "footer": "Brought to you by the McCoy Group"
     },
     "packages": [
         {
-            "id": "Psience",
-            'tests_root': os.path.join(root, "ci", "tests")
+            "id": "Psience"
         }
     ],
     "root": root,
     "target": target,
-    "readme": os.path.join(root, "README.md"),
+    "readme": os.path.join(root, "blurb.md"),
     'templates_directory': os.path.join(root, 'ci', 'docs', 'templates'),
-    'examples_directory': os.path.join(root, 'ci',  'docs', 'examples')
+    'examples_directory': os.path.join(root, 'ci',  'docs', 'examples'),
+    'tests_directory': os.path.join(root, "ci", "tests")
 }
 DocBuilder(**doc_config).build()
