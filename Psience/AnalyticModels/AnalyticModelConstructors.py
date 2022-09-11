@@ -15,7 +15,9 @@ __reload_hook__ = ["..Data"]
 
 class AnalyticPotentialConstructor(AnalyticModelBase):
     """
+    Provides a set of symbolic potentials for use in models
 
+    :related:AnalyticModel, AnalyticKineticEnergyConstructor
     """
     @classmethod
     def morse(cls, *args, De=None, a=None, re=None):
@@ -107,6 +109,8 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
 class AnalyticKineticEnergyConstructor(AnalyticModelBase):
     """
     Provides G and V' elements from Frederick and Woywood
+
+    :related:AnalyticModel, AnalyticPotentialConstructor
     """
 
     @classmethod
@@ -265,6 +269,10 @@ class AnalyticModel:
     """
     Provides a symbolic representation of an analytically evaluatable Hamiltonian
     which can be used to get derived expressions to evaluate.
+    Supplies methods to automatically run DVR and VPT calculations from the model
+    specifications as well.
+
+    :related:AnalyticPotentialConstructor, AnalyticPotentialConstructor
     """
 
     def __init__(self, coordinates, potential, dipole=None, values=None, rotation=None):
