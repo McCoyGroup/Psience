@@ -15,7 +15,7 @@ pip install mccoygroup-psience
 ```
 
 This should install all dependencies. 
-The major requirement is that Python 3.8+ is required due to use of the types module.
+The major requirement is that Python 3.8+ is required due to use of the types module. If installing on Windows, use  the above command in the "Anaconda Prompt" as opposed to the default terminal installed on Windows.
 For safety, it is best to install this in a [virtual environment](https://docs.python.org/3.8/tutorial/venv.html), which we can make like
 
 ```lang-shell
@@ -37,6 +37,14 @@ git clone https://github.com/McCoyGroup/Psience.git
 ```
 
 but in this case you will need to make sure the library is on the path yourself and all of the dependencies are installed.
+
+Once the package is installed, you can go ahead and get started in your scripts by importing Psience with the following command.
+
+'''lang-shell
+import Psience
+'''
+
+Have fun doing Psience!
 
 ### Contributing
 
