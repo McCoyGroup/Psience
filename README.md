@@ -40,9 +40,9 @@ but in this case you will need to make sure the library is on the path yourself 
 
 Once the package is installed, you can go ahead and get started in your scripts by importing Psience with the following command.
 
-'''lang-shell
+```lang-shell
 import Psience
-'''
+```
 
 Have fun doing Psience!
 
