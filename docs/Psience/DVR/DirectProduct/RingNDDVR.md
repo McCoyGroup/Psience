@@ -49,9 +49,9 @@ __init__(self, divs, **base_opts):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-b14159" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-b14159"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-c28322" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-c28322"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-b14159" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-c28322" markdown="1">
  - [RingDVR2DExplicitMass](#RingDVR2DExplicitMass)
 - [Ring3D](#Ring3D)
 - [Ring3DCosMass3D](#Ring3DCosMass3D)
@@ -59,9 +59,9 @@ __init__(self, divs, **base_opts):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-40cbb9" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-40cbb9"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-ab7d9c" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-ab7d9c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-40cbb9" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-ab7d9c" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
