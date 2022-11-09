@@ -400,6 +400,7 @@ class AnalyticModel:
                 include_potential=None,
                 include_gmatrix=None,
                 include_pseudopotential=None,
+                atoms=None, coords=None,
                 **kwargs
     ):
         from ..VPT2 import VPTAnalyzer, VPTRunner
@@ -420,8 +421,12 @@ class AnalyticModel:
             runner = VPTAnalyzer.run_VPT
         else:
             runner = VPTRunner.run_simple
+        if atoms is None:
+            atoms = ["H"] * natoms
+        if coords is None:
+            coords = np.zeros((natoms, 3))
         analyzer = runner(
-            [["H"] * natoms, np.zeros((natoms, 3))],  # dummy data since this won't be used at all
+            [atoms, coords],  # dummy data since this won't be used at all
             states,
             modes={
                 "freqs": freqs,
@@ -524,9 +529,9 @@ class AnalyticModel:
                 self.wrap_function(g_deriv[i])
                 for i in range(len(self.coords))
             ]
-        if len(g_deriv) == 1:
-            g = g[0][0]
-            g_deriv = g_deriv[0]
+        # if len(g_deriv) == 1:
+        #     g = g[0][0]
+        #     g_deriv = g_deriv[0]
         return {
             'potential_function':potential_function,
             'g':g,
