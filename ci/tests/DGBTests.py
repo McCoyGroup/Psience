@@ -99,18 +99,18 @@ class DGBTests(TestCase):
         de = (w ** 2) / (4 * wx)
         a = np.sqrt(2 * mu * wx)
         fn = sym.morse(sym.x, de=de, a=a) + sym.morse(sym.y, de=de, a=a)
-        fn = (sym.x**2 + sym.y**2)
+        fn = (1/2*sym.x**2 + 1/2*sym.y**2)
         ndim = 2
 
         def harmonic(c, deriv_order=None):
             ndim = c.shape[-1]
             if deriv_order is None:
-                return 1/2 * np.sum(c**2, axis=-1)
+                return np.sum(1/2*c**2, axis=-1)
             elif deriv_order == 1:
-                return 2*c
+                return c
             elif deriv_order == 2:
                 mat = np.zeros((ndim, ndim))
-                np.fill_diagonal(mat, 2)
+                np.fill_diagonal(mat, 1)
                 return np.broadcast_to(mat.reshape((1,)*(c.ndim-1) + mat.shape), c.shape[:-1] + mat.shape)
             else:
                 return np.zeros(c.shape + (ndim,)*deriv_order)
@@ -132,14 +132,16 @@ class DGBTests(TestCase):
         )
         test_pot = harmonic
 
-
         np.random.seed(0)
         centers = pts#[np.unique(np.random.random_integers(low=0, high=len(pts)-1, size=100))]
         centers = np.array(
             np.meshgrid(*[
-                np.linspace(-1, 1, 50)
+                np.linspace(-5, 5, 50)
             ]*ndim)
         ).T.reshape((-1, ndim))
+
+        alpha = .3
+        cluster = .09
 
         # raise Exception(
         #     test_pot(centers, deriv_order=1)
@@ -148,12 +150,16 @@ class DGBTests(TestCase):
         ham = DGB(
             centers,
             test_pot,
-            alphas=1.5,
-            clustering_radius=.23,
-            quadrature_degree=6
+            alphas=alpha,
+            clustering_radius=cluster,
+            quadrature_degree=2
         )
+
+        # new_c, _ = ham.get_overlap_gaussians()
+        # raise Exception(test_pot(new_c, deriv_order=2).shape)
+
         e, wf = ham.get_wavefunctions()
-        print(e)
+        print(e[:10])
 
         # for k in range(1, 6):
         #     print(DGB.polyint_1D_coeffs(k))
@@ -163,15 +169,15 @@ class DGBTests(TestCase):
             centers,
             test_pot,
             expansion_degree=2,
-            alphas=1.5,
-            clustering_radius=0.23
+            alphas=alpha,
+            clustering_radius=cluster
         )
         # ham = DGB(
         #     centers,
         #     test_pot,
         #     expansion_degree=2, expansion_type='taylor', alphas=1, clustering_radius=.1)
         e, wf = ham.get_wavefunctions()
-        print(e)
+        print(e[:10])
 
     @inactiveTest
     def test_Water(self):

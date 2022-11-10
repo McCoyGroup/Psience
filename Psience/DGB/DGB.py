@@ -202,8 +202,8 @@ class DGB:
         # this prefac allows us to reexpress things in terms of the new Gaussians
         # with appropriate weighting
         aprod = self.alphas[:, np.newaxis] * self.alphas[np.newaxis, :]
-        asum = self.alphas[:, np.newaxis] + self.alphas[np.newaxis, :]
-        cdiff = self.centers[:, np.newaxis, :] - self.centers[np.newaxis, :, :]
+        # asum = self.alphas[:, np.newaxis] + self.alphas[np.newaxis, :]
+        # cdiff = self.centers[:, np.newaxis, :] - self.centers[np.newaxis, :, :]
         ndim = centers.shape[-1]
         prefac = (np.sqrt(2 / np.pi) * (aprod**(1/4))) ** ndim #* np.exp(-aprod/asum * np.sum(cdiff**2, axis=-1))
         if expansion_type == 'taylor':
@@ -255,7 +255,7 @@ class DGB:
                 #     print(scaling)
                 #     print(dcont[0, 0])
 
-                contrib = contrib * nfac * dcont / scaling**ndim
+                contrib = contrib * nfac * dcont / scaling
 
                 # with np.printoptions(linewidth=1e8):
                 #     print(contrib[0, 0])
@@ -301,11 +301,11 @@ class DGB:
 
     def get_wavefunctions(self):
         H = self.T + self.V
-        print(np.linalg.cond(self.S))
-        with np.printoptions(linewidth=1e8):
-            # print(self.S)
-            # print(self.T)
-            print(self.V)
+        # print(np.linalg.cond(self.S))
+        # with np.printoptions(linewidth=1e8):
+        #     # print(self.S)
+        #     # print(self.T)
+        #     print(self.V)
 
         try:
             return sp.linalg.eigh(H, self.S)
