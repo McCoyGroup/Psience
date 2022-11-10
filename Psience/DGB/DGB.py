@@ -14,7 +14,7 @@ class DGB:
     def __init__(self,
                  centers,
                  potential_function,
-                 alphas=1,
+                 alphas=None,
                  clustering_radius=.075,
                  quadrature_degree=4,
                  expansion_degree=None,
@@ -27,6 +27,8 @@ class DGB:
             centers, _, _ = RBFDInterpolator.decluster_data(centers, np.empty(len(centers)), [], clustering_radius)
         self.centers = centers
 
+        if alphas is None:
+            alphas = self.get_alphas(centers, clustering_radius)
         if isinstance(alphas, (int, float, np.integer, np.floating)):
             alphas = np.full(len(centers), alphas)
         self.alphas = np.asanyarray(alphas)
@@ -35,6 +37,18 @@ class DGB:
         self.expansion_degree = expansion_degree
         self.expansion_type = expansion_type
         self._S, self._T, self._V = None, None, None
+
+    @classmethod
+    def get_alphas(cls, centers, clustering_radius=None):
+        if clustering_radius is None:
+            clustering_radius = 1
+        distances = np.linalg.norm(centers[:, np.newaxis, :] - centers[np.newaxis, :, :], axis=-1)
+        mean_dist = np.average(distances[distances > 1e-8], axis=None)
+        distances[distances < 1e-8] = np.max(distances) # exclude zeros
+        closest = np.min(distances, axis=1)
+        # too hard to compute convex hull for now...so we treat the exterior
+        # the same as the interior
+        return 1/15*mean_dist**2/closest**2
 
     @property
     def S(self):
@@ -190,8 +204,8 @@ class DGB:
         aprod = self.alphas[:, np.newaxis] * self.alphas[np.newaxis, :]
         asum = self.alphas[:, np.newaxis] + self.alphas[np.newaxis, :]
         cdiff = self.centers[:, np.newaxis, :] - self.centers[np.newaxis, :, :]
-        prefac = 4 * np.sqrt(2) / np.sqrt(np.pi) * (aprod**1/4) * np.exp(-aprod/asum * np.sum(cdiff**2, axis=-1))
         ndim = centers.shape[-1]
+        prefac = (np.sqrt(2 / np.pi) * (aprod**(1/4))) ** ndim #* np.exp(-aprod/asum * np.sum(cdiff**2, axis=-1))
         if expansion_type == 'taylor':
             zero = np.zeros((1, centers.shape[-1]))
             derivs = (
@@ -207,6 +221,7 @@ class DGB:
             ]
         else:
             derivs = [self.potential_function(centers)] + [self.potential_function(centers, deriv_order=d) for d in range(1, deriv_order+1)]
+            # print(derivs[-1])
         caches = [{} for _ in range(ndim)]
         pot = 0
         for d in derivs: # add up all independent integral contribs...
@@ -215,7 +230,7 @@ class DGB:
             for idx in inds:
                 # print("--->", idx)
                 count_map = {k: v for k, v in zip(*np.unique(idx, return_counts=True))}
-                contrib = prefac
+                contrib = 1
                 for k in range(ndim): # do each dimension of integral independently
                     n = count_map.get(k, 0)
                     if n not in caches[k]:
@@ -224,17 +239,31 @@ class DGB:
                             if expansion_type != 'taylor' else
                            self.polyint_1D(centers[..., k], alphas, n)
                         )
+                        # with np.printoptions(linewidth=1e8):
+                        #     print(k, n)
+                        #     print(caches[k][n])
 
-                    dcont = d[(slice(None, None, None), slice(None, None, None)) + idx] if len(idx) > 0 else d
-                    # print(n, alphas[0, 0], centers[0, 0])
-                    # with np.printoptions(linewidth=1e8):
-                    #     print(caches[k][n])
-                        # print(dcont/np.math.factorial(n))
+                    contrib *= caches[k][n]
 
-                    contrib = contrib * dcont/np.math.factorial(n) * caches[k][n]
+                dcont = d[(slice(None, None, None), slice(None, None, None)) + idx] if len(idx) > 0 else d
+                facterms = np.unique([x for x in itertools.permutations(idx)], axis=0)
+                nfac = len(facterms) # this is like a binomial coeff or something but my sick brain won't work right now...
+                scaling = np.prod([np.math.factorial(count_map.get(k, 0)) for k in range(ndim)])
+                # with np.printoptions(linewidth=1e8):
+                #     print("===="*55)
+                #     print(idx, nfac)
+                #     print(scaling)
+                #     print(dcont[0, 0])
+
+                contrib = contrib * nfac * dcont / scaling**ndim
+
+                # with np.printoptions(linewidth=1e8):
+                #     print(contrib[0, 0])
                 # handle symmetry?
+                # with np.printoptions(linewidth=1e8):
+                #     print(contrib)
                 pot += contrib
-        return pot
+        return pot * prefac
 
 
     def analytic_integrate(self):

@@ -31,7 +31,7 @@ class DGBTests(TestCase):
 
         pot = lambda c:np.sum(c**2, axis=-1)/2
 
-        ham = DGB(pts, pot, clustering_radius=.05)
+        ham = DGB(pts, pot, alphas=1, clustering_radius=.05)
         e, wf = ham.get_wavefunctions()
 
         test_es = np.sort(np.sum(list(itertools.product(*[np.arange(8)+1/2]*ndim)), axis=-1))
@@ -90,7 +90,7 @@ class DGBTests(TestCase):
         # raise Exception(...)
 
         np.random.seed(3)
-        ndim = 1
+        ndim = 2
         pts = np.random.uniform(low=-.5, high=1.2, size=(1000, ndim))
 
         # fn = sym.morse(sym.x) * sym.morse(sym.y) - sym.morse(sym.x) - sym.morse(sym.y)
@@ -99,7 +99,21 @@ class DGBTests(TestCase):
         de = (w ** 2) / (4 * wx)
         a = np.sqrt(2 * mu * wx)
         fn = sym.morse(sym.x, de=de, a=a) + sym.morse(sym.y, de=de, a=a)
-        fn = (1/2*sym.x**2)# + 1/2*sym.y**2)
+        fn = (sym.x**2 + sym.y**2)
+        ndim = 2
+
+        def harmonic(c, deriv_order=None):
+            ndim = c.shape[-1]
+            if deriv_order is None:
+                return 1/2 * np.sum(c**2, axis=-1)
+            elif deriv_order == 1:
+                return 2*c
+            elif deriv_order == 2:
+                mat = np.zeros((ndim, ndim))
+                np.fill_diagonal(mat, 2)
+                return np.broadcast_to(mat.reshape((1,)*(c.ndim-1) + mat.shape), c.shape[:-1] + mat.shape)
+            else:
+                return np.zeros(c.shape + (ndim,)*deriv_order)
         # raise Exception(fn(pts))
 
         # print(res['AIMDEnergies'].gradients)
@@ -112,20 +126,31 @@ class DGBTests(TestCase):
         # )
 
         test_pot = lambda c,fn=fn,deriv_order=None: (
-            fn(c).reshape(c.shape[:-1])
+            fn(c.reshape(-1, ndim)).reshape(c.shape[:-1])
                 if deriv_order is None else
-            fn.deriv(order=deriv_order)(c).reshape(c.shape[:-1] + (ndim,)*deriv_order)
+            np.moveaxis(fn.deriv(order=deriv_order)(c.reshape(-1, ndim)), -1, 0).reshape(c.shape[:-1] + (ndim,)*deriv_order)
         )
+        test_pot = harmonic
 
 
         np.random.seed(0)
-        centers = pts[np.unique(np.random.random_integers(low=0, high=len(pts)-1, size=100))]
-        centers = np.linspace(-1, 1, 50).reshape(-1, 1)
+        centers = pts#[np.unique(np.random.random_integers(low=0, high=len(pts)-1, size=100))]
+        centers = np.array(
+            np.meshgrid(*[
+                np.linspace(-1, 1, 50)
+            ]*ndim)
+        ).T.reshape((-1, ndim))
+
+        # raise Exception(
+        #     test_pot(centers, deriv_order=1)
+        # )
+
         ham = DGB(
             centers,
             test_pot,
-            alphas=1,
-            clustering_radius=0.1
+            alphas=1.5,
+            clustering_radius=.23,
+            quadrature_degree=6
         )
         e, wf = ham.get_wavefunctions()
         print(e)
@@ -137,8 +162,9 @@ class DGBTests(TestCase):
         ham = DGB(
             centers,
             test_pot,
-            expansion_degree=6,
-            alphas=1
+            expansion_degree=2,
+            alphas=1.5,
+            clustering_radius=0.23
         )
         # ham = DGB(
         #     centers,
