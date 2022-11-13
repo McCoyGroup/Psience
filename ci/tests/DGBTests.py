@@ -74,7 +74,7 @@ class DGBTests(TestCase):
         )
 
     @debugTest
-    def test_Interp(self):
+    def test_Expansion(self):
         from McUtils.Zachary import Symbols, RBFDInterpolator
 
         sym = Symbols('xyz')
@@ -91,30 +91,41 @@ class DGBTests(TestCase):
 
         np.random.seed(3)
         ndim = 2
-        pts = np.random.uniform(low=-.5, high=1.2, size=(1000, ndim))
+        pts = np.random.uniform(low=-5, high=5, size=(3500, ndim))
 
         # fn = sym.morse(sym.x) * sym.morse(sym.y) - sym.morse(sym.x) - sym.morse(sym.y)
+        vars = [sym.x, sym.y][:ndim]
 
         w = 2.05; wx = .1; mu = 1
         de = (w ** 2) / (4 * wx)
         a = np.sqrt(2 * mu * wx)
-        fn = sym.morse(sym.x, de=de, a=a) + sym.morse(sym.y, de=de, a=a)
-        fn = (1/2*sym.x**2 + 1/2*sym.y**2)
-        ndim = 2
 
-        def harmonic(c, deriv_order=None):
+        def morse_pot(x, de=de, a=a):
+            return sym.morse(x, de=de, a=a)
+        def harmonic_pot(x, w=w):
+            return w/2 * x**2
+        def quartic_pot(r, a=a, de=de):
+            return (a**2*de)*r**2 - (a**3*de)*r**3 + (7/12*a**4*de)*r**4
+        def sextic_pot(r, a=a, de=de):
+            return (de*a**2)*r**2 - (de*a**3)*r**3 + (7/12*de*a**4)*r**4 - (de*a**5 /4)*r**5+ (31*de*a**6/360)*r**6
+
+        fn_1D = morse_pot
+        fn = sum(fn_1D(var) for var in vars) if ndim > 1 else fn_1D(vars[0])
+
+        def simple_morse(c, de=de, a=a, deriv_order=None):
             ndim = c.shape[-1]
             if deriv_order is None:
-                return np.sum(1/2*c**2, axis=-1)
-            elif deriv_order == 1:
-                return c
-            elif deriv_order == 2:
-                mat = np.zeros((ndim, ndim))
-                np.fill_diagonal(mat, 1)
-                return np.broadcast_to(mat.reshape((1,)*(c.ndim-1) + mat.shape), c.shape[:-1] + mat.shape)
+                return np.sum(de*(1-np.exp(-a*c))**2, axis=-1)
             else:
-                return np.zeros(c.shape + (ndim,)*deriv_order)
-        # raise Exception(fn(pts))
+                n = deriv_order
+                m = ((-1)**(n+1) * 2 * a**n * de) * np.exp(-2*a*c)*(np.exp(a*c)-(2**(n-1)))
+                if n == 1:
+                    return m
+                res = np.zeros(c.shape[:-1] + (ndim,)*deriv_order)
+                for k in range(ndim):
+                    idx = (...,) + (k,)*n
+                    res[idx] = m[..., k]
+                return res
 
         # print(res['AIMDEnergies'].gradients)
         # interp = RBFDInterpolator.create_function_interpolation(
@@ -130,54 +141,147 @@ class DGBTests(TestCase):
                 if deriv_order is None else
             np.moveaxis(fn.deriv(order=deriv_order)(c.reshape(-1, ndim)), -1, 0).reshape(c.shape[:-1] + (ndim,)*deriv_order)
         )
-        test_pot = harmonic
+        # test_pot = simple_morse
+
+        # with np.printoptions(linewidth=1e8):
+        #     print("...")
+        #     print(simple_morse(pts[:3], deriv_order=3))
+        #     print("...")
+        #     print(test_pot(pts[:3], deriv_order=3))
+        #     print("...")
+        #     print(simple_morse(pts[:3], deriv_order=3) - test_pot(pts[:3], deriv_order=3))
+        # raise Exception(...)
+
+        # interp = RBFDInterpolator.create_function_interpolation(
+        #     pts,
+        #     fn,
+        #     lambda p, f=fn.deriv(order=1): f(p),#.transpose(),
+        #     lambda p, f=fn.deriv(order=2): f(p),#.transpose(2, 0, 1),
+        #     clustering_radius=1e-5,
+        # )
 
         np.random.seed(0)
-        centers = pts#[np.unique(np.random.random_integers(low=0, high=len(pts)-1, size=100))]
-        centers = np.array(
-            np.meshgrid(*[
-                np.linspace(-5, 5, 50)
-            ]*ndim)
-        ).T.reshape((-1, ndim))
+        centers = pts
+        # centers = np.array(
+        #     np.meshgrid(*[
+        #         np.linspace(-5, 5, 50)
+        #     ]*ndim)
+        # ).T.reshape((-1, ndim))
+
 
         alpha = .3
-        cluster = .09
-
-        # raise Exception(
-        #     test_pot(centers, deriv_order=1)
-        # )
+        # cluster = .045
 
         ham = DGB(
             centers,
             test_pot,
             alphas=alpha,
-            clustering_radius=cluster,
-            quadrature_degree=2
+            # clustering_radius=cluster,
+            quadrature_degree=6
         )
-
-        # new_c, _ = ham.get_overlap_gaussians()
-        # raise Exception(test_pot(new_c, deriv_order=2).shape)
-
-        e, wf = ham.get_wavefunctions()
+        e, wf = ham.get_wavefunctions()#print_debug_info=True)
         print(e[:10])
-
-        # for k in range(1, 6):
-        #     print(DGB.polyint_1D_coeffs(k))
-        # raise Exception(DGB.polyint_1D_coeffs(4))
 
         ham = DGB(
             centers,
             test_pot,
-            expansion_degree=2,
+            alphas=alpha,
+            # clustering_radius=cluster,
+            expansion_degree=6
+        )
+        e, wf = ham.get_wavefunctions()#print_debug_info=True)
+        print(e[:10])
+
+        ham = DGB(
+            centers,
+            test_pot,
+            alphas=alpha,
+            # clustering_radius=cluster,
+            expansion_degree=6,
+            expansion_type='taylor'
+        )
+        e, wf = ham.get_wavefunctions()#print_debug_info=True)
+        print(e[:10])
+
+    @inactiveTest
+    def test_Interp(self):
+        from McUtils.Zachary import Symbols, RBFDInterpolator
+
+        sym = Symbols('xyz')
+
+        np.random.seed(3)
+        ndim = 2
+        pts = np.random.uniform(low=-5, high=5, size=(1000, ndim))
+
+        w = 2.05; wx = .1; mu = 1
+        de = (w ** 2) / (4 * wx)
+        a = np.sqrt(2 * mu * wx)
+        fn = sym.morse(sym.x, de=de, a=a) + (0 if ndim == 1 else sym.morse(sym.y, de=de, a=a))
+
+        # fn = 1/2*sym.x**2 + (0 if ndim == 1 else 1/2*sym.y**2)
+        test_pot = lambda c, fn=fn, deriv_order=None: (
+            fn(c.reshape(-1, ndim)).reshape(c.shape[:-1])
+            if deriv_order is None else
+            np.moveaxis(fn.deriv(order=deriv_order)(c.reshape(-1, ndim)), -1, 0).reshape(
+                c.shape[:-1] + (ndim,) * deriv_order)
+        )
+
+        interp = RBFDInterpolator.create_function_interpolation(
+            pts,
+            test_pot,
+            lambda p, f=fn.deriv(order=1): f(p),#.transpose(),
+            lambda p, f=fn.deriv(order=2): f(p),#.transpose(2, 0, 1),
+            clustering_radius=1e-5,
+        )
+
+        # raise Exception(fn(pts))
+
+        # print(res['AIMDEnergies'].gradients)
+
+
+        # test_pot = harmonic
+
+        np.random.seed(0)
+        centers = pts  # [np.unique(np.random.random_integers(low=0, high=len(pts)-1, size=100))]
+        # centers = np.array(
+        #     np.meshgrid(*[
+        #         np.linspace(-5, 5, 50)
+        #     ]*ndim)
+        # ).T.reshape((-1, ndim))
+
+        alpha = .3
+        cluster = .05
+
+        ham = DGB(
+            centers,
+            interp,
+            alphas=alpha,
+            clustering_radius=cluster,
+            quadrature_degree=4
+        )
+        e, wf = ham.get_wavefunctions()
+        print(e[:10])
+
+        ham = DGB(
+            centers,
+            test_pot,
+            expansion_degree=4,
             alphas=alpha,
             clustering_radius=cluster
         )
+        e, wf = ham.get_wavefunctions()  # print_debug_info=True)
+        print(e[:10])
+
         # ham = DGB(
         #     centers,
         #     test_pot,
-        #     expansion_degree=2, expansion_type='taylor', alphas=1, clustering_radius=.1)
-        e, wf = ham.get_wavefunctions()
-        print(e[:10])
+        #     expansion_degree=8,
+        #     expansion_type='taylor',
+        #     alphas=alpha,
+        #     clustering_radius=cluster
+        # )
+        # e, wf = ham.get_wavefunctions()  # print_debug_info=True)
+        # print(e[:10])
 
     @inactiveTest
     def test_Water(self):
