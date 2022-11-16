@@ -684,7 +684,8 @@ class Molecule(AbstractMolecule):
         return self.prop('eckart_embedding_data', crds, sel=sel)
     def get_embedded_molecule(self,
                               ref=None,
-                              embed_properties=True
+                              embed_properties=True,
+                              load_properties=True
                               ):
         """
         Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
@@ -705,9 +706,12 @@ class Molecule(AbstractMolecule):
             #     inv_frame = self.principle_axis_frame(inverse=True)
             # else:
             #     inv_frame = self.eckart_frame(ref, inverse=True)
-            new.normal_modes = new.normal_modes.apply_transformation(frame)
-            new.potential_surface = new.potential_surface.apply_transformation(frame)
-            new.dipole_surface = new.dipole_surface.apply_transformation(frame)
+            if load_properties or new._normal_modes._modes is not None:
+                new.normal_modes = new.normal_modes.apply_transformation(frame)
+            if load_properties or new._pes._surf is not None or new._pes._derivs is not None:
+                new.potential_surface = new.potential_surface.apply_transformation(frame)
+            if load_properties or new._dips._surf is not None or new._dips._derivs is not None:
+                new.dipole_surface = new.dipole_surface.apply_transformation(frame)
         new.source_file = None # for safety
 
         return new

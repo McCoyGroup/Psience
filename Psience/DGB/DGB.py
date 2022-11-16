@@ -24,11 +24,12 @@ class DGB:
         self._S, self._T, self._V = None, None, None
 
         if optimize_centers:
-            self.centers, self.alphas, self._S, self._T = self.optimize_centers(
+            self.clustering_radius, self.centers, self.alphas, self._S, self._T = self.optimize_centers(
                 centers, alphas,
                 initial_custering=clustering_radius
             )
         else:
+            self.clustering_radius = clustering_radius
             self.centers, self.alphas = self.initialize_gaussians(
                 centers, alphas,
                 clustering_radius
@@ -57,7 +58,7 @@ class DGB:
             centers, alphas = self.initialize_gaussians(c, a, cr)
             S, T = self.get_ST(centers, alphas)
 
-        return centers, alphas, S, T
+        return cr, centers, alphas, S, T
 
     def initialize_gaussians(self, centers, alphas, clustering_radius):
         centers = np.asanyarray(centers)
@@ -260,10 +261,12 @@ class DGB:
 
         if expansion_type == 'taylor':
             zero = np.zeros((1, centers.shape[-1]))
-            derivs = (
-                    [self.potential_function(zero)] +
-                     [self.potential_function(zero, deriv_order=d) for d in range(1, deriv_order+1)]
-            )
+            derivs = self.potential_function(zero, deriv_order=deriv_order)
+            if isinstance(derivs, np.ndarray): # didn't get the full list so we do the less efficient route
+                derivs = (
+                        [self.potential_function(zero)] +
+                        [self.potential_function(zero, deriv_order=d) for d in range(1, deriv_order + 1)]
+                )
             derivs = [
                 np.broadcast_to(
                     d[np.newaxis],
@@ -272,7 +275,29 @@ class DGB:
                 for d in derivs
             ]
         else:
-            derivs = [self.potential_function(centers)] + [self.potential_function(centers, deriv_order=d) for d in range(1, deriv_order+1)]
+            # derivs = self.potential_function(centers, deriv_order=deriv_order)
+            # if isinstance(derivs, np.ndarray):  # didn't get the full list so we do the less efficient route'
+            #     derivs = [self.potential_function(centers)] + [self.potential_function(centers, deriv_order=d) for d in
+            #                                                range(1, deriv_order + 1)]
+
+            # use symmetry to cut down number of indices by 2
+            row_inds, col_inds = np.triu_indices_from(alphas)
+            ics = centers[row_inds, col_inds]
+            derivs = self.potential_function(ics, deriv_order=deriv_order)
+            if isinstance(derivs, np.ndarray):  # didn't get the full list so we do the less efficient route'
+                derivs = [self.potential_function(ics)] + [
+                    self.potential_function(ics, deriv_order=d) for d in range(1, deriv_order+1)
+                ]
+            new_derivs = [] # reverse symmetrization
+            for d in derivs:
+                full_mat = np.empty(
+                    alphas.shape + d.shape[1:]
+                )
+                full_mat[row_inds, col_inds] = d
+                full_mat[col_inds, row_inds] = d
+                new_derivs.append(full_mat)
+            derivs = new_derivs
+
         caches = [{} for _ in range(ndim)]
         pot = 0
         for d in derivs: # add up all independent integral contribs...
@@ -318,7 +343,7 @@ class DGB:
             alphas
         )
 
-    def get_V(self, potential_handler=None, expansion_degree=None, degree=None):
+    def get_base_pot(self, potential_handler=None, expansion_degree=None, degree=None):
         if expansion_degree is None:
             expansion_degree = self.expansion_degree
         if potential_handler is None:
@@ -339,21 +364,62 @@ class DGB:
         else:
             raise ValueError("woof")
 
+        return pot_mat
+
+    def get_V(self, potential_handler=None, expansion_degree=None, degree=None):
+        pot_mat = self.get_base_pot(potential_handler=potential_handler, expansion_degree=expansion_degree, degree=degree)
         return self.S * pot_mat
 
-    def get_wavefunctions(self, print_debug_info=False):
+    def get_wavefunctions(self, print_debug_info=False, min_singular_value=1e-4):
         H = self.T + self.V
         if print_debug_info:
             print('Condition Number:', np.linalg.cond(self.S))
-            with np.printoptions(linewidth=1e8):
+            with np.printoptions(linewidth=1e8, threshold=1e8):
             #     # print(self.S)
             #     # print(self.T)
                 print("Potential Matrix:")
                 print(self.V)
 
-        try:
-            return sp.linalg.eigh(H, self.S)
-        except np.linalg.LinAlgError:
-            raise ValueError(
-                "Overlap matrix poorly conditioned ({}) usually means data is too clustered".format(np.linalg.cond(self.S))
-            ) from None
+        if min_singular_value is None:
+            try:
+                return sp.linalg.eigh(H, self.S)
+            except np.linalg.LinAlgError:
+                raise ValueError(
+                    "Overlap matrix poorly conditioned ({}) usually means data is too clustered or a min singular value is required".format(np.linalg.cond(self.S))
+                ) from None
+        else:
+            S = self.S
+
+            # Use SVD to prune out matrix rows that will be super ill conditioned
+            U, sig, VT = np.linalg.svd(S)
+            good_loc = np.where(sig > min_singular_value)[0]
+            d = np.diag(1/np.sqrt(sig[good_loc]))
+            U = U[:, good_loc]
+            VT = VT[good_loc, :]
+            Q = U @ d @ VT
+            Qinv = VT.T @ d @ U.T
+
+            # shift_val = 1e5
+            # shift = np.diag(np.full(len(H), shift_val)) # add a uniform shift to make it clear where the zeros are
+            # H = Q @ (H + shift) @ Q
+
+            H = Q @ H @ Q
+
+            eigs, evals = np.linalg.eigh(H)
+
+            # take non-zero eigvals
+            zero_pos = np.where(np.abs(eigs) < 1e-8)[0] # drop the appropriate number of zeros
+            nz = len(H) - len(good_loc)
+            zero_pos = zero_pos[:nz]
+            sel = np.setdiff1d(np.arange(len(H)), zero_pos)
+            eigs = eigs[sel]
+            evals = evals[:, sel]
+
+            # now invert transformation to get back to OG basis
+            # and remove uniform shift to eigenvalues
+            eigs = eigs # - shift_val
+            evals = Qinv @ evals
+
+            return eigs, evals
+
+

@@ -132,6 +132,7 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         converter_options['molecule'] = molecule
 
     def jacobian(self,
+                 coords,
                  *args,
                  reembed=None,
                  strip_dummies=None,
@@ -162,16 +163,28 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
                 dummies
             )
 
+        if coords.ndim > 3:
+            og_shape = coords.shape
+            coords = coords.reshape((-1,) + coords.shape[-2:])
+        else:
+            og_shape = (coords.shape[0],) if coords.ndim == 3 else ()
+
+        # print("...?", coords.shape)
+
         try:
             self.converter_options['reembed'] = True if remb is None else remb
-            jacs = super().jacobian(*args, converter_options=converter_options, **kwargs)
+            jacs = super().jacobian(coords, *args, converter_options=converter_options, **kwargs)
             raw_jacs = []
             for j in jacs:
-                ext_dim = j.ndim - 2
-                shp = sum(
-                    ((j.shape[i] // 3, 3) for i in range(ext_dim)),
+                skip_dim = coords.ndim - 2
+                if skip_dim > 0:
+                    j = np.moveaxis(j, -3, 0) # skip_dim == 1 by construction so only need 1 move...
+                ext_dim = j.ndim - 2 - skip_dim
+                # print("????", j.shape, coords.shape, skip_dim)
+                shp = og_shape + sum(
+                    ((j.shape[i] // 3, 3) for i in range(skip_dim, ext_dim+skip_dim)),
                     ()
-                ) +  j.shape[-2:]
+                ) + j.shape[-2:]
                 j = j.reshape(shp)
                 if dummies is not None:
                     for i in range(ext_dim):
@@ -533,11 +546,42 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
                     n_atoms
                 ))
 
+            # TODO:
+            # these need broadcasting when
+            # doing jacobian calcs but this is currently pretty
+            # hacky
+            # print(axes.shape, n_sys)
+            if axes.ndim == 2:
+                axes = axes[np.newaxis]
+            if axes.shape[0] > 1 and axes.shape[0] < n_sys:
+                # print((n_sys // axes.shape[0], axes.shape[0]) + axes.shape)
+                axes = np.reshape(
+                    np.broadcast_to(
+                        axes[np.newaxis],
+                        (n_sys // axes.shape[0],) + axes.shape
+                    ),
+                    (n_sys, ) + axes.shape[1:]
+                )
+
+            if origins.ndim == 1:
+                origins = origins[np.newaxis]
+            # print(axes.shape, n_sys)
+            if origins.shape[0] > 1 and origins.shape[0] < n_sys:
+                # print((n_sys // axes.shape[0], axes.shape[0]) + axes.shape)
+                origins = np.reshape(
+                    np.broadcast_to(
+                        origins[np.newaxis],
+                        (n_sys // origins.shape[0],) + origins.shape
+                    ),
+                    (n_sys, ) + origins.shape[1:]
+                )
+
             x_ax = axes[..., 0, :]
             y_ax = axes[..., 1, :]
             extra_norms0 = nput.vec_norms(x_ax)
             extra_norms1 = nput.vec_norms(y_ax)
             extra_angles, _ = nput.vec_angles(x_ax, y_ax)
+
             extra_coords = np.zeros((n_sys, 2, 3))
             extra_coords[..., 0, 0] = extra_norms0
             extra_coords[..., 1, 0] = extra_norms1

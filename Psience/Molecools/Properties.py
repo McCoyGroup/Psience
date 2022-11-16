@@ -267,18 +267,49 @@ class StructuralProperties:
         og_ref = ref
         ref = ref[..., real_pos, :]
 
+        if ref.ndim == 2:
+            ref = ref[np.newaxis]
+        if ref.shape[0] > 1 and ref.shape[0] < coords.shape[0]: # TODO: make less hacky
+            # need to make them broadcast together and we assume
+            # we have an extra stack of coords
+            n_sys = coords.shape[0]
+            ref =  np.reshape(
+                    np.broadcast_to(
+                        ref[np.newaxis],
+                        (n_sys // ref.shape[0],) + ref.shape
+                    ),
+                    (n_sys, ) + ref.shape[1:]
+                )
+            ref_axes = np.reshape(
+                np.broadcast_to(
+                    ref_axes[np.newaxis],
+                    (n_sys // ref_axes.shape[0],) + ref_axes.shape
+                ),
+                (n_sys,) + ref_axes.shape[1:]
+            )
+            ref_com = np.reshape(
+                np.broadcast_to(
+                    ref_com[np.newaxis],
+                    (n_sys // ref_com.shape[0],) + ref_com.shape
+                ),
+                (n_sys,) + ref_com.shape[1:]
+            )
+
         planar_ref = np.allclose(ref[:, 2], 0., atol=planar_ref_tolerance)
+
         if not planar_ref:
             # generate pair-wise product matrix
-            A = np.tensordot(masses / np.sum(masses),
-                             ref[np.newaxis, :, :, np.newaxis] * coords[:, :, np.newaxis, :],
-                             axes=[0, 1])
+            A = np.tensordot(
+                masses / np.sum(masses),
+                ref[:, :, :, np.newaxis] * coords[:, :, np.newaxis, :],
+                axes=[0, 1]
+            )
             # take SVD of this
             U, S, V = np.linalg.svd(A)
             rot = np.matmul(U, V)
         else:
             # generate pair-wise product matrix but only in 2D
-            F = ref[np.newaxis, :, :2, np.newaxis] * coords[:, :, np.newaxis, :2]
+            F = ref[:, :, :2, np.newaxis] * coords[:, :, np.newaxis, :2]
             A = np.tensordot(masses / np.sum(masses), F, axes=[0, 1])
             U, S, V = np.linalg.svd(A)
             rot = np.broadcast_to(np.eye(3, dtype=float), (len(coords), 3, 3)).copy()
@@ -297,7 +328,7 @@ class StructuralProperties:
         return rot, (og_ref, ref_com, ref_axes), (og_coords, com, pax_axes)
 
     @classmethod
-    def get_eckart_embedding_data(cls, masses, ref, coords, sel=None):
+    def get_eckart_embedding_data(cls, masses, ref, coords, sel=None, planar_ref_tolerance=None):
         """
         Embeds a set of coordinates in the reference frame
 
@@ -311,7 +342,7 @@ class StructuralProperties:
         :rtype:
         """
 
-        return cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False)
+        return cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
     def get_prop_eckart_transformation(cls, masses, ref, coords,
@@ -397,7 +428,9 @@ class StructuralProperties:
         ek_rot = np.swapaxes(ek_rot, -2, -1)
         crd = crd @ ek_rot
         # now we rotate this back to the reference frame
-        crd = crd @ (ref_rot.T)[np.newaxis, :, :]
+        if ref_rot.ndim == 2:
+            ref_rot = ref_rot[np.newaxis]
+        crd = crd @ ref_rot.transpose((0, 2, 1))
 
         if reset_com:
             # and then shift so the COM doesn't change
