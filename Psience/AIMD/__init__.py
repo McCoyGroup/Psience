@@ -1,7 +1,8 @@
 """
-Simple utilities for managing AIMD sims
+Simple utilities for doing basic AIMD simulations as well
+as utilities for managing AIMD sims
 """
 
-class AIMDSimulator:
-    def __init__(self, potential_function, force_function):
-        ...
+__all__ = []
+from .Simulator import *; from .Simulator import __all__ as exposed
+__all__ += exposed
