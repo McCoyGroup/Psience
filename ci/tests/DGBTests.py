@@ -10,9 +10,12 @@ from McUtils.Data import UnitsData, PotentialData
 from McUtils.Zachary import Interpolator
 import McUtils.Plots as plt
 from McUtils.GaussianInterface import GaussianLogReader
+from McUtils.Extensions import ModuleLoader
 
 from Psience.DGB import *
 from Psience.Molecools import Molecule
+from Psience.AIMD import AIMDSimulator
+
 import numpy as np
 
 class DGBTests(TestCase):
@@ -445,8 +448,8 @@ class DGBTests(TestCase):
         e, wf = ham.get_wavefunctions() # print_debug_info=True)
         print(e[:50])
 
-    @debugTest
-    def test_Water(self):
+    @inactiveTest
+    def test_WaterFromGauss(self):
         from McUtils.Numputils import vec_tensordot
 
         with GaussianLogReader(TestManager.test_data('h2o_aimd.log')) as parser:
@@ -690,4 +693,53 @@ class DGBTests(TestCase):
         # )
         # e, wf = ham.get_wavefunctions()  # print_debug_info=True)  # print_debug_info=True)
         # print(e[:10])
+
+    @debugTest
+    def test_WaterFromAIMD(self):
+
+        loader = ModuleLoader(TestManager.current_manager().test_data_dir)
+        mbpol = loader.load("LegacyMBPol").MBPol
+
+        ref = np.array([  # some random structure Mathematica got from who knows where...
+                [ 7.74875081e-06,  6.20321759e-02, -2.09594068e-17],
+                [ 7.83793537e-01, -4.92291304e-01, -1.82568317e-16],
+                [-7.83916515e-01, -4.92204344e-01,  2.82713128e-17]
+            ])
+        disps = np.random.normal(0, 0.01, size=(10, 3, 3))
+        disps[..., 2] = 0
+        coords = ref + disps
+
+        forces = lambda c: mbpol.get_pot_grad(nwaters=1, coords=c.reshape(-1, 3, 3), threading_vars=['energy', 'grad', 'coords'],
+                           threading_mode='omp')['grad'].reshape(
+            c.shape
+        )
+        energies = lambda c: mbpol.get_pot(nwaters=1, coords=c.reshape((-1, 3, 3)),
+                                           threading_vars=['energy', 'coords']).reshape(
+            c.shape[:-2]
+        )
+
+        sim = AIMDSimulator(["O", "H", "H"], coords, force_function=forces)
+        sim.propagate(1000)
+
+        interp = sim.build_interpolation(energies, eckart_embed=False)
+
+        pos = np.where(interp.vals < 5000 * UnitsData.convert("Wavenumbers", "Hartrees"))
+
+        ham = DGB(
+            interp.grid[pos],
+            interp,
+            alphas=.05,
+            clustering_radius=0.01,
+            optimize_centers=False,
+            min_singular_value=1e-8,
+            # clustering_radius=.055,
+            # optimize_centers=False,
+            expansion_degree=2
+        )
+        e, wf = ham.get_wavefunctions()  # print_debug_info=True)
+        print(e[:50])
+
+
+
+
 

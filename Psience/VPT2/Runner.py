@@ -1267,6 +1267,36 @@ class VPTRunner:
 
                 return runner.print_tables(print_intensities=calculate_intensities)
 
+    class helpers:
+        """
+        A stub to be replaced with the AnneInputHelpers interface
+        """
+        @classmethod
+        def run_anne_job(cls,
+                         base_dir,
+                         states=2,
+                         calculate_intensities=None,
+                         return_analyzer=False,
+                         return_runner=False,
+                         modes_file=('nm_int.dat', 'modes.dat'),
+                         atoms_file='atom.dat',
+                         masses_file='mass.dat',
+                         coords_file='cart_ref.dat',
+                         zmat_file='z_mat.dat',
+                         potential_files=('cub.dat', 'quart.dat', 'quintic.dat', 'sextic.dat'),
+                         dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat", "quart_dip.dat", 'quintic_dip.dat'),
+                         coordinate_transformation=None,
+                         coordinate_transformation_file='coordinate_transformation.py',
+                         results_file=None,  # 'output.hdf5',
+                         order=None,
+                         expansion_order=None,
+                         energy_units=None,
+                         normalization_type=0,
+                         **opts
+                         ):
+            ...
+        convert = UnitsData.convert
+
 class VPTStateMaker:
     """
     A tiny but useful class to make states based on their quanta
@@ -1394,37 +1424,59 @@ class AnneInputHelpers:
             return None
 
     @classmethod
-    def parse_modes(cls, block):
-        inds = {}
-        m = 0
+    def _parse_modes(cls, line_iter, energy_units=None):
+
         freqs = None
         L = None
         Linv = None
+
+        block = []
+        for line in line_iter:
+            line = line.strip()
+            if len(line) > 0:
+                block.append(line)
+            else:
+                if len(block) > 0:
+                    if freqs is None:
+                        freqs = cls.parse_freqs_line(" ".join(block))
+                        block = []
+                    elif L is None:
+                        L = cls.parse_modes_line(" ".join(block), len(freqs))
+                        block = []
+                    elif Linv is None:
+                        Linv = cls.parse_modes_line(" ".join(block), L.shape[1])
+                        block = []
+                        break
+        else:
+            if len(block) > 0:
+                Linv = cls.parse_modes_line(" ".join(block), L.shape[1])
+            else:
+                if energy_units is None:
+                    if np.max(freqs) > 1:
+                        conv = cls.convert("Wavenumbers", "Hartrees")
+                    else:
+                        conv = 1
+                else:
+                    conv = cls.convert(freqs, "Hartrees")
+                freqs_conv = freqs * conv
+
+                # raise Exception(freqs_conv, np.diag(L.T @ L))
+                Linv = L.T #/ freqs[:, np.newaxis]
+
+        return freqs, L, Linv
+    @classmethod
+    def parse_modes(cls, block, energy_units=None):
+        if not isinstance(block, str):
+            for file in block:
+                if os.path.isfile(file):
+                    return cls.parse_modes(file, energy_units=energy_units)
         if os.path.isfile(block):
             with open(block) as f:
-                for line in f:
-                    line = line.strip()
-                    if len(line) > 0:
-                        if freqs is None:
-                            freqs = cls.parse_freqs_line(line)
-                        elif L is None:
-                            L = cls.parse_modes_line(line, len(freqs))
-                        elif Linv is None:
-                            Linv = cls.parse_modes_line(line, L.shape[1])
-                            break
+                return cls._parse_modes(f, energy_units=energy_units)
         else:
             cls._check_file(block)
-            for line in block.splitlines():
-                line = line.strip()
-                if len(line) > 0:
-                    if freqs is None:
-                        freqs = cls.parse_freqs_line(line)
-                    elif L is None:
-                        L = cls.parse_modes_line(line, len(freqs))
-                    elif Linv is None:
-                        Linv = cls.parse_modes_line(line, L.shape[1])
-                        break
-        return freqs, L, Linv
+            return cls._parse_modes(block.splitlines(), energy_units=energy_units)
+
 
     @classmethod
     def parse_coords(cls, block):
@@ -1530,6 +1582,8 @@ class AnneInputHelpers:
         :return:
         :rtype:
         """
+        if zmat is None:
+            return None
         nats = len(zmat)
         ncoords = 3*nats - 6
         if nats < 4:
@@ -1721,7 +1775,7 @@ class AnneInputHelpers:
                      calculate_intensities=None,
                      return_analyzer=False,
                      return_runner=False,
-                     modes_file='nm_int.dat',
+                     modes_file=('nm_int.dat', 'modes.dat'),
                      atoms_file='atom.dat',
                      masses_file='mass.dat',
                      coords_file='cart_ref.dat',
@@ -1734,7 +1788,7 @@ class AnneInputHelpers:
                      order=None,
                      expansion_order=None,
                      energy_units=None,
-                     type=0,
+                     normalization_type=0,
                      **opts
                      ):
         from .Analyzer import VPTAnalyzer
@@ -1815,13 +1869,22 @@ class AnneInputHelpers:
             else:
                 dipole_terms = None
             # raise Exception(sorting)
-            (freq, matrix, inv), potential_terms, dipole_terms = cls.reexpress_normal_modes(
-                (base_freqs, base_mat, base_inv),
-                [np.diag(base_freqs)] + potential,
-                dipole_terms,
-                sorting=sorting,
-                type=type
-            )
+            if zmat is not None:
+                (freq, matrix, inv), potential_terms, dipole_terms = cls.reexpress_normal_modes(
+                    (base_freqs, base_mat, base_inv),
+                    [np.diag(base_freqs)] + potential,
+                    dipole_terms,
+                    sorting=sorting,
+                    type=normalization_type
+                )
+            else:
+                freq, matrix, inv = base_freqs, base_mat, base_inv
+                potential_terms = [np.diag(base_freqs)] + potential
+                    # print(dipole[0].shape, base_modes[1].shape, matrix.shape)
+                dipole_terms = [
+                    [0] + [d[a] for d in dipole_terms]
+                    for a in range(3)
+                ]
             # if type == 0:
             #     # (freq, matrix, inv) = (base_freqs, base_mat, base_inv)
             #     potential_terms = [np.diag(base_freqs)] + potential

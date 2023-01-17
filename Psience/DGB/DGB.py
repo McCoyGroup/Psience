@@ -1,6 +1,7 @@
 import numpy as np, scipy as sp, itertools, functools
 from McUtils.Zachary import RBFDInterpolator
 from McUtils.Combinatorics import StirlingS1
+from McUtils.Scaffolding import Logger
 
 __all__ =  [
     "DGB"
@@ -15,25 +16,53 @@ class DGB:
                  centers,
                  potential_function,
                  alphas=None,
+                 logger=True,
                  clustering_radius=.005,
-                 optimize_centers=True,
+                 min_singular_value=1e-4,
+                 num_svd_points=None,
+                 optimize_centers=False,
                  quadrature_degree=4,
                  expansion_degree=None,
                  expansion_type='multicenter'
     ):
         self._S, self._T, self._V = None, None, None
+        self.logger = Logger.lookup(logger)
 
         if optimize_centers:
+            self.logger.log_print("optimizing DGB centers...")
             self.clustering_radius, self.centers, self.alphas, self._S, self._T = self.optimize_centers(
                 centers, alphas,
                 initial_custering=clustering_radius
             )
         else:
+            self.logger.log_print("initializing Gaussians...")
             self.clustering_radius = clustering_radius
             self.centers, self.alphas = self.initialize_gaussians(
                 centers, alphas,
                 clustering_radius
             )
+
+        if min_singular_value is not None or num_svd_points is not None:
+            # Use SVD to prune out matrix rows that will be super ill conditioned
+            U, sig, VT = np.linalg.svd(self.S)
+            if num_svd_points:
+                good_loc = np.arange(num_svd_points)
+            else:
+                self.logger.log_print("most important center threshold: {t}", t=min_singular_value)
+                good_loc = np.where(sig > min_singular_value)[0]
+            U = U[:, good_loc]
+            VT = VT[good_loc, :]
+
+            full_good_pos = np.unique(np.concatenate([
+                np.where(np.abs(U) > 1e-14)[0],
+                np.where(np.abs(VT) > 1e-14)[1]
+            ]))
+            self.centers = self.centers[full_good_pos]
+            self.alphas = self.alphas[full_good_pos]
+
+            self._S = self._S[full_good_pos, :][:, full_good_pos]
+            self._T = self._T[full_good_pos, :][:, full_good_pos]
+
 
         self.potential_function = potential_function
         self.quadrature_degree = quadrature_degree
@@ -260,6 +289,7 @@ class DGB:
         prefac = ( np.sqrt(2 / np.pi) * (aprod**(1/4)) ) ** (ndim if expansion_type != 'taylor' else 1) #* np.exp(-aprod/asum * np.sum(cdiff**2, axis=-1))
 
         if expansion_type == 'taylor':
+            self.logger.log_print("expanding as a Taylor series about the minumum energy geometry...")
             zero = np.zeros((1, centers.shape[-1]))
             derivs = self.potential_function(zero, deriv_order=deriv_order)
             if isinstance(derivs, np.ndarray): # didn't get the full list so we do the less efficient route
@@ -275,6 +305,8 @@ class DGB:
                 for d in derivs
             ]
         else:
+
+            self.logger.log_print("expanding about {N} points...", N=len(np.triu_indices_from(alphas)[0]))
             # derivs = self.potential_function(centers, deriv_order=deriv_order)
             # if isinstance(derivs, np.ndarray):  # didn't get the full list so we do the less efficient route'
             #     derivs = [self.potential_function(centers)] + [self.potential_function(centers, deriv_order=d) for d in
@@ -346,6 +378,7 @@ class DGB:
     def get_base_pot(self, potential_handler=None, expansion_degree=None, degree=None):
         if expansion_degree is None:
             expansion_degree = self.expansion_degree
+
         if potential_handler is None:
             if isinstance(self.potential_function, dict):
                 if 'analytic_integrals' in self.potential_function:
@@ -356,10 +389,13 @@ class DGB:
                 potential_handler = 'quad'
 
         if potential_handler == 'quad':
+            self.logger.log_print("evauating integrals with {n}-order quadrature", n=self.quadrature_degree)
             pot_mat = self.quad_integrate(degree=self.quadrature_degree if degree is None else degree)
         elif potential_handler == 'expansion':
+            self.logger.log_print("evauating integrals with {n}-degree expansions", n=self.expansion_degree)
             pot_mat = self.expansion_integrate(deriv_order=expansion_degree)
         elif potential_handler == 'analytic':
+            self.logger.log_print("evauating integrals analytically", n=self.expansion_degree)
             pot_mat = self.analytic_integrate()
         else:
             raise ValueError("woof")
@@ -367,6 +403,8 @@ class DGB:
         return pot_mat
 
     def get_V(self, potential_handler=None, expansion_degree=None, degree=None):
+
+        self.logger.log_print("calculating potential matrix")
         pot_mat = self.get_base_pot(potential_handler=potential_handler, expansion_degree=expansion_degree, degree=degree)
         return self.S * pot_mat
 

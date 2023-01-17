@@ -37,7 +37,7 @@ class AIMDTests(TestCase):
     #
     #     sim = AIMDSimulator()
 
-    @debugTest
+    @validationTest
     def test_mbpol(self):
         # sym = Symbols('r')
         # fn = sym.morse(sym.r, de=10, a=1)
@@ -67,8 +67,37 @@ class AIMDTests(TestCase):
         grads = forces(traj)
         hessians = FiniteDifferenceDerivative(forces, function_shape=((3, 3), (3, 3)) ).derivatives(traj).compute_derivatives(1)
 
-        raise Exception(hessians.shape)
+        # raise Exception(hessians.shape)
         # raise Exception(traj.shape, engs)
+
+    @debugTest
+    def test_AIMDInterp(self):
+
+        loader = ModuleLoader(TestManager.current_manager().test_data_dir)
+        mbpol = loader.load("LegacyMBPol").MBPol
+
+        r1 = np.random.normal(1.8, .3, 10)
+        r2 = np.random.normal(1.8, .3, 10)
+        coords = np.array([
+            [
+                [0, 0, 0],
+                [a, 0, 0],
+                [0, b, 0]
+            ] for a, b in zip(r1, r2)
+        ])
+        forces = lambda c: mbpol.get_pot_grad(nwaters=1, coords=c.reshape(-1, 3, 3), threading_vars=['energy', 'grad', 'coords'], threading_mode='omp')['grad'].reshape(
+            c.shape
+        )
+        energies = lambda c: mbpol.get_pot(nwaters=1, coords=c.reshape((-1, 3, 3)), threading_vars=['energy', 'coords']).reshape(
+            c.shape[:-2]
+        )
+
+        sim = AIMDSimulator(["O", "H", "H"], coords, force_function=forces)
+        sim.propagate(100)
+
+        interp = sim.build_interpolation(energies, eckart_embed=False)
+
+        # raise Exception(interp)
 
 
 

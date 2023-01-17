@@ -63,7 +63,7 @@ class VPT2Tests(TestCase):
         runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
         runner.print_tables()
 
-    @debugTest
+    @validationTest
     def test_HOHVPTRunnerShifted(self):
 
         file_name = "HOH_freq.fchk"
@@ -1204,3 +1204,70 @@ State             Frequency    Intensity       Frequency    Intensity
   0 3 0 0 0 0    5006.71100      0.00000      4847.85818      0.00744
   0 0 3 0 0 0    5006.71098      0.00000      4847.85797      0.00578
   """
+
+    @debugTest
+    def test_AnneAPI(self):
+        VPTRunner.run_simple(
+            TestManager.test_data('HOD_freq_16.fchk'), 2,
+            # calculate_intensities=False
+        )
+        # raise Exception("...")
+        # test_folder = TestManager.test_data('vpt2_helpers_api/hod')
+        # runner, dat = VPTRunner.construct(TestManager.test_data('HOD_freq_16.fchk'), 2)
+
+        # fuck = dat[0]
+        # raise Exception(fuck.mol.normal_modes.modes.basis.matrix.T)
+
+        # fuck = runner.hamiltonian
+        # shit_strings = []
+        # cub = fuck.V_terms[1]
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        # for i in range(cub.shape[0]):
+        #     for j in range(i, cub.shape[1]):
+        #         for k in range(j, cub.shape[2]):
+        #             shit_strings.append(f"{i+1} {j+1} {k+1} {cub[i, j ,k]*h2w}")
+
+        # fuck = runner.hamiltonian
+        # shit_strings = []
+        # quart = fuck.V_terms[2]
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        # for i in range(quart.shape[0]):
+        #     for j in range(i, quart.shape[2]):
+        #         for k in range(j, quart.shape[2]):
+        #             for l in range(k, quart.shape[3]):
+        #                 shit_strings.append(f"{i+1} {j+1} {k+1} {l+1} {quart[i, j, k, l]*h2w}")
+        # #
+        # raise Exception("\n".join(shit_strings))
+
+
+        # fuck = runner.get_wavefunctions()
+        # shit_strings = []
+        # dts = fuck.dipole_terms
+        #
+        # lints = np.array([d[1] for d in dts])
+        # for a in range(lints.shape[0]):
+        #     for i in range(lints.shape[1]):
+        #         shit_strings.append(f"{a+1} {i+1} {lints[a, i]}")
+        # shit_strings.append("")
+        #
+        # dints = np.array([d[2] for d in dts])
+        # for a in range(dints.shape[0]):
+        #     for i in range(dints.shape[1]):
+        #         for j in range(i, dints.shape[2]):
+        #             shit_strings.append(f"{a + 1} {i + 1} {j + 1} {dints[a, i, j]}")
+        # shit_strings.append("")
+        #
+        # cints = np.array([d[3] for d in dts])
+        # for a in range(cints.shape[0]):
+        #     for i in range(cints.shape[1]):
+        #         for j in range(i, cints.shape[2]):
+        #             for k in range(j, cints.shape[3]):
+        #                 shit_strings.append(f"{a + 1} {i + 1} {j + 1} {k + 1} {cints[a, i, j, k]}")
+        # #
+        # raise Exception("\n".join(shit_strings))
+
+        VPTRunner.helpers.run_anne_job(
+            TestManager.test_data('vpt2_helpers_api/hod/x'),
+            # calculate_intensities=False,
+            # expansion_order=2
+        )

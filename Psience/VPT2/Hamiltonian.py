@@ -114,26 +114,25 @@ class PerturbationTheoryHamiltonian:
         expansion_options['parallelizer'] = self.parallelizer
         expansion_params = ParameterManager(expansion_options)
 
-        self._input_potential = potential_terms
         if not include_potential:
-            self.V_terms = None
+            V_terms = None
         else:
-            self.V_terms = PotentialTerms(self.molecule,
-                                          modes=modes, mode_selection=mode_selection,
-                                          potential_derivatives=potential_derivatives,
-                                          allow_higher_potential_terms=allow_higher_potential_terms,
-                                          **expansion_params.filter(PotentialTerms)
-                                          )
+            V_terms = PotentialTerms(self.molecule,
+                                      modes=modes, mode_selection=mode_selection,
+                                      potential_derivatives=potential_derivatives,
+                                      allow_higher_potential_terms=allow_higher_potential_terms,
+                                      **expansion_params.filter(PotentialTerms)
+                                      )
+        self.V_terms = self.TermGetter(V_terms, potential_terms)
 
-        self._input_kinetic = kinetic_terms
         if not include_gmatrix:
-            self.G_terms = None
+            G_terms = None
         else:
-            self.G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection,
+            G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection,
                                         **expansion_params.filter(KineticTerms)
                                         )
+        self.G_terms = self.TermGetter(G_terms, kinetic_terms)
 
-        self._input_coriolis = coriolis_terms
         if (
                 include_coriolis_coupling and
                 (self.molecule.internal_coordinates is None or any(
@@ -143,20 +142,21 @@ class PerturbationTheoryHamiltonian:
                         ]
                 ))
         ):
-            self.coriolis_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection,
+            Z_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection,
                                                **expansion_params.filter(CoriolisTerm)
                                                )
         else:
             # raise Exception(self.molecule.internal_coordinates)
-            self.coriolis_terms = None
+            Z_terms = None
+        self.coriolis_terms = self.CoriolisTermGetter(Z_terms, coriolis_terms)
 
-        self._input_pseudopotential = pseudopotential_terms
         if include_pseudopotential:
-            self.pseudopotential_term = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
+            U_terms = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
                                                           **expansion_params.filter(PotentialLikeTerm)
                                                           )
         else:
-            self.pseudopotential_term = None
+            U_terms = None
+        self.pseudopotential_term = self.TermGetter(U_terms, pseudopotential_terms)
 
         self._expansions = []
         # self._h0 = self._h1 = self._h2 = None
@@ -200,6 +200,30 @@ class PerturbationTheoryHamiltonian:
                                       mode='fchk'
                                       )
         return cls(molecule=molecule, mode_selection=mode_selection, **kw)
+
+    class TermGetter:
+        def __init__(self, base_terms, input_terms):
+            self.base_terms = base_terms
+            self.input_terms = input_terms
+        def __getitem__(self, o):
+            if self.base_terms is not None or self.input_terms is not None:
+                V = self.input_terms[o] if self.input_terms is not None and len(
+                    self.input_terms
+                ) > o else None
+                if V is None:
+                    V = self.base_terms[o]
+                    V = self.adjust_base_term(V)
+            else:
+                V = None
+            return V
+        def adjust_base_term(self, V):
+            return V
+    class CoriolisTermGetter(TermGetter):
+        def adjust_base_term(self, Z):
+            for ax in range(2):
+                Z = np.sum(Z, axis=0)
+            return Z
+
 
     @property
     def H0(self):
@@ -257,19 +281,13 @@ class PerturbationTheoryHamiltonian:
             else:
                 iphase = -1
 
-            if include_gmatrix and (self.G_terms is not None or self._input_kinetic is not None):
-                T = self._input_kinetic[o] if self._input_kinetic is not None and len(self._input_kinetic) > o else None
-                if T is None:
-                    T = self.G_terms[o]
+            if include_gmatrix:
+                T = self.G_terms[o]
             else:
                 T = None
 
-            if include_potential and (self.V_terms is not None or self._input_potential is not None):
-                V = self._input_potential[o] if self._input_potential is not None and len(
-                    self._input_potential
-                ) > o else None
-                if V is None:
-                    V = self.V_terms[o]
+            if include_potential:
+                V = self.V_terms[o]
             else:
                 V = None
 
@@ -314,44 +332,37 @@ class PerturbationTheoryHamiltonian:
                 self._expansions[o] = T + V
             if o > 1:
                 oz = o - 2
-                if include_coriolis and (self.coriolis_terms is not None or self._input_coriolis is not None):
-                    Z = self._input_coriolis[oz] if self._input_coriolis is not None and len(self._input_coriolis) > oz else None
-                    if Z is None:
-                        Z = self.coriolis_terms[oz]
-                        for ax in range(2):
-                            Z = np.sum(Z, axis=0)
+                if include_coriolis:
+                    Z = self.coriolis_terms[oz]
+                    if Z is not None:
+                        z_exp = ['x', 'p'] + ['x' for _ in range(oz)] + ['x', 'p']
+                        Z = iphase * self.basis.representation(*z_exp,
+                                                               coeffs=Z,
+                                                               name='Coriolis({})'.format(oz),
+                                                               **self.operator_settings
+                                                               )
+                        if isinstance(self._expansions[o], int):
+                            self._expansions[o] = Z
+                        else:
+                           self._expansions[o] += Z
 
-                        # raise Exception(Z)
+                        self.logger.log_print("Z({o}) = {Z}", o=oz, Z=Z, log_level=self.logger.LogLevel.Never)
 
-                    z_exp = ['x', 'p'] + ['x' for _ in range(oz)] + ['x', 'p']
-                    Z = iphase * self.basis.representation(*z_exp,
-                                                                              coeffs=Z,
-                                                                              name='Coriolis({})'.format(oz),
-                                                                              **self.operator_settings
-                                                                              )
-                    if isinstance(self._expansions[o], int):
-                        self._expansions[o] = Z
-                    else:
-                       self._expansions[o] += Z
+                if include_pseudopotential:
+                    U = self.pseudopotential_term[oz]
+                    if U is not None:
+                        u_exp = ['x' for _ in range(oz)]
+                        U = 1 / (8 * np.math.factorial(oz)) * self.basis.representation(*u_exp,
+                                                                 coeffs=U,
+                                                                 name="V'({})".format(oz),
+                                                                 **self.operator_settings
+                                                                 )
+                        if isinstance(self._expansions[o], int):
+                            self._expansions[o] = U
+                        else:
+                            self._expansions[o] += U
 
-                    self.logger.log_print("Z({o}) = {Z}", o=oz, Z=Z, log_level=self.logger.LogLevel.Never)
-
-                if include_pseudopotential and (self.pseudopotential_term is not None or self._input_pseudopotential is not None):
-                    U = self._input_pseudopotential[oz] if self._input_pseudopotential is not None and len(self._input_pseudopotential) > oz else None
-                    if U is None:
-                        U = self.pseudopotential_term[oz]
-                    u_exp = ['x' for _ in range(oz)]
-                    U = 1 / (8 * np.math.factorial(oz)) * self.basis.representation(*u_exp,
-                                                             coeffs=U,
-                                                             name="V'({})".format(oz),
-                                                             **self.operator_settings
-                                                             )
-                    if isinstance(self._expansions[o], int):
-                        self._expansions[o] = U
-                    else:
-                        self._expansions[o] += U
-
-                    self.logger.log_print("U({o}) = {U}", o=oz, U=U, log_level=self.logger.LogLevel.Never)
+                        self.logger.log_print("U({o}) = {U}", o=oz, U=U, log_level=self.logger.LogLevel.Never)
 
             if self._selection_rules is not None and len(self._selection_rules) > o-1:
                 self._expansions[o].selection_rules = self._selection_rules[o-1]

@@ -1,5 +1,9 @@
 import collections, functools, numpy as np
-from McUtils.Data import AtomData
+# might be worth excising theses since this could be standalone otherwise?
+from McUtils.Data import AtomData, UnitsData
+from McUtils.Zachary import FiniteDifferenceDerivative, RBFDInterpolator
+
+from ..Molecools import Molecule
 
 __all__ = [
     "AIMDSimulator",
@@ -15,7 +19,7 @@ class AIMDSimulator:
                  timestep=.1,
                  sampling_rate=1
                  ):
-        self.masses = np.array([AtomData[a, "Mass"] if isinstance(a, str) else a for a in atoms])
+        self.masses = np.array([AtomData[a, "Mass"] if isinstance(a, str) else a for a in atoms]) * UnitsData.convert("AtomicMassUnits", "ElectronMass")
         self._mass = self.masses[np.newaxis, :, np.newaxis]
         self.coords = np.asanyarray(coordinates)
         if isinstance(velocities, (int, float, np.integer, np.floating)):
@@ -37,8 +41,10 @@ class AIMDSimulator:
 
         v = self.velocities
         coords = self.coords + v * self.dt + forces / (2 * self._mass) * self.dt**2
+        com = np.tensordot(self.masses, coords, axes=[0, -2]) / np.sum(self._mass)
+        coords = coords - com[:, np.newaxis, :] # don't let COM move
         forces_new = self.force_function(coords)
-        vels =  v + self.dt * (forces + forces_new) / (2 * self._mass)
+        vels = v + self.dt * (forces + forces_new) / (2 * self._mass)
 
         self._prev_forces = forces_new
         self.velocities = vels
@@ -55,6 +61,63 @@ class AIMDSimulator:
                 self.trajectory.append(c)
 
         return self.trajectory
+
+    def build_interpolation(self, energy_function, interpolation_order=2, interpolator_class=None, eckart_embed=True, **interpolator_options):
+
+        traj = np.array(self.trajectory)
+        traj = traj.reshape((-1,) + traj.shape[-2:])
+
+        vals = [energy_function(traj)]
+
+        # if clustering_criterion > ...:
+        #     ...
+
+        # TODO: add clustering radius + energy cutoff within disks
+
+        if interpolation_order > 0:
+            vals.append(self.force_function(traj))
+        if interpolation_order > 1:
+            hess = FiniteDifferenceDerivative(
+                    self.force_function,
+                    function_shape=(traj.shape[-2:], traj.shape[-2:])
+                ).derivatives(traj).compute_derivatives(1)
+            hess = np.moveaxis(hess, -3, 0).reshape(
+                (hess.shape[-3],) + hess.shape[-2:] * 2
+            )
+            vals.append(hess)
+        if interpolation_order > 2:
+            raise ValueError("can only do order 2 interps for now because I am laaazy")
+
+        if eckart_embed:
+            ref_pos = np.argmin(vals[0])
+            ref = Molecule(
+                ["H"] * len(self.masses),
+                traj[ref_pos],
+                masses=self.masses,
+            ).get_embedded_molecule(load_properties=False)
+            all_crds = []
+            all_ders = [[] for _ in range(interpolation_order)]
+            for crd_ders in zip(traj, *vals[1:]): #TODO: speed this up...
+                c = crd_ders[0]
+                mol = Molecule(
+                    ["H"] * len(self.masses),
+                    c,
+                    masses=self.masses,
+                    potential_derivatives=crd_ders[1:]
+                ).get_embedded_molecule(ref, load_properties=False)
+                all_crds.append(mol.coords)
+                pes = mol.potential_derivatives
+                for i, p in enumerate(pes):
+                    all_ders[i].append(p)
+
+            traj = np.array(all_crds)
+            vals = [vals[0]] + [np.array(v) for v in all_ders]
+
+        if interpolator_class is None:
+            interpolator_class = RBFDInterpolator
+
+        return interpolator_class(traj, *vals, **interpolator_options)
+
 
 
 class PairwisePotential:

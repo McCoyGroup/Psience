@@ -1804,26 +1804,25 @@ class NormalModesManager(PropertyManager):
             amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
             masses = parse['Real atomic weights'] # * amu_conv
 
-            fcs = self.mol.potential_surface.force_constants
+            # fcs = self.mol.potential_surface.force_constants
 
-            sqrt_freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
+            # sqrt_freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
 
-            # I do a bunch of messing with stuff here for like 0 pay off
-            # over the old simple method...not sure what un-dimensioning
-            # is really happening here...
             mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten() * amu_conv
-            modes_conv = modes * np.sqrt(mass_vec[np.newaxis, :])
-            modes_conv = modes_conv / (
-                    np.linalg.norm(modes_conv, axis=1)[:, np.newaxis] *
-                    sqrt_freqs[:, np.newaxis] * np.sqrt(mass_vec[np.newaxis, :])
-            )
+            mw_modes = modes * np.sqrt(mass_vec[np.newaxis, :])
+            modes /= np.linalg.norm(mw_modes, axis=1)[:, np.newaxis] # Gaussian applied a bad normalization
 
+            # ud_modes = modes / sqrt_freqs[:, np.newaxis]
             #
-            internal_F2 = np.dot(np.dot(modes_conv, fcs), modes_conv.T)
+            # internal_F2 = np.dot(np.dot(ud_modes, fcs), ud_modes.T)
+            #
+            # final_scale = freqs / np.diag(internal_F2)
+            # raise Exception(np.allclose(final_scale, 1))
+            # modes *= final_scale[:, np.newaxis]
 
-            final_scale = sqrt_freqs**(3) / np.diag(internal_F2)
-            modes_conv *= final_scale[:, np.newaxis]
-            modes = modes_conv
+            # raise Exception(modes@modes.T)
+            #
+            # modes = modes_conv
 
             modes = modes.T
 
