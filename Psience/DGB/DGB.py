@@ -2,31 +2,100 @@ import numpy as np, scipy as sp, itertools, functools
 from McUtils.Zachary import RBFDInterpolator
 from McUtils.Combinatorics import StirlingS1
 from McUtils.Scaffolding import Logger
+from McUtils.Data import AtomData, UnitsData
 
 __all__ =  [
     "DGB"
 ]
 
+from .Wavefunctions import DGBWavefunctions
 
 class DGB:
     """
 
     """
+
+    @classmethod
+    def run(cls,
+            centers,
+            potential_function,
+            masses=None,
+            atoms=None,
+            projection_indices=None,
+            alphas=None,
+            logger=True,
+            clustering_radius=None,
+            min_singular_value=None,
+            num_svd_vectors=None,
+            svd_contrib_cutoff=None,
+            optimize_centers=None,
+            quadrature_degree=None,
+            expansion_degree=None,
+            expansion_type=None,
+            reference_structure=None
+            ):
+        opts = dict(
+            masses=masses,
+            atoms=atoms,
+            alphas=alphas,
+            projection_indices=projection_indices,
+            logger=logger,
+            clustering_radius=clustering_radius,
+            min_singular_value=min_singular_value,
+            num_svd_vectors=num_svd_vectors,
+            svd_contrib_cutoff=svd_contrib_cutoff,
+            optimize_centers=optimize_centers,
+            quadrature_degree=quadrature_degree,
+            expansion_degree=expansion_degree,
+            expansion_type=expansion_type,
+            reference_structure=reference_structure
+        )
+        opts = {k:v for k,v in opts.items() if v is not None}
+        logger = Logger.lookup(logger)
+        with logger.block(tag="Running distributed Gaussian basis calculation"):
+            opts['logger'] = logger
+            ham = cls(centers, potential_function, **opts)
+            return ham.get_wavefunctions()
+
     def __init__(self,
                  centers,
                  potential_function,
+                 masses=None,
+                 atoms=None,
                  alphas=None,
-                 logger=True,
+                 projection_indices=None,
+                 transformations=None,
+                 logger=False,
                  clustering_radius=.005,
                  min_singular_value=1e-4,
-                 num_svd_points=None,
+                 num_svd_vectors=None,
+                 svd_contrib_cutoff=1e-3,
                  optimize_centers=False,
                  quadrature_degree=4,
                  expansion_degree=None,
-                 expansion_type='multicenter'
+                 expansion_type='multicenter',
+                 reference_structure=None
     ):
         self._S, self._T, self._V = None, None, None
         self.logger = Logger.lookup(logger)
+
+        centers = np.asanyarray(centers)
+        if masses is None:
+            if atoms is not None:
+                atoms = [
+                    [AtomData[a, "Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")] * 3
+                        if isinstance(a, str) else
+                    a * 3
+                    for a in atoms
+                ]
+                masses = np.array(atoms).flatten()
+            else:
+                masses = [1] * centers.shape[-1]
+        if isinstance(masses, (int, np.integer, float, np.floating)):
+            masses = [masses]
+        self.masses = np.asanyarray(masses)
+        self.inds = projection_indices
+        # print("MAsSES:", masses)
 
         if optimize_centers:
             self.logger.log_print("optimizing DGB centers...")
@@ -42,32 +111,38 @@ class DGB:
                 clustering_radius
             )
 
-        if min_singular_value is not None or num_svd_points is not None:
+        if self.alphas.ndim == 1:
+            self.alphas = np.broadcast_to(self.alphas[:, np.newaxis], self.centers.shape)
+
+        self.min_singular_value = min_singular_value
+        if min_singular_value is not None or num_svd_vectors is not None:
             # Use SVD to prune out matrix rows that will be super ill conditioned
             U, sig, VT = np.linalg.svd(self.S)
-            if num_svd_points:
-                good_loc = np.arange(num_svd_points)
+            if num_svd_vectors:
+                good_loc = np.arange(np.min([num_svd_vectors, len(sig)]))
             else:
                 self.logger.log_print("most important center threshold: {t}", t=min_singular_value)
                 good_loc = np.where(sig > min_singular_value)[0]
             U = U[:, good_loc]
             VT = VT[good_loc, :]
-
+            # raise Exception(np.min(np.abs(U)))
             full_good_pos = np.unique(np.concatenate([
-                np.where(np.abs(U) > 1e-14)[0],
-                np.where(np.abs(VT) > 1e-14)[1]
+                np.where(np.abs(U) > svd_contrib_cutoff)[0],
+                np.where(np.abs(VT) > svd_contrib_cutoff)[1]
             ]))
             self.centers = self.centers[full_good_pos]
             self.alphas = self.alphas[full_good_pos]
 
-            self._S = self._S[full_good_pos, :][:, full_good_pos]
-            self._T = self._T[full_good_pos, :][:, full_good_pos]
+            self._S = None#self._S[full_good_pos, :][:, full_good_pos]
+            self._T = None#self._T[full_good_pos, :][:, full_good_pos]
 
+        self.logger.log_print("Number of centers: {N}", N=len(self.centers))
 
         self.potential_function = potential_function
         self.quadrature_degree = quadrature_degree
         self.expansion_degree = expansion_degree
         self.expansion_type = expansion_type
+        self.ref = reference_structure
 
     def optimize_centers(self,
                          centers, alphas,
@@ -93,8 +168,10 @@ class DGB:
         centers = np.asanyarray(centers)
         if centers.ndim == 1:
             centers = centers[:, np.newaxis]
+
+        mask = None
         if clustering_radius is not None and clustering_radius >= 0:
-            centers, _, _ = RBFDInterpolator.decluster_data(centers, np.empty(len(centers)), [], clustering_radius)
+            centers, _, _, mask = RBFDInterpolator.decluster_data(centers, np.empty(len(centers)), [], clustering_radius, return_mask=True)
 
         if alphas is None:
             alphas = self.get_alphas(centers, clustering_radius)
@@ -102,6 +179,8 @@ class DGB:
             alphas = np.full(len(centers), alphas)
         else:
             alphas = np.asanyarray(alphas)
+            if mask is not None:
+                alphas = alphas[mask]
 
         return centers, alphas
 
@@ -116,7 +195,7 @@ class DGB:
         # too hard to compute convex hull for now...so we treat the exterior
         # the same as the interior
         a = 1/15*(mean_dist/closest)**2
-        print("???", a[:5])
+        # print("???", a[:5])
         return a
 
     @property
@@ -158,11 +237,15 @@ class DGB:
 
         # A = outer_tet / np.sqrt(np.pi)
         B = np.sqrt(aplus)
-        C = arat[:, :, np.newaxis] * np.power(disps, 2)
+        C = arat * np.power(disps, 2)
 
         # Base components
-        S_dim = (np.sqrt(2) * np.power(aouter, 1/4) / B)[:, :, np.newaxis] * np.exp(-C)
-        T_dim = arat[:, :, np.newaxis] * (1 - 2*C)
+
+        S_dim = (np.sqrt(2) * np.power(aouter, 1/4) / B) * np.exp(-C)
+        T_dim = arat * (1 - 2*C) / self.masses[np.newaxis, np.newaxis, :]
+        if self.inds is not None:
+            S_dim = S_dim[:, :, self.inds]
+            T_dim = T_dim[:, :, self.inds]
 
         # Combine appropriately
         S = np.prod(S_dim, axis=-1)
@@ -172,12 +255,12 @@ class DGB:
 
     def get_overlap_gaussians(self):
         # find overlap gaussians
-        new_alphas = self.alphas[:, np.newaxis] + self.alphas[np.newaxis, :]
-        w_centers = self.alphas[:, np.newaxis]*self.centers
+        new_alphas = self.alphas[:, np.newaxis, :] + self.alphas[np.newaxis, :, :]
+        w_centers = self.alphas*self.centers
         # moving weighted average by alpha value
-        return (w_centers[:, np.newaxis, :] + w_centers[np.newaxis, :, :])/new_alphas[:, :, np.newaxis], new_alphas
+        return (w_centers[:, np.newaxis, :] + w_centers[np.newaxis, :, :])/new_alphas, new_alphas
 
-    def quad_integrate(self, degree=2):
+    def quad_integrate(self, function, degree=2):
         """
         Integrate potential over all pairs of Gaussians at once
 
@@ -192,13 +275,13 @@ class DGB:
 
         # I can do only the upper triangle in the future to speed things up
         centers, alphas = self.get_overlap_gaussians()
-        pots = np.zeros(alphas.shape)
+        pots = np.zeros(alphas.shape[:2])
         ndim = centers.shape[-1]
         for disp_inds in itertools.product(*([range(degree)]*ndim)):
             disp_inds = np.array(disp_inds)
             w = np.prod(weights[disp_inds])
-            c = centers + disps[disp_inds][np.newaxis, np.newaxis, :] / np.sqrt(alphas[:, :, np.newaxis])
-            pots = pots + w * self.potential_function(c)
+            c = centers + disps[disp_inds][np.newaxis, np.newaxis, :] / np.sqrt(alphas[:, :])
+            pots = pots + w * function(c)
 
         normalization = 1 / (np.sqrt(np.pi)) ** self.centers.shape[-1]
         return pots * normalization
@@ -213,123 +296,109 @@ class DGB:
     # def polyint_1D(cls, centers, alphas, order):
     #     ...
 
-
     @classmethod
-    def polyint_1D(cls, centers, alphas, n):
+    def poch(cls, n, m):
+        nums = np.arange(n-2*m+1 if m < n/3 else m + 1, n+1)
+        dens = np.arange(1, m+1 if m < n/3 else n-2*m+1)
+        if len(dens) < len(nums): # pad on left so we can have most stable eval
+            dens = np.concatenate([
+                np.ones(len(nums) - len(dens)),
+                dens
+            ])
+        elif len(nums) < len(dens):
+            nums = np.concatenate([
+                np.ones(len(dens) - len(nums)),
+                nums
+            ])
+        return np.prod(nums/dens)
+    @classmethod
+    def polyint_1D(cls, centers, n):
         if n == 0:
-            return np.ones(alphas.shape)
-        c = centers*np.sqrt(alphas)
-        prefac = cls.polyint_1D_prefac(centers, alphas, n)
-        expr = cls.polyint_1D_poly_eval(n, c)
-        # with np.printoptions(linewidth=1e8):
-        #     print(prefac.shape)
-        #     print(expr.shape)
+            return np.ones(centers.shape[:2])
+        term = sum(
+            (cls.poch(n, l) * (1/2**(2*l-n) if 2*l > n else 2**(n-2*l)))*(centers)**(n-2*l)
+            for l in range(0, int(np.floor(n/2)) + 1)
+        )
+        return term
+    @classmethod
+    def simple_poly_int(cls, n):
+        return np.prod(np.arange(1, n, 2)) # double factorial/gamma/whatever
 
-        return prefac * expr
-
-    # a complicated set of functions to handle integrating a monomial (x^n) between
-    # two Gaussians in a Taylor series type of way...
-    @classmethod
-    def polyint_1D_prefac(cls, centers, alphas, n):
-        return np.sqrt(np.pi) / np.sqrt(4 * alphas**(n+1))
-    _stirs = None
-    @classmethod
-    def stirling(cls, n, m):
-        if cls._stirs is None or len(cls._stirs) <= n:
-            cls._stirs = StirlingS1(2*n)
-        return cls._stirs[n, m]
-    _poly_cache = {}
-    @classmethod
-    def polyint_1D_poly_coeff_gen(cls, n):
-        # cls.stirling(4, 1),
-        # with np.printoptions(linewidth=1e8):
-        #     print(cls._stirs)
-        # raise Exception( ... )
-        if n not in cls._poly_cache:
-            scaling = np.prod(2*(1+np.arange(n))) * (np.power(2, n-1) if n > 0 else 1/2 )
-            terms = [(-1) ** i * cls.stirling(2*n, i) for i in range(1, 2*n+1)]
-            cls._poly_cache[n] = (scaling, terms)
-        return cls._poly_cache[n]
-    @classmethod
-    def polyint_1D_coeff(cls, i, n):
-        scaling, terms = cls.polyint_1D_poly_coeff_gen(i)
-        return np.dot(n**np.arange(1, 2*i+1), terms) / scaling
-    @classmethod
-    def polyint_1D_coeffs(cls, i):
-        o = i % 2
-        return [ # I could make this faster but I don't _think_ it'll cost me all that much
-                cls.polyint_1D_coeff(
-                    (i - (n-1-o) )//2,
-                    n
-                )
-                for n in range(1+o, 1+i, 2)
-            ] + [2]
-    @classmethod
-    def polyint_1D_poly_eval(cls, i, c):
-        o = i%2
-        exps = np.arange(o, i+1, 2)
-        wat = sum(k*c**o for k,o in zip(cls.polyint_1D_coeffs(i), exps))
-        return wat
-    @classmethod
-    def simple_poly_int(cls, alphas, n):
-        from scipy.special import gamma
-        return (1 + (-1)**n) / np.sqrt(4*alphas**(n+1)) * gamma((n+1)/2)
-
-    def expansion_integrate(self, deriv_order=2, expansion_type=None):
+    def expansion_integrate(self, function, deriv_order=2, expansion_type=None):
         if expansion_type is None:
             expansion_type = self.expansion_type
 
         centers, alphas = self.get_overlap_gaussians()
         # this prefac allows us to reexpress things in terms of the new Gaussians
         # with appropriate weighting
-        aprod = self.alphas[:, np.newaxis] * self.alphas[np.newaxis, :]
+        aprod = self.alphas[:, np.newaxis, :] * self.alphas[np.newaxis, :, :]
+        if self.inds is not None:
+            aprod = aprod[..., self.inds]
         # asum = self.alphas[:, np.newaxis] + self.alphas[np.newaxis, :]
         # cdiff = self.centers[:, np.newaxis, :] - self.centers[np.newaxis, :, :]
         ndim = centers.shape[-1]
-        prefac = ( np.sqrt(2 / np.pi) * (aprod**(1/4)) ) ** (ndim if expansion_type != 'taylor' else 1) #* np.exp(-aprod/asum * np.sum(cdiff**2, axis=-1))
+        scaling_dim = ndim if self.inds is None else len(self.inds)
+        # prefac = (
+        #         ( np.sqrt(2 / np.pi) ) ** (scaling_dim if expansion_type != 'taylor' else 1)
+        #         * np.product(aprod, axis=-1)**(1/4)
+        # )
 
         if expansion_type == 'taylor':
             self.logger.log_print("expanding as a Taylor series about the minumum energy geometry...")
-            zero = np.zeros((1, centers.shape[-1]))
-            derivs = self.potential_function(zero, deriv_order=deriv_order)
+            assert self.ref is None #TODO: centers need a displacement
+            zero = np.zeros((1, centers.shape[-1])) if self.ref is None else np.array([self.ref])
+            derivs = function(zero, deriv_order=deriv_order)
             if isinstance(derivs, np.ndarray): # didn't get the full list so we do the less efficient route
                 derivs = (
-                        [self.potential_function(zero)] +
-                        [self.potential_function(zero, deriv_order=d) for d in range(1, deriv_order + 1)]
+                        [function(zero)] +
+                        [function(zero, deriv_order=d) for d in range(1, deriv_order + 1)]
                 )
             derivs = [
                 np.broadcast_to(
                     d[np.newaxis],
-                    alphas.shape + d.shape[1:]
+                    alphas.shape + d.squeeze().shape
                 )
                 for d in derivs
             ]
         else:
-
-            self.logger.log_print("expanding about {N} points...", N=len(np.triu_indices_from(alphas)[0]))
+            row_inds, col_inds = np.triu_indices(alphas.shape[0])
+            self.logger.log_print("expanding about {N} points...", N=len(row_inds))
             # derivs = self.potential_function(centers, deriv_order=deriv_order)
             # if isinstance(derivs, np.ndarray):  # didn't get the full list so we do the less efficient route'
             #     derivs = [self.potential_function(centers)] + [self.potential_function(centers, deriv_order=d) for d in
             #                                                range(1, deriv_order + 1)]
 
             # use symmetry to cut down number of indices by 2
-            row_inds, col_inds = np.triu_indices_from(alphas)
             ics = centers[row_inds, col_inds]
-            derivs = self.potential_function(ics, deriv_order=deriv_order)
+            derivs = function(ics, deriv_order=deriv_order)
             if isinstance(derivs, np.ndarray):  # didn't get the full list so we do the less efficient route'
-                derivs = [self.potential_function(ics)] + [
-                    self.potential_function(ics, deriv_order=d) for d in range(1, deriv_order+1)
+                derivs = [function(ics)] + [
+                    function(ics, deriv_order=d) for d in range(1, deriv_order+1)
                 ]
             new_derivs = [] # reverse symmetrization
             for d in derivs:
                 full_mat = np.empty(
-                    alphas.shape + d.shape[1:]
+                    alphas.shape[:2] + d.shape[1:]
                 )
                 full_mat[row_inds, col_inds] = d
                 full_mat[col_inds, row_inds] = d
                 new_derivs.append(full_mat)
             derivs = new_derivs
 
+        if self.inds is not None:
+            ndim = len(self.inds)
+            centers = centers[..., self.inds]
+            alphas = alphas[..., self.inds]
+            new_derivs = []
+            for n,d in enumerate(derivs):
+                if n > 0:
+                    d_sel = (slice(None, None, None), slice(None, None, None),) + np.ix_(*[self.inds]*n)
+                    new_derivs.append(d[d_sel])
+                else:
+                    new_derivs.append(d)
+            derivs = new_derivs
+
+        self.logger.log_print("adding up all derivative contributions...")
         caches = [{} for _ in range(ndim)]
         pot = 0
         for d in derivs: # add up all independent integral contribs...
@@ -337,33 +406,29 @@ class DGB:
             inds = itertools.combinations_with_replacement(range(ndim), r=d.ndim-2) if d.ndim > 2 else [()]
             for idx in inds:
                 count_map = {k: v for k, v in zip(*np.unique(idx, return_counts=True))}
+                if expansion_type != 'taylor' and any(n%2 !=0 for n in count_map.values()):
+                    continue # odd contribs vanish
+
                 contrib = 1
                 for k in range(ndim): # do each dimension of integral independently
                     n = count_map.get(k, 0)
                     if n not in caches[k]:
                         caches[k][n] = (
-                           self.simple_poly_int(alphas, n)
-                            if expansion_type != 'taylor' else
-                           self.polyint_1D(centers[..., k], alphas, n)
+                           self.simple_poly_int(n)
+                             if expansion_type != 'taylor' else
+                           self.polyint_1D(centers[..., k], n)
                         )
-
-                    contrib *= caches[k][n]
-
-                    # with np.printoptions(linewidth=1e8):
-                    #     print(n, centers[0, 0], alphas[0, 0])
-                    #     print(self.centers[0])
-                    #     print(contrib[0, 0])
+                    contrib *= caches[k][n] / alphas[..., k]**(n/2)
 
                 dcont = d[(slice(None, None, None), slice(None, None, None)) + idx] if len(idx) > 0 else d
                 facterms = np.unique([x for x in itertools.permutations(idx)], axis=0)
                 nfac = len(facterms) # this is like a binomial coeff or something but my sick brain won't work right now...
-                scaling = np.prod([np.math.factorial(count_map.get(k, 0)) for k in range(ndim)])
+                scaling = 2**(len(idx)/2) * np.prod([np.math.factorial(count_map.get(k, 0)) for k in range(ndim)])
 
-                contrib = contrib * nfac * dcont / scaling
+                contrib *= nfac * dcont / scaling
 
                 pot += contrib
-        return pot * prefac
-
+        return pot
 
     def analytic_integrate(self):
         raise NotImplementedError("flooped up")
@@ -390,10 +455,10 @@ class DGB:
 
         if potential_handler == 'quad':
             self.logger.log_print("evauating integrals with {n}-order quadrature", n=self.quadrature_degree)
-            pot_mat = self.quad_integrate(degree=self.quadrature_degree if degree is None else degree)
+            pot_mat = self.quad_integrate(self.potential_function, degree=self.quadrature_degree if degree is None else degree)
         elif potential_handler == 'expansion':
             self.logger.log_print("evauating integrals with {n}-degree expansions", n=self.expansion_degree)
-            pot_mat = self.expansion_integrate(deriv_order=expansion_degree)
+            pot_mat = self.expansion_integrate(self.potential_function, deriv_order=expansion_degree)
         elif potential_handler == 'analytic':
             self.logger.log_print("evauating integrals analytically", n=self.expansion_degree)
             pot_mat = self.analytic_integrate()
@@ -408,7 +473,12 @@ class DGB:
         pot_mat = self.get_base_pot(potential_handler=potential_handler, expansion_degree=expansion_degree, degree=degree)
         return self.S * pot_mat
 
-    def get_wavefunctions(self, print_debug_info=False, min_singular_value=1e-4):
+    def diagonalize(self, print_debug_info=False, min_singular_value=None):
+
+        if min_singular_value is None:
+            min_singular_value = self.min_singular_value
+        self.logger.log_print("solving with min_singular_value={ms}", ms=min_singular_value)
+
         H = self.T + self.V
         if print_debug_info:
             print('Condition Number:', np.linalg.cond(self.S))
@@ -460,4 +530,6 @@ class DGB:
 
             return eigs, evals
 
-
+    def get_wavefunctions(self, print_debug_info=False, min_singular_value=None):
+        eigs, evals = self.diagonalize(print_debug_info=print_debug_info, min_singular_value=min_singular_value)
+        return DGBWavefunctions(eigs, evals, hamiltonian=self)

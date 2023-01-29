@@ -4,6 +4,7 @@ from McUtils.Data import AtomData, UnitsData
 from McUtils.Zachary import FiniteDifferenceDerivative, RBFDInterpolator
 
 from ..Molecools import Molecule
+from ..Molecools.Properties import PropertyManager
 
 __all__ = [
     "AIMDSimulator",
@@ -62,9 +63,13 @@ class AIMDSimulator:
 
         return self.trajectory
 
-    def build_interpolation(self, energy_function, interpolation_order=2, interpolator_class=None, eckart_embed=True, **interpolator_options):
+    def build_interpolation(self, energy_function, interpolation_order=2,
+                            equilibration_steps=None,
+                            interpolator_class=None, eckart_embed=True, reference=None, **interpolator_options):
 
         traj = np.array(self.trajectory)
+        if equilibration_steps is not None:
+            traj = traj[equilibration_steps:]
         traj = traj.reshape((-1,) + traj.shape[-2:])
 
         vals = [energy_function(traj)]
@@ -75,43 +80,71 @@ class AIMDSimulator:
         # TODO: add clustering radius + energy cutoff within disks
 
         if interpolation_order > 0:
-            vals.append(self.force_function(traj))
+            vals.append(-self.force_function(traj))
         if interpolation_order > 1:
-            hess = FiniteDifferenceDerivative(
-                    self.force_function,
-                    function_shape=(traj.shape[-2:], traj.shape[-2:])
-                ).derivatives(traj).compute_derivatives(1)
-            hess = np.moveaxis(hess, -3, 0).reshape(
-                (hess.shape[-3],) + hess.shape[-2:] * 2
+            cshape = (-1,) + traj.shape[-2:]
+            npts = np.prod(traj.shape[-2:], dtype=int)
+            grad = lambda x:-self.force_function(x.reshape(cshape)).reshape(x.shape)
+            hess_fun = FiniteDifferenceDerivative(grad, function_shape=(npts, npts))
+            hess = np.moveaxis(
+                hess_fun.derivatives(traj.reshape(-1, npts)).derivative_tensor([1])[0],
+                1, 0
             )
             vals.append(hess)
         if interpolation_order > 2:
             raise ValueError("can only do order 2 interps for now because I am laaazy")
 
         if eckart_embed:
-            ref_pos = np.argmin(vals[0])
-            ref = Molecule(
-                ["H"] * len(self.masses),
-                traj[ref_pos],
-                masses=self.masses,
-            ).get_embedded_molecule(load_properties=False)
-            all_crds = []
-            all_ders = [[] for _ in range(interpolation_order)]
-            for crd_ders in zip(traj, *vals[1:]): #TODO: speed this up...
-                c = crd_ders[0]
-                mol = Molecule(
+            if isinstance(reference, Molecule):
+                ref = reference
+            elif reference is None:
+                ref_pos = np.argmin(vals[0])
+                ref = Molecule(
                     ["H"] * len(self.masses),
-                    c,
+                    traj[ref_pos],
                     masses=self.masses,
-                    potential_derivatives=crd_ders[1:]
-                ).get_embedded_molecule(ref, load_properties=False)
-                all_crds.append(mol.coords)
-                pes = mol.potential_derivatives
-                for i, p in enumerate(pes):
-                    all_ders[i].append(p)
+                )
+            else:
+                ref = Molecule(
+                    ["H"] * len(self.masses),
+                    reference,
+                    masses=self.masses,
+                )
+            ref = ref.get_embedded_molecule(load_properties=False)
 
-            traj = np.array(all_crds)
-            vals = [vals[0]] + [np.array(v) for v in all_ders]
+            # all_crds = []
+            # all_ders = [[] for _ in range(interpolation_order)]
+
+            rots, _, (pax_traj, _, pax_rots) = ref.get_embedding_data(traj)
+            traj = pax_traj @ np.swapaxes(rots, -2, -1)
+
+            if interpolation_order > 0:
+                npts = np.prod(traj.shape[-2:], dtype=int)
+                cshape = traj.shape[-2:]
+
+                # new_derivs = [vals[1] @ pax_rots @ np.swapaxes(rots, -2, -1)]
+                # raise Exception(new_derivs[0])
+                new_derivs = PropertyManager._transform_derivatives(
+                    [v.reshape((-1,) + (npts,)*(i+1)) for i,v in enumerate(vals[1:])],
+                    rots @ pax_rots
+                )
+                vals = [vals[0]] + [v.reshape((-1,) + cshape*(i+1)) for i,v in enumerate(new_derivs)]
+
+
+            # for crd_ders in zip(traj, *vals[1:]): #TODO: speed this up...
+            #     c = crd_ders[0]
+            #     mol = Molecule(
+            #         ["H"] * len(self.masses),
+            #         c,
+            #         masses=self.masses,
+            #         potential_derivatives=crd_ders[1:]
+            #     ).get_embedded_molecule(ref, load_properties=False)
+            #     all_crds.append(mol.coords)
+            #     pes = mol.potential_derivatives
+            #     for i, p in enumerate(pes):
+            #         all_ders[i].append(p)
+
+            # traj = np.array(all_crds)
 
         if interpolator_class is None:
             interpolator_class = RBFDInterpolator

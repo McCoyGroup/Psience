@@ -5,6 +5,8 @@ Allows different methods to provide their own concrete implementation details
 from abc import *
 import numpy as np
 
+from McUtils.Plots import Graphics, Plot, TriContourPlot
+
 __all__ = [
     "Wavefunction",
     "Wavefunctions",
@@ -22,16 +24,76 @@ class Wavefunction:
         self.parent = parent
         self.index = index
         self.opts   = opts
-    @abstractmethod
-    def plot(self, figure = None, index = None, **opts):
-        """Uses McUtils to plot the wavefunction on the passed figure (makes a new one if none)
+
+    def plot(self,
+             figure=None, domain=None, grid=None, plot_points=100,
+             index=0, scaling=1, shift=0, plotter=None, plot_density=False,
+             **opts
+             ):
+        """
+        Plots a single wave function on the grid
 
         :param figure:
-        :type figure: Graphics | Graphics3D
+        :type figure:
+        :param grid:
+        :type grid:
+        :param index:
+        :type index:
+        :param scaling:
+        :type scaling:
+        :param shift:
+        :type shift:
+        :param opts:
+        :type opts:
         :return:
         :rtype:
         """
-        pass
+
+        if grid is None and domain is None:
+            raise ValueError("can't plot a wave function without a specified domain")
+
+        if grid is None:
+            if isinstance(domain[0], (int, np.integer, float, np.floating)):
+                domain = [domain]
+            if isinstance(plot_points, (int, np.integer)):
+                plot_points = [plot_points] * len(domain)
+
+            grids = []
+            for dom, pts in zip(domain, plot_points):
+                grids.append(np.linspace(*dom, pts))
+            grid = np.moveaxis(np.array(np.meshgrid(*grids)), 0, -1).reshape(-1, len(domain)) # vector of points
+
+        grid = np.asanyarray(grid)
+        if grid.ndim == 1:
+            grid = grid[:, np.newaxis]
+        elif grid.ndim > 2:
+            grid = grid.reshape(-1, grid.shape[-1])
+        dim = grid.shape[-1]
+
+        if dim > 2 and plotter is None: # if people want to try, let 'em
+            raise ValueError("can't plot data with dimension higher than 2, take a projection first")
+
+        # allows us to scale wave functions independently
+        if not isinstance(scaling, (int, float, np.integer, np.floating)):
+            scaling = scaling[index]
+        if not isinstance(shift, (int, float, np.integer, np.floating)):
+            shift = shift[index]
+
+        if plot_density:
+            values = self.probability_density(grid)
+        else:
+            values = self.evaluate(grid)
+
+        values = values * scaling + shift
+
+        if plotter is None:
+            if dim == 1:
+                plotter = Plot
+            else:
+                plotter = TriContourPlot
+
+        return plotter(*grid.T, values, figure=figure, **opts)
+
     @abstractmethod
     def expectation(self, op, other=None):
         """Computes the expectation value of operator op over the wavefunction other and self
@@ -47,16 +109,37 @@ class Wavefunction:
     def overlap(self, other):
         return self.expectation(lambda w:w, other=other)
     @abstractmethod
-    def probability_density(self):
-        """Computes the probability density of the current wavefunction
+    def evaluate(self, points):
+        """
+        Evaluates the current wavefunction
 
         :return:
         :rtype:
         """
-        return self.expectation(lambda a:a, self)
+        raise NotImplementedError("abstract base method")
+    @property
+    def probability_density(self):
+        """
+        Computes the probability density of the current wavefunction
+
+        :return:
+        :rtype:
+        """
+        return lambda pts:self.evaluate(pts)**2 # we're assuming real I guess...
+    @abstractmethod
+    def project(self, dofs):
+        """
+        Computes the projection of the current wavefunction onto a set of degrees
+        of freedom, returning a projected wave function object
+
+        :return:
+        :rtype: Wavefunction
+        """
+        raise NotImplementedError("abstract base method")
 
 class Wavefunctions:
-    """An object representing a set of wavefunctions.
+    """
+    An object representing a set of wavefunctions.
     Provides concrete, but potentially inefficient methods for doing all the wavefunction ops.
 
     """
@@ -74,25 +157,31 @@ class Wavefunctions:
         inds = self.indices
         if inds is None:
             inds = np.arange(len(self.wavefunctions))
-        if isinstance(which, slice):
+        if not isinstance(which, (int, np.integer)):
             return type(self)(
                 energies=self.energies[which],
-                wavefunctions=self.wavefunctions[which],
+                wavefunctions=self.wavefunctions[:, which],
                 wavefunction_class=self.wavefunction_class,
                 indices=inds[which],
                 **self.opts
             )
         else:
-            return self.wavefunction_class(self.energies[which], self.wavefunctions[which], parent=self, index=inds[which], **self.opts)
+            return self.wavefunction_class(
+                self.energies[which],
+                self.wavefunctions[:, which],
+                parent=self,
+                index=inds[which],
+                **self.opts
+            )
     def __getitem__(self, item):
         """Returns a single Wavefunction object"""
         # iter comes for free with this
         return self.get_wavefunctions(item)
+    def __len__(self):
+        return len(self.energies)
     def __iter__(self):
-        eng_list = list(self.energies)
-        wf_list = list(self.wavefunctions) # is this right?
-        for eng, wfn in zip(eng_list, wf_list):
-            yield self.wavefunction_class(eng, wfn, parent = self, **self.opts)
+        for i in range(len(self)):
+            yield self.__getitem__(i)
 
     def frequencies(self, start_at = 0):
         return self.energies[1+start_at:] - self.energies[start_at]
@@ -105,7 +194,6 @@ class Wavefunctions:
         :return:
         :rtype:
         """
-        from McUtils.Plots import Graphics, Graphics3D
 
         k = "plot_defaults"
         opts = dict(self.opts[k] if k in self.opts else (), **opts)
@@ -116,7 +204,7 @@ class Wavefunctions:
                 if dim ==1:
                     graphics_class = Graphics
                 elif dim == 2:
-                    graphics_class = Graphics3D
+                    graphics_class = Graphics#Graphics3D
                 else:
                     raise WavefunctionException(
                         "{}.{}: don't know how to plot wavefunctions of dimension {}".format(

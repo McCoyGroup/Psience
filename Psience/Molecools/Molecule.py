@@ -92,6 +92,8 @@ class Molecule(AbstractMolecule):
         self._coords = coords
         self._sys = MolecularCartesianCoordinateSystem(self)
         self._coords = CoordinateSet(self._coords, self._sys)
+        MolecularCartesianToRegularCartesianConverter(self.coords.system).register()
+        RegularCartesianToMolecularCartesianConverter(self.coords.system).register()
         if isinstance(internals, CoordinateSet):
             self._int_spec = None
             self._ints = internals
@@ -549,8 +551,6 @@ class Molecule(AbstractMolecule):
                 zms = MolecularZMatrixCoordinateSystem(self, ordering=self._int_spec['zmatrix'])
                 MolecularCartesianToZMatrixConverter(self.coords.system, zms).register()
                 MolecularZMatrixToCartesianConverter(zms, self.coords.system).register()
-                MolecularCartesianToRegularCartesianConverter(self.coords.system).register()
-                RegularCartesianToMolecularCartesianConverter(self.coords.system).register()
                 MolecularZMatrixToRegularZMatrixConverter(zms).register()
                 RegularZMatrixToMolecularZMatrixConverter(zms).register()
                 coords = self.coords.convert(zms)
@@ -652,6 +652,7 @@ class Molecule(AbstractMolecule):
     def eckart_frame(self, mol, sel=None, inverse=False, planar_ref_tolerance=None):
         """
         Gets the Eckart frame(s) for the molecule
+
         :param mol:
         :type mol:
         :param sel: selection of atoms to use when getting the Eckart frame
@@ -663,27 +664,30 @@ class Molecule(AbstractMolecule):
         """
         return self.prop('eckart_transformation', mol, sel=sel, inverse=inverse, planar_ref_tolerance=planar_ref_tolerance)
 
-    def embed_coords(self, crds, sel=None, planar_ref_tolerance=None):
+    def embed_coords(self, crds, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
         Embeds coords in the Eckart frame using `self` as a reference
+
         :param crds:
         :type crds:
         :return:
         :rtype:
         """
 
-        return self.prop('eckart_embedded_coords', crds, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
-    def get_embedding_data(self, crds, sel=None):
+        return self.prop('eckart_embedded_coords', crds, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
+    def get_embedding_data(self, crds, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
         Gets the necessary data to embed crds in the Eckart frame using `self` as a reference
+
         :param crds:
         :type crds:
         :return:
         :rtype: tuple[np.ndarray, tuple[np.ndarray], tuple[np.ndarray]]
         """
-        return self.prop('eckart_embedding_data', crds, sel=sel)
+        return self.prop('eckart_embedding_data', crds, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
     def get_embedded_molecule(self,
                               ref=None,
+                              sel=None, planar_ref_tolerance=None,
                               embed_properties=True,
                               load_properties=True
                               ):
@@ -695,9 +699,9 @@ class Molecule(AbstractMolecule):
         """
 
         if ref is None:
-            frame = self.principle_axis_frame(inverse=False)
+            frame = self.principle_axis_frame(sel=sel, inverse=False)
         else:
-            frame = self.eckart_frame(ref, inverse=False)
+            frame = self.eckart_frame(ref, sel=sel, planar_ref_tolerance=planar_ref_tolerance, inverse=False)
         # self.normal_modes.modes
         new = frame.apply(self)
         if embed_properties:

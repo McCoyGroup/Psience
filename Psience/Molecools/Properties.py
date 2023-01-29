@@ -328,7 +328,7 @@ class StructuralProperties:
         return rot, (og_ref, ref_com, ref_axes), (og_coords, com, pax_axes)
 
     @classmethod
-    def get_eckart_embedding_data(cls, masses, ref, coords, sel=None, planar_ref_tolerance=None):
+    def get_eckart_embedding_data(cls, masses, ref, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
         Embeds a set of coordinates in the reference frame
 
@@ -342,7 +342,7 @@ class StructuralProperties:
         :rtype:
         """
 
-        return cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False, planar_ref_tolerance=planar_ref_tolerance)
+        return cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
     def get_prop_eckart_transformation(cls, masses, ref, coords,
@@ -398,6 +398,7 @@ class StructuralProperties:
     def get_eckart_embedded_coords(cls, masses,
                                    ref, coords,
                                    reset_com=False,
+                                   in_paf=False,
                                    sel=None,
                                    planar_ref_tolerance=None
                                    ):
@@ -420,7 +421,7 @@ class StructuralProperties:
             masses = masses[sel]
             ref = ref[..., sel, :]
 
-        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, in_paf=False, planar_ref_tolerance=planar_ref_tolerance)
+        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
         ref, ref_com, ref_rot = ref_stuff
         crd, crd_com, crd_rot = coord_stuff
 
@@ -799,7 +800,7 @@ class MolecularProperties:
         return StructuralProperties.get_prop_principle_axis_rotation(mol.coords, mol._atomic_masses(), sel=sel, inverse=inverse)
 
     @classmethod
-    def eckart_embedding_data(cls, mol, coords, sel=None, planar_ref_tolerance=None):
+    def eckart_embedding_data(cls, mol, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
 
         :param mol:
@@ -814,7 +815,7 @@ class MolecularProperties:
         masses = mol._atomic_masses()
         ref = mol.coords
         coords = CoordinateSet(coords)
-        return StructuralProperties.get_eckart_embedding_data(masses, ref, coords, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
+        return StructuralProperties.get_eckart_embedding_data(masses, ref, coords, in_paf=in_paf, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
     def eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False, planar_ref_tolerance=None):
@@ -839,7 +840,7 @@ class MolecularProperties:
         return StructuralProperties.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
-    def eckart_embedded_coords(cls, mol, coords, sel=None, planar_ref_tolerance=None):
+    def eckart_embedded_coords(cls, mol, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
 
         :param mol:
@@ -854,7 +855,7 @@ class MolecularProperties:
         masses = mol._atomic_masses()
         ref = mol.coords
         coords = CoordinateSet(coords)
-        return StructuralProperties.get_eckart_embedded_coords(masses, ref, coords, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
+        return StructuralProperties.get_eckart_embedded_coords(masses, ref, coords, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
     def translation_rotation_eigenvectors(cls, mol, sel=None):
@@ -1251,10 +1252,13 @@ class PropertyManager(metaclass=abc.ABCMeta):
         # else:
         #     base_shape = derivs[0].shape
 
-        n_coords = derivs[0].shape[0]
-        if transf.is_affine: # most relevant subcase
+        n_coords = derivs[0].shape[-1]
+        if isinstance(transf, np.ndarray) or transf.is_affine: # most relevant subcase
             # take inverse?
-            tf = transf.transformation_function.transform #type: np.ndarray
+            if isinstance(transf, np.ndarray):
+                tf = transf
+            else:
+                tf = transf.transformation_function.transform #type: np.ndarray
             new_derivs = []
             for i, d in enumerate(derivs):
                 if d is None:
@@ -1262,10 +1266,12 @@ class PropertyManager(metaclass=abc.ABCMeta):
                 elif isinstance(d, (int, float, np.integer, np.floating)):
                     new_derivs.append(d)
                 else:
+                    shift_dim = tf.ndim - 2
                     shp = d.shape
+
                     # print(">>", shp)
-                    for j in range(d.ndim):
-                        # print(j, d.shape[j])
+                    for j in range(shift_dim, d.ndim):
+                        # print(j, d.shape[j], shift_dim)
                         if d.shape[j] == n_coords:
                             target_shape = (
                                     d.shape[:j] +
@@ -1276,10 +1282,13 @@ class PropertyManager(metaclass=abc.ABCMeta):
                                     d.shape[j + 1:]
                             )
                             reshape_d = np.reshape(d, target_shape)
-                            reshape_d = np.moveaxis(
-                                np.tensordot(tf, reshape_d, axes=[[1], [j+1]]),
-                                0, j+1
+                            reshape_d = (
+                                nput.vec_tensordot(tf, reshape_d, shared=shift_dim, axes=[[tf.ndim-1], [j+1]])
+                                    if tf.ndim > 2 else
+                                np.tensordot(tf, reshape_d, axes=[[tf.ndim-1], [j+1]])
                             )
+                            # print(tf.shape, shp, reshape_d.shape)
+                            reshape_d = np.moveaxis(reshape_d, tf.ndim - 2, j+1)
                             d = reshape_d.reshape(shp)
                     new_derivs.append(d)
             return tuple(new_derivs)

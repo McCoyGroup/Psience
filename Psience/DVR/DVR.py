@@ -54,6 +54,8 @@ class DVRConstructor:
         if isinstance(domain[0], (int, float, np.integer, np.floating)): # 1D
             domain = [domain]
             divs = [divs]
+            if mass is not None:
+                mass = [mass]
         if classes is None:
             classes = [None] * len(domain)
         if g is not None:

@@ -9,7 +9,8 @@ import McUtils.Numputils as nput
 from McUtils.Scaffolding import ParameterManager, Checkpointer, NullCheckpointer
 from McUtils.Data import UnitsData
 
-from ..BasisReps import BasisStateSpace, SelectionRuleStateSpace, BasisMultiStateSpace, SimpleProductBasis, ExpansionWavefunctions, ExpansionWavefunction, BraKetSpace
+from ..Wavefun import Wavefunctions
+from ..BasisReps import SimpleProductBasis, BraKetSpace
 
 from .Terms import DipoleTerms
 from .Solver import PerturbationTheoryCorrections
@@ -52,12 +53,13 @@ __reload_hook__ = ["..Wavefun"]
 #     def zero_order_energy(self):
 #         return self.corrs.energies[0]
 
-class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
+class PerturbationTheoryWavefunctions(Wavefunctions):
     """
     These things are fed the first and second order corrections
     """
 
-    def __init__(self, mol, basis, corrections,
+    def __init__(self,
+                 mol, basis, corrections,
                  modes=None,
                  mode_selection=None,
                  logger=None,
@@ -75,6 +77,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         :param corrections: the corrections to the terms
         :type corrections: PerturbationTheoryCorrections
         """
+        super().__init__(None, corrections) # just to
+
         self.mol = mol
         self.corrs = corrections
         self.modes = modes
@@ -101,6 +105,7 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             del self.operator_settings['skipped_coefficient_threshold']
         self._order = None
         self.degenerate_transformation_layout="column" if degenerate_transformation_layout is None else degenerate_transformation_layout
+
         # super().__init__(
         #     self.corrs.energies,
         #     self.corrs.wfn_corrections,
@@ -109,6 +114,10 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
     @property
     def energies(self):
         return self.corrs.energies
+    @energies.setter
+    def energies(self, engs):
+        if engs is not None:
+            raise ValueError("can't set energies")
 
     def to_state(self, serializer=None):
         keys = dict(
@@ -158,8 +167,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
         else:
             return self._order
 
-    def expectation(self, operator, other):
-        return NotImplemented
+    def expectation(self, operator, other=None):
+        raise NotImplementedError("general expectation values not implemented yet...")
 
     @property
     def zero_order_energies(self):
@@ -186,12 +195,12 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
                                                      axes=[[0, 1, 2], [1, 2, 3]],
                                                      **self.operator_settings
                                                      )
-
     def get_Mi(self, i, mu):
-        return 1 / np.math.factorial(i) * self.rep_basis.representation(*(("x",)*i), name="M({})".format(i), coeffs=mu,
-                                                     axes=[list(range(0, i)), list(range(1, i+1))],
-                                                     **self.operator_settings
-                                                     )
+        return 1 / np.math.factorial(i) * self.rep_basis.representation(
+            *(("x",) * i), name="M({})".format(i), coeffs=mu,
+            axes=[list(range(0, i)), list(range(1, i + 1))],
+            **self.operator_settings
+        )
 
     # @profile
     def _get_rep_states(self, m, k, order, ket_spaces, bra_spaces):
@@ -1272,7 +1281,8 @@ class PerturbationTheoryWavefunctions(ExpansionWavefunctions):
             if e_corrs[0][k] is not None: # from odd order terms...
                 for i in range(0, k):
                     term_keys.append("<0|dH({j})|{i}>".format(j=k-i, i=i))
-        terms = h2w * np.array([np.concatenate([y for y in x if y is not None]) for x in e_corrs])
+        terms = [ [y for y in x if y is not None] for x in e_corrs ]
+        terms = [ h2w*np.concatenate(tl) for tl in terms if len(tl) > 0 ]
 
         nels = len(real_fmt.format(0))
         header_fmt = "{:<" + str(nels) + "}"

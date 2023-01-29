@@ -1772,6 +1772,8 @@ class AnneInputHelpers:
     def run_anne_job(cls,
                      base_dir,
                      states=2,
+                     # initial_states=0,
+                     # operators=[{'coords':[[0, 1], ... ,...]}], # coords_zero, coords_first, coords_second <-
                      calculate_intensities=None,
                      return_analyzer=False,
                      return_runner=False,
