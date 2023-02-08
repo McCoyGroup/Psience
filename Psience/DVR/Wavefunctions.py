@@ -24,7 +24,7 @@ class DVRWavefunction(Wavefunction):
     def plot(self, figure=None, grid=None, **opts):
         if grid is None:
             grid = self.grid
-        return super().plot(figure=figure, grid=grid, **opts)
+        return super().plot(figure=figure, grid=grid, values=self.data, **opts)
 
     def expectation(self, op, other=None):
         """Computes the expectation value of operator op over the wavefunction other and self

@@ -11,7 +11,7 @@ from Psience.Wavefun import Wavefunction, Wavefunctions
 __all__ = ["DGBWavefunctions", "DGBWavefunction"]
 
 class DGBWavefunction(Wavefunction):
-    def __init__(self, energy, data, centers=None, alphas=None, inds=None, **opts):
+    def __init__(self, energy, data, centers=None, alphas=None, inds=None, transformations=None, **opts):
         super().__init__(energy, data, **opts)
         if centers is None:
             centers = self.parent.centers
@@ -19,6 +19,9 @@ class DGBWavefunction(Wavefunction):
         if alphas is None:
             alphas = self.parent.alphas
         self.alphas = alphas
+        if transformations is None:
+            alphas = self.parent.transformations
+        self.transformations = transformations
         if inds is None and self.parent is not None:
             inds = self.parent.hamiltonian.inds
         self.inds = inds
@@ -44,7 +47,12 @@ class DGBWavefunction(Wavefunction):
             points.reshape(-1, points.shape[-1])
 
         # actual basis evaluation
-        c_disps = points[np.newaxis, :, :] - self.centers[:, np.newaxis, :]
+        if self.transformations is not None:
+            centers = self.transformations @ self.centers[:, :, np.newaxis]
+            centers = centers.reshape(self.centers.shape)
+        else:
+            centers = self.centers
+        c_disps = points[np.newaxis, :, :] - centers[:, np.newaxis, :]
         alphas = self.alphas[:, np.newaxis]
         if self.inds is not None:
             c_disps = c_disps[..., self.parent.inds]
@@ -104,6 +112,7 @@ class DGBWavefunctions(Wavefunctions):
         self.hamiltonian = hamiltonian
         self.centers = self.hamiltonian.centers
         self.alphas = self.hamiltonian.alphas
+        self.transformations = self.hamiltonian.transformations
     def __repr__(self):
         return "{}(num={}, DVR={})".format(
             type(self).__name__,

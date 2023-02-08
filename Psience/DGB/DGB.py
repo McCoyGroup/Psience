@@ -1,8 +1,8 @@
 import numpy as np, scipy as sp, itertools, functools
 from McUtils.Zachary import RBFDInterpolator
-from McUtils.Combinatorics import StirlingS1
 from McUtils.Scaffolding import Logger
 from McUtils.Data import AtomData, UnitsData
+import McUtils.Numputils as nput
 
 __all__ =  [
     "DGB"
@@ -22,6 +22,7 @@ class DGB:
             masses=None,
             atoms=None,
             projection_indices=None,
+            transformations=None,
             alphas=None,
             logger=True,
             clustering_radius=None,
@@ -39,6 +40,7 @@ class DGB:
             atoms=atoms,
             alphas=alphas,
             projection_indices=projection_indices,
+            transformations=transformations,
             logger=logger,
             clustering_radius=clustering_radius,
             min_singular_value=min_singular_value,
@@ -113,25 +115,23 @@ class DGB:
 
         if self.alphas.ndim == 1:
             self.alphas = np.broadcast_to(self.alphas[:, np.newaxis], self.centers.shape)
+        self.transformations = transformations
 
         self.min_singular_value = min_singular_value
         if min_singular_value is not None or num_svd_vectors is not None:
             # Use SVD to prune out matrix rows that will be super ill conditioned
-            U, sig, VT = np.linalg.svd(self.S)
+            sig, evecs = np.linalg.eigh(self.S)
             if num_svd_vectors:
-                good_loc = np.arange(np.min([num_svd_vectors, len(sig)]))
+                good_loc = slice(max(len(sig)-num_svd_vectors, 0), len(sig))
             else:
                 self.logger.log_print("most important center threshold: {t}", t=min_singular_value)
                 good_loc = np.where(sig > min_singular_value)[0]
-            U = U[:, good_loc]
-            VT = VT[good_loc, :]
             # raise Exception(np.min(np.abs(U)))
-            full_good_pos = np.unique(np.concatenate([
-                np.where(np.abs(U) > svd_contrib_cutoff)[0],
-                np.where(np.abs(VT) > svd_contrib_cutoff)[1]
-            ]))
+            full_good_pos = np.unique(np.where(np.abs(evecs[:, good_loc]) > svd_contrib_cutoff)[0])
             self.centers = self.centers[full_good_pos]
             self.alphas = self.alphas[full_good_pos]
+            if self.transformations is not None:
+                self.transformations = self.transformations[full_good_pos]
 
             self._S = None#self._S[full_good_pos, :][:, full_good_pos]
             self._T = None#self._T[full_good_pos, :][:, full_good_pos]
@@ -223,42 +223,156 @@ class DGB:
     def V(self, mat):
         self._V = mat
 
-    def get_ST(self, centers=None, alphas=None):
+    def get_inverse_covariances(self, alphas=None, transformations=None):
+        """
+        Transforms the alphas into proper inverse covariance matrices
+
+        :return:
+        :rtype:
+        """
+
+        if transformations is None:
+            transformations = self.transformations
+        if transformations is None:
+            return None
+
+        if alphas is None:
+            alphas = self.alphas
+
+        n = alphas.shape[-1]
+        npts = len(alphas)
+        diag_covs = np.zeros((npts, n, n))
+        diag_inds = (slice(None, None, None),) + np.diag_indices(n)
+        diag_covs[diag_inds] = 2*alphas
+
+        covs = transformations.transpose(0, 2, 1) @ diag_covs @ transformations
+        covs[np.abs(covs) < 1e-12] = 0 # numerical garbage can be an issue...
+        return covs
+
+    def get_overlap_gaussians(self):
+        rows, cols = np.triu_indices(len(self.alphas))
+        if self.transformations is None:
+            # find overlap gaussians
+            new_alphas = self.alphas[rows] + self.alphas[cols]
+            w_centers = self.alphas*self.centers
+            # moving weighted average by alpha value
+            overlap_data = (w_centers[rows] + w_centers[cols])/new_alphas, new_alphas
+        else:
+            sigs = self.get_inverse_covariances()
+            new_sigs = sigs[rows] + sigs[cols]
+            new_inv = np.linalg.inv(new_sigs)
+            new_centers = new_inv@(
+                sigs[rows] @ self.centers[rows][:, :, np.newaxis]
+                + sigs[cols] @ self.centers[cols][:, :, np.newaxis]
+            )
+            new_centers = new_centers.reshape(self.centers[cols].shape)
+            new_alphas, new_rots = np.linalg.eigh(new_sigs) # eigenvalues of inverse tensor...
+            new_alphas = new_alphas/2
+            sum_sigs = sigs[rows]@new_inv@sigs[cols]
+
+            overlap_data = {
+                'centers': new_centers,
+                'alphas': new_alphas,
+                'sigmas':new_sigs,
+                'rotations': new_rots,
+                'row_sigs': sigs[rows],
+                'col_sigs': sigs[cols],
+                'sum_inverse':sum_sigs
+            }
+
+        return overlap_data
+
+    def get_ST(self, centers=None, alphas=None, transformations=None):
         if centers is None:
             centers = self.centers
         if alphas is None:
             alphas = self.alphas
+        if transformations is None:
+            transformations = self.transformations
 
-        aouter = alphas[:, np.newaxis] * alphas[np.newaxis, :]
-        aplus = alphas[:, np.newaxis] + alphas[np.newaxis, :]
-        arat = aouter / aplus
+        if transformations is None:
+            aouter = alphas[:, np.newaxis] * alphas[np.newaxis, :]
+            aplus = alphas[:, np.newaxis] + alphas[np.newaxis, :]
+            arat = aouter / aplus
 
-        disps = centers[:, np.newaxis, :] - centers[np.newaxis, :, :]
+            disps = centers[:, np.newaxis, :] - centers[np.newaxis, :, :]
 
-        # A = outer_tet / np.sqrt(np.pi)
-        B = np.sqrt(aplus)
-        C = arat * np.power(disps, 2)
+            # A = outer_tet / np.sqrt(np.pi)
+            B = np.sqrt(aplus)
+            C = arat * np.power(disps, 2)
 
-        # Base components
+            # Base components
+            S_dim = (np.sqrt(2) * np.power(aouter, 1/4) / B) * np.exp(-C)
+            T_dim = arat * (1 - 2*C) / self.masses[np.newaxis, np.newaxis, :]
 
-        S_dim = (np.sqrt(2) * np.power(aouter, 1/4) / B) * np.exp(-C)
-        T_dim = arat * (1 - 2*C) / self.masses[np.newaxis, np.newaxis, :]
-        if self.inds is not None:
-            S_dim = S_dim[:, :, self.inds]
-            T_dim = T_dim[:, :, self.inds]
 
-        # Combine appropriately
-        S = np.prod(S_dim, axis=-1)
-        T = S * np.sum(T_dim, axis=-1)
+            if self.inds is not None:
+                S_dim = S_dim[:, :, self.inds]
+                T_dim = T_dim[:, :, self.inds]
+
+            # Combine appropriately
+            S = np.prod(S_dim, axis=-1)
+            T = S * np.sum(T_dim, axis=-1)
+        else:
+            T = np.zeros((len(self.centers), len(self.centers)))
+            S = np.zeros((len(self.centers), len(self.centers)))
+            row_inds, col_inds = np.triu_indices(len(self.alphas))
+            rot_data = self.get_overlap_gaussians()
+
+            ndim = self.alphas.shape[-1]
+
+            if self.inds is not None:
+                raise NotImplementedError("don't have full covariance + indices implemented")
+
+            dets = np.linalg.det(rot_data['sigmas'])
+            rows = rot_data['row_sigs']
+            cols = rot_data['col_sigs']
+            rdets = 2**self.alphas.shape[-1] * np.prod(self.alphas[row_inds], axis=-1)
+            cdets = 2**self.alphas.shape[-1] * np.prod(self.alphas[col_inds], axis=-1) # literally a product of passed in alphas
+            disps = self.centers[row_inds] - self.centers[col_inds]
+            C = disps[:, np.newaxis, :]@rot_data['sum_inverse']@disps[:, :, np.newaxis]
+            C = C.reshape(disps.shape[0])
+
+            S[row_inds, col_inds] = (
+                                            2**(self.centers.shape[-1]/2)
+                                    ) * ((rdets*cdets)/(dets**2))**(1/4) * np.exp(-C/2)
+
+            L = np.transpose(rot_data['rotations'], (0, 2, 1))
+            Lt = rot_data['rotations']
+            zetas =L@(rot_data['centers'] - self.centers[col_inds])[:, :, np.newaxis] # seems weird but we get the symmetry back in the end
+            zetas = zetas.reshape(rot_data['centers'].shape)
+
+            minv = np.diag(1/self.masses)
+            Sj = cols
+            Amat = L@(Sj@minv@Sj)@Lt
+            # msj = rot_data['rotations']@(Sj@minv)@np.transpose(rot_data['rotations'], (0, 1, 2))
+            # raise Exception(
+            #     np.diagonal(msj, axis1=1, axis2=2),# / self.masses[np.newaxis],
+            #     - 1 / 2 * np.diagonal(Amat, axis1=1, axis2=2) / rot_data['alphas']
+            # )
+
+            T[row_inds, col_inds] = 1 / 2 * (
+                    np.sum(
+                        2 * self.alphas[col_inds] / self.masses[np.newaxis] -
+                         1 / 2 * np.diagonal(Amat, axis1=1, axis2=2) / rot_data['alphas'],
+                        axis=1
+                    )
+                    - 1/2 * sum(
+                        # easier this way than the proper series summation...
+                        Amat[..., k, kp] * (
+                            4 * zetas[..., k] * zetas[..., kp]  # I discovered I was off by a factor of 4 in the 2D case...
+                                if k != kp else
+                            2 * zetas[..., k] ** 2
+                        )
+                        for k, kp in zip(*np.triu_indices(Amat.shape[-1]))
+                    )  # could be a dot but this is fine
+            )
+            T[row_inds, col_inds] *= S[row_inds, col_inds]
+
+            S[col_inds, row_inds] = S[row_inds, col_inds]
+            T[col_inds, row_inds] = T[row_inds, col_inds]
 
         return S, T
-
-    def get_overlap_gaussians(self):
-        # find overlap gaussians
-        new_alphas = self.alphas[:, np.newaxis, :] + self.alphas[np.newaxis, :, :]
-        w_centers = self.alphas*self.centers
-        # moving weighted average by alpha value
-        return (w_centers[:, np.newaxis, :] + w_centers[np.newaxis, :, :])/new_alphas, new_alphas
 
     def quad_integrate(self, function, degree=2):
         """
@@ -270,18 +384,23 @@ class DGB:
         :rtype:
         """
 
+        if self.transformations is not None:
+            raise NotImplementedError("quadrature in rotated basis not implemented yet")
+
         # Quadrature point displacements and weights (thanks NumPy!)
         disps, weights = np.polynomial.hermite.hermgauss(degree)
 
-        # I can do only the upper triangle in the future to speed things up
-        centers, alphas = self.get_overlap_gaussians()
-        pots = np.zeros(alphas.shape[:2])
+        centers, alphas = self.get_overlap_gaussians() # Only upper triangle here
+        npts = len(self.alphas)
+        rows, cols = np.triu_indices(npts)
+        pots = np.zeros((npts, npts))
         ndim = centers.shape[-1]
         for disp_inds in itertools.product(*([range(degree)]*ndim)):
             disp_inds = np.array(disp_inds)
             w = np.prod(weights[disp_inds])
-            c = centers + disps[disp_inds][np.newaxis, np.newaxis, :] / np.sqrt(alphas[:, :])
-            pots = pots + w * function(c)
+            c = centers + disps[disp_inds][np.newaxis, :] / np.sqrt(alphas)
+            pots[rows, cols] += w * function(c)
+        pots[cols, rows] = pots[rows, cols]
 
         normalization = 1 / (np.sqrt(np.pi)) ** self.centers.shape[-1]
         return pots * normalization
@@ -312,11 +431,12 @@ class DGB:
             ])
         return np.prod(nums/dens)
     @classmethod
-    def polyint_1D(cls, centers, n):
+    def polyint_1D(cls, centers, alphas, n):
         if n == 0:
             return np.ones(centers.shape[:2])
+        c = np.sqrt(alphas) * centers
         term = sum(
-            (cls.poch(n, l) * (1/2**(2*l-n) if 2*l > n else 2**(n-2*l)))*(centers)**(n-2*l)
+            (cls.poch(n, l) * (1/2**(2*l-n) if 2*l > n else 2**(n-2*l)))*(c)**(n-2*l)
             for l in range(0, int(np.floor(n/2)) + 1)
         )
         return term
@@ -328,21 +448,29 @@ class DGB:
         if expansion_type is None:
             expansion_type = self.expansion_type
 
-        centers, alphas = self.get_overlap_gaussians()
         # this prefac allows us to reexpress things in terms of the new Gaussians
         # with appropriate weighting
-        aprod = self.alphas[:, np.newaxis, :] * self.alphas[np.newaxis, :, :]
-        if self.inds is not None:
-            aprod = aprod[..., self.inds]
+        # aprod = self.alphas[:, np.newaxis, :] * self.alphas[np.newaxis, :, :]
+        # if self.inds is not None:
+        #     aprod = aprod[..., self.inds]
         # asum = self.alphas[:, np.newaxis] + self.alphas[np.newaxis, :]
         # cdiff = self.centers[:, np.newaxis, :] - self.centers[np.newaxis, :, :]
-        ndim = centers.shape[-1]
-        scaling_dim = ndim if self.inds is None else len(self.inds)
+        # scaling_dim = ndim if self.inds is None else len(self.inds)
         # prefac = (
         #         ( np.sqrt(2 / np.pi) ) ** (scaling_dim if expansion_type != 'taylor' else 1)
         #         * np.product(aprod, axis=-1)**(1/4)
         # )
 
+        if self.transformations is None:
+            centers, alphas = self.get_overlap_gaussians()
+            rotations = None
+        else:
+            rot_data = self.get_overlap_gaussians()
+            centers = rot_data['centers']
+            alphas = rot_data['alphas']
+            rotations = rot_data['rotations'].transpose(0, 2, 1)
+
+        ndim = centers.shape[-1]
         if expansion_type == 'taylor':
             self.logger.log_print("expanding as a Taylor series about the minumum energy geometry...")
             assert self.ref is None #TODO: centers need a displacement
@@ -361,31 +489,46 @@ class DGB:
                 for d in derivs
             ]
         else:
-            row_inds, col_inds = np.triu_indices(alphas.shape[0])
-            self.logger.log_print("expanding about {N} points...", N=len(row_inds))
+            # row_inds, col_inds = np.triu_indices(alphas.shape[0])
+            self.logger.log_print("expanding about {N} points...", N=len(alphas))
             # derivs = self.potential_function(centers, deriv_order=deriv_order)
             # if isinstance(derivs, np.ndarray):  # didn't get the full list so we do the less efficient route'
             #     derivs = [self.potential_function(centers)] + [self.potential_function(centers, deriv_order=d) for d in
             #                                                range(1, deriv_order + 1)]
 
             # use symmetry to cut down number of indices by 2
-            ics = centers[row_inds, col_inds]
-            derivs = function(ics, deriv_order=deriv_order)
+            # ics = centers[row_inds, col_inds]
+            derivs = function(centers, deriv_order=deriv_order)
             if isinstance(derivs, np.ndarray):  # didn't get the full list so we do the less efficient route'
-                derivs = [function(ics)] + [
-                    function(ics, deriv_order=d) for d in range(1, deriv_order+1)
+                derivs = [function(centers)] + [
+                    function(centers, deriv_order=d) for d in range(1, deriv_order+1)
                 ]
-            new_derivs = [] # reverse symmetrization
-            for d in derivs:
-                full_mat = np.empty(
-                    alphas.shape[:2] + d.shape[1:]
-                )
-                full_mat[row_inds, col_inds] = d
-                full_mat[col_inds, row_inds] = d
-                new_derivs.append(full_mat)
+            # new_derivs = [] # reverse symmetrization
+            # for d in derivs:
+            #     full_mat = np.empty(
+            #         alphas.shape[:2] + d.shape[1:]
+            #     )
+            #     full_mat[row_inds, col_inds] = d
+            #     full_mat[col_inds, row_inds] = d
+            #     new_derivs.append(full_mat)
+            # derivs = new_derivs
+
+        if rotations is not None:
+            new_derivs = []
+            # rotations = rotations[:, :, :, np.newaxis] # to test shapes
+            for n,d in enumerate(derivs):
+                for _ in range(n):
+                    d = nput.vec_tensordot(
+                        d, rotations,
+                        axes=[1, 2],
+                        shared=1
+                    )
+                new_derivs.append(d)
             derivs = new_derivs
 
         if self.inds is not None:
+            if rotations is not None:
+                raise NotImplementedError("full covariance + index subsets not supported yet")
             ndim = len(self.inds)
             centers = centers[..., self.inds]
             alphas = alphas[..., self.inds]
@@ -399,11 +542,13 @@ class DGB:
             derivs = new_derivs
 
         self.logger.log_print("adding up all derivative contributions...")
+        row_inds, col_inds = np.triu_indices(len(self.centers))
+        pot = np.zeros((len(self.centers), len(self.centers)))
         caches = [{} for _ in range(ndim)]
-        pot = 0
+
         for d in derivs: # add up all independent integral contribs...
             # iterate over upper triangle coordinates (we'll add bottom contrib by symmetry)
-            inds = itertools.combinations_with_replacement(range(ndim), r=d.ndim-2) if d.ndim > 2 else [()]
+            inds = itertools.combinations_with_replacement(range(ndim), r=d.ndim-1) if d.ndim > 1 else [()]
             for idx in inds:
                 count_map = {k: v for k, v in zip(*np.unique(idx, return_counts=True))}
                 if expansion_type != 'taylor' and any(n%2 !=0 for n in count_map.values()):
@@ -413,21 +558,26 @@ class DGB:
                 for k in range(ndim): # do each dimension of integral independently
                     n = count_map.get(k, 0)
                     if n not in caches[k]:
+                        if expansion_type == 'taylor':
+                            raise NotImplementedError("Taylor series in rotated basis not implemented yet")
                         caches[k][n] = (
                            self.simple_poly_int(n)
                              if expansion_type != 'taylor' else
-                           self.polyint_1D(centers[..., k], n)
+                           self.polyint_1D(centers[..., k], alphas[..., k], n)
                         )
                     contrib *= caches[k][n] / alphas[..., k]**(n/2)
 
-                dcont = d[(slice(None, None, None), slice(None, None, None)) + idx] if len(idx) > 0 else d
+                dcont = d[(...,) + idx] if len(idx) > 0 else d
                 facterms = np.unique([x for x in itertools.permutations(idx)], axis=0)
                 nfac = len(facterms) # this is like a binomial coeff or something but my sick brain won't work right now...
                 scaling = 2**(len(idx)/2) * np.prod([np.math.factorial(count_map.get(k, 0)) for k in range(ndim)])
 
                 contrib *= nfac * dcont / scaling
 
-                pot += contrib
+                pot[row_inds, col_inds] += contrib
+
+        pot[col_inds, row_inds] = pot[row_inds, col_inds]
+
         return pot
 
     def analytic_integrate(self):
@@ -473,18 +623,50 @@ class DGB:
         pot_mat = self.get_base_pot(potential_handler=potential_handler, expansion_degree=expansion_degree, degree=degree)
         return self.S * pot_mat
 
-    def diagonalize(self, print_debug_info=False, min_singular_value=None):
+    def get_orthogonal_transform(self, min_singular_value=None, subspace_size=None):
+        if min_singular_value is None:
+            min_singular_value = self.min_singular_value
+
+        S = self.S
+        sig, evecs = np.linalg.eigh(S)
+
+        if subspace_size is not None:
+            good_loc = slice(max(0, len(S) - subspace_size), len(S))
+        elif min_singular_value is not None:
+            good_loc = np.where(sig > min_singular_value)[0]
+        else:
+            good_loc = np.arange(len(S))
+        d = np.diag(1 / np.sqrt(sig[good_loc]))
+        L = evecs[:, good_loc]
+        Q = L @ d @ L.T
+
+        # sorting = np.concatenate([good_loc, bad_loc[0]])
+        # Lsort = evecs[:, sorting]
+        Qinv = L @ np.diag(np.sqrt(sig[good_loc])) @ L.T
+
+        if L.shape[0] == L.shape[1]: # no contraction
+            return Q, Qinv, None
+
+        Qe, QL = np.linalg.eigh(Q)
+        qsub = np.where(Qe > 1e-8)[0]
+        Qq = QL[:, qsub]
+        qrest = np.where(Qe <= 1e-8)[0]
+        qsort = np.concatenate([qsub, qrest])
+        Qqinv = QL[:, qsort].T  # transforms back to the Q basis
+
+        return Q, Qinv, (Qq, Qqinv)
+
+    def diagonalize(self, print_debug_info=False, subspace_size=None, min_singular_value=None, zero_energy_cutoff=1e-8):
 
         if min_singular_value is None:
             min_singular_value = self.min_singular_value
-        self.logger.log_print("solving with min_singular_value={ms}", ms=min_singular_value)
+        if min_singular_value is not None:
+            self.logger.log_print("solving with min_singular_value={ms}", ms=min_singular_value)
 
         H = self.T + self.V
         if print_debug_info:
             print('Condition Number:', np.linalg.cond(self.S))
             with np.printoptions(linewidth=1e8, threshold=1e8):
-            #     # print(self.S)
-            #     # print(self.T)
                 print("Potential Matrix:")
                 print(self.V)
 
@@ -496,39 +678,81 @@ class DGB:
                     "Overlap matrix poorly conditioned ({}) usually means data is too clustered or a min singular value is required".format(np.linalg.cond(self.S))
                 ) from None
         else:
-            S = self.S
+            Q, Qinv, proj = self.get_orthogonal_transform(min_singular_value=min_singular_value, subspace_size=subspace_size)
+            if proj is None:
+                # print(Q.shape, H.shape, self.S.shape, self.centers.shape)
+                return sp.linalg.eigh(H, self.S)
 
-            # Use SVD to prune out matrix rows that will be super ill conditioned
-            U, sig, VT = np.linalg.svd(S)
-            good_loc = np.where(sig > min_singular_value)[0]
-            d = np.diag(1/np.sqrt(sig[good_loc]))
-            U = U[:, good_loc]
-            VT = VT[good_loc, :]
-            Q = U @ d @ VT
-            Qinv = VT.T @ d @ U.T
+            Qq, Qqinv = proj
+            H = Qq.T @ Q @ H @ Q.T @ Qq # in our projected orthonormal basis
+            eigs, evecs = np.linalg.eigh(H)
+            evecs = np.concatenate(
+                [
+                    evecs,
+                    np.zeros((Qqinv.shape[1] - Qq.shape[1], len(evecs)))
+                ],
+                axis=0
+            )
+            evecs = Qqinv.T @ evecs
 
-            # shift_val = 1e5
-            # shift = np.diag(np.full(len(H), shift_val)) # add a uniform shift to make it clear where the zeros are
-            # H = Q @ (H + shift) @ Q
+            # raise Exception(evecs.shape, Qinv.shape)
 
-            H = Q @ H @ Q
+            # now we need to back track, which we can do by noting that we have
+            # all these extra modes from QL which are entirely interchangeable
+            # i.e. we have, say, 50 modes that have non-zero eigenvalues and so
+            # compose a 50x50 invertible space and then maybe we have a
+            # 40x40 space of degenerate modes. At the end of the day, then, we
+            # just need to define _a_ transformation matrix that inverts the first
+            # group and applies some kind of pseudo-inverse to the second
+            # Qinv = np.linalg.
 
-            eigs, evals = np.linalg.eigh(H)
+            # print(eigs)
+            #
+            # # we've projected out some number of eigenvectors, though
+            # # and so we should get an appropriate number of zeros for that
+            # # and we should also be able to express our "final" evecs in terms of
+            # # the eigenbasis of S and pick out those with projections onto the
+            # # the removed vectors
+            # gl_expanded = Lorig.T@evecs
+            # good_loc_norms = np.linalg.norm(gl_expanded[:, good_loc], axis=1)
+            # final_pos = np.where(good_loc_norms > .95)[0]
+            #
+            # if len(final_pos) < len(Lorig):
+            #     # now we want to re-expand in terms of the full basis space
+            #     # which we can do by first noting that we've already expressed
+            #     # our eigenvectors in terms of the eigenvectors of the SVD matrix
+            #     # and so we can simply back track those to the original basis
+            #     # by applying Qinv
+            #
+            #     raise Exception(np.linalg.det(Q[:, good_loc][good_loc, :]))
+            #
+            #     eigs = eigs[final_pos]
+            #     # evecs = Lorig @ gl_expanded[:, final_pos]
+            #     evecs = Qinv @ evecs[:, final_pos]
+            #
+            #     # raise Exception(eigs.shape, evecs.shape, Lorig.shape, Qinv.shape)
 
-            # take non-zero eigvals
-            zero_pos = np.where(np.abs(eigs) < 1e-8)[0] # drop the appropriate number of zeros
-            nz = len(H) - len(good_loc)
-            zero_pos = zero_pos[:nz]
-            sel = np.setdiff1d(np.arange(len(H)), zero_pos)
-            eigs = eigs[sel]
-            evals = evals[:, sel]
+            #
+            # # if len(final_pos) > 0 and len(final_pos[0]) > 0:
+            # #     raise Exception(
+            # #         eigs[zero_norm_pos],
+            # #         np.linalg.norm((Lorig.T@evecs)[:, good_loc], axis=1)
+            # #     )
+            #
+            # # take non-zero eigvals
+            # zero_pos = np.where(np.abs(eigs) < 1e-8)[0] # drop the appropriate number of zeros
+            # nz = len(H) - len(good_loc)
+            # zero_pos = zero_pos[:nz]
+            # sel = np.setdiff1d(np.arange(len(H)), zero_pos)
+            # eigs = eigs[sel]
+            # evals = evecs[:, sel]
 
             # now invert transformation to get back to OG basis
             # and remove uniform shift to eigenvalues
-            eigs = eigs # - shift_val
-            evals = Qinv @ evals
+            # eigs = eigs # - shift_val
+            # evecs = Qinv @ evecs # transformed back to the OG basis
 
-            return eigs, evals
+            return eigs, evecs
 
     def get_wavefunctions(self, print_debug_info=False, min_singular_value=None):
         eigs, evals = self.diagonalize(print_debug_info=print_debug_info, min_singular_value=min_singular_value)

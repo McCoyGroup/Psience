@@ -20,9 +20,27 @@ class AIMDSimulator:
                  timestep=.1,
                  sampling_rate=1
                  ):
-        self.masses = np.array([AtomData[a, "Mass"] if isinstance(a, str) else a for a in atoms]) * UnitsData.convert("AtomicMassUnits", "ElectronMass")
-        self._mass = self.masses[np.newaxis, :, np.newaxis]
-        self.coords = np.asanyarray(coordinates)
+        self.masses = np.array([
+            AtomData[a, "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
+            if isinstance(a, str) else a for a in atoms
+        ])
+        coords = np.asanyarray(coordinates)
+        if coords.ndim == 1:
+            coords = coords[np.newaxis]
+        self._atomic_structs = coords.shape[-1] == 3 and coords.shape[-1]
+        if self._atomic_structs:
+            if coords.ndim == 2: coords = coords[np.newaxis]
+            self._mass = np.expand_dims(self.masses, -1)
+            for _ in range(coordinates.ndim - 2):
+                self._mass = np.expand_dims(self._mass, 0)
+            self._mass = self.masses[np.newaxis, :,  np.newaxis]
+        else: # regular coordinates
+            self._mass = self.masses[np.newaxis]
+            for _ in range(coordinates.ndim - 2):
+                self._mass = np.expand_dims(self._mass, 0)
+        self.coords = coords
+        for _ in range(coordinates.ndim - 2):
+            self._mass = np.expand_dims(self._mass, -1)
         if isinstance(velocities, (int, float, np.integer, np.floating)):
             velocities = np.full_like(self.coords, velocities)
         self.velocities = velocities
@@ -42,8 +60,9 @@ class AIMDSimulator:
 
         v = self.velocities
         coords = self.coords + v * self.dt + forces / (2 * self._mass) * self.dt**2
-        com = np.tensordot(self.masses, coords, axes=[0, -2]) / np.sum(self._mass)
-        coords = coords - com[:, np.newaxis, :] # don't let COM move
+        if self._atomic_structs:
+            com = np.tensordot(self.masses, coords, axes=[0, -2]) / np.sum(self._mass)
+            coords = coords - com[:, np.newaxis, :] # don't let COM move
         forces_new = self.force_function(coords)
         vels = v + self.dt * (forces + forces_new) / (2 * self._mass)
 

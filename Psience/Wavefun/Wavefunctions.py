@@ -26,7 +26,7 @@ class Wavefunction:
         self.opts   = opts
 
     def plot(self,
-             figure=None, domain=None, grid=None, plot_points=100,
+             figure=None, domain=None, grid=None, values=None, plot_points=100,
              index=0, scaling=1, shift=0, plotter=None, plot_density=False,
              **opts
              ):
@@ -79,10 +79,11 @@ class Wavefunction:
         if not isinstance(shift, (int, float, np.integer, np.floating)):
             shift = shift[index]
 
-        if plot_density:
-            values = self.probability_density(grid)
-        else:
-            values = self.evaluate(grid)
+        if values is None:
+            if plot_density:
+                values = self.probability_density(grid)
+            else:
+                values = self.evaluate(grid)
 
         values = values * scaling + shift
 

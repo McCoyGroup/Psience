@@ -101,6 +101,7 @@ class DVRConstructor:
                 divs=divs,
                 potential_function=potential_function,
                 g=g,
+                mass=mass,
                 g_deriv=g_deriv,
                 logger=logger if not potential_optimize or scf else None,
                 **ParameterManager(base_opts).exclude((SelfConsistentDVR, PotentialOptimizedDVR))
