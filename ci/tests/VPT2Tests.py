@@ -45,6 +45,36 @@ class VPT2Tests(TestCase):
             logger=True
         )
 
+    @debugTest
+    def test_HOHVPTNonGSRunner(self):
+
+        file_name = "HOH_freq.fchk"
+        mol = Molecule.from_file(TestManager.test_data(file_name),
+                                 internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]])
+        # raise Exception(mol.internal_coordinates)
+        ics = mol.internal_coordinates
+        derivs = mol.coords.jacobian(
+            ics.system,
+            [1, 2],
+            all_numerical=True,
+            converter_options={'reembed':True}
+        )
+        derivs = [x.reshape((9,)*(i+1) + (3, 3)) for i,x in enumerate(derivs)]
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            # target_property='wavefunctions',
+            # internals=mol.zmatrix,
+            initial_states=1,
+            operators={
+                'OH1':[ics[1, 0], derivs[0][:, 1, 0], derivs[1][:, :, 1, 0]],
+                'OH2':[ics[2, 0], derivs[0][:, 2, 0], derivs[1][:, :, 2, 0]],
+                'HOH':[ics[2, 1], derivs[0][:, 2, 1], derivs[1][:, :, 2, 1]]
+            },
+            logger=True
+        )
+
     @validationTest
     def test_HOHVPTRunnerFlow(self):
 
@@ -1205,7 +1235,7 @@ State             Frequency    Intensity       Frequency    Intensity
   0 0 3 0 0 0    5006.71098      0.00000      4847.85797      0.00578
   """
 
-    @debugTest
+    @validationTest
     def test_AnneAPI(self):
         VPTRunner.run_simple(
             TestManager.test_data('HOD_freq_16.fchk'), 2,

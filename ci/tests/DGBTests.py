@@ -391,30 +391,34 @@ class DGBTests(TestCase):
 
         # TODO: TUNABLE PARAMETERS
 
-        ntraj = 25
-        traj_steps = 80
-        trad_dt = .5
-        disp_rad = .05#.8 * (ntraj)/(50)
-        vel_rad = .01
+        ntraj = 50
+        traj_steps = 25
+        trad_dt = .1
+        disp_rad = .18#.8 * (ntraj)/(50)
+        vel_rad = .005
         sim_mass = 1
 
-        scaling = 45
+        scaling = 1.3
         rp_scaling = scaling
-        sing_cutoff = 0.0005
-        hess_diag_sing_cutoff = 0.00005
+        min_rp_freq = 800 * UnitsData.convert("Wavenumbers", "Hartrees")
+        min_rp_mass = 900
+        sing_cutoff = 0.001
+
+        diag_scaling = 45
+        hess_diag_sing_cutoff = 0.00001
         num_svd_vectors = 10000
         min_dist_scaling = 1/15
         min_dist_min_sin = .0001
-        exp_deg = 4
+        exp_deg = 2
         distance_cutoff = .1
-        e_cut = 5 * np.max(w)
-        min_dist_alpha_scaling = 5
+        e_cut = 2 * np.max(w)
+        min_dist_alpha_scaling = None
         potential_scaling = None
 
         plot_traj = False
         plot_orthog = False
-        plot_dists = False
-        plot_wfns = 2
+        plot_dists = True
+        plot_wfns = 4
 
         np.random.seed(0)
         disps = np.random.normal(0, disp_rad, size=(ntraj, 2))
@@ -445,7 +449,6 @@ class DGBTests(TestCase):
             else:
                 res = np.zeros(c.shape[:-1] + (ndim,)*deriv_order)
                 return res
-
 
         def get_plot_grid(pts):
             plot_grid = np.array(
@@ -534,8 +537,14 @@ class DGBTests(TestCase):
         proj = np.broadcast_to(np.eye(ndim)[np.newaxis], (num_rp, ndim, ndim)) - nput.vec_outer(rp_mode, rp_mode)
         h2 = proj@hess[non_stationary]@proj
         freqs, modes = np.linalg.eigh(h2)
-        f2, modes = np.linalg.eigh(hess[non_stationary])
+        # f2, _ = np.linalg.eigh(hess[non_stationary])
+        # f3 = np.array([
+        #     scipy.linalg.eigh(hh, np.diag(1/np.asanyarray(masses)), type=2)[0]
+        #     for hh in simple_morse(pts[non_stationary], deriv_order=2)
+        #     ])
+        # raise Exception(f3, f2)
         modes[:, :, 1] = modes[:, :, 1] * np.linalg.det(modes)[:, np.newaxis]
+        modes = modes.transpose(0, 2, 1)
         # raise Exception(modes @ rp_mode[:, :, np.newaxis])
         # rp_freqs = rp_mode[:, np.newaxis, :]@hess[non_stationary]@rp_mode[:, :, np.newaxis]
 
@@ -555,10 +564,17 @@ class DGBTests(TestCase):
             m = modes[i, :, j][:, np.newaxis]
             f = m.T @ hess[i] @ m
             freqs[i, j] = f
+        freqs = np.sqrt(freqs)
+        freqs[freqs < min_rp_freq] = min_rp_freq
         freqs[zi] *= (rp_scaling / scaling)**2
 
         # masses = np.reshape(modes@np.array([[[reduced_mass]]*ndim]), (num_rp, ndim))
-        alphas[non_stationary] = scaling*np.sqrt(reduced_mass * np.abs(freqs))
+
+        rpms = np.abs(modes.transpose(0, 2, 1)@np.array([masses])[:, :, np.newaxis])
+        rpms = rpms.reshape(num_rp, ndim)
+        rpms[rpms < min_rp_mass] = min_rp_mass
+        # rpms = np.array([masses])
+        alphas[non_stationary] = scaling * rpms * np.abs(freqs)
         rots[non_stationary] = modes
 
         # rp_coords = rp_mode[:, np.newaxis, np.newaxis, :] @ pts[np.newaxis, :, :, np.newaxis]
@@ -599,10 +615,11 @@ class DGBTests(TestCase):
                    # )
                    )
 
+        hh = simple_morse(pts, deriv_order=2)
         ham1A = DGB(pts, simple_morse,
                    optimize_centers=False,
                    # alphas=np.max(alphas, axis=1),
-                   alphas=scaling * np.sqrt(np.abs(reduced_mass * np.diagonal(hess, axis1=1, axis2=2))),
+                   alphas=2*np.sqrt(np.abs(reduced_mass * np.diagonal(hh, axis1=1, axis2=2))),
                    clustering_radius=-1,
                    min_singular_value=hess_diag_sing_cutoff,#0.0001,
                    num_svd_vectors=num_svd_vectors,
@@ -614,6 +631,10 @@ class DGBTests(TestCase):
                    #     (len(pts), ndim, ndim)
                    # )
                    )
+
+        # raise Exception(
+        #     2 * np.diagonal(ham1A.T) - np.diagonal(ham1A.V)
+        # )
 
         ham2 = DGB(pts, simple_morse,
                    optimize_centers=False,
@@ -758,7 +779,7 @@ class DGBTests(TestCase):
             base = plt.GraphicsGrid(ncols=2, nrows=2, subimage_size=(350, 350))
 
             plot_vals = simple_morse(plot_pts).reshape(plot_grid[0].shape)
-            vmax = e_cut + w#10000 * UnitsData.convert("Wavenumbers", "Hartrees")
+            vmax = e_cut + np.max(w)#10000 * UnitsData.convert("Wavenumbers", "Hartrees")
             plot_vals[plot_vals > vmax] = vmax
             plt.ContourPlot(*plot_grid, plot_vals, levels=20, figure=base[0, 0])
             plt.ScatterPlot(pts[:, 0], pts[:, 1], color='red', figure=base[0, 0])

@@ -19,9 +19,10 @@ __all__ = [
     "ExpansionTerms",
     "KineticTerms",
     "PotentialTerms",
-    "DipoleTerms",
     "CoriolisTerm",
-    "PotentialLikeTerm"
+    "PotentialLikeTerm",
+    "DipoleTerms",
+    "OperatorTerms"
 ]
 
 class DumbTensor:
@@ -1994,6 +1995,231 @@ class KineticTerms(ExpansionTerms):
 
         return G_terms
 
+class CoriolisTerm(ExpansionTerms):
+    """
+    Calculates the Coriolis coupling term
+    """
+    def get_zetas_and_momi(self):
+        # mass-weighted mode matrix
+        # (note that we want the transpose not the inverse for unit reasons)
+        xQ = self.modes.matrix.T
+        # remove the frequency dimensioning? -> this step makes me super uncomfortable but agrees with Gaussian
+        freqs = self.freqs
+        xQ = xQ / np.sqrt(freqs[:, np.newaxis])
+        # reshape xQ so that it looks like atom x mode x Cartesian
+        J = np.moveaxis(
+            xQ.reshape((len(xQ), self.molecule.num_atoms, 3)),
+            1, 0
+        )
+
+        # then rotate into the inertial frame
+        B_e, eigs = self.inertial_frame
+        # print(B_e * UnitsData.convert("Hartrees", "Wavenumbers"))
+        # print(eigs)
+        # print(J)
+        J = np.tensordot(J, eigs, axes=[2, 0])
+
+        # coriolis terms are given by zeta = sum(JeJ^T, n)
+        ce = -levi_cevita3
+        zeta = sum(
+            np.tensordot(
+                np.tensordot(ce, J[n], axes=[0, 1]),
+                J[n],
+                axes=[1, 1])
+            for n in range(J.shape[0])
+        )
+
+        # raise Exception(np.round(zeta, 3))
+
+        return zeta, B_e
+
+    def get_zetas(self):
+
+        z, m = self.get_zetas_and_momi()
+
+        return z
+
+    def get_terms(self, order=None, J=0):
+
+        if J > 0:
+            raise NotImplementedError("currently only have VibRot term for J=0")
+
+        zeta_inert, _ = self.get_zetas_and_momi()
+        inert_derivs = self.moment_of_inertia_derivs(order)
+
+        # now we include the frequency dimensioning that comes from the q and p terms in Pi = Zeta*qipj
+        freqs = self.freqs
+        freq_term = np.sqrt(freqs[np.newaxis, :] / freqs[:, np.newaxis])
+        zeta_inert = zeta_inert * freq_term[np.newaxis]
+
+        terms = []
+        coriolis = (
+                           zeta_inert[np.newaxis, :, :, :, np.newaxis, np.newaxis] # ij
+                           * zeta_inert[:, np.newaxis, np.newaxis, np.newaxis, :, :] # kl
+        )
+        for d in inert_derivs: # expansion of reciprocal inertia tensor
+            d = np.expand_dims(d, [2, 3, -1, -2])
+            term = d / 2 * coriolis
+            terms.append(term)
+
+            # add coordinates for `q`
+            coriolis = np.expand_dims(coriolis, -3)
+
+
+        try:
+            self.checkpointer['coriolis_terms'] = terms
+        except (OSError, KeyError):
+            pass
+
+        return terms
+
+class PotentialLikeTerm(KineticTerms):
+    """
+    This accounts for the potential-like term.
+    In Cartesian diplacement modes this is the Watson U.
+    In proper internals, this is the V' term.
+    """
+
+    def get_terms(self, order=None, logger=None):
+
+        ics = self.internal_coordinates
+        if self.use_cartesian_kinetic_energy or self.backpropagate_internals or ics is None:
+
+            wat_terms = self.moment_of_inertia_derivs(order)
+            for i,d in enumerate(wat_terms):
+                wat_terms[i] = -np.sum(d[(0, 1, 2), (0, 1, 2), ...], axis=0)
+
+        else:
+            ### transform inertia derivs into mode derivs
+            YQ_derivs = self.get_cartesians_by_modes(order=2+order)
+
+            I0_derivs = self.inertial_frame_derivatives() # only ever two of these
+            if order > 0:
+                I0_derivs = I0_derivs + [0]*order
+            I0Q_derivs = TensorDerivativeConverter(YQ_derivs, I0_derivs).convert(order=2+order)#check_arrays=True)
+
+            ### pull already computed G-matrix derivs
+            # try:
+            G_terms = super().get_terms(order=2+order, logger=NullLogger())
+            # except:
+            #     raise Exception(2+order)
+
+            g_terms = TensorExpansionTerms(G_terms[1:], None, base_qx=G_terms[0], q_name='G')
+            # detG = g_terms.QX(0).det()
+
+            # oooh this is a dangerous thing to have here
+            # amu2me = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            I0 = self.molecule.inertia_tensor
+            I0_terms = [I0] + I0Q_derivs
+            I_terms = TensorExpansionTerms(I0_terms[1:], None, base_qx=I0_terms[0], q_name='I')
+            # detI = I_terms.QX(0).det()
+
+            # we skip the gamma term from Pickett altogether because it never directly
+            # enters, instead only ever being treated as ln(detI) - ln(detG)
+            # and then we can make use of an identity from the Matrix Cookbook to say
+            # ln(detX).dQ() = (X.inverse().dot(X.dQ)).tr()
+            G0 = g_terms.QX(0)
+            I0 = I_terms.QX(0)
+            lndetdQ = lambda X:(X.inverse().dot(X.dQ(), 2, 2).shift(2, 1)).tr(2, 3)
+            gamdQ = lndetdQ(I0)+-lndetdQ(G0)
+            gamdQ.name = "dQ(gam)"
+
+            # detG = G0.det()
+            # detI = I0.det()
+            # gamdQ_alt = (detI.dQ() / detI + -1 * detG.dQ() / detG).simplify()  # check_arrays=True)
+            # raise Exception(gamdQ.array, gamdQ_alt.array)
+
+            gamdQQ = gamdQ.dQ().simplify()
+
+            # terms = [x.asarray() for x in gamdQQ.dQ().simplify().terms]
+            # for t in gamdQQ.simplify().terms:
+            #     print(t)
+            # print("-=---==--==---")
+            # for t in gamdQQ.dQ().simplify().terms:
+            #     print(t)
+            # raise Exception(gamdQQ.dQ().array)
+
+            # print(terms)
+            # print(gamdQQ.terms[0])
+            # print(gamdQQ.dQ().simplify().terms[1])
+            # sums = [terms[0]]
+            # terms[0].transpose(1, 2, 0) + terms[2] +
+            # b = terms[2]
+            # for i in range(len(b)):
+            #     for j in range(i+1, len(b)):
+            #         for k in range(j + 1, len(b)):
+            #             terms = []
+            #             for p in itertools.permutations([i, j, k]):
+            #                 terms.append(b[i, j, k]-b[p])
+            #             if max(abs(x) for x in terms) > 1e-14:
+            #                 raise ValueError("ugh")
+            # for t in gamdQQ.dQ().terms:
+            #     print(t)
+            #     print(t.asarray(print_terms=True))
+            # print(terms[1]+terms[3])
+            # for s in terms:
+            #     print(s)
+            # for x in terms[1:]:
+            #     sums.append(sums[-1]+x)
+            # for s in sums:
+            #     print(s)
+
+
+            # raise Exception(...)
+            #
+
+            # a = gamdQQ.dQ().dQ().array
+            # b = gamdQQ.dQ().array
+            # for i in range(len(b)):
+            #     for j in range(i+1, len(b)):
+            #         for k in range(j + 1, len(b)):
+            #             terms = []
+            #             for p in itertools.permutations([i, j, k]):
+            #                 terms.append(b[i, j, k]-b[p])
+            #             if max(abs(x) for x in terms) > 1e-14:
+            #                 raise ValueError("ugh")
+            # ugh = gamdQQ.dQ().dQ().simplify()
+            # raise Exception(ugh.array)
+            # print(sum(u.array for u in ugh.terms))
+            # for p in itertools.permutations([0, 1, 2, 3]):
+            #     b = ugh.terms[0].array + ugh.terms[1].array.transpose(p)
+            #     if abs(b[0, 0, 0, 1] - b[1, 0, 0, 0]) < 1e-6:
+            #         print(b)
+            # raise Exception(type(ugh.terms[0]))
+
+            v_term_1 = g_terms.QX(0).dot(gamdQQ, [1, 2], [1, 2])
+            v_term_2 = g_terms.QX(1).dot(gamdQ, 3, 1).tr()
+            v_term_3 = 1/4 * gamdQ.dot(gamdQ.dot(g_terms.QX(0), 1, 1), 1, 1)
+
+            v0 = (
+                    v_term_1
+                    + v_term_2
+                    + v_term_3
+            )
+
+            wat_exprs = [v0]
+            for i in range(1, order+1):
+                wat_exprs.append(wat_exprs[-1].dQ())#.simplify())
+
+            wat_terms = []
+            for i,w in enumerate(wat_exprs):
+                try:
+                    arr = w.array
+                except TensorDerivativeConverter.TensorExpansionError:
+                    raise ValueError("failed to construct U({})".format(i))
+                else:
+                    if arr.shape == ():
+                        arr = np.float(arr)
+                    wat_terms.append(arr)
+            # print(wat_terms)
+
+        try:
+            self.checkpointer['psuedopotential_terms'] = wat_terms
+        except (OSError, KeyError):
+            pass
+
+        return wat_terms
+
 class DipoleTerms(ExpansionTerms):
     __props__ = ExpansionTerms.__props__ + (
         "dipole_derivatives",
@@ -2436,227 +2662,163 @@ class DipoleTerms(ExpansionTerms):
 
         return mu
 
-class CoriolisTerm(ExpansionTerms):
+class OperatorTerms(ExpansionTerms):
     """
-    Calculates the Coriolis coupling term
+    Literally as simple as it comes for an operator expansion.
+    One dimensional, no mixed derivative stuff.
     """
-    def get_zetas_and_momi(self):
-        # mass-weighted mode matrix
-        # (note that we want the transpose not the inverse for unit reasons)
-        xQ = self.modes.matrix.T
-        # remove the frequency dimensioning? -> this step makes me super uncomfortable but agrees with Gaussian
-        freqs = self.freqs
-        xQ = xQ / np.sqrt(freqs[:, np.newaxis])
-        # reshape xQ so that it looks like atom x mode x Cartesian
-        J = np.moveaxis(
-            xQ.reshape((len(xQ), self.molecule.num_atoms, 3)),
-            1, 0
-        )
+    __props__ = ExpansionTerms.__props__ + (
+        "operator_derivatives",
+    )
+    def __init__(self,
+                 molecule,
+                 operator_derivatives=None,
+                 modes=None,
+                 mode_selection=None,
+                 logger=None,
+                 parallelizer=None,
+                 checkpointer=None,
+                 **opts
+                 ):
+        """
+        :param molecule: the molecule that will supply the dipole derivatives
+        :type molecule: Molecule
+        :param mixed_derivs: whether or not the pulled derivatives are partially derivatives along the normal coords
+        :type mixed_derivs: bool
+        :param modes: the normal modes to use when doing calculations
+        :type modes: None | MolecularVibrations
+        :param mode_selection: the subset of normal modes to use
+        :type mode_selection: None | Iterable[int]
+        """
+        self.derivs = None
+        if operator_derivatives is None:
+            raise ValueError("can't transform derivatives without derivatives")
+        super().__init__(molecule, modes=modes, mode_selection=mode_selection,
+                         logger=logger, parallelizer=parallelizer, checkpointer=checkpointer,
+                         **opts
+                         )
+        self.derivs = self._canonicalize_derivs(self.freqs, self.masses, operator_derivatives)
 
-        # then rotate into the inertial frame
-        B_e, eigs = self.inertial_frame
-        # print(B_e * UnitsData.convert("Hartrees", "Wavenumbers"))
-        # print(eigs)
-        # print(J)
-        J = np.tensordot(J, eigs, axes=[2, 0])
+    def _check_mode_terms(self, derivs=None):
+        modes_n = len(self.modes.freqs)
+        if derivs is None:
+            derivs = self.derivs
+        for d in derivs:
+            if d.shape != (modes_n,) * len(d.shape):
+                return False
+        return True
+    def _canonicalize_derivs(self, freqs, masses, derivs):
 
-        # coriolis terms are given by zeta = sum(JeJ^T, n)
-        ce = -levi_cevita3
-        zeta = sum(
-            np.tensordot(
-                np.tensordot(ce, J[n], axes=[0, 1]),
-                J[n],
-                axes=[1, 1])
-            for n in range(J.shape[0])
-        )
+        if self._check_mode_terms(derivs):
+            return derivs
 
-        # raise Exception(np.round(zeta, 3))
+        n = self.num_atoms
+        modes_n = len(self.modes.freqs)
+        internals_n = 3 * n - 6
+        coord_n = 3 * n
 
-        return zeta, B_e
+        for i in range(len(derivs)):
+            if (
+                    derivs[i].shape != (coord_n,) * (i+1)
+                    and derivs[i].shape != (internals_n,) * (i+1)
+            ):
+                raise PerturbationTheoryException(
+                    "{0}.{1}: dimension of {2}th derivative array {3} is not ({4})".format(
+                        type(self).__name__,
+                        "_canonicalize_derivs",
+                        i+1,
+                        derivs[i].shape,
+                        ", ".join(str(x) for x in [
+                            (coord_n,) * (i + 1),
+                            (internals_n,) * (i+1)
+                        ])
+                    )
+                )
 
-    def get_zetas(self):
+        if self._check_mode_terms(derivs) or self.use_internal_modes:
+            all_derivs = derivs
+        else:
+            # amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+            m_conv = np.sqrt(self._tripmass(masses))
+            f_conv = np.sqrt(freqs)
+            all_derivs = []
 
-        z, m = self.get_zetas_and_momi()
+            for i in range(len(derivs)):
+                term = derivs[i]
+                if term.shape == (coord_n,) * (i + 1):
+                    undimension = m_conv
+                    mc = m_conv
+                    for j in range(i):
+                        mc = np.expand_dims(mc, 0)
+                        undimension = np.expand_dims(undimension, -1) * mc
+                elif term.shape != (internals_n,) * (i + 1):
+                    undimension = f_conv
+                    fc = f_conv
+                    for j in range(i):
+                        fc = np.expand_dims(fc, 0)
+                        undimension = np.expand_dims(undimension, -1) * fc
 
-        return z
+                all_derivs.append(term / undimension)
 
-    def get_terms(self, order=None, J=0):
-
-        if J > 0:
-            raise NotImplementedError("currently only have VibRot term for J=0")
-
-        zeta_inert, _ = self.get_zetas_and_momi()
-        inert_derivs = self.moment_of_inertia_derivs(order)
-
-        # now we include the frequency dimensioning that comes from the q and p terms in Pi = Zeta*qipj
-        freqs = self.freqs
-        freq_term = np.sqrt(freqs[np.newaxis, :] / freqs[:, np.newaxis])
-        zeta_inert = zeta_inert * freq_term[np.newaxis]
-
-        terms = []
-        coriolis = (
-                           zeta_inert[np.newaxis, :, :, :, np.newaxis, np.newaxis] # ij
-                           * zeta_inert[:, np.newaxis, np.newaxis, np.newaxis, :, :] # kl
-        )
-        for d in inert_derivs: # expansion of reciprocal inertia tensor
-            d = np.expand_dims(d, [2, 3, -1, -2])
-            term = d / 2 * coriolis
-            terms.append(term)
-
-            # add coordinates for `q`
-            coriolis = np.expand_dims(coriolis, -3)
-
-
-        try:
-            self.checkpointer['coriolis_terms'] = terms
-        except (OSError, KeyError):
-            pass
-
-        return terms
-
-class PotentialLikeTerm(KineticTerms):
-    """
-    This accounts for the potential-like term.
-    In Cartesian diplacement modes this is the Watson U.
-    In proper internals, this is the V' term.
-    """
+        return all_derivs
 
     def get_terms(self, order=None, logger=None):
 
-        ics = self.internal_coordinates
-        if self.use_cartesian_kinetic_energy or self.backpropagate_internals or ics is None:
+        if self._check_mode_terms():
+            return self.derivs[1:]
 
-            wat_terms = self.moment_of_inertia_derivs(order)
-            for i,d in enumerate(wat_terms):
-                wat_terms[i] = -np.sum(d[(0, 1, 2), (0, 1, 2), ...], axis=0)
+        if logger is None:
+            logger = self.logger
 
+        logger.log_print('transformaing operator derivatives')
+
+        if order is None:
+            order = len(self.derivs)
+
+        if len(self.derivs) < order:
+            self.derivs = tuple(self.derivs) + (0,) * order
+
+        # Use the Molecule's coordinates which know about their embedding by default
+        intcds = self.internal_coordinates
+        direct_prop = (
+                self.direct_propagate_cartesians
+                and not (isinstance(self.direct_propagate_cartesians, str) and self.direct_propagate_cartesians == 'dipoles')
+        )
+        if intcds is None or direct_prop:
+            # this is nice because it eliminates most of the terms in the expansion
+            xQ = self.modes.inverse
+            x_derivs = [xQ] + [0] * (order-1)
+            terms = TensorDerivativeConverter(x_derivs, self.derivs).convert(order=order)#, check_arrays=True)
+        elif self._check_internal_modes() and not self._check_mode_terms():
+            raise NotImplementedError("...")
+            # It should be very rare that we are actually able to make it here
+            terms = []
+            RQ = self.modes.inverse
+            for v in V_derivs:
+                for j in range(v.ndim):
+                    v = np.tensordot(RQ, v, axes=[1, -1])
+                terms.append(v)
         else:
-            ### transform inertia derivs into mode derivs
-            YQ_derivs = self.get_cartesians_by_modes(order=2+order)
+            x_derivs = self.get_cartesians_by_modes(order=order)
+            # raise Exception(x_derivs[1])
+            x_derivs = list(x_derivs) #+ [0] # gradient term never matters
+            terms = TensorDerivativeConverter(x_derivs, self.derivs).convert(order=order)#, check_arrays=True)
 
-            I0_derivs = self.inertial_frame_derivatives() # only ever two of these
-            if order > 0:
-                I0_derivs = I0_derivs + [0]*order
-            I0Q_derivs = TensorDerivativeConverter(YQ_derivs, I0_derivs).convert(order=2+order)#check_arrays=True)
+        if intcds is not None and self.backpropagate_internals:
+            # need to internal mode terms and
+            # convert them back to Cartesian mode ones...
+            Qq_derivs = self.get_internal_modes_by_cartesian_modes(len(terms) - 1)
+            terms = TensorDerivativeConverter(
+                Qq_derivs + [0], # pad for the zeroed out gradient term
+                terms
+            ).convert(order=order)
+        elif intcds is not None and direct_prop:
+            # need to internal mode terms and
+            # convert them back to Cartesian mode ones...
+            qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(terms) - 1)
+            terms = TensorDerivativeConverter(
+                qQ_derivs + [0],  # pad for the zeroed out gradient term
+                terms
+            ).convert(order=order)
 
-            ### pull already computed G-matrix derivs
-            # try:
-            G_terms = super().get_terms(order=2+order, logger=NullLogger())
-            # except:
-            #     raise Exception(2+order)
-
-            g_terms = TensorExpansionTerms(G_terms[1:], None, base_qx=G_terms[0], q_name='G')
-            # detG = g_terms.QX(0).det()
-
-            # oooh this is a dangerous thing to have here
-            # amu2me = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-            I0 = self.molecule.inertia_tensor
-            I0_terms = [I0] + I0Q_derivs
-            I_terms = TensorExpansionTerms(I0_terms[1:], None, base_qx=I0_terms[0], q_name='I')
-            # detI = I_terms.QX(0).det()
-
-            # we skip the gamma term from Pickett altogether because it never directly
-            # enters, instead only ever being treated as ln(detI) - ln(detG)
-            # and then we can make use of an identity from the Matrix Cookbook to say
-            # ln(detX).dQ() = (X.inverse().dot(X.dQ)).tr()
-            G0 = g_terms.QX(0)
-            I0 = I_terms.QX(0)
-            lndetdQ = lambda X:(X.inverse().dot(X.dQ(), 2, 2).shift(2, 1)).tr(2, 3)
-            gamdQ = lndetdQ(I0)+-lndetdQ(G0)
-            gamdQ.name = "dQ(gam)"
-
-            # detG = G0.det()
-            # detI = I0.det()
-            # gamdQ_alt = (detI.dQ() / detI + -1 * detG.dQ() / detG).simplify()  # check_arrays=True)
-            # raise Exception(gamdQ.array, gamdQ_alt.array)
-
-            gamdQQ = gamdQ.dQ().simplify()
-
-            # terms = [x.asarray() for x in gamdQQ.dQ().simplify().terms]
-            # for t in gamdQQ.simplify().terms:
-            #     print(t)
-            # print("-=---==--==---")
-            # for t in gamdQQ.dQ().simplify().terms:
-            #     print(t)
-            # raise Exception(gamdQQ.dQ().array)
-
-            # print(terms)
-            # print(gamdQQ.terms[0])
-            # print(gamdQQ.dQ().simplify().terms[1])
-            # sums = [terms[0]]
-            # terms[0].transpose(1, 2, 0) + terms[2] +
-            # b = terms[2]
-            # for i in range(len(b)):
-            #     for j in range(i+1, len(b)):
-            #         for k in range(j + 1, len(b)):
-            #             terms = []
-            #             for p in itertools.permutations([i, j, k]):
-            #                 terms.append(b[i, j, k]-b[p])
-            #             if max(abs(x) for x in terms) > 1e-14:
-            #                 raise ValueError("ugh")
-            # for t in gamdQQ.dQ().terms:
-            #     print(t)
-            #     print(t.asarray(print_terms=True))
-            # print(terms[1]+terms[3])
-            # for s in terms:
-            #     print(s)
-            # for x in terms[1:]:
-            #     sums.append(sums[-1]+x)
-            # for s in sums:
-            #     print(s)
-
-
-            # raise Exception(...)
-            #
-
-            # a = gamdQQ.dQ().dQ().array
-            # b = gamdQQ.dQ().array
-            # for i in range(len(b)):
-            #     for j in range(i+1, len(b)):
-            #         for k in range(j + 1, len(b)):
-            #             terms = []
-            #             for p in itertools.permutations([i, j, k]):
-            #                 terms.append(b[i, j, k]-b[p])
-            #             if max(abs(x) for x in terms) > 1e-14:
-            #                 raise ValueError("ugh")
-            # ugh = gamdQQ.dQ().dQ().simplify()
-            # raise Exception(ugh.array)
-            # print(sum(u.array for u in ugh.terms))
-            # for p in itertools.permutations([0, 1, 2, 3]):
-            #     b = ugh.terms[0].array + ugh.terms[1].array.transpose(p)
-            #     if abs(b[0, 0, 0, 1] - b[1, 0, 0, 0]) < 1e-6:
-            #         print(b)
-            # raise Exception(type(ugh.terms[0]))
-
-            v_term_1 = g_terms.QX(0).dot(gamdQQ, [1, 2], [1, 2])
-            v_term_2 = g_terms.QX(1).dot(gamdQ, 3, 1).tr()
-            v_term_3 = 1/4 * gamdQ.dot(gamdQ.dot(g_terms.QX(0), 1, 1), 1, 1)
-
-            v0 = (
-                    v_term_1
-                    + v_term_2
-                    + v_term_3
-            )
-
-            wat_exprs = [v0]
-            for i in range(1, order+1):
-                wat_exprs.append(wat_exprs[-1].dQ())#.simplify())
-
-            wat_terms = []
-            for i,w in enumerate(wat_exprs):
-                try:
-                    arr = w.array
-                except TensorDerivativeConverter.TensorExpansionError:
-                    raise ValueError("failed to construct U({})".format(i))
-                else:
-                    if arr.shape == ():
-                        arr = np.float(arr)
-                    wat_terms.append(arr)
-            # print(wat_terms)
-
-        try:
-            self.checkpointer['psuedopotential_terms'] = wat_terms
-        except (OSError, KeyError):
-            pass
-
-        return wat_terms
+        return terms

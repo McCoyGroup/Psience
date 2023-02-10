@@ -139,6 +139,7 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
                  converter_options=None,
                  **kwargs
                  ):
+
         if converter_options is None:
             converter_options = {}
         merged_convert_options = dict(self.converter_options, **converter_options)
@@ -259,6 +260,7 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
                  analytic_deriv_order=None,
                  **kwargs
                  ):
+
         if converter_options is None:
             converter_options = {}
         merged_convert_options = dict(self.converter_options, **converter_options)

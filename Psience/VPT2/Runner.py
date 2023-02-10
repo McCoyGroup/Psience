@@ -415,7 +415,7 @@ class VPTStateSpace:
                                            postfilters=postfilters
                                            )
     @classmethod
-    def get_state_space_filter(cls, states, n_modes=None, order=2, target='wavefunctions', postfilters=None):
+    def get_state_space_filter(cls, states, initial_states=None, n_modes=None, order=2, target='wavefunctions', postfilters=None):
         """
         Gets `state_space_filters` for the input `states` targeting some property
 
@@ -441,7 +441,7 @@ class VPTStateSpace:
             return None
         elif target == 'intensities':
             return BasisStateSpaceFilter.from_property_rules(
-                cls.get_state_list_from_quanta(0, n_modes),
+                cls.get_state_list_from_quanta(0, n_modes) if initial_states is None else initial_states,
                 states,
                 [
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"]*i) for i in range(3, order+3)
@@ -458,7 +458,7 @@ class VPTStateSpace:
             #     (2, 0): (None, [[0]])
             # }
             return BasisStateSpaceFilter.from_property_rules(
-                cls.get_state_list_from_quanta(0, n_modes),
+                cls.get_state_list_from_quanta(0, n_modes) if initial_states is None else initial_states,
                 states,
                 [
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"] * i) for i in range(3, order + 3)
@@ -961,6 +961,7 @@ class VPTRunner:
     def __init__(self,
                  system,
                  states,
+                 initial_states=None,
                  hamiltonian_options=None,
                  solver_options=None,
                  runtime_options=None
@@ -992,6 +993,7 @@ class VPTRunner:
 
         self.system = system
         self.states = states
+        self.initial_states = initial_states
 
         self._ham = None
         self._wfns = None
@@ -1018,16 +1020,19 @@ class VPTRunner:
             pt_opts['degenerate_states'] = self.states.degenerate_states
         return self.hamiltonian.get_wavefunctions(
             self.states.state_list,
+            initial_states=self.initial_states.state_list,
             **pt_opts,
             **self.runtime_opts.solver_opts
         )
 
     @classmethod
-    def print_output_tables(cls, wfns=None, file=None,
+    def print_output_tables(cls,
+                            wfns=None, file=None,
                             print_intensities=True,
                             print_energies=True,
                             print_energy_corrections=True,
                             print_transition_moments=True,
+                            operators=None,
                             logger=None, sep_char="=", sep_len=100):
         """
         Prints a bunch of formatted output data from a PT run
@@ -1093,11 +1098,16 @@ class VPTRunner:
                     print_block("{} Dipole Contributions".format(a), m)
             print_block("IR Data", wfns.format_intensities_table())
 
+        if operators is not None:
+            print_block("Operator Data", wfns.format_operator_table(operators))
+
+
     def print_tables(self,
                      wfns=None, file=None,
                      print_intensities=True,
                      print_energy_corrections=True,
                      print_transition_moments=True,
+                     operators=None,
                      sep_char="=", sep_len=100):
         """
         Prints a bunch of formatted output data from a PT run
@@ -1115,19 +1125,21 @@ class VPTRunner:
                                  print_intensities=print_intensities,
                                  print_energy_corrections=print_energy_corrections,
                                  print_transition_moments=print_transition_moments,
+                                 operators=operators,
                                  sep_char=sep_char, sep_len=sep_len)
 
         return wfns
 
     @classmethod
     def construct(cls,
-               system,
-               states,
-               target_property=None,
-               basis_filters=None,
-               corrected_fundamental_frequencies=None,
-               **opts
-               ):
+                  system,
+                  states,
+                  target_property=None,
+                  basis_filters=None,
+                  initial_states=None,
+                  corrected_fundamental_frequencies=None,
+                  **opts
+                  ):
         full_opts = (
                 VPTSystem.__props__
                 + VPTStateSpace.__props__
@@ -1160,6 +1172,20 @@ class VPTRunner:
                 **par.filter(VPTStateSpace)
             )
 
+        if initial_states is not None:
+            if isinstance(initial_states, int) or isinstance(initial_states[0], int):
+                initial_states = VPTStateSpace.from_system_and_quanta(
+                    sys,
+                    initial_states,
+                    **par.filter(VPTStateSpace)
+                )
+            else:
+                initial_states = VPTStateSpace(
+                    initial_states,
+                    system=sys,
+                    **par.filter(VPTStateSpace)
+                )
+
         order = 2 if 'order' not in opts.keys() else opts['order']
         if target_property is None:
             target_property = 'intensities'
@@ -1168,7 +1194,7 @@ class VPTRunner:
                 expansion_order = opts['expansion_order']
             else:
                 expansion_order = order
-            par.ops['state_space_filters'] = states.filter_generator(target_property, order=order, postfilters=basis_filters)
+            par.ops['state_space_filters'] = states.filter_generator(target_property, order=expansion_order, postfilters=basis_filters)
 
         if corrected_fundamental_frequencies is not None and (
                 'zero_order_energy_corrections' not in opts
@@ -1190,6 +1216,7 @@ class VPTRunner:
         runner = cls(
             sys,
             states,
+            initial_states=initial_states,
             hamiltonian_options=hops,
             runtime_options=rops,
             solver_options=sops
@@ -1202,6 +1229,7 @@ class VPTRunner:
                    target_property=None,
                    corrected_fundamental_frequencies=None,
                    calculate_intensities=True,
+                   operators=None,
                    **opts
                    ):
         """
@@ -1265,7 +1293,7 @@ class VPTRunner:
                         else:
                             logger.log_print(str(ds))
 
-                return runner.print_tables(print_intensities=calculate_intensities)
+                return runner.print_tables(print_intensities=calculate_intensities, operators=operators)
 
     class helpers:
         """
@@ -1772,7 +1800,7 @@ class AnneInputHelpers:
     def run_anne_job(cls,
                      base_dir,
                      states=2,
-                     # initial_states=0,
+                     initial_states=0,
                      # operators=[{'coords':[[0, 1], ... ,...]}], # coords_zero, coords_first, coords_second <-
                      calculate_intensities=None,
                      return_analyzer=False,
@@ -1928,6 +1956,7 @@ class AnneInputHelpers:
             res = runner(
                 [atoms, coords, dict(masses=masses)],
                 states,
+                initial_states=initial_states,
                 modes={
                     "freqs": freq,
                     "matrix": matrix,

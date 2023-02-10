@@ -14,7 +14,6 @@ __all__ = [
 ]
 
 
-
 class PerturbationTheoryCorrections:
     """
     Represents a set of corrections from perturbation theory.
@@ -677,7 +676,8 @@ class PerturbationTheoryCorrections:
         rep_lines.insert(0, tag_line)
         return rep_lines
 
-    def operator_representation(self, operator_expansion, order=None, subspace=None, contract=True,
+    def operator_representation(self, operator_expansion,
+                                order=None, subspace=None, contract=True,
                                 logger_symbol="A",
                                 logger_conversion=None
                                 ):
@@ -851,6 +851,7 @@ class PerturbationTheoryCorrections:
         np.savez(file, **keys)
     @classmethod
     def loadz(cls, file):
+        raise NotImplementedError("old and wrong now")
         keys = np.load(file)
         return cls.from_dicts(
             {

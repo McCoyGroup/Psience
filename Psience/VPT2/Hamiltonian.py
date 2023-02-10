@@ -838,6 +838,7 @@ class PerturbationTheoryHamiltonian:
 
     def get_wavefunctions(self,
                           states,
+                          initial_states=None,
                           degeneracies=None,
                           allow_post_PT_calc=True,
                           ignore_odd_order_energies=True,
@@ -921,6 +922,7 @@ class PerturbationTheoryHamiltonian:
         operator_settings['memory_constrained'] = memory_constrained
 
         return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs,
+                                               initial_states=initial_states,
                                                modes=self.modes,
                                                mode_selection=self.mode_selection,
                                                logger=self.logger,

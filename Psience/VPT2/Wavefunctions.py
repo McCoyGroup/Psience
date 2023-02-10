@@ -12,7 +12,7 @@ from McUtils.Data import UnitsData
 from ..Wavefun import Wavefunctions
 from ..BasisReps import SimpleProductBasis, BraKetSpace
 
-from .Terms import DipoleTerms
+from .Terms import DipoleTerms, OperatorTerms
 from .Solver import PerturbationTheoryCorrections
 
 __all__ = [
@@ -60,6 +60,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
     def __init__(self,
                  mol, basis, corrections,
+                 initial_states=None,
                  modes=None,
                  mode_selection=None,
                  logger=None,
@@ -85,6 +86,8 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         self.mode_selection = mode_selection
         self.rep_basis = basis  # temporary hack until I decided how to merge the idea of
         # AnalyticWavefunctions with a RepresentationBasis
+        self.initial_states = initial_states # For tracking where to start when calculating properties
+        self._init_inds = None
         self._tm_dat = None
         self._dipole_terms = None
         self._dipole_partitioning = self.DipolePartitioningMethod.Standard
@@ -148,6 +151,14 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
     def degenerate_transformation(self):
         return self.corrs.degenerate_transf
 
+    @property
+    def initial_state_indices(self):
+        if self._init_inds is None:
+            if self.initial_states is not None:
+                self._init_inds = self.corrs.states.find(self.initial_states)
+            else:
+                self._init_inds = (0,)
+        return self._init_inds
 
     def energies_to_order(self, order=None):
         if order is None:
@@ -157,6 +168,8 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
     def deperturbed_energies(self):
         return self.energies_to_order()
     def deperturbed_frequencies(self, order=None):
+        if self.initial_states is not None:
+            raise NotImplementedError("haven't initial_spaces to this yet")
         eng = self.energies_to_order(order=order)
         return eng[1:] - eng[0]
 
@@ -195,10 +208,11 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                                                      axes=[[0, 1, 2], [1, 2, 3]],
                                                      **self.operator_settings
                                                      )
-    def get_Mi(self, i, mu):
+    def get_Mi(self, i, mu, base_sym="M"):
+        extra = mu.ndim - i
         return 1 / np.math.factorial(i) * self.rep_basis.representation(
-            *(("x",) * i), name="M({})".format(i), coeffs=mu,
-            axes=[list(range(0, i)), list(range(1, i + 1))],
+            *(("x",) * i), name="{}({})".format(base_sym, i), coeffs=mu,
+            axes=[list(range(0, i)), list(range(extra, i + extra))],
             **self.operator_settings
         )
 
@@ -267,6 +281,9 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
             return inds
 
+    @staticmethod
+    def _is_zero(x):
+        return isinstance(x, (int, float, np.integer, np.floating)) and x == 0
     # from memory_profiler import profile
     # @profile
     def _mu_representations(self,
@@ -293,7 +310,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
         if all(
                     isinstance(m, (np.ndarray, SparseArray)) and m.shape == (M, M)
-                    or isinstance(m, (int, float, np.integer, np.floating)) and m == 0
+                    or self._is_zero(m)
                     for m in mu
         ): # we were passed representations to reuse
             mu_terms = mu
@@ -337,11 +354,11 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             n = self.corrs.states.ndim
             for i in range(order + (1 if not int_part else 0)):
                 mu_sel = []
-                if isinstance(mu, (int, np.integer)) and mu == 0:
+                if self._is_zero(mu):
                     mu_sel = [np.zeros((n,)*i), np.zeros((n,)*i), np.zeros((n,)*i)]
                 else:
                     for m in mu:
-                        if isinstance(m, (int, np.integer)) and m == 0:
+                        if self._is_zero(m):
                             mu_sel.append(np.zeros((n,)*i))
                         else:
                             try:
@@ -446,39 +463,39 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
             space = self.corrs.coupled_states
             # store this for handling the degenerate_transformation
-            lower_states_input = (0,) if lower_states is None else lower_states
+            lower_states_input = self.initial_state_indices if lower_states is None else lower_states
             upper_states_input = tuple(range(space.nstates)) if excited_states is None else excited_states
 
+            if lower_states is None:
+                low_spec = self.initial_state_indices
+            else:
+                if isinstance(lower_states, (int, np.integer)):
+                    lower_states = (lower_states,)
+                low_spec = lower_states
+            lower_states = space[(low_spec,)]
+
+            if excited_states is None:
+                up_spec = tuple(range(space.nstates))
+                excited_states = space
+            else:
+                if isinstance(excited_states, (int, np.integer)):
+                    excited_states = (excited_states,)
+                up_spec = excited_states
+                excited_states = space[(up_spec,)]
+
+            bra_spaces = lower_states  # if isinstance(lower_states, BasisStateSpace) else lower_states.to_single().take_unique()
+            ket_spaces = excited_states  # if isinstance(excited_states, BasisStateSpace) else excited_states.to_single().take_unique()
+
+            # M = len(space.indices)
+            logger.log_print(
+                [
+                    "lower/upper states: {l}/{u}"
+                ],
+                l=len(low_spec),
+                u=len(up_spec)
+            )
+
             if correction_terms is None:
-                if lower_states is None:
-                    low_spec = (0,)
-                else:
-                    if isinstance(lower_states, (int, np.integer)):
-                        lower_states = (lower_states,)
-                    low_spec = lower_states
-                lower_states = space[(low_spec,)]
-
-                if excited_states is None:
-                    up_spec = tuple(range(space.nstates))
-                    excited_states = space
-                else:
-                    if isinstance(excited_states, (int, np.integer)):
-                        excited_states = (excited_states,)
-                    up_spec = excited_states
-                    excited_states = space[(up_spec,)]
-
-                bra_spaces = lower_states  # if isinstance(lower_states, BasisStateSpace) else lower_states.to_single().take_unique()
-                ket_spaces = excited_states  # if isinstance(excited_states, BasisStateSpace) else excited_states.to_single().take_unique()
-
-                # M = len(space.indices)
-                logger.log_print(
-                    [
-                        "lower/upper states: {l}/{u}"
-                    ],
-                    l=len(low_spec),
-                    u=len(up_spec)
-                )
-
                 with logger.block(tag='taking correction subspaces:'):
                     start = time.time()
                     logger.log_print('getting ground space...')
@@ -621,7 +638,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                                         new_deg = new
                                     else:
                                         m = mu_terms[k]
-                                        if isinstance(m, (int, float, np.integer, np.floating)) and m == 0:
+                                        if self._is_zero(m):
                                             # to make it easy to zero stuff out
                                             new = np.zeros((len(lower_states_input), len(upper_states_input)))
                                             new_deg = new
@@ -697,9 +714,325 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 sum(ip.chain(transition_moment_components[i][j]))
                 if not isinstance(transition_moment_components[i][j], (float, int, np.floating, np.integer))
                 else transition_moment_components[i][j]
-                for i in range(order+1)  # correction order
+                for i in range(order + 1)  # correction order
             ) for j in range(3)  # xyz
         ]
+
+    def _operator_representation(self,
+                                 ders,
+                                 M,
+                                 space,
+                                 bra_spaces,
+                                 ket_spaces,
+                                 order,
+                                 rep_inds,
+                                 base_sym="O"
+                                 ):
+
+        def get_states(m, k):
+            return self._get_rep_states(m, k, order, ket_spaces, bra_spaces)
+
+        if (
+            isinstance(ders, (np.ndarray, SparseArray)) and ders.shape == (M, M)
+            or self._is_zero(ders)
+        ): # we were passed representations to reuse
+            terms = ders
+        else:
+
+            coeffs = []
+            n = self.corrs.states.ndim
+            for i in range(order):
+                if self._is_zero(ders):
+                    coeffs.append(0)#np.zeros((n,) * i))
+                else:
+                    if len(ders) <= i or self._is_zero(ders[i]):
+                        coeffs.append(0)#np.zeros((n,) * i))
+                    else:
+                        coeffs.append(ders[i])
+
+            reps = []
+            for i, mu in enumerate(coeffs):
+                if self._is_zero(mu):
+                    reps.append(mu)
+                else:
+                    m = self.get_Mi(i, mu, base_sym=base_sym)
+                    inds = get_states(m, i)
+
+                    if i >= len(rep_inds):
+                        for d in range(i-len(rep_inds) + 1):
+                            rep_inds.append(None)
+                    rep_inds[i] = inds
+                    reps.append(m)
+
+            terms = [None] * len(reps)
+            tb = self.corrs.total_basis
+            for i, h in enumerate(reps):
+                if self._is_zero(h):
+                    terms[i] = 0
+                    continue
+
+                m_pairs = rep_inds[i]
+                if m_pairs is None:
+                    raise ValueError("representation indices haven't filled enough to calculate {}".format(h))
+
+                with self.logger.block(tag="building {}".format(h)):
+                    start = time.time()
+                    sub = h.get_representation_matrix(m_pairs, tb
+                                                      , zero_element_warning=False # expect zeros in M(3)?
+                                                      # , remove_duplicates=False
+                                                      )
+                    end = time.time()
+                    self.logger.log_print('took {t:.3f}s...', t=end - start)
+                # sub = generate_rep(h, m_pairs)
+                terms[i] = sub
+
+        return terms
+
+    # @profile
+    def _operator_corrections(self,
+        operator,
+        correction_terms=None,
+        lower_states=None,
+        excited_states=None,
+        degenerate_transformation=None,
+        order=None
+        ):
+        """
+        Calculates operator corrections between the wavefunctions stored.
+
+        :param operator: operator components (1st, 2nd, 3rd derivatives in normal modes)
+        :type operator: Iterable[np.ndarray]
+        :return:
+        :rtype:
+        """
+
+        if order is None:
+            exp_order = None if 'expansion_order' not in self.expansion_options else self.expansion_options['expansion_order']
+            if exp_order is None:
+                exp_order = self.order
+            elif isinstance(exp_order, int):
+                exp_order = exp_order + 1
+            else:
+                if 'default' in exp_order:
+                    exp_order = exp_order['default'] + 1
+                else:
+                    exp_order = self.order
+            order = min([exp_order, self.order])
+
+        logger = self.logger
+        with logger.block(tag="Calculating operator corrections:", printoptions={'linewidth': int(1e8)}):
+
+            space = self.corrs.coupled_states
+            # store this for handling the degenerate_transformation
+            lower_states_input = self.initial_state_indices if lower_states is None else lower_states
+            upper_states_input = tuple(range(space.nstates)) if excited_states is None else excited_states
+
+            if lower_states is None:
+                low_spec = self.initial_state_indices
+            else:
+                if isinstance(lower_states, (int, np.integer)):
+                    lower_states = (lower_states,)
+                low_spec = lower_states
+            lower_states = space[(low_spec,)]
+
+            if excited_states is None:
+                up_spec = tuple(range(space.nstates))
+                excited_states = space
+            else:
+                if isinstance(excited_states, (int, np.integer)):
+                    excited_states = (excited_states,)
+                up_spec = excited_states
+                excited_states = space[(up_spec,)]
+
+            bra_spaces = lower_states  # if isinstance(lower_states, BasisStateSpace) else lower_states.to_single().take_unique()
+            ket_spaces = excited_states  # if isinstance(excited_states, BasisStateSpace) else excited_states.to_single().take_unique()
+
+            # M = len(space.indices)
+            logger.log_print(
+                [
+                    "lower/upper states: {l}/{u}"
+                ],
+                l=len(low_spec),
+                u=len(up_spec)
+            )
+
+            if correction_terms is None:
+
+                with logger.block(tag='taking correction subspaces:'):
+                    start = time.time()
+                    logger.log_print('getting ground space...')
+                    corr_terms_lower = [self.corrs.wfn_corrections[i][low_spec, :] for i in range(order)]
+                    logger.log_print(
+                        [
+                            "highest-order space: {s}",
+                        ],
+                        s=corr_terms_lower[-1]
+                    )
+
+                    logger.log_print('getting excited space...')
+                    corr_terms_upper = [self.corrs.wfn_corrections[i][up_spec, :].T for i in range(order)]
+                    logger.log_print(
+                        [
+                            "highest-order space: {s}",
+                        ],
+                        s=corr_terms_upper[-1]
+                    )
+
+                    end = time.time()
+                    logger.log_print(
+                        [
+                            "took {t:.3f}s..."
+                        ],
+
+                        t=end - start
+                    )
+            else:
+                corr_terms_lower, corr_terms_upper = correction_terms
+
+            rep_inds = [None] * 4
+            M = self.corrs.wfn_corrections[0].shape[1]
+            total_space = self.corrs.total_basis
+            components = np.zeros((order,)).tolist()  # x, y, and z components of the 0th, 1st, and 2nd order stuff
+
+            # raise Exception(corr_terms[1], corr_terms_lower[1], corr_terms_upper[1], low_spec, len(low_spec), len(up_spec))
+
+            terms = self._operator_representation(
+                operator,
+                M,
+                total_space,
+                bra_spaces,
+                ket_spaces,
+                order,
+                rep_inds,
+                base_sym="O"
+            )
+
+            # raise Exception("...")
+            # logger.log_print(
+            #     [
+            #         "took {t:.3f}s..."
+            #     ],
+            #     t=end-start
+            # )
+
+            # raise Exception(mu_terms)
+            if degenerate_transformation is None:
+                degenerate_transformation = self.corrs.degenerate_transf
+            if degenerate_transformation is not None:
+                # raise  Exception("ugh")
+                # degenerate_transformation = degenerate_transformation.T
+
+                if len(lower_states_input) > 1:
+                    deg_transf_lower = degenerate_transformation[np.ix_(lower_states_input, lower_states_input)]
+                    if self.degenerate_transformation_layout == "column":
+                        deg_transf_lower = deg_transf_lower.T
+                else:
+                    deg_transf_lower = None
+                if len(upper_states_input) > 1:
+                    if self.degenerate_transformation_layout == "column":
+                        deg_transf_upper = degenerate_transformation[:, upper_states_input]
+                    else:
+                        deg_transf_upper = degenerate_transformation[upper_states_input, :].T
+                else:
+                    deg_transf_upper = None
+            else:
+                deg_transf_lower = deg_transf_upper = None
+
+            if degenerate_transformation is not None:
+                components_deg = np.zeros((order,)).tolist()  # x, y, and z components of the 0th, 1st, and 2nd order stuff
+            else:
+                components_deg = None
+
+            corr_terms = self.corrs.wfn_corrections
+            # define out reps based on partitioning style
+            logger.log_print(
+                [
+                    "non-zero terms: {nt}"
+                ],
+                nt=len(terms) - terms.count(0)
+            )
+
+            with logger.block(tag="calculating corrections..."):
+                start = time.time()
+                for q in range(order):  # total quanta
+                    # logger.log_print("calculating corrections at order {q}...", q=q)
+                    terms_depert = []
+                    terms_deg = []
+                    # should do this smarter
+                    for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
+                        if i + j + k == q:
+                            if len(terms) <= k or len(corr_terms) <= i or len(corr_terms) <= j:
+                                new = np.zeros((len(low_spec), len(up_spec)))
+                                new_deg = new
+                            else:
+                                m = terms[k]
+                                if isinstance(m, (int, float, np.integer, np.floating)) and m == 0:
+                                    # to make it easy to zero stuff out
+                                    new = np.zeros((len(lower_states_input), len(upper_states_input)))
+                                    new_deg = new
+                                else:
+                                    c_lower = corr_terms_lower[i]
+                                    c_upper = corr_terms_upper[j]
+                                    num = c_lower.dot(m)
+                                    new = num.dot(c_upper)
+                                    if degenerate_transformation is not None:
+                                        new_deg = new
+                                        if deg_transf_lower is not None:
+                                            new_deg = deg_transf_lower.dot(new_deg)
+                                        if deg_transf_upper is not None:
+                                            new_deg = new_deg.dot(deg_transf_upper)
+                                    else:
+                                        new_deg = None
+                                if isinstance(new, SparseArray):
+                                    new = new.asarray()
+                                new = new.reshape((len(lower_states_input), len(upper_states_input)))
+                            terms_depert.append(new)
+
+                            if degenerate_transformation is not None:
+                                if isinstance(new_deg, SparseArray):
+                                    new_deg = new_deg.asarray()
+                                new_deg = new_deg.reshape(
+                                    (len(lower_states_input), len(upper_states_input)))
+                                terms_deg.append(new_deg)
+                            # raise Exception(new.toarray())
+                    # print(q, a)
+                    components[q] = terms_depert
+                    if degenerate_transformation is not None:
+                        components[q] = terms_deg
+                    end = time.time()
+                    logger.log_print(
+                        "took {t:.3f}s",
+                        t=end - start
+                    )
+
+            # we calculate it explicitly like this up front in case we want to use it later since the shape
+            # can be a bit confusing ([0-order, 1-ord, 2-ord], [x, y, z])
+            val = self._compute_corr_to_order(components, order - 1)
+
+            if degenerate_transformation is not None:
+                val_deg = self._compute_corr_to_order(components_deg, order - 1)
+            else:
+                val_deg = None
+
+        return [
+            (val, components),
+            (val_deg, components_deg),
+            terms,
+            (corr_terms_lower, corr_terms_upper)
+        ]
+
+    @classmethod
+    def _compute_corr_to_order(cls, components, order):
+        # we calculate it explicitly like this up front in case we want to use it later since the shape
+        # can be a bit confusing ([0-order, 1-ord, 2-ord], [x, y, z])
+        return sum(
+                sum(ip.chain(components[i]))
+                    if not isinstance(components[i], (float, int, np.floating, np.integer)) else
+                components[i]
+                for i in range(order+1)  # correction order
+            )
+
+
 
     class TermHolder(tuple):
         """symbolic wrapper on Tuple so we can know that we've canonicalized some term"""
@@ -859,9 +1192,14 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
     def _oscillator_strengths(self, tms):
 
-        gs_tms = np.array([tms[i][0] for i in range(3)]).T
-        osc = np.linalg.norm(gs_tms, axis=1) ** 2
-        return osc
+        res = {}
+        for n,idx in enumerate(self.initial_state_indices):
+            gs_tms = np.array([tms[i][n] for i in range(3)]).T
+            osc = np.linalg.norm(gs_tms, axis=1) ** 2
+            res[idx] = osc
+        if self.initial_states is None:
+            res = res[0]
+        return res
 
     @property
     def intensities(self):
@@ -891,43 +1229,67 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         """
         return self._dep_intensities(self.deperturbed_oscillator_strengths)[1]
 
-    def intensities_to_order(self, order):
+    def intensities_to_order(self, order, return_freqs=False):
         """
         Computes the intensities for transitions from the ground state to the other states
 
         :return:
         :rtype:
         """
-        return self._intensities(self.oscillator_strengths_to_order(order), energy_order=order)[1]
+        res = self._intensities(self.oscillator_strengths_to_order(order), energy_order=order)
+        if not return_freqs:
+            res = res[1]
+        return res
 
-    def deperturbed_intensities_to_order(self, order):
+    def deperturbed_intensities_to_order(self, order, return_freqs=False):
         """
         Computes the intensities for transitions from the ground state to the other states
 
         :return:
         :rtype:
         """
-        return self._dep_intensities(self.deperturbed_oscillator_strengths_to_order(order), energy_order=order)[1]
+        res = self._dep_intensities(self.deperturbed_oscillator_strengths_to_order(order), energy_order=order)
+        if not return_freqs:
+            res = res[1]
+        return res
 
+    def _get_int(self, eng, oscs):
+        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
+        if isinstance(oscs, dict):
+            freqs = {}
+            ints = {}
+            for idx, o in oscs.items():
+                freqs[idx] = eng - eng[idx]
+                ints[idx] = units * freqs[idx] * o
+        else:
+            freqs = eng - eng[0]
+            ints = units * freqs * oscs
+        return freqs, ints
     def _dep_intensities(self, oscs, energy_order=None):
         if energy_order is None:
             eng = self.deperturbed_energies
         else:
             eng = self.energies_to_order(energy_order)
-        freqs = eng - eng[0]
-        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
-        return freqs, units * freqs * oscs
+
+        freqs, ints = self._get_int(eng, oscs)
+        if self.initial_states is None:
+            freqs = freqs[0]
+            ints = ints[0]
+        return freqs, ints
 
     def _intensities(self, oscs, energy_order=None):
         if energy_order is None:
             eng = self.energies
         elif self.degenerate_transformation is not None:
-            raise NotImplementedError("ugh")
+            raise NotImplementedError("degenerate transformation not yet included for energies_to_order...")
         else:
             eng = self.energies_to_order(energy_order)
-        freqs = eng - eng[0]
-        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
-        return freqs, units * freqs * oscs
+
+        freqs, ints = self._get_int(eng, oscs)
+        if self.initial_states is None:
+            freqs = freqs[0]
+            ints = ints[0]
+        return freqs, ints
 
     @property
     def zero_order_intensities(self):
@@ -937,16 +1299,62 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         :return:
         :rtype:
         """
-        eng = self.zero_order_energies
-        ints = self.deperturbed_intensities_to_order(0)
+        freqs, ints = self.deperturbed_intensities_to_order(0, return_freqs=True)
 
         with self.results: #TODO: this is the wrong place for this
             self.results['zero_order_spectrum'] = (
-                eng - eng[0],
+                freqs,
                 ints
             )
 
         return ints
+
+    def prep_operator_terms(self, coeffs):
+        needs_transform = None
+        if isinstance(coeffs, dict):
+            needs_transform = coeffs.get('transformed', None)
+            coeffs = coeffs['expansion']
+        coeffs = [
+            x
+                if isinstance(x, (int, np.integer, float, np.floating)) else
+            float(x)
+                if (isinstance(x, np.ndarray) and x.shape == ()) else
+            np.asanyarray(x)
+            for x in coeffs
+        ]
+        if needs_transform is None:
+            needs_transform = any(
+                isinstance(x, np.ndarray) and x.shape[-1] > self.corrs.states.ndim
+                for x in coeffs
+            )
+        if needs_transform:
+            const = coeffs[0]
+            coeffs = OperatorTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection,
+                                   operator_derivatives=coeffs[1:],
+                                   **ParameterManager(self.expansion_options).filter(OperatorTerms)
+                                   ).get_terms()
+            coeffs = [const] + coeffs
+        return coeffs
+
+    def operator_correction_data(self, operator_coeffs, order=None):
+        if isinstance(operator_coeffs, dict):
+            res = {}
+            corr_terms = None
+            for key, coeffs in operator_coeffs.items():
+                coeffs = self.prep_operator_terms(coeffs)
+                operator_dat = self._operator_corrections(
+                    coeffs,
+                    correction_terms=corr_terms,
+                    order=order
+                )
+                corr_terms = operator_dat[3]
+                res[key] = operator_dat
+            return res
+        else:
+            return self._operator_corrections(
+                operator_coeffs,
+                order=order
+            )
 
     def generate_intensity_breakdown(self, include_wavefunctions=True):
         """
@@ -956,11 +1364,12 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         :return:
         :rtype:
         """
+        raise NotImplementedError("unmaintained")
+
         from collections import OrderedDict
 
         engs = self.energies
         freqs = engs - engs[0]
-        # raise Exception(self.corrs.coupled_states.to_single().excitations)
         terms = OrderedDict((
             ("frequencies", freqs.tolist()),
             ('axes', self.mol.inertial_axes.tolist()),
@@ -1013,7 +1422,6 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 freqs, ints = self._intensities(oscs)
 
             full_corrs = self.transition_moment_corrections
-            # raise Exception([np.array(x).shape for x in full_corrs])
             corrs_keys = [y for x in ip.chain(
                 [(i, j, k) for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)) if i + j + k == q]
                 for q in range(len(full_corrs))
@@ -1045,6 +1453,8 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         :return:
         :rtype:
         """
+        raise NotImplementedError("unmaintained")
+
         import csv
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
@@ -1092,7 +1502,6 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 wfn_corrs = np.array(ib['wavefunctions']["corrections"])
                 coupled_states = ib['wavefunctions']["coupled_states"]
 
-                # raise Exception(coupled_states)
                 cs_keys = list(coupled_states)
                 for corr_block, state in zip(wfn_corrs.transpose((1, 0, 2)), states):
                     coupled_state_blocks.append([state] + cs_keys)
@@ -1102,9 +1511,9 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 writer.writerows([padding + x for x in coupled_state_blocks])
 
     @classmethod
-    def _format_energies_table(cls, states, zpe, freqs, real_fmt='{:>12.5f}'):
+    def _format_energies_table(cls, gs, zpe, states, freqs, real_fmt='{:>12.5f}'):
 
-        n_modes = len(states[0])
+        n_modes = len(gs)
 
         zpe = np.asanyarray(zpe)
         freqs = np.asanyarray(freqs)
@@ -1134,10 +1543,10 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             zpe_fmt = (real_fmt + " ") * ncols + (dash_fmt + " ") * ncols
             freq_fmt = (dash_fmt + " ") * ncols + (real_fmt + " ") * ncols
             lines = [
-                        states_fmt.format(*[0] * n_modes) + zpe_fmt.format(*zpe, *["-"] * ncols)] + [
+                        states_fmt.format(*gs) + zpe_fmt.format(*zpe, *["-"] * ncols)] + [
                         states_fmt.format(*s) + freq_fmt.format(*["-"] * ncols, *e)
-                        for s, e in
-                        zip(states[1:], freqs)
+                            for s, e in
+                        zip(states, freqs)
                     ]
         else:
             header = ["State" + " " * (padding - len("State")) + bar]
@@ -1149,7 +1558,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             freq_fmt = ncols + (real_fmt + " ") * ncols
             lines = [
                 states_fmt.format(*s) + freq_fmt.format(*e)
-                for s, e in
+                    for s, e in
                 zip(states, freqs)
             ]
 
@@ -1158,54 +1567,72 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             *lines,
         ])
 
-
-    def format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'):
-        # simple utility function pulled from the unit tests
+    def _format_group_energies_table(self, engs, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'):
 
         if states is None:
             states = self.corrs.states.excitations
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
-        harm_engs = self.zero_order_energies * h2w
-        engs = self.energies * h2w
-        if zpe is None and np.all(states[0] == 0):
-            zpe = [harm_engs[0], engs[0]]
+        res = {}
 
-        if freqs is None:
-            harm_freq = harm_engs[1:] - harm_engs[0]
-            anh_freqs = engs[1:] - engs[0]
+        harm_engs = self.zero_order_energies * h2w
+        engs = engs * h2w
+
+        if zpe is not None:
+            if self.initial_states is not None:
+                raise NotImplementedError("don't know with multiple initial states and a passed ZPE")
+            return self._format_energies_table(
+                [0]*states.shape[-1],
+                zpe,
+                states[1:],
+                freqs,
+                real_fmt=real_fmt
+            )
+
+        for init in self.initial_state_indices:
+            subsel = np.concatenate([np.arange(init), np.arange(init+1, len(states))])
+
+            # if zpe is None:# and np.all(states[0] == 0):
+            zpe = [harm_engs[init], engs[init]]
+
+            # if freqs is None:
+            harm_freq = harm_engs[subsel] - harm_engs[init]
+            anh_freqs = engs[subsel] - engs[init]
             freqs = np.column_stack([harm_freq, anh_freqs])
 
-        return self._format_energies_table(
-            states,
-            zpe,
-            freqs,
+            res[init] = self._format_energies_table(
+                states[init],
+                zpe,
+                states[subsel],
+                freqs,
+                real_fmt=real_fmt
+            )
+
+        if self.initial_states is None:
+            res = res[0]
+        else:
+            max_line_len = max(len(l) for l in next(iter(res.values())).splitlines())
+            sep = "\n"+("-"*max_line_len)+"\n"
+            res = sep.join(res.values())
+
+        return res
+
+    def format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'):
+        return self._format_group_energies_table(
+            self.energies,
+            states=states,
+            zpe=zpe,
+            freqs=freqs,
             real_fmt=real_fmt
         )
 
     def format_deperturbed_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'):
-        # simple utility function pulled from the unit tests
-
-        if states is None:
-            states = self.corrs.states.excitations
-
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-
-        harm_engs = self.zero_order_energies * h2w
-        engs = self.deperturbed_energies * h2w
-        if zpe is None and np.all(states[0] == 0):
-            zpe = [harm_engs[0], engs[0]]
-
-        if freqs is None:
-            harm_freq = harm_engs[1:] - harm_engs[0]
-            anh_freqs = engs[1:] - engs[0]
-            freqs = np.column_stack([harm_freq, anh_freqs])
-
-        return self._format_energies_table(
-            states,
-            zpe,
-            freqs,
+        return self._format_group_energies_table(
+            self.deperturbed_energies,
+            states=states,
+            zpe=zpe,
+            freqs=freqs,
             real_fmt=real_fmt
         )
 
@@ -1213,40 +1640,57 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
         # reshape data so it's one big matrix...
         order = len(prop_corrs)
-        term_keys = []
-        terms = []
-        for q in range(order):  # total quanta
-            for pq in prop_corrs[q]:
-                if len(pq) > 1:
-                    raise NotImplementedError(
-                        "don't know what to do when more than one starting state (got {})".format(
-                            len(pq)
-                        )
-                    )
-                terms.append(pq[0])
-            for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
-                if i + j + k == q:
-                    term_keys.append("<{i}|M({k})|{j}>".format(i=i, j=j, k=k))
+        res = {}
+        for i,idx in enumerate(self.initial_state_indices):
 
-        # print(len(terms), [len(x) for x in terms])
-        terms = np.array(terms).T
+            term_keys = []
+            terms = []
 
-        nels = len(padding_fmt.format(real_fmt.format(0)))
-        header_fmt = "{:<" + str(nels) + "}"
-        header = " ".join(header_fmt.format(k) for k in term_keys)
+            for q in range(order):  # total quanta
+                for pq in prop_corrs[q]:
+                    # if len(pq) > 1:
+                    #     raise NotImplementedError(
+                    #         "don't know what to do when more than one starting state (got {})".format(
+                    #             len(pq)
+                    #         )
+                    #     )
+                    terms.append(pq[i])
+                for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
+                    if i + j + k == q:
+                        term_keys.append("<{i}|M({k})|{j}>".format(i=i, j=j, k=k))
 
-        n_modes = self.corrs.total_basis.ndim
-        padding = np.max([len(str("0 " * n_modes)), 1]) + 1
-        header = "State" + " " * (padding - 3) + header
+            # print(len(terms), [len(x) for x in terms])
+            terms = np.array(terms).T
 
-        n_terms = len(term_keys)
-        prop_mat = header + "\n" + "\n".join(
-            "  " + ("{:<1.0f} " * n_modes).format(*s) +
-            " ".join(padding_fmt.format(real_fmt.format(ll)) for ll in l)
-            for s, l in zip(states, terms)
-        )
+            nels = len(padding_fmt.format(real_fmt.format(0)))
+            header_fmt = "{:<" + str(nels) + "}"
+            header = " ".join(header_fmt.format(k) for k in term_keys)
 
-        return prop_mat
+            n_modes = self.corrs.total_basis.ndim
+            padding = np.max([len(str("0 " * n_modes)), 1]) + 1
+            header = "State" + " " * (padding - 3) + header
+
+            n_terms = len(term_keys)
+            prop_mat = header + "\n" + "\n".join(
+                "  " + ("{:<1.0f} " * n_modes).format(*s) +
+                " ".join(padding_fmt.format(real_fmt.format(ll)) for ll in l)
+                for s, l in zip(states, terms)
+            )
+
+            res[idx] = prop_mat
+
+        if self.initial_states is None:
+            res = res[0]
+        else:
+            _ = []
+            for idx, mats in res.items():
+                head = "Initial State: {}\n".format("{:<1.0f} " * len(states[idx])).format(*states[idx])
+                _.append(head + mats)
+            max_line_len = max(len(l) for l in _[0].splitlines())
+            sep = "\n"+("-"*max_line_len)+"\n"
+            res = sep.join(_)
+
+        return res
 
     def format_dipole_contribs_tables(self):
 
@@ -1329,37 +1773,167 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                         + spacer
                         + real_fmt + " " + real_fmt
                 ).format(*s, hf, hi, f, i)
-                for s, hf, hi, f, i in zip(states[1:], harm_freqs[1:], harm_ints[1:], freqs[1:], ints[1:])
+                for s, hf, hi, f, i in zip(states, harm_freqs, harm_ints, freqs, ints)
             ))
 
         return report
 
-    def format_intensities_table(self, real_fmt="{:>12.5f}"):
+    def _format_group_intensities_table(self, engs, ints, states=None, real_fmt='{:>12.5f}'):
+
+        if states is None:
+            states = self.corrs.states.excitations
+
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
 
-        states = self.corrs.states.excitations
+        res = {}
 
-        engs = h2w * self.energies
-        freqs = engs - engs[0]
-        ints = self.intensities
+        harm_engs = self.zero_order_energies * h2w
+        engs = engs * h2w
 
-        harm_engs = h2w * self.zero_order_energies
-        harm_freqs = harm_engs - harm_engs[0]
-        harm_ints = self.zero_order_intensities
+        zints = self.zero_order_intensities
 
-        return self._format_intensities_table(states, freqs, ints, harm_freqs, harm_ints)
+        for init_idx in self.initial_state_indices:
+            subsel = np.concatenate([np.arange(init_idx), np.arange(init_idx+1, len(states))])
+
+            harm_freqs = harm_engs[subsel] - harm_engs[init_idx]
+            freqs = engs[subsel] - engs[init_idx]
+
+            if isinstance(zints, dict):
+                harm_ints = zints[init_idx][subsel]
+            else:
+                harm_ints = zints
+
+            if isinstance(ints, dict):
+                anh_ints = ints[init_idx][subsel]
+            else:
+                anh_ints = ints
+
+            res[init_idx] = self._format_intensities_table(states[subsel], freqs, anh_ints, harm_freqs, harm_ints, real_fmt=real_fmt)
+            # self._format_energies_table(
+            #     states[init],
+            #     zpe,
+            #     states[subsel],
+            #     freqs,
+            #     real_fmt=real_fmt
+            # )
+
+        if self.initial_states is None:
+            res = res[0]
+        else:
+            _ = []
+            for idx, mats in res.items():
+                head = "Initial State: {}\n".format("{:<1.0f} " * len(states[idx])).format(*states[idx])
+                _.append(head + mats)
+            max_line_len = max(len(l) for l in _[0].splitlines())
+            sep = "\n"+("-"*max_line_len)+"\n"
+            res = sep.join(_)
+
+        return res
+
+    def format_intensities_table(self, real_fmt="{:>12.5f}"):
+        return self._format_group_intensities_table(
+            self.energies,
+            self.intensities,
+            states=self.corrs.states.excitations,
+            real_fmt=real_fmt
+        )
 
     def format_deperturbed_intensities_table(self, real_fmt="{:>12.5f}"):
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        return self._format_group_intensities_table(
+            self.deperturbed_energies,
+            self.deperturbed_intensities,
+            states=self.corrs.states.excitations,
+            real_fmt=real_fmt
+        )
 
+    def _format_operator_table(self, states, val, zo_val, real_fmt="{:>12.5f}"):
+        # simple utility function pulled from the unit tests
+
+        n_modes = self.corrs.total_basis.ndim
+        padding = np.max([len(str("0 " * n_modes)), 1]) + 1
+
+        num_digits = len(real_fmt.format(0))
+
+        spacer = " "
+        line_template = (
+                "  " + ("{:<1.0f} " * n_modes) + " "
+                + real_fmt
+                + spacer
+                + real_fmt
+        )
+        htag = "Harmonic"; hpad = (num_digits - len(htag))
+        atag = "Anharmonic"; apad = (num_digits - len(atag))
+        bar = (
+                (" " * hpad if hpad > 0 else "") + htag
+                + spacer
+                + (" " * apad if apad > 0 else "") + atag
+                )
+
+        report = ["State" + " " * (padding - len("State") + 2) + bar]
+        report = report + [
+                line_template.format(*s, hi, i)
+                for s, hi, i in zip(states, zo_val, val)
+            ]
+        report = "\n".join(report)
+
+        return report
+
+    def _format_group_operator_table(self, operator_data, states=None, real_fmt='{:>12.5f}'):
+
+        if states is None:
+            states = self.corrs.states.excitations
+
+        res = {}
+
+        for init_idx in self.initial_state_indices:
+            zo_val = self._compute_corr_to_order(operator_data[0][1], 0)[init_idx]
+
+            if self.degenerate_transformation is None:
+                val = operator_data[0][0]
+            else:
+                val = operator_data[1][0]
+            val = val[init_idx]
+
+            res[init_idx] = self._format_operator_table(states, val, zo_val, real_fmt=real_fmt)
+            # self._format_energies_table(
+            #     states[init],
+            #     zpe,
+            #     states[subsel],
+            #     freqs,
+            #     real_fmt=real_fmt
+            # )
+
+        if self.initial_states is None:
+            res = res[0]
+        else:
+            _ = []
+            for idx, mats in res.items():
+                head = "Initial State: {}\n".format("{:<1.0f} " * len(states[idx])).format(*states[idx])
+                _.append(head + mats)
+            max_line_len = max(len(l) for l in _[0].splitlines())
+            sep = "\n"+("-"*max_line_len)+"\n"
+            res = sep.join(_)
+
+        return res
+
+    def format_operator_table(self, operators, real_fmt="{:>12.5f}"):
+
+        if not isinstance(operators, dict):
+            operators = {'Operator': operators}
+        corr_data = self.operator_correction_data(operators)
         states = self.corrs.states.excitations
 
-        engs = h2w * self.deperturbed_energies
-        freqs = engs - engs[0]
-        ints = self.deperturbed_intensities
+        res = []
+        for k, dat in corr_data.items():
+            res.append(
+                "{sep} {k} {sep}\n{tab}".format(k=k,
+                                                sep="=" * 50,
+                                                tab=self._format_group_operator_table(
+                                                    dat,
+                                                    states=states,
+                                                    real_fmt=real_fmt
+                                                ))
+            )
+        res = "\n".join(res)
 
-        harm_engs = h2w * self.zero_order_energies
-        harm_freqs = harm_engs - harm_engs[0]
-        harm_ints = self.zero_order_intensities
-
-        return self._format_intensities_table(states, freqs, ints, harm_freqs, harm_ints, real_fmt=real_fmt)
+        return res
