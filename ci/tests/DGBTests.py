@@ -386,655 +386,671 @@ class DGBTests(TestCase):
 
         dvr_wfns = None
 
-        for ts in [2500]:
-            for nt in [15]:
-                for dc in [.1]:
-                    for et in [np.min(de) - 100*UnitsData.convert("Wavenumbers", "Hartrees")]:
+        max_e = np.min(de) - 100*UnitsData.convert("Wavenumbers", "Hartrees")
+        for ts in [500]:#[1000, 2500, 5000]:
+            for nt in [1]:#[1, 5, 15]:
+                for dt in [5]:#[1, 2, 5]:
+                    for dc in [0.000001]:#[.05, .1]:
+                        for et in [max_e]:#[np.max(w), 2*np.max(w), np.min(de) - 100*UnitsData.convert("Wavenumbers", "Hartrees")]:
 
-                        ntraj = nt
-                        traj_steps = ts
-                        trad_dt = 2
-                        e_tot = et
-                        disp_rad = np.power([1e-8, 1e-8], 2)
-                        vel_cov = np.power([.2, 1], 2)
+                            ntraj = nt
+                            traj_steps = ts
+                            trad_dt = dt
+                            e_tot = et
+                            disp_rad = np.power([1e-8, 1e-8], 2)
+                            vel_cov = np.power([.2, 1], 2)
 
-                        distance_cutoff = dc
+                            distance_cutoff = dc
 
-                        scaling = 1
-                        rp_scaling = scaling
-                        min_rp_freq = 800 * UnitsData.convert("Wavenumbers", "Hartrees")
-                        min_rp_mass = 900
-                        sing_cutoff = 0.01
-                        min_dist_alpha_scaling = None
-                        potential_scaling = None
+                            scaling = 1
+                            rp_scaling = scaling
+                            min_rp_freq = 100 * UnitsData.convert("Wavenumbers", "Hartrees")
+                            # min_rp_mass = 900
+                            sing_cutoff = 1e-4
+                            min_dist_alpha_scaling = None
+                            potential_scaling = None
 
-                        diag_scaling = 2
-                        hess_diag_sing_cutoff = 0.01
-                        num_svd_vectors = 10000
-                        min_dist_scaling = 1/35
-                        min_dist_min_sin = 0.01
+                            diag_scaling = 2
+                            hess_diag_sing_cutoff = 1e-4
+                            num_svd_vectors = 10000
+                            min_dist_scaling = 1/4
+                            min_dist_min_sin = 1e-4
 
-                        exp_deg = 6
-                        e_cut = np.max(de) #3 * np.max(w)
-                        plot_traj = False
-                        plot_orthog = False#[0, 1, 2, 3, 4, 5]
-                        plot_dists = True
-                        plot_wfns = 4
-                        plot_spectrum = True
-                        throw_energies = False
+                            exp_deg = 2
+                            e_cut = np.max(de) #3 * np.max(w)
+                            plot_traj = False
+                            plot_orthog = False#range(15, 20)
+                            plot_S_eigenvectors = True
+                            plot_dists = True
+                            plot_wfns = 7
+                            plot_spectrum = True
+                            throw_energies = False
 
-                        opts = dict(
-                            omega=w * UnitsData.convert("Hartrees", "Wavenumbers"),
-                            omegax=wx* UnitsData.convert("Hartrees", "Wavenumbers"),
-                            re=re,
-                            masses=masses,
+                            opts = dict(
+                                omega=w * UnitsData.convert("Hartrees", "Wavenumbers"),
+                                omegax=wx* UnitsData.convert("Hartrees", "Wavenumbers"),
+                                re=re,
+                                masses=masses,
 
-                            ntraj=ntraj,
-                            traj_steps = traj_steps,
-                            trad_dt = trad_dt,
-                            e_tot = e_tot,
-                            disp_rad = disp_rad,
-                            vel_cov = vel_cov,
+                                ntraj=ntraj,
+                                traj_steps = traj_steps,
+                                trad_dt = trad_dt,
+                                e_tot = e_tot,
+                                disp_rad = disp_rad,
+                                vel_cov = vel_cov,
 
-                            distance_cutoff = distance_cutoff,
+                                distance_cutoff = distance_cutoff,
 
-                            scaling=scaling,
-                            rp_scaling = rp_scaling,
-                            min_rp_freq = min_rp_freq * UnitsData.convert("Hartrees", "Wavenumbers"),
-                            min_rp_mass = min_rp_mass,
-                            sing_cutoff = sing_cutoff,
-                            min_dist_alpha_scaling = min_dist_alpha_scaling,
-                            potential_scaling = potential_scaling,
+                                scaling=scaling,
+                                rp_scaling = rp_scaling,
+                                min_rp_freq = min_rp_freq * UnitsData.convert("Hartrees", "Wavenumbers"),
+                                # min_rp_mass = min_rp_mass,
+                                sing_cutoff = sing_cutoff,
+                                min_dist_alpha_scaling = min_dist_alpha_scaling,
+                                potential_scaling = potential_scaling,
 
-                            diag_scaling = diag_scaling,
-                            hess_diag_sing_cutoff = hess_diag_sing_cutoff,
-                            num_svd_vectors = num_svd_vectors,
-                            min_dist_scaling = min_dist_scaling,
-                            min_dist_min_sin = min_dist_min_sin
-                        )
-
-                        import datetime
-                        plots_dir = os.path.join(
-                            os.path.expanduser("~/Documents/Postdoc/AIMD-Spec/2D_tests"),
-                            "Exp{}/T{}/N{}/E{}/D{}/{}".format(
-                                exp_deg,
-                                traj_steps, ntraj,
-                                round(e_tot*UnitsData.convert("Hartrees", "Wavenumbers")),
-                                distance_cutoff,
-                                datetime.datetime.now().isoformat()
+                                diag_scaling = diag_scaling,
+                                hess_diag_sing_cutoff = hess_diag_sing_cutoff,
+                                num_svd_vectors = num_svd_vectors,
+                                min_dist_scaling = min_dist_scaling,
+                                min_dist_min_sin = min_dist_min_sin
                             )
-                        )
-                        plots_dir = None
-                        if plots_dir is not None:
-                            os.makedirs(plots_dir, exist_ok=True)
-                            with Checkpointer.from_file(os.path.join(plots_dir, 'params.json')) as chk:
-                                for k,v in opts.items():
-                                    chk[k] = v
 
-
-                        np.random.seed(0)
-                        disps = np.random.multivariate_normal([0, 0], np.diag(disp_rad), size=(ntraj,))
-                        coords = re[np.newaxis] + disps
-                        coords = (rot_mat.T[np.newaxis]@coords[:, :, np.newaxis]).reshape(-1, ndim)
-
-                        e_rem = e_tot - simple_morse(coords)
-                        coords = coords[e_rem > 0]
-                        e_rem = e_rem[e_rem > 0]
-                        dirs = np.random.multivariate_normal([0, 0], np.diag(vel_cov), size=(ntraj,))
-                        cur_e = np.abs(dirs) * w
-                        e_part = cur_e * ( e_rem / np.sum(cur_e, axis=1) )[:, np.newaxis]
-                        v_part = np.sign(dirs) * np.sqrt(2 * e_part / masses)
-                        vels = rot_mat.T[np.newaxis]@v_part[:, :, np.newaxis]
-                        vels = np.reshape(vels, (-1, ndim))
-                        sim_mass = masses
-                        # sim_mass = rot_mat.T@masses
-                        # raise Exception(e_tot, np.sum(masses[np.newaxis]/2*vels**2, axis=1))
-
-                        #
-                        #
-                        # if vel_rad is not None:
-                        #     vels = np.random.multivariate_normal([0, 0], np.diag(vel_rad), size=(ntraj,))
-                        # else:
-                        #     vels = np.zeros_like(coords)
-                        # vels = (rot_mat[np.newaxis]@vels[:, :, np.newaxis]).reshape(-1, ndim)
-
-                        forces = lambda c: -simple_morse(c, deriv_order=1)
-                        sim = AIMDSimulator(sim_mass, coords, velocities=vels, sampling_rate=10, force_function=forces, track_kinetic_energy=True, timestep=trad_dt)
-                        sim.propagate(traj_steps)
-
-                        pts = np.array(sim.trajectory).reshape(-1, ndim)
-
-                        # total_e = (
-                        #     np.array(simple_morse(pts)) +
-                        #         np.array(sim.kinetic_energies)
-                        # )
-                        # plt.Plot(np.arange(len(total_e)), total_e).show()
-                        # raise Exception(...)
-
-                        def get_plot_grid(pts):
-                            plot_grid = np.array(
-                                np.meshgrid(
-                                    *(
-                                        np.linspace(
-                                            min(d[0], np.min(pts[:, i] - .1)),
-                                            max(d[1], np.max(pts[:, i] + .1)),
-                                            75
-                                        )
-                                        for i, (d, n) in enumerate(zip(domain, ndivs)))
+                            import datetime
+                            plots_dir = os.path.join(
+                                os.path.expanduser("~/Documents/Postdoc/AIMD-Spec/2D_tests"),
+                                "Exp{}/T{}/N{}/DT{}/E{}/D{}/{}".format(
+                                    exp_deg,
+                                    traj_steps, ntraj, trad_dt,
+                                    round(e_tot*UnitsData.convert("Hartrees", "Wavenumbers")),
+                                    distance_cutoff,
+                                    datetime.datetime.now().isoformat()
                                 )
                             )
-                            plot_pts = np.moveaxis(plot_grid, 0, 2).reshape(-1, ndim)
+                            plots_dir = None
+                            if plots_dir is not None:
+                                os.makedirs(plots_dir, exist_ok=True)
+                                with Checkpointer.from_file(os.path.join(plots_dir, 'params.json')) as chk:
+                                    for k,v in opts.items():
+                                        chk[k] = v
 
-                            return plot_grid, plot_pts
 
-                        if plot_traj or plots_dir is not None:
-                            plot_grid, plot_pts = get_plot_grid(pts)
-                            plot_vals = simple_morse(plot_pts).reshape(plot_grid[0].shape)
-                            vmax = e_cut + np.max(w)  # 10000 * UnitsData.convert("Wavenumbers", "Hartrees")
-                            plot_vals[plot_vals > vmax] = vmax
-                            fig = plt.ContourPlot(*plot_grid, plot_vals, levels=20)
-                            ploot = plt.ScatterPlot(pts[:, 0], pts[:, 1], figure=fig, color='red')
+                            np.random.seed(0)
+                            disps = np.random.multivariate_normal([0, 0], np.diag(disp_rad), size=(ntraj,))
+                            coords = re[np.newaxis] + disps
+                            coords = (rot_mat.T[np.newaxis]@coords[:, :, np.newaxis]).reshape(-1, ndim)
 
-                            if plots_dir is None:
-                                ploot.show()
+                            e_rem = e_tot - simple_morse(coords)
+                            coords = coords[e_rem > 0]
+                            e_rem = e_rem[e_rem > 0]
+
+                            # perp_rot = np.array([
+                            #     [np.cos(np.pi/2), -np.sin(np.pi/2)],
+                            #     [np.sin(np.pi/2),  np.cos(np.pi/2)]
+                            # ])
+                            # dirs = perp_rot[np.newaxis]@simple_morse(coords, deriv_order=1)[:, :, np.newaxis]
+                            # dirs = dirs.reshape(coords.shape)
+                            dirs = np.random.multivariate_normal([0, 0], np.diag(vel_cov), size=(len(e_rem),))
+                            cur_e = np.abs(dirs) * w
+                            e_part = cur_e * ( e_rem / np.sum(cur_e, axis=1) )[:, np.newaxis]
+                            v_part = np.sign(dirs) * np.sqrt(2 * e_part / masses)
+                            vels = rot_mat.T[np.newaxis]@v_part[:, :, np.newaxis]
+                            vels = np.reshape(vels, (-1, ndim))
+                            sim_mass = masses
+                            # sim_mass = rot_mat.T@masses
+                            # raise Exception(e_tot, np.sum(masses[np.newaxis]/2*vels**2, axis=1))
+
+                            #
+                            #
+                            # if vel_rad is not None:
+                            #     vels = np.random.multivariate_normal([0, 0], np.diag(vel_rad), size=(ntraj,))
+                            # else:
+                            #     vels = np.zeros_like(coords)
+                            # vels = (rot_mat[np.newaxis]@vels[:, :, np.newaxis]).reshape(-1, ndim)
+
+                            forces = lambda c: -simple_morse(c, deriv_order=1)
+                            sim = AIMDSimulator(sim_mass, coords, velocities=vels, sampling_rate=10, force_function=forces, track_kinetic_energy=True, timestep=trad_dt)
+                            sim.propagate(traj_steps)
+
+                            pts = np.array(sim.trajectory).reshape(-1, ndim)
+
+                            # total_e = (
+                            #     np.array(simple_morse(pts)) +
+                            #         np.array(sim.kinetic_energies)
+                            # )
+                            # plt.Plot(np.arange(len(total_e)), total_e).show()
+                            # raise Exception(...)
+
+                            def get_plot_grid(pts):
+                                plot_grid = np.array(
+                                    np.meshgrid(
+                                        *(
+                                            np.linspace(
+                                                min(d[0], np.min(pts[:, i] - .1)),
+                                                max(d[1], np.max(pts[:, i] + .1)),
+                                                75
+                                            )
+                                            for i, (d, n) in enumerate(zip(domain, ndivs)))
+                                    )
+                                )
+                                plot_pts = np.moveaxis(plot_grid, 0, 2).reshape(-1, ndim)
+
+                                return plot_grid, plot_pts
+
+                            if plot_traj or plots_dir is not None:
+                                plot_grid, plot_pts = get_plot_grid(pts)
+                                plot_vals = simple_morse(plot_pts).reshape(plot_grid[0].shape)
+                                vmax = e_cut + np.max(w)  # 10000 * UnitsData.convert("Wavenumbers", "Hartrees")
+                                plot_vals[plot_vals > vmax] = vmax
+                                fig = plt.ContourPlot(*plot_grid, plot_vals, levels=20, name='Traj Plot')
+                                plt.ScatterPlot(pts[:, 0], pts[:, 1], figure=fig, color='red', name="Traj Points")
+
+                                if plots_dir is None:
+                                    fig.show()
+                                else:
+                                    fig.savefig(os.path.join(plots_dir, 'traj.png'))
+                                    fig.close()
+
+                            np.random.seed(0)
+                            # npts = 20
+                            v = simple_morse(pts)
+                            sorting = np.argsort(v)
+                            v = v[sorting]
+                            pts = pts[sorting]
+                            cuts = [
+                                [e_cut, None]
+                                # [ 10, 50]
+                            ]
+
+                            resample = []
+                            eprev = 0
+                            # plt.TriContourPlot(pts[:, 0], pts[:, 1], v).show()
+                            for ecut, npts in cuts:
+                                sub = pts[np.logical_and(eprev < v, v < ecut)]
+                                resample.append(
+                                    sub[np.random.choice(len(sub), npts, replace=False)]
+                                        if npts is not None and len(sub) > npts else
+                                    sub
+                                )
+                            pts = np.concatenate(resample, axis=0)
+
+                            def decluster(pts, radius):
+                                mask = np.ones(len(pts), dtype=bool)
+                                for i in range(len(pts) - 1):
+                                    if mask[i]:
+                                        test_pos = np.where(mask[i+1:])
+                                        if len(test_pos) == 0 or len(test_pos[0]) == 0:
+                                            break
+                                        samp_pos = i + 1 + test_pos[0]
+                                        dists = np.linalg.norm(pts[samp_pos] - pts[i][np.newaxis], axis=1)
+                                        mask[samp_pos] = dists > radius
+                                return pts[mask]
+
+                            pts = decluster(pts, distance_cutoff)
+                            npts = len(pts)
+
+                            grads = simple_morse(pts, deriv_order=1)
+                            hess = simple_morse(pts, deriv_order=2)
+
+                            alphas = np.zeros((npts, ndim))
+                            rots = np.zeros((npts, ndim, ndim))
+
+                            rm = np.array([reduced_mass]*ndim)
+                            grads = grads / np.sqrt(rm[np.newaxis]) # mass-weight
+                            hess = hess / np.sqrt(rm[np.newaxis, :, np.newaxis] * rm[np.newaxis, np.newaxis, :])
+
+                            grad_norms = np.linalg.norm(grads,  axis=1)
+                            non_stationary = grad_norms > 1e-6
+                            stationary = np.where(grad_norms <= 1e-6)
+                            if len(stationary) == 0:
+                                stationary = np.array([], dtype=int)
                             else:
-                                ploot.savefig(os.path.join(plots_dir, 'traj.png'))
-                                ploot.close()
+                                stationary = stationary[0]
 
-                        np.random.seed(0)
-                        # npts = 20
-                        v = simple_morse(pts)
-                        sorting = np.argsort(v)
-                        v = v[sorting]
-                        pts = pts[sorting]
-                        cuts = [
-                            [e_cut, None]
-                            # [ 10, 50]
-                        ]
+                            # obviously kinda an adaptation...but the reduced masses are the smae
+                            # for both coords so it's just a scaling factor
+                            rp_mode = grads[non_stationary] / grad_norms[non_stationary][:, np.newaxis]
+                            num_rp = np.sum(non_stationary.astype(int))
+                            proj = np.broadcast_to(np.eye(ndim)[np.newaxis], (num_rp, ndim, ndim)) - nput.vec_outer(rp_mode, rp_mode)
+                            h2 = proj@hess[non_stationary]@proj
+                            freqs, modes = np.linalg.eigh(h2)
+                            # f2, _ = np.linalg.eigh(hess[non_stationary])
+                            # f3 = np.array([
+                            #     scipy.linalg.eigh(hh, np.diag(1/np.asanyarray(masses)), type=2)[0]
+                            #     for hh in simple_morse(pts[non_stationary], deriv_order=2)
+                            #     ])
+                            # raise Exception(f3, f2)
+                            modes[:, :, 1] = modes[:, :, 1] * np.linalg.det(modes)[:, np.newaxis]
+                            modes = modes.transpose(0, 2, 1)
+                            # raise Exception(modes @ rp_mode[:, :, np.newaxis])
+                            # rp_freqs = rp_mode[:, np.newaxis, :]@hess[non_stationary]@rp_mode[:, :, np.newaxis]
 
-                        resample = []
-                        eprev = 0
-                        # plt.TriContourPlot(pts[:, 0], pts[:, 1], v).show()
-                        for ecut, npts in cuts:
-                            sub = pts[np.logical_and(eprev < v, v < ecut)]
-                            resample.append(
-                                sub[np.random.choice(len(sub), npts, replace=False)]
-                                    if npts is not None and len(sub) > npts else
-                                sub
-                            )
-                        pts = np.concatenate(resample, axis=0)
+                            freq_cuts = np.abs(freqs) < 1e-8
+                            kill_pos = np.where(np.all(freq_cuts, axis=1))
+                            if len(kill_pos) > 0 and len(kill_pos[0]) > 0:
+                                # plot_grid, plot_pts = get_plot_grid(pts)
+                                # base = plt.ContourPlot(*plot_grid, simple_morse(plot_pts).reshape(plot_grid[0].shape), levels=20)
+                                sel = np.where(non_stationary)[0][kill_pos]
+                                # plt.ScatterPlot(pts[np.ix_(sel, [0])], pts[np.ix_(sel, [1])], color='red', figure=base)
+                                # base.show()
+                                # raise ValueError("bad points")
+                                stationary = np.unique(np.concatenate([stationary, sel]))
 
-                        def decluster(pts, radius):
-                            mask = np.ones(len(pts), dtype=bool)
-                            for i in range(len(pts) - 1):
-                                if mask[i]:
-                                    test_pos = np.where(mask[i+1:])
-                                    if len(test_pos) == 0 or len(test_pos[0]) == 0:
-                                        break
-                                    samp_pos = i + 1 + test_pos[0]
-                                    dists = np.linalg.norm(pts[samp_pos] - pts[i][np.newaxis], axis=1)
-                                    mask[samp_pos] = dists > radius
-                            return pts[mask]
+                            zi = np.where(freq_cuts)
+                            for i, j in zip(*zi):
+                                m = modes[i, :, j][:, np.newaxis]
+                                f = m.T @ hess[i] @ m
+                                freqs[i, j] = f
+                            freqs = np.sqrt(np.abs(freqs))
+                            freqs[freqs < min_rp_freq] = min_rp_freq
+                            freqs[zi] *= (rp_scaling / scaling)**2
 
-                        pts = decluster(pts, distance_cutoff)
-                        npts = len(pts)
+                            # masses = np.reshape(modes@np.array([[[reduced_mass]]*ndim]), (num_rp, ndim))
 
-                        grads = simple_morse(pts, deriv_order=1)
-                        hess = simple_morse(pts, deriv_order=2)
+                            g = np.diag(1/masses)
+                            g = modes.transpose(0, 2, 1)@g[np.newaxis]@modes
+                            rpms = 1/np.diagonal(g, axis1=1, axis2=2) # note this is the same as masses...
+                            alphas[non_stationary] = scaling * rpms * freqs
+                            rots[non_stationary] = modes
 
-                        alphas = np.zeros((npts, ndim))
-                        rots = np.zeros((npts, ndim, ndim))
+                            # rp_coords = rp_mode[:, np.newaxis, np.newaxis, :] @ pts[np.newaxis, :, :, np.newaxis]
+                            # rp_coords = rp_coords.reshape((len(non_stationary), len(pts)))
+                            # raise Exception(rp_coords)
 
-                        rm = np.array([reduced_mass]*ndim)
-                        grads = grads / np.sqrt(rm[np.newaxis]) # mass-weight
-                        hess = hess / np.sqrt(rm[np.newaxis, :, np.newaxis] * rm[np.newaxis, np.newaxis, :])
+                            if len(stationary) > 0:
+                                freqs2, modes = np.linalg.eigh(hess[stationary])
+                                freqs = np.sqrt(np.abs(freqs2))
+                                g = np.diag(1 / masses)
+                                g = modes.transpose(0, 2, 1) @ g[np.newaxis] @ modes
+                                rpms = 1/np.diagonal(g, axis1=1, axis2=2) # note this is the same as masses...
+                                alphas[stationary] = scaling * rpms * freqs
+                                rots[stationary] = modes
 
-                        grad_norms = np.linalg.norm(grads,  axis=1)
-                        non_stationary = grad_norms > 1e-6
-                        stationary = np.where(grad_norms <= 1e-6)
-                        if len(stationary) == 0:
-                            stationary = np.array([], dtype=int)
-                        else:
-                            stationary = stationary[0]
+                            ri, ci = np.triu_indices(npts, k=1)
+                            dmat = np.full((npts, npts), 1000, dtype=float)
+                            dists = np.linalg.norm(pts[ri] - pts[ci], axis=1)
+                            dmat[ri, ci] = dmat[ci, ri] = dists
+                            min_dist = np.min(dmat, axis=1)
 
-                        # obviously kinda an adaptation...but the reduced masses are the smae
-                        # for both coords so it's just a scaling factor
-                        rp_mode = grads[non_stationary] / grad_norms[non_stationary][:, np.newaxis]
-                        num_rp = np.sum(non_stationary.astype(int))
-                        proj = np.broadcast_to(np.eye(ndim)[np.newaxis], (num_rp, ndim, ndim)) - nput.vec_outer(rp_mode, rp_mode)
-                        h2 = proj@hess[non_stationary]@proj
-                        freqs, modes = np.linalg.eigh(h2)
-                        # f2, _ = np.linalg.eigh(hess[non_stationary])
-                        # f3 = np.array([
-                        #     scipy.linalg.eigh(hh, np.diag(1/np.asanyarray(masses)), type=2)[0]
-                        #     for hh in simple_morse(pts[non_stationary], deriv_order=2)
-                        #     ])
-                        # raise Exception(f3, f2)
-                        modes[:, :, 1] = modes[:, :, 1] * np.linalg.det(modes)[:, np.newaxis]
-                        modes = modes.transpose(0, 2, 1)
-                        # raise Exception(modes @ rp_mode[:, :, np.newaxis])
-                        # rp_freqs = rp_mode[:, np.newaxis, :]@hess[non_stationary]@rp_mode[:, :, np.newaxis]
+                            if potential_scaling is not None:
+                                pots = simple_morse(pts)[:, np.newaxis]
+                                raise NotImplementedError(...)
+                                # alphas = np.power(1 + 1 * (pots - 0) / np.max(pots), 1/2) * alphas
 
-                        freq_cuts = np.abs(freqs) < 1e-8
-                        kill_pos = np.where(np.all(freq_cuts, axis=1))
-                        if len(kill_pos) > 0 and len(kill_pos[0]) > 0:
-                            # plot_grid, plot_pts = get_plot_grid(pts)
-                            # base = plt.ContourPlot(*plot_grid, simple_morse(plot_pts).reshape(plot_grid[0].shape), levels=20)
-                            sel = np.where(non_stationary)[0][kill_pos]
-                            # plt.ScatterPlot(pts[np.ix_(sel, [0])], pts[np.ix_(sel, [1])], color='red', figure=base)
-                            # base.show()
-                            # raise ValueError("bad points")
-                            stationary = np.unique(np.concatenate([stationary, sel]))
+                            if min_dist_alpha_scaling is not None:
+                                alphas = min_dist_alpha_scaling * alphas / (scaling * min_dist[:, np.newaxis])
 
-                        zi = np.where(freq_cuts)
-                        for i, j in zip(*zi):
-                            m = modes[i, :, j][:, np.newaxis]
-                            f = m.T @ hess[i] @ m
-                            freqs[i, j] = f
-                        freqs = np.sqrt(np.abs(freqs))
-                        freqs[freqs < min_rp_freq] = min_rp_freq
-                        freqs[zi] *= (rp_scaling / scaling)**2
+                            ham1 = DGB(pts, simple_morse,
+                                       optimize_centers=False,
+                                       alphas=alphas,
+                                       clustering_radius=-1,
+                                       min_singular_value=sing_cutoff,#0.0001,
+                                       num_svd_vectors=num_svd_vectors,
+                                       expansion_degree=exp_deg,
+                                       transformations=rots,
+                                       masses=masses
+                                       # transformations=np.broadcast_to(
+                                       #     np.eye(ndim)[np.newaxis],
+                                       #     (len(pts), ndim, ndim)
+                                       # )
+                                       )
 
-                        # masses = np.reshape(modes@np.array([[[reduced_mass]]*ndim]), (num_rp, ndim))
+                            hh = simple_morse(pts, deriv_order=2)
+                            ham1A = DGB(pts, simple_morse,
+                                       optimize_centers=False,
+                                       # alphas=np.max(alphas, axis=1),
+                                       alphas=diag_scaling*np.sqrt(np.abs(reduced_mass * np.diagonal(hh, axis1=1, axis2=2))),
+                                       clustering_radius=-1,
+                                       min_singular_value=hess_diag_sing_cutoff,#0.0001,
+                                       num_svd_vectors=num_svd_vectors,
+                                       expansion_degree=exp_deg,
+                                       #  quadrature_degree=4,
+                                       masses=masses
+                                       # transformations=np.broadcast_to(
+                                       #     np.eye(ndim)[np.newaxis],
+                                       #     (len(pts), ndim, ndim)
+                                       # )
+                                       )
 
-                        rpms = np.abs(modes.transpose(0, 2, 1)@np.array([masses])[:, :, np.newaxis])
-                        rpms = rpms.reshape(num_rp, ndim)
-                        rpms[rpms < min_rp_mass] = min_rp_mass
-                        rpms = masses[np.newaxis]
-                        # rpms = np.array([masses])
-                        alphas[non_stationary] = scaling * rpms * np.abs(freqs)
-                        rots[non_stationary] = modes
-
-                        # rp_coords = rp_mode[:, np.newaxis, np.newaxis, :] @ pts[np.newaxis, :, :, np.newaxis]
-                        # rp_coords = rp_coords.reshape((len(non_stationary), len(pts)))
-                        # raise Exception(rp_coords)
-
-                        if len(stationary) > 0:
-                            freqs, modes = np.linalg.eigh(hess[stationary])
-                            alphas[stationary] = scaling*np.sqrt(np.abs(freqs))
-                            rots[stationary] = modes
-
-                        ri, ci = np.triu_indices(npts, k=1)
-                        dmat = np.full((npts, npts), 1000, dtype=float)
-                        dists = np.linalg.norm(pts[ri] - pts[ci], axis=1)
-                        dmat[ri, ci] = dmat[ci, ri] = dists
-                        min_dist = np.min(dmat, axis=1)
-
-                        if potential_scaling is not None:
-                            pots = simple_morse(pts)[:, np.newaxis]
-                            raise NotImplementedError(...)
-                            # alphas = np.power(1 + 1 * (pots - 0) / np.max(pots), 1/2) * alphas
-
-                        if min_dist_alpha_scaling is not None:
-                            alphas = min_dist_alpha_scaling * alphas / (scaling * min_dist[:, np.newaxis])
-
-                        ham1 = DGB(pts, simple_morse,
-                                   optimize_centers=False,
-                                   alphas=alphas,
-                                   clustering_radius=-1,
-                                   min_singular_value=sing_cutoff,#0.0001,
-                                   num_svd_vectors=num_svd_vectors,
-                                   expansion_degree=exp_deg,
-                                   transformations=rots,
-                                   masses=masses
-                                   # transformations=np.broadcast_to(
-                                   #     np.eye(ndim)[np.newaxis],
-                                   #     (len(pts), ndim, ndim)
-                                   # )
-                                   )
-
-                        hh = simple_morse(pts, deriv_order=2)
-                        ham1A = DGB(pts, simple_morse,
-                                   optimize_centers=False,
-                                   # alphas=np.max(alphas, axis=1),
-                                   alphas=diag_scaling*np.sqrt(np.abs(reduced_mass * np.diagonal(hh, axis1=1, axis2=2))),
-                                   clustering_radius=-1,
-                                   min_singular_value=hess_diag_sing_cutoff,#0.0001,
-                                   num_svd_vectors=num_svd_vectors,
-                                   expansion_degree=exp_deg,
-                                   #  quadrature_degree=4,
-                                   masses=masses
-                                   # transformations=np.broadcast_to(
-                                   #     np.eye(ndim)[np.newaxis],
-                                   #     (len(pts), ndim, ndim)
-                                   # )
-                                   )
-
-                        # raise Exception(
-                        #     2 * np.diagonal(ham1A.T) - np.diagonal(ham1A.V)
-                        # )
-
-                        ham2 = DGB(pts, simple_morse,
-                                   optimize_centers=False,
-                                   alphas=np.mean(np.sqrt(reduced_mass)/min_dist) * min_dist_scaling,
-                                   clustering_radius=-1,
-                                   min_singular_value=min_dist_min_sin,#0.0001,
-                                   num_svd_vectors=num_svd_vectors,
-                                   expansion_degree=exp_deg,
-                                   # quadrature_degree=6,
-                                   masses=masses
-                                   )
-                        ham3 = DGB(pts, simple_morse,
-                                   optimize_centers=False,
-                                   alphas= np.sqrt(reduced_mass)/min_dist * min_dist_scaling,#1 + 1 / (.2+simple_morse(pts)),
-                                   clustering_radius=-1,
-                                   min_singular_value=min_dist_min_sin,#0.0001,
-                                   num_svd_vectors=num_svd_vectors,
-                                   # num_svd_vectors=100,
-                                   expansion_degree=exp_deg,
-                                   masses=masses
-                                   # transformations=rots,
-                                   # transformations=np.broadcast_to(
-                                   #     np.eye(ndim)[np.newaxis],
-                                   #     (len(pts), ndim, ndim)
-                                   # )
-                                   )
-
-                        # raise Exception(
-                        #     np.min(ham1.T), np.max(ham1.T),
-                        #     np.min(ham2.T), np.max(ham2.T)
-                        # )
-
-                        # raise Exception(
-                        #     ham1.get_wavefunctions().energies[:5],
-                        #     ham1A.get_wavefunctions().energies[:5],
-                        #     ham2.get_wavefunctions().energies[:5],
-                        #     ham3.get_wavefunctions().energies[:5]
-                        # )
-
-                        # rot_fun = np.linalg.det(rot_data['new_sigs'])
-                        plot_grid, plot_pts = get_plot_grid(pts)
-
-                        if plot_orthog:
-
-                            # evs1 = np.linalg.eigvalsh(ham1.S)
-                            # evs2 = np.linalg.eigvalsh(ham1A.S)
                             # raise Exception(
-                            #     np.sum(evs1[evs1 > .0001]),
-                            #     np.sum(evs2[evs2 > .0001])
+                            #     2 * np.diagonal(ham1A.T) - np.diagonal(ham1A.V)
                             # )
 
-                            # fffff = plt.Plot(
-                            #     np.arange(len(ham1.S)),
-                            #     np.linalg.eigvalsh(ham1.S)
-                            # )
-                            # plt.Plot(
-                            #     np.arange(len(ham1A.S)),
-                            #     np.linalg.eigvalsh(ham1A.S),
-                            #     figure=fffff
+                            ham2 = DGB(pts, simple_morse,
+                                       optimize_centers=False,
+                                       alphas=np.mean(np.sqrt(reduced_mass/min_dist)) * min_dist_scaling,
+                                       clustering_radius=-1,
+                                       min_singular_value=min_dist_min_sin,#0.0001,
+                                       num_svd_vectors=num_svd_vectors,
+                                       expansion_degree=exp_deg,
+                                       # quadrature_degree=6,
+                                       masses=masses
+                                       )
+                            ham3 = DGB(pts, simple_morse,
+                                       optimize_centers=False,
+                                       alphas= np.sqrt(reduced_mass/min_dist) * min_dist_scaling,#1 + 1 / (.2+simple_morse(pts)),
+                                       clustering_radius=-1,
+                                       min_singular_value=min_dist_min_sin,#0.0001,
+                                       num_svd_vectors=num_svd_vectors,
+                                       # num_svd_vectors=100,
+                                       expansion_degree=exp_deg,
+                                       masses=masses
+                                       # transformations=rots,
+                                       # transformations=np.broadcast_to(
+                                       #     np.eye(ndim)[np.newaxis],
+                                       #     (len(pts), ndim, ndim)
+                                       # )
+                                       )
+
+                            # raise Exception(
+                            #     np.min(ham1.T), np.max(ham1.T),
+                            #     np.min(ham2.T), np.max(ham2.T)
                             # )
 
-                            # fffff = plt.ScatterPlot(
-                            #     np.arange(len(ham1.S)),
-                            #     np.linalg.eigh(ham1.S)[1][:, 0]**2
+                            # raise Exception(
+                            #     ham1.get_wavefunctions().energies[:5],
+                            #     ham1A.get_wavefunctions().energies[:5],
+                            #     ham2.get_wavefunctions().energies[:5],
+                            #     ham3.get_wavefunctions().energies[:5]
                             # )
-                            # plt.ScatterPlot(
-                            #     np.arange(len(ham1A.S)),
-                            #     np.linalg.eigh(ham1A.S)[1][:, 0]**2,
-                            #     figure=fffff
-                            # )
-                            if plot_orthog is True:
-                                plot_orthog = 5
-                            if isinstance(plot_orthog, int):
-                                plot_orthog = range(plot_orthog)
-                            for n in plot_orthog:
 
-                                base = plt.GraphicsGrid(ncols=2, nrows=2,
-                                                        subimage_size=(300, 300), padding=[[50, 10], [50, 50]],
-                                                        spacings=[50, 50])
+                            # rot_fun = np.linalg.det(rot_data['new_sigs'])
+                            plot_grid, plot_pts = get_plot_grid(pts)
+
+                            if plot_orthog:
+
+                                # evs1 = np.linalg.eigvalsh(ham1.S)
+                                # evs2 = np.linalg.eigvalsh(ham1A.S)
+                                # raise Exception(
+                                #     np.sum(evs1[evs1 > .0001]),
+                                #     np.sum(evs2[evs2 > .0001])
+                                # )
+
+                                # fffff = plt.Plot(
+                                #     np.arange(len(ham1.S)),
+                                #     np.linalg.eigvalsh(ham1.S)
+                                # )
+                                # plt.Plot(
+                                #     np.arange(len(ham1A.S)),
+                                #     np.linalg.eigvalsh(ham1A.S),
+                                #     figure=fffff
+                                # )
+
+                                # fffff = plt.ScatterPlot(
+                                #     np.arange(len(ham1.S)),
+                                #     np.linalg.eigh(ham1.S)[1][:, 0]**2
+                                # )
+                                # plt.ScatterPlot(
+                                #     np.arange(len(ham1A.S)),
+                                #     np.linalg.eigh(ham1A.S)[1][:, 0]**2,
+                                #     figure=fffff
+                                # )
+                                if plot_orthog is True:
+                                    plot_orthog = 5
+                                if isinstance(plot_orthog, int):
+                                    plot_orthog = range(plot_orthog)
+                                for n in plot_orthog:
+
+                                    base = plt.GraphicsGrid(ncols=2, nrows=2,
+                                                            subimage_size=(300, 300), padding=[[50, 10], [50, 50]],
+                                                            spacings=[50, 50])
+                                    plot_vals = simple_morse(plot_pts).reshape(plot_grid[0].shape)
+                                    vmax = e_cut + np.max(w)#10000 * UnitsData.convert("Wavenumbers", "Hartrees")
+                                    plot_vals[plot_vals > vmax] = vmax
+                                    for i in range(2):
+                                        for j in range(2):
+                                            plt.ContourPlot(*plot_grid, plot_vals, levels=20,
+                                                            figure=base[i, j])
+                                            # if i == 0 and j == 0:
+                                            #     plt.ScatterPlot(pts[:, 0], pts[:, 1], color='red', figure=base[i, j])
+
+                                    for h, (i, j) in [
+                                        (ham2, [0, 0]),
+                                        (ham3, [0, 1]),
+                                        (ham1, [1, 0]),
+                                        (ham1A, [1, 1])
+                                    ]:
+                                        # wws = np.linalg.eigh(h.S)[1][:, -n] ** 2
+                                        # pps = h.centers
+                                        # ri, ci = np.triu_indices(len(pps), k=1)
+                                        # wvs = np.linalg.norm(pps[ri] - pps[ci], axis=1)[:, np.newaxis] * wws[ri] * wws[ci]
+                                        # delocs = np.sum(wvs, axis=0)
+
+
+                                        if plot_S_eigenvectors:
+                                            sigs, Q = np.linalg.eigh(h.S)
+                                        else:
+                                            Q, Qinv, (Qq, Qqinv) = h.get_orthogonal_transform()
+                                            sigs, _ = np.linalg.eigh(h.S)
+                                        # Q = L @ np.diag(1/(sigs**2)) @ L.T
+                                        wfns = DGBWavefunctions(
+                                            np.ones(len(Q)),
+                                            Q,
+                                            hamiltonian=h
+                                        )
+                                        wf = wfns[-(n+1)]
+                                        max_val = max(np.max(np.abs(wf.data)), 5)
+                                        wf.plot(
+                                            figure=base[i, j],
+                                            plotter=plt.TriContourLinesPlot,
+                                            # levels=np.linspace(-max_val, max_val, 16),
+                                            domain=[[np.min(plot_pts[:, 0]), np.max(plot_pts[:, 0])],
+                                                    [np.min(plot_pts[:, 1]), np.max(plot_pts[:, 1])]],
+                                            cmap='RdBu',
+                                            contour_levels=10,
+                                            plot_label=str(1/np.sqrt(sigs[-(n+1)])),
+                                            plot_range=[[np.min(plot_pts[:, 0]), np.max(plot_pts[:, 0])],
+                                                        [np.min(plot_pts[:, 1]), np.max(plot_pts[:, 1])]]
+                                        )
+                                        # if hasattr(wfns[w], 'centers'):
+                                        plt.ScatterPlot(wf.centers[:, 0], wf.centers[:, 1], color='#fff1', figure=base[i, j])
+                                base.show()
+                                raise Exception(...)
+
+                            shit_rows, shit_cols = np.triu_indices(npts)
+                            shit_pos = np.where(shit_rows == shit_cols)
+                            shit_pos = (shit_pos[0],)
+                            def eval_gauss(rot_data, plot_pts=plot_pts, shit_pos=shit_pos):
+                                gauss_vals = None
+                                if isinstance(rot_data, dict):
+                                    rot_centers = rot_data['centers']
+                                    for c, s in zip(rot_data['centers'][shit_pos], rot_data['sigmas'][shit_pos]):
+                                        disps = plot_pts - c[np.newaxis]
+                                        v = np.linalg.det(s) ** (1 / 4) * np.exp(
+                                            -(disps[:, np.newaxis, :] @ s[np.newaxis, :, :] @ disps[:, :, np.newaxis]) / 2
+                                        )
+                                        if gauss_vals is None:
+                                            gauss_vals = v
+                                        else:
+                                            gauss_vals = np.max(
+                                                np.concatenate([
+                                                    gauss_vals.reshape(len(plot_pts), 1),
+                                                    v.reshape(len(plot_pts), 1)
+                                                ],
+                                                    axis=-1),
+                                                axis=-1
+                                            )
+                                else:
+                                    rot_centers = rot_data[0]
+                                    for c, s in zip(*(x[shit_pos] for x in rot_data)):
+                                        disps = plot_pts - c[np.newaxis]
+                                        v = (2 ** ndim * np.prod(s)) ** (1 / 4) * np.exp(-np.tensordot(disps ** 2, s, axes=[-1, -1]))
+                                        if gauss_vals is None:
+                                            gauss_vals = v
+                                        else:
+                                            gauss_vals = np.max(
+                                                np.concatenate([
+                                                    gauss_vals.reshape(len(plot_pts), 1),
+                                                    v.reshape(len(plot_pts), 1)
+                                                ], axis=-1),
+                                                axis=-1
+                                            )
+                                return rot_centers, gauss_vals
+
+                            def plot_gauss(rot_data, figure=None, plot_grid=plot_grid, shit_pos=shit_pos, color='#f00f'):
+                                rot_centers, gauss_vals = eval_gauss(rot_data, shit_pos=shit_pos)
+                                fig = plt.ContourPlot(*plot_grid, gauss_vals.reshape(plot_grid[0].shape), figure=figure)
+                                # plt.ScatterPlot(rot_centers[:, 0], rot_centers[:, 1], figure=base[1, 0], plot_label='Min-Max: {:.3f} {:.3f}'.format(
+                                #     np.min(gauss_vals), np.max(gauss_vals)
+                                # ))
+                                # plt.ScatterPlot(rot_centers[:, 0], rot_centers[:, 1], color='blue', figure=fig)
+                                plt.ScatterPlot(rot_centers[shit_pos][:, 0], rot_centers[shit_pos][:, 1], color=color, figure=fig)
+                                return fig
+
+                            if plot_dists or plots_dir is not None:
+                                base = plt.GraphicsGrid(ncols=2, nrows=2, subimage_size=(300, 300), padding=[[50, 10], [50, 50]], spacings=[50, 50])
+
                                 plot_vals = simple_morse(plot_pts).reshape(plot_grid[0].shape)
                                 vmax = e_cut + np.max(w)#10000 * UnitsData.convert("Wavenumbers", "Hartrees")
                                 plot_vals[plot_vals > vmax] = vmax
-                                for i in range(2):
-                                    for j in range(2):
-                                        plt.ContourPlot(*plot_grid, plot_vals, levels=20,
-                                                        figure=base[i, j])
-                                        # if i == 0 and j == 0:
-                                        #     plt.ScatterPlot(pts[:, 0], pts[:, 1], color='red', figure=base[i, j])
+                                plt.ContourPlot(*plot_grid, plot_vals, levels=20, figure=base[0, 0])
+                                plt.ScatterPlot(pts[:, 0], pts[:, 1], color='red', figure=base[0, 0])
 
-                                for h, (i, j) in [
-                                    (ham2, [0, 0]),
-                                    (ham3, [0, 1]),
-                                    (ham1, [1, 0]),
-                                    (ham1A, [1, 1])
-                                ]:
-                                    # wws = np.linalg.eigh(h.S)[1][:, -n] ** 2
-                                    # pps = h.centers
-                                    # ri, ci = np.triu_indices(len(pps), k=1)
-                                    # wvs = np.linalg.norm(pps[ri] - pps[ci], axis=1)[:, np.newaxis] * wws[ri] * wws[ci]
-                                    # delocs = np.sum(wvs, axis=0)
+                                # plot_gauss(ham1.get_overlap_gaussians(), shit_pos=( shit_pos[0][:3],), figure=base[0, 1])
+                                # plot_gauss(ham1.get_overlap_gaussians(), shit_pos=( np.array([1, 2, 3]),), figure=base[0, 2])
+                                # plot_gauss(ham1.get_overlap_gaussians(), shit_pos=(np.concatenate([
+                                #     shit_pos[0][:3],
+                                #     np.array([1, 2, 3])
+                                #     ]),), figure=base[0, 3])
+                                # plot_gauss(ham1.get_overlap_gaussians(), shit_pos=slice(None, None, None), color="#f00f", figure=base[1, 0])
+                                # plot_gauss(ham1A.get_overlap_gaussians(), shit_pos=slice(None, None, None), color="#f00f", figure=base[1, 1])
+                                plot_gauss(ham1.get_overlap_gaussians(), color="#f00f", figure=base[1, 0])
+                                plot_gauss(ham1A.get_overlap_gaussians(), color="#f00f", figure=base[1, 1])
+                                plot_gauss(ham2.get_overlap_gaussians(),  figure=base[0, 0])
+                                plot_gauss(ham3.get_overlap_gaussians(),  figure=base[0, 1])
 
-                                    Q, Qinv, (Qq, Qqinv) = h.get_orthogonal_transform()
-
-                                    sigs, L = np.linalg.eigh(h.S)
-                                    # Q = L @ np.diag(1/(sigs**2)) @ L.T
-                                    wfns = DGBWavefunctions(
-                                        np.ones(len(Q)),
-                                        Q,
-                                        hamiltonian=h
-                                    )
-                                    wf = wfns[-(n+1)]
-                                    max_val = max(np.max(np.abs(wf.data)), 5)
-                                    wf.plot(
-                                        figure=base[i, j],
-                                        plotter=plt.TriContourLinesPlot,
-                                        # levels=np.linspace(-max_val, max_val, 16),
-                                        domain=[[np.min(plot_pts[:, 0]), np.max(plot_pts[:, 0])],
-                                                [np.min(plot_pts[:, 1]), np.max(plot_pts[:, 1])]],
-                                        cmap='RdBu',
-                                        contour_levels=10,
-                                        plot_label=str(1/np.sqrt(sigs[-(n+1)])),
-                                        plot_range=[[np.min(plot_pts[:, 0]), np.max(plot_pts[:, 0])],
-                                                    [np.min(plot_pts[:, 1]), np.max(plot_pts[:, 1])]]
-                                    )
-                                    # if hasattr(wfns[w], 'centers'):
-                                    plt.ScatterPlot(wf.centers[:, 0], wf.centers[:, 1], color='red', figure=base[i, j])
-                            base.show()
-                            raise Exception(...)
-
-                        shit_rows, shit_cols = np.triu_indices(npts)
-                        shit_pos = np.where(shit_rows == shit_cols)
-                        shit_pos = (shit_pos[0],)
-                        def eval_gauss(rot_data, plot_pts=plot_pts, shit_pos=shit_pos):
-                            gauss_vals = None
-                            if isinstance(rot_data, dict):
-                                rot_centers = rot_data['centers']
-                                for c, s in zip(rot_data['centers'][shit_pos], rot_data['sigmas'][shit_pos]):
-                                    disps = plot_pts - c[np.newaxis]
-                                    v = np.linalg.det(s) ** (1 / 4) * np.exp(
-                                        -(disps[:, np.newaxis, :] @ s[np.newaxis, :, :] @ disps[:, :, np.newaxis]) / 2
-                                    )
-                                    if gauss_vals is None:
-                                        gauss_vals = v
-                                    else:
-                                        gauss_vals = np.max(
-                                            np.concatenate([
-                                                gauss_vals.reshape(len(plot_pts), 1),
-                                                v.reshape(len(plot_pts), 1)
-                                            ],
-                                                axis=-1),
-                                            axis=-1
-                                        )
-                            else:
-                                rot_centers = rot_data[0]
-                                for c, s in zip(*(x[shit_pos] for x in rot_data)):
-                                    disps = plot_pts - c[np.newaxis]
-                                    v = (2 ** ndim * np.prod(s)) ** (1 / 4) * np.exp(-np.tensordot(disps ** 2, s, axes=[-1, -1]))
-                                    if gauss_vals is None:
-                                        gauss_vals = v
-                                    else:
-                                        gauss_vals = np.max(
-                                            np.concatenate([
-                                                gauss_vals.reshape(len(plot_pts), 1),
-                                                v.reshape(len(plot_pts), 1)
-                                            ], axis=-1),
-                                            axis=-1
-                                        )
-                            return rot_centers, gauss_vals
-
-                        def plot_gauss(rot_data, figure=None, plot_grid=plot_grid, shit_pos=shit_pos, color='#f00f'):
-                            rot_centers, gauss_vals = eval_gauss(rot_data, shit_pos=shit_pos)
-                            fig = plt.ContourPlot(*plot_grid, gauss_vals.reshape(plot_grid[0].shape), figure=figure)
-                            # plt.ScatterPlot(rot_centers[:, 0], rot_centers[:, 1], figure=base[1, 0], plot_label='Min-Max: {:.3f} {:.3f}'.format(
-                            #     np.min(gauss_vals), np.max(gauss_vals)
-                            # ))
-                            # plt.ScatterPlot(rot_centers[:, 0], rot_centers[:, 1], color='blue', figure=fig)
-                            plt.ScatterPlot(rot_centers[shit_pos][:, 0], rot_centers[shit_pos][:, 1], color=color, figure=fig)
-                            return fig
-
-                        if plot_dists or plots_dir is not None:
-                            base = plt.GraphicsGrid(ncols=2, nrows=2, subimage_size=(300, 300), padding=[[50, 10], [50, 50]], spacings=[50, 50])
-
-                            plot_vals = simple_morse(plot_pts).reshape(plot_grid[0].shape)
-                            vmax = e_cut + np.max(w)#10000 * UnitsData.convert("Wavenumbers", "Hartrees")
-                            plot_vals[plot_vals > vmax] = vmax
-                            plt.ContourPlot(*plot_grid, plot_vals, levels=20, figure=base[0, 0])
-                            plt.ScatterPlot(pts[:, 0], pts[:, 1], color='red', figure=base[0, 0])
-
-                            # plot_gauss(ham1.get_overlap_gaussians(), shit_pos=( shit_pos[0][:3],), figure=base[0, 1])
-                            # plot_gauss(ham1.get_overlap_gaussians(), shit_pos=( np.array([1, 2, 3]),), figure=base[0, 2])
-                            # plot_gauss(ham1.get_overlap_gaussians(), shit_pos=(np.concatenate([
-                            #     shit_pos[0][:3],
-                            #     np.array([1, 2, 3])
-                            #     ]),), figure=base[0, 3])
-                            # plot_gauss(ham1.get_overlap_gaussians(), shit_pos=slice(None, None, None), color="#f00f", figure=base[1, 0])
-                            # plot_gauss(ham1A.get_overlap_gaussians(), shit_pos=slice(None, None, None), color="#f00f", figure=base[1, 1])
-                            plot_gauss(ham1.get_overlap_gaussians(), color="#f00f", figure=base[1, 0])
-                            plot_gauss(ham1A.get_overlap_gaussians(), color="#f00f", figure=base[1, 1])
-                            plot_gauss(ham2.get_overlap_gaussians(),  figure=base[0, 0])
-                            plot_gauss(ham3.get_overlap_gaussians(),  figure=base[0, 1])
-
-                            if plots_dir is None:
-                                if not plot_wfns and not plot_spectrum:
-                                    base.show()
-                            else:
-                                base.savefig(os.path.join(plots_dir, 'dists.png'))
-                                base.close()
-
-                        # base = plt.GraphicsGrid(ncols=3, nrows=2, subimage_size=(350, 350))
-
-
-                        # raise Exception(
-                        #     np.linalg.svd(ham1.T)[1],
-                        #     np.linalg.svd(ham2.S)[1]
-                        # )
-                        #
-                        # raise Exception(
-                        #     np.min(ham1.T), np.max(ham1.T),
-                        #     np.min(ham2.T), np.max(ham2.T)
-                        # )
-
-                        base_energies = [(ww*(np.arange(5) + 1 / 2) - wwx*(np.arange(5) + 1 / 2)**2) for ww, wwx in zip(w, wx)]
-                        test_es = np.sort(np.sum(list(itertools.product(*base_energies)), axis=-1))
-                        test_fs = (test_es[1:] - test_es[0]) * UnitsData.convert("Hartrees", "Wavenumbers")
-
-                        wfns = [
-                            ham3.get_wavefunctions(),
-                            ham1.get_wavefunctions(),
-                            ham1A.get_wavefunctions(),
-                            ham2.get_wavefunctions(),
-                        ]
-
-                        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-                        if dvr_wfns is None:
-                            dvr_wfns = dvr.run().wavefunctions
-                        wfns.append(dvr_wfns)
-
-                        if plot_wfns is True:
-                            plot_wfns = 1
-                        if plot_wfns or plots_dir is not None:
-                            omega = np.max(w)
-                            for n in range(plot_wfns):
-
-                                base = plt.GraphicsGrid(ncols=3, nrows=2, subimage_size=(300, 300), padding=[[50, 10], [50, 50]], spacings=[50, 50])
-
-                                plot_vals = simple_morse(plot_pts).reshape(plot_grid[0].shape)
-                                vmax = e_cut + omega#10000 * UnitsData.convert("Wavenumbers", "Hartrees")
-                                plot_vals[plot_vals > vmax] = vmax
-                                for i in range(2):
-                                    for j in range(3):
-                                        plt.ContourPlot(*plot_grid, plot_vals, levels=20, figure=base[i, j], vmin=0, vmax=vmax)
-                                        if i == 0 and j == 0:
-                                            plt.ScatterPlot(pts[:, 0], pts[:, 1], color='red', figure=base[i, j])
-
-                                for wfx,(i, j) in [
-                                    (0, [0, 1]),
-                                    (3, [0, 2]),
-                                    (1, [1, 1]),
-                                    (2, [1, 2]),
-                                    (4, [1, 0])
-                                ]:
-                                    if len(wfns[wfx]) > n:
-                                        wf = wfns[wfx][n]
-                                        max_val = np.max(np.abs(wf.data))
-                                        wf.plot(
-                                            figure=base[i, j],
-                                            plot_label=f"Energy: {(wf.energy - (0 if n == 0 else wfns[wfx][0].energy)) * h2w:.0f}",
-                                            plotter=plt.TriContourLinesPlot,
-                                            contour_levels=10,
-                                            # levels=np.linspace(-max_val, max_val, 16),
-                                            domain=[[np.min(plot_pts[:, 0]), np.max(plot_pts[:, 0])], [np.min(plot_pts[:, 1]), np.max(plot_pts[:, 1])]],
-                                            cmap='RdBu',
-                                            vmin=-max_val, vmax=max_val,
-                                            plot_range=[[np.min(plot_pts[:, 0]), np.max(plot_pts[:, 0])], [np.min(plot_pts[:, 1]), np.max(plot_pts[:, 1])]]
-                                        )
-                                        if hasattr(wf, 'centers'):
-                                            plt.ScatterPlot(wf.centers[:, 0], wf.centers[:, 1], color='red', figure=base[i, j])
-                                if plots_dir is not None:
-                                    base.savefig(os.path.join(plots_dir, 'wfns_{}.png'.format(n)))
+                                if plots_dir is None:
+                                    if not plot_wfns and not plot_spectrum:
+                                        base.show()
+                                else:
+                                    base.savefig(os.path.join(plots_dir, 'dists.png'))
                                     base.close()
 
-                            if plots_dir is None and not plot_spectrum:
-                                base.show()
+                            # base = plt.GraphicsGrid(ncols=3, nrows=2, subimage_size=(350, 350))
 
-                        if plot_spectrum is True:
-                            plot_spectrum = plot_wfns - 1
-                        if plot_spectrum:
 
-                            base = plt.GraphicsGrid(ncols=2, nrows=2, subimage_size=(300, 300), padding=[[50, 10], [50, 50]], spacings=[50, 50])
-                            dvr_spec = wfns[4][:plot_spectrum+1].get_spectrum(dipole)#.normalize(0)
+                            # raise Exception(
+                            #     np.linalg.svd(ham1.T)[1],
+                            #     np.linalg.svd(ham2.S)[1]
+                            # )
+                            #
+                            # raise Exception(
+                            #     np.min(ham1.T), np.max(ham1.T),
+                            #     np.min(ham2.T), np.max(ham2.T)
+                            # )
 
-                            for i in range(2):
-                                for j in range(2):
-                                    dvr_spec.plot(figure=base[i, j], color='red', line_style='dashed')
+                            base_energies = [(ww*(np.arange(5) + 1 / 2) - wwx*(np.arange(5) + 1 / 2)**2) for ww, wwx in zip(w, wx)]
+                            test_es = np.sort(np.sum(list(itertools.product(*base_energies)), axis=-1))
+                            test_fs = (test_es[1:] - test_es[0]) * UnitsData.convert("Hartrees", "Wavenumbers")
 
-                            for wfx, (i, j) in [
-                                (0, [0, 0]),
-                                (3, [0, 1]),
-                                (1, [1, 0]),
-                                (2, [1, 1])
-                            ]:
-                                if len(wfns[wfx]) > 1:
-                                    spec = wfns[wfx][:plot_spectrum+1].get_spectrum(dipole, expansion_degree=1)#.normalize(0)
-                                    spec.plot(figure=base[i, j],
-                                              plot_range=[[test_fs[0] - 300, test_fs[plot_spectrum] + 500], None],#[0, 1]],
-                                              )
-                            if plots_dir is None:
-                                base.show()
-                            else:
-                                base.savefig(os.path.join(plots_dir, 'spec.png'))
-                                base.close()
+                            wfns = [
+                                ham3.get_wavefunctions(),
+                                ham1.get_wavefunctions(),
+                                ham1A.get_wavefunctions(),
+                                ham2.get_wavefunctions(),
+                            ]
 
-                        if throw_energies:
-                            with np.printoptions(linewidth=1e8):
+                            h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+                            if dvr_wfns is None:
+                                dvr_wfns = dvr.run().wavefunctions
+                            wfns.append(dvr_wfns)
 
-                                for ham in [
-                                    ham1,
-                                    ham1A,
-                                    ham2,
-                                    ham3
+                            if plot_wfns is True:
+                                plot_wfns = 1
+                            if plot_wfns or plots_dir is not None:
+                                omega = np.max(w)
+                                for n in range(plot_wfns):
+
+                                    base = plt.GraphicsGrid(ncols=3, nrows=2, subimage_size=(300, 300), padding=[[50, 10], [50, 50]], spacings=[50, 50])
+
+                                    plot_vals = simple_morse(plot_pts).reshape(plot_grid[0].shape)
+                                    vmax = e_cut + omega#10000 * UnitsData.convert("Wavenumbers", "Hartrees")
+                                    plot_vals[plot_vals > vmax] = vmax
+                                    for i in range(2):
+                                        for j in range(3):
+                                            plt.ContourPlot(*plot_grid, plot_vals, levels=20, figure=base[i, j], vmin=0, vmax=vmax)
+                                            if i == 0 and j == 0:
+                                                plt.ScatterPlot(pts[:, 0], pts[:, 1], color='red', figure=base[i, j])
+
+                                    for wfx,(i, j) in [
+                                        (0, [0, 1]),
+                                        (3, [0, 2]),
+                                        (1, [1, 1]),
+                                        (2, [1, 2]),
+                                        (4, [1, 0])
+                                    ]:
+                                        if len(wfns[wfx]) > n:
+                                            wf = wfns[wfx][n]
+                                            max_val = np.max(np.abs(wf.data))
+                                            wf.plot(
+                                                figure=base[i, j],
+                                                plot_label=f"Energy: {(wf.energy - (0 if n == 0 else wfns[wfx][0].energy)) * h2w:.0f}",
+                                                plotter=plt.TriContourLinesPlot,
+                                                contour_levels=10,
+                                                # levels=np.linspace(-max_val, max_val, 16),
+                                                domain=[[np.min(plot_pts[:, 0]), np.max(plot_pts[:, 0])], [np.min(plot_pts[:, 1]), np.max(plot_pts[:, 1])]],
+                                                cmap='RdBu',
+                                                # vmin=-max_val, vmax=max_val,
+                                                plot_range=[[np.min(plot_pts[:, 0]), np.max(plot_pts[:, 0])], [np.min(plot_pts[:, 1]), np.max(plot_pts[:, 1])]]
+                                            )
+                                            # if hasattr(wf, 'centers'):
+                                            #     plt.ScatterPlot(wf.centers[:, 0], wf.centers[:, 1], color='0001', figure=base[i, j])
+                                    if plots_dir is not None:
+                                        base.savefig(os.path.join(plots_dir, 'wfns_{}.png'.format(n)))
+                                        base.close()
+
+                                if plots_dir is None and not plot_spectrum:
+                                    base.show()
+
+                            if plot_spectrum is True:
+                                plot_spectrum = plot_wfns - 1
+                            if plot_spectrum:
+
+                                base = plt.GraphicsGrid(ncols=2, nrows=2, subimage_size=(300, 300), padding=[[50, 10], [50, 50]], spacings=[50, 50])
+                                dvr_spec = wfns[4][:plot_spectrum+1].get_spectrum(dipole)#.normalize(0)
+
+                                for wfx, (i, j) in [
+                                    (0, [0, 0]),
+                                    (3, [0, 1]),
+                                    (1, [1, 0]),
+                                    (2, [1, 1])
                                 ]:
-                                    print("=" * 50)
-                                    print(np.linalg.eigh(ham.S)[0])
+                                    if len(wfns[wfx]) > 1:
+                                        spec = wfns[wfx][:plot_spectrum+1].get_spectrum(dipole, expansion_degree=1)#.normalize(0)
+                                        spec.plot(figure=base[i, j],
+                                                  plot_range=[[test_fs[0] - 300, test_fs[plot_spectrum] + 500], None],#[0, 1]],
+                                                  )
 
-                                engs = [e.energies for e in wfns] + [test_es]
-                                ne = min(10, min(len(e) for e in engs))
-                                raise Exception(str(np.round(
-                                    np.array([
-                                        np.concatenate([[eng[0]], eng[1:ne] - eng[0]]) for eng in engs
-                                    ]) * h2w
-                                )))
-                            # e = wfns.energies
+                                for i in range(2):
+                                    for j in range(2):
+                                        dvr_spec.plot(figure=base[i, j], color='red', line_style='dashed')
+
+                                if plots_dir is None:
+                                    base.show()
+                                else:
+                                    base.savefig(os.path.join(plots_dir, 'spec.png'))
+                                    base.close()
+
+                            if throw_energies:
+                                with np.printoptions(linewidth=1e8):
+
+                                    for ham in [
+                                        ham1,
+                                        ham1A,
+                                        ham2,
+                                        ham3
+                                    ]:
+                                        print("=" * 50)
+                                        print(np.linalg.eigh(ham.S)[0])
+
+                                    engs = [e.energies for e in wfns] + [test_es]
+                                    ne = min(10, min(len(e) for e in engs))
+                                    raise Exception(str(np.round(
+                                        np.array([
+                                            np.concatenate([[eng[0]], eng[1:ne] - eng[0]]) for eng in engs
+                                        ]) * h2w
+                                    )))
+                                # e = wfns.energies
 
     @validationTest
     def test_Expansion(self):
