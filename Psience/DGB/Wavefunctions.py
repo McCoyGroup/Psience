@@ -7,6 +7,7 @@ import numpy as np
 from McUtils.Zachary import Mesh
 
 from Psience.Wavefun import Wavefunction, Wavefunctions
+from Psience.Spectra import DiscreteSpectrum
 
 __all__ = ["DGBWavefunctions", "DGBWavefunction"]
 
@@ -67,18 +68,6 @@ class DGBWavefunction(Wavefunction):
         if reshape is not None:
             vals = vals.reshape(reshape)
         return vals
-    def expectation(self, op, other=None):
-        """Computes the expectation value of operator op over the wavefunction other and self
-
-        :param other:
-        :type other: Wavefunction | np.ndarray
-        :param op:
-        :type op:
-        :return:
-        :rtype:
-        """
-        #
-        raise NotImplementedError("operator evaluation for DGBs not implemented yet")
     def project(self, dofs):
         """
         Computes the projection of the current wavefunction onto a set of degrees
@@ -113,6 +102,65 @@ class DGBWavefunctions(Wavefunctions):
         self.centers = self.hamiltonian.centers
         self.alphas = self.hamiltonian.alphas
         self.transformations = self.hamiltonian.transformations
+
+    def expectation(self, op,
+                    expansion_degree=None,
+                    quadrature_degree=None,
+                    expansion_type=None,
+                    other=None
+                    ):
+        """Computes the expectation value of operator op over the wavefunction other and self
+
+        :param other:
+        :type other: Wavefunction | np.ndarray
+        :param op:
+        :type op:
+        :return:
+        :rtype:
+        """
+
+        if other is None:
+            other = self
+
+        if self.hamiltonian is None:
+            from .DGB import DGB
+            self.hamiltonian = DGB(
+                self.centers,
+                potential_function=None,
+                alphas=self.alphas,
+                transformations=self.transformations,
+                min_singular_value=None,
+                num_svd_vectors=None,
+                clustering_radius=None,
+                expansion_type=expansion_type,
+                expansion_degree=expansion_degree,
+                quadrature_degree=quadrature_degree
+            )
+
+        if other.hamiltonian is not self.hamiltonian:
+            raise ValueError("mismatch in DGBs between {} and {}".format(
+                self, other
+            ))
+
+        op_mat = self.hamiltonian.evaluate_multiplicative_operator(
+            op,
+            expansion_degree=expansion_degree,
+            expansion_type=expansion_type,
+            quadrature_degree=quadrature_degree
+        )
+        w1 = self.wavefunctions.T
+        w2 = other.wavefunctions
+        if op_mat.ndim > 2: # lots of shape fuckery to get broacasting right
+            op_mat = np.moveaxis(np.moveaxis(op_mat, 0, -1), 0, -1)
+            for _ in range(op_mat.ndim - 2):
+                w1 = np.expand_dims(w1, 0)
+                w2 = np.expand_dims(w2, 0)
+            res = np.moveaxis(np.moveaxis(w1 @ op_mat @ w2, -1, 0), -1, 0)
+        else:
+            res = w1 @ op_mat @ w2
+
+        return res
+
     def __repr__(self):
         return "{}(num={}, DVR={})".format(
             type(self).__name__,

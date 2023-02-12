@@ -147,7 +147,7 @@ class DVRWavefunctions(Wavefunctions):
             **opts
         )
 
-    def expectation(self, op, other=None):
+    def expectation(self, op, other=None, multiplicative=True):
         """Computes the expectation value of operator op over the wavefunction other and self
 
         :param other:
@@ -159,15 +159,16 @@ class DVRWavefunctions(Wavefunctions):
         """
         if other is None:
             other = self
-        if isinstance(op, np.ndarray):
+        if not multiplicative:
+            raise ValueError("don't have non-multiplicative operators supported yet...")
+        else:
+            if not isinstance(op, np.ndarray):
+                op = op(self.grid.reshape((-1,) + self.grid.shape[2:]))
             wfs = self.wavefunctions
             for _ in range(op.ndim-1):
                 wfs = np.expand_dims(wfs, -1)
-            # print(np.expand_dims(op, 1).shape, wfs.shape)
             wfs = np.expand_dims(op, 1) * wfs
             # print(self.wavefunctions.shape, wfs.shape)
-        else:
-            wfs = op(self.wavefunctions)
         if not isinstance(other, np.ndarray):
             other = other.wavefunctions
         ev = np.tensordot(other, wfs, axes=[0, 0])

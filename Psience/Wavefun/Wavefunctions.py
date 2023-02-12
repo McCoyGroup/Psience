@@ -6,6 +6,7 @@ from abc import *
 import numpy as np
 
 from McUtils.Plots import Graphics, Plot, TriContourPlot
+from ..Spectra import DiscreteSpectrum
 
 __all__ = [
     "Wavefunction",
@@ -28,6 +29,7 @@ class Wavefunction:
     def plot(self,
              figure=None, domain=None, grid=None, values=None, plot_points=100,
              index=0, scaling=1, shift=0, plotter=None, plot_density=False,
+             zero_tol=1e-8, contour_levels=None,
              **opts
              ):
         """
@@ -84,8 +86,13 @@ class Wavefunction:
                 values = self.probability_density(grid)
             else:
                 values = self.evaluate(grid)
+        values[np.abs(values) < zero_tol] = 0.
 
         values = values * scaling + shift
+
+        if contour_levels is not None and 'levels' not in opts:
+            max_val = np.max(np.abs(values))
+            opts['levels'] = np.linspace(-max_val, max_val, contour_levels)
 
         if plotter is None:
             if dim == 1:
@@ -185,7 +192,25 @@ class Wavefunctions:
             yield self.__getitem__(i)
 
     def frequencies(self, start_at = 0):
-        return self.energies[1+start_at:] - self.energies[start_at]
+        return np.concatenate([self.energies[:start_at], self.energies[1+start_at:]]) - self.energies[start_at]
+
+    def get_spectrum(self,
+                     dipole_function,
+                     start_at=0,
+                     **options
+                     ):
+        freqs = self.frequencies(start_at=start_at)
+        transition_moments = self.expectation(dipole_function,
+                                              **options,
+                                              )[start_at]
+        transition_moments = np.concatenate([
+            transition_moments[:start_at],
+            transition_moments[start_at+1:]
+        ])
+        return DiscreteSpectrum.from_transition_moments(
+            freqs,
+            transition_moments
+        )
 
     def plot(self, figure=None, graphics_class=None, **opts):
         """Plots all of the wavefunctions on one set of axes

@@ -448,19 +448,6 @@ class DGB:
         if expansion_type is None:
             expansion_type = self.expansion_type
 
-        # this prefac allows us to reexpress things in terms of the new Gaussians
-        # with appropriate weighting
-        # aprod = self.alphas[:, np.newaxis, :] * self.alphas[np.newaxis, :, :]
-        # if self.inds is not None:
-        #     aprod = aprod[..., self.inds]
-        # asum = self.alphas[:, np.newaxis] + self.alphas[np.newaxis, :]
-        # cdiff = self.centers[:, np.newaxis, :] - self.centers[np.newaxis, :, :]
-        # scaling_dim = ndim if self.inds is None else len(self.inds)
-        # prefac = (
-        #         ( np.sqrt(2 / np.pi) ) ** (scaling_dim if expansion_type != 'taylor' else 1)
-        #         * np.product(aprod, axis=-1)**(1/4)
-        # )
-
         if self.transformations is None:
             centers, alphas = self.get_overlap_gaussians()
             rotations = None
@@ -489,29 +476,13 @@ class DGB:
                 for d in derivs
             ]
         else:
-            # row_inds, col_inds = np.triu_indices(alphas.shape[0])
+            deriv_order = deriv_order - (deriv_order % 2) # odd orders don't contribute so why evaluate the derivatives...
             self.logger.log_print("expanding about {N} points...", N=len(alphas))
-            # derivs = self.potential_function(centers, deriv_order=deriv_order)
-            # if isinstance(derivs, np.ndarray):  # didn't get the full list so we do the less efficient route'
-            #     derivs = [self.potential_function(centers)] + [self.potential_function(centers, deriv_order=d) for d in
-            #                                                range(1, deriv_order + 1)]
-
-            # use symmetry to cut down number of indices by 2
-            # ics = centers[row_inds, col_inds]
             derivs = function(centers, deriv_order=deriv_order)
             if isinstance(derivs, np.ndarray):  # didn't get the full list so we do the less efficient route'
                 derivs = [function(centers)] + [
                     function(centers, deriv_order=d) for d in range(1, deriv_order+1)
                 ]
-            # new_derivs = [] # reverse symmetrization
-            # for d in derivs:
-            #     full_mat = np.empty(
-            #         alphas.shape[:2] + d.shape[1:]
-            #     )
-            #     full_mat[row_inds, col_inds] = d
-            #     full_mat[col_inds, row_inds] = d
-            #     new_derivs.append(full_mat)
-            # derivs = new_derivs
 
         if rotations is not None:
             new_derivs = []
@@ -543,12 +514,13 @@ class DGB:
 
         self.logger.log_print("adding up all derivative contributions...")
         row_inds, col_inds = np.triu_indices(len(self.centers))
-        pot = np.zeros((len(self.centers), len(self.centers)))
+        fdim = derivs[0].ndim - 1
+        fshape = derivs[0].shape[1:]
+        pot = np.zeros((len(self.centers), len(self.centers)) + fshape)
         caches = [{} for _ in range(ndim)]
-
-        for d in derivs: # add up all independent integral contribs...
+        for nd,d in enumerate(derivs): # add up all independent integral contribs...
             # iterate over upper triangle coordinates (we'll add bottom contrib by symmetry)
-            inds = itertools.combinations_with_replacement(range(ndim), r=d.ndim-1) if d.ndim > 1 else [()]
+            inds = itertools.combinations_with_replacement(range(ndim), r=nd) if nd > 0 else [()]
             for idx in inds:
                 count_map = {k: v for k, v in zip(*np.unique(idx, return_counts=True))}
                 if expansion_type != 'taylor' and any(n%2 !=0 for n in count_map.values()):
@@ -565,12 +537,19 @@ class DGB:
                              if expansion_type != 'taylor' else
                            self.polyint_1D(centers[..., k], alphas[..., k], n)
                         )
-                    contrib *= caches[k][n] / alphas[..., k]**(n/2)
+                    base_contrib = caches[k][n] / alphas[..., k]**(n/2)
+                    for _ in range(fdim):
+                        base_contrib = np.expand_dims(base_contrib, -1)
+                    if isinstance(contrib, int) and fdim > 0:
+                        base_contrib = np.broadcast_to(base_contrib,  alphas.shape[:-1] + fshape)
+                    contrib *= base_contrib
 
-                dcont = d[(...,) + idx] if len(idx) > 0 else d
+                dcont = d[(slice(None, None, None),) + idx] if len(idx) > 0 else d
                 facterms = np.unique([x for x in itertools.permutations(idx)], axis=0)
                 nfac = len(facterms) # this is like a binomial coeff or something but my sick brain won't work right now...
                 scaling = 2**(len(idx)/2) * np.prod([np.math.factorial(count_map.get(k, 0)) for k in range(ndim)])
+                for _ in range(fdim):
+                    scaling = np.expand_dims(scaling, -1)
 
                 contrib *= nfac * dcont / scaling
 
@@ -590,38 +569,65 @@ class DGB:
             alphas
         )
 
-    def get_base_pot(self, potential_handler=None, expansion_degree=None, degree=None):
+    def evaluate_multiplicative_operator_base(self, function,
+                                              handler=None,
+                                              expansion_degree=None,
+                                              expansion_type=None,
+                                              quadrature_degree=None
+                                              ):
         if expansion_degree is None:
             expansion_degree = self.expansion_degree
 
-        if potential_handler is None:
-            if isinstance(self.potential_function, dict):
-                if 'analytic_integrals' in self.potential_function:
-                    potential_handler = 'analytic'
+        if handler is None:
+            if isinstance(function, dict):
+                if 'analytic_integrals' in function:
+                    handler = 'analytic'
             elif expansion_degree is not None:
-                potential_handler = 'expansion'
+                handler = 'expansion'
             else:
-                potential_handler = 'quad'
+                handler = 'quad'
 
-        if potential_handler == 'quad':
+        if handler == 'quad':
             self.logger.log_print("evauating integrals with {n}-order quadrature", n=self.quadrature_degree)
-            pot_mat = self.quad_integrate(self.potential_function, degree=self.quadrature_degree if degree is None else degree)
-        elif potential_handler == 'expansion':
+            pot_mat = self.quad_integrate(function, degree=self.quadrature_degree if quadrature_degree is None else quadrature_degree)
+        elif handler == 'expansion':
             self.logger.log_print("evauating integrals with {n}-degree expansions", n=self.expansion_degree)
-            pot_mat = self.expansion_integrate(self.potential_function, deriv_order=expansion_degree)
-        elif potential_handler == 'analytic':
+            pot_mat = self.expansion_integrate(function, deriv_order=expansion_degree, expansion_type=expansion_type)
+        elif handler == 'analytic':
             self.logger.log_print("evauating integrals analytically", n=self.expansion_degree)
             pot_mat = self.analytic_integrate()
         else:
-            raise ValueError("woof")
+            raise ValueError("unknown operator evaluation scheme {}".format(handler))
 
         return pot_mat
 
-    def get_V(self, potential_handler=None, expansion_degree=None, degree=None):
+    def evaluate_multiplicative_operator(self, function,
+                                         handler=None,
+                                         expansion_degree=None,
+                                         expansion_type=None,
+                                         quadrature_degree=None
+                                         ):
 
+        pot_mat = self.evaluate_multiplicative_operator_base(
+            function,
+            handler=handler,
+            expansion_degree=expansion_degree, expansion_type=expansion_type,
+            quadrature_degree=quadrature_degree
+        )
+        S = self.S
+        for _ in range(pot_mat.ndim - 2):
+            S = np.expand_dims(S, -1)
+        return S * pot_mat
+
+    def get_V(self, potential_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None):
         self.logger.log_print("calculating potential matrix")
-        pot_mat = self.get_base_pot(potential_handler=potential_handler, expansion_degree=expansion_degree, degree=degree)
-        return self.S * pot_mat
+        return self.evaluate_multiplicative_operator(
+            self.potential_function,
+            handler=potential_handler,
+            expansion_degree=expansion_degree,
+            expansion_type=expansion_type,
+            quadrature_degree=quadrature_degree
+        )
 
     def get_orthogonal_transform(self, min_singular_value=None, subspace_size=None):
         if min_singular_value is None:
@@ -656,7 +662,10 @@ class DGB:
 
         return Q, Qinv, (Qq, Qqinv)
 
-    def diagonalize(self, print_debug_info=False, subspace_size=None, min_singular_value=None, zero_energy_cutoff=1e-8):
+    def diagonalize(self, print_debug_info=False, subspace_size=None, min_singular_value=None,
+                    eps=1e-12,
+                    mode='stable'
+                    ):
 
         if min_singular_value is None:
             min_singular_value = self.min_singular_value
@@ -671,13 +680,9 @@ class DGB:
                 print(self.V)
 
         if min_singular_value is None:
-            try:
-                return sp.linalg.eigh(H, self.S)
-            except np.linalg.LinAlgError:
-                raise ValueError(
-                    "Overlap matrix poorly conditioned ({}) usually means data is too clustered or a min singular value is required".format(np.linalg.cond(self.S))
-                ) from None
-        else:
+            min_singular_value = 1e-12
+        # mode = 'fix-heiberger'
+        if mode == "classic":
             Q, Qinv, proj = self.get_orthogonal_transform(min_singular_value=min_singular_value, subspace_size=subspace_size)
             if proj is None:
                 # print(Q.shape, H.shape, self.S.shape, self.centers.shape)
@@ -693,66 +698,130 @@ class DGB:
                 ],
                 axis=0
             )
-            evecs = Qqinv.T @ evecs
+            evecs = Q.T @ Qqinv.T @ evecs
+        elif mode == 'stable': # Implementation of the Fix-Heiberger algorithm
+            S = self.S
+            d, Q = np.linalg.eigh(S)
+            d = np.flip(d)
+            Q = np.flip(Q, axis=1)
 
-            # raise Exception(evecs.shape, Qinv.shape)
+            N = len(d)
+            cutoff = np.max(d) * eps
+            g1 = np.where(d >= cutoff)
+            if len(g1) == 0:
+                raise ValueError("totally zero S matrix")
+            n1 = len(g1[0])
+            n2 = N - n1
 
-            # now we need to back track, which we can do by noting that we have
-            # all these extra modes from QL which are entirely interchangeable
-            # i.e. we have, say, 50 modes that have non-zero eigenvalues and so
-            # compose a 50x50 invertible space and then maybe we have a
-            # 40x40 space of degenerate modes. At the end of the day, then, we
-            # just need to define _a_ transformation matrix that inverts the first
-            # group and applies some kind of pseudo-inverse to the second
-            # Qinv = np.linalg.
+            if n2 == 0:
+                return self.diagonalize(mode='classic')
 
-            # print(eigs)
-            #
-            # # we've projected out some number of eigenvectors, though
-            # # and so we should get an appropriate number of zeros for that
-            # # and we should also be able to express our "final" evecs in terms of
-            # # the eigenbasis of S and pick out those with projections onto the
-            # # the removed vectors
-            # gl_expanded = Lorig.T@evecs
-            # good_loc_norms = np.linalg.norm(gl_expanded[:, good_loc], axis=1)
-            # final_pos = np.where(good_loc_norms > .95)[0]
-            #
-            # if len(final_pos) < len(Lorig):
-            #     # now we want to re-expand in terms of the full basis space
-            #     # which we can do by first noting that we've already expressed
-            #     # our eigenvectors in terms of the eigenvectors of the SVD matrix
-            #     # and so we can simply back track those to the original basis
-            #     # by applying Qinv
-            #
-            #     raise Exception(np.linalg.det(Q[:, good_loc][good_loc, :]))
-            #
-            #     eigs = eigs[final_pos]
-            #     # evecs = Lorig @ gl_expanded[:, final_pos]
-            #     evecs = Qinv @ evecs[:, final_pos]
-            #
-            #     # raise Exception(eigs.shape, evecs.shape, Lorig.shape, Qinv.shape)
+            # D = np.diag(d[g1])
+            # F = np.diag(d[g2])
+            A = Q.T@H@Q
 
-            #
-            # # if len(final_pos) > 0 and len(final_pos[0]) > 0:
-            # #     raise Exception(
-            # #         eigs[zero_norm_pos],
-            # #         np.linalg.norm((Lorig.T@evecs)[:, good_loc], axis=1)
-            # #     )
-            #
-            # # take non-zero eigvals
-            # zero_pos = np.where(np.abs(eigs) < 1e-8)[0] # drop the appropriate number of zeros
-            # nz = len(H) - len(good_loc)
-            # zero_pos = zero_pos[:nz]
-            # sel = np.setdiff1d(np.arange(len(H)), zero_pos)
-            # eigs = eigs[sel]
-            # evals = evecs[:, sel]
+            R = np.diag(np.concatenate([
+                1 / np.sqrt(d[g1]),
+                np.ones(n2)
+            ]))
+            A1 = R @ A @ R
 
-            # now invert transformation to get back to OG basis
-            # and remove uniform shift to eigenvalues
-            # eigs = eigs # - shift_val
-            # evecs = Qinv @ evecs # transformed back to the OG basis
+            # B = Q.T@S@Q
+            # B11 = R @ B @ R
+            B1 = np.diag(np.concatenate([
+                np.ones(n1),
+                np.zeros(n2) #d[g2]
+            ]))
 
-            return eigs, evecs
+            A22 = A1[n1:, n1:]
+            d2, Q22 = np.linalg.eigh(A22)
+            d2 = np.flip(d2)
+            Q22 = np.flip(Q22, axis=1)
+
+            cut2 = np.max(d2) * eps
+            g3 = np.where(d2 >= cut2)[0]
+            n3 = len(g3)
+            if n3 == 0:
+                raise NotImplementedError("early exit not done")
+
+            g4 = np.where(d2 < cut2)[0]
+            n4 = len(g4)
+            Q2 = np.eye(N)
+            Q2[n1:, n1:] = Q22
+            A2 = Q2.T@A1@Q2
+            # B2 = Q2.T@B1@Q2
+
+
+            if n4 == 0:
+                A11 = A2[:n1, :n1]
+                A12 = A2[:n1, n1:]
+                Dinv = np.diag(1 / d2)
+
+                eigs, U1 = np.linalg.eigh(A11 - A12@Dinv@A12.T)
+                U2 = -Dinv@A12.T@U1
+
+                U = np.concatenate(
+                    [
+                        U1, U2
+                    ],
+                    axis=0
+                )
+
+                evecs = Q @ R @ Q2 @ U
+            else: # second iteration of this partitioning...
+                if n1 < n4:
+                    raise ValueError("singular problem")
+
+                A2[-n4:, -n4:] = np.zeros((n4, n4)) #
+                # B2 = B1
+
+                A13 = A2[:n1, n1+n3:]
+                Q33, R14 = np.linalg.qr(A13, mode='complete')
+                # A14 = R14[:n4]
+
+                Q3 = np.eye(N)
+                Q3[:n1, :n1] = Q33
+                A3 = Q3.T@A2@Q3
+
+                # B3 = B1
+
+                n5 = n1 - n4
+                A11 = A3[:n4, :n4]
+                A12 = A3[:n4, n4:n1]
+                A13 = A3[:n4, n1:n1+n3]
+                A14 = A3[:n4, -n4:]
+
+                A22 = A3[n4:n1, n4:n1]
+                A23 = A3[n4:n1, n1:n1+n3]
+                # A24 = A3[n4:n5, -n4:]
+                #
+                # raise Exception(A24)
+
+                Dinv = np.diag(1 / d2[g3])
+
+                U1 = np.zeros((n4, n5))
+                eigs, U2 = np.linalg.eigh(
+                    A22 - A23@Dinv@A23.T
+                )
+                U3 = -Dinv@A23.T@U2
+                U4 = -np.linalg.inv(A14)@(A12@U2 + A13@U3)
+
+                U = np.concatenate(
+                    [
+                        U1, U2, U3, U4
+                    ],
+                    axis=0
+                )
+
+                evecs = Q @ R @ Q2 @ Q3 @ U
+
+        else:
+            raise ValueError("unknown solver {}".format(mode))
+
+                # raise Exception((eigs[1:] - eigs[0])*219475.6)
+
+
+        return eigs, evecs
 
     def get_wavefunctions(self, print_debug_info=False, min_singular_value=None):
         eigs, evals = self.diagonalize(print_debug_info=print_debug_info, min_singular_value=min_singular_value)

@@ -17,6 +17,7 @@ class AIMDSimulator:
                  coordinates,
                  force_function,
                  velocities=0,
+                 track_kinetic_energy=False,
                  timestep=.1,
                  sampling_rate=1
                  ):
@@ -49,6 +50,13 @@ class AIMDSimulator:
 
         self.trajectory = collections.deque()
         self.trajectory.append(self.coords)
+        if track_kinetic_energy:
+            self.kinetic_energies = collections.deque()
+            self.kinetic_energies.append(
+                self._ke(self._mass, self.velocities)
+            )
+        else:
+            self.kinetic_energies = None
         self.steps = 0
         self.dt = timestep
         self.sampling_rate = sampling_rate
@@ -73,11 +81,17 @@ class AIMDSimulator:
 
         return coords, vels, forces_new
 
+    @staticmethod
+    def _ke(_mass, v):
+        # _mass and v are 2D b.c. atomic structs
+        return 1 / 2 * np.sum(np.sum(_mass * v ** 2, axis=-1), axis=-1)
     def propagate(self, num_steps=1):
 
         for _ in range(num_steps):
             c, v, f = self.step()
             if self.steps % self.sampling_rate == 0:
+                if self.kinetic_energies is not None:
+                    self.kinetic_energies.append(self._ke(self._mass, v))
                 self.trajectory.append(c)
 
         return self.trajectory

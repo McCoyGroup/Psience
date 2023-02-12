@@ -4,6 +4,7 @@ Provides a general base spectrum class that can be extended to new fancy spectra
 
 import numpy as np, json, abc
 import McUtils.Plots as plt
+from McUtils.Data import UnitsData
 
 __all__ = [
     "BaseSpectrum",
@@ -142,6 +143,35 @@ class DiscreteSpectrum(BaseSpectrum):
     Concrete implementation of `BaseSpectrum` that exists
     solely to allow for plotting and broadening.
     """
+
+    @classmethod
+    def from_transition_moments(cls, frequencies, transition_moments, **meta):
+        """
+        Assumes frequencies and transition moments in a.u.
+
+        :param frequencies:
+        :type frequencies:
+        :param transition_moments:
+        :type transition_moments:
+        :return:
+        :rtype:
+        """
+
+        oscillator_strengths = np.linalg.norm(transition_moments, axis=-1) ** 2
+        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        return cls(
+            frequencies * h2w,
+            units * frequencies * oscillator_strengths,
+            **meta
+        )
+
+    def normalize(self, which=None):
+        return type(self)(
+            self.frequencies,
+            self.intensities / (np.max(self.intensities) if which is None else self.intensities[which]),
+            **self.meta
+        )
 
     def plot(self,
              figure=None,

@@ -649,7 +649,7 @@ class ExpansionTerms:
                                   internal_by_cartesian_order=None,
                                   cartesian_by_internal_order=None,
                                   current_cache=None
-                                  ):
+                                  ):  #TODO: Cache this as a molecular property instead of some global store here...
 
         if internal_by_cartesian_order is None:
             internal_by_cartesian_order = self.internal_by_cartesian_order
