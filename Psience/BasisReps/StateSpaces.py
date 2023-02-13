@@ -446,6 +446,20 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
             dtype=cls.excitations_dtype
         )
 
+    @classmethod
+    def num_states_with_quanta(cls, n, ndim):
+        """
+        Returns the states with number of quanta equal to n
+
+        :param quanta:
+        :type quanta:
+        :return:
+        :rtype:
+        """
+
+        # generate basic padded partitions of `n`
+        return SymmetricGroupGenerator(ndim).num_terms(n)
+
     @abc.abstractmethod
     def to_single(self,
                   track_excitations=True,
@@ -1250,7 +1264,12 @@ class BasisStateSpace(AbstractStateSpace):
             if track_excitations and self._excitations is not None or other._excitations is not None:
                 self_exc = self.excitations
                 other_exc = other.excitations
-                new_exc = np.concatenate([self_exc, other_exc], axis=0)
+                if len(self_exc) == 0:
+                    new_exc = other_exc
+                elif len(other_exc) == 0:
+                    new_exc = self_exc
+                else:
+                    new_exc = np.concatenate([self_exc, other_exc], axis=0)
                 new._excitations = new_exc
 
         else:

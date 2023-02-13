@@ -993,6 +993,8 @@ class VPTRunner:
 
         self.system = system
         self.states = states
+        if initial_states is None:
+            initial_states = VPTStateSpace.from_system_and_quanta(self.system, 0)
         self.initial_states = initial_states
 
         self._ham = None
@@ -1194,7 +1196,7 @@ class VPTRunner:
                 expansion_order = opts['expansion_order']
             else:
                 expansion_order = order
-            par.ops['state_space_filters'] = states.filter_generator(target_property, order=expansion_order, postfilters=basis_filters)
+            par.ops['state_space_filters'] = states.filter_generator(target_property, order=order, postfilters=basis_filters)
 
         if corrected_fundamental_frequencies is not None and (
                 'zero_order_energy_corrections' not in opts

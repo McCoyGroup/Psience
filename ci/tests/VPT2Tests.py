@@ -46,6 +46,43 @@ class VPT2Tests(TestCase):
         )
 
     @debugTest
+    def test_HOHVPTSubstates(self):
+
+        file_name = "HOH_freq.fchk"
+        mol = Molecule.from_file(TestManager.test_data(file_name),
+                                 internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]])
+        # raise Exception(mol.internal_coordinates)
+        ics = mol.internal_coordinates
+        derivs = mol.coords.jacobian(
+            ics.system,
+            [1, 2],
+            all_numerical=True,
+            converter_options={'reembed': True}
+        )
+        derivs = [x.reshape((9,) * (i + 1) + (3, 3)) for i, x in enumerate(derivs)]
+        
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            # 1,
+            # [[0, 0, 0], [1, 1, 0]],
+            # [[0, 0, 0], [0, 2, 1]],
+            2,
+            order=4,
+            expansion_order=2,
+            # 3,
+            # expansion_order={'default':1, 'dipole':2},
+            # target_property='wavefunctions',
+            # internals=mol.zmatrix,
+            # initial_states=1,
+            # operators={
+            #     'OH1': [ics[1, 0], derivs[0][:, 1, 0], derivs[1][:, :, 1, 0]],
+            #     'OH2': [ics[2, 0], derivs[0][:, 2, 0], derivs[1][:, :, 2, 0]],
+            #     'HOH': [ics[2, 1], derivs[0][:, 2, 1], derivs[1][:, :, 2, 1]]
+            # },
+            logger=True
+        )
+
+    @validationTest
     def test_HOHVPTNonGSRunner(self):
 
         file_name = "HOH_freq.fchk"

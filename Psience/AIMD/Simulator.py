@@ -3,7 +3,7 @@ import collections, functools, numpy as np
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Zachary import FiniteDifferenceDerivative, RBFDInterpolator
 
-from ..Molecools import Molecule
+from ..Molecools import Molecule, MolecularZMatrixCoordinateSystem
 from ..Molecools.Properties import PropertyManager
 
 __all__ = [
@@ -16,6 +16,7 @@ class AIMDSimulator:
                  atoms,
                  coordinates,
                  force_function,
+                 internals=None,
                  velocities=0,
                  track_kinetic_energy=False,
                  timestep=.1,
@@ -34,17 +35,29 @@ class AIMDSimulator:
             self._mass = np.expand_dims(self.masses, -1)
             for _ in range(coordinates.ndim - 2):
                 self._mass = np.expand_dims(self._mass, 0)
-            self._mass = self.masses[np.newaxis, :,  np.newaxis]
+            # self._mass = self.masses[np.newaxis, :,  np.newaxis]
         else: # regular coordinates
             self._mass = self.masses[np.newaxis]
             for _ in range(coordinates.ndim - 2):
                 self._mass = np.expand_dims(self._mass, 0)
         self.coords = coords
-        for _ in range(coordinates.ndim - 2):
-            self._mass = np.expand_dims(self._mass, -1)
+        # for _ in range(coordinates.ndim - 2):
+        #     self._mass = np.expand_dims(self._mass, -1)
         if isinstance(velocities, (int, float, np.integer, np.floating)):
             velocities = np.full_like(self.coords, velocities)
         self.velocities = velocities
+        if internals is not None:
+            if not isinstance(internals, MolecularZMatrixCoordinateSystem):
+                base_mol = Molecule(
+                    ['H']*len(self.masses),
+                    coords=self.coords,
+                    masses=self.masses,
+                    internals=internals
+                )
+                internals = [base_mol.coords.system, base_mol.internal_coordinates.system]
+            else:
+                internals = [internals.molecule.coords.system, internals]
+        self._internals = internals
         self.force_function = force_function
         self._prev_forces = None
 
@@ -61,17 +74,54 @@ class AIMDSimulator:
         self.dt = timestep
         self.sampling_rate = sampling_rate
 
+    @classmethod
+    def from_molecule(cls,
+                      mol,
+                      force_function,
+                      internals=None,
+                      velocities=0,
+                      track_kinetic_energy=False,
+                      timestep=.1,
+                      sampling_rate=1
+                      ):
+        return cls(
+            mol.masses,
+            mol.coords,
+            force_function,
+            internals=mol.internal_coordinates.system
+        )
+
+    #TODO: add internal coordinate propagation following the Krimm paper using the B-matrix
+    #      or not...maybe I just need a faster Jacobian?
+    def get_forces(self, coords):
+        if self._internals is not None:
+            ccs, ics = self._internals
+            icoords = ccs.convert_coords(coords, ics)
+            if not isinstance(icoords, np.ndarray):
+                icoords = icoords[0] # converter info
+            forces = self.force_function(icoords)
+            jacs = ccs(coords).jacobian(ics, order=1, all_numerical=True)[0]
+            ncs = np.prod(coords.shape[-2:], dtype=int)
+            jacs = np.reshape(np.moveaxis(jacs, 1, 0), (len(coords), ncs, ncs))
+            forces = jacs@forces.reshape((len(coords), ncs, 1))
+            forces = forces.reshape(coords.shape)
+            # raise Exception(forces.shape)
+        else:
+            forces = self.force_function(coords)
+        return forces
+
     def step(self):
         forces = self._prev_forces
         if forces is None:
-            forces = self.force_function(self.coords)
+            forces = self.get_forces(self.coords)
+
 
         v = self.velocities
         coords = self.coords + v * self.dt + forces / (2 * self._mass) * self.dt**2
         if self._atomic_structs:
             com = np.tensordot(self.masses, coords, axes=[0, -2]) / np.sum(self._mass)
             coords = coords - com[:, np.newaxis, :] # don't let COM move
-        forces_new = self.force_function(coords)
+        forces_new = self.get_forces(coords)
         vels = v + self.dt * (forces + forces_new) / (2 * self._mass)
 
         self._prev_forces = forces_new

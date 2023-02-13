@@ -1641,7 +1641,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         # reshape data so it's one big matrix...
         order = len(prop_corrs)
         res = {}
-        for i,idx in enumerate(self.initial_state_indices):
+        for n,idx in enumerate(self.initial_state_indices):
 
             term_keys = []
             terms = []
@@ -1654,7 +1654,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                     #             len(pq)
                     #         )
                     #     )
-                    terms.append(pq[i])
+                    terms.append(pq[n])
                 for i, j, k in ip.product(range(q + 1), range(q + 1), range(q + 1)):
                     if i + j + k == q:
                         term_keys.append("<{i}|M({k})|{j}>".format(i=i, j=j, k=k))

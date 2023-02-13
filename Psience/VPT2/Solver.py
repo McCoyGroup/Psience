@@ -695,7 +695,6 @@ class PerturbationTheorySolver:
                     existing_spaces[p] = ({None:cs}, cs)
                 if self.state_space_filter_generator is not None:
                     filters = BasisStateSpaceFilter.from_data(new_targets, self.state_space_filter_generator(new_targets))
-                    # raise Exception(filters[(1, 1)].prefilters)
                 else:
                     filters = None
                 new_spaces = self.load_coupled_spaces([new_targets],
@@ -1243,6 +1242,8 @@ class PerturbationTheorySolver:
 
         H = self.PastIndexableTuple(self.perts)
 
+        if filter_spaces is None:
+            filter_spaces = {}
         if property_filter is None:
             # This is intentionally written to parallel the non-degenerate VPT equations
             for k in range(1, order):
@@ -1281,11 +1282,11 @@ class PerturbationTheorySolver:
                                 self.logger.log_print('H({a})|n({b})>', a=k - i, b=i)
                                 if k < order-1:
                                     corrs[k] += dot(H[k - i], corrs[i],
-                                                    filter_space=filter_spaces[(k-i, i)] if filter_spaces is not None and (k-i, i) in filter_spaces else None
+                                                    filter_space=filter_spaces.get((k-i, i), None)
                                                     )
                                 else:
                                     dot(H[k - i], corrs[i], ret_space=False,
-                                                    filter_space=filter_spaces[(k-i, i)] if filter_spaces is not None and (k-i, i) in filter_spaces else None
+                                                    filter_space=filter_spaces.get((k-i, i), None)
                                                     )
         else:
             raise NotImplementedError("property filters not here yet")

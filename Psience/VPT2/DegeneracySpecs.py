@@ -92,6 +92,8 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         return StronglyCoupledDegeneracySpec()
     @classmethod
     def from_spec(cls, spec, format=None, **kwargs):
+        if spec is False:
+            spec = None
         if spec is None:
             return None
         elif (

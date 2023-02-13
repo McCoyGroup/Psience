@@ -275,7 +275,7 @@ class DGBTests(TestCase):
             )
         )
 
-    @debugTest
+    @validationTest
     def test_MorseRotatedAIMD(self):
         ndim = d = 2
         reduced_mass = (
@@ -350,7 +350,7 @@ class DGBTests(TestCase):
             c = c.reshape(-1, ndim)
             c = c - np.broadcast_to(np.array(re)[np.newaxis], c.shape)
 
-            if deriv_order is None:
+            if deriv_order is None or deriv_order == 0:
                 res = rot_mat.T@c[:, :, np.newaxis] / 100
                 res = np.reshape(res, c.shape)
                 res = np.concatenate([res, np.zeros(c.shape[:-1] + (1,))], axis=-1)
@@ -359,11 +359,11 @@ class DGBTests(TestCase):
                     raise NotImplementedError("ugh...")
                 n = deriv_order
                 res = np.zeros(c.shape[:-1] + (ndim,)*deriv_order + (3,))
-                for k in range(ndim):
-                    idx = (...,) + (k,)*n + (slice(None, None, None),)
-                    res[idx] = m[..., k, :]
-                for j in range(deriv_order):
-                    res = np.tensordot(res, rot_mat, axes=[1, 0])
+                # for k in range(ndim):
+                #     idx = (...,) + (k,)*n + (slice(None, None, None),)
+                #     res[idx] = m[..., k, :]
+                # for j in range(deriv_order):
+                #     res = np.tensordot(res, rot_mat, axes=[1, 0])
                 # res = res
 
             res = res.reshape(base + res.shape[1:])
@@ -551,195 +551,36 @@ class DGBTests(TestCase):
                                     fig.savefig(os.path.join(plots_dir, 'traj.png'))
                                     fig.close()
 
-                            np.random.seed(0)
-                            # npts = 20
-                            v = simple_morse(pts)
-                            sorting = np.argsort(v)
-                            v = v[sorting]
-                            pts = pts[sorting]
-                            cuts = [
-                                [e_cut, None]
-                                # [ 10, 50]
-                            ]
-
-                            resample = []
-                            eprev = 0
-                            # plt.TriContourPlot(pts[:, 0], pts[:, 1], v).show()
-                            for ecut, npts in cuts:
-                                sub = pts[np.logical_and(eprev < v, v < ecut)]
-                                resample.append(
-                                    sub[np.random.choice(len(sub), npts, replace=False)]
-                                        if npts is not None and len(sub) > npts else
-                                    sub
-                                )
-                            pts = np.concatenate(resample, axis=0)
-
-                            def decluster(pts, radius):
-                                mask = np.ones(len(pts), dtype=bool)
-                                for i in range(len(pts) - 1):
-                                    if mask[i]:
-                                        test_pos = np.where(mask[i+1:])
-                                        if len(test_pos) == 0 or len(test_pos[0]) == 0:
-                                            break
-                                        samp_pos = i + 1 + test_pos[0]
-                                        dists = np.linalg.norm(pts[samp_pos] - pts[i][np.newaxis], axis=1)
-                                        mask[samp_pos] = dists > radius
-                                return pts[mask]
-
-                            pts = decluster(pts, distance_cutoff)
-                            npts = len(pts)
-
-                            grads = simple_morse(pts, deriv_order=1)
-                            hess = simple_morse(pts, deriv_order=2)
-
-                            alphas = np.zeros((npts, ndim))
-                            rots = np.zeros((npts, ndim, ndim))
-
-                            rm = np.array([reduced_mass]*ndim)
-                            grads = grads / np.sqrt(rm[np.newaxis]) # mass-weight
-                            hess = hess / np.sqrt(rm[np.newaxis, :, np.newaxis] * rm[np.newaxis, np.newaxis, :])
-
-                            grad_norms = np.linalg.norm(grads,  axis=1)
-                            non_stationary = grad_norms > 1e-6
-                            stationary = np.where(grad_norms <= 1e-6)
-                            if len(stationary) == 0:
-                                stationary = np.array([], dtype=int)
-                            else:
-                                stationary = stationary[0]
-
-                            # obviously kinda an adaptation...but the reduced masses are the smae
-                            # for both coords so it's just a scaling factor
-                            rp_mode = grads[non_stationary] / grad_norms[non_stationary][:, np.newaxis]
-                            num_rp = np.sum(non_stationary.astype(int))
-                            proj = np.broadcast_to(np.eye(ndim)[np.newaxis], (num_rp, ndim, ndim)) - nput.vec_outer(rp_mode, rp_mode)
-                            h2 = proj@hess[non_stationary]@proj
-                            freqs, modes = np.linalg.eigh(h2)
-                            # f2, _ = np.linalg.eigh(hess[non_stationary])
-                            # f3 = np.array([
-                            #     scipy.linalg.eigh(hh, np.diag(1/np.asanyarray(masses)), type=2)[0]
-                            #     for hh in simple_morse(pts[non_stationary], deriv_order=2)
-                            #     ])
-                            # raise Exception(f3, f2)
-                            modes[:, :, 1] = modes[:, :, 1] * np.linalg.det(modes)[:, np.newaxis]
-                            modes = modes.transpose(0, 2, 1)
-                            # raise Exception(modes @ rp_mode[:, :, np.newaxis])
-                            # rp_freqs = rp_mode[:, np.newaxis, :]@hess[non_stationary]@rp_mode[:, :, np.newaxis]
-
-                            freq_cuts = np.abs(freqs) < 1e-8
-                            kill_pos = np.where(np.all(freq_cuts, axis=1))
-                            if len(kill_pos) > 0 and len(kill_pos[0]) > 0:
-                                # plot_grid, plot_pts = get_plot_grid(pts)
-                                # base = plt.ContourPlot(*plot_grid, simple_morse(plot_pts).reshape(plot_grid[0].shape), levels=20)
-                                sel = np.where(non_stationary)[0][kill_pos]
-                                # plt.ScatterPlot(pts[np.ix_(sel, [0])], pts[np.ix_(sel, [1])], color='red', figure=base)
-                                # base.show()
-                                # raise ValueError("bad points")
-                                stationary = np.unique(np.concatenate([stationary, sel]))
-
-                            zi = np.where(freq_cuts)
-                            for i, j in zip(*zi):
-                                m = modes[i, :, j][:, np.newaxis]
-                                f = m.T @ hess[i] @ m
-                                freqs[i, j] = f
-                            freqs = np.sqrt(np.abs(freqs))
-                            freqs[freqs < min_rp_freq] = min_rp_freq
-                            freqs[zi] *= (rp_scaling / scaling)**2
-
-                            # masses = np.reshape(modes@np.array([[[reduced_mass]]*ndim]), (num_rp, ndim))
-
-                            g = np.diag(1/masses)
-                            g = modes.transpose(0, 2, 1)@g[np.newaxis]@modes
-                            rpms = 1/np.diagonal(g, axis1=1, axis2=2) # note this is the same as masses...
-                            alphas[non_stationary] = scaling * rpms * freqs
-                            rots[non_stationary] = modes
-
-                            # rp_coords = rp_mode[:, np.newaxis, np.newaxis, :] @ pts[np.newaxis, :, :, np.newaxis]
-                            # rp_coords = rp_coords.reshape((len(non_stationary), len(pts)))
-                            # raise Exception(rp_coords)
-
-                            if len(stationary) > 0:
-                                freqs2, modes = np.linalg.eigh(hess[stationary])
-                                freqs = np.sqrt(np.abs(freqs2))
-                                g = np.diag(1 / masses)
-                                g = modes.transpose(0, 2, 1) @ g[np.newaxis] @ modes
-                                rpms = 1/np.diagonal(g, axis1=1, axis2=2) # note this is the same as masses...
-                                alphas[stationary] = scaling * rpms * freqs
-                                rots[stationary] = modes
-
-                            ri, ci = np.triu_indices(npts, k=1)
-                            dmat = np.full((npts, npts), 1000, dtype=float)
-                            dists = np.linalg.norm(pts[ri] - pts[ci], axis=1)
-                            dmat[ri, ci] = dmat[ci, ri] = dists
-                            min_dist = np.min(dmat, axis=1)
-
-                            if potential_scaling is not None:
-                                pots = simple_morse(pts)[:, np.newaxis]
-                                raise NotImplementedError(...)
-                                # alphas = np.power(1 + 1 * (pots - 0) / np.max(pots), 1/2) * alphas
-
-                            if min_dist_alpha_scaling is not None:
-                                alphas = min_dist_alpha_scaling * alphas / (scaling * min_dist[:, np.newaxis])
-
                             ham1 = DGB(pts, simple_morse,
                                        optimize_centers=False,
-                                       alphas=alphas,
-                                       clustering_radius=-1,
+                                       alphas='virial',
                                        min_singular_value=sing_cutoff,#0.0001,
-                                       num_svd_vectors=num_svd_vectors,
                                        expansion_degree=exp_deg,
-                                       transformations=rots,
                                        masses=masses
-                                       # transformations=np.broadcast_to(
-                                       #     np.eye(ndim)[np.newaxis],
-                                       #     (len(pts), ndim, ndim)
-                                       # )
                                        )
 
-                            hh = simple_morse(pts, deriv_order=2)
                             ham1A = DGB(pts, simple_morse,
-                                       optimize_centers=False,
-                                       # alphas=np.max(alphas, axis=1),
-                                       alphas=diag_scaling*np.sqrt(np.abs(reduced_mass * np.diagonal(hh, axis1=1, axis2=2))),
-                                       clustering_radius=-1,
-                                       min_singular_value=hess_diag_sing_cutoff,#0.0001,
-                                       num_svd_vectors=num_svd_vectors,
+                                       alphas={'method':'virial', 'allow_rotations':False},
+                                       min_singular_value=hess_diag_sing_cutoff,
                                        expansion_degree=exp_deg,
                                        #  quadrature_degree=4,
                                        masses=masses
-                                       # transformations=np.broadcast_to(
-                                       #     np.eye(ndim)[np.newaxis],
-                                       #     (len(pts), ndim, ndim)
-                                       # )
                                        )
-
-                            # raise Exception(
-                            #     2 * np.diagonal(ham1A.T) - np.diagonal(ham1A.V)
-                            # )
 
                             ham2 = DGB(pts, simple_morse,
                                        optimize_centers=False,
-                                       alphas=np.mean(np.sqrt(reduced_mass/min_dist)) * min_dist_scaling,
-                                       clustering_radius=-1,
-                                       min_singular_value=min_dist_min_sin,#0.0001,
-                                       num_svd_vectors=num_svd_vectors,
+                                       alphas={'method':'min_dist', 'use_mean':True},
+                                       min_singular_value=min_dist_min_sin,
                                        expansion_degree=exp_deg,
                                        # quadrature_degree=6,
                                        masses=masses
                                        )
                             ham3 = DGB(pts, simple_morse,
                                        optimize_centers=False,
-                                       alphas= np.sqrt(reduced_mass/min_dist) * min_dist_scaling,#1 + 1 / (.2+simple_morse(pts)),
-                                       clustering_radius=-1,
+                                       alphas='min_dist',
                                        min_singular_value=min_dist_min_sin,#0.0001,
-                                       num_svd_vectors=num_svd_vectors,
-                                       # num_svd_vectors=100,
                                        expansion_degree=exp_deg,
                                        masses=masses
-                                       # transformations=rots,
-                                       # transformations=np.broadcast_to(
-                                       #     np.eye(ndim)[np.newaxis],
-                                       #     (len(pts), ndim, ndim)
-                                       # )
                                        )
 
                             # raise Exception(
@@ -847,6 +688,7 @@ class DGBTests(TestCase):
                                 base.show()
                                 raise Exception(...)
 
+                            npts = len(pts)
                             shit_rows, shit_cols = np.triu_indices(npts)
                             shit_pos = np.where(shit_rows == shit_cols)
                             shit_pos = (shit_pos[0],)
@@ -1051,6 +893,94 @@ class DGBTests(TestCase):
                                         ]) * h2w
                                     )))
                                 # e = wfns.energies
+
+    @debugTest
+    def test_ModelPotentialAIMD(self):
+
+        from Psience.AnalyticModels import AnalyticModel
+
+        mol = Molecule.from_file(
+            TestManager.test_data('water_freq.fchk'),
+            internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        )
+
+        ics = mol.internal_coordinates
+        re1 = ics[1, 0]; re2 = ics[2, 0]; a = ics[2, 1]
+
+        model = AnalyticModel(
+            [
+                AnalyticModel.r(0, 1),
+                AnalyticModel.r(0, 2),
+                AnalyticModel.a(1, 0, 2),
+            ],
+            AnalyticModel.morse(0, 1, w="w", wx="wx")
+            + AnalyticModel.morse(0, 2, w="w", wx="wx"),
+            # + AnalyticModel.harmonic(1, 0, 2),
+            values={
+                AnalyticModel.sym("w", 0, 1): 3869.47 * UnitsData.convert("Wavenumbers", "Hartrees"),
+                AnalyticModel.sym("wx", 0, 1): 84 * UnitsData.convert("Wavenumbers", "Hartrees"),
+                AnalyticModel.sym("re", 0, 1): re1,
+                AnalyticModel.sym("w", 0, 2): 3869.47 * UnitsData.convert("Wavenumbers", "Hartrees"),
+                AnalyticModel.sym("wx", 0, 2): 3*84 * UnitsData.convert("Wavenumbers", "Hartrees"),
+                AnalyticModel.sym("re", 0, 2): re2,
+                AnalyticModel.sym("k", 1, 0, 2): 1600 * UnitsData.convert("Wavenumbers", "Hartrees"),
+                AnalyticModel.sym("qe", 1, 0, 2): a,
+                AnalyticModel.m(0): 16 * UnitsData.convert("AtomicMassUnits", "ElectronMass"),
+                AnalyticModel.m(1): 1 * UnitsData.convert("AtomicMassUnits", "ElectronMass"),
+                AnalyticModel.m(2): 1 * UnitsData.convert("AtomicMassUnits", "ElectronMass")
+            }
+        )
+
+        pot, grad, hess = model.v(order=3, evaluate='constants', lambdify=True)
+        # pot2 = model.v(order=2, evaluate='constants')
+
+        def ic_grad(ics):
+            c = ics.reshape(ics.shape[0], -1)[:, (3, 6, 7)]
+            g = [
+                np.full(len(c), v)
+                    if not isinstance(v, np.ndarray) else
+                v
+                for v in grad(c)
+            ]
+            gg = np.moveaxis(np.array(g), 0, -1)
+            full = np.zeros((len(ics), 9), dtype=float)
+            full[:, (3, 6, 7)] = gg
+            full = full.reshape(ics.shape)
+            return full
+
+        def cart_hess(carts):
+            c = ics.reshape(ics.shape[0], -1)[:, (3, 6, 7)]
+            g = [
+                np.full(len(c), v)
+                    if not isinstance(v, np.ndarray) else
+                v
+                for v in grad(c)
+            ]
+            gg = np.moveaxis(np.array(g), 0, -1)
+            full = np.zeros((len(ics), 9), dtype=float)
+            full[:, (3, 6, 7)] = gg
+            full = full.reshape(ics.shape)
+            return full
+
+        init_pos = (
+                mol.internal_coordinates +
+                np.array([[0, 0, 0], [.2, 0, 0], [0, 0, 0]])
+        ).convert(
+            mol.coords.system
+        )
+
+        sim = AIMDSimulator(
+            mol.masses,
+            np.array([init_pos]*5),
+            ic_grad,
+            internals=mol.internal_coordinates.system
+        )
+        sim.propagate(100)
+        coords = np.array(sim.trajectory).reshape((-1, 3, 3))
+        ics = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates
+
+
+
 
     @validationTest
     def test_Expansion(self):

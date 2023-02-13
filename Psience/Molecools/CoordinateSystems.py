@@ -175,6 +175,8 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         try:
             self.converter_options['reembed'] = True if remb is None else remb
             jacs = super().jacobian(coords, *args, converter_options=converter_options, **kwargs)
+            if isinstance(jacs, np.ndarray):
+                jacs = [jacs]
             raw_jacs = []
             for j in jacs:
                 skip_dim = coords.ndim - 2
@@ -217,7 +219,7 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         if converter_options is None:
             converter_options = opts
             opts = {}
-        super().__init__(converter_options=converter_options, dimension=(nats, 3), opts=opts)
+        super().__init__(converter_options=converter_options, dimension=(nats, 3), coordinate_shape=(nats, 3), opts=opts)
 
     def pre_convert(self, system):
         self.converter_options['molecule'] = self.molecule
@@ -290,6 +292,8 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             main_excludes = None
 
         jacs = super().jacobian(coords, system, analytic_deriv_order=analytic_deriv_order, converter_options=converter_options, **kwargs)
+        if isinstance(jacs, np.ndarray):
+            jacs = [jacs]
         raw_jacs = []
         for n,j in enumerate(jacs): # this expects a full filling of the jacobians which maybe I need to not expect...
             baseline = 2*analytic_deriv_order + len(coords.shape)
@@ -360,6 +364,7 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
                      ordering=None,
                      strip_embedding=True,
                      strip_dummies=False,
+                     return_derivs=None,
                      **kwargs):
         """
         Converts from Cartesian to ZMatrix coords, preserving the embedding
@@ -383,6 +388,7 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
         :return:
         :rtype:
         """
+        return_derivs=False
 
         n_sys = coords.shape[0]
         n_coords = coords.shape[1]
@@ -427,6 +433,7 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
                                                                     ordering=ordering,
                                                                     origins=origins,
                                                                     axes=axes,
+                                                                    return_derivs=return_derivs,
                                                                     **kwargs
                                                                     )
 
@@ -536,6 +543,7 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
         Converts from Cartesian to ZMatrix coords, attempting to preserve the embedding
         """
         from .Molecule import Molecule
+        return_derivs = False
 
         n_sys = coords.shape[0]
         n_coords = coords.shape[1]

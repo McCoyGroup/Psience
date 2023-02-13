@@ -367,7 +367,8 @@ class PerturbationTheoryHamiltonian:
             if self._selection_rules is not None and len(self._selection_rules) > o-1:
                 self._expansions[o].selection_rules = self._selection_rules[o-1]
 
-            self._expansions[o].name = "H({})".format(o)
+            if not isinstance(self._expansions[o], int) and self._expansions[o] == 0:
+                self._expansions[o].name = "H({})".format(o)
 
         return self._expansions[o]
 
@@ -383,6 +384,7 @@ class PerturbationTheoryHamiltonian:
         # we get a benefit from going high first
         if isinstance(expansion_orders, int):
             expansion_orders = self._get_expansion_orders(None, expansion_orders)
+
         if order is None:
             order = max(expansion_orders.values())
         perts = []

@@ -68,11 +68,11 @@ class DGB:
                  projection_indices=None,
                  transformations=None,
                  logger=False,
-                 clustering_radius=.005,
+                 optimize_centers=False,
+                 clustering_radius=-1,
                  min_singular_value=1e-4,
                  num_svd_vectors=None,
                  svd_contrib_cutoff=1e-3,
-                 optimize_centers=False,
                  quadrature_degree=4,
                  expansion_degree=None,
                  expansion_type='multicenter',
@@ -80,6 +80,12 @@ class DGB:
     ):
         self._S, self._T, self._V = None, None, None
         self.logger = Logger.lookup(logger)
+
+        self.potential_function = potential_function
+        self.quadrature_degree = quadrature_degree
+        self.expansion_degree = expansion_degree
+        self.expansion_type = expansion_type
+        self.ref = reference_structure
 
         centers = np.asanyarray(centers)
         if masses is None:
@@ -108,41 +114,38 @@ class DGB:
         else:
             self.logger.log_print("initializing Gaussians...")
             self.clustering_radius = clustering_radius
-            self.centers, self.alphas = self.initialize_gaussians(
+            self.centers, self.alphas, tfs = self.initialize_gaussians(
                 centers, alphas,
                 clustering_radius
             )
+            if transformations is None and tfs is not None:
+                transformations = tfs
 
         if self.alphas.ndim == 1:
             self.alphas = np.broadcast_to(self.alphas[:, np.newaxis], self.centers.shape)
         self.transformations = transformations
 
         self.min_singular_value = min_singular_value
-        if min_singular_value is not None or num_svd_vectors is not None:
-            # Use SVD to prune out matrix rows that will be super ill conditioned
-            sig, evecs = np.linalg.eigh(self.S)
-            if num_svd_vectors:
-                good_loc = slice(max(len(sig)-num_svd_vectors, 0), len(sig))
-            else:
-                self.logger.log_print("most important center threshold: {t}", t=min_singular_value)
-                good_loc = np.where(sig > min_singular_value)[0]
-            # raise Exception(np.min(np.abs(U)))
-            full_good_pos = np.unique(np.where(np.abs(evecs[:, good_loc]) > svd_contrib_cutoff)[0])
-            self.centers = self.centers[full_good_pos]
-            self.alphas = self.alphas[full_good_pos]
-            if self.transformations is not None:
-                self.transformations = self.transformations[full_good_pos]
+        if optimize_centers:
+            if min_singular_value is not None or num_svd_vectors is not None:
+                # Use SVD to prune out matrix rows that will be super ill conditioned
+                sig, evecs = np.linalg.eigh(self.S)
+                if num_svd_vectors:
+                    good_loc = slice(max(len(sig)-num_svd_vectors, 0), len(sig))
+                else:
+                    self.logger.log_print("most important center threshold: {t}", t=min_singular_value)
+                    good_loc = np.where(sig > min_singular_value)[0]
+                # raise Exception(np.min(np.abs(U)))
+                full_good_pos = np.unique(np.where(np.abs(evecs[:, good_loc]) > svd_contrib_cutoff)[0])
+                self.centers = self.centers[full_good_pos]
+                self.alphas = self.alphas[full_good_pos]
+                if self.transformations is not None:
+                    self.transformations = self.transformations[full_good_pos]
 
-            self._S = None#self._S[full_good_pos, :][:, full_good_pos]
-            self._T = None#self._T[full_good_pos, :][:, full_good_pos]
+                self._S = None#self._S[full_good_pos, :][:, full_good_pos]
+                self._T = None#self._T[full_good_pos, :][:, full_good_pos]
 
         self.logger.log_print("Number of centers: {N}", N=len(self.centers))
-
-        self.potential_function = potential_function
-        self.quadrature_degree = quadrature_degree
-        self.expansion_degree = expansion_degree
-        self.expansion_type = expansion_type
-        self.ref = reference_structure
 
     def optimize_centers(self,
                          centers, alphas,
@@ -151,6 +154,7 @@ class DGB:
                          cluster_step_size=.005,
                          max_steps = 50
                          ):
+        raise NotImplementedError("ugh...")
         c, a = centers, alphas
         cr = initial_custering
         centers, alphas = self.initialize_gaussians(c, a, cr)
@@ -173,8 +177,12 @@ class DGB:
         if clustering_radius is not None and clustering_radius >= 0:
             centers, _, _, mask = RBFDInterpolator.decluster_data(centers, np.empty(len(centers)), [], clustering_radius, return_mask=True)
 
+        rots = None
         if alphas is None:
             alphas = self.get_alphas(centers, clustering_radius)
+        elif isinstance(alphas, (str, dict)):
+            alphas, rots = self.dispatch_get_alphas(alphas, centers)
+
         if isinstance(alphas, (int, float, np.integer, np.floating)):
             alphas = np.full(len(centers), alphas)
         else:
@@ -182,10 +190,31 @@ class DGB:
             if mask is not None:
                 alphas = alphas[mask]
 
-        return centers, alphas
+        return centers, alphas, rots
+
+    def dispatch_get_alphas(self, alphas, centers):
+        if isinstance(alphas, str):
+            alphas = {'method':alphas}
+        opts = alphas.copy()
+        del opts['method']
+        if alphas['method'] == 'virial':
+            return self.get_virial_alphas(
+                centers,
+                self.masses,
+                self.potential_function,
+                **opts
+            )
+        elif alphas['method'] == 'min_dist':
+            return self.get_alphas(
+                self.masses,
+                centers,
+                **opts
+            ), None
+        else:
+            raise ValueError("unknown method for getting alphas {}".format(alphas['method']))
 
     @classmethod
-    def get_alphas(cls, masses, centers):
+    def get_alphas(cls, masses, centers, scaling=1/4, use_mean=False):
         # if clustering_radius is None:
         #     clustering_radius = 1
         # np.sqrt(masses / min_dist)
@@ -195,15 +224,124 @@ class DGB:
         closest = np.min(distances, axis=1)
         # too hard to compute convex hull for now...so we treat the exterior
         # the same as the interior
-        a = np.sqrt(masses / closest)
+        a = scaling * np.sqrt(masses[np.newaxis, :] / closest[:, np.newaxis])
+        if use_mean:
+            a = np.mean(a)
         # print("???", a[:5])
         return a
 
-
     @classmethod
-    def from_hessians(cls):
-        raise NotImplementedError(...)
-        ...
+    def get_virial_alphas(cls, pts, masses, potential_function, allow_rotations=True):
+        """
+        Provides a way to get alphas that satisfy the virial theorem locally
+        for a quadratic expansion about each center
+
+        :param pts:
+        :type pts:
+        :param potential_function:
+        :type potential_function:
+        :param masses:
+        :type masses:
+        :param allow_rotations:
+        :type allow_rotations:
+        :return:
+        :rtype:
+        """
+
+        derivs = potential_function(pts, deriv_order=2)
+        if len(derivs) != 3 or not (
+                isinstance(derivs[0], np.ndarray) and derivs[0].shape == (len(pts),)
+        ):
+            hess = derivs
+            grads = potential_function(pts, deriv_order=1)
+        else:
+            _, grads, hess = derivs
+
+        if allow_rotations:
+            npts = len(pts)
+            ndim = pts.shape[-1]
+
+            alphas = np.zeros((npts, ndim))
+            rots = np.zeros((npts, ndim, ndim))
+
+            rm = masses
+            grads = grads / np.sqrt(rm[np.newaxis])  # mass-weight
+            hess = hess / np.sqrt(rm[np.newaxis, :, np.newaxis] * rm[np.newaxis, np.newaxis, :])
+
+            grad_norms = np.linalg.norm(grads, axis=1)
+            non_stationary = grad_norms > 1e-6
+            stationary = np.where(grad_norms <= 1e-6)
+            if len(stationary) == 0:
+                stationary = np.array([], dtype=int)
+            else:
+                stationary = stationary[0]
+
+            # obviously kinda an adaptation...but the reduced masses are the smae
+            # for both coords so it's just a scaling factor
+            rp_mode = grads[non_stationary] / grad_norms[non_stationary][:, np.newaxis]
+            num_rp = np.sum(non_stationary.astype(int))
+            proj = np.broadcast_to(np.eye(ndim)[np.newaxis], (num_rp, ndim, ndim)) - nput.vec_outer(rp_mode, rp_mode)
+            h2 = proj @ hess[non_stationary] @ proj
+            freqs, modes = np.linalg.eigh(h2)
+            # f2, _ = np.linalg.eigh(hess[non_stationary])
+            # f3 = np.array([
+            #     scipy.linalg.eigh(hh, np.diag(1/np.asanyarray(masses)), type=2)[0]
+            #     for hh in simple_morse(pts[non_stationary], deriv_order=2)
+            #     ])
+            # raise Exception(f3, f2)
+            modes[:, :, 1] = modes[:, :, 1] * np.linalg.det(modes)[:, np.newaxis]
+            modes = modes.transpose(0, 2, 1)
+            # raise Exception(modes @ rp_mode[:, :, np.newaxis])
+            # rp_freqs = rp_mode[:, np.newaxis, :]@hess[non_stationary]@rp_mode[:, :, np.newaxis]
+
+            freq_cuts = np.abs(freqs) < 1e-8
+            kill_pos = np.where(np.all(freq_cuts, axis=1))
+            if len(kill_pos) > 0 and len(kill_pos[0]) > 0:
+                # plot_grid, plot_pts = get_plot_grid(pts)
+                # base = plt.ContourPlot(*plot_grid, simple_morse(plot_pts).reshape(plot_grid[0].shape), levels=20)
+                sel = np.where(non_stationary)[0][kill_pos]
+                # plt.ScatterPlot(pts[np.ix_(sel, [0])], pts[np.ix_(sel, [1])], color='red', figure=base)
+                # base.show()
+                # raise ValueError("bad points")
+                stationary = np.unique(np.concatenate([stationary, sel]))
+
+            zi = np.where(freq_cuts)
+            for i, j in zip(*zi):
+                m = modes[i, :, j][:, np.newaxis]
+                f = m.T @ hess[i] @ m
+                freqs[i, j] = f
+
+            freqs = np.sqrt(np.abs(freqs))
+            # freqs[freqs < min_rp_freq] = min_rp_freq
+            # freqs[zi] *= (rp_scaling / scaling) ** 2
+
+            # masses = np.reshape(modes@np.array([[[reduced_mass]]*ndim]), (num_rp, ndim))
+
+            g = np.diag(1 / masses)
+            g = modes.transpose(0, 2, 1) @ g[np.newaxis] @ modes
+            rpms = 1 / np.diagonal(g, axis1=1, axis2=2)  # note this is the same as masses...
+            alphas[non_stationary] = rpms * freqs
+            rots[non_stationary] = modes
+
+            # rp_coords = rp_mode[:, np.newaxis, np.newaxis, :] @ pts[np.newaxis, :, :, np.newaxis]
+            # rp_coords = rp_coords.reshape((len(non_stationary), len(pts)))
+            # raise Exception(rp_coords)
+
+            if len(stationary) > 0:
+                freqs2, modes = np.linalg.eigh(hess[stationary])
+                freqs = np.sqrt(np.abs(freqs2))
+                g = np.diag(1 / masses)
+                g = modes.transpose(0, 2, 1) @ g[np.newaxis] @ modes
+                rpms = 1 / np.diagonal(g, axis1=1, axis2=2)  # note this is the same as masses...
+                alphas[stationary] = rpms * freqs
+                rots[stationary] = modes
+
+
+        else:
+            rots = None
+            alphas = 2 * np.sqrt(np.abs(masses * np.diagonal(hess, axis1=1, axis2=2)))
+
+        return alphas, rots
 
     @property
     def S(self):

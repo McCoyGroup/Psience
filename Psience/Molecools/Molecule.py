@@ -8,6 +8,7 @@ import os, numpy as np
 
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D, CompositeCoordinateSystem
+from McUtils.Parallelizers import Parallelizer
 import McUtils.Numputils as nput
 
 from .MoleculeInterface import *
@@ -18,7 +19,6 @@ from .CoordinateSystems import (
     MolecularZMatrixToRegularZMatrixConverter, RegularZMatrixToMolecularZMatrixConverter
 )
 from .Properties import *
-from .Transformations import *
 
 __all__ = [
     "Molecule",
@@ -100,6 +100,10 @@ class Molecule(AbstractMolecule):
         else:
             self._int_spec = self.canonicalize_internal_coordinate_spec(internals)
             self._ints = None
+        self._jacobians = {
+            'internal':[],
+            'cartesian':[]
+        }
 
         self._bonds = bonds
 
@@ -573,6 +577,131 @@ class Molecule(AbstractMolecule):
                 ics, CoordinateSet.__name__
             ))
         self._ints = ics
+
+
+    def _get_int_jacobs(self,
+                       jacs,
+                       strip_dummies=False,
+                       stencil=None, mesh_spacing=1.0e-3,
+                       all_numerical=True, reembed=False,
+                       planar_ref_tolerance=None,
+                       parallelizer=None
+                       ):
+        """
+        Gets the specified dX/dRs
+
+        :param jacs:
+        :type jacs:
+        :return:
+        :rtype:
+        """
+        intcds = self.internal_coordinates
+        ccoords = self.coords
+        carts = ccoords.system
+        internals = intcds.system
+
+        exist_jacs = self._jacobians['internal']
+        max_jac = max(jacs)
+        need_jacs = [x+1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
+        if len(need_jacs) > 0:
+            stencil = (max(need_jacs) + 2 + (1+max(need_jacs))%2) if stencil is None else stencil
+            # odd behaves better
+            with Parallelizer.lookup(parallelizer) as par:
+                new_jacs = [
+                    x.squeeze() if isinstance(x, np.ndarray) else x
+                    for x in intcds.jacobian(carts, need_jacs,
+                                             # odd behaves better
+                                             mesh_spacing=mesh_spacing,
+                                             stencil=stencil,
+                                             all_numerical=all_numerical,
+                                             converter_options=dict(
+                                                 reembed=reembed,
+                                                 planar_ref_tolerance=planar_ref_tolerance,
+                                                 strip_dummies=strip_dummies
+                                             ),
+                                             parallelizer=par
+                                             )
+                ]
+                # np.set_printoptions
+                # with np.printoptions(linewidth=1e8, threshold=1e8, floatmode='fixed', precision=10):
+                #     raise Exception(str(np.round(new_jacs[0].reshape(9, 9)[(3, 6, 7), :], 12)))
+            for j,v in zip(need_jacs, new_jacs):
+                for d in range(j-len(exist_jacs)):
+                    exist_jacs.append(None)
+                exist_jacs[j-1] = v
+
+        return [exist_jacs[j-1] for j in jacs]
+
+    def _get_cart_jacobs(self, jacs,
+                         strip_dummies=False,
+                         stencil=None, mesh_spacing=1.0e-3,
+                         all_numerical=True,
+                         parallelizer=None
+                         ):
+        """
+        Gets the specified dR/dXs
+
+        :param jacs:
+        :type jacs:
+        :return:
+        :rtype:
+        """
+        intcds = self.internal_coordinates
+        ccoords = self.coords
+        carts = ccoords.system
+        internals = intcds.system
+
+        exist_jacs = self._jacobians['cartesian']
+        max_jac = max(jacs)
+        need_jacs = [x+1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
+        if len(need_jacs) > 0:
+            stencil = (max(need_jacs) + 2 + (1+max(need_jacs))%2) if stencil is None else stencil
+            # odd behaves better
+            with Parallelizer.lookup(parallelizer) as par:
+                new_jacs = [
+                    x.squeeze() if isinstance(x, np.ndarray) else x
+                    for x in ccoords.jacobian(internals, need_jacs,
+                                                          mesh_spacing=mesh_spacing,
+                                                          stencil=stencil,
+                                                          all_numerical=all_numerical,
+                                                          converter_options=dict(strip_dummies=strip_dummies),
+                                                          parallelizer=par
+                                                          )
+                ]
+
+                for j, v in zip(need_jacs, new_jacs):
+                    for d in range(j - len(exist_jacs)):
+                        exist_jacs.append(None)
+                    exist_jacs[j - 1] = v
+
+        return [exist_jacs[j-1] for j in jacs]
+
+    def _get_embedding_coords(self):
+        try:
+            embedding = self.internal_coordinates.system.embedding_coords
+        except AttributeError:
+            try:
+                embedding = self.internal_coordinates.system.converter_options['embedding_coords']
+            except KeyError:
+                embedding = None
+        return embedding
+
+    def get_internals_by_cartesians(self, order=None, strip_embedding=False):
+        base = self._get_cart_jacobs(order) if order is not None else self._jacobians['cartesian']
+        if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'InternalsByCartesians',
+                    len(base),
+                    order
+                ))
+            base = base[:order]
+        if strip_embedding:
+            embedding_coords = self._get_embedding_coords()
+            if embedding_coords is not None:
+                good_coords = np.setdiff1d(np.arange(3 * len(self.masses)), embedding_coords)
+                base = [t[..., good_coords] for t in base]
+        return base
 
     @property
     def g_matrix(self):

@@ -20,17 +20,30 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
     :related:AnalyticModel, AnalyticKineticEnergyConstructor
     """
     @classmethod
-    def morse(cls, *args, De=None, a=None, re=None):
+    def morse(cls, i, j, De=None, a=None, re=None, w=None, wx=None):
         """
         Returns a fully symbolic form of a Morse potential
         :return:
         :rtype:
         """
+
+        if De is None and w is not None:
+            if isinstance(w, str):
+                w = AnalyticModelBase.symbol(w, i, j)
+            if isinstance(wx, str):
+                wx = AnalyticModelBase.symbol(wx, i, j)
+            muv = (
+                    1/AnalyticModelBase.symbolic_m(i)
+                    + 1/AnalyticModelBase.symbolic_m(j)
+            )
+            De = (w ** 2) / (4 * wx)
+            a = sym.sqrt(2 * wx / muv)
+
         return cls.calc_morse(
-            AnalyticModelBase.symbol("De", *args) if De is None else De,
-            AnalyticModelBase.symbol("ap", *args) if a is None else a,
-            AnalyticModelBase.symbolic_r(*args),
-            AnalyticModelBase.symbol("re", *args) if re is None else re
+            AnalyticModelBase.symbol("De", i, j) if De is None else De,
+            AnalyticModelBase.symbol("ap", i, j) if a is None else a,
+            AnalyticModelBase.symbolic_r(i, j),
+            AnalyticModelBase.symbol("re", i, j) if re is None else re
         )
     @staticmethod
     def calc_morse(De, a, r, re):
@@ -302,6 +315,24 @@ class AnalyticModel:
         self.inverse = inverse
         self._rot_coords = None
 
+    @classmethod
+    def from_potential(cls, potential, dipole=None, values=None, rotation=None):
+        # we infer the coordinates from the terms that appear in the potential
+
+        coords = [
+            x for x in
+            potential.free_symbols
+            if x.name.split("[", 1)[0] in {"r", "a", "t", "y"}
+        ]
+        return cls(
+            coords,
+            potential,
+            dipole=dipole,
+            values=values,
+            rotation=rotation
+        )
+
+
     @property
     def internal_coordinates(self):
         if self._syms is None:
@@ -392,6 +423,7 @@ class AnalyticModel:
         if self.dip is not None:
             terms['dipole_terms'] = self.mu(d_order+1, evaluate=evaluate)
         return terms
+
     def run_VPT(self,
                 order=2,
                 states=2,
@@ -462,10 +494,11 @@ class AnalyticModel:
         def __call__(self, grid, **kwargs):
             core = self.lam
             ndim = self.ndim
+            grid = np.asanyarray(grid)
             if grid.ndim == 1:
-                return core(grid)
+                return core(*grid)
             if grid.shape[-1] == ndim and grid.shape[0] != ndim:
-                grid = grid.transpose(np.roll(np.arange(grid.ndim), 1))
+                grid = np.moveaxis(grid, -1, 0) #grid.transpose(np.roll(np.arange(grid.ndim), 1))
             return core(*grid)
         def __repr__(self):
             return "{}({})".format(
@@ -474,7 +507,10 @@ class AnalyticModel:
             )
     def wrap_function(self, expr, transform_coordinates=True):
         if isinstance(expr, AnalyticModelBase.numeric_types):
-            return float(expr)
+            if isinstance(expr, np.ndarray):
+                return expr
+            else:
+                return float(expr)
 
         coord_vec = self.coords
         if transform_coordinates and self.rotation is not None:
@@ -488,16 +524,19 @@ class AnalyticModel:
 
         return self.SympyExpr(expr, core, ndim)
 
-    def expand_potential(self, order, lambdify=True, evaluate=True):
+    def expand_potential(self, order, lambdify=True, evaluate=True, contract=True):
         potential_expansions = self.v(order, evaluate=evaluate)
         coord_vec = self.coords
-        pots = []
-        for i, d in enumerate(potential_expansions):
-            for j in range(i):
-                d = AnalyticModelBase.dot(coord_vec, d, axes=[0, -1])
-            pots.append(1/np.math.factorial(i)*d)
+        if contract:
+            pots = []
+            for i, d in enumerate(potential_expansions):
+                for j in range(i):
+                    d = AnalyticModelBase.dot(coord_vec, d, axes=[0, -1])
+                pots.append(1/np.math.factorial(i)*d)
+        else:
+            pots = potential_expansions
         if lambdify:
-            pots = self.wrap_function(sum(pots))
+            pots = self.wrap_function(sum(pots)) if contract else [self.wrap_function(p) for p in pots]
 
         return pots
     def get_DVR_parameters(self,
@@ -594,7 +633,7 @@ class AnalyticModel:
         a = a.strip("]").split(",")
         return (t, tuple(int(x) for x in a))
 
-    def jacobian(self, order=0, evaluate=False):
+    def jacobian(self, order=0, evaluate=False, lambdify=False):
         ics = self.internal_coordinates
         crd = self.coords
         jac = AnalyticModelBase.sym.Matrix([AnalyticModelBase.take_derivs(c, ics) for c in crd]).transpose()
@@ -609,6 +648,8 @@ class AnalyticModel:
             jac = self.evaluate(jac, mode=evaluate)
         else:
             jac = AnalyticModelBase.sym.Matrix(jac)
+        if lambdify:
+            jac = self.wrap_function(jac)
         return jac
     def jacobian_inverse(self, order=0, evaluate=False):
         ics = self.internal_coordinates
@@ -649,7 +690,7 @@ class AnalyticModel:
                 targets.update(s.name for s in self.vals.keys())
             return [[AnalyticKineticEnergyConstructor.g(a[1], b[1], coord_types=[a[0], b[0]], target_symbols=targets) for b in symlist] for a in symlist]
         return self._base_g
-    def g(self, order=0, evaluate=False):
+    def g(self, order=0, evaluate=False, lambdify=False):
         # Gmatrix elements will basically involve taking some
         # kind of direct product of coordinate reps
         J = self.jacobian_inverse(evaluate=evaluate)
@@ -670,8 +711,10 @@ class AnalyticModel:
             for j in range(i):
                 g = AnalyticModelBase.dot(J_inv, g, axes=[1, -3])
             all_gs[i] = g
+        if lambdify:
+            all_gs = [self.wrap_function(g) for g in all_gs]
         return all_gs
-    def v(self, order=2, evaluate=False):
+    def v(self, order=2, evaluate=False, lambdify=False):
         # we provide a Taylor series expansion of the potential
         v = self.pot
         all_vs = [v]
@@ -687,6 +730,8 @@ class AnalyticModel:
             for j in range(i):
                 v = AnalyticModelBase.dot(J_inv, v, axes=[1, -1])
             all_vs[i] = v
+        if lambdify:
+            all_vs = [self.wrap_function(v) for v in all_vs]
         return all_vs
 
     def _base_u(self):
@@ -698,7 +743,7 @@ class AnalyticModel:
             targets.update(s.name for s in self.vals.keys())
         return [[AnalyticKineticEnergyConstructor.vp(a[1], b[1], coord_types=[a[0], b[0]], target_symbols=targets) for b in symlist] for a in symlist]
         # return [[AnalyticKineticEnergyConstructor.vp(a[1], b[1], coord_types=[a[0], b[0]]) for b in symlist] for a in symlist]
-    def vp(self, order=0, evaluate=False):
+    def vp(self, order=0, evaluate=False, lambdify=False):
         J_t = self.jacobian()
         if self._u is None:
             U = self._base_u()
@@ -718,10 +763,12 @@ class AnalyticModel:
             for j in range(i):
                 v = AnalyticModelBase.dot(J_inv, v, axes=[1, -1])
             all_vs[i] = v
+        if lambdify:
+            all_vs = [self.wrap_function(u) for u in all_vs]
         return all_vs
 
     def mu(self, order=1, evaluate=False):
-        # we provide a Taylor series expansion of the potential
+        # we provide a Taylor series expansion of the dipole
         mu = []
         for v in self.dip:
             all_vs = [v]
