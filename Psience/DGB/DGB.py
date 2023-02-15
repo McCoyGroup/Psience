@@ -179,7 +179,7 @@ class DGB:
 
         rots = None
         if alphas is None:
-            alphas = self.get_alphas(centers, clustering_radius)
+            alphas = self.get_alphas(self.masses, centers)#, clustering_radius)
         elif isinstance(alphas, (str, dict)):
             alphas, rots = self.dispatch_get_alphas(alphas, centers)
 
@@ -231,7 +231,7 @@ class DGB:
         return a
 
     @classmethod
-    def get_virial_alphas(cls, pts, masses, potential_function, allow_rotations=True):
+    def get_virial_alphas(cls, pts, masses, potential_function, allow_rotations=False, min_frequency=2e-3, scaling=2):
         """
         Provides a way to get alphas that satisfy the virial theorem locally
         for a quadratic expansion about each center
@@ -283,26 +283,12 @@ class DGB:
             proj = np.broadcast_to(np.eye(ndim)[np.newaxis], (num_rp, ndim, ndim)) - nput.vec_outer(rp_mode, rp_mode)
             h2 = proj @ hess[non_stationary] @ proj
             freqs, modes = np.linalg.eigh(h2)
-            # f2, _ = np.linalg.eigh(hess[non_stationary])
-            # f3 = np.array([
-            #     scipy.linalg.eigh(hh, np.diag(1/np.asanyarray(masses)), type=2)[0]
-            #     for hh in simple_morse(pts[non_stationary], deriv_order=2)
-            #     ])
-            # raise Exception(f3, f2)
             modes[:, :, 1] = modes[:, :, 1] * np.linalg.det(modes)[:, np.newaxis]
-            modes = modes.transpose(0, 2, 1)
-            # raise Exception(modes @ rp_mode[:, :, np.newaxis])
-            # rp_freqs = rp_mode[:, np.newaxis, :]@hess[non_stationary]@rp_mode[:, :, np.newaxis]
 
             freq_cuts = np.abs(freqs) < 1e-8
             kill_pos = np.where(np.all(freq_cuts, axis=1))
             if len(kill_pos) > 0 and len(kill_pos[0]) > 0:
-                # plot_grid, plot_pts = get_plot_grid(pts)
-                # base = plt.ContourPlot(*plot_grid, simple_morse(plot_pts).reshape(plot_grid[0].shape), levels=20)
                 sel = np.where(non_stationary)[0][kill_pos]
-                # plt.ScatterPlot(pts[np.ix_(sel, [0])], pts[np.ix_(sel, [1])], color='red', figure=base)
-                # base.show()
-                # raise ValueError("bad points")
                 stationary = np.unique(np.concatenate([stationary, sel]))
 
             zi = np.where(freq_cuts)
@@ -312,15 +298,12 @@ class DGB:
                 freqs[i, j] = f
 
             freqs = np.sqrt(np.abs(freqs))
-            # freqs[freqs < min_rp_freq] = min_rp_freq
-            # freqs[zi] *= (rp_scaling / scaling) ** 2
-
-            # masses = np.reshape(modes@np.array([[[reduced_mass]]*ndim]), (num_rp, ndim))
+            freqs[freqs < min_frequency] = min_frequency
 
             g = np.diag(1 / masses)
             g = modes.transpose(0, 2, 1) @ g[np.newaxis] @ modes
-            rpms = 1 / np.diagonal(g, axis1=1, axis2=2)  # note this is the same as masses...
-            alphas[non_stationary] = rpms * freqs
+            rpms = 1 / np.diagonal(g, axis1=1, axis2=2)
+            alphas[non_stationary] = scaling * rpms * freqs
             rots[non_stationary] = modes
 
             # rp_coords = rp_mode[:, np.newaxis, np.newaxis, :] @ pts[np.newaxis, :, :, np.newaxis]
@@ -333,13 +316,13 @@ class DGB:
                 g = np.diag(1 / masses)
                 g = modes.transpose(0, 2, 1) @ g[np.newaxis] @ modes
                 rpms = 1 / np.diagonal(g, axis1=1, axis2=2)  # note this is the same as masses...
-                alphas[stationary] = rpms * freqs
+                alphas[stationary] = scaling * rpms * freqs
                 rots[stationary] = modes
 
 
         else:
             rots = None
-            alphas = 2 * np.sqrt(np.abs(masses * np.diagonal(hess, axis1=1, axis2=2)))
+            alphas = scaling * np.sqrt(np.abs(masses * np.diagonal(hess, axis1=1, axis2=2)))
 
         return alphas, rots
 
@@ -368,7 +351,7 @@ class DGB:
     def V(self, mat):
         self._V = mat
 
-    def get_inverse_covariances(self, alphas=None, transformations=None):
+    def get_inverse_covariances(self, alphas=None, transformations=None, inds=None):
         """
         Transforms the alphas into proper inverse covariance matrices
 
@@ -384,31 +367,57 @@ class DGB:
         if alphas is None:
             alphas = self.alphas
 
+        if inds is not None:
+
+            alphas = alphas
+            transformations = transformations[:, self.inds]
+            n = alphas.shape[-1]
+            npts = len(alphas)
+            diag_covs = np.zeros((npts, n, n))
+            diag_inds = (slice(None, None, None),) + np.diag_indices(n)
+            diag_covs[diag_inds] = 1 / (2 * alphas)
+            covs = transformations @ diag_covs @ transformations.transpose(0, 2, 1)
+            covs[np.abs(covs) < 1e-12] = 0  # numerical garbage can be an issue...
+
+            two_a_inv, transformations = np.linalg.eigh(covs)
+            alphas = 1/(2*two_a_inv)
+
         n = alphas.shape[-1]
         npts = len(alphas)
         diag_covs = np.zeros((npts, n, n))
         diag_inds = (slice(None, None, None),) + np.diag_indices(n)
         diag_covs[diag_inds] = 2*alphas
 
-        covs = transformations.transpose(0, 2, 1) @ diag_covs @ transformations
+        covs = transformations @ diag_covs @ transformations.transpose(0, 2, 1)
         covs[np.abs(covs) < 1e-12] = 0 # numerical garbage can be an issue...
+
         return covs
 
     def get_overlap_gaussians(self):
         rows, cols = np.triu_indices(len(self.alphas))
         if self.transformations is None:
             # find overlap gaussians
-            new_alphas = self.alphas[rows] + self.alphas[cols]
-            w_centers = self.alphas*self.centers
+
+            centers = self.centers
+            alphas = self.alphas
+            if self.inds is not None:
+                centers = centers[:, self.inds]
+                alphas = alphas[:, self.inds]
+            new_alphas = alphas[rows] + alphas[cols]
+            w_centers = alphas*centers
             # moving weighted average by alpha value
             overlap_data = (w_centers[rows] + w_centers[cols])/new_alphas, new_alphas
         else:
+            centers = self.centers
+            if self.inds is not None:
+                centers = centers[:, self.inds]
+
             sigs = self.get_inverse_covariances()
             new_sigs = sigs[rows] + sigs[cols]
             new_inv = np.linalg.inv(new_sigs)
             new_centers = new_inv@(
-                sigs[rows] @ self.centers[rows][:, :, np.newaxis]
-                + sigs[cols] @ self.centers[cols][:, :, np.newaxis]
+                sigs[rows] @ centers[rows][:, :, np.newaxis]
+                + sigs[cols] @ centers[cols][:, :, np.newaxis]
             )
             new_centers = new_centers.reshape(self.centers[cols].shape)
             new_alphas, new_rots = np.linalg.eigh(new_sigs) # eigenvalues of inverse tensor...
@@ -436,6 +445,11 @@ class DGB:
             transformations = self.transformations
 
         if transformations is None:
+
+            if self.inds is not None:
+                centers = centers[:, self.inds]
+                alphas = alphas[:, self.inds]
+
             aouter = alphas[:, np.newaxis] * alphas[np.newaxis, :]
             aplus = alphas[:, np.newaxis] + alphas[np.newaxis, :]
             arat = aouter / aplus
@@ -450,10 +464,9 @@ class DGB:
             S_dim = (np.sqrt(2) * np.power(aouter, 1/4) / B) * np.exp(-C)
             T_dim = arat * (1 - 2*C) / self.masses[np.newaxis, np.newaxis, :]
 
-
-            if self.inds is not None:
-                S_dim = S_dim[:, :, self.inds]
-                T_dim = T_dim[:, :, self.inds]
+            # if self.inds is not None:
+            #     S_dim = S_dim[:, :, self.inds]
+            #     T_dim = T_dim[:, :, self.inds]
 
             # Combine appropriately
             S = np.prod(S_dim, axis=-1)
@@ -464,30 +477,39 @@ class DGB:
             row_inds, col_inds = np.triu_indices(len(self.alphas))
             rot_data = self.get_overlap_gaussians()
 
-            ndim = self.alphas.shape[-1]
-
+            alphas = self.alphas
+            centers = self.centers
+            masses = self.masses
             if self.inds is not None:
-                raise NotImplementedError("don't have full covariance + indices implemented")
+                alphas = alphas[:, self.inds]
+                centers = centers[:, self.inds]
+                masses = masses[self.inds]
 
-            dets = np.linalg.det(rot_data['sigmas'])
+
+            ndim = centers.shape[-1]
+            dets = np.prod(rot_data["alphas"], axis=-1)
             rows = rot_data['row_sigs']
             cols = rot_data['col_sigs']
-            rdets = 2**self.alphas.shape[-1] * np.prod(self.alphas[row_inds], axis=-1)
-            cdets = 2**self.alphas.shape[-1] * np.prod(self.alphas[col_inds], axis=-1) # literally a product of passed in alphas
-            disps = self.centers[row_inds] - self.centers[col_inds]
+            # we prefactor out the 2**ndim
+            rdets = np.prod(alphas[row_inds], axis=-1)
+            cdets = np.prod(alphas[col_inds], axis=-1) # literally a product of passed in alphas
+            disps = centers[row_inds] - centers[col_inds]
             C = disps[:, np.newaxis, :]@rot_data['sum_inverse']@disps[:, :, np.newaxis]
             C = C.reshape(disps.shape[0])
 
-            S[row_inds, col_inds] = (
-                                            2**(self.centers.shape[-1]/2)
-                                    ) * ((rdets*cdets)/(dets**2))**(1/4) * np.exp(-C/2)
+            # raise Exception(
+            #     (2**ndim),
+            #     ((rdets*cdets)/(dets**2))
+            # )
+
+            S[row_inds, col_inds] = 2**(ndim/2) * ((rdets*cdets)/(dets**2))**(1/4) * np.exp(-C/2)
 
             L = np.transpose(rot_data['rotations'], (0, 2, 1))
             Lt = rot_data['rotations']
-            zetas =L@(rot_data['centers'] - self.centers[col_inds])[:, :, np.newaxis] # seems weird but we get the symmetry back in the end
+            zetas =L@(rot_data['centers'] - centers[col_inds])[:, :, np.newaxis] # seems weird but we get the symmetry back in the end
             zetas = zetas.reshape(rot_data['centers'].shape)
 
-            minv = np.diag(1/self.masses)
+            minv = np.diag(1/masses)
             Sj = cols
             Amat = L@(Sj@minv@Sj)@Lt
             # msj = rot_data['rotations']@(Sj@minv)@np.transpose(rot_data['rotations'], (0, 1, 2))
@@ -498,7 +520,7 @@ class DGB:
 
             T[row_inds, col_inds] = 1 / 2 * (
                     np.sum(
-                        2 * self.alphas[col_inds] / self.masses[np.newaxis] -
+                        2 * alphas[col_inds] / masses[np.newaxis] -
                          1 / 2 * np.diagonal(Amat, axis1=1, axis2=2) / rot_data['alphas'],
                         axis=1
                     )
@@ -532,6 +554,8 @@ class DGB:
         if self.transformations is not None:
             raise NotImplementedError("quadrature in rotated basis not implemented yet")
 
+        # TODO: add in ability to do quadrature along ellipsoid axes
+
         # Quadrature point displacements and weights (thanks NumPy!)
         disps, weights = np.polynomial.hermite.hermgauss(degree)
 
@@ -551,17 +575,7 @@ class DGB:
         return pots * normalization
 
     @classmethod
-    def morse_integral1d(cls, centers, alpha, de, a):
-        # Centers: (n, n, 2)
-        # Alphas: (n, n, 2)
-        ...
-
-    # @classmethod
-    # def polyint_1D(cls, centers, alphas, order):
-    #     ...
-
-    @classmethod
-    def poch(cls, n, m):
+    def poch(cls, n, m): #pochammer/generalized gamma
         nums = np.arange(n-2*m+1 if m < n/3 else m + 1, n+1)
         dens = np.arange(1, m+1 if m < n/3 else n-2*m+1)
         if len(dens) < len(nums): # pad on left so we can have most stable eval
@@ -640,21 +654,6 @@ class DGB:
                         shared=1
                     )
                 new_derivs.append(d)
-            derivs = new_derivs
-
-        if self.inds is not None:
-            if rotations is not None:
-                raise NotImplementedError("full covariance + index subsets not supported yet")
-            ndim = len(self.inds)
-            centers = centers[..., self.inds]
-            alphas = alphas[..., self.inds]
-            new_derivs = []
-            for n,d in enumerate(derivs):
-                if n > 0:
-                    d_sel = (slice(None, None, None), slice(None, None, None),) + np.ix_(*[self.inds]*n)
-                    new_derivs.append(d[d_sel])
-                else:
-                    new_derivs.append(d)
             derivs = new_derivs
 
         self.logger.log_print("adding up all derivative contributions...")

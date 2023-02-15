@@ -491,28 +491,53 @@ class AnalyticModel:
             self.expr = expr
             self.lam = core
             self.ndim = ndim
-        def __call__(self, grid, **kwargs):
+        def _broadcast_tree(self, shape, expr_list):
+            if not isinstance(expr_list, (np.ndarray,) + AnalyticModelBase.numeric_types):
+                return [self._broadcast_tree(shape, l) for l in expr_list]
+            elif isinstance(expr_list, np.ndarray):
+                return expr_list
+            else:
+                return np.full(shape, expr_list)
+        def __call__(self, grid, vector=None, **kwargs):
             core = self.lam
             ndim = self.ndim
             grid = np.asanyarray(grid)
             if grid.ndim == 1:
-                return core(*grid)
-            if grid.shape[-1] == ndim and grid.shape[0] != ndim:
+                vals = core(*grid)
+                if not isinstance(vals, AnalyticModelBase.numeric_types):
+                    vals = np.array(vals)
+                return vals
+
+            if vector is None:
+                vector = grid.shape[-1] == ndim and grid.shape[0] != ndim
+            if vector:
                 grid = np.moveaxis(grid, -1, 0) #grid.transpose(np.roll(np.arange(grid.ndim), 1))
-            return core(*grid)
+
+            vals = core(*grid)
+            # broadcast appropriately
+            if not isinstance(vals, np.ndarray):
+                if isinstance(vals, AnalyticModelBase.numeric_types):
+                    vals = np.full(grid.shape[1:], vals)
+                else:
+                    vals = np.array(self._broadcast_tree(grid.shape[1:], vals))
+                    for _ in range(grid.ndim - 1):
+                        vals = np.moveaxis(vals, -1, 0)
+            return vals
         def __repr__(self):
             return "{}({})".format(
                 type(self).__name__,
                 self.expr
             )
-    def wrap_function(self, expr, transform_coordinates=True):
+    def wrap_function(self, expr, transform_coordinates=True, mode=None):
+        coord_vec = self.coords
+        ndim = len(coord_vec)
         if isinstance(expr, AnalyticModelBase.numeric_types):
             if isinstance(expr, np.ndarray):
-                return expr
+                val = expr
             else:
-                return float(expr)
+                val = float(expr)
+            return self.SympyExpr(val, lambda c,*r:np.full(c.shape, val), ndim)
 
-        coord_vec = self.coords
         if transform_coordinates and self.rotation is not None:
             coord_vec, new_coords = self._get_rotated_coordinates()
             # subtract off equilibrium values since we have a rotation...
@@ -520,7 +545,7 @@ class AnalyticModel:
             expr = expr.subs(shift_subs)
             expr = expr.subs([(old, new) for old,new in zip(self.coords, new_coords)])
         core = sym.lambdify(coord_vec, expr)
-        ndim = len(coord_vec)
+
 
         return self.SympyExpr(expr, core, ndim)
 
@@ -547,7 +572,10 @@ class AnalyticModel:
         if expansion_order is not None:
             potential_function = self.expand_potential(expansion_order, lambdify=lambdify)
         else:
-            potential_function = self.pot
+            if evaluate:
+                potential_function = self.evaluate(self.pot, mode=evaluate)
+            else:
+                potential_function = self.pot
             if lambdify:
                 potential_function = self.wrap_function(potential_function)
         gds = self.g(order=2, evaluate=evaluate)
@@ -767,7 +795,7 @@ class AnalyticModel:
             all_vs = [self.wrap_function(u) for u in all_vs]
         return all_vs
 
-    def mu(self, order=1, evaluate=False):
+    def mu(self, order=1, evaluate=False, lambdify=False):
         # we provide a Taylor series expansion of the dipole
         mu = []
         for v in self.dip:
@@ -784,6 +812,8 @@ class AnalyticModel:
                 for j in range(i):
                     v = AnalyticModelBase.dot(J_inv, v, axes=[1, -1])
                 all_vs[i] = v
+            if lambdify:
+                all_vs = [self.wrap_function(u) for u in all_vs]
             mu.append(all_vs)
         return mu
 

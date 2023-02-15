@@ -123,7 +123,7 @@ class PerturbationTheoryHamiltonian:
                                       allow_higher_potential_terms=allow_higher_potential_terms,
                                       **expansion_params.filter(PotentialTerms)
                                       )
-        self.V_terms = self.TermGetter(V_terms, potential_terms)
+        self.V_terms = self.TermGetter(V_terms, potential_terms, mode_selection=mode_selection)
 
         if not include_gmatrix:
             G_terms = None
@@ -131,7 +131,7 @@ class PerturbationTheoryHamiltonian:
             G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection,
                                         **expansion_params.filter(KineticTerms)
                                         )
-        self.G_terms = self.TermGetter(G_terms, kinetic_terms)
+        self.G_terms = self.TermGetter(G_terms, kinetic_terms, mode_selection=mode_selection)
 
         if (
                 include_coriolis_coupling and
@@ -148,7 +148,7 @@ class PerturbationTheoryHamiltonian:
         else:
             # raise Exception(self.molecule.internal_coordinates)
             Z_terms = None
-        self.coriolis_terms = self.CoriolisTermGetter(Z_terms, coriolis_terms)
+        self.coriolis_terms = self.CoriolisTermGetter(Z_terms, coriolis_terms, mode_selection=mode_selection)
 
         if include_pseudopotential:
             U_terms = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
@@ -156,7 +156,7 @@ class PerturbationTheoryHamiltonian:
                                                           )
         else:
             U_terms = None
-        self.pseudopotential_term = self.TermGetter(U_terms, pseudopotential_terms)
+        self.pseudopotential_term = self.TermGetter(U_terms, pseudopotential_terms, mode_selection=mode_selection)
 
         self._expansions = []
         # self._h0 = self._h1 = self._h2 = None
@@ -202,25 +202,44 @@ class PerturbationTheoryHamiltonian:
         return cls(molecule=molecule, mode_selection=mode_selection, **kw)
 
     class TermGetter:
-        def __init__(self, base_terms, input_terms):
+        def __init__(self, base_terms, input_terms, mode_selection=None):
             self.base_terms = base_terms
             self.input_terms = input_terms
+            self.mode_selection = mode_selection
         def __getitem__(self, o):
             if self.base_terms is not None or self.input_terms is not None:
-                V = self.input_terms[o] if self.input_terms is not None and len(
-                    self.input_terms
-                ) > o else None
+                V = None
+                if self.input_terms is not None and len(self.input_terms) > o:
+                    V = self.take_mode_subset(self.input_terms[o], self.mode_selection)
                 if V is None:
                     V = self.base_terms[o]
                     V = self.adjust_base_term(V)
             else:
                 V = None
             return V
+        def take_mode_subset(self, V, sel):
+            if sel is None:
+                return V
+            else:
+                for i in range(V.ndim):
+                    V = np.take(V, self.mode_selection, axis=i)
+                return V
         def adjust_base_term(self, V):
             return V
     class CoriolisTermGetter(TermGetter):
+        def take_mode_subset(self, Z, sel):
+            if sel is None:
+                return Z
+            else:
+                zz = []
+                for z in zz:
+
+                    for i in range(z.ndim):
+                        z = np.take(z, self.mode_selection, axis=i)
+                    zz.append(z)
+                return zz
         def adjust_base_term(self, Z):
-            for ax in range(2):
+            for ax in range(2): # contracting all axes...
                 Z = np.sum(Z, axis=0)
             return Z
 
@@ -555,7 +574,7 @@ class PerturbationTheoryHamiltonian:
         # raise Exception(np.round( 6 * v3 * h2w))
 
         if self.coriolis_terms is not None:
-            zeta, Be = self.coriolis_terms.get_zetas_and_momi()
+            zeta, Be = self.coriolis_terms.base_terms.get_zetas_and_momi()
         else:
             zeta = Be = None
 

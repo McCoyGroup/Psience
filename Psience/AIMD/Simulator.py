@@ -47,6 +47,7 @@ class AIMDSimulator:
             velocities = np.full_like(self.coords, velocities)
         self.velocities = velocities
         if internals is not None:
+            raise NotImplementedError("haven't fully managed getting embedding right yet...")
             if not isinstance(internals, MolecularZMatrixCoordinateSystem):
                 base_mol = Molecule(
                     ['H']*len(self.masses),
@@ -100,7 +101,7 @@ class AIMDSimulator:
             if not isinstance(icoords, np.ndarray):
                 icoords = icoords[0] # converter info
             forces = self.force_function(icoords)
-            jacs = ccs(coords).jacobian(ics, order=1, all_numerical=True)[0]
+            jacs = ccs(coords).jacobian(ics, order=1, all_numerical=True)[0] #dRdX?
             ncs = np.prod(coords.shape[-2:], dtype=int)
             jacs = np.reshape(np.moveaxis(jacs, 1, 0), (len(coords), ncs, ncs))
             forces = jacs@forces.reshape((len(coords), ncs, 1))

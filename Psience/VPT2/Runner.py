@@ -1843,7 +1843,7 @@ class AnneInputHelpers:
             base_freqs *= conv
             potential = [cls.parse_tensor(f) for f in potential_files if os.path.isfile(f)]
             if energy_units is None:
-                if np.max(np.abs(potential[0])) > 1:
+                if max(np.max(np.abs(x)) for x in potential) > 1:
                     conv = cls.convert("Wavenumbers", "Hartrees")
                 else:
                     conv = 1

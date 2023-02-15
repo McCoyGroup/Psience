@@ -45,7 +45,7 @@ class VPT2Tests(TestCase):
             logger=True
         )
 
-    @debugTest
+    @validationTest
     def test_HOHVPTSubstates(self):
 
         file_name = "HOH_freq.fchk"
@@ -60,14 +60,15 @@ class VPT2Tests(TestCase):
             converter_options={'reembed': True}
         )
         derivs = [x.reshape((9,) * (i + 1) + (3, 3)) for i, x in enumerate(derivs)]
-        
+
         VPTRunner.run_simple(
-            TestManager.test_data(file_name),
+            # TestManager.test_data(file_name),
+            mol,
             # 1,
-            # [[0, 0, 0], [1, 1, 0]],
+            [[0, 0, 0], [1, 0, 0]],
             # [[0, 0, 0], [0, 2, 1]],
-            2,
-            order=4,
+            # 2,
+            order=2,
             expansion_order=2,
             # 3,
             # expansion_order={'default':1, 'dipole':2},
@@ -80,6 +81,196 @@ class VPT2Tests(TestCase):
             #     'HOH': [ics[2, 1], derivs[0][:, 2, 1], derivs[1][:, :, 2, 1]]
             # },
             logger=True
+        )
+
+    @debugTest
+    def test_HOHPartialQuartic(self):
+
+        VPTRunner.helpers.run_anne_job(
+            # os.path.expanduser("~/Desktop/r_as"),
+            TestManager.test_data("vpt2_helpers_api/hod/x_decoupled"),
+            # states=2, # max quanta to be focusing on
+            states=1,
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            # mode_selection=[1, 2],
+            calculate_intensities=False,
+            zero_element_warning=False,
+            include_coriolis_coupling=False
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        """
+::> States Energies
+  > State     Harmonic   Anharmonic     Harmonic   Anharmonic
+               ZPE          ZPE    Frequency    Frequency
+0 0 0   4052.91097   4001.04707            -            - 
+0 0 1            -            -   3873.84521   3688.94993 
+0 1 0            -            -   2810.03028   2723.42011 
+1 0 0            -            -   1421.94645   1383.13454 
+"""
+
+        VPTRunner.helpers.run_anne_job(
+            # os.path.expanduser("~/Desktop/r_as"),
+            TestManager.test_data("vpt2_helpers_api/hod/x"),
+            # states=2, # max quanta to be focusing on
+            states=1,
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            mode_selection=[0, 2],
+            calculate_intensities=False,
+            zero_element_warning=False,
+            include_coriolis_coupling=False
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        # runner3 = VPTRunner.helpers.run_anne_job(
+        #     # os.path.expanduser("~/Desktop/r_as"),
+        #     TestManager.test_data("vpt2_helpers_api/hod/x"),
+        #     # states=2, # max quanta to be focusing on
+        #     states=1,
+        #     # max quanta to be focusing on
+        #     order=2,  # None, # orderr of VPT
+        #     expansion_order=2,  # None, # order of expansion of H can use {
+        #     # 'potential':int,
+        #     # 'kinetic':int,
+        #     # 'dipole':int}
+        #     # logger=filename
+        #     # mode_selection=[1, 2],
+        #     calculate_intensities=False,
+        #     operator_coefficient_threshold=1e-12,
+        #     zero_element_warning=False,
+        #     # target_property='wavefunctions'
+        #     return_runner=True
+        # )  # output file name
+        #
+        # runner4 = VPTRunner.helpers.run_anne_job(
+        #     # os.path.expanduser("~/Desktop/r_as"),
+        #     TestManager.test_data("vpt2_helpers_api/hod/x_sub"),
+        #     # states=2, # max quanta to be focusing on
+        #     states=1,
+        #     # max quanta to be focusing on
+        #     order=2,  # None, # orderr of VPT
+        #     expansion_order=2,  # None, # order of expansion of H can use {
+        #     # 'potential':int,
+        #     # 'kinetic':int,
+        #     # 'dipole':int}
+        #     # logger=filename
+        #     # mode_selection=[1, 2],
+        #     calculate_intensities=False,
+        #     operator_coefficient_threshold=-1,
+        #     zero_element_warning=False
+        #     # target_property='wavefunctions'
+        #     , return_runner=True
+        # )  # output file name
+
+        """
+0 0 0   4052.91097   3994.84632            -            - 
+0 0 1            -            -   3873.84521   3685.79215 
+0 1 0            -            -   2810.03028   2706.14630 
+1 0 0            -            -   1421.94645   1383.40761 
+
+0 0 0   4052.91097   4033.89584            -            - 
+0 0 1            -            -   3873.84521   3697.97351 
+0 1 0            -            -   2810.03028   2902.77195 
+1 0 0            -            -   1421.94645   1380.70462
+"""
+        # split1 = runner3[0].hamiltonian.get_Nielsen_energies([[0, 0, 0], [0, 0, 1]], return_split=True)
+        # split2 = runner4[0].hamiltonian.get_Nielsen_energies([[0, 0, 0], [0, 0, 1]], return_split=True)
+        # raise Exception(
+        #     split1[2][0] - split2[2][0] # cubic contributions to X matrix
+        # )
+        # nie_full = np.sum(runner3[0].hamiltonian.get_Nielsen_energies([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]), axis=0)
+        # nie_sub = np.sum(runner4[0].hamiltonian.get_Nielsen_energies([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]), axis=0)
+        """
+        array([1383.40761359, 2706.14629421, 3685.79215281])
+        array([1380.70462067, 2902.77194309, 3697.97351711]))
+        """
+        raise Exception(...)
+        #     (nie_full[1:] - nie_full[0]) * UnitsData.hartrees_to_wavenumbers,
+        #     (nie_sub[1:] - nie_sub[0]) * UnitsData.hartrees_to_wavenumbers
+        # )
+
+
+        raise Exception(...)
+        """
+        0   1973.85245   1992.46835            -            - 
+        1            -            -   3947.70491   4042.24072
+        """
+
+        runner1 = VPTRunner.helpers.run_anne_job(
+            os.path.expanduser("~/Desktop/r_as"),
+            # states=2, # max quanta to be focusing on
+            states=1,
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            calculate_intensities=False,
+            operator_coefficient_threshold=-1
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        """
+  State       Frequency    Intensity       Frequency    Intensity
+  0 0 1    3947.69802     75.46200      3761.26977     70.72838
+  0 1 0    3821.87392      5.56098      3652.31667      4.82837
+  1 0 0    1628.37574      0.00000      1590.97610      0.00483
+  State       Frequency    Intensity       Frequency    Intensity
+  0 0 1    3947.69802     75.46200      3874.95435     71.78714
+  0 1 0    3821.87392      0.00000      3864.33291      0.00111
+  1 0 0    1628.37574      0.00000      1620.53058      0.00003
+"""
+
+        """
+        ::> States Energies
+  > State     Harmonic   Anharmonic     Harmonic   Anharmonic
+               ZPE          ZPE    Frequency    Frequency
+0 0 0   4698.97384   4628.17891            -            - 
+0 0 1            -            -   3947.69802   3761.26977 
+0 1 0            -            -   3821.87392   3652.31667 
+1 0 0            -            -   1628.37574   1590.97610 
+"""
+
+        runner2 = VPTRunner.helpers.run_anne_job(
+            os.path.expanduser("~/Desktop/r_a"),
+            # states=2, # max quanta to be focusing on
+            states=1,
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            calculate_intensities=False,
+            operator_coefficient_threshold=-1
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        raise Exception(...)
+
+        raise Exception(
+            runner1[0].ham_opts.opts['potential_terms'][1],
+            runner2[0].ham_opts.opts['potential_terms'][1]
+            # runner2.ham_opts['potential_derivatives'],
         )
 
     @validationTest

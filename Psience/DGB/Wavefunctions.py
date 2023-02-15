@@ -20,8 +20,8 @@ class DGBWavefunction(Wavefunction):
         if alphas is None:
             alphas = self.parent.alphas
         self.alphas = alphas
-        if transformations is None:
-            alphas = self.parent.transformations
+        if transformations is None and self.parent is not None:
+            transformations = self.parent.transformations
         self.transformations = transformations
         if inds is None and self.parent is not None:
             inds = self.parent.hamiltonian.inds
@@ -48,12 +48,12 @@ class DGBWavefunction(Wavefunction):
             points.reshape(-1, points.shape[-1])
 
         # actual basis evaluation
+        c_disps = points[np.newaxis, :, :] - self.centers[:, np.newaxis, :]
         if self.transformations is not None:
-            centers = self.transformations @ self.centers[:, :, np.newaxis]
-            centers = centers.reshape(self.centers.shape)
-        else:
-            centers = self.centers
-        c_disps = points[np.newaxis, :, :] - centers[:, np.newaxis, :]
+            tfs = self.transformations # not sure if I need to transpose this or not...
+            tfs = np.broadcast_to(tfs[:, np.newaxis, :, :], (len(self.centers), len(points)) + tfs.shape[1:])
+            c_disps = tfs @ c_disps[:, :, :, np.newaxis]
+            c_disps = c_disps.reshape(c_disps.shape[:-1])
         alphas = self.alphas[:, np.newaxis]
         if self.inds is not None:
             c_disps = c_disps[..., self.parent.inds]
@@ -76,23 +76,48 @@ class DGBWavefunction(Wavefunction):
         :return:
         :rtype: Wavefunction
         """
+
         if isinstance(dofs, (int, np.integer)):
             dofs = [dofs]
 
         # assert self.alphas.ndim == 1
 
         proj_dofs = dofs if self.inds is None else np.intersect1d(dofs, self.inds)
-        scaling = np.power(2 * np.pi, len(dofs)/4) / np.power(np.prod(self.alphas[:, proj_dofs], axis=-1), 1/4)
+
         remaining = np.setdiff1d(np.arange(self.centers.shape[-1]), dofs)
         centers = self.centers[:, remaining]
-        alphas = self.alphas[:, remaining]
 
-        return type(self)(
-            self.energy,
-            self.data * scaling,
-            centers=centers,
-            alphas=alphas
-        )
+        if self.transformations is None:
+            scaling = np.power(2 * np.pi, len(dofs)/4) / np.power(np.prod(self.alphas[:, proj_dofs], axis=-1), 1/4)
+            alphas = self.alphas[:, remaining]
+
+            return type(self)(
+                self.energy,
+                self.data * scaling,
+                centers=centers,
+                alphas=alphas,
+                transformations=self.transformations
+            )
+        else:
+            alphas = self.alphas
+            transformations = self.transformations[:, remaining, :]
+            n = alphas.shape[-1]
+            npts = len(alphas)
+            diag_covs = np.zeros((npts, n, n))
+            diag_inds = (slice(None, None, None),) + np.diag_indices(n)
+            diag_covs[diag_inds] = 1 / (2 * alphas)
+            covs = transformations @ diag_covs @ transformations.transpose(0, 2, 1)
+            covs[np.abs(covs) < 1e-12] = 0  # numerical garbage can be an issue...
+
+            two_a_inv, tfs = np.linalg.eigh(covs)
+
+            return type(self)(
+                self.energy,
+                self.data,
+                centers=centers,
+                alphas=1/(2*two_a_inv),
+                transformations=tfs
+            )
 
 class DGBWavefunctions(Wavefunctions):
     wavefunction_class = DGBWavefunction

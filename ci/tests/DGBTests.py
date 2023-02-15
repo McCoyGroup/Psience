@@ -553,7 +553,7 @@ class DGBTests(TestCase):
 
                             ham1 = DGB(pts, simple_morse,
                                        optimize_centers=False,
-                                       alphas='virial',
+                                       alphas={'method':'virial', 'allow_rotations':True},
                                        min_singular_value=sing_cutoff,#0.0001,
                                        expansion_degree=exp_deg,
                                        masses=masses
@@ -903,83 +903,535 @@ class DGBTests(TestCase):
             TestManager.test_data('water_freq.fchk'),
             internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
         )
+        mol = mol.get_embedded_molecule()
 
         ics = mol.internal_coordinates
         re1 = ics[1, 0]; re2 = ics[2, 0]; a = ics[2, 1]
 
         model = AnalyticModel(
             [
-                AnalyticModel.r(0, 1),
-                AnalyticModel.r(0, 2),
-                AnalyticModel.a(1, 0, 2),
+                AnalyticModel.r(1, 2),
+                AnalyticModel.r(2, 3),
+                AnalyticModel.a(1, 2, 3),
             ],
-            AnalyticModel.morse(0, 1, w="w", wx="wx")
-            + AnalyticModel.morse(0, 2, w="w", wx="wx"),
-            # + AnalyticModel.harmonic(1, 0, 2),
+            AnalyticModel.morse(1, 2, w="w", wx="wx")
+            + AnalyticModel.morse(2, 3, w="w", wx="wx")
+            + AnalyticModel.harmonic(1, 2, 3),
+            dipole = [
+                AnalyticModel.morse(1, 2, w="w", wx="wx") - AnalyticModel.morse(2, 3, w="w", wx="wx"),
+                AnalyticModel.morse(2, 3, w="w", wx="wx") + AnalyticModel.morse(2, 3, w="w", wx="wx"),
+                0
+            ],
             values={
-                AnalyticModel.sym("w", 0, 1): 3869.47 * UnitsData.convert("Wavenumbers", "Hartrees"),
-                AnalyticModel.sym("wx", 0, 1): 84 * UnitsData.convert("Wavenumbers", "Hartrees"),
-                AnalyticModel.sym("re", 0, 1): re1,
-                AnalyticModel.sym("w", 0, 2): 3869.47 * UnitsData.convert("Wavenumbers", "Hartrees"),
-                AnalyticModel.sym("wx", 0, 2): 3*84 * UnitsData.convert("Wavenumbers", "Hartrees"),
-                AnalyticModel.sym("re", 0, 2): re2,
-                AnalyticModel.sym("k", 1, 0, 2): 1600 * UnitsData.convert("Wavenumbers", "Hartrees"),
-                AnalyticModel.sym("qe", 1, 0, 2): a,
-                AnalyticModel.m(0): 16 * UnitsData.convert("AtomicMassUnits", "ElectronMass"),
-                AnalyticModel.m(1): 1 * UnitsData.convert("AtomicMassUnits", "ElectronMass"),
-                AnalyticModel.m(2): 1 * UnitsData.convert("AtomicMassUnits", "ElectronMass")
+                AnalyticModel.sym("w", 1, 2): 3869.47 * UnitsData.convert("Wavenumbers", "Hartrees"),
+                AnalyticModel.sym("wx", 1, 2): 84 * UnitsData.convert("Wavenumbers", "Hartrees"),
+                AnalyticModel.sym("re", 1, 2): re1,
+                AnalyticModel.sym("w", 2, 3): 3869.47 * UnitsData.convert("Wavenumbers", "Hartrees"),
+                AnalyticModel.sym("wx", 2, 3): 84 * UnitsData.convert("Wavenumbers", "Hartrees"),
+                AnalyticModel.sym("re", 2, 3): re2,
+                AnalyticModel.sym("k", 1, 2, 3): 1600**2/150 * UnitsData.convert("Wavenumbers", "Hartrees"),
+                AnalyticModel.sym("qe", 1, 2, 3): a,
+
+                AnalyticModel.r(1, 2):re1,
+                AnalyticModel.r(2, 3):re2,
+                AnalyticModel.a(1, 2, 3):a,
+                AnalyticModel.m(2): AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass"),
+                AnalyticModel.m(1): AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass"),
+                AnalyticModel.m(3): AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
             }
         )
+        de = (model.vals[model.sym('w', 1, 2)] ** 2) / (4 * model.vals[model.sym('wx', 1, 2)])
 
-        pot, grad, hess = model.v(order=3, evaluate='constants', lambdify=True)
-        # pot2 = model.v(order=2, evaluate='constants')
+        analytic_derivs = model.v(order=4, evaluate='constants', lambdify=True)
+        def cart_pot_func(carts, deriv_order=None):
+            base_shape = carts.shape[:-2]
+            carts = carts.reshape((-1,) + carts.shape[-2:])
+            vals = Molecule(mol.atoms, carts, internals=mol.internals).evaluate(
+                lambda c, deriv_order=None: (
+                    analytic_derivs[0](c, vector=True)
+                        if deriv_order is None else
+                    [
+                        df(c, vector=True) for df in analytic_derivs[:deriv_order + 1]
+                    ]
+                ),
+                deriv_order=deriv_order,
+                internals=True,
+                strip_embedding=True
+            )
+            if deriv_order is not None:
+                vals = [
+                    v.reshape(base_shape + v.shape[1:])
+                    for v in vals
+                ]
+            else:
+                vals = vals.reshape(base_shape)
+            return vals
 
+        analytic_dipole_derivs = model.mu(order=2, evaluate='constants', lambdify=True)
+        def cart_dipole_func(carts, deriv_order=None):
+            base_shape = carts.shape[:-2]
+            carts = carts.reshape((-1,) + carts.shape[-2:])
+            evaluator = Molecule(mol.atoms, carts, internals=mol.internals)
+            dip_vals = []
+            for dip_derivs in analytic_dipole_derivs:
+                vals = evaluator.evaluate(
+                    lambda c, deriv_order=None: (
+                        dip_derivs[0](c, vector=True)
+                            if deriv_order is None else
+                        [
+                            df(c, vector=True) for df in dip_derivs[:deriv_order + 1]
+                        ]
+                    ),
+                    deriv_order=None if deriv_order is not None and deriv_order == 0 else deriv_order,
+                    internals=True,
+                    strip_embedding=True
+                )
+                if deriv_order is not None and deriv_order == 0:
+                    vals = [vals]
+                if deriv_order is not None:
+                    vals = [
+                        v.reshape(base_shape + v.shape[1:])
+                        for v in vals
+                    ]
+                else:
+                    vals = vals.reshape(base_shape)
+                dip_vals.append(vals)
+            return dip_vals
+
+        check_freqs = False
+        if check_freqs:
+            new_mol = Molecule(mol.atoms, mol.coords)
+            new_mol.potential_derivatives = cart_pot_func(mol.coords, deriv_order=2)[1:]
+            freqs = new_mol.normal_modes.modes.freqs
+            raise Exception(freqs*UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        check_anh = False
+        if check_anh:
+            from Psience.VPT2 import VPTRunner
+            new_mol = Molecule(mol.atoms, mol.coords)
+            new_mol.potential_derivatives = cart_pot_func(mol.coords, deriv_order=4)[1:]
+            VPTRunner.run_simple(new_mol, 2, calculate_intensities=False)
+
+            raise Exception(...) # very comparable to PODVR
+            """
+            State     Harmonic   Anharmonic     Harmonic   Anharmonic
+                           ZPE          ZPE    Frequency    Frequency
+            0 0 0   4680.66312   4611.38519            -            - 
+            0 0 1            -            -   3896.87027   3719.85791 
+            0 1 0            -            -   3843.25802   3676.15021 
+            1 0 0            -            -   1621.19796   1603.43661 
+            0 0 2            -            -   7793.74054   7352.95576 
+            0 2 0            -            -   7686.51604   7268.92117 
+            2 0 0            -            -   3242.39591   3197.00895 
+            0 1 1            -            -   7740.12829   7229.92433 
+            1 0 1            -            -   5518.06823   5308.87367 
+            1 1 0            -            -   5464.45598   5278.21349 
+            """
+
+        check_dvr = False
+        if check_dvr:
+            dvr = model.setup_DVR(
+                domain=[[1, 4], [1, 4], [np.deg2rad(60), np.deg2rad(160)]],
+                divs=[800, 800, 800], po_divs=[20, 20, 20],
+                potential_optimize=True,
+                logger=True
+            )
+            po_data = dvr.run()
+            """
+            :: PotentialOptimizedDVR([WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None)], pot=SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2))
+            :: g: [[SympyExpr(0.0005786177281533848), SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3])], [SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(0.0005786177281533848), SympyExpr(0.0)], [SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3]), SympyExpr(0.0), SympyExpr(0.000578617728153385/r[2,3]**2 - 6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]) + 0.000578617728153385/r[1,2]**2)]]
+            :: mass: [None, None, None]
+            :: g_deriv: [SympyExpr(0.0), SympyExpr(0.0), SympyExpr(6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]))]
+            :: domain: [[1, 4], [1, 4], [1.0471975511965976, 2.792526803190927]]
+            :: divs: [800, 800, 800]
+            :: potential_function: SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2)
+            ::> constructing grid
+            <::
+            ::> constructing potential matrix
+              > evaluating potential function over grid
+            <::
+            ::> constructing kinetic matrix
+              > evaluating kinetic coupling
+            <::
+            ::> building Hamiltonian
+            <::
+            ::> evaluating wavefunctions
+              ::> diagonalizing Hamiltonian
+                > dimension=(8000, 8000)
+                > density=9.750%
+                > mode=None
+              <::
+            <::
+            >>--------------------------------------------------<<
+            ERROR
+            
+            ======================================================================
+            ERROR: test_ModelPotentialAIMD (tests.DGBTests.DGBTests)
+            ----------------------------------------------------------------------
+            Traceback (most recent call last):
+              File "/Users/Mark/Documents/UW/Research/Development/Peeves/Peeves/TestUtils.py", line 501, in Debug
+                return fn(*args, **kwargs)
+              File "/Users/Mark/Documents/UW/Research/Development/Psience/ci/tests/DGBTests.py", line 1040, in test_ModelPotentialAIMD
+                raise Exception(po_data.wavefunctions.frequencies()*UnitsData.hartrees_to_wavenumbers)
+            Exception: [ 1605.10561571  3201.25184761  3675.81077847  3720.06017794
+              4796.62930569  5280.78674778  5310.62058746  6409.77925325
+              6876.17021986  6890.14602255  7219.00946583  7231.71801329
+              7405.19785922  8061.11922153  8465.22595371  8480.52469107
+              8819.15211826  8827.45481461  8989.31222846  9750.51070295
+             10055.48547869 10126.58850176 10400.03078133 10410.80175582]
+             """
+            raise Exception(po_data.wavefunctions.frequencies()*UnitsData.hartrees_to_wavenumbers)
+
+        plot_potential = False
+        def plot_pot():
+            domains = [
+                [-1.2, 1.4, 200],
+                [-1.3, 1.7, 100]
+            ]
+            left_segments = mol.get_scan_coordinates(domains, which=[[2, 0], [2, 1]]).reshape(-1, 3, 3)
+            left_vals = cart_pot_func(left_segments)
+
+            domains = [
+                [-1.4, 1.2, 200],
+                [-1.3, 1.7, 100]
+            ]
+            right_segments = mol.get_scan_coordinates(domains, which=[[1, 0], [1, 1]]).reshape(-1, 3, 3)
+            right_vals = cart_pot_func(right_segments)
+
+            vals = np.concatenate([left_vals, right_vals])
+            cut = de/2
+            vals[vals > cut] = cut
+            pot_plot = plt.TriContourPlot(
+                np.concatenate([left_segments[:, 2, 0], right_segments[:, 1, 0]]),
+                np.concatenate([left_segments[:, 2, 1], right_segments[:, 1, 1]]),
+                vals,
+                padding=[[50, 10], [50, 50]]
+            )
+            return pot_plot, np.concatenate([left_segments, right_segments], axis=0)
+
+        if plot_potential:
+            plot_pot()[0].show()
+            raise Exception(...)
+
+        def sub_cart_pot_func(coords, deriv_order=None):
+            # expects just x and y coordinates for the atoms
+            base_shape = coords.shape[:-1] if coords.shape[-1] == 6 else coords.shape[:-2]
+            coords = coords.reshape(-1, 3, 2)
+            coords = np.concatenate([coords, np.zeros((len(coords), 3, 1))], axis=-1)
+            terms = cart_pot_func(coords, deriv_order=deriv_order)
+            if deriv_order is not None:
+                new = []
+                for n,d in enumerate(terms):
+                    for j in range(n):
+                        d = np.take(d, (0, 1, 3, 4, 6, 7), axis=j+1)
+                    d = d.reshape(base_shape + d.shape[1:])
+                    new.append(d)
+            else:
+                new = terms.reshape(base_shape)
+            return new
+
+        def sub_cart_dipole_func(coords, deriv_order=None):
+            # expects just x and y coordinates for the atoms
+            base_shape = coords.shape[:-1] if coords.shape[-1] == 6 else coords.shape[:-2]
+            coords = coords.reshape(-1, 3, 2)
+            coords = np.concatenate([coords, np.zeros((len(coords), 3, 1))], axis=-1)
+            mu_terms = cart_dipole_func(coords, deriv_order=deriv_order)
+            all_terms = []
+            for terms in mu_terms:
+                if deriv_order is not None:
+                    new = []
+                    for n,d in enumerate(terms):
+                        for j in range(n):
+                            d = np.take(d, (0, 1, 3, 4, 6, 7), axis=j+1)
+                        d = d.reshape(base_shape + d.shape[1:])
+                        new.append(d)
+                else:
+                    new = terms.reshape(base_shape)
+                all_terms.append(new)
+            if deriv_order is None:
+                all_terms = np.moveaxis(np.array(all_terms), 0, -1)
+            else:
+                transpose_terms = [[] for _ in range(deriv_order+1)]
+                for term_list in all_terms:
+                    for i,t in enumerate(term_list):
+                        transpose_terms[i].append(t)
+                all_terms = [
+                    np.moveaxis(np.array(tl), 0, -1)
+                    for tl in transpose_terms
+                ]
+            return all_terms
+
+        plot_subpotential = False
+        if plot_subpotential:
+            domains = [
+                [-1, 1.5, 200],
+                [-1, 1.5, 100]
+            ]
+            left_segments = mol.get_scan_coordinates(domains, which=[[2, 0], [2, 1]]).reshape(-1, 3, 3)
+            left_vals = sub_cart_pot_func(left_segments.reshape(-1, 9)[:, (0, 1, 3, 4, 6, 7)])
+
+            domains = [
+                [-1.5, 1, 200],
+                [-1, 1.5, 100]
+            ]
+            right_segments = mol.get_scan_coordinates(domains, which=[[1, 0], [1, 1]]).reshape(-1, 3, 3)
+            right_vals = sub_cart_pot_func(right_segments.reshape(-1, 9)[:, (0, 1, 3, 4, 6, 7)])
+
+            vals = np.concatenate([left_vals, right_vals])
+            cut = 10000 * UnitsData.convert("Wavenumbers", "Hartrees")
+            vals[vals > cut] = cut
+            plt.TriContourPlot(
+                np.concatenate([left_segments[:, 2, 0], right_segments[:, 1, 0]]),
+                np.concatenate([left_segments[:, 2, 1], right_segments[:, 1, 1]]),
+                vals
+            ).show()
+            raise Exception(...)
+
+        grad = analytic_derivs[1]
         def ic_grad(ics):
             c = ics.reshape(ics.shape[0], -1)[:, (3, 6, 7)]
-            g = [
-                np.full(len(c), v)
-                    if not isinstance(v, np.ndarray) else
-                v
-                for v in grad(c)
-            ]
-            gg = np.moveaxis(np.array(g), 0, -1)
+            gg = -grad(c)
             full = np.zeros((len(ics), 9), dtype=float)
             full[:, (3, 6, 7)] = gg
             full = full.reshape(ics.shape)
             return full
 
-        def cart_hess(carts):
-            c = ics.reshape(ics.shape[0], -1)[:, (3, 6, 7)]
-            g = [
-                np.full(len(c), v)
-                    if not isinstance(v, np.ndarray) else
-                v
-                for v in grad(c)
-            ]
-            gg = np.moveaxis(np.array(g), 0, -1)
-            full = np.zeros((len(ics), 9), dtype=float)
-            full[:, (3, 6, 7)] = gg
-            full = full.reshape(ics.shape)
-            return full
-
-        init_pos = (
-                mol.internal_coordinates +
-                np.array([[0, 0, 0], [.2, 0, 0], [0, 0, 0]])
-        ).convert(
-            mol.coords.system
+        np.random.seed(0)
+        # init_disps = np.random.multivariate_normal([0, 0], np.power([[.2, 0], [0, .2]], 2), size=2)
+        ri = .4
+        # for init_disp in [
+        #     # [-ri / 3, ri / 2, np.deg2rad(-50)],
+        #     # [-ri / 3, ri / 2, np.deg2rad(-30)],
+        #     # [ ri, 0, np.deg2rad(-50)],
+        #     # [ ri, ri, np.deg2rad(60)],
+        #     # [ .5, .5, np.deg2rad(60)],
+        #     [ .55, .55, np.deg2rad(60)],
+        #     # [ .7, .7, np.deg2rad(60)],
+        # ]:
+        init_pos = mol.get_displaced_coordinates(
+            [
+                # [ .55, .55, np.deg2rad(60)],
+                [ .8, .8, np.deg2rad(-7)]
+            ],
+            which=[[1, 0], [2, 0], [2, 1]],
+            internals='reembed'
         )
+        # raise Exception(
+        #     cart_pot_func(init_pos)*UnitsData.hartrees_to_wavenumbers
+        # )
+        # raise Exception(
+        #     # [cart_pot_func(x)*UnitsData.hartrees_to_wavenumbers for x in init_pos],
+        #     cart_pot_func(init_pos) * UnitsData.hartrees_to_wavenumbers
+        # )
 
         sim = AIMDSimulator(
             mol.masses,
-            np.array([init_pos]*5),
-            ic_grad,
-            internals=mol.internal_coordinates.system
+            init_pos,
+            lambda c:-cart_pot_func(c, deriv_order=1)[1].reshape(c.shape),
+            timestep=1
         )
         sim.propagate(100)
         coords = np.array(sim.trajectory).reshape((-1, 3, 3))
-        ics = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates
+        coords = mol.embed_coords(coords)
 
+        # plot_wavefunctions = False
+        pot_plot = plot_pts = None
+        plot_trajectory = False
+        if plot_trajectory:
+            pot_plot, plot_pts = plot_pot()
+            for i in range(3):
+                plt.ScatterPlot(
+                    coords[:, i, 0],
+                    coords[:, i, 1],
+                    figure=pot_plot
+                )
+            pot_plot.show()
+            raise Exception(...)
 
+        ra = (np.deg2rad(180) - a)/2
+        cd = np.cos(ra)
+        sd = np.sin(ra)
+        # ham = DGB(
+        #     coords.reshape(-1, 9)[:, (0, 1, 3, 4, 6, 7)],
+        #     sub_cart_pot_func,
+        #     # alphas={'method':'virial', 'allow_rotations':True},# 'allow_rotations':False},
+        #     alphas=np.array([[100, 100, 1, 100, 1, 100]]*len(coords)),
+        #     transformations=np.array([[
+        #         [  1,   0,   0,   0,   0,   0],
+        #         [  0,   1,   0,   0,   0,   0],
+        #         [  0,   0,  cd, -sd,   0,   0],
+        #         [  0,   0,  sd,  cd,   0,   0],
+        #         [  0,   0,   0,   0,  cd,  sd],
+        #         [  0,   0,   0,   0, -sd,  cd]
+        #     ]]*len(coords)),
+        #     expansion_degree=2,
+        #     masses=(
+        #                    [AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 2
+        #                    + [AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 4
+        #     ),
+        #     logger=True
+        # )
+
+        e_init = round(np.mean(cart_pot_func(init_pos)) * UnitsData.hartrees_to_wavenumbers)
+        for scaling in [.5, 1, 2]:
+            for min_e in [100, 500, 800, 1000]:
+                print(f"Running scaling: {scaling}")
+                plots_dir = os.path.join(
+                    os.path.expanduser("~/Documents/Postdoc/AIMD-Spec/water_model"),
+                    f"E{e_init}/ME{min_e}/S{scaling}"
+                )
+                if plots_dir is not None:
+                    os.makedirs(plots_dir, exist_ok=True)
+
+                ham = DGB(
+                    coords.reshape(-1, 9)[:, (0, 1, 3, 4, 6, 7)],
+                    sub_cart_pot_func,
+                    # alphas={'method':'virial', 'scaling':scaling},
+                    alphas={'method':'virial',
+                            'scaling':scaling,
+                            'min_frequency':min_e/UnitsData.hartrees_to_wavenumbers,
+                            'allow_rotations':True
+                            },
+                    expansion_degree=2,
+                    masses=(
+                            [AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 2
+                            + [AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 4
+                    ),
+                    logger=True
+                )
+
+                plot_gaussians = False
+                if plot_gaussians:
+                    if pot_plot is None:
+                        pot_plot, plot_pts = plot_pot()
+
+                    # rot_data = ham.get_overlap_gaussians()
+                    g_sum_dat = np.ones((len(ham.centers), 1))
+                    # g_sum_dat[0, 0] = 1
+                    wfns = DGBWavefunctions(
+                        [1],
+                        g_sum_dat,
+                        hamiltonian=ham
+                    )
+
+                    x_pts = np.concatenate([plot_pts[:, 1, 0], plot_pts[:, 2, 0]])
+                    y_pts = np.concatenate([plot_pts[:, 1, 1], plot_pts[:, 2, 1]])
+
+                    # ri, ci = np.triu_indices(len(ham.centers))
+                    # dps = ri == ci
+                    # centers = ham.get_overlap_gaussians()['centers'][dps]
+                    # plt.ScatterPlot(
+                    #     *centers[:, (2, 3)].T,
+                    #     figure=pot_plot
+                    # )
+                    # pot_plot.show()
+                    # raise Exception(...)
+
+                    n = 0
+                    for cidx in [
+                        [0, 1, 4, 5],
+                        [0, 1, 2, 3]
+                    ]:
+                        proj1 = wfns[n].project(cidx)  # projects _out_
+                        proj1.plot(
+                            plotter=plt.TriContourLinesPlot,
+                            contour_levels=10,
+                            domain=[[np.min(x_pts), np.max(x_pts)],
+                                    [np.min(y_pts), np.max(y_pts)]],
+                            cmap='RdBu',
+                            # vmin=-max_val, vmax=max_val,
+                            # plot_range=[[np.min(x_pts), np.max(x_pts)],
+                            #             [np.min(y_pts), np.max(y_pts)]],
+                            figure=pot_plot
+                        )
+                        plt.ScatterPlot(
+                            *proj1.centers.T,
+                            figure=pot_plot
+                        )
+                    pot_plot.show()
+                    raise Exception(...)
+
+                wfns = ham.get_wavefunctions()
+                h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+                plot_wavefunctions = True
+                if plot_wavefunctions:
+                    plots = []
+                    for n in range(7):
+                        # if pot_plot is None:
+                        pot_plot, plot_pts = plot_pot()
+                        x_pts = np.concatenate([plot_pts[:, 1, 0], plot_pts[:, 2, 0]])
+                        y_pts = np.concatenate([plot_pts[:, 1, 1], plot_pts[:, 2, 1]])
+                        plt.ScatterPlot(
+                            wfns.centers[:, 0],
+                            wfns.centers[:, 1],
+                            figure=pot_plot,
+                            color='blue'
+                        )
+                        plt.ScatterPlot(
+                            wfns.centers[:, 2],
+                            wfns.centers[:, 3],
+                            figure=pot_plot,
+                            color='red'
+                        )
+                        plt.ScatterPlot(
+                            wfns.centers[:, 4],
+                            wfns.centers[:, 5],
+                            figure=pot_plot,
+                            color='green'
+                        )
+                        for cidx in [
+                            [0, 1, 4, 5],
+                            [0, 1, 2, 3]
+                        ]:
+                            proj1 = wfns[n].project(cidx) # projects _out_
+                            proj1.plot(
+                                figure=pot_plot,
+                                plot_label=f"Energy: {(proj1.energy - (0 if n == 0 else wfns[0].energy)) * h2w:.0f}",
+                                plotter=plt.TriContourLinesPlot,
+                                contour_levels=10,
+                                domain=[[np.min(x_pts), np.max(x_pts)],
+                                        [np.min(y_pts), np.max(y_pts)]],
+                                cmap='RdBu',
+                                # vmin=-max_val, vmax=max_val,
+                                plot_range=[[np.min(x_pts), np.max(x_pts)],
+                                            [np.min(y_pts), np.max(y_pts)]],
+                                padding=[[50, 10], [50, 50]]
+                            )
+                        if plots_dir is not None:
+                            pot_plot.savefig(os.path.join(plots_dir, f"wfn_{n}.png"))
+                            pot_plot.close()
+                        else:
+                            plots.append(pot_plot)
+                    if plots_dir is None:
+                        plots[0].show()
+
+                plot_spectrum = True
+                if plot_spectrum:
+                    spec = wfns[:8].get_spectrum(sub_cart_dipole_func, expansion_degree=1)  # .normalize(0)
+                    sploot = spec.plot(plot_range=[[1400, 7000], None])
+                    if plots_dir is not None:
+                        np.savetxt(
+                            os.path.join(plots_dir, "spec.txt"),
+                            np.array([
+                                spec.frequencies * UnitsData.hartrees_to_wavenumbers,
+                                spec.intensities
+                            ])
+                        )
+                        sploot.savefig(os.path.join(plots_dir, "spec.png"))
+                        sploot.close()
+                    else:
+                        sploot.show()
+
+        plt.Graphics().show()
+
+        raise Exception(wfns.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        # hmm, grads = cart_pot_derivs(coords, deriv_order=1)
+        # ics = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates
+        # r1s = ics[..., 2, 1]
+        # sort = np.argsort(r1s)
+        # plt.Plot(r1s[sort], hmm[sort]).show()
+        # raise Exception(hmm)
 
 
     @validationTest
