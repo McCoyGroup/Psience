@@ -83,8 +83,103 @@ class VPT2Tests(TestCase):
             logger=True
         )
 
+    # @debugTest
+    # def test_IHOHBasic(self):
+    #     wfns = VPTRunner.run_simple(
+    #         TestManager.test_data("i_hoh_opt.fchk"),
+    #         2,
+    #         # initial_states=1,
+    #         degeneracy_specs={'wfc_threshold':.3},
+    #         # internals=VPTRunner.helpers.parse_zmatrix("criegee/z_mat.dat"),
+    #         mixed_derivative_handling_mode='unhandled',
+    #         # logger=filename,  # output file name
+    #         plot_spectrum=True
+    #     )
+
     @debugTest
+    def test_IHOHExcited(self):
+        wfns = VPTRunner.run_simple(
+            TestManager.test_data("i_hoh_opt.fchk"),
+            4,
+            initial_states=[
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 2, 0, 0],
+                [1, 0, 0, 2, 0, 0],
+                [0, 0, 0, 1, 0, 0]
+            ],
+            degeneracy_specs='auto',
+            target_property='wavefunctions',
+            plot_spectrum=False,
+            logger=os.path.expanduser("~/Desktop/specks/run_wfns.txt")
+        )
+
+        multispec = wfns.get_spectrum().frequency_filter(600, 4400)
+        multispec.plot().savefig(
+                os.path.expanduser(f"~/Desktop/specks/full.pdf"),
+                transparent=True
+            )
+        for i,spec in enumerate(multispec):
+            spec.plot(plot_range=[[600, 4400], None], padding=[[0, 0], [0, 0]],
+                      image_size=[.75 * 20, 5.48 * 20]
+                      ).savefig(
+                os.path.expanduser(f"~/Desktop/specks/state_{i}.pdf"),
+                transparent=True
+            )
+        multispec = wfns.get_deperturbed_spectrum().frequency_filter(600, 4400)
+        for i,spec in enumerate(multispec):
+            spec.plot(plot_range=[[600, 4400], None], padding=[[0, 0], [0, 0]],
+                      image_size=[.75 * 20, 5.48 * 20]
+                      ).savefig(
+                os.path.expanduser(f"~/Desktop/specks/state_depert_{i}.pdf"),
+                transparent=True
+            )
+
+    @validationTest
     def test_HOHPartialQuartic(self):
+
+        VPTRunner.helpers.run_anne_job(
+            # os.path.expanduser("~/Desktop/r_as"),
+            TestManager.test_data("vpt2_helpers_api/hod/x"),
+            # states=2, # max quanta to be focusing on
+            states=[[0, 0, 0], [0, 0, 1], [0, 1, 0]],
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            # mode_selection=[1, 2],
+            calculate_intensities=False,
+            zero_element_warning=False,
+            include_only_mode_couplings=[1, 2],
+            include_coriolis_coupling=False
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        VPTRunner.helpers.run_anne_job(
+            # os.path.expanduser("~/Desktop/r_as"),
+            TestManager.test_data("vpt2_helpers_api/hod/x_no_bend"),
+            # states=2, # max quanta to be focusing on
+            states=[[0, 0, 0], [0, 0, 1], [0, 1, 0]],
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            # mode_selection=[1, 2],
+            calculate_intensities=False,
+            zero_element_warning=False,
+            # include_only_mode_couplings=[1, 2],
+            include_coriolis_coupling=True
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        raise Exception(...)
 
         VPTRunner.helpers.run_anne_job(
             # os.path.expanduser("~/Desktop/r_as"),

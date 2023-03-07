@@ -20,6 +20,8 @@ class DVRWavefunction(Wavefunction):
             grid = self.parent.grid
         self.grid = grid
         self._interp = None
+    def get_dimension(self):
+        return self.grid.shape[-1]
 
     def plot(self, figure=None, grid=None, **opts):
         if grid is None:
@@ -55,7 +57,7 @@ class DVRWavefunction(Wavefunction):
         """
         return self.interp(points)
 
-    def project(self, dofs):
+    def marginalize_out(self, dofs):
         """
         Computes the projection of the current wavefunction onto a set of degrees
         of freedom
@@ -63,7 +65,6 @@ class DVRWavefunction(Wavefunction):
         :return:
         :rtype:
         """
-        ndim = self.grid.shape[-1]
 
         # if isinstance(dofs, (int, np.integer)):
         #     dofs = [dofs]

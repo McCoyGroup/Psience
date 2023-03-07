@@ -393,11 +393,11 @@ class VPTStateSpace:
         # else:
         #     raise NotImplementedError("don't know what to do with degeneracy spec {}".format(degeneracy_specs))
 
-    def filter_generator(self, target_property, order=2, postfilters=None):
+    def filter_generator(self, target_property, order=2, initial_states=None, postfilters=None):
         def filter(states):
-            return self.get_state_space_filter(states, target=target_property, order=order, postfilters=postfilters)
+            return self.get_state_space_filter(states, initial_states=initial_states, target=target_property, order=order, postfilters=postfilters)
         return filter
-    def get_filter(self, target_property, order=2, postfilters=None):
+    def get_filter(self, target_property, order=2, initial_states=None, postfilters=None):
         """
         Obtains a state space filter for the given target property
         using the states we want to get corrections for
@@ -412,6 +412,7 @@ class VPTStateSpace:
         return self.get_state_space_filter(self.state_list,
                                            target=target_property,
                                            order=order,
+                                           initial_states=initial_states,
                                            postfilters=postfilters
                                            )
     @classmethod
@@ -486,41 +487,42 @@ class VPTHamiltonianOptions:
         "mode_selection",
         "include_potential",
         "include_gmatrix",
-         "include_coriolis_coupling",
-         "include_pseudopotential",
-         "potential_terms",
-         "kinetic_terms",
-         "coriolis_terms",
-         "pseudopotential_terms",
-         "dipole_terms",
-         "dipole_derivatives",
-         "undimensionalize_normal_modes",
-         "use_numerical_jacobians",
-         "eckart_embed_derivatives",
-         "eckart_embed_planar_ref_tolerance",
-         "strip_dummy_atoms",
-         "strip_embedding_coordinates",
-         "mixed_derivative_handling_mode",
-         "backpropagate_internals",
-         "direct_propagate_cartesians",
-         "zero_mass_term",
-         "use_internal_modes",
-         "internal_fd_mesh_spacing",
-         "internal_fd_stencil",
-         "cartesian_fd_mesh_spacing",
-         "cartesian_fd_stencil",
-         "cartesian_analytic_deriv_order",
-         "internal_by_cartesian_order",
-         "cartesian_by_internal_order",
-         "jacobian_warning_threshold",
-         "check_input_force_constants",
-         "hessian_tolerance",
-         "grad_tolerance",
-         "freq_tolerance",
-         "g_derivative_threshold",
-         "gmatrix_tolerance",
-         'use_cartesian_kinetic_energy',
-         'operator_coefficient_threshold'
+        "include_coriolis_coupling",
+        "include_pseudopotential",
+        "include_only_mode_couplings",
+        "potential_terms",
+        "kinetic_terms",
+        "coriolis_terms",
+        "pseudopotential_terms",
+        "dipole_terms",
+        "dipole_derivatives",
+        "undimensionalize_normal_modes",
+        "use_numerical_jacobians",
+        "eckart_embed_derivatives",
+        "eckart_embed_planar_ref_tolerance",
+        "strip_dummy_atoms",
+        "strip_embedding_coordinates",
+        "mixed_derivative_handling_mode",
+        "backpropagate_internals",
+        "direct_propagate_cartesians",
+        "zero_mass_term",
+        "use_internal_modes",
+        "internal_fd_mesh_spacing",
+        "internal_fd_stencil",
+        "cartesian_fd_mesh_spacing",
+        "cartesian_fd_stencil",
+        "cartesian_analytic_deriv_order",
+        "internal_by_cartesian_order",
+        "cartesian_by_internal_order",
+        "jacobian_warning_threshold",
+        "check_input_force_constants",
+        "hessian_tolerance",
+        "grad_tolerance",
+        "freq_tolerance",
+        "g_derivative_threshold",
+        "gmatrix_tolerance",
+        'use_cartesian_kinetic_energy',
+        'operator_coefficient_threshold'
     )
 
     def __init__(self,
@@ -529,6 +531,7 @@ class VPTHamiltonianOptions:
                  include_gmatrix=None,
                  include_coriolis_coupling=None,
                  include_pseudopotential=None,
+                 include_only_mode_couplings=None,
                  potential_terms=None,
                  kinetic_terms=None,
                  coriolis_terms=None,
@@ -623,6 +626,7 @@ class VPTHamiltonianOptions:
             include_gmatrix=include_gmatrix,
             include_coriolis_coupling=include_coriolis_coupling,
             include_pseudopotential=include_pseudopotential,
+            include_only_mode_couplings=include_only_mode_couplings,
             potential_terms=potential_terms,
             kinetic_terms=kinetic_terms,
             coriolis_terms=coriolis_terms,
@@ -1196,7 +1200,11 @@ class VPTRunner:
                 expansion_order = opts['expansion_order']
             else:
                 expansion_order = order
-            par.ops['state_space_filters'] = states.filter_generator(target_property, order=order, postfilters=basis_filters)
+            par.ops['state_space_filters'] = states.filter_generator(target_property,
+                                                                     initial_states=initial_states.state_list if initial_states is not None else None,
+                                                                     order=order,
+                                                                     postfilters=basis_filters
+                                                                     )
 
         if corrected_fundamental_frequencies is not None and (
                 'zero_order_energy_corrections' not in opts
@@ -1231,6 +1239,7 @@ class VPTRunner:
                    target_property=None,
                    corrected_fundamental_frequencies=None,
                    calculate_intensities=True,
+                   plot_spectrum=False,
                    operators=None,
                    **opts
                    ):
@@ -1295,7 +1304,10 @@ class VPTRunner:
                         else:
                             logger.log_print(str(ds))
 
-                return runner.print_tables(print_intensities=calculate_intensities, operators=operators)
+                wfns = runner.print_tables(print_intensities=calculate_intensities, operators=operators)
+                if plot_spectrum:
+                    wfns.get_spectrum().plot().show()
+                return wfns
 
     class helpers:
         """

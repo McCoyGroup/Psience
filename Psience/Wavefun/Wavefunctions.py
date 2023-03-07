@@ -2,6 +2,7 @@
 Provides very general support for an abstract wavefunction object
 Allows different methods to provide their own concrete implementation details
 """
+import abc
 from abc import *
 import numpy as np
 
@@ -25,6 +26,13 @@ class Wavefunction:
         self.parent = parent
         self.index = index
         self.opts   = opts
+
+    @abc.abstractmethod
+    def get_dimension(self):
+        raise NotImplementedError("abstract base method")
+    @property
+    def ndim(self):
+        return self.get_dimension()
 
     def plot(self,
              figure=None, domain=None, grid=None, values=None, plot_points=100,
@@ -102,6 +110,39 @@ class Wavefunction:
 
         return plotter(*grid.T, values, figure=figure, **opts)
 
+    def projection_plot(self,
+                        coords,
+                        figure=None,
+                        **plot_options
+                        ):
+        """
+        A convenience function to plot multiple projections
+        on the same set of axes
+
+        :param coords:
+        :type coords:
+        :param figure:
+        :type figure:
+        :param plot_options:
+        :type plot_options:
+        :return:
+        :rtype:
+        """
+        if isinstance(coords, (int, np.integer)):
+            coords = [[coords]]
+        elif isinstance(coords[0], (int, np.integer)):
+            coords = [[c] for c in coords]
+
+        for proj_inds in coords:
+            fig = self.project(proj_inds).plot(
+                figure=figure,
+                **plot_options
+            )
+            if figure is None:
+                figure = fig
+
+        return figure
+
     @abstractmethod
     def expectation(self, op, other=None):
         """Computes the expectation value of operator op over the wavefunction other and self
@@ -135,6 +176,14 @@ class Wavefunction:
         """
         return lambda pts:self.evaluate(pts)**2 # we're assuming real I guess...
     @abstractmethod
+    def marginalize_out(self, dofs):
+        """
+        Integrates out the contributions from the degrees of freedom `dofs`
+
+        :return:
+        :rtype: Wavefunction
+        """
+        raise NotImplementedError("abstract base method")
     def project(self, dofs):
         """
         Computes the projection of the current wavefunction onto a set of degrees
@@ -143,7 +192,9 @@ class Wavefunction:
         :return:
         :rtype: Wavefunction
         """
-        raise NotImplementedError("abstract base method")
+
+        dof_complement = np.setdiff1d(np.arange(self.ndim), dofs)
+        return self.marginalize_out(dof_complement)
 
 class Wavefunctions:
     """

@@ -2261,6 +2261,27 @@ class DipoleTerms(ExpansionTerms):
         """
         Makes sure all of the dipole moments are clean and ready to rotate
         """
+        if (
+                len(derivs) == 3
+                and not (
+                    all(
+                        isinstance(d, (int, float, np.integer, np.floating))
+                        or (isinstance(d, np.ndarray) and d.ndim > 0 and d.shape[-1] == 3)
+                        for d in derivs
+                    )
+        )
+
+        ):
+            # need to effectively transpose things...
+            tp_derivs = [[] for _ in range(len(derivs[0]))]
+            for ders in derivs:
+                for i,d in enumerate(ders):
+                    tp_derivs[i].append(d)
+            derivs = [
+                np.moveaxis(np.array(x), 0, -1)
+                for x in tp_derivs
+            ]
+            print([d.shape for d in derivs])
 
         if self._check_mode_terms(derivs):
             return derivs
@@ -2398,7 +2419,6 @@ class DipoleTerms(ExpansionTerms):
                 undimension_2 = (
                         m_conv[:, np.newaxis, np.newaxis]
                         * m_conv[np.newaxis, :, np.newaxis]
-                        * m_conv[np.newaxis, np.newaxis, :]
                 )
             else:
                 undimension_2 = 1
@@ -2417,18 +2437,18 @@ class DipoleTerms(ExpansionTerms):
             elif thirds.shape == (coord_n, coord_n, coord_n, 3):
                 if self.mixed_derivs is None:
                     self.mixed_derivs = False
-                undimension_3 = (
-                        m_conv[:, np.newaxis, np.newaxis]
-                        * m_conv[np.newaxis, :, np.newaxis]
-                        * m_conv[np.newaxis, np.newaxis, :]
+                undimension_3 =(
+                        m_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                        * m_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                        * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
                 )
             elif thirds.shape == (modes_n, modes_n, modes_n, 3):
                 if self.mixed_derivs is None:
                     self.mixed_derivs = False
                 undimension_3 = (
-                        f_conv[:, np.newaxis, np.newaxis]
-                        * f_conv[np.newaxis, :, np.newaxis]
-                        * f_conv[np.newaxis, np.newaxis, :]
+                        f_conv[:, np.newaxis, np.newaxis, np.newaxis]
+                        * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
+                        * f_conv[np.newaxis, np.newaxis, :, np.newaxis]
                 )
             else:
                 if self.mixed_derivs is None:
@@ -2445,6 +2465,7 @@ class DipoleTerms(ExpansionTerms):
                 for j in range(i):
                     mc = np.expand_dims(mc, 0)
                     undimension = np.expand_dims(undimension, -1) * mc
+                undimension = np.expand_dims(undimension, -1)
             elif term.shape != (internals_n,) * (i + 1) + (3,):
                 undimension = f_conv
                 fc = f_conv
@@ -2506,12 +2527,11 @@ class DipoleTerms(ExpansionTerms):
         for coord in range(3):
 
             u_derivs = [d[..., coord] for d in mu_derivs]
-            mixed_terms = [
-                [u_derivs[1]],  # dVdQXX
-                [u_derivs[2]]  # dVdQQXX
-            ]
-
             if mixed_derivs:
+                mixed_terms = [
+                    [u_derivs[1]],  # dVdQXX
+                    [u_derivs[2]]  # dVdQQXX
+                ]
                 if intcds is not None:
                     if (  # handle mixed derivative resymmetrization
                             self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled

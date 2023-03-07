@@ -106,7 +106,7 @@ class AnalyticWavefunction(Wavefunction):
         """
         return self.data
 
-    def project(self, dofs):
+    def marginalize_out(self, dofs):
         """
         Computes the projection of the current wavefunction onto a set of degrees
         of freedom

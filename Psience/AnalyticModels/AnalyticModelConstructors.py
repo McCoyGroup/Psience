@@ -1,15 +1,18 @@
+import itertools
 
 import numpy as np, scipy
 import sympy as sym
 
 from McUtils.Data import AtomData, UnitsData
+import McUtils.Numputils as nput
 from .Helpers import AnalyticModelBase
 from ..Data import KEData
 
 __all__ = [
     'AnalyticPotentialConstructor',
     'AnalyticKineticEnergyConstructor',
-    'AnalyticModel'
+    'AnalyticModel',
+    "MolecularModel"
 ]
 __reload_hook__ = ["..Data"]
 
@@ -20,7 +23,7 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
     :related:AnalyticModel, AnalyticKineticEnergyConstructor
     """
     @classmethod
-    def morse(cls, i, j, De=None, a=None, re=None, w=None, wx=None):
+    def morse(cls, i, j, De=None, a=None, re=None, eq=None, w=None, wx=None):
         """
         Returns a fully symbolic form of a Morse potential
         :return:
@@ -39,6 +42,9 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
             De = (w ** 2) / (4 * wx)
             a = sym.sqrt(2 * wx / muv)
 
+        if re is None:
+            re = eq
+
         return cls.calc_morse(
             AnalyticModelBase.symbol("De", i, j) if De is None else De,
             AnalyticModelBase.symbol("ap", i, j) if a is None else a,
@@ -53,36 +59,90 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
     def harm(k, x, x_e):
         return k*(x-x_e)**2
     @classmethod
-    def harmonic(cls, *args, k=None, qe=None):
+    def harmonic(cls, *args, k=None, eq=None, qe=None):
         """
         Returns a fully symbolic form of a Morse potential
         :return:
         :rtype:
         """
+
+        if qe is None:
+            qe = eq
+
         return cls.harm(
             AnalyticModelBase.symbol("k", *args) if k is None else k,
             AnalyticModelBase.var(*args),
             AnalyticModelBase.symbol("qe", *args) if qe is None else qe,
         )
 
+
     @staticmethod
     def lin(k, x, x_e):
         return k * (x - x_e)
     @classmethod
-    def linear(cls, *args, k=1, xe=None):
+    def linear(cls, *args, k=1, eq=None, xe=None):
         """
         Returns a fully symbolic form of a linear function
         :return:
         :rtype:
         """
+        if xe is None:
+            xe = eq
         return cls.lin(
             AnalyticModelBase.symbol("k", *args) if k is None else k,
             AnalyticModelBase.var(*args),
             AnalyticModelBase.symbol("xe", *args) if xe is None else xe
         )
 
+    @staticmethod
+    def pow(k, x, x_e, n):
+        return k * (x - x_e) ** n
     @classmethod
-    def multiwell(cls, *args, turning_points=None, origin=0, minimum=0, depth=None):
+    def power(cls, *args, k=1, eq=None, n=None, xe=None):
+        """
+        Returns a fully symbolic form of a linear function
+        :return:
+        :rtype:
+        """
+        if xe is None:
+            xe = eq
+        return cls.pow(
+            AnalyticModelBase.symbol("k", *args) if k is None else k,
+            AnalyticModelBase.var(*args),
+            AnalyticModelBase.symbol("xe", *args) if xe is None else xe,
+            AnalyticModelBase.symbol("n", *args) if n is None else n
+        )
+
+    @classmethod
+    def cos(cls, *args, eq=None, qe=None):
+        """
+        Returns a fully symbolic form of cos
+        :return:
+        :rtype:
+        """
+        if qe is None:
+            qe = eq
+        return AnalyticModelBase.sym.cos(
+            AnalyticModelBase.var(*args) -
+                (AnalyticModelBase.symbol("qe", *args) if qe is None else qe)
+        )
+
+    @classmethod
+    def sin(cls, *args, eq=None, qe=None):
+        """
+        Returns a fully symbolic form of sin
+        :return:
+        :rtype:
+        """
+        if qe is None:
+            qe = eq
+        return AnalyticModelBase.sym.sin(
+            AnalyticModelBase.var(*args) -
+            (AnalyticModelBase.symbol("qe", *args) if qe is None else qe)
+        )
+
+    @classmethod
+    def multiwell(cls, *args, turning_points=None, origin=None, eq=None, minimum=0, depth=None):
         """
 
         :param args:
@@ -94,8 +154,13 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
         :return:
         :rtype:
         """
+
         if turning_points is None:
             raise ValueError("need turning points for multiwell")
+        if origin is None:
+            origin = eq
+        if origin is None:
+            origin = 0
         turning_points = [origin+t for t in turning_points]
         x = AnalyticModelBase.var(*args)
         D = AnalyticModelBase.symbol("D", *args) if depth is None else depth
@@ -130,6 +195,8 @@ class AnalyticKineticEnergyConstructor(AnalyticModelBase):
     def _get_coord_key(cls, inds1:'Iterable[int]', inds2:'Iterable[int]', coord_types=None):
         # we infer which type of element to use and return that
         # with appropriate substitutions
+
+
         if coord_types is None:
             coord_types = [None, None]
         coord_types = list(coord_types)
@@ -139,70 +206,43 @@ class AnalyticKineticEnergyConstructor(AnalyticModelBase):
             coord_types[1] = cls.infer_coord_type(inds2)
         type1, type2 = coord_types
         sorting = ['r', 'a', 't', 'y']
-        if sorting.index(coord_types[0]) > sorting.index(coord_types[1]):
+        swapped = sorting.index(coord_types[0]) > sorting.index(coord_types[1])
+        if swapped:
             inds1, inds2 = inds2, inds1
             type1, type2 = type2, type1
-        shared_indices = np.intersect1d(inds1, inds2)
-        mapping = {i:k for i,k in zip(shared_indices, tuple(range(1, len(shared_indices) + 1)))}
-        n = len(shared_indices) + 1
-        diff_inds = np.concatenate([np.setdiff1d(inds1, shared_indices),np.setdiff1d(inds2, shared_indices)])
-        for i in diff_inds:
-            mapping[i] = n
-            n += 1
 
-        return ((type1, type2), tuple(mapping[i] for i in inds1), tuple(mapping[i] for i in inds2)), mapping
+        remapping = {}
+        n = 1
+        _ = []
+        for i in inds1:
+            if i not in remapping:
+                remapping[i] = n
+                _.append(n)
+                n += 1
+            else:
+                _.append(remapping[i])
+        i1 = tuple(_)
+        _ = []
+        for i in inds2:
+            if i not in remapping:
+                remapping[i] = n
+                _.append(n)
+                n += 1
+            else:
+                _.append(remapping[i])
+        i2 = tuple(_)
+
+        return ((type1, type2), i1, i2), remapping, swapped
 
     @classmethod
-    def g(cls, inds1:'Iterable[int]', inds2:'Iterable[int]', coord_types=None, target_symbols=None):
-        key, mapping = cls._get_coord_key(inds1, inds2, coord_types=coord_types)
-        (expr, _), perm = KEData.find_expressions(key, return_permutation=True)
-        # print(expr, perm, mapping)
+    def kinetic_exprs(cls, inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbols=None):
+        key, mapping, swapped = cls._get_coord_key(inds1, inds2, coord_types=coord_types)
+        (expr_g, expr_vp), perm = KEData.find_expressions(key, return_permutation=True)
         if perm is not None:
             shared_indices = np.intersect1d(inds1, inds2)
             p1, p2 = perm
-            # print(perm, mapping, inds1)
-            if p1 is not None:
-                updates = {}
-                for i,p in enumerate(p1):
-                    old = inds1[i]
-                    new = inds1[p]
-                    if (
-                            old not in shared_indices and new not in shared_indices
-                            or old in shared_indices and new in shared_indices
-                    ):
-                        updates[new] = mapping[old]
-                mapping.update(updates)
-            if p2 is not None:
-                updates = {}
-                for i,p in enumerate(p2):
-                    old = inds2[i]
-                    new = inds2[p]
-                    if (
-                            old not in shared_indices and new not in shared_indices
-                            or old in shared_indices and new in shared_indices
-                    ):
-                        updates[new] = mapping[old]
-                mapping.update(updates)
-            # print(perm)
-            # print(mapping)
-            # print(expr)
-
-        if not isinstance(expr, (int, np.integer)):
-            rev_mapping = {v:k for k,v in mapping.items()}
-            subs = tuple((s, cls.reindex_symbol(s, rev_mapping, target_symbols=target_symbols)) for s in expr.free_symbols)
-            expr = expr.subs([(s, q) for s,(q, _) in subs])
-            expr = expr.subs([(q, f) for s,(q, f) in subs])
-        return expr
-
-    @classmethod
-    def vp(cls, inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbols=None):
-        key, mapping = cls._get_coord_key(inds1, inds2, coord_types=coord_types)
-        (_, expr), perm = KEData.find_expressions(key, return_permutation=True)
-        # print(expr, perm, mapping)
-        if perm is not None:
-            shared_indices = np.intersect1d(inds1, inds2)
-            p1, p2 = perm
-            # print(perm, mapping, inds1)
+            if swapped:
+                p1, p2 = p2, p1
             if p1 is not None:
                 updates = {}
                 for i, p in enumerate(p1):
@@ -229,13 +269,27 @@ class AnalyticKineticEnergyConstructor(AnalyticModelBase):
             # print(mapping)
             # print(expr)
 
-        if not isinstance(expr, (int, np.integer)):
+        if not (isinstance(expr_g, (int, np.integer)) and isinstance(expr_vp, (int, np.integer))):
             rev_mapping = {v: k for k, v in mapping.items()}
-            subs = tuple(
-                (s, cls.reindex_symbol(s, rev_mapping, target_symbols=target_symbols)) for s in expr.free_symbols)
-            expr = expr.subs([(s, q) for s, (q, _) in subs])
-            expr = expr.subs([(q, f) for s, (q, f) in subs])
-        return expr
+            if not isinstance(expr_g, (int, np.integer)):
+                subs = tuple(
+                    (s, cls.reindex_symbol(s, rev_mapping, target_symbols=target_symbols)) for s in expr_g.free_symbols)
+                expr_g = expr_g.subs([(s, q) for s, (q, _) in subs])
+                expr_g = expr_g.subs([(q, f) for s, (q, f) in subs])
+            if not isinstance(expr_vp, (int, np.integer)):
+                subs = tuple(
+                    (s, cls.reindex_symbol(s, rev_mapping, target_symbols=target_symbols)) for s in expr_vp.free_symbols)
+                expr_vp = expr_vp.subs([(s, q) for s, (q, _) in subs])
+                expr_vp = expr_vp.subs([(q, f) for s, (q, f) in subs])
+
+        return expr_g, expr_vp
+
+    @classmethod
+    def g(cls, inds1:'Iterable[int]', inds2:'Iterable[int]', coord_types=None, target_symbols=None):
+        return cls.kinetic_exprs(inds1, inds2, coord_types=coord_types, target_symbols=target_symbols)[0]
+    @classmethod
+    def vp(cls, inds1:'Iterable[int]', inds2:'Iterable[int]', coord_types=None, target_symbols=None):
+        return cls.kinetic_exprs(inds1, inds2, coord_types=coord_types, target_symbols=target_symbols)[1]
 
     @classmethod
     def infer_coord_type(cls, inds):
@@ -821,7 +875,50 @@ class AnalyticModel:
     morse = AnalyticPotentialConstructor.morse
     harmonic = AnalyticPotentialConstructor.harmonic
     linear = AnalyticPotentialConstructor.linear
+    power = AnalyticPotentialConstructor.power
+    sin = AnalyticPotentialConstructor.sin
+    cos = AnalyticPotentialConstructor.cos
     KE = AnalyticKineticEnergyConstructor
+
+    class NamespaceContext:
+        def __init__(self, context=None):
+            self._context = context
+            self._additions = set()
+        def _get_frame_vars(self):
+            import inspect
+            frame = inspect.currentframe()
+            parent = frame.f_back.f_back.f_back
+            # print(parent.f_locals)
+            return parent.f_locals
+        def insert_vars(self):
+            globs = self._context
+            if globs is None:
+                globs = self._get_frame_vars()
+            for k, v in dict(
+                    r=AnalyticModel.r,
+                    a=AnalyticModel.a,
+                    cos=AnalyticModel.cos,
+                    sin=AnalyticModel.sin,
+                    morse=AnalyticModel.morse,
+                    harmonic=AnalyticModel.harmonic,
+                    sym=AnalyticModel.sym,
+                    m=AnalyticModel.m,
+            ).items():
+                globs[k] = v
+                self._additions.add(k)
+        def prune_vars(self):
+            globs = self._context
+            if globs is None:
+                globs = self._get_frame_vars()
+            for x in self._additions:
+                try:
+                    del globs[x]
+                except KeyError:
+                    pass
+        def __enter__(self):
+            self.insert_vars()
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self.prune_vars()
 
     @classmethod
     def sym(self, base, *args):
@@ -846,3 +943,180 @@ class AnalyticModel:
     @staticmethod
     def mass(atom):
         return AtomData[atom]["Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+
+    def molecular_potential(self, mol):
+        if mol.internals is None:
+            raise ValueError("Molecule {} needs internal coordinates to be used with a model potential")
+        return MolecularModelPotentialFunction(self, mol)
+    def molecular_dipole(self, mol):
+        if mol.internals is None:
+            raise ValueError("Molecule {} needs internal coordinates to be used with a model dipole")
+        return MolecularModelDipoleFunction(self, mol)
+    def molecular_gmatrix(self, mol):
+        if mol.internals is None:
+            raise ValueError("Molecule {} needs internal coordinates to be used with a model gmatrix")
+        return MolecularModelGMatrixFunction(self, mol)
+
+class MolecularModel(AnalyticModel):
+    def __init__(self, mol, coords, potential, dipole=None, values=None, rotation=None):
+        super().__init__(coords, potential, dipole=dipole, values=values, rotation=rotation)
+        self.mol = mol
+    @property
+    def potential(self):
+        return MolecularModelPotentialFunction(self, self.mol)
+    @property
+    def gmatrix(self):
+        return MolecularModelGMatrixFunction(self, self.mol)
+    @property
+    def vprime(self):
+        return MolecularModelVPrimeFunction(self, self.mol)
+    @property
+    def dipole(self):
+        return MolecularModelDipoleFunction(self, self.mol)
+
+class MolecularModelFunction:
+
+    def __init__(self, deriv_evaluator, mol):
+        self.mol = mol
+        self.deriv_evaluator = deriv_evaluator
+        self.derivs = []
+
+    def evaluate(self, carts, deriv_order=None, internals=False, which=None, sel=None, axes=None, derivs=None):
+        carts = np.asanyarray(carts)
+
+        ads = 1 if deriv_order is None else deriv_order + 1
+        if derivs is None:
+            if len(self.derivs) < ads + 1:
+                self.derivs = self.deriv_evaluator(order=ads-1, evaluate='constants', lambdify=True)
+            derivs = self.derivs
+        elif len(derivs) < ads:
+            raise ValueError("need at least {} derivs".format(ads - 1))
+
+
+        base_shape = carts.shape[:-2]
+        carts = carts.reshape((-1,) + carts.shape[-2:])
+        if (
+                internals
+                or which is not None
+                or sel is not None
+                or axes is not None
+        ):
+            carts = self.mol.get_displaced_coordinates(
+                carts,
+                which=which, sel=sel, axes=axes, internals=internals,
+                shift=False
+            )
+
+        vals = self.mol.evaluate_at(
+            lambda c, deriv_order=None: (
+                derivs[0](c, vector=True)
+                    if deriv_order is None else
+                [
+                    df(c, vector=True) for df in derivs[:deriv_order + 1]
+                ]
+            ),
+            carts,
+            deriv_order=None if deriv_order is not None and deriv_order == 0 else deriv_order,
+            internals=True,
+            strip_embedding=True
+        )
+        if deriv_order is not None:
+            if deriv_order == 0:
+                vals = [vals]
+
+            take = None
+            if which is not None:
+                take = tuple(
+                    np.ravel_multi_index(idx, (3, len(self.mol.masses)))
+                    if not isinstance(idx, (int, np.integer)) else
+                        idx
+                    for idx in which
+                )
+            elif sel is not None or axes is not None:
+                if sel is None:
+                    sel = np.arange(len(self.mol.masses))
+                if axes is None:
+                    axes = np.arange(3)
+                take = np.ravel_multi_index(np.array(list(itertools.product(sel, axes))).T, (3, len(self.mol.masses)))
+
+            if take is not None:
+                new = []
+                for n, d in enumerate(vals):
+                    for j in range(n):
+                        d = np.take(d, take, axis=j + 1)
+                    d = d.reshape(base_shape + d.shape[1:])
+                    new.append(d)
+                vals = new
+
+            vals = [
+                v.reshape(base_shape + v.shape[1:])
+                for v in vals
+            ]
+
+        else:
+            vals = vals.reshape(base_shape)
+
+        return vals
+
+    def __call__(self, carts, deriv_order=None, internals=False, which=None, sel=None, axes=None):
+        return self.evaluate(carts, deriv_order=deriv_order, internals=internals, which=which, sel=sel, axes=axes)
+
+class MolecularModelPotentialFunction(MolecularModelFunction):
+    def __init__(self, model, mol):
+        super().__init__(model.v, mol)
+
+class MolecularModelDipoleFunction(MolecularModelFunction):
+    def __init__(self, model, mol):
+        super().__init__(model.mu, mol)
+        self._subfuncs = []
+
+    def evaluate(self, carts, deriv_order=None, internals=False, which=None, sel=None, axes=None):
+        """
+        This has the added complication of needing to dispatch over the axes...
+
+        :param carts:
+        :type carts:
+        :param deriv_order:
+        :type deriv_order:
+        :param internals:
+        :type internals:
+        :param which:
+        :type which:
+        :param sel:
+        :type sel:
+        :param axes:
+        :type axes:
+        :return:
+        :rtype:
+        """
+        ads = 1 if deriv_order is None else deriv_order + 1
+        if len(self.derivs) < ads + 1:
+            self.derivs = self.deriv_evaluator(order=ads - 1, evaluate='constants', lambdify=True)
+
+        vals = []
+        for d in self.derivs:
+            vals.append(
+                super().evaluate(carts, deriv_order=deriv_order, internals=internals, which=which, sel=sel, axes=axes, derivs=d)
+            )
+
+        if deriv_order is None:
+            vals = np.moveaxis(np.array(vals), 0, -1)
+        else:
+            transpose_terms = [[] for _ in range(deriv_order + 1)]
+            for term_list in vals:
+                for i, t in enumerate(term_list):
+                    transpose_terms[i].append(t)
+            vals = [
+                np.moveaxis(np.array(tl), 0, -1)
+                for tl in transpose_terms
+            ]
+
+        return vals
+
+class MolecularModelGMatrixFunction(MolecularModelFunction):
+    def __init__(self, model, mol):
+        super().__init__(model.g, mol)
+
+class MolecularModelVPrimeFunction(MolecularModelFunction):
+    def __init__(self, model, mol):
+        super().__init__(model.vp, mol)

@@ -42,6 +42,7 @@ class PerturbationTheoryHamiltonian:
                  include_gmatrix=True,
                  include_coriolis_coupling=True,
                  include_pseudopotential=True,
+                 include_only_mode_couplings=None,
                  potential_terms=None,
                  allow_higher_potential_terms=False,
                  kinetic_terms=None,
@@ -113,6 +114,10 @@ class PerturbationTheoryHamiltonian:
         expansion_options['checkpointer'] = self.results if self.results is not None else self.checkpointer
         expansion_options['parallelizer'] = self.parallelizer
         expansion_params = ParameterManager(expansion_options)
+
+        if include_only_mode_couplings is not None:
+            include_only_mode_couplings = tuple(include_only_mode_couplings)
+        self.include_only_mode_couplings = include_only_mode_couplings
 
         if not include_potential:
             V_terms = None
@@ -285,11 +290,18 @@ class PerturbationTheoryHamiltonian:
                include_potential=True,
                include_gmatrix=True,
                include_coriolis=True,
-               include_pseudopotential=True
+               include_pseudopotential=True,
+               include_modes=None
                ):
         """
         Provides the representation for H(i) in this basis
         """
+        if include_modes is None:
+            include_modes = self.include_only_mode_couplings
+        if include_modes is not None:
+            excluded_modes = np.setdiff1d(np.arange(self.mode_n), include_modes)
+        else:
+            excluded_modes = None
 
         if len(self._expansions) < o + 1:
             self._expansions += [None] * (o + 1 - len(self._expansions))
@@ -314,6 +326,10 @@ class PerturbationTheoryHamiltonian:
             self.logger.log_print("T({o}) = {T}", o=o, T=T, log_level=self.logger.LogLevel.Never)
 
             if T is not None:
+                if o > 0 and isinstance(T, np.ndarray) and excluded_modes is not None:
+                    T = T.copy()
+                    zero_sel = np.ix_(*[excluded_modes]*T.ndim)
+                    T[zero_sel] = 0.
                 p_expansion = ['p'] + ['x'] * o + ['p']
                 T = (iphase / (2*np.math.factorial(o))) * self.basis.representation(*p_expansion,
                                                                                         coeffs=T,
@@ -328,6 +344,10 @@ class PerturbationTheoryHamiltonian:
                 T = None
 
             if V is not None:
+                if o > 0 and isinstance(V, np.ndarray) and excluded_modes is not None:
+                    V = V.copy()
+                    zero_sel = np.ix_(*[excluded_modes]*V.ndim)
+                    V[zero_sel] = 0.
                 v_expansion = ['x'] * (o + 2)
                 V = 1 / np.math.factorial(o + 2) * self.basis.representation(*v_expansion,
                                                                                coeffs=V,
@@ -354,6 +374,11 @@ class PerturbationTheoryHamiltonian:
                 if include_coriolis:
                     Z = self.coriolis_terms[oz]
                     if Z is not None:
+                        if o > 0 and  isinstance(Z, np.ndarray) and excluded_modes is not None:
+                            Z = Z.copy()
+                            zero_sel = np.ix_(*[excluded_modes] * Z.ndim)
+                            Z[zero_sel] = 0.
+
                         z_exp = ['x', 'p'] + ['x' for _ in range(oz)] + ['x', 'p']
                         Z = iphase * self.basis.representation(*z_exp,
                                                                coeffs=Z,
@@ -370,6 +395,11 @@ class PerturbationTheoryHamiltonian:
                 if include_pseudopotential:
                     U = self.pseudopotential_term[oz]
                     if U is not None:
+                        if isinstance(U, np.ndarray) and excluded_modes is not None:
+                            U = U.copy()
+                            zero_sel = np.ix_(*[excluded_modes] * U.ndim)
+                            U[zero_sel] = 0.
+
                         u_exp = ['x' for _ in range(oz)]
                         U = 1 / (8 * np.math.factorial(oz)) * self.basis.representation(*u_exp,
                                                                  coeffs=U,

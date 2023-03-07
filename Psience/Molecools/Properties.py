@@ -462,24 +462,49 @@ class StructuralProperties:
         mT = np.sqrt(np.sum(masses))
         mvec = np.sqrt(masses)
 
+        smol = coords.ndim == 2
+        if smol:
+            coords = coords[np.newaxis]
+        base_shape = None
+        if coords.ndim > 3:
+            base_shape = coords.shape[:-2]
+            coords = coords.reshape((-1,) + coords.shape[-2:])
+
         M = np.kron(mvec / mT, np.eye(3)).T  # translation eigenvectors
         mom_rot, ax_rot = cls.get_prop_moments_of_inertia(coords, masses)
-        inv_rot_2 = np.dot(np.dot(ax_rot, np.diag(1 / np.sqrt(mom_rot))), ax_rot.T)
+        inv_mom_2 = np.zeros(ax_rot.shape)
+        diag_inds = np.diag_indices(3)
+        idx = (slice(None, None, None),) + diag_inds
+        inv_mom_2[idx] = 1/np.sqrt(mom_rot)
+        inv_rot_2 = nput.vec_tensordot(
+            ax_rot,
+            nput.vec_tensordot(
+                ax_rot,
+                inv_mom_2,
+                shared=1,
+                axes=[-1, -1]
+            ),
+            shared=1,
+            axes=[-1, -1]
+        )
         com = cls.get_prop_center_of_mass(coords, masses)
-        shift_crds = mvec[:, np.newaxis] * (coords - com[np.newaxis, :])
+        com = np.expand_dims(com, 1)
+        shift_crds = mvec[np.newaxis, :, np.newaxis] * (coords - com[: np.newaxis, :])
         e = nput.levi_cevita3
-        R = np.tensordot(
+        R = nput.vec_tensordot(
             shift_crds,
-            np.tensordot(e, inv_rot_2, axes=[0, 1]),
-            axes=[1, 0]
-        ).reshape((3 * n, 3))  # rotations
+            np.moveaxis(np.tensordot(e, inv_rot_2, axes=[0, -1]), -2, 0),
+            shared=1,
+            axes=[-1, 1]
+        ).reshape((coords.shape[0], 3 * n, 3))  # rotations
         freqs = np.concatenate([
-            [1e-14, 1e-14, 1e-14],
+            np.broadcast_to([[1e-14, 1e-14, 1e-14]], mom_rot.shape),
             (1 / (2 * mom_rot))
             # this isn't right, I'm totally aware, but I think the frequency is supposed to be zero anyway and this
             # will be tiny
-        ])
-        eigs = np.concatenate([M, R], axis=1)
+        ], axis=-1)
+        M = np.broadcast_to(M[np.newaxis], R.shape)
+        eigs = np.concatenate([M, R], axis=2)
 
         # import McUtils.Plots as plt
         # print(np.round(eigs, 10))

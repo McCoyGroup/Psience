@@ -114,6 +114,10 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         #     self.corrs.wfn_corrections,
         #     None
         # )
+
+    def get_dimension(self):
+        return len(self.modes)
+
     @property
     def energies(self):
         return self.corrs.energies
@@ -558,7 +562,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 order,
                 partitioning,
                 rep_inds,
-                allow_higher_dipole_terms=False if 'allow_higher_dipole_terms' not in self.expansion_options else self.expansion_options['allow_higher_dipole_terms']
+                allow_higher_dipole_terms=self.expansion_options.get('allow_higher_dipole_terms', True)
             )
 
             # raise Exception("...")
@@ -1844,6 +1848,49 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             self.deperturbed_intensities,
             states=self.corrs.states.excitations,
             real_fmt=real_fmt
+        )
+
+
+    def _get_spectrum(self,
+                     engs,
+                      intensities
+                     ):
+        from ..Spectra import DiscreteSpectrum, MultiSpectrum
+
+        # if states is None:
+        states = self.corrs.states.excitations
+
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        res = {}
+
+        harm_engs = self.zero_order_energies * h2w
+        engs = engs * h2w
+
+        for init_idx in self.initial_state_indices:
+            subsel = np.concatenate([np.arange(init_idx), np.arange(init_idx + 1, len(states))])
+
+            freqs = engs[subsel] - engs[init_idx]
+
+            if isinstance(intensities, dict):
+                anh_ints = intensities[init_idx][subsel]
+            else:
+                anh_ints = intensities
+
+            res[init_idx] = DiscreteSpectrum(freqs, anh_ints)
+
+        return MultiSpectrum(list(res.values()))
+
+    def get_spectrum(self):
+        return self._get_spectrum(
+            self.energies,
+            self.intensities
+        )
+    def get_deperturbed_spectrum(self):
+        return self._get_spectrum(
+            self.deperturbed_energies,
+            self.deperturbed_intensities
         )
 
     def _format_operator_table(self, states, val, zo_val, real_fmt="{:>12.5f}"):

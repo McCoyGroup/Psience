@@ -5,14 +5,16 @@ Provides a DVRWavefunction class that inherits from the base Psience wavefunctio
 import numpy as np
 
 from McUtils.Zachary import Mesh
+import McUtils.Plots as plt
 
 from Psience.Wavefun import Wavefunction, Wavefunctions
-from Psience.Spectra import DiscreteSpectrum
 
 __all__ = ["DGBWavefunctions", "DGBWavefunction"]
 
 class DGBWavefunction(Wavefunction):
-    def __init__(self, energy, data, centers=None, alphas=None, inds=None, transformations=None, **opts):
+    def __init__(self, energy, data, centers=None, alphas=None, inds=None, transformations=None,
+                 mass_weighted=None, masses=None,
+                 **opts):
         super().__init__(energy, data, **opts)
         if centers is None:
             centers = self.parent.centers
@@ -26,17 +28,45 @@ class DGBWavefunction(Wavefunction):
         if inds is None and self.parent is not None:
             inds = self.parent.hamiltonian.inds
         self.inds = inds
+        if mass_weighted is None and self.parent is not None:
+            mass_weighted = self.parent.mass_weighted
+        self.mass_weighted = mass_weighted
+        if self.mass_weighted:
+            if masses is None:
+                masses = self.parent.masses
+            masses = np.asanyarray(masses)
+        self.masses = masses
+
+    def get_dimension(self):
+        return self.centers.shape[-1]
 
     def plot(self,
              figure=None,
              domain=None,
+             plot_centers=False,
              **opts
              ):
 
         if domain is None:
             domain = Mesh(self.centers).bounding_box
 
-        return super().plot(figure=figure, domain=domain, **opts)
+        fig = super().plot(figure=figure, domain=domain, **opts)
+        if plot_centers:
+            if self.ndim == 1:
+                plt.ScatterPlot(
+                    self.centers[:, 0],
+                    np.zeros(len(self.centers)),
+                    figure=fig
+                )
+            elif self.ndim == 2:
+                plt.ScatterPlot(
+                    self.centers[:, 0],
+                    self.centers[:, 1],
+                    figure=fig
+                )
+            else:
+                raise ValueError("can't plot centers for more than 2D data...?")
+        return fig
 
     def evaluate(self, points):
         points = np.asanyarray(points)
@@ -47,17 +77,23 @@ class DGBWavefunction(Wavefunction):
             reshape = points.shape[:-1]
             points.reshape(-1, points.shape[-1])
 
+        centers = self.centers
+        if self.mass_weighted:
+            points = points * np.sqrt(self.masses[np.newaxis])
+            centers = centers * np.sqrt(self.masses[np.newaxis])
+
+
         # actual basis evaluation
-        c_disps = points[np.newaxis, :, :] - self.centers[:, np.newaxis, :]
+        c_disps = points[np.newaxis, :, :] - centers[:, np.newaxis, :]
         if self.transformations is not None:
-            tfs = self.transformations # not sure if I need to transpose this or not...
+            tfs, inv = self.transformations # not sure if I need to transpose this or not...
             tfs = np.broadcast_to(tfs[:, np.newaxis, :, :], (len(self.centers), len(points)) + tfs.shape[1:])
             c_disps = tfs @ c_disps[:, :, :, np.newaxis]
             c_disps = c_disps.reshape(c_disps.shape[:-1])
         alphas = self.alphas[:, np.newaxis]
         if self.inds is not None:
-            c_disps = c_disps[..., self.parent.inds]
-            alphas = alphas[..., self.parent.inds]
+            c_disps = c_disps[..., self.inds]
+            alphas = alphas[..., self.inds]
         normas = (2 * alphas / np.pi) ** (1/4)
         exp_evals = np.exp(-alphas * c_disps**2)
 
@@ -68,7 +104,8 @@ class DGBWavefunction(Wavefunction):
         if reshape is not None:
             vals = vals.reshape(reshape)
         return vals
-    def project(self, dofs):
+
+    def marginalize_out(self, dofs):
         """
         Computes the projection of the current wavefunction onto a set of degrees
         of freedom, returning a projected wave function object
@@ -87,6 +124,8 @@ class DGBWavefunction(Wavefunction):
         remaining = np.setdiff1d(np.arange(self.centers.shape[-1]), dofs)
         centers = self.centers[:, remaining]
 
+        masses = self.masses[remaining] if isinstance(self.masses, np.ndarray) else self.masses
+
         if self.transformations is None:
             scaling = np.power(2 * np.pi, len(dofs)/4) / np.power(np.prod(self.alphas[:, proj_dofs], axis=-1), 1/4)
             alphas = self.alphas[:, remaining]
@@ -96,17 +135,24 @@ class DGBWavefunction(Wavefunction):
                 self.data * scaling,
                 centers=centers,
                 alphas=alphas,
-                transformations=self.transformations
+                transformations=self.transformations,
+                mass_weighted=self.mass_weighted,
+                masses=masses
             )
         else:
             alphas = self.alphas
-            transformations = self.transformations[:, remaining, :]
+            tfs = self.transformations[0][:, remaining, :]
+            inv = self.transformations[1][:, :, remaining]
+            if self.inds is not None:
+                alphas = alphas[:, self.inds]
+                tfs = tfs[:, :, self.inds]
+                inv = inv[:, self.inds, :]
             n = alphas.shape[-1]
             npts = len(alphas)
             diag_covs = np.zeros((npts, n, n))
             diag_inds = (slice(None, None, None),) + np.diag_indices(n)
             diag_covs[diag_inds] = 1 / (2 * alphas)
-            covs = transformations @ diag_covs @ transformations.transpose(0, 2, 1)
+            covs = tfs @ diag_covs @ inv
             covs[np.abs(covs) < 1e-12] = 0  # numerical garbage can be an issue...
 
             two_a_inv, tfs = np.linalg.eigh(covs)
@@ -116,7 +162,9 @@ class DGBWavefunction(Wavefunction):
                 self.data,
                 centers=centers,
                 alphas=1/(2*two_a_inv),
-                transformations=tfs
+                transformations=(tfs, inv),
+                mass_weighted=self.mass_weighted,
+                masses=masses
             )
 
 class DGBWavefunctions(Wavefunctions):
@@ -127,6 +175,8 @@ class DGBWavefunctions(Wavefunctions):
         self.centers = self.hamiltonian.centers
         self.alphas = self.hamiltonian.alphas
         self.transformations = self.hamiltonian.transformations
+        self.mass_weighted = self.hamiltonian.mass_weighted
+        self.masses = self.hamiltonian.masses
 
     def expectation(self, op,
                     expansion_degree=None,

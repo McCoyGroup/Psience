@@ -242,6 +242,9 @@ class Molecule(AbstractMolecule):
             m = m*UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         return m
     @property
+    def atomic_masses(self):
+        return self._atomic_masses()
+    @property
     def bonds(self):
         if self._bonds is None and self.guess_bonds:
             self._bonds = self.prop("guessed_bonds", tol=1.05, guess_type=True)
@@ -744,10 +747,12 @@ class Molecule(AbstractMolecule):
 
     def evaluate(self,
                  func,
-                 internals=False,
+                 internals=None,
                  deriv_order=None,
                  strip_embedding=False
                  ):
+        if internals is None:
+            internals = self.internals is not None
         if internals:
             coords = self.internal_coordinates
             if strip_embedding:
@@ -799,39 +804,80 @@ class Molecule(AbstractMolecule):
             else:
                 return [x.view(np.ndarray) for x in func(self.coords, deriv_order=deriv_order)]
 
-    def get_displaced_coordinates(self, displacements, which=None, internals=False):
+    def evaluate_at(self,
+                    func,
+                    coords,
+                    internals=None,
+                    deriv_order=None,
+                    strip_embedding=False
+                    ):
+        return type(self)(
+            self.atoms,
+            coords,
+            internals=self.internals
+        ).evaluate(func, internals=internals, deriv_order=deriv_order, strip_embedding=strip_embedding)
+
+    def get_displaced_coordinates(self, displacements, which=None, sel=None, axes=None, internals=False, shift=True):
         displacements = np.asanyarray(displacements)
 
-        if which is None:
-            which = np.arange(3*len(self._ats))
-        which = tuple(
-            np.ravel_multi_index(idx, (3, len(self._ats)))
-                if not isinstance(idx, (int, np.integer)) else
-            idx
-            for idx in which
-        )
-
-        if displacements.shape[-1] != len(which): # displacements provided in atom coordinates
-            displacements = displacements.reshape(
-                displacements.shape[:-2] +
-                 (np.prod(displacements.shape[-2:], dtype=int),)
+        if which is not None:
+            which = tuple(
+                np.ravel_multi_index(idx, (3, len(self._ats)))
+                    if not isinstance(idx, (int, np.integer)) else
+                idx
+                for idx in which
             )
 
         if internals and self.internals is None:
             raise ValueError("can't displace in internals without internal coordinate spec")
         base_coords = self.coords if not internals else self.internal_coordinates
-        if displacements.ndim > 1:
-            for _ in range(displacements.ndim - 1):
-                base_coords = np.expand_dims(base_coords, 0)
-            base_coords = np.broadcast_to(base_coords, displacements.shape[:-1] + base_coords.shape[-2:])
-        base_coords = base_coords.copy()
-        flat_coords = base_coords.reshape(displacements.shape[:-1] + (-1,))
-        # raise Exception(
-        #     flat_coords[..., which].shape,
-        #     displacements.shape
-        # )
-        flat_coords[..., which] += displacements
-        base_coords = flat_coords.reshape(base_coords.shape)
+
+        if which is not None:
+            if displacements.shape[-1] != len(which):  # displacements provided in atom coordinates
+                displacements = displacements.reshape(
+                    displacements.shape[:-2] +
+                    (np.prod(displacements.shape[-2:], dtype=int),)
+                )
+            if displacements.ndim > 1:
+                for _ in range(displacements.ndim - 1):
+                    base_coords = np.expand_dims(base_coords, 0)
+                base_coords = np.broadcast_to(base_coords, displacements.shape[:-1] + base_coords.shape[-2:])
+            base_coords = base_coords.copy()
+            flat_coords = base_coords.reshape(displacements.shape[:-1] + (-1,))
+
+            if shift:
+                flat_coords[..., which] += displacements
+            else:
+                flat_coords[..., which] = displacements
+            base_coords = flat_coords.reshape(base_coords.shape)
+
+        elif sel is not None or axes is not None:
+            if displacements.ndim > 2:
+                for _ in range(displacements.ndim - 2):
+                    base_coords = np.expand_dims(base_coords, 0)
+                base_coords = np.broadcast_to(base_coords, displacements.shape[:-2] + base_coords.shape[-2:])
+            base_coords = base_coords.copy()
+
+            if sel is None:
+                sel = np.arange(len(self.masses))
+            if axes is None:
+                axes = np.arange(3)
+
+            sel = np.asanyarray(sel)[:, np.newaxis]
+            axes = np.asanyarray(axes)[np.newaxis, :]
+
+            if shift:
+                base_coords[..., sel, axes] += displacements
+            else:
+                base_coords[..., sel, axes] = displacements
+
+        else:
+            if displacements.shape[-2:] != base_coords.shape:
+                raise ValueError("displacements with shape {} passed but coordinates have shape {}".format(
+                    displacements.shape,
+                    base_coords.shape
+                ))
+            base_coords = displacements
 
         if internals:
             # track the embedding info...
@@ -848,16 +894,187 @@ class Molecule(AbstractMolecule):
     def get_scan_coordinates(self,
                              domains,
                              internals=False,
-                             which=None
+                             which=None, sel=None, axes=None,
+                             shift=True
                              ):
 
         displacement_mesh = np.moveaxis(
             np.array(
-                np.meshgrid(*[np.linspace(*d) for d in domains])
+                np.meshgrid(*[np.linspace(*d) for d in domains], indexing='ij')
             ),
             0, -1
         )
-        return self.get_displaced_coordinates(displacement_mesh, internals=internals, which=which)
+        return self.get_displaced_coordinates(displacement_mesh, shift=shift,
+                                              internals=internals, which=which, sel=sel, axes=axes)
+
+    def get_nearest_displacement_coordinates(self, points, sel=None, axes=None, weighting_function=None):
+        pts = np.asanyarray(points)
+        smol = pts.ndim == 1
+        if smol: pts = pts[np.newaxis]
+        base_shape = pts.shape[:-1]
+        pts = pts.reshape(-1, pts.shape[-1])
+
+        if axes is None:
+            axes = [0, 1, 2]
+        axes = np.asanyarray(axes)
+
+        if sel is None:
+            sel = np.arange(len(self.masses))
+        sel = np.asanyarray(sel)
+
+        ref = self.coords
+        masses = self.masses
+        dists = np.linalg.norm(
+            pts[:, np.newaxis, :] - ref[np.newaxis, sel[:, np.newaxis], axes[np.newaxis, :]],
+            axis=-1
+        )
+        if weighting_function is None:
+            weighting_function = np.sqrt
+        dists = dists * weighting_function(masses)[np.newaxis, sel]
+        nearest = np.argmin(dists, axis=-1)
+        atom_idx = sel[nearest]
+        coords = np.broadcast_to(ref[np.newaxis], (len(pts),) + ref.shape).copy()
+        coords[np.arange(len(nearest))[:, np.newaxis], atom_idx[:, np.newaxis], axes[np.newaxis, :]] = pts
+
+        coords = coords.reshape(base_shape + coords.shape[-2:])
+        if smol:
+            coords = coords[0]
+
+        return coords
+
+    def get_nearest_scan_coordinates(self, domains, sel=None, axes=None):
+        displacement_mesh = np.moveaxis(
+            np.array(
+                np.meshgrid(*[np.linspace(*d) for d in domains], indexing='ij')
+            ),
+            0, -1
+        )
+        return self.get_nearest_displacement_coordinates(displacement_mesh, axes=axes, sel=sel)
+
+    def get_model(self, potential_specs, dipole=None):
+        from ..AnalyticModels import MolecularModel
+
+        if self.internals is None:
+            raise ValueError("need internal coordinates to generate analytic model")
+
+        internals = self.internals
+        if internals['zmatrix'] is None or internals['conversion'] is not None:
+            raise ValueError("only plain Z-matrix coordinate specs currently supported")
+
+        eq_vals = self.internal_coordinates
+        embedding_coords = [0, 1, 2, 4, 5, 8]
+        good_coords = np.setdiff1d(np.arange(3 * len(self.atoms)), embedding_coords)
+        eq_vals = eq_vals.flatten()[good_coords]
+
+        zmat = np.array(internals['zmatrix'])
+        def canonicalize_coord(coord_index):
+            if coord_index == 0:
+                atoms = zmat[1, :2]
+            elif coord_index == 1:
+                atoms = zmat[2, :2]
+            elif coord_index == 2:
+                atoms = zmat[2, :3]
+            else:
+                row = 3 + (coord_index - 3) // 3
+                num = 2 + (coord_index - 3) % 3
+                atoms = zmat[row, :num]
+
+            if len(atoms) == 2:
+                coord_type = 'r'
+            elif len(atoms) == 3:
+                coord_type = 'a'
+            elif len(atoms) == 4:
+                coord_type = 't'
+            else:
+                raise ValueError("bad coord type")
+            coord = getattr(MolecularModel, coord_type)(*atoms)
+
+            return coord, atoms
+
+        def canonicalize_spec(coord_index, spec_dict):
+            if 'function_type' not in spec_dict and len(spec_dict) == 1:
+                function_type, spec_dict = next(iter(spec_dict.items()))
+            else:
+                function_type = spec_dict['function_type']
+            atoms = canonicalize_coord(coord_index)[1]
+
+            scaling = spec_dict.get('scaling', 1)
+            params = spec_dict.copy()
+            if 'scaling' in params:
+                del params['scaling']
+            if 'function_type' in params:
+                del params['function_type']
+
+            if 'eq' not in params:
+                params['eq'] = eq_vals[coord_index]
+
+            return scaling * getattr(MolecularModel, function_type)(*atoms, **params)
+
+        coord_indices = set()
+
+        if isinstance(potential_specs, dict):
+            potential_contribs = []
+            for idx, spec in potential_specs.items():
+                if isinstance(idx, int):
+                    idx = [idx]
+                    spec = [spec]
+                coord_indices.update(idx)
+                fns = [canonicalize_spec(i, s) for i,s in zip(idx, spec)]
+                f = fns[0]
+                for fn in fns[1:]:
+                    f = f * fn
+                potential_contribs.append(f)
+            pot = sum(potential_contribs)
+        else:
+            pot = potential_specs
+
+        if dipole is not None:
+            if len(dipole) != 3:
+                raise ValueError("need xyz for dipole contribs")
+
+            dip = []
+            for d in dipole:
+                if not isinstance(d, dict):
+                    dip.append(d)
+                    continue
+
+                contribs = []
+                for idx, spec in d.items():
+                    if isinstance(idx, int):
+                        idx = [idx]
+                        spec = [spec]
+                    coord_indices.update(idx)
+                    fns = [canonicalize_spec(i, s) for i, s in zip(idx, spec)]
+                    f = fns[0]
+                    for fn in fns[1:]:
+                        f = f * fn
+                    contribs.append(f)
+                dip.append(sum(contribs))
+        else:
+            dip = None
+
+        atoms = set()
+        coords = []
+        vals = {}
+        for idx in sorted(list(coord_indices)):
+            c, a = canonicalize_coord(idx)
+            atoms.update(a)
+            coords.append(c)
+            vals[c] = eq_vals[idx]
+        masses = self._atomic_masses()
+
+        vals.update({
+                MolecularModel.m(i): masses[i]
+                for i in sorted(list(atoms))
+            })
+
+        return MolecularModel(
+            self,
+            coords,
+            pot,
+            dipole=dip,
+            values=vals
+        )
 
     @property
     def g_matrix(self):
