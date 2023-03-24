@@ -992,9 +992,12 @@ class DGBTests(TestCase):
 
         check_anh = False
         if check_anh:
-            model.run_VPT()
+            model.run_VPT(logger=True)
             raise Exception(...) # very comparable to PODVR
             """
+            State             Harmonic                     Anharmonic
+                        ZPE                          ZPE    
+              0 0 0    4680.66312                   4610.84351
             State       Frequency    Intensity       Frequency    Intensity
               0 0 1    3896.87027     64.98650      3719.85791     63.90801
               0 1 0    3843.25802      0.17386      3676.15021      0.12777
@@ -1144,12 +1147,14 @@ class DGBTests(TestCase):
                     # [ 1650, 3850, 3900],
                     # [ 3500, 0, 4000 ],
                     # [ 1650, 3850//2, 3900 ]
-                    [ 1650,    0,    0],
-                    [    0, 3850,    0],
-                    [    0,    0, 3900],
-                    [ 1650, 3850,    0],
-                    [    0, 3850, 3900],
-                    [ 1650 * 2,    0, 3900],
+                    # [ 1650,    0,    0],
+                    # [    0, 3850,    0],
+                    # [    0,    0, 3900],
+                    # [ 1650, 3850,    0],
+                    # # [    0, 3850, 3900], # Blows up?
+                    [ 1650,    0, 3900],
+                    # [ 1650, 3850, 3900],
+                    # [ 1650 * 2,    0, 3900],
                 ],
                 [
                     # 'unrotated',
@@ -1158,7 +1163,7 @@ class DGBTests(TestCase):
                     # 'base_rotation',
                     # 'min_dist'
                 ],
-                [50, 100, 150, 250, 500],
+                [100],#100, 150],#, 250],#, 500],
                 [
                     1 / 2,
                     1 / 1.5,
@@ -1197,7 +1202,7 @@ class DGBTests(TestCase):
                     [mol.coords] * len(initial_energies),
                     lambda c: -cart_pot_func(c, deriv_order=1)[1].reshape(c.shape),
                     velocities=AIMDSimulator.mode_energies_to_velocities(modes, mol.atomic_masses, initial_energies),
-                    timestep=68,
+                    timestep=60,
                     track_kinetic_energy=True
                 )
 
@@ -1232,10 +1237,11 @@ class DGBTests(TestCase):
 
             # for min_e in [None]:#100, 500, 800, 1000]:
             print(f"Running scaling: {scaling}")
-            plots_dir = os.path.join(
-                os.path.expanduser("~/Documents/Postdoc/AIMD-Spec/water_model"),
-                f"E{e_init}/EP{init_e[0]}_{init_e[1]}_{init_e[2]}/I{traj_steps}/{method}/S{scaling}"
-            )
+            # plots_dir = os.path.join(
+            #     os.path.expanduser("~/Documents/Postdoc/AIMD-Spec/water_model"),
+            #     f"E{e_init}/EP{init_e[0]}_{init_e[1]}_{init_e[2]}/I{traj_steps}/{method}/S{scaling}"
+            # )
+            plots_dir = None
             if plots_dir is not None:
                 os.makedirs(plots_dir, exist_ok=True)
 
@@ -1316,8 +1322,50 @@ class DGBTests(TestCase):
                 projection_indices=projection_indices,
                 expansion_degree=2,
                 masses=mass_vec,
+                min_singular_value=1e-8,
                 logger=True
             )
+
+            plot_orthog = False
+            if plot_orthog:
+                if plot_orthog is True:
+                    plot_orthog = 15
+
+                S = ham.S
+                sig, Q = np.linalg.eigh(S)
+                sig = np.flip(sig)
+                Q = np.flip(Q, axis=1)
+                wfns = DGBWavefunctions(
+                    sig[:plot_orthog],
+                    Q[:, :plot_orthog],
+                    hamiltonian=ham
+                )
+                # wfns = DGBWavefunctions(
+                #     sig[15+25:25+15+plot_orthog],
+                #     Q[:, 25+15:25+15+plot_orthog],
+                #     hamiltonian=ham
+                # )
+
+                for i in range(plot_orthog):
+                    pot_plot, plot_pts, domain = plot_pot()
+                    wfns[i].projection_plot(
+                        [[0, 1], [2, 3], [4, 5]],
+                        plotter=plt.TriContourLinesPlot,
+                        contour_levels=10,
+                        domain=domain,
+                        cmap='RdBu',
+                        figure=pot_plot,
+                        plot_centers=True,
+                        plot_label="Eig: {s}".format(s=wfns[i].energy)
+                    )
+
+                    if plots_dir is not None:
+                        os.makedirs(os.path.join(plots_dir, "seigs"), exist_ok=True)
+                        pot_plot.savefig(os.path.join(plots_dir, "seigs", f"S_eig_{i}.png"))
+                        pot_plot.close()
+                    else:
+                        pot_plot.show()
+                raise Exception(...)
 
 #             with np.printoptions(linewidth=1e8):
 #                 """
@@ -1360,12 +1408,18 @@ class DGBTests(TestCase):
                         pot_plot.show()
                 raise Exception(...)
 
-            wfns = ham.get_wavefunctions()
-            h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-            plot_wavefunctions = True
-            if plot_wavefunctions:
+            plot_wfns = True
+            if plot_wfns:
+                wfns = ham.get_wavefunctions(
+                    nodeless_ground_state=True,
+                    stable_epsilon=2e-4,
+                    # min_singular_value=2e-4,
+                    # subspace_size=ssize,
+                    mode='classic'
+                )
+                h2w = UnitsData.convert("Hartrees", "Wavenumbers")
                 plots = []
-                plot_me = np.where(wfns.frequencies() * UnitsData.hartrees_to_wavenumbers < 8000)
+                plot_me = np.where(wfns.frequencies() < 8000 / UnitsData.hartrees_to_wavenumbers)
                 num_wfns = 1 + (0 if len(plot_me) == 0 or len(plot_me[0]) == 0 else max(plot_me[0]))
                 for n in range(num_wfns):
                     # if pot_plot is None:
@@ -1392,6 +1446,73 @@ class DGBTests(TestCase):
                         plots.append(pot_plot)
                 if plots_dir is None:
                     plots[0].show()
+            raise Exception(...)
+
+        plot_subspace_energies = True
+        if plot_subspace_energies:
+            engs = []
+            for ssize in range(traj_steps, 10, -8):
+                plots_dir = f"/Users/Mark/Documents/Postdoc/AIMD-Spec/stab_tests/S{scaling}/size_{ssize}"
+                os.makedirs(plots_dir, exist_ok=True)
+                with np.printoptions(linewidth=1e8):
+                    wfns = ham.get_wavefunctions(
+                        nodeless_ground_state=False,
+                        stable_epsilon=2e-4,
+                        # min_singular_value=2e-4,
+                        subspace_size=ssize,
+                        mode='classic'
+                    )
+                engs.append(wfns.energies * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+            ploot = None
+            for i,e in enumerate(engs):
+                from matplotlib.colors import hsv_to_rgb
+                ploot = plt.ScatterPlot(
+                    np.full(len(e), (2*i)),
+                    e,
+                    plot_range=[None, [0, 16000]],
+                    figure=ploot,
+                    color=hsv_to_rgb(
+                            np.concatenate(
+                                [np.clip((e%8000)/8000, 0, 1)[:, np.newaxis], np.ones((len(e), 2))],
+                                axis=-1
+                            )
+                        ),
+                    axes_labels=['Subspace Depletion', 'Energy']
+                )
+            ploot.show()
+            raise Exception(...)
+
+            #     h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+            #     plots = []
+            #     plot_me = np.where(wfns.frequencies() < 1e10)# 8000 / UnitsData.hartrees_to_wavenumbers)
+            #     num_wfns = 1 + (0 if len(plot_me) == 0 or len(plot_me[0]) == 0 else max(plot_me[0]))
+            #     for n in range(num_wfns):
+            #         # if pot_plot is None:
+            #         pot_plot, plot_pts, domain = plot_pot()
+            #         if len(wfns) <= n:
+            #             break
+            #
+            #         wfn = wfns[n]
+            #         proj_plot = wfn.projection_plot(
+            #             [[0, 1], [2, 3], [4, 5]],
+            #             figure=pot_plot,
+            #             plot_label=f"Energy: {(wfn.energy - (0 if n == 0 else wfns[0].energy)) * h2w:.0f}",
+            #             padding=[[50, 10], [50, 50]],
+            #             plotter=plt.TriContourLinesPlot,
+            #             contour_levels=10,
+            #             domain=domain,
+            #             cmap='RdBu',
+            #             plot_centers=True
+            #         )
+            #         if plots_dir is not None:
+            #             pot_plot.savefig(os.path.join(plots_dir, f"wfn_{n}.png"))
+            #             pot_plot.close()
+            #         else:
+            #             plots.append(pot_plot)
+            #     if plots_dir is None:
+            #         plots[0].show()
+            # raise Exception(...)
 
             plot_spectrum = True
             if plot_spectrum:

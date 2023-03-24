@@ -2032,10 +2032,11 @@ class PerturbationTheorySolver:
         rotation_col_inds = []
 
         ndeg_ham_corrs = []
-        for group in degenerate_states:
+        for group_num,group in enumerate(degenerate_states):
             deg_inds, H_nd, deg_rot, deg_engs = corrs.get_degenerate_transformation(
                 group,
                 self.representations,
+                label="Block {group_num}".format(group_num=group_num),
                 gaussian_resonance_handling=self.gaussian_resonance_handling
             )
             if H_nd is not None:

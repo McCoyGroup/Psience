@@ -375,7 +375,7 @@ class PerturbationTheoryCorrections:
                 for x in self.operator_representation(subhams, logger_symbol="H", logger_conversion=UnitsData.convert("Hartrees", "Wavenumbers"))
             ]
         return H_nd
-    def get_degenerate_rotation(self, deg_group, hams, zero_point_energy=None):
+    def get_degenerate_rotation(self, deg_group, hams, label=None, zero_point_energy=None):
         """
 
         :param deg_group:
@@ -388,7 +388,7 @@ class PerturbationTheoryCorrections:
 
         logger = self.logger
         # raise Exception(corrs.states.excitations, deg_group)
-        with logger.block(tag="states"):
+        with logger.block(tag="states" if label is None else label):
             logger.log_print(
                 str(
                     self.states.take_states(deg_group).excitations
@@ -479,7 +479,7 @@ class PerturbationTheoryCorrections:
 
         return H_nd_corrs, deg_engs, deg_transf
 
-    def get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=False, zero_point_energy=None):
+    def get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=False, label=None, zero_point_energy=None):
         # this will be built from a series of block-diagonal matrices
         # so we store the relevant values and indices to compose the SparseArray
 
@@ -502,7 +502,7 @@ class PerturbationTheoryCorrections:
                 gaussian_resonance_handling and np.max(np.sum(group.excitations, axis=1)) > 2):
             H_nd = deg_engs = deg_rot = None
         elif len(deg_inds) > 1:
-            H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group, hams, zero_point_energy=zero_point_energy)
+            H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group, hams, label=label, zero_point_energy=zero_point_energy)
         else:
             H_nd = deg_engs = deg_rot = None
             # raise NotImplementedError("Not sure what to do when no states in degeneracy spec are in total space")

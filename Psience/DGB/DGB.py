@@ -1165,8 +1165,12 @@ class DGB:
         # we'll ignore anything too large?
         # and anything negative?
         # mostly to remove the troubles from rotations and translations...
-        base_loc = np.where(np.logical_and(sig > 0, sig < 1e30))
+        base_loc = np.where(np.logical_and(sig > 0, np.abs(sig) < 1e30))
         sig = sig[base_loc]
+
+        # sort = np.argsort(np.abs(sig))
+        # sig = sig[sort]
+        # evecs = evecs[:, sort]
 
         if subspace_size is not None:
             good_loc = slice(max(0, len(sig) - subspace_size), len(sig))
@@ -1197,8 +1201,8 @@ class DGB:
         return Q, Qinv, (Qq, Qqinv)
 
     def diagonalize(self, print_debug_info=False, subspace_size=None, min_singular_value=None,
-                    eps=1e-12,
-                    mode='classic',
+                    eps=5e-4,
+                    mode='stable',
                     nodeless_ground_state=True
                     ):
 
@@ -1251,10 +1255,10 @@ class DGB:
                     )
 
         elif mode == 'stable': # Implementation of the Fix-Heiberger algorithm
-            raise NotImplementedError("I think my Fix-Heiberger is broken?"
-                                      "And also potentially not even the right algorithm for this problem"
-                                      "Like I potentially _want_ a large epsilon since I want to get the best"
-                                      "possible energies, but Fix-Heiberger will call that unstable I think")
+            # raise NotImplementedError("I think my Fix-Heiberger is broken?"
+            #                           "And also potentially not even the right algorithm for this problem"
+            #                           "Like I potentially _want_ a large epsilon since I want to get the best"
+            #                           "possible energies, but Fix-Heiberger will call that unstable I think")
 
             S = self.S
             d, Q = np.linalg.eigh(S)
@@ -1275,20 +1279,17 @@ class DGB:
 
             # D = np.diag(d[g1])
             # F = np.diag(d[g2])
-            A = Q.T@H@Q
-
+            # B0 = np.diag(np.concatenate([
+            #     d[g1],
+            #     np.zeros(n2)
+            # ]))
             R = np.diag(np.concatenate([
                 1 / np.sqrt(d[g1]),
                 np.ones(n2)
             ]))
-            A1 = R @ A @ R
-
-            # B = Q.T@S@Q
-            # B11 = R @ B @ R
-            # B1 = np.diag(np.concatenate([
-            #     np.ones(n1),
-            #     np.zeros(n2) #d[g2]
-            # ]))
+            # with np.printoptions(linewidth=1e8):
+            #     raise Exception(R@B0@R)
+            A1 = R.T@Q.T@H@Q@R
 
             A22 = A1[n1:, n1:]
             d2, Q22 = np.linalg.eigh(A22)
@@ -1331,6 +1332,7 @@ class DGB:
                 evecs = Q @ R @ Q2 @ U
 
             else:
+
                 g4 = np.where(d2 < cut2)[0]
                 n4 = len(g4)
                 Q2 = np.eye(N)
@@ -1413,11 +1415,18 @@ class DGB:
 
         return eigs, evecs
 
-    def get_wavefunctions(self, print_debug_info=False, min_singular_value=None, subspace_size=None, nodeless_ground_state=True):
+    def get_wavefunctions(self, print_debug_info=False, min_singular_value=None, subspace_size=None, nodeless_ground_state=None,
+                          mode=None, stable_epsilon=None
+                          ):
         # print("======="*25)
-        eigs, evecs = self.diagonalize(print_debug_info=print_debug_info,
-                                       min_singular_value=min_singular_value,
-                                       nodeless_ground_state=nodeless_ground_state,
-                                       subspace_size=subspace_size
-                                       )
+        ops = dict(
+            print_debug_info=print_debug_info,
+            min_singular_value=min_singular_value,
+            nodeless_ground_state=nodeless_ground_state,
+            subspace_size=subspace_size,
+            mode=mode,
+            eps=stable_epsilon
+        )
+        ops = {k:v for k,v in ops.items() if v is not None}
+        eigs, evecs = self.diagonalize(**ops)
         return DGBWavefunctions(eigs, evecs, hamiltonian=self)

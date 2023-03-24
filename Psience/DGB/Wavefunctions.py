@@ -86,7 +86,7 @@ class DGBWavefunction(Wavefunction):
         # actual basis evaluation
         c_disps = points[np.newaxis, :, :] - centers[:, np.newaxis, :]
         if self.transformations is not None:
-            tfs, inv = self.transformations # not sure if I need to transpose this or not...
+            inv, tfs = self.transformations # not sure if I need to transpose this or not...
             tfs = np.broadcast_to(tfs[:, np.newaxis, :, :], (len(self.centers), len(points)) + tfs.shape[1:])
             c_disps = tfs @ c_disps[:, :, :, np.newaxis]
             c_disps = c_disps.reshape(c_disps.shape[:-1])
@@ -141,8 +141,7 @@ class DGBWavefunction(Wavefunction):
             )
         else:
             alphas = self.alphas
-            tfs = self.transformations[0][:, remaining, :]
-            inv = self.transformations[1][:, :, remaining]
+            tfs, inv = self.transformations
             if self.inds is not None:
                 alphas = alphas[:, self.inds]
                 tfs = tfs[:, :, self.inds]
@@ -152,14 +151,47 @@ class DGBWavefunction(Wavefunction):
             diag_covs = np.zeros((npts, n, n))
             diag_inds = (slice(None, None, None),) + np.diag_indices(n)
             diag_covs[diag_inds] = 1 / (2 * alphas)
-            covs = tfs @ diag_covs @ inv
-            covs[np.abs(covs) < 1e-12] = 0  # numerical garbage can be an issue...
 
-            two_a_inv, tfs = np.linalg.eigh(covs)
+
+            scaling = np.power(2 * np.pi, len(dofs)/4) / np.power(np.prod(self.alphas[:, proj_dofs], axis=-1), 1/4)
+
+            tfs = tfs[:, remaining, :]
+            inv = inv[:, :, remaining]
+            covs = tfs @ diag_covs @ inv
+            # covs = covs[:, remaining[np.newaxis, :], remaining[:, np.newaxis]]
+
+            # raise Exception(covs[0])
+            # covs[np.abs(covs) < 1e-12] = 0  # numerical garbage can be an issue...
+
+            if np.allclose(covs, covs.transpose(0, 2, 1)):
+                two_a_inv, tfs = np.linalg.eigh(covs)  # eigenvalues of inverse tensor...
+                inv = tfs.transpose(0, 2, 1)
+            else:
+                two_a_inv, tfs = np.linalg.eig(covs)  # eigenvalues of inverse tensor...
+
+                comp_part = np.imag(two_a_inv)
+                if np.sum(comp_part) > 0:
+                    raise ValueError(
+                        "complex alphas obtained... ({})".format(np.sum(comp_part))
+                    )
+
+                two_a_inv = np.real(two_a_inv)
+                tfs = np.real(tfs)
+                inv_sort = np.argsort(np.abs(two_a_inv), axis=-1)
+                idx = np.arange(two_a_inv.shape[0])[:, np.newaxis]
+                two_a_inv = two_a_inv[idx, inv_sort]
+
+                idx = np.arange(two_a_inv.shape[0])[:, np.newaxis, np.newaxis]
+                cdx = np.arange(two_a_inv.shape[1])[np.newaxis, :, np.newaxis]
+                inv_sort = inv_sort[:, np.newaxis, :]
+
+                tfs = tfs[idx, cdx, inv_sort]
+                inv = np.linalg.inv(tfs)
+
 
             return type(self)(
                 self.energy,
-                self.data,
+                self.data * scaling,
                 centers=centers,
                 alphas=1/(2*two_a_inv),
                 transformations=(tfs, inv),

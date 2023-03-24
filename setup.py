@@ -40,6 +40,6 @@ setup(
     # Comment out this line to prevent the files from being packaged with your software
     # include_package_data=True
     install_requires=[
-        'mccoygroup-mcutils>=0.1.0'
+        'mccoygroup-mcutils>=0.1.0.1'
     ]
 )
