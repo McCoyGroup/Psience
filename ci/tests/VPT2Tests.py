@@ -128,7 +128,93 @@ class VPT2Tests(TestCase):
             plot_spectrum=False
         )
 
-    @inactiveTest
+    @debugTest
+    def test_ResultsFileAnalysis(self):
+
+        temp_file = os.path.expanduser('~/Desktop/test_results.hdf5')
+        log_file = os.path.expanduser('~/Desktop/test_results.txt')
+        # os.remove(temp_file)
+
+        # wfns = VPTRunner.run_simple(
+        #     TestManager.test_data("i_hoh_opt.fchk"),
+        #     2,
+        #     plot_spectrum=False
+        #     # initial_states=[
+        #     #     [0, 0, 0, 0, 0, 0],
+        #     #     [0, 0, 0, 2, 0, 0],
+        #     #     [0, 1, 0, 2, 0, 0],
+        #     #     [0, 0, 0, 0, 1, 0]
+        #     # ]
+        # )
+
+        if not os.path.exists(temp_file):
+            VPTRunner.run_simple(
+                TestManager.test_data("i_hoh_opt.fchk"),
+                2,
+                # initial_states=[
+                #     [0, 0, 0, 0, 0, 0],
+                #     [0, 0, 0, 2, 0, 0],
+                #     [0, 1, 0, 2, 0, 0],
+                #     [0, 0, 0, 0, 1, 0]
+                # ],
+                # degeneracy_specs='auto',
+                degeneracy_specs={
+                    "polyads": [
+                        [
+                            [0, 0, 0, 0, 1, 0],
+                            [0, 0, 0, 2, 0, 0]
+                        ],
+                        [
+                            [0, 0, 0, 1, 0, 0],
+                            [0, 0, 2, 0, 0, 0]
+                        ]
+                    ],
+                    "extra_groups": [
+                        [
+                            [0, 0, 0, 0, 1, 0],
+                            [0, 1, 0, 0, 1, 0],
+                            [1, 0, 0, 0, 1, 0],
+                            [0, 0, 0, 2, 0, 0],
+                            [0, 1, 0, 2, 0, 0],
+                            [1, 0, 0, 2, 0, 0],
+                            [0, 0, 2, 1, 0, 0],
+                            [0, 1, 2, 1, 0, 0],
+                            [1, 0, 2, 1, 0, 0],
+                            [0, 0, 4, 0, 0, 0],
+                            [0, 1, 4, 0, 0, 0],
+                            [1, 0, 4, 0, 0, 0]
+                        ]
+                    ]
+                },
+                # target_property='wavefunctions',
+                # logger=os.path.expanduser("~/Desktop/specks/run_wfns.txt"),
+                results=temp_file,
+                logger=log_file,
+                plot_spectrum=False
+            )
+
+        analyzer = VPTAnalyzer(temp_file)
+        shifted_spec = analyzer.shifted_transformed_spectrum(
+            analyzer.degenerate_states[4],
+            analyzer.deperturbed_hamiltonians[4],
+            [0, -50 / UnitsData.hartrees_to_wavenumbers]
+        )
+        shifted_spec.plot()#.show()
+        print(shifted_spec.frequencies, shifted_spec.intensities)
+
+        with analyzer.log_parser as parser:
+            for i, block in enumerate(parser.get_blocks()):
+                for subblock in block.lines:
+                    print(subblock.tag)
+
+        from McUtils.Scaffolding import LogParser
+        with LogParser(log_file) as parser:
+            for i, block in enumerate(parser.get_blocks()):
+                for subblock in block.lines:
+                    print(subblock.tag)
+
+
+    @validationTest
     def test_IHOHExcited(self):
         wfns = VPTRunner.run_simple(
             TestManager.test_data("i_hoh_opt.fchk"),
@@ -167,21 +253,21 @@ class VPT2Tests(TestCase):
                         [0, 0, 4, 0, 0, 0],
                         [0, 1, 4, 0, 0, 0],
                         [1, 0, 4, 0, 0, 0]
-                    ],
-                    [
-                        [0, 0, 0, 1, 1, 0],
-                        [0, 1, 0, 1, 1, 0],
-                        [1, 0, 0, 1, 1, 0],
-                        [0, 0, 0, 3, 0, 0],
-                        [0, 1, 0, 3, 0, 0],
-                        [1, 0, 0, 3, 0, 0],
-                        [0, 0, 2, 2, 0, 0],
-                        [0, 1, 2, 2, 0, 0],
-                        [1, 0, 2, 2, 0, 0],
-                        [0, 0, 4, 1, 0, 0],
-                        [0, 1, 4, 1, 0, 0],
-                        [1, 0, 4, 1, 0, 0]
                     ]
+                    # [
+                    #     [0, 0, 0, 1, 1, 0],
+                    #     [0, 1, 0, 1, 1, 0],
+                    #     [1, 0, 0, 1, 1, 0],
+                    #     [0, 0, 0, 3, 0, 0],
+                    #     [0, 1, 0, 3, 0, 0],
+                    #     [1, 0, 0, 3, 0, 0],
+                    #     [0, 0, 2, 2, 0, 0],
+                    #     [0, 1, 2, 2, 0, 0],
+                    #     [1, 0, 2, 2, 0, 0],
+                    #     [0, 0, 4, 1, 0, 0],
+                    #     [0, 1, 4, 1, 0, 0],
+                    #     [1, 0, 4, 1, 0, 0]
+                    # ]
                 ]
             },
             target_property='wavefunctions',

@@ -978,6 +978,7 @@ class PerturbationTheoryHamiltonian:
                                                mode_selection=self.mode_selection,
                                                logger=self.logger,
                                                checkpoint=self.checkpointer,
+                                               results=self.results,
                                                operator_settings=operator_settings,
                                                expansion_options=expansion_options,
                                                degenerate_transformation_layout=degenerate_transformation_layout

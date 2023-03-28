@@ -700,12 +700,12 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         #     (tmom_deg, transition_moment_components_deg)
         #
         # )
-        with self.checkpointer:
+        with self.results:
             if degenerate_transformation is not None:
-                self.checkpointer["transition_moments"] = transition_moment_components_deg
-                self.checkpointer["nondegenerate_transition_moments"] = transition_moment_components
+                self.results["transition_moments"] = transition_moment_components_deg
+                self.results["nondegenerate_transition_moments"] = transition_moment_components
             else:
-                self.checkpointer["transition_moments"] = transition_moment_components
+                self.results["transition_moments"] = transition_moment_components
 
         return [(tmom, transition_moment_components), (tmom_deg, transition_moment_components_deg), mu_reps, (corr_terms_lower, corr_terms_upper)]
 
@@ -1216,10 +1216,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
         freqs, ints = self._intensities(self.oscillator_strengths)
         with self.results: # TODO: this really isn't the right place for this...
-            self.results['spectrum'] = (
-                freqs,
-                ints
-            )
+            self.results['spectrum'] = {"state_{}".format(i):(f,ints[i]) for i,f in freqs.items()}
 
         return ints
 
@@ -1306,10 +1303,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         freqs, ints = self.deperturbed_intensities_to_order(0, return_freqs=True)
 
         with self.results: #TODO: this is the wrong place for this
-            self.results['zero_order_spectrum'] = (
-                freqs,
-                ints
-            )
+            self.results['zero_order_spectrum'] = {"state_{}".format(i):(f,ints[i]) for i,f in freqs.items()}
 
         return ints
 
