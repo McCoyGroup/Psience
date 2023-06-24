@@ -448,6 +448,7 @@ class DVRResults:
             pot = pot - np.min(pot)
 
         if energy_threshold:
+            pot = pot.copy()
             pot[pot > energy_threshold] = energy_threshold
 
         return plot_class(*mesh, pot.reshape(mesh[0].shape), figure=figure, **opts)

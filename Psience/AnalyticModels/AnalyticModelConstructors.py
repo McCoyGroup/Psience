@@ -552,6 +552,27 @@ class AnalyticModel:
                 return expr_list
             else:
                 return np.full(shape, expr_list)
+
+        def _array_call(self, grid, core):
+            vals = core(*grid)
+            # broadcast appropriately
+            if not isinstance(vals, np.ndarray):
+                if isinstance(vals, AnalyticModelBase.numeric_types):
+                    vals = np.full(grid.shape[1:], vals)
+                else:
+                    vals = np.array(self._broadcast_tree(grid.shape[1:], vals))
+                    for _ in range(grid.ndim - 1):
+                        vals = np.moveaxis(vals, -1, 0)
+            return vals
+        def _rec_call(self, grid, core, depth=0, rec_counter=None):
+            if callable(core):
+                if rec_counter is not None:
+                    rec_counter[0] = depth
+                return self._array_call(grid, core)
+            else:
+                if rec_counter is None:
+                    rec_counter = [-1]
+                return [self._rec_call(grid, c, depth=depth+1, rec_counter=rec_counter) for c in core]
         def __call__(self, grid, vector=None, **kwargs):
             core = self.lam
             ndim = self.ndim
@@ -567,21 +588,42 @@ class AnalyticModel:
             if vector:
                 grid = np.moveaxis(grid, -1, 0) #grid.transpose(np.roll(np.arange(grid.ndim), 1))
 
-            vals = core(*grid)
-            # broadcast appropriately
-            if not isinstance(vals, np.ndarray):
-                if isinstance(vals, AnalyticModelBase.numeric_types):
-                    vals = np.full(grid.shape[1:], vals)
-                else:
-                    vals = np.array(self._broadcast_tree(grid.shape[1:], vals))
-                    for _ in range(grid.ndim - 1):
-                        vals = np.moveaxis(vals, -1, 0)
-            return vals
+            rec_counter = [0] # ugly hack to track the number of recursions done over lists
+            base = self._rec_call(grid, core, rec_counter=rec_counter)
+            res = np.asanyarray(base)
+            if not isinstance(base, np.ndarray):
+                # raise Exception(
+                #     res.shape,
+                #
+                # )
+                # print(
+                #     np.roll(np.arange(res.ndim), -rec_counter[0]),
+                #     rec_counter[0]
+                # )
+                res = res.transpose(
+                    np.roll(np.arange(res.ndim), -rec_counter[0])
+                )
+
+            return res
+
         def __repr__(self):
             return "{}({})".format(
                 type(self).__name__,
                 self.expr
             )
+
+        @classmethod
+        def _lambdiy(cls, vars, expr):
+            if isinstance(expr, sym.Expr):
+                core = sym.lambdify(vars, expr)
+                return core
+            else:
+                return [cls._lambdiy(vars, e) for e in expr]
+        @classmethod
+        def lambdify(cls, vars, expr, ndim):
+            core = cls._lambdiy(vars, expr)
+            return cls(expr, core, ndim)
+
     def wrap_function(self, expr, transform_coordinates=True, mode=None):
         coord_vec = self.coords
         ndim = len(coord_vec)
@@ -598,10 +640,8 @@ class AnalyticModel:
             shift_subs = [(s, s+self.vals[s]) for s in self.coords if s in self.vals]
             expr = expr.subs(shift_subs)
             expr = expr.subs([(old, new) for old,new in zip(self.coords, new_coords)])
-        core = sym.lambdify(coord_vec, expr)
 
-
-        return self.SympyExpr(expr, core, ndim)
+        return self.SympyExpr.lambdify(coord_vec, expr, ndim)
 
     def expand_potential(self, order, lambdify=True, evaluate=True, contract=True):
         potential_expansions = self.v(order, evaluate=evaluate)

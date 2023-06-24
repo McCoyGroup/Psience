@@ -1,3 +1,4 @@
+import McUtils.Numputils
 
 try:
     from Peeves.TestUtils import *
@@ -33,6 +34,88 @@ class VPT2Tests(TestCase):
     #         # memory_constrained=True,
     #         # logger=True
     #     )
+
+    @validationTest
+    def test_AnalyticPTOperators(self):
+
+        coeffs = np.array([
+            TensorCoeffPoly({((1, 0, 0),):2, ((0, 1, 0),):1}),
+            TensorCoeffPoly({((0, 0, 1),):1}),
+        ], dtype=object)
+
+        # new_b_poly = np.dot(
+        #             [[1, 3], [2, 1]],
+        #             coeffs
+        #         )
+        # raise Exception(
+        #     np.dot(
+        #         [[-1, 3], [2, -1]],
+        #         np.dot(
+        #             [[1, 3], [2, 1]],
+        #             coeffs
+        #         )
+        #     )/5
+        # )
+
+        # from Psience.AnalyticModels import AnalyticModel
+        #
+        # AnalyticModel(
+        #     [
+        #         AnalyticModel.r(0, 1),
+        #
+        #         ]
+        # ).g()
+
+
+
+
+        from McUtils.Zachary import DensePolynomial
+
+        shifted = DensePolynomial([
+            [1, 2, 3, 4, 5],
+            [1, -2, 0, 6, 8]
+        ]).shift([2, 3])
+
+        # raise Exception(shifted.deriv(1).coeffs)
+
+        self.assertTrue(
+            np.allclose(
+                shifted.coeffs,
+                [
+                    [2157., 2716., 1281., 268., 21.],
+                    [ 805., 1024.,  486., 102.,  8.]
+                ]
+            )
+        )
+
+        #
+        new = DensePolynomial(coeffs)*DensePolynomial(coeffs)
+        raise Exception(new)
+
+ #        """
+ #        DensePolynomial([TensorCoeffPoly({((1, 0, 0), (1, 0, 0)): 4, ((0, 1, 0), (1, 0, 0)): 4, ((0, 1, 0), (0, 1, 0)): 1},1)
+ # TensorCoeffPoly({((0, 0, 1), (0, 1, 0)): 2, ((0, 0, 1), (1, 0, 0)): 4},1)
+ # TensorCoeffPoly({((0, 0, 1), (0, 0, 1)): 1},1)], 1)"""
+
+        # raise Exception(
+        #     PTPoly(coeffs)*
+        #     PTPoly(coeffs)
+        # )
+
+        base_classes = RaisingLoweringClasses(14, [2, 4, 2])
+        print(list(base_classes))
+        # op = AnalyticPTOperator(['x', 'x', 'x'])
+        #
+        #
+        # op = PTOperator(
+        #     ["x", "x", "x"],
+        #     ["x", "x"],
+        #     ["x", "x", "x"],
+        #     3
+        # )
+
+        # raise Exception(op.poly_sum())
+
 
     @validationTest
     def test_HOHVPTRunner(self):
@@ -128,7 +211,7 @@ class VPT2Tests(TestCase):
             plot_spectrum=False
         )
 
-    @debugTest
+    @validationTest
     def test_ResultsFileAnalysis(self):
 
         temp_file = os.path.expanduser('~/Desktop/test_results.hdf5')
@@ -194,10 +277,16 @@ class VPT2Tests(TestCase):
             )
 
         analyzer = VPTAnalyzer(temp_file)
+        # target_state = [0, 0, 2, 0, 0, 0]
+        # for i,block in analyzer.degenerate_states:
+        #     # intersect([target_state], block) -> check non-empty
+        #     ...
+        # McUtils.Numputils.intersection()
+
         shifted_spec = analyzer.shifted_transformed_spectrum(
-            analyzer.degenerate_states[4],
-            analyzer.deperturbed_hamiltonians[4],
-            [0, -50 / UnitsData.hartrees_to_wavenumbers]
+            analyzer.degenerate_states[4], # 2 states, bend and OOP overtone
+            analyzer.deperturbed_hamiltonians[4], # 2x2 matrix
+            [0, -50 / UnitsData.hartrees_to_wavenumbers] # the shifts I want to add onto the diagonal
         )
         shifted_spec.plot()#.show()
         print(shifted_spec.frequencies, shifted_spec.intensities)
@@ -590,8 +679,49 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             3,
             logger=True,
+            degeneracy_specs='auto',
             corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/UnitsData.convert("Hartrees", "Wavenumbers")
         )
+
+    @validationTest
+    def test_OCHHVPTRunnerShifted(self):
+        file_name = "OCHH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs='auto',
+            corrected_fundamental_frequencies=np.array([1188, 1252, 1527, 1727, 2977, 3070]) / UnitsData.convert("Hartrees", "Wavenumbers")
+        )
+
+    @validationTest
+    def test_HOONOVPTRunnerShifted(self):
+        file_name = "HOONO_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs='auto',
+            corrected_fundamental_frequencies=np.array([
+                355.73348, 397.16760, 524.09935,
+                715.88331, 836.39478, 970.87676,
+                1433.60940, 1568.50215, 3486.85528
+            ]) / UnitsData.convert("Hartrees", "Wavenumbers")
+        )
+
+    @debugTest
+    def test_CrieegeeVPTRunnerShifted(self):
+        with BlockProfiler('Crieegee', print_res=True):
+            VPTRunner.run_simple(
+                'criegee_eq_anh.fchk',
+                2,
+                logger=True,
+                degeneracy_specs='auto',
+                corrected_fundamental_frequencies=np.array([
+                    200.246, 301.985 + 10, 462.536, 684.792, 736.234, 961.474, 984.773, 1038.825, 1120.260, 1327.450, 1402.397,
+                    1449.820, 1472.576, 1519.875, 3037.286, 3078.370, 3174.043, 3222.828
+                ])/UnitsData.convert("Hartrees", "Wavenumbers")
+            )
 
     @validationTest
     def test_HOHVPTRunner3rd(self):
@@ -951,6 +1081,8 @@ class VPT2Tests(TestCase):
                 Model.a(1, 2, 3): hoh_params["b_e"]
             }
         )
+
+        # raise Exception(model.g())
 
         model.run_VPT(order=order, return_analyzer=False, expansion_order=expansion_order)
 

@@ -394,8 +394,12 @@ class VPTStateSpace:
         #     raise NotImplementedError("don't know what to do with degeneracy spec {}".format(degeneracy_specs))
 
     def filter_generator(self, target_property, order=2, initial_states=None, postfilters=None):
-        def filter(states):
-            return self.get_state_space_filter(states, initial_states=initial_states, target=target_property, order=order, postfilters=postfilters)
+        def filter(states, **opts):
+            return self.get_state_space_filter(states,
+                                               initial_states=initial_states, target=target_property,
+                                               order=order, postfilters=postfilters,
+                                               **opts
+                                               )
         return filter
     def get_filter(self, target_property, order=2, initial_states=None, postfilters=None):
         """
@@ -416,7 +420,7 @@ class VPTStateSpace:
                                            postfilters=postfilters
                                            )
     @classmethod
-    def get_state_space_filter(cls, states, initial_states=None, n_modes=None, order=2, target='wavefunctions', postfilters=None):
+    def get_state_space_filter(cls, states, initial_states=None, n_modes=None, order=2, target='wavefunctions', postfilters=None, **opts):
         """
         Gets `state_space_filters` for the input `states` targeting some property
 
@@ -451,7 +455,8 @@ class VPTStateSpace:
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"]*i) for i in range(1, order+2)
                 ],
                 order=order,
-                postfilters=postfilters
+                postfilters=postfilters,
+                **opts
             )
         elif target == 'frequencies':
             # return {

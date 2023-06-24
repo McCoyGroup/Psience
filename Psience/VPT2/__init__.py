@@ -59,3 +59,6 @@ from .Wavefunctions import *; from .Wavefunctions import __all__ as exposed
 __all__ += exposed
 from .Terms import *; from .Terms import __all__ as exposed
 __all__ += exposed
+
+from .Analytic import *; from .Analytic import __all__ as exposed
+__all__ += exposed

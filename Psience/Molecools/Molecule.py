@@ -765,6 +765,7 @@ class Molecule(AbstractMolecule):
                 return func(coords).view(np.ndarray)
 
             terms = func(coords, deriv_order=deriv_order)
+            # raise Exception([t.shape for t in terms], coords.shape)
             if strip_embedding:
                 embedding_coords = self._get_embedding_coords()
                 if embedding_coords is not None:

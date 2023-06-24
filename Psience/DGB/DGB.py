@@ -1,5 +1,6 @@
 import numpy as np, scipy as sp, itertools, functools
-from McUtils.Zachary import RBFDInterpolator
+
+from McUtils.Zachary import RBFDInterpolator, DensePolynomial
 from McUtils.Scaffolding import Logger
 from McUtils.Data import AtomData, UnitsData
 import McUtils.Numputils as nput
@@ -80,9 +81,11 @@ class DGB:
                  quadrature_degree=4,
                  expansion_degree=None,
                  expansion_type='multicenter',
-                 reference_structure=None
+                 reference_structure=None,
+                 poly_coeffs=None
     ):
         self._S, self._T, self._V = None, None, None
+        self._scaling_S = None
         self.logger = Logger.lookup(logger)
 
         self.potential_function = potential_function
@@ -149,9 +152,14 @@ class DGB:
                     self.transformations = [t[full_good_pos] for t in self.transformations]
 
                 self._S = None#self._S[full_good_pos, :][:, full_good_pos]
+                self._scaling_S = None
                 self._T = None#self._T[full_good_pos, :][:, full_good_pos]
 
         self.logger.log_print("Number of centers: {N}", N=len(self.centers))
+
+        if poly_coeffs is not None:
+            poly_coeffs = self.canonicalize_poly_coeffs(poly_coeffs, self.alphas)
+        self._poly_coeffs = poly_coeffs
 
     def canonicalize_transforms(self, tfs):
         if tfs is None:
@@ -174,7 +182,6 @@ class DGB:
                 s=(len(self.alphas), self.alphas.shape[-1], self.alphas.shape[-1])
             ))
         return tfs
-
     @property
     def transformations(self):
         return self._transforms
@@ -182,18 +189,48 @@ class DGB:
     def transformations(self, tf):
         self._transforms = self.canonicalize_transforms(tf)
 
+    def _get_hermite_poly(self, coeff_dict, alphas):
+        ndim = self.centers.shape[-1]
+        # raise Exception(
+        #     np.flip(np.asarray(sp.special.hermite(coeff_dict.get(0, 0), monic=False))) *
+        #         np.sqrt( (2 * alphas[0]) ** np.arange(coeff_dict.get(0, 0) + 1) )
+        # )
+        parts = [
+            np.flip(np.asarray(sp.special.hermite(coeff_dict.get(k, 0), monic=False)))
+            * np.sqrt(
+                (2 * alphas[k] ) ** np.arange(coeff_dict.get(k, 0)+1)
+                / ( 2**(coeff_dict.get(k, 0)) * np.math.factorial(coeff_dict.get(k, 0)) )
+            )
+            for k in range(ndim)
+        ]
+        coeffs = parts[0]
+        for c in parts[1:]:
+            coeffs = np.multiply.outer(coeffs, c)
+        return coeffs
+
+    def canonicalize_poly_coeffs(self, coeffs, alphas):
+        if coeffs is None:
+            return None
+
+        poly_coeffs = [
+            self._get_hermite_poly(c, a) if isinstance(c, dict) else c
+            for c, a in zip(coeffs, alphas)
+        ]
+
+        return poly_coeffs
+
     def optimize_centers(self,
                          centers, alphas,
                          max_condition_number=1e16,
                          initial_custering=.005,
                          cluster_step_size=.005,
-                         max_steps = 50
+                         max_steps=50
                          ):
         raise NotImplementedError("ugh...")
         c, a = centers, alphas
         cr = initial_custering
         centers, alphas = self.initialize_gaussians(c, a, cr)
-        S, T = self.get_ST(centers, alphas)
+        _, S, T = self.get_ST(centers, alphas)
         n = 0
         while np.linalg.cond(S) > max_condition_number and n < max_steps:
             cr += cluster_step_size
@@ -510,7 +547,7 @@ class DGB:
     @property
     def S(self):
         if self._S is None:
-            self._S, self._T = self.get_ST()
+            self._scaling_S, self._S, self._T = self.get_ST()
         return self._S
     @S.setter
     def S(self, smat):
@@ -518,7 +555,7 @@ class DGB:
     @property
     def T(self):
         if self._T is None:
-            self._S, self._T = self.get_ST()
+            self._scaling_S, self._S, self._T = self.get_ST()
         return self._T
     @T.setter
     def T(self, tmat):
@@ -701,6 +738,7 @@ class DGB:
             # raise Exception(...)
 
             if self.inds is not None:
+                # build the inverse covariance in the basis of vibrational coordinates
                 i = np.array(self.inds)
                 d = np.zeros((new_alphas.shape[0], new_alphas.shape[1], new_alphas.shape[1]))
                 diag_inds = (
@@ -739,6 +777,403 @@ class DGB:
 
         return overlap_data
 
+    def get_base_polynomials(self):
+        base_coeffs = self._poly_coeffs
+        if self.inds is not None:
+            comp = np.setdiff1d(np.arange(self.centers.shape[-1]), self.inds)
+            new_pc = []
+            for c in base_coeffs:
+                if c is not None:
+                    c = c.copy()
+                    for idx in comp:
+                        c = np.moveaxis(c, idx, 0)
+                        c = c[:1].reshape(c.shape[1:])
+                        # c = np.moveaxis(c, 0, idx)
+                new_pc.append(c)
+            base_coeffs = new_pc
+        # raise Exception(self._poly_coeffs[0].shape, base_coeffs[0].shape)
+        base_polys = [
+            DensePolynomial(coeffs) if coeffs is not None else None
+            for coeffs in base_coeffs
+        ]
+        centers = self.centers
+        if self.transformations is not None:
+            tfs, invs = self.transformations
+            if self.inds is not None:
+                tfs = tfs[:, :, self.inds]
+                invs = invs[:, self.inds, :]
+            # raise Exception(invs[0].shape)
+            base_polys = [
+                p.transform(inv) if p is not None else 1
+                for p,inv in zip(base_polys, tfs)
+            ]
+        elif self.inds is not None:
+            centers = centers[..., self.inds]
+        base_polys = [
+                p.shift(-c) if isinstance(p, DensePolynomial) else 1
+                for p,c in zip(base_polys, centers)
+            ]
+        # raise Exception(base_polys[0].coeffs)
+        return base_polys
+
+    def get_kinetic_polynomials(self):
+        # TODO: implement _multipolynomial_ support so that we can handle
+        #       this in a simpler form
+
+        ndim = self.centers.shape[-1]
+        if self.transformations is None and self.inds is not None:
+            ndim = len(self.inds)
+
+        core_polys = self.get_base_polynomials()
+        core_derivs = [ # these will be indexed by columns
+            [poly.deriv(i) if isinstance(poly, DensePolynomial) else 0 for i in range(ndim)]
+            for poly in core_polys
+        ]
+        core_d2s = [
+            [p.deriv(i) if isinstance(p, DensePolynomial) else 0 for i, p in enumerate(poly_list)]
+            for poly_list in core_derivs
+        ]
+
+        if self.transformations is None:
+            centers = self.centers
+            alphas = self.alphas
+            if self.inds is not None:
+                ndim = len(self.inds)
+                centers = centers[:, self.inds]
+                alphas = alphas[:, self.inds]
+            exp_polys = [ # these will be indexed by columns as well
+                DensePolynomial.from_tensors([0, np.zeros(ndim), np.diag(2*a)], shift=-pt, rescale=False)
+                for pt,a in zip(centers, alphas)
+            ]
+        else:
+            sigs = self.get_inverse_covariances()
+            centers = self.centers
+            if self.inds is not None:
+                Lt, L = self.transformations
+                Lt = Lt[:, :, self.inds]
+                L = L[:, self.inds, :]
+                centers = Lt@( L @ centers[:, :, np.newaxis] )
+                centers = centers.reshape(self.centers.shape)
+
+            raise Exception(sigs[2], centers[2])
+
+            exp_polys = [
+                DensePolynomial.from_tensors([0, np.zeros(ndim), sig], shift=-pt)
+                for pt,sig in zip(
+                    centers,
+                    sigs
+                )
+            ]
+        def _d(p, i):
+            if isinstance(p, DensePolynomial):
+                d = p.deriv(i)
+                if isinstance(d, DensePolynomial):
+                    d = d.clip()
+            else:
+                d = p
+            return d
+        exp_derivs = [
+            [-1/2*_d(poly, i) for i in range(ndim)]
+            for poly in exp_polys
+        ]
+ #        raise Exception(exp_derivs[0][1].coeffs)
+ #        """
+ #        [[[-0.24875972 -1.62256994]
+ #  [-1.91803054 -0.        ]]
+ #
+ # [[ 3.58730135 -0.        ]
+ #  [-0.         -0.        ]]]
+ #  """
+        exp_d2s = [
+            [_d(p, i) for i,p in enumerate(poly_list)]
+            for poly_list in exp_derivs
+        ]
+        # raise Exception(
+        #     (
+        #             (exp_derivs[0][0] * exp_derivs[0][0])
+        #             + exp_d2s[0][0].coeffs*exp_d2s[0][0].scaling
+        #     ).coeffs,
+        #     core_polys[0].coeffs
+        # )
+
+        raise Exception(
+            exp_polys[2].coeffs
+        )
+
+        # and now we can construct the polynomials for each center and axis
+        def _k(p, pd1, pd2, ed1, ed2):
+            t = pd2 + 2*pd1 * ed1 + p * ((ed1 * ed1) + ed2)
+            if isinstance(t, DensePolynomial):
+                t = t.clip(threshold=1e-8)
+            return t
+        kinetic_polys = [
+            [
+                _k(p, pd1, pd2, ed1, ed2)
+                for pd1, pd2, ed1, ed2 in zip(pd1s, pd2s, ed1s, ed2s)
+            ]
+            for p, pd1s, pd2s, ed1s, ed2s in zip(
+                core_polys,
+                core_derivs,
+                core_d2s,
+                exp_derivs,
+                exp_d2s
+            )
+        ]
+
+        # raise Exception(
+        #     kinetic_polys[0][0].coeffs,
+        #     kinetic_polys[0][1],
+        #     kinetic_polys[0][2].coefficient_tensors,
+        #     # kinetic_polys[0][0].coeffs,
+        # )
+
+        return core_polys, kinetic_polys
+
+    @classmethod
+    def _unrot_base_ST_components(cls, centers, alphas, masses, inds):
+        if inds is not None:
+            alphas = alphas[:, inds]
+            centers = centers[:, inds]
+            masses = masses[inds]
+
+        aouter = alphas[:, np.newaxis] * alphas[np.newaxis, :]
+        aplus = alphas[:, np.newaxis] + alphas[np.newaxis, :]
+        arat = aouter / aplus
+
+        disps = centers[:, np.newaxis, :] - centers[np.newaxis, :, :]
+
+        # A = outer_tet / np.sqrt(np.pi)
+        B = np.sqrt(aplus)
+        C = arat * np.power(disps, 2)
+
+        return arat, aouter, B, C, masses
+
+    @classmethod
+    def _unrot_base_S(cls, centers, alphas, masses, inds):
+
+        arat, aouter, B, C, masses = cls._unrot_base_ST_components(centers, alphas, masses, inds)
+
+        S_dim = (np.sqrt(2) * np.power(aouter, 1 / 4) / B) * np.exp(-C)
+        S = np.prod(S_dim, axis=-1)
+
+        return S
+
+    @classmethod
+    def _unrot_base_ST(cls, centers, alphas, masses, inds):
+
+        arat, aouter, B, C, masses = cls._unrot_base_ST_components(centers, alphas, masses, inds)
+
+        S_dim = (np.sqrt(2) * np.power(aouter, 1 / 4) / B) * np.exp(-C)
+        T_dim = arat * (1 - 2 * C) / masses[np.newaxis, np.newaxis, :]
+
+        S = np.prod(S_dim, axis=-1)
+        T = S * np.sum(T_dim, axis=-1)
+
+        return S, T
+
+    @classmethod
+    def _rot_base_S_components(cls, rot_data, centers, alphas, inds):
+        row_inds = rot_data['row_inds']
+        col_inds = rot_data['col_inds']
+
+        # alphas = self.alphas
+        # masses = self.masses
+        rotas = rot_data["alphas"]
+        if inds is not None:
+            alphas = alphas[:, inds]
+            rotas = rotas[:, inds]
+
+        ndim = centers.shape[-1]
+        dets = np.prod(rotas, axis=-1)
+        # we prefactor out the 2**ndim
+        rdets = np.prod(alphas[row_inds], axis=-1)
+        cdets = np.prod(alphas[col_inds], axis=-1)  # literally a product of passed in alphas
+
+        L = rot_data['inverse_rotations']  #
+        Lt = rot_data['rotations']
+        if inds is not None:
+            ndim = len(inds)
+            disps = L @ (centers[row_inds] - centers[col_inds])[:, :, np.newaxis]
+            disps = np.reshape(disps, disps.shape[:2])[:, inds]
+            si = L @ rot_data['sum_inverse'] @ Lt
+            si = si[:, inds, :][:, :, inds]
+            C = disps[:, np.newaxis, :] @ si @ disps[:, :, np.newaxis]
+        else:
+            disps = centers[row_inds] - centers[col_inds]
+            C = disps[:, np.newaxis, :] @ rot_data['sum_inverse'] @ disps[:, :, np.newaxis]
+        C = C.reshape(disps.shape[0])
+
+        return alphas, rotas, L, Lt, row_inds, col_inds, ndim, rdets, cdets, dets, C
+
+    @classmethod
+    def _rot_base_S(cls, rot_data, centers, alphas, inds):
+
+        S = np.eye(len(centers))
+        alphas, rotas, L, Lt, row_inds, col_inds, ndim, rdets, cdets, dets, C = \
+            cls._rot_base_S_components(rot_data, centers, alphas, inds)
+
+        S[row_inds, col_inds] = S[col_inds, row_inds] = (
+                2 ** (ndim / 2) * ((rdets * cdets) / (dets ** 2)) ** (1 / 4) * np.exp(-C / 2)
+        )
+        return S
+
+    @classmethod
+    def _rot_base_ST(cls, rot_data, centers, alphas, masses, inds):
+
+        S = np.eye(len(centers))
+        alphas, rotas, L, Lt, row_inds, col_inds, ndim, rdets, cdets, dets, C = \
+            cls._rot_base_S_components(rot_data, centers, alphas, inds)
+
+        S[row_inds, col_inds] = S[col_inds, row_inds] = (
+                2 ** (ndim / 2) * ((rdets * cdets) / (dets ** 2)) ** (1 / 4) * np.exp(-C / 2)
+        )
+
+        T = np.zeros((len(centers), len(centers)))
+
+        rows = rot_data['row_sigs']
+        cols = rot_data['col_sigs']
+
+        idx = col_inds
+        Sj = cols
+
+        zetas = L @ (rot_data['centers'] - centers[idx])[:, :, np.newaxis]
+        zetas = zetas.reshape(rot_data['centers'].shape)
+        if inds is not None:
+            zetas = zetas[:, inds]
+
+        minv = np.diag(1 / masses)
+        Amat = L @ (Sj @ minv @ Sj) @ Lt
+        M = L @ np.broadcast_to(minv[np.newaxis], L.shape) @ Lt
+        # msj = rot_data['rotations']@(Sj@minv)@np.transpose(rot_data['rotations'], (0, 1, 2))
+        # raise Exception(
+        #     np.diagonal(msj, axis1=1, axis2=2),# / self.masses[np.newaxis],
+        #     - 1 / 2 * np.diagonal(Amat, axis1=1, axis2=2) / rot_data['alphas']
+        # )
+        submasses = np.diagonal(M, axis1=1, axis2=2)
+        sminv = np.diagonal(Amat, axis1=1, axis2=2)
+        if inds is not None:
+            submasses = submasses[:, inds]
+            sminv = sminv[:, inds]
+            Amat = Amat[:, inds, :][:, :, inds]
+        # raise Exception(
+        #     submasses,
+        #     sminv,
+        #     np.sum(
+        #         2 * alphas[col_inds] * submasses -
+        #         1 / 2 * sminv / rotas,
+        #         axis=1
+        #     )
+        # )
+        T[row_inds, col_inds] = 1 / 2 * (
+                np.sum(
+                    2 * alphas[idx] * submasses - 1 / 2 * sminv / rotas,
+                    axis=1
+                ) - 1 / 2 * sum(
+            # easier this way than the proper series summation...
+            Amat[..., k, kp] * (
+                4 * zetas[..., k] * zetas[..., kp]  # I discovered I was off by a factor of 4 in the 2D case...
+                    if k != kp else
+                2 * zetas[..., k] ** 2
+            )
+            for k, kp in zip(*np.triu_indices(Amat.shape[-1]))
+        )  # could be a dot but this is fine
+        )
+        T[row_inds, col_inds] *= S[row_inds, col_inds]
+        T[col_inds, row_inds] = T[row_inds, col_inds]
+
+        return S, T
+
+    @classmethod
+    def _rot_poly_ST(cls, rot_data, base_polys, centers, alphas, masses, inds):
+
+        # S = np.eye(len(centers))
+        alphas, rotas, L, Lt, row_inds, col_inds, ndim, rdets, cdets, dets, C = \
+            cls._rot_base_S_components(rot_data, centers, alphas, inds)
+
+        # S[row_inds, col_inds] = S[col_inds, row_inds] = (
+        #         2 ** (ndim / 2) * ((rdets * cdets) / (dets ** 2)) ** (1 / 4) * np.exp(-C / 2)
+        # )
+
+        T = np.zeros((len(centers), len(centers)))
+
+        rows = rot_data['row_sigs']
+        cols = rot_data['col_sigs']
+
+        idx = col_inds
+        Sj = cols
+
+        tf_centers = L @ centers[idx][:, :, np.newaxis]
+        tf_centers = tf_centers[:, :, inds]
+
+        tf_sigs = L @ (Sj @ np.transpose(L, (0, 2, 1)))
+        tf_sigs = tf[:, inds, :][:, :, inds]
+
+        exp_polys = [
+            DensePolynomial.from_tensors([0, np.zeros(ndim), sig]).shift(c)
+            # , shift=-pt)
+            for sig, c in zip(tf_sigs, tf_centers)
+            # for pt, sig in zip(
+            #     centers,
+            #     sigs
+            # )
+        ]
+
+
+
+
+        raise Exception('need to apply indices before floop')
+
+        exp_d1 = [
+            d.der
+        ]
+
+        zetas = L @ (rot_data['centers'] - centers[idx])[:, :, np.newaxis]
+        zetas = zetas.reshape(rot_data['centers'].shape)
+        if inds is not None:
+            zetas = zetas[:, inds]
+
+        minv = np.diag(1 / masses)
+        Amat = L @ (Sj @ minv @ Sj) @ Lt
+        M = L @ np.broadcast_to(minv[np.newaxis], L.shape) @ Lt
+        # msj = rot_data['rotations']@(Sj@minv)@np.transpose(rot_data['rotations'], (0, 1, 2))
+        # raise Exception(
+        #     np.diagonal(msj, axis1=1, axis2=2),# / self.masses[np.newaxis],
+        #     - 1 / 2 * np.diagonal(Amat, axis1=1, axis2=2) / rot_data['alphas']
+        # )
+        submasses = np.diagonal(M, axis1=1, axis2=2)
+        sminv = np.diagonal(Amat, axis1=1, axis2=2)
+        if inds is not None:
+            submasses = submasses[:, inds]
+            sminv = sminv[:, inds]
+            Amat = Amat[:, inds, :][:, :, inds]
+        # raise Exception(
+        #     submasses,
+        #     sminv,
+        #     np.sum(
+        #         2 * alphas[col_inds] * submasses -
+        #         1 / 2 * sminv / rotas,
+        #         axis=1
+        #     )
+        # )
+        T[row_inds, col_inds] = 1 / 2 * (
+                np.sum(
+                    2 * alphas[idx] * submasses - 1 / 2 * sminv / rotas,
+                    axis=1
+                ) - 1 / 2 * sum(
+            # easier this way than the proper series summation...
+            Amat[..., k, kp] * (
+                4 * zetas[..., k] * zetas[..., kp]  # I discovered I was off by a factor of 4 in the 2D case...
+                if k != kp else
+                2 * zetas[..., k] ** 2
+            )
+            for k, kp in zip(*np.triu_indices(Amat.shape[-1]))
+        )  # could be a dot but this is fine
+        )
+        T[row_inds, col_inds] *= S[row_inds, col_inds]
+        T[col_inds, row_inds] = T[row_inds, col_inds]
+
+        return S, T
+
     def get_ST(self, centers=None, alphas=None, transformations=None):
         if centers is None:
             centers = self.centers
@@ -752,123 +1187,162 @@ class DGB:
             centers = centers * np.sqrt(masses)[np.newaxis]
             masses = np.ones(len(masses))
 
-        if transformations is None:
-            if self.inds is not None:
-                alphas = alphas[:, self.inds]
-                # masses = masses[:, self.inds]
-
-            aouter = alphas[:, np.newaxis] * alphas[np.newaxis, :]
-            aplus = alphas[:, np.newaxis] + alphas[np.newaxis, :]
-            arat = aouter / aplus
-
-            disps = centers[:, np.newaxis, :] - centers[np.newaxis, :, :]
-
-            # A = outer_tet / np.sqrt(np.pi)
-            B = np.sqrt(aplus)
-            C = arat * np.power(disps, 2)
-
-            # Base components
-            S_dim = (np.sqrt(2) * np.power(aouter, 1/4) / B) * np.exp(-C)
-            T_dim = arat * (1 - 2*C) / masses[np.newaxis, np.newaxis, :]
-
-            # if self.inds is not None:
-            #     S_dim = S_dim[:, :, self.inds]
-            #     T_dim = T_dim[:, :, self.inds]
-
-            # Combine appropriately
-            S = np.prod(S_dim, axis=-1)
-            T = S * np.sum(T_dim, axis=-1)
-        else:
-
-            T = np.zeros((len(self.centers), len(self.centers)))
-            S = np.eye(len(self.centers)) #np.full((len(self.centers), len(self.centers)), 1e10) #pick a crazy value to decouple bad inds
-            # row_inds, col_inds = np.triu_indices(len(self.alphas))
+        if self._poly_coeffs is not None:
 
             rot_data = self.get_overlap_gaussians()
-            row_inds = rot_data['row_inds']
-            col_inds = rot_data['col_inds']
+            base_polys, ke_polys = self.get_kinetic_polynomials() # polys for each dimension + other stuff
 
-            alphas = self.alphas
-            # masses = self.masses
-            rotas = rot_data["alphas"]
-            if self.inds is not None:
-                alphas = alphas[:, self.inds]
-                rotas = rotas[:, self.inds]
-
-            ndim = centers.shape[-1]
-            dets = np.prod(rotas, axis=-1)
-            rows = rot_data['row_sigs']
-            cols = rot_data['col_sigs']
-            # we prefactor out the 2**ndim
-            rdets = np.prod(alphas[row_inds], axis=-1)
-            cdets = np.prod(alphas[col_inds], axis=-1) # literally a product of passed in alphas
-
-            L = rot_data['inverse_rotations'] #
-            Lt = rot_data['rotations']
-            if self.inds is not None:
-                ndim = len(self.inds)
-                disps = L @ (centers[row_inds] - centers[col_inds])[:, :, np.newaxis]
-                disps = np.reshape(disps, disps.shape[:2])[:, self.inds]
-                si = L @ rot_data['sum_inverse'] @ Lt
-                si = si[:, self.inds, :][:, :, self.inds]
-                C = disps[:, np.newaxis, :] @ si @ disps[:, :, np.newaxis]
+            if not isinstance(rot_data, dict):
+                ov_centers, ov_alphas = rot_data
+                rot_data = None
+                row_inds, col_inds = np.triu_indices(len(self.centers))
             else:
-                disps = centers[row_inds] - centers[col_inds]
-                C = disps[:, np.newaxis, :]@rot_data['sum_inverse']@disps[:, :, np.newaxis]
-            C = C.reshape(disps.shape[0])
+                ov_centers = rot_data['centers']
+                ov_alphas = rot_data['alphas']
+                row_inds = rot_data['row_inds']
+                col_inds = rot_data['col_inds']
 
-            S[row_inds, col_inds] = 2**(ndim/2) * ((rdets*cdets)/(dets**2))**(1/4) * np.exp(-C/2)
+            if rot_data is None:
+                S = self._unrot_base_S(centers, alphas, masses, self.inds)
+            else:
+                S = self._rot_base_S(rot_data, centers, alphas, self.inds)
 
-            zetas = L @ (rot_data['centers'] - centers[col_inds])[:, :, np.newaxis]
-            zetas = zetas.reshape(rot_data['centers'].shape)
-            if self.inds is not None:
-                zetas = zetas[:, self.inds]
+            ndim = self.centers.shape[-1]
+            if rot_data is None and self.inds is not None:
+                ndim = len(self.inds)
 
-            minv = np.diag(1/masses)
-            Sj = cols
-            Amat = L@(Sj@minv@Sj)@Lt
-            M = L@np.broadcast_to(minv[np.newaxis], L.shape)@Lt
-            # msj = rot_data['rotations']@(Sj@minv)@np.transpose(rot_data['rotations'], (0, 1, 2))
-            # raise Exception(
-            #     np.diagonal(msj, axis1=1, axis2=2),# / self.masses[np.newaxis],
-            #     - 1 / 2 * np.diagonal(Amat, axis1=1, axis2=2) / rot_data['alphas']
-            # )
-            submasses = np.diagonal(M, axis1=1, axis2=2)
-            sminv = np.diagonal(Amat, axis1=1, axis2=2)
-            if self.inds is not None:
-                submasses = submasses[:, self.inds]
-                sminv = sminv[:, self.inds]
-                Amat = Amat[:, self.inds, :][:, :, self.inds]
-            # raise Exception(
-            #     submasses,
-            #     sminv,
-            #     np.sum(
-            #         2 * alphas[col_inds] * submasses -
-            #         1 / 2 * sminv / rotas,
-            #         axis=1
-            #     )
-            # )
-            T[row_inds, col_inds] = 1 / 2 * (
-                    np.sum(
-                        2 * alphas[col_inds] * submasses  -
-                         1 / 2 * sminv / rotas,
-                        axis=1
-                    ) - 1/2 * sum(
-                        # easier this way than the proper series summation...
-                        Amat[..., k, kp] * (
-                            4 * zetas[..., k] * zetas[..., kp]  # I discovered I was off by a factor of 4 in the 2D case...
-                                if k != kp else
-                            2 * zetas[..., k] ** 2
+            # raise Exception(S)
+
+            overlap_polys = [
+                base_polys[r] * base_polys[c]
+                for r, c in zip(row_inds, col_inds)
+            ]
+            overlap_polys = [
+                p.shift(c) if isinstance(p, DensePolynomial) else p
+                for p, c in zip(overlap_polys, ov_centers)
+            ]
+            # print(overlap_polys[0].coeffs)
+
+            subtensors = [
+                p.clip(threshold=1e-8).coefficient_tensors
+                if isinstance(p, DensePolynomial) else None
+                for p in overlap_polys
+            ]
+
+            # raise Exception(subtensors[0])
+            i = 1
+            # raise Exception([
+            #         tt[i]
+            #             if isinstance(tt, list) else
+            #         np.zeros((nd,)*i)
+            #             if i > 0 else
+            #         1
+            #         for tt in subtensors
+            #     ])
+            order = max(tuple(len(tt) for tt in subtensors if tt is not None) + (1,))
+            derivs = [
+                np.array([
+                    tt[i]
+                        if isinstance(tt, list) and i < len(tt) else
+                    np.zeros((ndim,)*i)
+                        if i > 0 else
+                    1
+                        if tt is None else
+                    tt
+                    for tt in subtensors
+                ])
+                for i in range(order)
+            ]
+            # raise Exception(derivs[2][0])
+            #
+            S_extra = self.tensor_expansion_integrate(
+                    len(self.centers),
+                    derivs,
+                    ov_centers,
+                    ov_alphas,
+                    inds=None if rot_data is None else self.inds,
+                    rot_data=rot_data,
+                    expansion_type='multicenter',
+                    logger=None,#self.logger
+                    reweight=False
+                )
+
+            S_base = S
+            S = S * S_extra
+
+            if self.transformations is None and self.inds is None:
+                T = np.zeros((len(self.centers), len(self.centers)))
+                idxs = range(ndim) if rot_data is not None else self.inds
+                for coord in idxs:
+
+                    kinetic_polys = [
+                        base_polys[r] * ke_polys[c][coord]
+                        for r, c in zip(row_inds, col_inds)
+                    ]
+                    kinetic_polys = [
+                        p.shift(c).clip(threshold=1e-4) if isinstance(p, DensePolynomial) else p
+                        for p, c in zip(kinetic_polys, ov_centers)
+                    ]
+                    subtensors = [
+                        p.coefficient_tensors if isinstance(p, DensePolynomial) else p
+                        for p in kinetic_polys
+                    ]
+
+                    print("?", coord, subtensors[2])
+
+                    order = max([
+                                    len(tt) for tt in subtensors
+                                    if tt is not None and not isinstance(tt, (int, float, np.integer, np.floating))
+                                ] + [0])
+                    derivs = [
+                        np.array([
+                            tt[i]
+                                if isinstance(tt, list) and i < len(tt) else
+                            np.zeros((ndim,) * i)
+                                if i > 0 else
+                            1
+                                if tt is None else
+                            tt
+                            for tt in subtensors
+                        ]
                         )
-                        for k, kp in zip(*np.triu_indices(Amat.shape[-1]))
-                    )  # could be a dot but this is fine
-            )
-            T[row_inds, col_inds] *= S[row_inds, col_inds]
+                        for i in range(order)
+                    ]
+                    if len(derivs) > 0:
+                        contrib = self.tensor_expansion_integrate(
+                            len(self.centers),
+                            derivs,
+                            ov_centers,
+                            ov_alphas,
+                            inds=None if rot_data is None else self.inds,
+                            rot_data=rot_data,
+                            expansion_type='multicenter',
+                            logger=None,#self.logger
+                            reweight=False
+                        ) / self.masses[coord]
 
-            S[col_inds, row_inds] = S[row_inds, col_inds]
-            T[col_inds, row_inds] = T[row_inds, col_inds]
+                        T = T + contrib
 
-        return S, T
+                    # raise Exception(T*S_base)
+
+                T *= -1/2 * S_base
+            else:
+                T = self._rot_poly_ST(rot_data, base_polys, centers, alphas, masses, self.inds)
+
+
+                raise Exception(...)
+
+        else:
+
+            if transformations is None:
+                S, T = self._unrot_base_ST(centers, alphas, masses, self.inds)
+            else:
+                rot_data = self.get_overlap_gaussians()
+                S, T = self._rot_base_ST(rot_data, centers, alphas, masses, self.inds)
+
+            S_base = S
+
+        return S_base, S, T
 
     def quad_integrate(self, function, degree=2):
         """
@@ -930,7 +1404,7 @@ class DGB:
         return term
     @classmethod
     def simple_poly_int(cls, n):
-        return np.prod(np.arange(1, n, 2)) # double factorial/gamma/whatever
+        return np.prod(np.arange(1, n, 2)) / 2**(n/2) # double factorial/gamma/whatever
 
     @staticmethod
     def mass_weighted_eval(function, coords, masses, deriv_order=None, **opts):
@@ -956,6 +1430,127 @@ class DGB:
             derivs = new_d
             return derivs
 
+    @classmethod
+    def tensor_expansion_integrate(cls,
+                                   npts, derivs, centers, alphas,
+                                   inds=None, rot_data=None, expansion_type='multicenter',
+                                   logger=None, reweight=True
+                                   ):
+        """
+        provides an integral from a polynomial expansion with derivs as an expansion in tensors
+
+        :param npts:
+        :param derivs:
+        :param centers:
+        :param alphas:
+        :param inds:
+        :param rot_data:
+        :param expansion_type:
+        :param logger:
+        :return:
+        """
+        """
+        [[-0.00000000e+00 -0.00000000e+00  2.43978381e+02 -1.34979790e-02]
+ [-0.00000000e+00 -0.00000000e+00  2.43978381e+02 -1.34979790e-02]
+ [ 2.43978381e+02  2.43978381e+02 -0.00000000e+00 -0.00000000e+00]
+ [-1.34979790e-02 -1.34979790e-02 -0.00000000e+00 -0.00000000e+00]]
+ """
+        ndim = centers.shape[-1]
+        if rot_data is not None:
+            rotations = rot_data['rotations']
+            centers = np.reshape(rotations @ centers[:, :, np.newaxis], centers.shape)
+
+            if inds is not None:
+                ndim = len(inds)
+                rotations = rotations[:, :, inds]
+                alphas = alphas[..., inds]
+                centers = centers[..., inds]
+
+            # if self.
+            new_derivs = []
+            # rotations = rotations[:, :, :, np.newaxis] # to test shapes
+            for n,d in enumerate(derivs):
+                # print("???", d.shape)
+                for _ in range(n):
+                    d = nput.vec_tensordot(
+                        d, rotations,
+                        axes=[1, 1],
+                        shared=1
+                    )
+                new_derivs.append(d)
+            derivs = new_derivs
+
+        elif inds is not None:
+            ndim = len(inds)
+            if alphas.shape[-1] > ndim:
+                alphas = alphas[..., inds]
+            if centers.shape[-1] > ndim:
+                centers = centers[..., inds]
+
+            new_derivs = []
+            for n, d in enumerate(derivs):
+                for k in range(n):
+                    d = np.take(d, inds, axis=k+1)
+                new_derivs.append(d)
+            derivs = new_derivs
+
+        if logger is not None:
+            logger.log_print("adding up all derivative contributions...")
+
+        if rot_data is None:
+            row_inds, col_inds = np.triu_indices(npts)
+        else:
+            row_inds = rot_data['row_inds']
+            col_inds = rot_data['col_inds']
+
+        fdim = derivs[0].ndim - 1
+        fshape = derivs[0].shape[1:]
+        pot = np.zeros((npts, npts) + fshape)
+        caches = [{} for _ in range(ndim)]
+        for nd,d in enumerate(derivs): # add up all independent integral contribs...
+            # iterate over upper triangle coordinates (we'll add bottom contrib by symmetry)
+            inds = itertools.combinations_with_replacement(range(ndim), r=nd) if nd > 0 else [()]
+            for idx in inds:
+                count_map = {k: v for k, v in zip(*np.unique(idx, return_counts=True))}
+                if expansion_type != 'taylor' and any(n%2 !=0 for n in count_map.values()):
+                    continue # odd contribs vanish
+
+                contrib = 1
+                for k in range(ndim): # do each dimension of integral independently
+                    n = count_map.get(k, 0)
+                    if n not in caches[k]:
+                        if expansion_type == 'taylor':
+                            raise NotImplementedError("Taylor series in rotated basis not implemented yet")
+                        caches[k][n] = (
+                           cls.simple_poly_int(n)
+                             if expansion_type != 'taylor' else
+                           cls.polyint_1D(centers[..., k], alphas[..., k], n)
+                        )
+                    base_contrib = caches[k][n] / alphas[..., k]**(n/2)
+                    for _ in range(fdim):
+                        base_contrib = np.expand_dims(base_contrib, -1)
+                    if isinstance(contrib, int) and fdim > 0:
+                        base_contrib = np.broadcast_to(base_contrib,  alphas.shape[:-1] + fshape)
+                    contrib *= base_contrib
+
+                dcont = d[(slice(None, None, None),) + idx] if len(idx) > 0 else d
+                facterms = np.unique([x for x in itertools.permutations(idx)], axis=0)
+                nfac = len(facterms) # this is like a binomial coeff or something but my sick brain won't work right now...
+                scaling = 2**(len(idx)/2) * np.prod([np.math.factorial(count_map.get(k, 0)) for k in range(ndim)])
+                for _ in range(fdim):
+                    scaling = np.expand_dims(scaling, -1)
+
+                if reweight:
+                    contrib *= nfac * dcont / scaling
+                else:
+                    contrib *= nfac * dcont
+
+                pot[row_inds, col_inds] += contrib
+
+        pot[col_inds, row_inds] = pot[row_inds, col_inds]
+
+        return pot
+
     def expansion_integrate(self, function, deriv_order=2, expansion_type=None):
         if expansion_type is None:
             expansion_type = self.expansion_type
@@ -968,7 +1563,6 @@ class DGB:
             centers = rot_data['centers']
             alphas = rot_data['alphas']
 
-        ndim = centers.shape[-1]
         if expansion_type == 'taylor':
             self.logger.log_print("expanding as a Taylor series about the minumum energy geometry...")
             assert self.ref is None #TODO: centers need a displacement
@@ -998,90 +1592,16 @@ class DGB:
                         function(centers, deriv_order=d) for d in range(1, deriv_order+1)
                     ]
 
-        if rot_data is not None:
-            rotations = rot_data['inverse_rotations']
-            centers = np.reshape(rotations @ centers[:, :, np.newaxis], centers.shape)
-
-            if self.inds is not None:
-                ndim = len(self.inds)
-                rotations = rotations[:, self.inds, :]
-                alphas = alphas[..., self.inds]
-                centers = centers[..., self.inds]
-
-            # if self.
-            new_derivs = []
-            # rotations = rotations[:, :, :, np.newaxis] # to test shapes
-            for n,d in enumerate(derivs):
-                for _ in range(n):
-                    d = nput.vec_tensordot(
-                        d, rotations,
-                        axes=[1, 2],
-                        shared=1
-                    )
-                new_derivs.append(d)
-            derivs = new_derivs
-
-        elif self.inds is not None:
-            ndim = len(self.inds)
-            alphas = alphas[..., self.inds]
-            centers = centers[..., self.inds]
-
-            new_derivs = []
-            for n, d in enumerate(derivs):
-                for k in range(n):
-                    d = np.take(d, self.inds, axis=k+1)
-                new_derivs.append(d)
-            derivs = new_derivs
-
-        self.logger.log_print("adding up all derivative contributions...")
-
-        if rot_data is None:
-            row_inds, col_inds = np.triu_indices(len(self.centers))
-        else:
-            row_inds = rot_data['row_inds']
-            col_inds = rot_data['col_inds']
-        fdim = derivs[0].ndim - 1
-        fshape = derivs[0].shape[1:]
-        pot = np.zeros((len(self.centers), len(self.centers)) + fshape)
-        caches = [{} for _ in range(ndim)]
-        for nd,d in enumerate(derivs): # add up all independent integral contribs...
-            # iterate over upper triangle coordinates (we'll add bottom contrib by symmetry)
-            inds = itertools.combinations_with_replacement(range(ndim), r=nd) if nd > 0 else [()]
-            for idx in inds:
-                count_map = {k: v for k, v in zip(*np.unique(idx, return_counts=True))}
-                if expansion_type != 'taylor' and any(n%2 !=0 for n in count_map.values()):
-                    continue # odd contribs vanish
-
-                contrib = 1
-                for k in range(ndim): # do each dimension of integral independently
-                    n = count_map.get(k, 0)
-                    if n not in caches[k]:
-                        if expansion_type == 'taylor':
-                            raise NotImplementedError("Taylor series in rotated basis not implemented yet")
-                        caches[k][n] = (
-                           self.simple_poly_int(n)
-                             if expansion_type != 'taylor' else
-                           self.polyint_1D(centers[..., k], alphas[..., k], n)
-                        )
-                    base_contrib = caches[k][n] / alphas[..., k]**(n/2)
-                    for _ in range(fdim):
-                        base_contrib = np.expand_dims(base_contrib, -1)
-                    if isinstance(contrib, int) and fdim > 0:
-                        base_contrib = np.broadcast_to(base_contrib,  alphas.shape[:-1] + fshape)
-                    contrib *= base_contrib
-
-                dcont = d[(slice(None, None, None),) + idx] if len(idx) > 0 else d
-                facterms = np.unique([x for x in itertools.permutations(idx)], axis=0)
-                nfac = len(facterms) # this is like a binomial coeff or something but my sick brain won't work right now...
-                scaling = 2**(len(idx)/2) * np.prod([np.math.factorial(count_map.get(k, 0)) for k in range(ndim)])
-                for _ in range(fdim):
-                    scaling = np.expand_dims(scaling, -1)
-
-                contrib *= nfac * dcont / scaling
-
-                pot[row_inds, col_inds] += contrib
-
-        pot[col_inds, row_inds] = pot[row_inds, col_inds]
+        pot = self.tensor_expansion_integrate(
+            len(self.centers),
+            derivs,
+            centers,
+            alphas,
+            inds=self.inds,
+            rot_data=rot_data,
+            expansion_type=expansion_type,
+            logger=self.logger
+        )
 
         return pot
 
@@ -1140,7 +1660,9 @@ class DGB:
             expansion_degree=expansion_degree, expansion_type=expansion_type,
             quadrature_degree=quadrature_degree
         )
-        S = self.S
+        if self._scaling_S is None:
+            _ = self.S
+        S = self._scaling_S
         for _ in range(pot_mat.ndim - 2):
             S = np.expand_dims(S, -1)
         return S * pot_mat
@@ -1202,7 +1724,7 @@ class DGB:
 
     def diagonalize(self, print_debug_info=False, subspace_size=None, min_singular_value=None,
                     eps=5e-4,
-                    mode='stable',
+                    mode='classic',
                     nodeless_ground_state=True
                     ):
 

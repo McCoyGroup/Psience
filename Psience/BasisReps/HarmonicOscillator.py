@@ -8,6 +8,7 @@ __all__ = [
 ]
 
 import scipy.sparse as sp, numpy as np, functools, itertools
+import scipy.signal
 
 from .Bases import *
 from .Operators import Operator, ContractedOperator
@@ -16,6 +17,7 @@ from .StateSpaces import BraKetSpace
 from McUtils.Data import WavefunctionData
 from McUtils.Scaffolding import MaxSizeCache
 import McUtils.Numputils as nput
+from McUtils.Combinatorics import StirlingS1, Binomial
 
 class HarmonicOscillatorBasis(RepresentationBasis):
     """
@@ -239,6 +241,92 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
         # )
 
 default_cache_size = 128
+
+
+class RaisingLoweringPolyTerms:
+    """
+    The polynomial induced by _a_ raising operations and _b_ lowering ops
+    """
+    _stirlings = None
+    _binomials = None
+
+    @classmethod
+    def get_poly_coeffs(cls, a, b):
+        if b > a:
+            shift = b - a
+            a, b = b, a
+        else:
+            shift = None
+        prefactor = cls.binom(a + b, a)
+        coeffs = cls.get_reduced_raising_lowering_coeffs(a, b)
+        if shift is not None:
+            coeffs = cls._compute_shifted_coeffs(coeffs, shift)
+        return prefactor * coeffs
+
+    @classmethod
+    def _compute_shifted_coeffs(cls, poly_coeffs, shift):
+        # if fourier_coeffs is None:
+        #     raise ValueError("need fourier coeffs for shifted coeff calc")
+        if poly_coeffs.ndim == 1:
+            shift = [shift]
+
+        # factorial outer product
+        factorial_terms = np.array([np.math.factorial(x) for x in range(poly_coeffs.shape[0])])
+        for s in poly_coeffs.shape[1:]:
+            factorial_terms = np.expand_dims(factorial_terms, -1) * np.reshape(
+                np.array([np.math.factorial(x) for x in range(s)]),
+                [1] * factorial_terms.ndim + [s]
+            )
+        # shift outer product
+        shift_terms = np.power(shift[0], np.arange(poly_coeffs.shape[0]))
+        for f, s in zip(shift[1:], poly_coeffs.shape[1:]):
+            shift_terms = np.expand_dims(shift_terms, -1) * np.reshape(
+                np.power(f, np.arange(s)),
+                [1] * shift_terms.ndim + [s]
+            )
+
+        # build shifted polynomial coefficients
+        rev_fac = factorial_terms
+        for i in range(factorial_terms.ndim):
+            rev_fac = np.flip(rev_fac, axis=i)
+            shift_terms = np.flip(shift_terms, axis=i)
+
+        poly_terms = poly_coeffs * factorial_terms
+        shift_terms = shift_terms / rev_fac
+
+        new = scipy.signal.convolve(
+            poly_terms,
+            shift_terms
+        )
+
+        for s in reversed(poly_terms.shape):
+            new = np.moveaxis(new, -1, 0)
+            new = new[-s:]
+        new = new / factorial_terms
+
+        return new
+
+    @classmethod
+    def s1(cls, i, j):
+        if cls._stirlings is None or cls._stirlings.shape[0] <= i or cls._stirlings.shape[0] <= j:
+            cls._stirlings = StirlingS1(2 ** np.ceil(np.log2(max([64, i, j]))))
+        return cls._stirlings[i, j]
+
+    @classmethod
+    def binom(cls, i, j):
+        if cls._binomials is None or cls._binomials.shape[0] <= i or cls._binomials.shape[0] <= j:
+            cls._binomials = Binomial(2 ** np.ceil(np.log2(max([64, i, j]))))
+        return cls._binomials[i, j]
+
+    @classmethod
+    def get_reduced_raising_lowering_coeffs(cls, a, b):
+        return np.array([
+            sum(
+                (cls.s1(b - j, w) * cls.binom(a, w) * cls.binom(b, w) * np.math.factorial(w) / 2 ** w)
+                for w in range(0, b - j + 1)
+            )
+            for j in range(0, b + 1)
+        ])
 class HarmonicProductOperatorTermEvaluator:
     """
     A simple class that can be used to directly evaluate any operator built as a product of `p` and `x` terms.
@@ -398,13 +486,13 @@ class HarmonicProductOperatorTermEvaluator:
         def selection_rules(self):
             return [o.selection_rules for o in self.ops]
 
+
     class TermEvaluator1D:
         """
         1D evaluator for terms looking like `x`, `p`, `q`, etc.
         All of the overall `(-i)^N` info is in the `ProdOp` class that's expected to hold this.
         Only maintains phase info & calculates elements.
         """
-
 
         state_cache_size = default_cache_size
         def __init__(self, terms):
@@ -451,6 +539,7 @@ class HarmonicProductOperatorTermEvaluator:
 
         def __call__(self, states):
             return self.evaluate_state_terms(states)
+            # return self.evaluate_state_terms(states)
 
         def state_pair_hash(self, states):
             # we use a hash to avoid recomputing harmonic terms
@@ -476,6 +565,13 @@ class HarmonicProductOperatorTermEvaluator:
             #     reminds = np.setdiff1d(reminds, woop[0])
             #     delta_sels.append(woop)
             return groups
+
+        # poly_caches = {}
+        # def _get_poly_coeffs(self, delta):
+        #     for pindex in self.p_pos:
+        #         ...
+        #
+        #     RaisingLoweringPolyTerms.get_poly_coeffs(a, b)
 
         def evaluate_state_terms(self, states):
             """

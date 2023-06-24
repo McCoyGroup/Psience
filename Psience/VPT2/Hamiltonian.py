@@ -106,7 +106,7 @@ class PerturbationTheoryHamiltonian:
         if n_quanta is None:
             # This is a basically a historical option. We keep it but there's really no reason.
             n_quanta = 15 # dunno yet how I want to handle this since it should really be defined by the order of state requested...
-        self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.int)) else tuple(n_quanta)
+        self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.integer)) else tuple(n_quanta)
         self.modes = modes
         self.mode_selection = mode_selection
 

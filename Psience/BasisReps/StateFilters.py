@@ -323,6 +323,7 @@ class BasisStateSpaceFilter:
                             property_rules,
                             order=2,
                             postfilters=None
+                            , **opts
                             ):
         """
         :param initial_space:
@@ -343,7 +344,8 @@ class BasisStateSpaceFilter:
             target_space,
             perturbation_rules,
             property_rules,
-            order=order
+            order=order,
+            **opts
         )
 
         if isinstance(initial_space, BasisStateSpace):
@@ -424,7 +426,8 @@ class BasisStateSpaceFilter:
                                 property_rules,
                                 order=2,
                                 eliminate_negatives=True,
-                                subspace=True
+                                subspace=True,
+                                check_subspaces=True
                                 ):
 
         # we really want to do this one at a time for every initial quanta
@@ -499,13 +502,16 @@ class BasisStateSpaceFilter:
             target_space = target_space.excitations
         space_counts = dict(zip(*np.unique(np.sum(target_space, axis=1), return_counts=True)))
         quants = list(space_counts.keys())
-        is_subspace = {
-            k:space_counts[k] < v
-            for k,v in zip(
-                quants,
-                BasisStateSpace.num_states_with_quanta(quants, len(target_space[0]))
-            )
-        }
+        if check_subspaces:
+            is_subspace = {
+                k:space_counts[k] < v
+                for k,v in zip(
+                    quants,
+                    BasisStateSpace.num_states_with_quanta(quants, len(target_space[0]))
+                )
+            }
+        else:
+            is_subspace = {}
 
         tree_ordering = list(sorted(full_rules.keys()))
         tree_groups = [[full_rules[x] for x in tree_ordering if x[0] == i+1] for i in range(order)]
