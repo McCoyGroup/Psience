@@ -117,10 +117,19 @@ class VPT2Tests(TestCase):
         # raise Exception(op.poly_sum())
 
 
-    @validationTest
+    @debugTest
     def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
+        from Psience.BasisReps import HarmonicOscillatorMatrixGenerator
+        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'rho'
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            memory_constrained=True,
+            logger=True
+        )
+        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'poly'
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             3,
@@ -709,19 +718,23 @@ class VPT2Tests(TestCase):
             ]) / UnitsData.convert("Hartrees", "Wavenumbers")
         )
 
-    @debugTest
+    @inactiveTest
     def test_CrieegeeVPTRunnerShifted(self):
-        with BlockProfiler('Crieegee', print_res=True):
-            VPTRunner.run_simple(
-                'criegee_eq_anh.fchk',
-                2,
-                logger=True,
-                degeneracy_specs='auto',
-                corrected_fundamental_frequencies=np.array([
-                    200.246, 301.985 + 10, 462.536, 684.792, 736.234, 961.474, 984.773, 1038.825, 1120.260, 1327.450, 1402.397,
-                    1449.820, 1472.576, 1519.875, 3037.286, 3078.370, 3174.043, 3222.828
-                ])/UnitsData.convert("Hartrees", "Wavenumbers")
-            )
+        # with BlockProfiler('Crieegee', print_res=True):
+        freqs = VPTSystem('criegee_eq_anh.fchk').mol.normal_modes.modes.freqs
+        freqs = freqs.copy()
+        freqs[1] += 10/UnitsData.convert("Hartrees", "Wavenumbers")
+        VPTRunner.run_simple(
+            # 'criegee_eq_anh.fchk',
+            2,
+            logger=True,
+            degeneracy_specs='auto',
+            corrected_fundamental_frequencies=freqs
+            # corrected_fundamental_frequencies=np.array([
+            #     200.246, 301.985 + 10, 462.536, 684.792, 736.234, 961.474, 984.773, 1038.825, 1120.260, 1327.450, 1402.397,
+            #     1449.820, 1472.576, 1519.875, 3037.286, 3078.370, 3174.043, 3222.828
+            # ])/UnitsData.convert("Hartrees", "Wavenumbers")
+        )
 
     @validationTest
     def test_HOHVPTRunner3rd(self):

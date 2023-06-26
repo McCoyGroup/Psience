@@ -2897,11 +2897,12 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                     if len(exc) > chunk_size:
                         new_exc = []
                         new_inds = []
+                        new_changes = []
                         filter = filter_space
                         num_chunks = len(exc) // chunk_size
                         chunks = np.array_split(exc, num_chunks, axis=0)
                         for chunk in chunks:
-                            new_exc_chunk, new_inds_chunk, changes, filter = par.run(cls._get_direct_product_spaces,
+                            new_exc_chunk, new_inds_chunk, new_changes_chunk, filter = par.run(cls._get_direct_product_spaces,
                                                                             selection_rules, symm_grp, filter, logger, full_basis,
                                                                             main_kwargs={'exc':chunk},
                                                                             comm = list(range(len(chunk))) if len(chunk) < (1 + par.nprocs) else None
@@ -2922,13 +2923,20 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                     # means we got too blocky of a shape out of the parallelizer
                                     new_inds_chunk = sum(new_inds_chunk, [])
                                 new_exc_chunk = [None] * len(new_inds_chunk)
+
+                            if new_changes_chunk is not None and new_changes_chunk[0] is not None:
+                                if not isinstance(new_changes_chunk[0], np.ndarray):
+                                    # means we got too blocky of a shape out of the parallelizer
+                                    new_changes_chunk = sum(new_changes_chunk, [])
                             new_exc.extend(new_exc_chunk)
                             new_inds.extend(new_inds_chunk)
-                            if changes is not None:
-                                new_changes.extend(changes)
+                            if new_changes_chunk is not None and new_changes_chunk[0] is not None:
+                                new_changes.extend(new_changes_chunk)
+                            else:
+                                new_changes = None
 
                     else:
-                        new_exc, new_inds, changes, filter = par.run(cls._get_direct_product_spaces,
+                        new_exc, new_inds, new_changes, filter = par.run(cls._get_direct_product_spaces,
                                                             selection_rules, symm_grp, filter_space, logger, full_basis,
                                                             main_kwargs={'exc':exc},
                                                             comm=list(range(len(exc))) if len(exc) < (1 + par.nprocs) else None
@@ -2951,14 +2959,18 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                 new_exc = [None] * len(new_inds)
                             else:
                                 new_exc = []
+                        if new_changes is not None and new_changes[0] is not None:
+                            if not isinstance(new_changes[0], np.ndarray):
+                                # means we got too blocky of a shape out of the parallelizer
+                                new_changes = sum(new_changes, [])
 
                 new = []
-                new_chng = [] if changes is not None else None
+                new_chng = [] if new_changes is not None else None
                 for n,(e,i) in enumerate(zip(new_exc, new_inds)): # looping over input excitations
                     # make stuff unique...kinda just because?
                     i, _, inds = nput.unique(i, return_index=True)
                     if new_chng is not None:
-                        new_chng.append(changes[n][inds,])
+                        new_chng.append(new_changes[n][inds,])
                     if track_excitations:
                         e = e[inds,]
                         new_space = BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations,

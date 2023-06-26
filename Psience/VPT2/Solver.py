@@ -1104,7 +1104,7 @@ class PerturbationTheorySolver:
                         # we have an initial space we've already transformed, so we
                         # make sure not to recompute that
                         b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True, # just some type fuckery
-                                                         changes=[]
+                                                         changes=[] if SelectionRuleStateSpace.track_change_positions else None
                                                          )
                         existing = cur.intersection(b_sels, handle_subspaces=False)
                         # and now we do extra transformations where we need to
@@ -1137,7 +1137,9 @@ class PerturbationTheorySolver:
                         # means we already calculated everything
                         # so we don't need to worry about this
                         if cur is not None:
-                            b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True) # just some type fuckery
+                            b_sels = SelectionRuleStateSpace(b, [],
+                                                             changes=[] if SelectionRuleStateSpace.track_change_positions else None,
+                                                             ignore_shapes=True) # just some type fuckery
                             new = cur.intersection(b_sels, handle_subspaces=False)
                             new = new.to_single().take_unique()
                         else:
