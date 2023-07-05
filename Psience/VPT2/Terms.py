@@ -2209,7 +2209,7 @@ class PotentialLikeTerm(KineticTerms):
                     raise ValueError("failed to construct U({})".format(i))
                 else:
                     if arr.shape == ():
-                        arr = np.float(arr)
+                        arr = float(arr)
                     wat_terms.append(arr)
             # print(wat_terms)
 

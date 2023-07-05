@@ -1,611 +1,13 @@
-import numpy as np
+import numpy as np, scipy.signal
 
-from McUtils.Combinatorics import StirlingS1, Binomial
+from McUtils.Zachary import DensePolynomial, TensorCoefficientPoly
+from McUtils.Combinatorics import SymmetricGroupGenerator, IntegerPartitioner
+from ..BasisReps import HarmonicOscillatorMatrixGenerator, HarmonicOscillatorRaisingLoweringPolyTerms
 
 __all__ = [
-    'PTPoly',
-    'TensorCoeffPoly',
-    'AnalyticPTOperator',
+    'AnalyticPTCorrectionGenerator',
     'RaisingLoweringClasses'
 ]
-
-class PTPoly:
-    """
-    The core data structure, a polynomial induced by some set of raising and lowering operations,
-    with switching between 1D and nD cases depending on the shape of the input coefficients
-    """
-    def __init__(self,
-                 coeffs,
-                 fourier_coeffs=None,
-                 prefactor=None,
-                 shift=None,
-                 fourier_shape=None,
-                 poly_shape=None
-                 ):
-        self._scaling = prefactor
-        self._shift = shift
-        self._poly_coeffs = np.asanyarray(coeffs) if coeffs is not None else None
-        self._poly_shape = poly_shape
-        self._fourier_coeffs = np.asanyarray(fourier_coeffs) if fourier_coeffs is not None else None
-        self._fourier_shape = fourier_shape
-    def __repr__(self):
-        return "{}({}, {})".format(type(self).__name__, self.coeffs, self.scaling)
-
-    @property
-    def shape(self):
-        if self._poly_coeffs is not None:
-            return self._poly_coeffs.shape
-        else:
-            return self._poly_shape
-    @property
-    def fourier_shape(self):
-        if self._fourier_coeffs is not None:
-            return self._fourier_coeffs.shape
-        else:
-            return self._fourier_shape
-
-
-    @property
-    def scaling(self):
-        return 1 if self._scaling is None else self._scaling
-    @scaling.setter
-    def scaling(self, s):
-        self._scaling = s
-
-    @property
-    def num_fourier(self):
-        return 2*len(self._poly_coeffs) if self._fourier_coeffs is None else len(self._fourier_coeffs)
-    @scaling.setter
-    def scaling(self, s):
-        self._scaling = s
-
-    @classmethod
-    def _unpadded_ifft(cls, coeffs, shape):
-        if shape is None:
-            if not all(c%2 == 0 for c in coeffs.shape):
-                raise ValueError("can't invert fourier coeffs with shape {} without known target shape".format(
-                    coeffs.shape
-                ))
-            return cls._unpadded_ifft(
-                coeffs,
-                [c//2 for c in coeffs.shape]
-            )
-        if (
-                len(coeffs.shape) != len(shape)
-                or any(s > c for c, s in zip(coeffs.shape, shape))
-        ):
-            raise ValueError("can't coerce fourier coeffs of shape {} into shape {}".format(
-                coeffs.shape,
-                shape
-            ))
-        poly_coeffs = cls.ifft(coeffs)
-        for s in reversed(shape):
-            poly_coeffs = np.moveaxis(poly_coeffs, -1, 0)
-            poly_coeffs = poly_coeffs[:s]
-        return poly_coeffs
-    @property
-    def coeffs(self):
-        if self._poly_coeffs is None:
-            # base_coeffs = self.rifft(self._fourier_coeffs)
-            # int_coeffs = np.round(np.real(base_coeffs))
-            # if np.linalg.norm(
-            #     int_coeffs - base_coeffs
-            # ) > 1e-10:
-            #     raise ValueError('fourier coeffs not inverted cleanly')
-            self._poly_coeffs = self._unpadded_ifft(self._fourier_coeffs, self._poly_shape)
-        if self._shift is not None and (
-                not isinstance(self._shift, (int, float, np.integer, np.floating))
-                or self._shift != 0
-        ):
-            self._poly_coeffs = self._compute_shifted_coeffs(
-                self._poly_coeffs,
-                self._shift
-            )
-            self._fourier_coeffs = None
-            self._shift = None
-        return self._poly_coeffs
-    @coeffs.setter
-    def coeffs(self, cs):
-        self._poly_coeffs = cs
-
-    @classmethod
-    def _padded_fft(cls, coeffs, shape):
-        if shape is None:
-            return cls._padded_fft(
-                coeffs,
-                [2*c for c in coeffs.shape]
-            )
-        elif coeffs.shape != shape:
-            if (
-                    len(coeffs.shape) != len(shape)
-                or any(s < c for c,s in zip(coeffs.shape, shape))
-            ):
-                raise ValueError("can't coerce coeffs of shape {} into shape {}".format(
-                    coeffs.shape,
-                    shape
-                ))
-            coeffs = np.pad(
-                coeffs,
-                [
-                    [0, s - c]
-                    for c,s in zip(coeffs.shape, shape)
-                ]
-            )
-        return cls.fft(coeffs)
-    @property
-    def fourier_coeffs(self):
-        if self._shift is not None and (
-                not isinstance(self._shift, (int, float, np.integer, np.floating))
-                or self._shift != 0
-        ):
-            self._poly_coeffs = self._compute_shifted_coeffs(
-                self.coeffs,
-                self._shift
-            )
-            self._shift = None
-            self._fourier_coeffs = None
-        if self._fourier_coeffs is None:
-            self._fourier_coeffs = self._padded_fft(self._poly_coeffs, self._fourier_shape)
-        return self._fourier_coeffs
-    @fourier_coeffs.setter
-    def fourier_coeffs(self, cs):
-        self._fourier_coeffs = cs
-
-    def __mul__(self, other):
-        if isinstance(other, PTPoly):
-            if self.fourier_shape != other.fourier_shape: # need to cast to consistent shape
-                if len(self.fourier_shape) != len(other.fourier_shape):
-                    raise ValueError("can't force shape {} into shape {}".format(
-                        self.shape,
-                        other.shape
-                    ))
-                consistent_shape = [
-                    max(s1, s2)
-                    for s1, s2 in zip(
-                        self.fourier_shape,
-                        other.fourier_shape
-                    )
-                ]
-                fcs = self._padded_fft(self.coeffs, consistent_shape)
-                ocs = other._padded_fft(other.coeffs, consistent_shape)
-            else:
-                fcs = self.fourier_coeffs
-                ocs = other.fourier_coeffs
-            return PTPoly(
-                None,
-                fourier_coeffs=fcs*ocs,
-                poly_shape=[
-                    s+o-1
-                    for s,o in zip(self.shape, other.shape)
-                ],
-                shift=None,
-                prefactor=self.scaling * other.scaling
-            )
-        else:
-            return PTPoly(
-                self._poly_coeffs,
-                fourier_coeffs=self._fourier_coeffs,
-                shift=self.shift,
-                prefactor=self.scaling * other
-            )
-
-    def __add__(self, other):
-        if isinstance(other, PTPoly):
-            if self.shape != other.shape:  # need to cast to consistent shape
-                if len(self.fourier_shape) != len(other.fourier_shape):
-                    raise ValueError("can't force shape {} into shape {}".format(
-                        self.shape,
-                        other.shape
-                    ))
-                consistent_shape = [
-                    max(s1, s2)
-                    for s1, s2 in zip(
-                        self.fourier_shape,
-                        other.fourier_shape
-                    )
-                ]
-                fcs = np.pad(self.coeffs,
-                             [[0, c-s] for c,s in zip(consistent_shape, self.shape)]
-                             )
-                ocs = np.pad(other.coeffs,
-                             [[0, c-s] for c,s in zip(consistent_shape, other.shape)]
-                             )
-            else:
-                fcs = self.coeffs
-                ocs = other.coeffs
-            return PTPoly(
-                fcs + ocs,
-                fourier_coeffs=None,
-                shift=None,
-                prefactor=self.scaling * other.scaling
-            )
-        else:
-            if self.scaling != 1:
-                other = other / self.scaling
-            new = self.coeffs.copy().flatten()
-            new[0] += other
-            new = new.reshape(self.coeffs.shape)
-            return PTPoly(
-                new,
-                fourier_coeffs=None,
-                fourier_shape=self.fourier_shape,
-                shift=self.shift,
-                prefactor=self.scaling
-            )
-
-    def shift(self, shift):
-        if not isinstance(shift, (int, np.integer, float, np.floating)):
-            shift = np.asanyarray(shift)
-        return PTPoly(
-            self._poly_coeffs,
-            fourier_coeffs=self._fourier_coeffs,
-            poly_shape=self._poly_shape,
-            fourier_shape=self._fourier_shape,
-            shift=(0 if self._shift is None else self._shift) + shift,
-            prefactor=self._scaling
-        )
-    @classmethod
-    def _compute_shifted_coeffs(cls, poly_coeffs, shift):
-        # if fourier_coeffs is None:
-        #     raise ValueError("need fourier coeffs for shifted coeff calc")
-        if poly_coeffs.ndim == 1:
-            shift = [shift]
-        factorial_terms = np.array([np.math.factorial(x) for x in range(poly_coeffs.shape[0])])
-        for s in poly_coeffs.shape[1:]:
-            factorial_terms = np.expand_dims(factorial_terms, -1) * np.reshape(
-                np.array([np.math.factorial(x) for x in range(s)]),
-                [1]*factorial_terms.ndim + [s]
-            )
-
-        shift_terms = np.power(shift[0], np.arange(poly_coeffs.shape[0]))
-        for f,s in zip(shift[1:], poly_coeffs.shape[1:]):
-            shift_terms = np.expand_dims(shift_terms, -1) * np.reshape(
-                np.power(f, np.arange(s)),
-                [1]*shift_terms.ndim + [s]
-            )
-
-        rev_fac = factorial_terms
-        for i in range(factorial_terms.ndim):
-            rev_fac = np.flip(rev_fac, axis=i)
-            shift_terms = np.flip(shift_terms, axis=i)
-
-        poly_terms = poly_coeffs * factorial_terms
-        shift_terms = shift_terms / rev_fac
-
-        padded_shape = [
-            s+o-1
-            for s, o in zip(
-                poly_terms.shape,
-                shift_terms.shape
-            )
-        ]
-
-        fcs = cls._padded_fft(poly_terms, padded_shape)
-        ocs = cls._padded_fft(shift_terms, padded_shape)
-
-        new = cls.ifft(fcs * ocs)
-        for s in reversed(poly_terms.shape):
-            new = np.moveaxis(new, -1, 0)
-            new = new[-s:]
-        new = new / factorial_terms
-
-        return new
-
-    @classmethod
-    def _cook_nd_args(cls, a, invreal=0):  # pulled from numpy
-        shapeless = 1
-        s = list(a.shape)
-        axes = list(range(-len(s), 0))
-        # if invreal and shapeless:
-        #     s[-1] = (a.shape[axes[-1]] - 1) * 2
-        return s, axes
-
-    @classmethod
-    def _execute_dft(cls, x, sign=-1):
-        # This is slow compared to Numpy, but fast enough for convenience
-        # especially as we expect to be able to
-        N = len(x)
-        n = np.arange(N)
-        k = n.reshape((N, 1))
-        e = np.exp(sign*2j * np.pi * k * n / N)
-
-        return np.dot(e, x)
-        # return [sum(eei*xi for eei,xi in zip(ee, x)) for ee in e]
-
-    # @classmethod
-    # def _execute_real_dft(cls, x):
-    #     # need a simple real-only implementation of Cooley-Tukey DFT
-
-    @classmethod
-    def _base_fft(cls, a, n=None, inv_norm=None, axis=-1, sign=None):  # adapted from numpy.fft
-        a = np.asanyarray(a)
-        if n is None:
-            n = a.shape[axis]
-        # output = _raw_fft(a, n, axis, False, True, inv_norm)
-
-        if axis < 0:
-            axis = a.ndim + axis
-        if n is None:
-            n = a.shape[axis]
-
-        if a.shape[axis] != n:
-            s = list(a.shape)
-            index = [slice(None)] * len(s)
-            if s[axis] > n:
-                index[axis] = slice(0, n)
-                a = a[tuple(index)]
-            else:
-                index[axis] = slice(0, s[axis])
-                s[axis] = n
-                z = np.zeros(s, a.dtype.char)
-                z[tuple(index)] = a
-                a = z
-
-        fct = 1 / inv_norm(n)
-        if axis == a.ndim - 1:
-            r = fct * cls._execute_dft(a, sign=sign)
-        else:
-            a = np.swapaxes(a, axis, -1)
-            r = fct * cls._execute_dft(a, sign=sign)
-            r = np.swapaxes(r, axis, -1)
-
-        return r
-
-    @classmethod
-    def symbolic_fft(cls, a, n=None, axis=-1):
-        return cls._base_fft(a, n=n, axis=axis, inv_norm=lambda n:1, sign=-1)
-    @classmethod
-    def symbolic_ifft(cls, a, n=None, axis=-1):
-        return cls._base_fft(a, n=n, axis=axis, inv_norm=lambda n:n, sign=1)
-
-    @classmethod
-    def symbolic_fftn(cls, a):
-        a = np.asanyarray(a)
-        s, axes = cls._cook_nd_args(a)
-        itl = list(range(len(axes)))
-        itl.reverse()
-        for ii in itl:
-            a = cls.symbolic_fft(a, n=s[ii], axis=axes[ii])
-        return a
-    @classmethod
-    def symbolic_ifftn(cls, a):
-        a = np.asanyarray(a)
-        s, axes = cls._cook_nd_args(a)
-        itl = list(range(len(axes)))
-        itl.reverse()
-        for ii in itl:
-            a = cls.symbolic_ifft(a, n=s[ii], axis=axes[ii])
-        return a
-
-    @classmethod
-    def fft(cls, a, clip=True):
-        a = np.asanyarray(a)
-        if a.dtype == object:
-            if a.ndim > 1:
-                base = cls.symbolic_fftn(a)
-                if clip:
-                    base = np.apply_along_axis(
-                        lambda x: x.clip() if isinstance(x, TensorCoeffPoly) else x,
-                        -1,
-                        base
-                    )
-            else:
-                base = cls.symbolic_fft(a)
-                if clip:
-                    base = np.array([
-                        x.clip() if isinstance(x, TensorCoeffPoly) else x
-                        for x in base
-                    ], dtype=base.dtype)
-            return base
-        else:
-            if a.ndim > 1:
-                return np.fft.fftn(a)
-            else:
-                return np.fft.fft(a)
-
-    @classmethod
-    def ifft(cls, a, clip=True):
-        a = np.asanyarray(a)
-        if a.dtype == object:
-            if a.ndim > 1:
-                base = cls.symbolic_ifftn(a)
-                if clip:
-                    base = np.apply_along_axis(
-                        lambda x: x.real().clip() if isinstance(x, TensorCoeffPoly) else np.real(x),
-                        -1,
-                        base
-                    )
-            else:
-                base = cls.symbolic_ifft(a)
-                if clip:
-                    base = np.array([
-                        x.real().clip() if isinstance(x, TensorCoeffPoly) else np.real(x)
-                        for x in base
-                    ], dtype=base.dtype)
-            return base
-        else:
-            if a.ndim > 1:
-                base = np.fft.ifftn(a)
-            else:
-                base = np.fft.ifft(a)
-            if clip:
-                base = np.real(base)
-            return base
-
-class RaisingLoweringPolynomial(PTPoly):
-    """
-    The polynomial induced by _a_ raising operations and _b_ lowering ops
-    """
-    _stirlings = None
-    _binomials = None
-    def __init__(self, a, b, prefactor, shift=None):
-        if b > a:
-            shift = b-a + (0 if shift is None else shift)
-            a, b = b, a
-        prefactor = self.binom(a+b, a)*(1 if prefactor is None else prefactor)
-        super().__init__(
-            self.get_reduced_raising_lowering_coeffs(a, b),
-            prefactor=prefactor,
-            shift=shift
-        )
-    @classmethod
-    def s1(cls, i, j):
-        if cls._stirlings is None or cls._stirlings.shape[0] <= i or cls._stirlings.shape[0] <= j:
-            cls._stirlings = StirlingS1(2**np.ceil(np.log2(max([64, i, j]))))
-        return cls._stirlings[i, j]
-    @classmethod
-    def binom(cls, i, j):
-        if cls._binomials is None or cls._binomials.shape[0] <= i or cls._binomials.shape[0] <= j:
-            cls._binomials = Binomial(2 ** np.ceil(np.log2(max([64, i, j]))))
-        return cls._binomials[i, j]
-    @classmethod
-    def get_reduced_raising_lowering_coeffs(cls, a, b):
-        return np.array([
-            sum(
-                (cls.s1(b-j, w)*cls.binom(a, w)*cls.binom(b, w)*np.math.factorial(w)/2**w)
-                for w in range(0, b-j+1)
-            )
-        for j in range(0, b+1)
-        ])
-
-# class PTProductPoly:
-#     """
-#     Provides a nicer way to handle multidimensional product polynomials
-#     """
-#     def __init__(self, poly_terms):
-#         self.terms = poly_terms # an iterable of 1D polys
-#     def
-
-class TensorCoeffPoly:
-    """
-    A semi-symbolic representation of a polynomial of tensor
-    coefficients
-    """
-
-    def __init__(self, terms:dict, prefactor=1):
-        self.terms = terms
-        self.prefactor = prefactor
-    def expand(self):
-        if self.prefactor == 1:
-            return self
-        else:
-            return TensorCoeffPoly({k:self.prefactor*v for k,v in self.terms.items()}, prefactor=1)
-    @classmethod
-    def monomial(cls, idx, value=1):
-        return cls({(idx,):value})
-    def __repr__(self):
-        return "{}({},{})".format(type(self).__name__, self.terms,self.prefactor)
-
-    @classmethod
-    def idx_hash(cls, idx_tuple):
-        # hashes tuples of indices to give a fast check that the tuples
-        # are the same independent of ordering
-        return sum(hash(x) for x in idx_tuple)
-
-    @classmethod
-    def _canonical_idx(cls, idx):
-        # we need a way to sort indices, which we do by grouping by key length,
-        # doing a standard sort for each length, and reconcatenating
-        s_groups = {}
-        for i in idx:
-            l = len(i)
-            grp = s_groups.get(l, [])
-            s_groups[l] = grp
-            grp.append(i)
-        t = tuple(
-            i
-            for k in sorted(s_groups.keys())
-            for i in sorted(s_groups[k])
-        )
-        return t
-
-    def __mul__(self, other):
-        if isinstance(other, (int, float, np.integer, np.floating)):
-            if other == 1:
-                return self
-            elif other == 0:
-                return TensorCoeffPoly({})
-        if isinstance(other, TensorCoeffPoly):
-            new_terms = {}
-            term_hashes = {}
-            for k,v in other.terms.items():
-                for k2,v2 in self.terms.items():
-                    new_hash = self.idx_hash(k) + self.idx_hash(k2)
-                    if new_hash in term_hashes:
-                        t = term_hashes[new_hash]
-                    else:
-                        t = self._canonical_idx(k + k2)
-                        term_hashes[new_hash] = t
-                    new_terms[t] = new_terms.get(t, 0) + v * v2
-                    if new_terms[t] == 0:
-                        del new_terms[t]
-            return TensorCoeffPoly(new_terms, self.prefactor*other.prefactor)
-        else:
-            return TensorCoeffPoly(self.terms, self.prefactor*other)
-            # new_terms = {}
-            # for k,v in self.terms.items():
-            #     new_terms[k] = self.prefactor*other*v
-            # return TensorCoeffPoly(new_terms)
-    def __rmul__(self, other):
-        return self * other
-
-    def __add__(self, other):
-        if isinstance(other, (int, float, np.integer, np.floating)):
-            if other == 0:
-                return self
-        self = self.expand()
-        new_terms = {}
-        if isinstance(other, TensorCoeffPoly):
-            other = other.expand()
-            for s in other.terms.keys() & self.terms.keys():
-                v = other.terms[s]
-                v2 = self.terms[s]
-                new = v + v2
-                if new != 0:
-                    new_terms[s] = new
-            for o in other.terms.keys() - self.terms.keys():
-                new_terms[o] = other.terms[o]
-            for o in self.terms.keys() - other.terms.keys():
-                new_terms[o] = self.terms[o]
-        else:
-            for k2, v2 in self.terms.items():
-                new = v2 + other
-                if new != 0:
-                    new_terms[k2] = new
-        if len(new_terms) == 0:
-            return 0
-        return TensorCoeffPoly(new_terms)
-    def __radd__(self, other):
-        return self + other
-    def __truediv__(self, other):
-        return self * (1/other)
-    # def __rtruediv__(self, other):
-    #     return other * (1/self)
-
-    def real(self):
-        return TensorCoeffPoly({i:np.real(v) for i,v in self.terms.items()}, self.prefactor)
-    def clip(self, decimals=14):
-        threshold = 10**(-decimals)
-        new_terms = {
-            i: np.round(v, decimals)
-            for i, v in self.terms.items()
-            if np.abs(self.prefactor*v) > threshold
-        }
-        if len(new_terms) == 0:
-            return 0
-        return TensorCoeffPoly(new_terms, self.prefactor)
-
-
-class PossiblePathTree:
-    """
-    A tree representing the different paths to change quanta by _k_ given
-    `block_sizes` encoding how the different numbers raising/lowering operations
-    for the different operators
-    """
-    def __init__(self, k, block_sizes):
-        self.delta = k
-        self.blocks = block_sizes
-
 
 class RaisingLoweringClasses:
     """
@@ -641,46 +43,181 @@ class RaisingLoweringClasses:
             change_sums = np.flip(np.cumsum(np.flip(self.changes)))[1:]
             for t in self._enum_changes_rec(self.nterms, self.changes, change_sums): yield t
 
-class AnalyticPTOperator:
-    """
-    Provides a concrete representation for an operator
-    that induces a polynomial for a given set of quanta changes
-    """
-    def __init__(self, terms, coeff_generator):
-        self.spec = terms
-        self.nterms = len(terms)
-        self.coeffs = coeff_generator
-    def get_poly(self, changes, shifts):
-        t_change = sum(abs(x) for x in changes)
-        if t_change > self.nterms or (t_change%2) != (self.nterms%2):
-            return 0
-        # enumerate all paths over the given number of terms
-        # that can lead to these changes
-
-        for c in RaisingLoweringClasses(self.nterms, changes):
-            # enumerate all paths of length
-
-            for (a,b),s in zip(c, shifts):
-                p = RaisingLoweringPolynomial(a, b, s)
-
-class OperatorProductTerm:
+class AnalyticPTPolynomialGenerators:
     """
     Provides a generic wrapper for an operator term
     given the operator identities (strings of p/q terms)
     and the breakpoint for switching from `Pi_n` to `Pi_m`
+
+    Makes use of `HarmonicMatrixGenerator` to get polynomial coefficients in the
+    different dimensions
     """
 
-    def __init__(self, pt_operators):
-        self.operators = pt_operators
+    def __init__(self, matrix_generators):
+        self.generator_lists = matrix_generators # a 2D array of generators, as dimension x steps
 
-    def get_poly(self, changes):
+    @classmethod
+    def get_1D_path_contrib(cls, generators, path):
         """
+        For a given set of energy changes in 1D provides the polynomial
+        contribution and associated states
+
+
+        :param generators:
+        :param path:
+        :return:
+        """
+        shifts = [0]*len(path)
+        k = 0
+        poly = None
+        for i,(g,(a,b)) in enumerate(zip(generators, path)):
+            d = a - b
+            if g is not None:
+                poly_contrib = g.get_poly_coeffs(d, shift=k)
+                if d != 0:
+                    dir_change = np.sign(d) == -np.sign(k)  # avoid the zero case
+                    if dir_change:
+                        sqrt_contrib = HarmonicOscillatorRaisingLoweringPolyTerms.get_sqrt_remainder_coeffs(d, k)
+                        # print(f" s({a},{b})({k})>", sqrt_contrib)
+                        poly_contrib = scipy.signal.convolve(poly_contrib, sqrt_contrib)
+                if poly is None:
+                    poly = poly_contrib
+                else:
+                    poly = scipy.signal.convolve(poly, poly_contrib)
+                shifts[i] = k + d
+
+        return poly, shifts
+
+    def get_correction_poly_generator(self, changes):
+        """
+        Provides the polynomial corresponding to changing quanta
+        by the proscribed integer partition
 
         :param changes:
         :type changes:
         :return:
         :rtype:
         """
+
+        paths_1D = [
+            HarmonicOscillatorMatrixGenerator.get_paths(
+                [g.size for g in gl],
+                delta
+            )
+            for gl,delta in zip(self.generator_lists, changes)
+        ]
+        poly_shifts = [
+            [self.get_1D_path_contrib(gl, p) for p in paths]
+            for gl,paths in zip(self.generator_lists, paths_1D)
+        ]
+        polys = [
+            [p[0] for p in pi]
+            for pi in poly_shifts
+        ]
+        shifts = [
+            [p[1] for p in pi]
+            for pi in poly_shifts
+        ]
+        # full set of polynomial terms are now direct product of these 1D terms...
+        return self.DirectProductContribPoly(polys, shifts)
+
+class AnalyticPTCorrectionGenerator:
+    """
+    Takes strings of `x`/`p` terms plus tensor identities and uses them to
+    generate a correction
+    """
+
+    def __init__(self, terms):
+        self.terms = terms
+        self.sizes = [len(t) for t in terms]
+        self.total_terms = sum(self.sizes)
+
+    def _build_operator_split_trees(self, boxes, steps, generator, cache):
+        # TODO: huge amount of waste that could be pruned here...
+        #       by making use of the tree structure of the problem
+        #       and turning the sets of boxes into a trie so invalid combos
+        #       aren't tried repeatedly, also we have a bunch of permutation symmetry
+        #       we aren't making use of that could reduce work across the entrie calculation
+        s = steps[0]
+        if s not in cache:
+            cache[s] = generator.get_terms(s) # could probably be faster...
+
+        parts = cache[s]
+        new_boxes = boxes[np.newaxis] - parts # this could be done smarter I think
+        good_places = np.all(new_boxes >= 0, axis=1)
+
+        if len(steps) > 1:
+            new_trees = []
+            for subbox, part in zip(new_boxes[good_places,], parts[good_places,]):
+                subtree = self._build_operator_split_trees(subbox, steps[1:], generator, cache)
+                new_trees.append(
+                    np.concatenate(
+                        [
+                            np.broadcast_to(part[np.newaxis, np.newaxis], (subtree.shape[0], 1, subtree.shape[2])),
+                            subtree  # num_terms x num_steps x num_terms
+                        ],
+                        axis=1
+                    )
+                )
+            tree = np.concatenate(new_trees, axis=0)
+        else:
+            tree = parts[good_places,][:, np.newaxis, :]
+
+        return tree
+
+    def enumerate_operator_partitions(self, changes):
+        # we have a set of operators with sizes {s_i}
+        # which must be distributed over D dimensions where
+        # D depends on how many terms are left over after subtracting
+        # off the requisite terms to cause `changes`
+        #
+        # To do this we enumerate the partitions of the total number of steps
+        # that distribute enough terms into each dimension and then for each of
+        # these partitions we find the sets of partitions of the sizes that lead
+        # to a valid solutions
+
+        changes = np.abs(changes)
+        total_change = np.sum(changes)
+        remainder_terms = self.total_terms - total_change
+        if remainder_terms % 2 != 0:
+            raise ValueError("need even remainder by symmetry")
+        total_dim = len([c for c in changes if c != 0]) + remainder_terms // 2
+
+        changes = np.pad(changes, [0, total_dim - len(changes)])
+
+        targets = IntegerPartitioner.partitions(self.total_terms, max_len=total_dim, pad=True)
+        check_changes = targets - changes[np.newaxis, :]
+        good_targets = np.all(check_changes >= 0, axis=1)
+        targets = targets[good_targets]
+
+        generator = SymmetricGroupGenerator(total_dim)
+        cache = {}
+
+        base_tree = np.concatenate(
+            [
+                self._build_operator_split_trees(t, self.sizes, generator, cache)
+                for t in targets
+            ], axis=0
+        )
+
+        even_check = np.sum(base_tree, axis=1) - changes[np.newaxis, :]
+        symmetric_trees = np.all(even_check % 2 == 0, axis=1)
+
+        return base_tree[symmetric_trees,]
+
+    def get_correction(self, changes):
+            # Step 1: determine the distinct ways to split the terms up
+            #         that can generate the change
+            # Step 2: create a set of matrix generators for each of these sets
+            # Step 3: set up the 1D poly/energy change lists that will eventually
+            #         be direct product-ed
+            # Step 4: return these + the associated tensor coefficient product to be
+            #         collated into a single sparse polynomial
+            operator_sets = self.enumerate_operator_partitions(changes)
+
+            raise Exception(operator_sets)
+
+
 
 
 

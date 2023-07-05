@@ -35,8 +35,18 @@ class VPT2Tests(TestCase):
     #         # logger=True
     #     )
 
-    @validationTest
+    @debugTest
     def test_AnalyticPTOperators(self):
+
+        AnalyticPTCorrectionGenerator(
+            [
+                ['x', 'x', 'x'],
+                ['x'],
+                ['p', 'x', 'p']
+            ]
+        ).get_correction([3, 0])
+
+        raise Exception(...)
 
         coeffs = np.array([
             TensorCoeffPoly({((1, 0, 0),):2, ((0, 1, 0),):1}),
@@ -117,7 +127,7 @@ class VPT2Tests(TestCase):
         # raise Exception(op.poly_sum())
 
 
-    @debugTest
+    @validationTest
     def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
@@ -311,7 +321,6 @@ class VPT2Tests(TestCase):
                 for subblock in block.lines:
                     print(subblock.tag)
 
-
     @validationTest
     def test_IHOHExcited(self):
         wfns = VPTRunner.run_simple(
@@ -397,6 +406,113 @@ class VPT2Tests(TestCase):
                 os.path.expanduser(f"~/Desktop/specks/state_depert_{s}.pdf"),
                 transparent=True
             )
+
+    @validationTest
+    def test_HOHVPTAnneManip(self):
+
+        runner, _ = VPTRunner.helpers.run_anne_job(
+            TestManager.test_data("vpt2_helpers_api/hod/r"),
+            return_runner=True,
+            order=2,
+            expansion_order=2
+        )
+        # runner, opts = VPTRunner.construct('HOH', 3)
+
+        # Collect expansion data from runner
+        H = runner.hamiltonian
+        V = H.V_terms
+        freqs = np.diag(V[0]) # how they actually get fed into the code...
+        G = H.G_terms
+        U = H.pseudopotential_term
+        D = H.expansion_options['dipole_terms'] # these usually get fed forward to the wave functions
+
+        # raise Exception([[x.shape if isinstance(x, np.ndarray) else x for x in D[a]] for a in range(3)])
+
+        # Define new shifted frequencies
+        frequency_shift = np.array([-1, 0, 0]) * UnitsData.convert("Wavenumbers", "Hartrees")
+        new_freqs = freqs + frequency_shift
+
+        # Rescale parameters
+        scaling_factor = np.sqrt(new_freqs) / np.sqrt(freqs)
+        # we use NumPy broadcasting tricks to rescale everything
+
+        G[2] # this requires the highest-order derivatives, so by doing it first and letting everything
+             # cache less junk gets printed to screen
+
+        v_expansion = [
+            # d V /dq_i dq_j
+            V[0] * (scaling_factor[:, np.newaxis] * scaling_factor[np.newaxis, :]),
+            # d V /dq_i dq_j dq_k
+            V[1] * (
+                    scaling_factor[:, np.newaxis, np.newaxis] *
+                    scaling_factor[np.newaxis, :, np.newaxis] *
+                    scaling_factor[np.newaxis, np.newaxis, :]
+            ),
+            # d V /dq_i dq_j dq_k dq_l
+            V[2] * (
+                    scaling_factor[:, np.newaxis, np.newaxis, np.newaxis] *
+                    scaling_factor[np.newaxis, :, np.newaxis, np.newaxis] *
+                    scaling_factor[np.newaxis, np.newaxis, :, np.newaxis] *
+                    scaling_factor[np.newaxis, np.newaxis, np.newaxis, :]
+            ),
+        ]
+
+        # For the momentum axes we _divide_ by the scaling factor
+        g_expansion = [
+            # Formally we should be dividing by this scaling factor, but to make sure
+            # V[0] == G[0] we multiply
+            # G_i,j
+            G[0] * (scaling_factor[:, np.newaxis] * scaling_factor[np.newaxis, :]),
+            # For the derivatives, we do the scaling correct
+            # d G_j,k / dq_i (i.e. q-index corresponds to axis 0)
+            G[1] * (
+                    scaling_factor[:, np.newaxis, np.newaxis] /
+                    scaling_factor[np.newaxis, :, np.newaxis] /
+                    scaling_factor[np.newaxis, np.newaxis, :]
+            ),
+            # d G_k,l / dq_i dq_j (i.e. q-indices correspond to axes 0,1)
+            G[2] * (
+                    scaling_factor[:, np.newaxis, np.newaxis, np.newaxis] * # Note that we multiply for the first two axes
+                    scaling_factor[np.newaxis, :, np.newaxis, np.newaxis] /
+                    scaling_factor[np.newaxis, np.newaxis, :, np.newaxis] /
+                    scaling_factor[np.newaxis, np.newaxis, np.newaxis, :]
+            )
+        ]
+
+        # I haven't done the math to figure out how exactly u should transform
+        u_expansion = [U[0]]
+
+        d_expansion = [
+            [
+                D[a][0],  # mu_a
+                # d mu_a / dq_i
+                D[a][1] * scaling_factor[:],
+                # d mu_a / dq_i dq_j
+                D[a][2] * (
+                        scaling_factor[:, np.newaxis] *
+                        scaling_factor[np.newaxis, :]
+                ),
+                # d mu_a / dq_i dq_j dq_k
+                D[a][3] * (
+                        scaling_factor[:, np.newaxis, np.newaxis] *
+                        scaling_factor[np.newaxis, :, np.newaxis] *
+                        scaling_factor[np.newaxis, np.newaxis, :]
+                )
+            ]
+            for a in range(3)  # loop over the x, y, and z axes
+        ]
+
+        new_runner, _ = VPTRunner.construct(
+            runner.system.mol, # not actually used
+            runner.states.state_list,
+            potential_terms=v_expansion,
+            kinetic_terms=g_expansion,
+            pseudopotential_terms=u_expansion,
+            dipole_terms=d_expansion
+        )
+
+        runner.print_tables() # runs the code and prints the IR tables
+        new_runner.print_tables()
 
     @validationTest
     def test_HOHPartialQuartic(self):

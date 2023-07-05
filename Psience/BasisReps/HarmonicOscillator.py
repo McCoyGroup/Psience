@@ -5,7 +5,8 @@ Provides representations based on starting from a harmonic oscillator basis
 __all__ = [
     "HarmonicOscillatorBasis",
     "HarmonicOscillatorProductBasis",
-    "HarmonicOscillatorMatrixGenerator"
+    "HarmonicOscillatorMatrixGenerator",
+    "HarmonicOscillatorRaisingLoweringPolyTerms"
 ]
 
 import scipy.sparse as sp, numpy as np, functools, itertools
@@ -19,6 +20,7 @@ from McUtils.Data import WavefunctionData
 from McUtils.Scaffolding import MaxSizeCache
 import McUtils.Numputils as nput
 from McUtils.Combinatorics import StirlingS1, Binomial
+from McUtils.Zachary import DensePolynomial
 
 class HarmonicOscillatorBasis(RepresentationBasis):
     """
@@ -244,7 +246,7 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
 default_cache_size = 128
 
 
-class RaisingLoweringPolyTerms:
+class HarmonicOscillatorRaisingLoweringPolyTerms:
     """
     The polynomial induced by _a_ raising operations and _b_ lowering ops
     """
@@ -259,21 +261,21 @@ class RaisingLoweringPolyTerms:
         prefactor = cls.binom(a + b, a)
         coeffs = prefactor * cls.get_reduced_raising_lowering_coeffs(a, b)
         if shift != 0:
-            coeffs = cls._compute_shifted_coeffs(coeffs, shift)
+            coeffs = DensePolynomial._compute_shifted_coeffs(coeffs, shift)
         return coeffs
 
     @classmethod
-    def get_sqrt_remainder_coeffs(cls, a, b, k):
+    def get_sqrt_remainder_coeffs(cls, delta, k):
         # provides rising or falling coeffs with a starting shift
         # by essentially only providing rising coeffs but
         # shifting appropriately
-        d = min(abs(a - b), abs(k))
-        if a == b:
+        d = min(abs(delta), abs(k))
+        if delta == 0:
             return 1
-        elif a < b:
+        elif delta < 0:
             # we're falling towards zero from above, so we shift our starting point
             # and swap the ordering so we can use a rising fac instead
-            k = k - d
+            k = k + d
         # because of the asymmetry of falling and rising
         # we shift our starting point
         k = k + 1
@@ -287,49 +289,6 @@ class RaisingLoweringPolyTerms:
                 )
                 for l in range(0, d+1)
             ])
-
-    @classmethod
-    def _compute_shifted_coeffs(cls, poly_coeffs, shift):
-        # if fourier_coeffs is None:
-        #     raise ValueError("need fourier coeffs for shifted coeff calc")
-        if poly_coeffs.ndim == 1:
-            shift = [shift]
-
-        # factorial outer product
-        factorial_terms = np.array([np.math.factorial(x) for x in range(poly_coeffs.shape[0])])
-        for s in poly_coeffs.shape[1:]:
-            factorial_terms = np.expand_dims(factorial_terms, -1) * np.reshape(
-                np.array([np.math.factorial(x) for x in range(s)]),
-                [1] * factorial_terms.ndim + [s]
-            )
-        # shift outer product
-        shift_terms = np.power(shift[0], np.arange(poly_coeffs.shape[0]))
-        for f, s in zip(shift[1:], poly_coeffs.shape[1:]):
-            shift_terms = np.expand_dims(shift_terms, -1) * np.reshape(
-                np.power(f, np.arange(s)),
-                [1] * shift_terms.ndim + [s]
-            )
-
-        # build shifted polynomial coefficients
-        rev_fac = factorial_terms
-        for i in range(factorial_terms.ndim):
-            rev_fac = np.flip(rev_fac, axis=i)
-            shift_terms = np.flip(shift_terms, axis=i)
-
-        poly_terms = poly_coeffs * factorial_terms
-        shift_terms = shift_terms / rev_fac
-
-        new = scipy.signal.convolve(
-            poly_terms,
-            shift_terms
-        )
-
-        for s in reversed(poly_terms.shape):
-            new = np.moveaxis(new, -1, 0)
-            new = new[-s:]
-        new = new / factorial_terms
-
-        return new
 
     @classmethod
     def s1(cls, i, j):
@@ -500,6 +459,12 @@ class HarmonicOscillatorMatrixGenerator:
             return paths
 
     @classmethod
+    def get_paths(cls, sizes, change):
+        cumsums = np.flip(np.cumsum(np.flip(sizes)))
+        # print("===", delta, "===")
+        return cls._enumerate_path(sizes, cumsums[1:], change)
+
+    @classmethod
     def _build_xp_blocks(self, terms):
         parities = []
         sizes = []
@@ -519,6 +484,39 @@ class HarmonicOscillatorMatrixGenerator:
             sizes.append(s)
         return np.array(sizes), np.array(parities)
 
+    @classmethod
+    def get_path_poly(cls, path, parities=None):
+        poly_contrib = None
+        k = 0
+        # print(">>>", path, parities)
+        if parities is None:
+            parities = [1]*len(path)
+
+        total_parity = 1
+        for (a, b), p in zip(reversed(path), parities):
+            total_parity *= p ** b
+            coeffs = HarmonicOscillatorRaisingLoweringPolyTerms.get_poly_coeffs(a, b, k)
+            # print(f" p({a},{b})({k})>", coeffs)
+            if poly_contrib is None:
+                poly_contrib = coeffs
+            else:
+                poly_contrib = scipy.signal.convolve(poly_contrib, coeffs)
+
+            d = a - b
+            if d != 0:
+                dir_change = np.sign(d) == -np.sign(k)  # avoid the zero case
+                if dir_change:
+                    sqrt_contrib = HarmonicOscillatorRaisingLoweringPolyTerms.get_sqrt_remainder_coeffs(d, k)
+                    # print(f" s({a},{b})({k})>", sqrt_contrib)
+                    poly_contrib = scipy.signal.convolve(poly_contrib, sqrt_contrib)
+            k = k + d
+            # print("..>", poly_contrib)
+        # print("+->", total_parity)
+        poly_contrib *= total_parity
+        # print(" > ", poly_contrib)
+
+        return poly_contrib
+
     _size_blocks_cache = MaxSizeCache()
     @classmethod
     def _get_poly_coeffs(cls, terms, delta):
@@ -537,31 +535,7 @@ class HarmonicOscillatorMatrixGenerator:
         cumsums = np.flip(np.cumsum(np.flip(sizes)))
         # print("===", delta, "===")
         for path in cls._enumerate_path(sizes, cumsums[1:], delta):
-            poly_contrib = None
-            k = 0
-            # print(">>>", path, parities)
-            total_parity = 1
-            for (a,b),p in zip(reversed(path), parities): #TODO: fix parity issues
-                total_parity *= p**b
-                coeffs =  RaisingLoweringPolyTerms.get_poly_coeffs(a, b, k)
-                # print(f" p({a},{b})({k})>", coeffs)
-                if poly_contrib is None:
-                    poly_contrib = coeffs
-                else:
-                    poly_contrib = scipy.signal.convolve(poly_contrib, coeffs)
-
-                d = a - b
-                if d != 0:
-                    dir_change = np.sign(d) == -np.sign(k) # avoid the zero case
-                    if dir_change:
-                        sqrt_contrib = RaisingLoweringPolyTerms.get_sqrt_remainder_coeffs(a, b, k)
-                        # print(f" s({a},{b})({k})>", sqrt_contrib)
-                        poly_contrib = scipy.signal.convolve(poly_contrib, sqrt_contrib)
-                k = k + d
-                # print("..>", poly_contrib)
-            # print("+->", total_parity)
-            poly_contrib*=total_parity
-            # print(" > ", poly_contrib)
+            poly_contrib = cls.get_path_poly(path, parities=parities)
 
             if poly is None:
                 poly = poly_contrib
@@ -575,18 +549,31 @@ class HarmonicOscillatorMatrixGenerator:
         return poly / np.sqrt(2)**len(terms)
 
     @classmethod
-    def poly_term_generator(cls, terms, delta):
+    def get_poly_coeffs(cls, terms, delta, shift=0):
         coeffs = cls._get_poly_coeffs(terms, delta)
+        if shift != 0:
+            coeffs = DensePolynomial._compute_shifted_coeffs(coeffs, shift=shift)
+        return coeffs
+
+    @classmethod
+    def poly_term_generator(cls, terms, delta, shift=0):
+        coeffs = cls.get_poly_coeffs(terms, delta, shift=shift)
         if not isinstance(coeffs, np.ndarray) and coeffs == 0:
             return lambda n: np.zeros(n.shape)
         else:
             orders = np.arange(len(coeffs))[:, np.newaxis]
             dstart = delta+1 if delta < 0 else 1
             dend = 1 if delta < 0 else delta + 1
-            return lambda n: np.dot(
-                coeffs,
-                np.power(n[np.newaxis, :], orders)
-            ) * np.sqrt(np.prod([n + i for i in range(dstart, dend)], axis=0))
+            if shift != 0:
+                return lambda n: np.dot(
+                    coeffs,
+                    np.power(n[np.newaxis, :], orders)
+                ) * np.sqrt(np.prod([n + i + shift for i in range(dstart, dend)], axis=0))
+            else:
+                return lambda n: np.dot(
+                    coeffs,
+                    np.power(n[np.newaxis, :], orders)
+                ) * np.sqrt(np.prod([n + i for i in range(dstart, dend)], axis=0))
 
     _partitions_cache = MaxSizeCache()
     @staticmethod
