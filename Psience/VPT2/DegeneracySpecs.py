@@ -429,9 +429,15 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
             extra_groups = []
         extra_groups = [(indexer.to_indices(g), np.asanyarray(g)) for g in extra_groups]
 
+        # print("premerge groups:", groups)
+
         groups = PermutationRelationGraph.merge_groups(
             [(g, indexer.from_indices(g)) for g in groups] + extra_groups
         )
+
+        # print("????", [g[0] for g in groups]) # need to track down why we're getting a negative index here
+                              # presumably from an integer overflow in a int8 or a conversion
+                              # of some sort...
 
         return [g[1] for g in groups]
 
@@ -584,14 +590,6 @@ class PolyadDegeneracySpec(DegeneracySpec):
                     _.append(sub)
                 groups = _
         groups = [g for g in groups if len(g) > 1]
-        # new = []
-        # for g in groups:
-        #     inds = SymmetricGroupGenerator(len(g[0])).to_indices(g)
-        #     print(inds)
-        #     print(g)
-        #     print("-"*50)
-        #     new.append(g[np.argsort(inds)])
-        # groups = new
         return groups
 
     @staticmethod
@@ -781,9 +779,6 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                 corrections = np.abs(corrections[:, group_inds].asarray().T)
                 max_corr = None
                 corrections[kill_spots] = 0
-                # print(group.excitations)
-                # print(states.excitations)
-                # raise Exception(corrections)
                 if max_corr is None:
                     max_corr = np.max(corrections, axis=1)
                 else:
@@ -815,8 +810,6 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             else:
                 e_vec = energies[group_inds]
                 bad_pos = np.where(np.abs(np.subtract.outer(e_vec, e_vec)) > energy_cutoff)
-                # print(">>>", group.excitations)
-                # print(bad_pos)
             if len(bad_pos) > 0 and len(bad_pos[0]) > 0:
                 N = len(group_inds)
                 base_corr = corrections
@@ -1029,6 +1022,11 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                     if not isinstance(s, BasisStateSpace) else s
                     for s in degenerate_states
                 ]
+
+                # dds = [d.indices for d in degenerate_states]
+                # neg_ps = [i for i,d in enumerate(dds) if np.any(d < 0)]
+
+                # print("DD:", neg_ps, [degenerate_states[i].excitations for i in neg_ps])
 
                 if log_groups:
                     with logger.block(tag="initial degenerate groups:"):

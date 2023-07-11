@@ -683,9 +683,11 @@ class BasisStateSpace(AbstractStateSpace):
                     self._max_ind = np.max(self.indices)
                 return self.full_basis.take(self.indices, max_size=self._max_ind, uncoerce=False)
 
+            # print(">>>", states.flatten().dtype, states.flatten())
             states, self._indexer, uinds, inv = nput.unique(states, sorting=self._indexer, return_index=True, return_inverse=True)
             self._sort_uinds = uinds
             self._uinds = np.sort(uinds)
+            # print(states.flatten().dtype, states.flatten())
             raw_exc = self.basis.unravel_state_inds(states.flatten())
             return raw_exc[inv]
         else:

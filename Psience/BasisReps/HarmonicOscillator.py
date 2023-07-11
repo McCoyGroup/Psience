@@ -338,6 +338,7 @@ class HarmonicOscillatorMatrixGenerator:
                     p_pos.append(i)
             self.p_pos = tuple(p_pos)
         self._state_group_cache = MaxSizeCache(self.state_cache_size)
+        self._poly_cache = {}
 
     def __repr__(self):
         return "{}({})".format(
@@ -547,6 +548,17 @@ class HarmonicOscillatorMatrixGenerator:
                 poly = poly + poly_contrib
 
         return poly / np.sqrt(2)**len(terms)
+
+    def poly_coeffs(self, delta, shift=0):
+        if (delta, shift) not in self._poly_cache:
+            if delta not in self._poly_cache:
+                self._poly_cache[delta] = self._get_poly_coeffs(self.terms, delta)
+            if shift != 0:
+                self._poly_cache[(delta, shift)] = DensePolynomial._compute_shifted_coeffs(self._poly_cache[delta], shift=shift)
+            else:
+                self._poly_cache[(delta, shift)] = self._poly_cache[delta]
+        return self._poly_cache[(delta, shift)]
+
 
     @classmethod
     def get_poly_coeffs(cls, terms, delta, shift=0):

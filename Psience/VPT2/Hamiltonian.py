@@ -372,6 +372,7 @@ class PerturbationTheoryHamiltonian:
             if o > 1:
                 oz = o - 2
                 if include_coriolis:
+                    #TODO: nail down exactly how the 4-th and higher-order extensions of this really work...
                     Z = self.coriolis_terms[oz]
                     if Z is not None:
                         if o > 0 and  isinstance(Z, np.ndarray) and excluded_modes is not None:

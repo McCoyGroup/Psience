@@ -38,15 +38,47 @@ class VPT2Tests(TestCase):
     @debugTest
     def test_AnalyticPTOperators(self):
 
-        AnalyticPTCorrectionGenerator(
+        raise Exception(
+            AnalyticPerturbationTheoryDriver.from_order(2).energy_correction_driver(
+                2
+            ).get_poly_evaluator(
+                [ # tensor coeffs
+                    [
+                        np.eye(3),
+                        np.eye(3),
+                    ],
+                    [
+                        np.ones((3, 3, 3)),
+                        np.ones((3, 3, 3))
+                    ],
+                    [
+                        np.ones((3, 3, 3, 3)),
+                        np.ones((3, 3, 3, 3)),
+                        1
+                    ]
+                ],
+                [1, 1, 1] # freqs
+            )
+        )
+
+        corrections = AnalyticPTCorrectionGenerator([
             [
                 ['x', 'x', 'x'],
-                ['x'],
+                ['p', 'x', 'p']
+            ],
+            # ['x'],
+            [
+                ['x', 'x', 'x'],
                 ['p', 'x', 'p']
             ]
-        ).get_correction([3, 0])
+        ]).get_correction([2])
 
-        raise Exception(...)
+        v1 = np.ones((3, 3, 3))
+        g1 = np.ones((3, 3, 3))
+
+        return corrections.evaluate([0, 0, 0], [[v1, g1], [v1, g1]], [1, 1, 1], 1)
+
+        raise Exception(corrections)
 
         coeffs = np.array([
             TensorCoeffPoly({((1, 0, 0),):2, ((0, 1, 0),):1}),
