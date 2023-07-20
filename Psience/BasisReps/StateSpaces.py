@@ -3254,7 +3254,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                                   )
                     if len(where_inds) > 0:
                         where_inds = np.sort(where_inds)
-                        changes[i_new] = np.concatenate([changes[i_new], c2[where_inds]])
+                        changes[i_new] = np.concatenate([changes[i_new], *[c2[w] for w in where_inds]], axis=0)
+                        # changes[i_new] = np.concatenate([changes[i_new], c2[where_inds]])
                     # print(" >", changes[i_new])
 
                 new_spaces[i_new] = new_spaces[i_new].union(

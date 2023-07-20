@@ -38,6 +38,60 @@ class VPT2Tests(TestCase):
     @debugTest
     def test_AnalyticPTOperators(self):
 
+        vpt2 = AnalyticPerturbationTheorySolver.from_order(4)
+        # print(
+        #     vpt2.hamiltonian_expansion[1].get_poly_terms([1, 1, 1])
+        # )
+        # print(vpt2.hamiltonian_expansion[1]([2, 1]))
+        # raise Exception(...)
+
+        E2 = vpt2.energy_correction(2)
+        Y1 = vpt2.wavefunction_correction(1)
+
+        h1y1 = E2.expressions[1]
+
+        raise Exception(
+            [
+                [p.prefactor for p in psum.polys]
+                for psum in h1y1.get_poly_terms(()).terms.values()
+            ]
+        )
+        jesus_fuck = E2([])
+
+        # for _ in vpt2.energy_correction(2).expressions[1].changes[()]:
+        #     print(_)
+
+        # test_sum = list(jesus_fuck.terms.values())[1]
+        # # for poly in test_sum.polys:
+        # #     print(poly.coeffs)
+        # raise Exception(test_sum, test_sum.combine())
+        # raise Exception(test_sum.polys[0].combine(test_sum.polys[1]).coeffs)
+
+
+        # load H20 parameters...
+        file_name = "HOH_freq.fchk"
+        from Psience.BasisReps import HarmonicOscillatorMatrixGenerator
+        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'rho'
+        runner, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            3,
+            # internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        )
+        ham = runner.hamiltonian
+        V = ham.V_terms
+        G = ham.G_terms
+        U = ham.pseudopotential_term
+        water_expansion = [
+            [V[0], G[0]],
+            [V[1], G[1]],
+            [V[2], G[2], U[0]]
+        ]
+        water_freqs = ham.modes.freqs
+
+        print(jesus_fuck.evaluate([0, 0, 0], water_expansion, water_freqs))
+        raise Exception(...)
+            # vpt2.energy_correction(2).expressions[1].changes[()]
+
         raise Exception(
             AnalyticPerturbationTheoryDriver.from_order(2).energy_correction_driver(
                 2
@@ -230,7 +284,7 @@ class VPT2Tests(TestCase):
     #         plot_spectrum=True
     #     )
 
-    @validationTest
+    @debugTest
     def test_BlockLabels(self):
         VPTRunner.run_simple(
             TestManager.test_data("i_hoh_opt.fchk"),
@@ -245,16 +299,17 @@ class VPT2Tests(TestCase):
             ],
             # degeneracy_specs='auto',
             degeneracy_specs={
-                "polyads": [
-                    [
-                        [0, 0, 0, 0, 1, 0],
-                        [0, 0, 0, 2, 0, 0]
-                    ],
-                    [
-                        [0, 0, 0, 1, 0, 0],
-                        [0, 0, 2, 0, 0, 0]
-                    ]
-                ]
+                'wfc_threshold':.3
+                # "polyads": [
+                #     [
+                #         [0, 0, 0, 0, 1, 0],
+                #         [0, 0, 0, 2, 0, 0]
+                #     ],
+                #     [
+                #         [0, 0, 0, 1, 0, 0],
+                #         [0, 0, 2, 0, 0, 0]
+                #     ]
+                # ]
             },
             # target_property='wavefunctions',
             logger=True,

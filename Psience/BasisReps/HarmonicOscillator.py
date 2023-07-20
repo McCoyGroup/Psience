@@ -265,6 +265,17 @@ class HarmonicOscillatorRaisingLoweringPolyTerms:
         return coeffs
 
     @classmethod
+    def get_direction_change_poly(cls, delta, shift):
+        if not isinstance(delta, (int, np.integer)):
+            return [cls.get_direction_change_poly(d, s) for d,s in zip(delta, shift)]
+        sqrt_contrib = None
+        if delta != 0:
+            dir_change = np.sign(delta) == -np.sign(shift)  # avoid the zero case
+            if dir_change:
+                sqrt_contrib = HarmonicOscillatorRaisingLoweringPolyTerms.get_sqrt_remainder_coeffs(delta, shift)
+        return sqrt_contrib
+
+    @classmethod
     def get_sqrt_remainder_coeffs(cls, delta, k):
         # provides rising or falling coeffs with a starting shift
         # by essentially only providing rising coeffs but
@@ -526,6 +537,8 @@ class HarmonicOscillatorMatrixGenerator:
             return 0
         if abs(delta) > len(terms):
             return 0
+        if len(terms) == 0:
+            return [1] # just the constant overlap term
         # we know we need to change by delta
         # over
         if terms not in cls._size_blocks_cache:
@@ -554,7 +567,11 @@ class HarmonicOscillatorMatrixGenerator:
             if delta not in self._poly_cache:
                 self._poly_cache[delta] = self._get_poly_coeffs(self.terms, delta)
             if shift != 0:
-                self._poly_cache[(delta, shift)] = DensePolynomial._compute_shifted_coeffs(self._poly_cache[delta], shift=shift)
+                base_coeffs = self._poly_cache[delta]
+                if isinstance(base_coeffs, (int, float, np.integer, np.floating)):
+                    self._poly_cache[(delta, shift)] = base_coeffs
+                else:
+                    self._poly_cache[(delta, shift)] = DensePolynomial._compute_shifted_coeffs(base_coeffs, shift=shift)
             else:
                 self._poly_cache[(delta, shift)] = self._poly_cache[delta]
         return self._poly_cache[(delta, shift)]
