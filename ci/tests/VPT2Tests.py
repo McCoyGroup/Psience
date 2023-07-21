@@ -1,3 +1,5 @@
+import itertools
+
 import McUtils.Numputils
 
 try:
@@ -38,25 +40,54 @@ class VPT2Tests(TestCase):
     @debugTest
     def test_AnalyticPTOperators(self):
 
-        vpt2 = AnalyticPerturbationTheorySolver.from_order(4)
+        vpt2 = AnalyticPerturbationTheorySolver.from_order(2)
         # print(
         #     vpt2.hamiltonian_expansion[1].get_poly_terms([1, 1, 1])
         # )
         # print(vpt2.hamiltonian_expansion[1]([2, 1]))
         # raise Exception(...)
 
+        H1PH1 = vpt2.energy_correction(2).expressions[1]
+        PH1 = vpt2.wavefunction_correction(1).expressions[0]
         E2 = vpt2.energy_correction(2)
-        Y1 = vpt2.wavefunction_correction(1)
 
-        h1y1 = E2.expressions[1]
+        # # pt_shit = H1PH1.get_poly_terms((4,)).combine()
+        # pt_shit = PH1((1,), simplify=False).expr.combine()
+        pt_shit = E2([], simplify=True).expr
+        for k,esum in pt_shit.terms.items():
+            print("-"*20, k, pt_shit.prefactor, "-"*20)
+            if hasattr(esum, 'terms'):
+                for e,pp in esum.terms.items():
+                    print("-"*20, e, esum.prefactor, "-"*20)
+                    polos = pp.polys if hasattr(pp, 'polys') else [pp]
+                    for p in polos:
+                        print(p.prefactor, p.coeffs)
+            else:
+                polos = esum.polys if hasattr(esum, 'polys') else [esum]
+                print(esum.prefactor)
+                for p in polos:
+                    print(p.prefactor, p.coeffs)
 
-        raise Exception(
-            [
-                [p.prefactor for p in psum.polys]
-                for psum in h1y1.get_poly_terms(()).terms.values()
-            ]
-        )
-        jesus_fuck = E2([])
+        # raise Exception(...)
+
+        # # raise Exception(
+        # #     Y1.get_poly_terms((1,))
+        # #     # [
+        # #     #     [p.prefactor for p in psum.polys]
+        # #     #     for psum in h1y1.get_poly_terms(()).terms.values()
+        # #     # ]
+        # # )
+        #
+        # h1y1 = E2.expressions[1]
+        # # raise Exception(h1y1, h1y1.gen2, h1y1.gen2.expressions)
+        #
+        # raise Exception(
+        #     h1y1.get_poly_terms(()).combine()
+        #     # [
+        #     #     [p.prefactor for p in psum.polys]
+        #     #     for psum in h1y1.get_poly_terms(()).terms.values()
+        #     # ]
+        # )
 
         # for _ in vpt2.energy_correction(2).expressions[1].changes[()]:
         #     print(_)
@@ -74,21 +105,104 @@ class VPT2Tests(TestCase):
         HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'rho'
         runner, _ = VPTRunner.construct(
             TestManager.test_data(file_name),
-            3,
-            # internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+            1,
+            internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]],
+            logger=False,
+            # mode_selection=[0, 1]
         )
         ham = runner.hamiltonian
         V = ham.V_terms
         G = ham.G_terms
         U = ham.pseudopotential_term
+        g2 = G[2]
+
         water_expansion = [
-            [V[0], G[0]],
-            [V[1], G[1]],
-            [V[2], G[2], U[0]]
+            [V[0]/2,  G[0]/2],
+            [
+                np.zeros(V[1].shape),
+                # np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0)/np.math.factorial(3)/6,
+                np.zeros(V[1].shape),
+                # -np.moveaxis(G[1], -1, 0)/2
+                #     if isinstance(G[1], np.ndarray) else
+                # np.zeros(V[1].shape)
+            ],
+            [
+                # np.zeros(V[2].shape),
+                V[2]/24,
+                # np.zeros(V[2].shape),
+                -np.moveaxis(G[2], -1, 0)/4
+                    if isinstance(G[2], np.ndarray) else
+                np.zeros(V[2].shape),
+                # 0
+                U[0]/8
+            ]
         ]
         water_freqs = ham.modes.freqs
 
-        print(jesus_fuck.evaluate([0, 0, 0], water_expansion, water_freqs))
+        # solver = runner.hamiltonian.get_solver(runner.states.state_list)
+        # raise Exception(
+        #     solver.representations[1].todense()[0][:4],
+        #     solver.flat_total_space.excitations[:4]
+        # )
+
+        # wfns = runner.get_wavefunctions()
+
+        # runner.print_tables(print_intensities=False)
+        """
+        :: State    <0|dH(2)|0>  <0|dH(1)|1> 
+          0 0 0     81.09533   -156.70145
+          0 0 1    276.68965   -545.08549
+          0 1 0    281.61581   -538.53511
+          1 0 0     88.49014   -213.67502
+        >>--------------------------------------------------<<
+        >>------------------------- States Energies -------------------------
+        :: State     Harmonic   Anharmonic     Harmonic   Anharmonic
+                       ZPE          ZPE    Frequency    Frequency
+        0 0 0   4681.56362   4605.95750            -            - 
+        0 0 1            -            -   3937.52464   3744.73491 
+        0 1 0            -            -   3803.29958   3621.98639 
+        1 0 0            -            -   1622.30304   1572.72428 
+        >>--------------------------------------------------<<
+        """
+
+        # V1 = water_expansion[1][0]
+        # G1 = water_expansion[1][1]
+        # print(G[1]/2)
+        # print(G1)
+        # raise Exception(...)
+
+        # raise Exception(
+        #     wfns.corrs.wfn_corrections[1].todense()[0][:4],
+        #     wfns.corrs.total_basis.excitations[:4],
+        #     -7.14635718e-03 * water_freqs[0],
+        #     -5.83925920e-03 * water_freqs[0],
+        #     0.02061049 * water_freqs[0],
+        #     (
+        #             V1[0, 0, 0]*1.060660171779821
+        #             +(V1[0, 1, 1] + V1[0, 2, 2])*1.060660171779821
+        #             + G1[0, 0, 0]*-0.35355339
+        #             + (G1[1, 0, 1] + G1[2, 0, 2])*-0.35355339
+        #     ) / water_freqs[0]
+        #     # # wfns.corrs.wfn_corrections[1].todense()[0, 1],
+        #     # # should be .005839259198189573
+        #     # V[1][0, 0, 0]/water_freqs[0]*1.06066017
+        #     # # + G[1][0, 0, 0]/water_freqs[0]*-0.35355339
+        #     # + (V[1][0, 1, 1] + V[1][0, 2, 2])/water_freqs[0]*0.70710678*.5
+        #     # # + (G[1][0, 1, 1] + G[1][0, 2, 2])/water_freqs[0]*0.70710678*-.5
+        # )
+        # 0.02819074222400865, -0.035337103975354986, [-0.00758025182870669, -0.027756852139690837]
+
+        # raise Exception(
+        #     # wfns.corrs.wfn_corrections[1].todense()[0][:4],
+        #     # wfns.corrs.total_basis.excitations[:4],
+        #     Y1([1,]).evaluate([0, 0, 0], water_expansion, water_freqs)
+        # )
+
+
+        jesus_fuck = E2([])
+        print(
+            jesus_fuck.evaluate([0, 0, 0], water_expansion, water_freqs) * UnitsData.convert("Hartrees", "Wavenumbers")
+        )
         raise Exception(...)
             # vpt2.energy_correction(2).expressions[1].changes[()]
 
@@ -284,7 +398,7 @@ class VPT2Tests(TestCase):
     #         plot_spectrum=True
     #     )
 
-    @debugTest
+    @validationTest
     def test_BlockLabels(self):
         VPTRunner.run_simple(
             TestManager.test_data("i_hoh_opt.fchk"),

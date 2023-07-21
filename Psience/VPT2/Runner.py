@@ -5,7 +5,7 @@ A little package of utilities for setting up/running VPT jobs
 import numpy as np, sys, os, itertools, scipy
 
 from McUtils.Data import UnitsData, AtomData
-from McUtils.Scaffolding import ParameterManager
+from McUtils.Scaffolding import ParameterManager, Logger
 from McUtils.Zachary import FiniteDifferenceDerivative
 from McUtils.Extensions import ModuleLoader
 
@@ -1058,8 +1058,8 @@ class VPTRunner:
             logger = wfns.logger
         if logger is not None:
             def print_block(label, *args, **kwargs):
-                with wfns.logger.block(tag=label):
-                    wfns.logger.log_print(" ".join("{}".format(x) for x in args), **kwargs)
+                with logger.block(tag=label):
+                    logger.log_print(" ".join("{}".format(x) for x in args), **kwargs)
         else:
             if file is None:
                 file = sys.stdout
@@ -1119,6 +1119,7 @@ class VPTRunner:
                      print_energy_corrections=True,
                      print_transition_moments=True,
                      operators=None,
+                     logger=None,
                      sep_char="=", sep_len=100):
         """
         Prints a bunch of formatted output data from a PT run
@@ -1132,11 +1133,19 @@ class VPTRunner:
         if wfns is None:
             wfns = self.get_wavefunctions()
 
+        if isinstance(logger, Logger):
+            logger = logger
+        elif logger is True or logger is None:
+            logger = Logger()
+        else:
+            logger = Logger(logger)
+
+
         self.print_output_tables(wfns=wfns, file=file,
                                  print_intensities=print_intensities,
                                  print_energy_corrections=print_energy_corrections,
                                  print_transition_moments=print_transition_moments,
-                                 operators=operators,
+                                 operators=operators, logger=logger,
                                  sep_char=sep_char, sep_len=sep_len)
 
         return wfns
@@ -1309,7 +1318,13 @@ class VPTRunner:
                         else:
                             logger.log_print(str(ds))
 
-                wfns = runner.print_tables(print_intensities=calculate_intensities, operators=operators)
+                wfns = runner.get_wavefunctions()
+                runner.print_tables(
+                    wfns=wfns,
+                    print_intensities=calculate_intensities,
+                    operators=operators,
+                    logger=wfns.logger
+                )
                 if plot_spectrum:
                     wfns.get_spectrum().plot().show()
                 return wfns

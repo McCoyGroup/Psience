@@ -861,6 +861,9 @@ class PerturbationTheoryHamiltonian:
         expansion_order = self._get_expansion_orders(expansion_order, order)
         h_reps = self.get_perturbations(expansion_order)
 
+        if not isinstance(states, BasisStateSpace):
+            states = BasisStateSpace(self.basis, states)
+
         if memory_constrained is None:
             memory_constrained = states.ndim > 20 if memory_constrained is None else memory_constrained
 

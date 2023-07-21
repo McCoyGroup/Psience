@@ -268,7 +268,8 @@ class HarmonicOscillatorRaisingLoweringPolyTerms:
     def get_direction_change_poly(cls, delta, shift):
         if not isinstance(delta, (int, np.integer)):
             return [cls.get_direction_change_poly(d, s) for d,s in zip(delta, shift)]
-        sqrt_contrib = None
+
+        sqrt_contrib = [1]
         if delta != 0:
             dir_change = np.sign(delta) == -np.sign(shift)  # avoid the zero case
             if dir_change:
@@ -286,7 +287,7 @@ class HarmonicOscillatorRaisingLoweringPolyTerms:
         elif delta < 0:
             # we're falling towards zero from above, so we shift our starting point
             # and swap the ordering so we can use a rising fac instead
-            k = k + d
+            k = k - d
         # because of the asymmetry of falling and rising
         # we shift our starting point
         k = k + 1
