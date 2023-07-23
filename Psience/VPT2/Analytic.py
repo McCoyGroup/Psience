@@ -9,9 +9,9 @@ from ..BasisReps import HarmonicOscillatorMatrixGenerator, HarmonicOscillatorRai
 
 __all__ = [
     'AnalyticPerturbationTheorySolver',
-    'AnalyticPerturbationTheoryDriver',
-    'AnalyticPTCorrectionGenerator',
-    'RaisingLoweringClasses'
+    # 'AnalyticPerturbationTheoryDriver',
+    # 'AnalyticPTCorrectionGenerator',
+    # 'RaisingLoweringClasses'
 ]
 
 class AnalyticPerturbationTheorySolver:
@@ -100,9 +100,25 @@ class ProductPTPolynomial:
     def __repr__(self):
         return "{}(<{}>)".format("Poly", ",".join(str(c) for c in self.order))
 
+    def constant_rescale(self):
+        """
+        rescales so constant term is 1
+
+        :return:
+        """
+        new_prefactor = self.prefactor
+        new_coeffs = []
+        for c in self.coeffs:
+            if abs(c[0]) > 1e-8: # non-zero
+                new_prefactor *= c[0]
+                new_coeffs.append(c/c[0])
+            else:
+                new_coeffs.append(c)
+        return type(self)(new_coeffs, prefactor=new_prefactor)
+
     @staticmethod
     def _monify(coeffs):
-        acoeffs = np.abs(coeffs)
+        acoeffs = np.round(np.abs(coeffs), 8)
         mcoeffs = np.max(acoeffs)
         if mcoeffs == 0:
             raise ValueError(coeffs)
@@ -110,7 +126,9 @@ class ProductPTPolynomial:
         min_v = coeffs[min_pos]
         if min_v == 0:
             return coeffs, min_v
-            # raise ValueError(coeffs, min_pos, acoeffs + (1+mcoeffs) * (acoeffs == 0))
+        # if abs(min_v) < 1e-8:
+        #     # return coeffs, min_v
+        #     raise ValueError(coeffs, min_pos, acoeffs + (1+mcoeffs) * (acoeffs == 0))
         return coeffs / min_v, min_v
     def combine(self, other:'ProductPTPolynomial'):
         off_pos = None # if a _single_ mode differs we can still combine
@@ -323,10 +341,11 @@ class ProductPTPolynomial:
             else:
                 return self + ProductPTPolynomial([[other]])
         elif isinstance(other, ProductPTPolynomial):
-            if other.prefactor != self.prefactor:
-                other = other.scale(1/self.prefactor)
-                # raise NotImplementedError("need to include prefactors")
-            return ProductPTPolynomialSum([self, other], prefactor=self.prefactor)
+            # if other.prefactor != self.prefactor:
+            #     print("????", other.prefactor, self.prefactor)
+            #     other = other.scale(1/self.prefactor)
+            #     # raise NotImplementedError("need to include prefactors")
+            return ProductPTPolynomialSum([self, other])#, prefactor=self.prefactor)
         elif isinstance(other, ProductPTPolynomialSum):
             return other + self
         else:
@@ -474,10 +493,10 @@ class ProductPTPolynomialSum:
                 return self + ProductPTPolynomial([[other]])
         else:
             if isinstance(other, ProductPTPolynomialSum):
+                ops = other.polys
                 if other.prefactor != self.prefactor:
-                    other = other.scale(1/self.prefactor)
-                    # raise NotImplementedError("need to handle prefactors")
-                return type(self)(self.polys + other.polys, prefactor=self.prefactor)
+                    ops = [p.scale(other.prefactor/self.prefactor) for p in ops]
+                return type(self)(self.polys + ops, prefactor=self.prefactor)
             elif isinstance(other, ProductPTPolynomial):
                 if self.prefactor != 1:
                     other = other.scale(1/self.prefactor)
@@ -493,14 +512,25 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly):
     A representation of a sum of 1/energy * poly sums
     which is here so we can transpose energy change indices intelligently
     """
+
+    def sort(self):
+        return type(self)(
+            {
+                k: self.terms[k] for k in sorted(self.terms.keys())
+            },
+            prefactor=self.prefactor
+        )
+
+    @classmethod
+    def format_key(self, key):
+        return "".join([
+                "E-[{}]".format(k)
+                for k in key
+            ])
     def __repr__(self):
         sums = []
         for k_prod,v in self.terms.items():
-            ks = [
-                "E-[{}]".format(k)
-                for k in k_prod
-            ]
-            sums.append("{}{}".format(v, "".join(ks)))
+            sums.append("{}{}".format(v, self.format_key(k_prod)))
         return "ESum({})".format("+".join(sums) if len(sums) < 3 else "\n      +".join(sums))
 
     @staticmethod
@@ -536,20 +566,22 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly):
             # sanity check
             if k1 in unmerged or k2 in unmerged:
                 raise ValueError('fuck')
-            new_terms[k1] = self.terms[k1] + -1*self.terms[k2]
+            # print(self.terms[k2].prefactor, self.terms[k2].scale(-1))
+            new_terms[k1] = self.terms[k1] + self.terms[k2].scale(-1)
         for k in unmerged:
             new_terms[k] = self.terms[k]
 
         return new_terms
 
-    def combine(self):
+    def combine(self, combine_subterms=True, combine_energies=True):
         new_terms = {}
         # raise Exception(
         #     list(self.terms.keys()),
         #     list(self.combine_energies().keys())
         # )
-        for k,p in self.combine_energies().items():
-            if isinstance(p, ProductPTPolynomialSum):
+        base_terms = self.combine_energies() if combine_energies else self.terms
+        for k,p in base_terms.items():
+            if combine_subterms and isinstance(p, ProductPTPolynomialSum):
                 p = p.combine()
                 if len(p.polys) > 0:
                     new_terms[k] = p
@@ -650,29 +682,100 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly):
     which is primarily here so we can transpose tensor coefficients intelligently
     """
 
+    def prune_operators(self, ops):
+        ops = set(ops)
+        return type(self)(
+            {
+                t: p
+                for t, p in self.terms.items()
+                if all(tt[:2] not in ops for tt in t)
+            },
+            prefactor=self.prefactor
+        )
+
+    def print_tree(self):
+        for k,esum in self.terms.items():
+            print("="*20, self.format_key(k), self.prefactor, "="*20)
+            if isinstance(esum, PTEnergyChangeProductSum):
+                for e,pp in esum.terms.items():
+                    print("  ", "-"*10, esum.format_key(e), esum.prefactor, "-"*10)
+                    if isinstance(pp, ProductPTPolynomialSum):
+                        print("  ::", pp.prefactor)
+                        for p in pp.polys:
+                            p = p.constant_rescale()
+                            print("   >", p.prefactor, p.coeffs)
+            elif isinstance(esum, ProductPTPolynomialSum):
+                print("  ::", esum.prefactor)
+                for p in esum.polys:
+                    p = p.constant_rescale()
+                    print("   >", p.prefactor, p.coeffs)
+            else:
+                p = esum.constant_rescale()
+                print("   >", p.prefactor, p.coeffs)
+    def _audit_dimension(self, poly, num_inds):
+        if isinstance(poly, ProductPTPolynomial):
+            if len(poly.coeffs) != num_inds:
+                if not (
+                        len(poly.coeffs) == 1 and
+                        len(poly.coeffs[0]) == 1 and
+                        num_inds == 0
+                ):  # ignore constants
+                    raise ValueError("{} is fucked (expected {})".format(
+                        poly,
+                        num_inds
+                    ))
+        elif isinstance(poly, ProductPTPolynomialSum):
+            for p in poly.polys:
+                self._audit_dimension(p, num_inds)
+        elif isinstance(poly, PTEnergyChangeProductSum):
+            for p in poly.terms.values():
+                self._audit_dimension(p, num_inds)
+        else:
+            raise ValueError('wat')
+    def audit(self):
+        """
+        Checks to ensure that the number of dimensions aligns with
+        the number of indices in the tensor coefficients
+
+        :return:
+        """
+        for coeff_indices,poly_stuff in self.terms.items():
+            num_inds = len(np.unique(np.concatenate([c[2:] for c in coeff_indices])))
+            self._audit_dimension(poly_stuff, num_inds)
+
+
+    @classmethod
+    def format_key(self, key):
+        return "".join([
+            "{}[{}]{}".format(
+                ["V", "G", "V'", "Z", "U"][k[1]],  # we explicitly split Coriolis and Watson terms out
+                k[0],
+                k[2:]
+            )
+            for k in key
+        ])
     def __repr__(self):
         sums = []
         for k_prod,v in self.terms.items():
-            ks = [
-                "{}[{}]{}".format(
-                    ["V", "G", "V'", "Z", "U"][k[1]], # we explicitly split Coriolis and Watson terms out
-                    k[0],
-                    k[2:]
-                )
-                for k in k_prod
-            ]
-            sums.append("{}{}".format(v, "".join(ks)))
+            sums.append("{}{}".format(v, self.format_key(k_prod)))
         return "TSum({})".format("+".join(sums) if len(sums) < 3 else "\n      +".join(sums))
 
-    def combine(self):
+    def sort(self):
+        return type(self)(
+            {
+                k: self.terms[k] for k in sorted(self.terms.keys())
+            },
+            prefactor=self.prefactor
+        )
+    def combine(self, combine_subterms=True, combine_energies=True):
         new_terms = {}
         for k,p in self.terms.items():
-            if isinstance(p, ProductPTPolynomialSum):
+            if combine_subterms and isinstance(p, ProductPTPolynomialSum):
                 p = p.combine()
                 if len(p.polys) > 0:
                     new_terms[k] = p
             elif isinstance(p, (PTTensorCoeffProductSum, PTEnergyChangeProductSum)):
-                p = p.combine()
+                p = p.combine(combine_subterms=combine_subterms, combine_energies=combine_energies)
                 if len(p.terms) > 0:
                     new_terms[k] = p
             else:
@@ -710,8 +813,78 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly):
         return super().canonical_key(tuple(cls._symmetrize(t) for t in monomial_tuple))
 
     @staticmethod
-    def _permute_idx(idx, remapping):
-        return idx[:2] + tuple(remapping[k] if k < len(remapping) else k for k in idx[2:])
+    def _permute_idx(idx, base, remapping):
+        num_prev = len(np.unique(np.concatenate([c[2:] for c in base]))) - 1 # anything _not_ remapped gets incremented
+        return idx[:2] + tuple(remapping[k] if k < len(remapping) else num_prev+k for k in idx[2:])
+
+    def _generate_direct_product_values(self, inds, k1, k2, poly_1, poly_2):
+        # print("="*19)
+        inds = tuple(inds)
+
+        left_inds = np.unique(np.concatenate([c[2:] for c in k1]))
+        right_inds = np.unique(np.concatenate([c[2:] for c in k2]))
+        # num_inds = len(np.unique(np.concatenate([left_inds, right_inds]))) # how many inds do we have total
+        num_left = len(left_inds)
+        num_right = len(right_inds)
+        num_fixed = len(inds)
+
+        left_fixed_inds = tuple(np.arange(num_fixed))
+        right_fixed_inds = inds
+        left_remainder_inds = np.arange(num_fixed, num_left)
+        right_remainder_inds = np.setdiff1d(np.arange(num_right), inds)
+
+        max_mult = min(num_right - num_fixed, num_left - num_fixed) # the max number of extra axes to align
+        for mul_size in range(max_mult+1):
+            if mul_size == 0:
+                new_poly = poly_1.mul_along(poly_2, inds)
+                left_mapping = {k: i for i, k in enumerate(left_fixed_inds)}
+                left_rem_rem = left_remainder_inds
+                for j, k in enumerate(left_rem_rem):
+                    left_mapping[k] = j + num_fixed + mul_size
+                right_mapping = {k: i for i, k in enumerate(right_fixed_inds)}
+                right_rem_rem = right_remainder_inds
+                for j, k in enumerate(right_rem_rem):
+                    right_mapping[k] = j + num_left
+
+                new_key = tuple(
+                    t[:2] + tuple(left_mapping[k] for k in t[2:])
+                    for t in k1
+                ) + tuple(
+                    t[:2] + tuple(right_mapping[k] for k in t[2:])
+                    for t in k2
+                )
+                # print(">>>", k1, k2, inds, new_key)
+                yield new_key, new_poly
+            else:
+                for left_choice in itertools.combinations(left_remainder_inds, r=mul_size):
+                    for right_choice in itertools.combinations(right_remainder_inds, r=mul_size):
+                        for right_perm in itertools.permutations(right_choice):
+                            mul_inds = [
+                                left_fixed_inds + left_choice, # left
+                                right_fixed_inds + right_perm  # right
+                            ]
+                            new_poly = poly_1.mul_along(poly_2, mul_inds)
+                            # now we build our new key, noting that the multiplied inds will be the first _n_
+                            # inds in the new set, then the left inds, then the right ones
+                            left_mapping = {k:i for i,k in enumerate(mul_inds[0])}
+                            left_rem_rem = np.setdiff1d(left_remainder_inds, left_choice)
+                            for j,k in enumerate(left_rem_rem):
+                                left_mapping[k] = j + num_fixed + mul_size
+                            right_mapping = {k:i for i,k in enumerate(mul_inds[1])}
+                            right_rem_rem = np.setdiff1d(right_remainder_inds, right_perm)
+                            for j,k in enumerate(right_rem_rem):
+                                right_mapping[k] = j + num_left
+
+                            new_key = tuple(
+                                t[:2] + tuple(left_mapping[k] for k in t[2:])
+                                for t in k1
+                            ) + tuple(
+                                t[:2] + tuple(right_mapping[k] for k in t[2:])
+                                for t in k2
+                            )
+                            # print(">2>", k1, k2, inds, new_key)
+                            yield new_key, new_poly
+
     def mul_along(self, other:'ProductPTPolynomial', inds, remainder=None):
         """
         We multiply every subpoly along the given indices, transposing the appropriate tensor indices
@@ -722,10 +895,15 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly):
         :return:
         """
         if isinstance(other, PTTensorCoeffProductSum):
-            return self.direct_product(other,
-                                       key_func=lambda k1,k2:k1+tuple(self._permute_idx(idx, inds) for idx in k2),
-                                       mul=lambda a,b:a.mul_along(b, inds, remainder=remainder)
-                                       )
+            # we need to take the direct product of aligning (or not)
+            # for all of the untouched inds
+            new = self.direct_multiproduct(other, lambda *kargs: self._generate_direct_product_values(inds, *kargs))
+            # new = self.direct_product(other,
+            #                            key_func=lambda k1,k2:k1+tuple(self._permute_idx(idx, k1, inds) for idx in k2),
+            #                            mul=lambda a,b:a.mul_along(b, inds, remainder=remainder)
+            #                            )
+            new.audit()
+            return new
         elif isinstance(other, PTEnergyChangeProductSum):
             return type(self)(
                 {k:other.rmul_along(p, inds, remainder=remainder) for k,p in self.terms.items()},
@@ -803,97 +981,6 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly):
 #     def __rmul__(self, other):
 #         return self * other
 
-class FullChangePathPolyTerm:
-    """
-    Built by taking products of wave function corrections with the Hamiltonian
-    expansion elements
-    """
-    def __init__(self, terms:"dict[tuple[int],ProductPTPolynomialSum]", term_sizes=None):
-        self.terms = terms
-        if term_sizes is None:
-            term_sizes = {sum(abs(x) for x in k) for k in terms.keys()}
-        self.term_sizes = term_sizes
-
-    # def _build_poly(self, poly_1, poly_2, poly_1_inds, rem_inds, transpose):
-    #     """
-    #     We multiply poly_1 and poly_2 along the specified `poly_1_inds`, just convolving
-    #     the polynomial coefficients for each axis and copying in the remaining inds of poly_2
-    #
-    #     :param poly_1:
-    #     :param poly_2:
-    #     :param poly_1_inds:
-    #     :param rem_inds:
-    #     :param transpose:
-    #     :return:
-    #     """
-
-    def op_mult(self, op):
-
-        new_terms = {}
-        for term_1, poly_1 in self.terms.items():
-            for term_2, poly_2 in op.terms.items():
-                l1 = len(term_1)
-                l2 = len(term_2)
-                # min_poly_len = max(len(term_1), len(term_2)) # everything lines up
-                # max_poly_len = len(term_1) + len(term_2) # nothing lines up
-
-                # we'll take partitions of term_2 for every possible overlap size
-                # then permute the overlapping part and add that
-                # this _should_ give the minimal number of additions
-                # the partitions themselves are maybe allowed to be unique
-                # although in the cases of reducing over unique partitions I guess
-                # it's possible that we need to worry about the different permutations
-                # of tensor coefficient terms???
-
-                #TODO: handle overlap == 0 term
-
-                perm_inds = np.array(list(itertools.permutations(range(l1))))
-                inv_perm = np.argsort(perm_inds)
-                for overlaps in range(1, min(l1, l2)+1):
-                    #TODO: handle overlap == len(term_2)
-
-                    (ov_parts, rem_part), (ov_inds, rem_inds) = UniquePartitions(term_2).partitions(
-                        [overlaps, l2 - overlaps],
-                        return_indices=True
-                    ) #!need to track indices
-                    if l1 == overlaps:
-                        pad_ov = ov_parts
-                    else:
-                        pad_ov = np.pad(ov_parts, [[0, 0], [0, l1-overlaps]])
-                    for p, r, io, ir in zip(pad_ov, rem_part, ov_inds, rem_inds):
-                        perm_ov = p[perm_inds] # I think I can actually take the unique perms...?
-                        perm_ov, uperm_inds = np.unique(perm_ov, return_index=True, axis=0)
-
-                        # it might be necessary to apply the transpose here
-
-                        newts = np.concatenate([
-                            np.array(term_1)[np.newaxis] + perm_ov,
-                            r[np.newaxis]
-                        ],
-                            axis=1
-                        )
-
-                        newt_transposes = np.argsort(newts, axis=1)
-
-                        # build new polys
-                        target_axes = inv_perm[uperm_inds][:, :overlaps] # axes in term_1 that the selected parts of
-                                                                         # term_2 are multiplied by
-                        for full_changes, transp, targ_inds in zip(newts[newt_transposes], newt_transposes, target_axes):
-                            self._build_new_poly(poly_1, poly_2, targ_inds)
-
-
-
-                # for plen in range(min_poly_len, max_poly_len+1):
-                #     # we want to take all permutations of the padded version of term_2
-                #     # that will create distinct polynomials...
-                #     ...
-
-
-
-        # take direct sum of terms, accounting for changes
-        # and permute so that they remain ordered --> permuting tensor coefficients too
-        raise NotImplementedError(...)
-
 class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
     """
     A generic version of one of the three terms in
@@ -952,7 +1039,7 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
         if not isinstance(terms, (PTTensorCoeffProductSum, int, np.integer)):
             new_terms = self.get_poly_terms(changes, shift=None)
             if simplify:
-                new_terms = new_terms.combine()
+                new_terms = new_terms.combine(combine_energies=True, combine_subterms=True).sort()
             self.changes[changes] = new_terms
         terms = self.changes[changes]
         if shift is not None:
@@ -971,14 +1058,11 @@ class HamiltonianExpansionTerm(PerturbationTheoryTerm):
         self.symmetrizers = symmetrizers
 
         self._grouped_terms = {}
-        for t in self.terms:
+        for i,t in enumerate(self.terms):
             self._grouped_terms[len(t)] = self._grouped_terms.get(len(t), [])
-            self._grouped_terms[len(t)].append(t)
+            self._grouped_terms[len(t)].append([i, t])
 
         self.term_sizes = set(self._grouped_terms.keys())
-        #TODO: need to include parity effects for all integer partitions"
-        # self.changes =
-
         self._change_poly_cache = {}
 
     def __repr__(self):
@@ -1046,7 +1130,7 @@ class HamiltonianExpansionTerm(PerturbationTheoryTerm):
 
             # not sure what to do if group_size == 0...?
             if group_size == 0: # constant contrib
-                for term_index, term_list in enumerate(terms):
+                for term_index, term_list in terms:
                     subpolys = [
                         ProductPTPolynomial([np.array([1])])
                     ]
@@ -1094,7 +1178,6 @@ class HamiltonianExpansionTerm(PerturbationTheoryTerm):
 
             partitioner = UniquePartitions(np.arange(group_size))
             for partition_sizes in targets:
-                # print("????", partition_sizes)
                 parts, inv_splits = partitioner.partitions(partition_sizes,
                                                           return_partitions=False, take_unique=False,
                                                           return_indices=True, return_inverse=True
@@ -1104,7 +1187,7 @@ class HamiltonianExpansionTerm(PerturbationTheoryTerm):
                 base_tup = np.array(sum(([i]*s for i,s in enumerate(partition_sizes)), []))
                 for j,p_vec in enumerate(zip(*parts)):
                     tensor_idx = tuple(base_tup[inv_splits[j]])
-                    for term_index,term_list in enumerate(terms):
+                    for term_index,term_list in terms:
                         poly_coeffs = [
                             self._evaluate_poly_coeffs(term_list, inds, delta, s)
                             for inds, delta, s in zip(p_vec, changes, shift)
@@ -1112,6 +1195,10 @@ class HamiltonianExpansionTerm(PerturbationTheoryTerm):
                         if any(isinstance(c, (int, float, np.integer, np.floating)) and c == 0 for c in poly_coeffs):
                             # total thing is zero
                             continue
+                        poly_coeffs = [
+                            c for c in poly_coeffs
+                            if c[0] != 1 or len(c) > 1
+                        ]
                         if self.symmetrizers[term_index] is not None:
                             symm_idx = self.symmetrizers[term_index](tensor_idx)
                         else:
@@ -1119,7 +1206,9 @@ class HamiltonianExpansionTerm(PerturbationTheoryTerm):
                         prefactor = (self.order, self.identities[term_index]) + symm_idx #type: tuple[int]
                         poly_contribs[(prefactor,)] = poly_contribs.get((prefactor,), 0) + ProductPTPolynomial(poly_coeffs)
 
-        return PTTensorCoeffProductSum(poly_contribs)
+        new = PTTensorCoeffProductSum(poly_contribs)
+        new.audit()
+        return new
 
     # def get_correction_poly(self, changes, shifts=None):
     #     #TODO: check to make sure changes is sorted??? Or not???
@@ -1317,7 +1406,6 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
         self.gen1 = pre_op # we apply right-to-left
         self.gen2 = post_op
 
-
     def __repr__(self):
         return "{}*{}".format(self.gen1, self.gen2)
 
@@ -1343,12 +1431,11 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
         # it's possible that we need to worry about the different permutations
         # of tensor coefficient terms???
 
-        # TODO: handle overlap == 0 term
 
         perm_inds = np.array(list(itertools.permutations(range(l1))))
         inv_perm = np.argsort(perm_inds)
         for overlaps in range(1, min(l1, l2) + 1):
-            # TODO: handle overlap == len(term_2)
+            # TODO: handle overlap == len(term_2) -> not sure if I've done this or not?
 
             (ov_parts, rem_part), (ov_inds, rem_inds) = UniquePartitions(change_2).partitions(
                 [overlaps, l2 - overlaps],
@@ -1383,6 +1470,13 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                 for base_change, transp, targ_inds, src_inds in zip(newts, newt_transposes, target_axes, from_inds):
                     yield base_change[transp], transp, targ_inds, src_inds
 
+        # handle overlap == 0 term
+        base_change = np.concatenate([change_1, change_2])
+        transp = np.argsort(base_change)
+        targ_inds = ()
+        src_inds = ()
+        yield base_change[transp], transp, targ_inds, src_inds
+
     def get_changes(self):
         changes = {}
         for change_1 in self.gen1.changes:
@@ -1405,13 +1499,17 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
     def get_expressions(self):
         raise NotImplementedError("shouldn't need this here...")
 
-    def get_poly_terms(self, changes, shift=None): # need to align this with
+    def get_poly_terms(self, changes, allowed_paths=None, shift=None): # need to align this with
         t = tuple(changes)
         # check sorting?
         base_changes = self.changes.get(t, 0)
+        if allowed_paths is not None:
+            allowed_paths = set(allowed_paths)
         if isinstance(base_changes, list):
             poly_changes = 0
             for change_1, change_2, reorg, target_inds, src_inds in base_changes:
+                if allowed_paths is not None and (change_1, change_2) not in allowed_paths:
+                    continue
 
                 polys_1 = self.gen1.get_poly_terms(change_1, shift=shift)
                 if isinstance(polys_1, (int, float, np.integer, np.floating)):
@@ -1435,26 +1533,36 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                         raise ValueError("not sure how we got a number here...")
 
                 base_polys = polys_1.mul_along(polys_2, target_inds, remainder=None)
-                # we need to also account for both possible direction changes...
-                if shift is not None:
-                    sqrt_contrib_1 = HarmonicOscillatorRaisingLoweringPolyTerms.get_direction_change_poly(change_1, shift)
-                else:
-                    sqrt_contrib_1 = None
-                if sqrt_contrib_1 is not None:
-                    # for every term in base_polys we need to convolve with this change...
-                    base_polys = base_polys.mul_simple(ProductPTPolynomial(sqrt_contrib_1))
 
-                # print(">>>", change_shift, change_2)
-                sqrt_contrib_2 = HarmonicOscillatorRaisingLoweringPolyTerms.get_direction_change_poly(change_2, change_shift)
-                # print("____", sqrt_contrib_2)
-                if sqrt_contrib_2 is not None:
-                    # print(">>>>", change_1, change_2, target_inds, src_inds, sqrt_contrib_2)
-                    # need to permute
-                    sqrttoooo = [[1]] * len(change_1) # number of terms in base_polys????
-                    for i,c in zip(target_inds, sqrt_contrib_2):
-                        sqrttoooo[i] = c
-                    # print(sqrt_contrib_2)
-                    base_polys = base_polys.mul_simple(ProductPTPolynomial(sqrttoooo))
+                # print(">>>>", change_1, change_2)
+                # print("polys_1")
+                # polys_1.prune_operators([(1, 1)]).print_tree()
+                # print("polys_2")
+                # polys_2.prune_operators([(1, 1)]).print_tree()
+                # print('final')
+                # base_polys.prune_operators([(1, 1)]).print_tree()
+                # print("<<<<")
+
+                # we need to also account for both possible direction changes...
+                # EDIT: NOT ACTUALLY THIS ALREADY IN THERE
+                # if shift is not None:
+                #     sqrt_contrib_1 = HarmonicOscillatorRaisingLoweringPolyTerms.get_direction_change_poly(change_1, shift)
+                # else:
+                #     sqrt_contrib_1 = None
+                # if sqrt_contrib_1 is not None:
+                #     # for every term in base_polys we need to convolve with this change...
+                #     base_polys = base_polys.mul_simple(ProductPTPolynomial(sqrt_contrib_1))
+
+                # # this is already in polys_2
+                # sqrt_contrib_2 = HarmonicOscillatorRaisingLoweringPolyTerms.get_direction_change_poly(change_2, change_shift)
+                #
+                # if sqrt_contrib_2 is not None:
+                #     # need to permute
+                #     sqrttoooo = [[1]] * len(change_1) # number of terms in base_polys????
+                #     for i,c in zip(target_inds, sqrt_contrib_2):
+                #         sqrttoooo[i] = c
+                #     base_polys = base_polys.mul_simple(ProductPTPolynomial(sqrttoooo))
+
                 poly_changes += base_polys
 
             self.changes[t] = poly_changes
@@ -1471,12 +1579,13 @@ class PerturbationTheoryEvaluator:
         return "{}(<{}>, {})".format(type(self).__name__, self.num_fixed, self.expr)
 
     @staticmethod
-    def _extract_coeffs(coeffs, coeff_indices, fixed, free):
+    def _extract_coeffs(coeffs, coeff_indices):
         coeff_tensor = coeffs[coeff_indices[0]][coeff_indices[1]] # order then identity
         if isinstance(coeff_tensor, (int, float, np.integer, np.floating)) and coeff_tensor == 0:
             return 0
 
-        idx = tuple(free[j-fixed] if j >= fixed else j for j in coeff_indices[2:])
+        # print(free, fixed, coeff_indices)
+        idx = coeff_indices[2:]
         if len(idx) > 0:
             return coeff_tensor[idx]
         else:
@@ -1485,12 +1594,14 @@ class PerturbationTheoryEvaluator:
     @classmethod
     def _eval_poly(cls, state, fixed, inds, poly, change):
         if isinstance(poly, ProductPTPolynomialSum):
-            return poly.prefactor * sum(
+            subvals = [
                 cls._eval_poly(state, fixed, inds, p, change)
                 for p in poly.polys
-            )
+            ]
+            return poly.prefactor * np.sum(subvals)
 
-        # print(poly.coeffs)
+        p = poly.constant_rescale()
+        print("     |", round(p.prefactor, 8), [np.round(c, 8) for c in p.coeffs])
 
         if fixed > 0 and len(inds) > 0:
             substates = np.concatenate([state[:fixed], state[inds,]])
@@ -1498,6 +1609,8 @@ class PerturbationTheoryEvaluator:
             substates = state[:fixed]
         else:
             substates = state[inds,]
+
+        # print(substates, inds, fixed)
 
         poly_factor = np.prod([
             np.dot(c, np.power(s, np.arange(len(c))))
@@ -1514,13 +1627,32 @@ class PerturbationTheoryEvaluator:
         )
         return poly.prefactor * poly_factor * sqrt_factor
 
-    def _eval_perm(self, subset, state, coeffs, freqs, cind_sets, zero_cutoff):
+    def _eval_perm(self, subset, state, coeffs, freqs, cind_sets, zero_cutoff, eval_cache):
         # print("?", cind_sets)
         full_set = tuple(range(self.num_fixed)) + subset
-        prefactors = np.array([
-            np.prod([self._extract_coeffs(coeffs, ci, self.num_fixed, subset) for ci in cinds])
+
+        free = subset
+        fixed = self.num_fixed
+        cinds_remapped = [
+            tuple(
+                # we need to avoid doing the exact same term twice, _but_ order matters
+                # so we can't sort the tuples
+                PTTensorCoeffProductSum._symmetrize(
+                    ci[:2] + tuple(free[j - fixed] if j >= fixed else j for j in ci[2:])
+                )
+                for ci in cinds
+            )
             for cinds in cind_sets
+        ]
+        prefactors = np.array([
+            np.prod([
+                self._extract_coeffs(coeffs, ci) for ci in cinds])
+                    if eval_cache.get(cinds, 0) < np.math.factorial(len(cinds)) else # should cache this
+                0
+            for cinds in cinds_remapped
         ])
+        for cinds in cinds_remapped:
+            eval_cache[cinds] = eval_cache.get(cinds, 0) + 1
         good_pref = np.where(np.abs(prefactors) > zero_cutoff)  # don't bother to include useless terms
         if len(good_pref) == 0:
             return 0
@@ -1528,7 +1660,7 @@ class PerturbationTheoryEvaluator:
 
         contrib = 0
         for g in good_pref:
-            # print("---", prefactors[g], "---")
+            print("","-"*10, PTTensorCoeffProductSum.format_key(cind_sets[g]), prefactors[g], "-"*10)
             subexpr = self.expr.terms[cind_sets[g]]
             if isinstance(subexpr, PTEnergyChangeProductSum):
                 subcontrib = 0
@@ -1537,20 +1669,21 @@ class PerturbationTheoryEvaluator:
                         np.sum([c * freqs[s] for c, s in zip(eecc, full_set)])
                         for eecc in echanges
                     ])
-                    # print("???", energy_factor)
-                    # check size of energy factor
+                    # TODO: check size of energy factor
+                    if hasattr(polys, 'polys'):
+                        print("  ::", polys.prefactor)
+                        # for p in polys.polys:
+                        #     print("->", p.prefactor, p.coeffs)
                     poly_factor = self._eval_poly(state, self.num_fixed, subset, polys, self.change)
-                    # print("...", poly_factor)
-                    # print(echanges, poly_factor, energy_factor)
+                    print("  ..", PTEnergyChangeProductSum.format_key(echanges), poly_factor, energy_factor, poly_factor*prefactors[g]/energy_factor * 219475)
                     subcontrib += poly_factor / energy_factor
+                subcontrib *= subexpr.prefactor
             elif isinstance(subexpr, (ProductPTPolynomial, ProductPTPolynomialSum)):
                 subcontrib = self._eval_poly(state, self.num_fixed, subset, subexpr, self.change)
             else:
                 raise ValueError("how the hell did we end up with {}".format(subexpr))
 
-            subcontrib *= subexpr.prefactor
-
-            # print(prefactors[g], subcontrib, prefactors[g]*subcontrib)
+            print(" ->", prefactors[g]*subcontrib*219475)
             contrib += prefactors[g] * subcontrib
             # base_prefactor = subexpr.prefactor
             # if isinstance(subexpr, ProductPTPolynomialSum):
@@ -1561,7 +1694,7 @@ class PerturbationTheoryEvaluator:
             #     poly_coeffs = subexpr.coeffs
             # print(poly_coeffs)
 
-        # print(">", contrib)
+        print("::>", contrib * 219475)
 
         return contrib
 
@@ -1574,8 +1707,8 @@ class PerturbationTheoryEvaluator:
         # max_order = None
         free_ind_groups = {}
         for coeff_indices,poly_terms in self.expr.terms.items():
-            num_inds = np.unique(np.concatenate([c[2:] for c in coeff_indices]))
-            free_inds = len(num_inds) - self.num_fixed
+            num_inds = len(np.unique(np.concatenate([c[2:] for c in coeff_indices])))
+            free_inds = num_inds - self.num_fixed
             if free_inds not in free_ind_groups:
                 free_ind_groups[free_inds] = []
             free_ind_groups[free_inds].append(coeff_indices)
@@ -1584,20 +1717,22 @@ class PerturbationTheoryEvaluator:
         # state_polys = np.power(state, np.arange(max_order+1))
 
         if zero_cutoff is None:
-            zero_cutoff = 1e-16
+            zero_cutoff = 1e-18
 
         # TODO: numba-ify this part
         contrib = 0
+        eval_cache = {} # so we don't hit some coeff sets too many times
         for free_inds,cind_sets in free_ind_groups.items():
             # now we iterate over every subset of inds (outside of the fixed ones)
             # excluding replacement (since that corresponds to a different coeff/poly)
             if free_inds == 0:
-                # print("--- () ---")
-                contrib += self._eval_perm((), state, coeffs, freqs, cind_sets, zero_cutoff)
+                print("="*7, (), "="*7)
+                contrib += self._eval_perm((), state, coeffs, freqs, cind_sets, zero_cutoff, eval_cache)
             else:
                 for subset in itertools.combinations(range(self.num_fixed, ndim), r=free_inds):
-                    # print("---", subset, "---")
-                    contrib += self._eval_perm(subset, state, coeffs, freqs, cind_sets, zero_cutoff)
+                    for subperm in itertools.permutations(subset):
+                        print("="*7, subperm, "="*7)
+                        contrib += self._eval_perm(subperm, state, coeffs, freqs, cind_sets, zero_cutoff, eval_cache)
 
 
 
@@ -1623,893 +1758,3 @@ class PerturbationTheoryEvaluator:
     #     return type(self)(new_terms)
     #
     # def substitute_freqs(self, freqs):
-
-
-
-
-#region Older Attempt (More Effficient?)
-
-class RaisingLoweringClasses:
-    """
-    A tree providing the classes of raising and lowering operations to get
-    to a given set of changes (for multidimensional cases) over a given number of terms
-    """
-    def __init__(self, nterms, changes, check=True):
-        self.nterms = nterms
-        self.changes = changes
-        if check:
-            t_change = sum(abs(x) for x in changes)
-            self.empty = t_change > nterms or (t_change % 2) != (nterms % 2)
-        else:
-            self.empty = False
-
-    @classmethod
-    def _enum_changes_rec(cls, nterms, changes, change_sums): #TODO: Optimize this
-        if len(changes) == 1:
-            k = changes[0]
-            s = nterms
-            yield [((k + s) // 2, (k - s) // 2)]
-        else:
-            # we need to take at least as many terms as are required for the first change
-            # and we can take _up to_ the total number of terms minus the number required
-            # to make all of the remaining changes
-            k = changes[0]
-            for s in range(k, nterms - change_sums[0]+1):
-                for t in cls._enum_changes_rec(nterms - s, changes[1:], change_sums[1:]):
-                    yield [((k + s) // 2, (k - s) // 2)] + t
-
-    def __iter__(self):
-        if not self.empty:
-            change_sums = np.flip(np.cumsum(np.flip(self.changes)))[1:]
-            for t in self._enum_changes_rec(self.nterms, self.changes, change_sums): yield t
-
-class AnalyticPTPolynomialGenerators:
-    """
-    Provides a generic wrapper for an operator term
-    given the operator identities (strings of p/q terms)
-    and the breakpoint for switching from `Pi_n` to `Pi_m`
-
-    Makes use of `HarmonicMatrixGenerator` to get polynomial coefficients in the
-    different dimensions
-    """
-
-    def __init__(self, matrix_generators):
-        self.generator_lists = matrix_generators # a 2D array of generators, as dimension x steps
-
-    @classmethod
-    def get_1D_path_contrib(cls, generators, path):
-        """
-        For a given set of energy changes in 1D provides the polynomial
-        contribution and associated states
-
-
-        :param generators:
-        :param path:
-        :return:
-        """
-        shifts = [0]*len(path)
-        k = 0
-        poly = None
-        for i,(generator_list,(a,b)) in enumerate(zip(generators, path)):
-            d = a - b
-            poly_contribs = [
-                g.poly_coeffs(d, shift=k)
-                    for g in generator_list
-                if g is not None
-            ]
-            if len(poly_contribs) > 0:
-                poly_lens = [len(x) for x in poly_contribs if isinstance(x, np.ndarray)]
-                max_contrib_len = max(poly_lens) if len(poly_lens) > 0 else 1
-                poly_contrib = sum(
-                    np.pad(pc, [0, max_contrib_len - len(pc)])
-                        if isinstance(pc, np.ndarray) else
-                    np.zeros(max_contrib_len)
-                    for pc in poly_contribs
-                )
-
-                if d != 0:
-                    dir_change = np.sign(d) == -np.sign(k)  # avoid the zero case
-                    if dir_change:
-                        sqrt_contrib = HarmonicOscillatorRaisingLoweringPolyTerms.get_sqrt_remainder_coeffs(d, k)
-                        poly_contrib = scipy.signal.convolve(poly_contrib, sqrt_contrib)
-                if poly is None:
-                    poly = poly_contrib
-                else:
-                    poly = scipy.signal.convolve(poly, poly_contrib)
-                k = k + d
-                shifts[i] = k
-
-        return poly, shifts
-
-    def get_correction_poly_generator(self, changes):
-        """
-        Provides the polynomial corresponding to changing quanta
-        by the proscribed integer partition
-
-        :param changes:
-        :type changes:
-        :return:
-        :rtype:
-        """
-
-        paths_1D = [
-            [
-                list(reversed(path)) for path in
-                HarmonicOscillatorMatrixGenerator.get_paths(
-                    [
-                        # b.c. of way we store terms tedious to get lens
-                        ([ggg.size for ggg in g if ggg is not None] + [0])[0]
-                        for g in gl
-                    ],
-                    delta
-                )
-            ]
-            for gl,delta in zip(self.generator_lists, changes)
-        ]
-
-        poly_shifts = [
-            [self.get_1D_path_contrib(gl, p) for p in paths]
-            for gl,paths in zip(self.generator_lists, paths_1D)
-        ]
-        polys = [
-            [p[0] for p in pi]
-            for pi in poly_shifts
-        ]
-        shifts = tuple(
-            tuple(tuple(p[1]) for p in pi)
-            for pi in poly_shifts
-        )
-
-        # full set of polynomial terms are now direct product of these 1D terms...
-        return AnalyticPTProductContrib(polys, shifts, changes)
-
-class AnalyticPTProductContrib:
-    def __init__(self, polys_1D, shifts_1D, changes):
-        """
-        Holder for correction polys, indexed by dimension & path with paths given by `shifts_1D`
-
-        :param polys_1D:
-        :param shifts_1D:
-        :param changes:
-        """
-        if (
-                isinstance(polys_1D, (int, float, np.integer, np.floating, TensorCoefficientPoly))
-                or isinstance(polys_1D[0], (int, float, np.integer, np.floating, TensorCoefficientPoly))
-                or isinstance(polys_1D[0][0], (int, float, np.integer, np.floating, TensorCoefficientPoly))
-        ): # means we fucked up
-            raise TypeError("needed a list of lists of arrays of 1D poly coeffs")
-        self.polys = polys_1D
-        self.shifts = shifts_1D
-        self.changes = changes
-        self.ndim = len(changes)
-
-    def __repr__(self):
-        return "{}({})".format(type(self).__name__, self.polys)
-
-    def __radd__(self, other):
-        return self.__add__(other)
-    def __add__(self, other):
-        if isinstance(other, AnalyticPTProductContrib):
-            return AnalyticPTProductContribSum([self, other])
-        elif isinstance(other, AnalyticPTProductContribSum):
-            return other + self
-        elif isinstance(other, (int, float, np.integer, np.floating)) and other == 0:
-            return self
-        else:
-            raise TypeError("can't add {} and {}".format(self, other))
-
-
-    @staticmethod
-    def _extract_tensor_coeff(coeff_tensors, k):
-        base = coeff_tensors[k[0]][k[1]]
-        return base if not isinstance(base, np.ndarray) else base[k[2:]]
-    def _substitute_coeffs(self, tensor_poly, coeff_tensors):
-
-        contribs = [
-            scaling * np.prod([self._extract_tensor_coeff(coeff_tensors, k) for k in index_tuple_tuple])
-            for index_tuple_tuple, scaling in tensor_poly.terms.items()
-        ]
-        return tensor_poly.scaling*np.sum(contribs)
-
-    def _aggregate_subbed_coeff_lists(self, coefficient_tensors, poly_set):
-        if poly_set is None:
-            return np.array([1])
-        else:
-            sublists =  [
-                    self._substitute_coeffs(tcp, coefficient_tensors)
-                        if isinstance(tcp, TensorCoefficientPoly) else
-                    tcp
-                    for tcp in poly_set
-                ]
-            return sublists #np.sum(sublists, axis=0)
-
-    def substitute_coefficients(self, coefficient_tensors):
-        return type(self)(
-            [
-                [
-                    self._aggregate_subbed_coeff_lists(coefficient_tensors, path_poly_set)
-                    for path_poly_set in polys_1D
-                ]
-                for polys_1D in self.polys
-            ],
-            self.shifts,
-            self.changes
-        )
-
-    def _eval_shift(self, path, change, crossover):
-        #TODO: what do I do with terms that have a (Pi_n)(Pi_m) in them???
-
-        path = np.concatenate([[0], path]) # eval strategy drops this...
-        if crossover == -1 or crossover == len(path):
-            return path
-        elif crossover == 0:
-            return np.concatenate([[0], path]) - path
-        else:
-            # we just go up normally from the left (starting at 0)
-            # but from the right we need to effectively start from the final state
-            num_right = len(path) - crossover
-            num_left = crossover
-            return path - np.pad(np.full(num_right, change), [num_left, 0])
-
-    def get_quanta_shifts(self, crossover):
-        return [
-            np.array([
-                self._eval_shift(path, delta, crossover)
-                for path in np.array(paths_1D)
-            ])
-            for delta,paths_1D in zip(self.changes, self.shifts)
-        ]
-    def substitute_paths(self, freqs, exponents, crossover):
-        shifts = self.get_quanta_shifts(crossover)
-        return [
-            [
-                np.array([
-                    np.power(freq * path, exponents)
-                    # self._eval_energy(freq, path)
-                    for path in path_set
-                ])
-                for path_set in paths_1D
-            ]
-            for freq,paths_1D in zip(freqs, shifts)
-        ]
-
-    # class direct_product_evaluator:
-    #     def __init__(self, polynomial_coeffs, paths, freqs):
-    #         self.pcs = polynomial_coeffs
-    #         self.paths = paths
-    #         self.freqs = freqs
-    #     def evaluate(self, initial_states, path_exponents, crossover):
-    #         # take direct product of numerators
-    #         # and divide by direct sum product of denominators
-    #
-    #         raise NotImplementedError("need to eval direct product")
-
-    # def get_poly_evaluator(self, coefficient_tensors):
-    #     numerators = self.get_numerators(coefficient_tensors)
-    #
-    #     return self.direct_product_evaluator(numerators, self.shifts, freqs)
-
-        # need to turn changes + freqs + crossover into energy denominators
-        # and need to substitute coefficient tensors into polynomials
-
-    # def eval(self, initial_states, coefficient_tensors, freqs, crossover):
-    #     """
-    #
-    #     :param initial_states: sets of arrays for initial quanta for each
-    #     :return:
-    #     """
-    #     base_eval = self.get_poly_evaluator(coefficient_tensors, freqs, crossover)
-    #     raise Exception(...)
-    #     for n, poly in zip(initial_states, self.polys):
-    #         ...
-
-    def expand(self):
-        """
-        Expands the 1D terms as a direct product polynomial
-        :return:
-        """
-        raise NotImplementedError("whoops")
-
-class AnalyticPTProductContribSum:
-    def __init__(self, contribs):
-        self.contribs = tuple(contribs)
-    def __repr__(self):
-        return "{}({})".format(type(self).__name__, self.contribs)
-
-    def __radd__(self, other):
-        return self.__add__(other)
-    def __add__(self, other):
-        if isinstance(other, AnalyticPTProductContribSum):
-            return type(self)(self.contribs+other.contribs)
-        elif isinstance(other, AnalyticPTProductContrib):
-            return type(self.contribs+(other,))
-        elif isinstance(other, (int, float, np.integer, np.floating)) and other == 0:
-            return self
-        else:
-            raise TypeError("can't add {} and {}".format(self, other))
-
-    # class direct_product_evaluator_sum:
-    #     def __init__(self, evaluators):
-    #         self.evaluators = evaluators
-    #
-    #
-    # def get_poly_evaluator(self, coefficient_tensors, freqs):
-    #     return self.direct_product_evaluator_sum([
-    #         contrib.get_poly_evaluator(coefficient_tensors, freqs)
-    #         for contrib in self.contribs
-    #     ])
-    #
-    # def eval(self, quanta, coefficient_tensors, freqs, crossover):
-    #     ...
-
-    def substitute_coefficients(self, coefficient_tensors):
-        return type(self)(tuple(
-            contrib.substitute_coefficients(coefficient_tensors)
-            for contrib in self.contribs
-        ))
-
-    def substitute_paths(self, freqs, exponents, crossover):
-        return type(self)(tuple(
-            contrib.substitute_paths(freqs, exponents, crossover)
-            for contrib in self.contribs
-        ))
-
-class AnalyticPTCorrectionSum(PureMonicPolynomial):
-    """
-    Represents a sum of polynomial corrections over energy path products
-    """
-
-    @classmethod
-    def canonical_key(cls, path):
-        return path
-        # # we need a way to sort indices, which we do by grouping by key length,
-        # # doing a standard sort for each length, and reconcatenating
-        # s_groups = {}
-        # for index_tuple in monomial_tuple:
-        #     l = len(index_tuple)
-        #     grp = s_groups.get(l, [])
-        #     s_groups[l] = grp
-        #     grp.append(index_tuple)
-        # t = tuple(
-        #     grp
-        #     for l in sorted(s_groups.keys())
-        #     for grp in sorted(s_groups[l])
-        # )
-        # return t
-
-    # def evaluate(self, quanta, coefficient_tensors, freqs, crossover):
-    #     for path, contrib_gen in self.terms.items():
-    #         contrib = contrib_gen.eval(quanta, coefficient_tensors, freqs, crossover)
-    #     ...
-
-    def substitute_coefficients(self, coeffs):
-        return type(self)({
-            path:sub.substitute_coefficients(coeffs)
-            for path,sub in self.terms.items()
-        })
-
-    def substitute_paths(self, freqs, exponents, crossover):
-        return type(self)({
-            path:sub.substitute_paths(freqs, exponents, crossover)
-            for path,sub in self.terms.items()
-        })
-
-# class PTTensorCoeffProductSum(TensorCoefficientPoly):
-#     """
-#     Only here for the better formatting
-#     """
-#     def __repr__(self):
-#         sums = []
-#         for k_prod,v in self.terms.items():
-#             ks = [
-#                 "{}[{}]{}".format(
-#                     ["V", "G", "V'"][k[1]],
-#                     k[0],
-#                     k[2:]
-#                 )
-#                 for k in k_prod
-#             ]
-#             # v = round(v, 5)
-#             sums.append("{}{}".format(v, "".join(ks)))
-#         return "+".join(sums)
-
-class AnalyticPTCorrectionGenerator:
-    """
-    Takes strings of `x`/`p` terms plus tensor identities and uses them to
-    generate a correction
-    """
-
-    def __init__(self, term_lists, operator_indices=None):
-        if operator_indices is None and isinstance(term_lists[0][0], dict): # operator inds encoded in terms
-            operator_indices = [
-                [next(iter(t.keys())) for t in tt]
-                for tt in term_lists
-            ]
-            term_lists = [
-                [next(iter(t.values())) for t in tt]
-                for tt in term_lists
-            ]
-        self.term_lists = term_lists
-        self.sizes = [len(t[0]) for t in term_lists]
-        self.total_terms = sum(self.sizes)
-        if operator_indices is None:
-            operator_indices = [
-                [(i, j) for j in range(len(t))]
-                for i,t in enumerate(self.term_lists)
-            ]
-        self.operator_indices = [
-            [tuple(t) for t in tt]
-            for tt in operator_indices
-        ]
-
-    def _build_operator_split_trees(self, boxes, steps, generator, cache):
-        # TODO: huge amount of waste that could be pruned here...
-        #       by making use of the tree structure of the problem
-        #       and turning the sets of boxes into a trie so invalid combos
-        #       aren't tried repeatedly, also we have a bunch of permutation symmetry
-        #       we aren't making use of that could reduce work across the entrie calculation
-        s = steps[0]
-        if s not in cache:
-            cache[s] = generator.get_terms(s) # could probably be faster...
-
-        parts = cache[s]
-        new_boxes = boxes[np.newaxis] - parts # this could be done smarter I think
-        good_places = np.all(new_boxes >= 0, axis=1)
-
-        if len(steps) > 1:
-            new_trees = []
-            for subbox, part in zip(new_boxes[good_places,], parts[good_places,]):
-                subtree = self._build_operator_split_trees(subbox, steps[1:], generator, cache)
-                new_trees.append(
-                    np.concatenate(
-                        [
-                            np.broadcast_to(part[np.newaxis, np.newaxis], (subtree.shape[0], 1, subtree.shape[2])),
-                            subtree  # num_terms x num_steps x num_terms
-                        ],
-                        axis=1
-                    )
-                )
-            tree = np.concatenate(new_trees, axis=0)
-        else:
-            tree = parts[good_places,][:, np.newaxis, :]
-
-        return tree
-
-    def enumerate_operator_partitions(self, changes):
-        # we have a set of operators with sizes {s_i}
-        # which must be distributed over D dimensions where
-        # D depends on how many terms are left over after subtracting
-        # off the requisite terms to cause `changes`
-        #
-        # To do this we enumerate the partitions of the total number of steps
-        # that distribute enough terms into each dimension and then for each of
-        # these partitions we find the sets of partitions of the sizes that lead
-        # to a valid solutions
-
-        changes = np.asanyarray(changes, dtype=int)
-        changes = np.abs(changes).astype(int)
-        total_change = np.sum(changes)
-        remainder_terms = self.total_terms - total_change
-        if remainder_terms % 2 != 0:
-            return [], 0
-            # raise ValueError("need even remainder by symmetry")
-        total_dim = len([c for c in changes if c != 0]) + remainder_terms // 2
-
-        changes = np.pad(changes, [0, total_dim - len(changes)])
-
-        targets = IntegerPartitioner.partitions(self.total_terms, max_len=total_dim, pad=True)
-        check_changes = targets - changes[np.newaxis, :]
-        good_targets = np.all(check_changes >= 0, axis=1)
-        targets = targets[good_targets]
-
-        generator = SymmetricGroupGenerator(total_dim)
-        cache = {}
-
-        base_tree = np.concatenate(
-            [
-                self._build_operator_split_trees(t, self.sizes, generator, cache)
-                for t in targets
-            ], axis=0
-        )
-
-        even_check = np.sum(base_tree, axis=1) - changes[np.newaxis, :]
-        symmetric_trees = np.all(even_check % 2 == 0, axis=1)
-
-        return base_tree[symmetric_trees,], total_dim
-
-    class PTMatrixGenerator:
-        def __init__(self, generator_sets, prefactor_sets):
-            self.generator_lists = generator_sets
-            self.prefactor_lists = prefactor_sets
-            self.size = len(generator_sets[0].terms)
-            # self.terms = generator_sets[0].terms
-        def poly_coeffs(self, change, shift=0):
-            base_lists = []
-            for gen, prefactor in zip(self.generator_lists, self.prefactor_lists):
-                base = gen.poly_coeffs(change, shift=shift)
-                if not (isinstance(base, (int, float, np.integer, np.floating)) and base == 0):
-                    if not isinstance(prefactor, (int, float, np.integer, np.floating)):
-                        base = np.array([prefactor*b if b != 0 else 0 for b in base], dtype=object)
-                    else:
-                        base = prefactor * base
-                base_lists.append(base)
-            return sum(base_lists)
-        def __repr__(self):
-            return "{}({})".format(type(self).__name__, [g.terms for g in self.generator_lists])
-
-    def _build_matrix_generator(self, step, index_list, cache, prefactor):
-        if len(index_list) == 0:
-            return None
-
-        gens = []
-        for terms in self.term_lists[step]:
-            k = tuple([terms[i] for i in index_list])
-            if k not in cache:
-                # if k[1] > 2:
-                #     raise ValueError("didn't expect to have more than one p?")
-                # elif k[1] == 2:
-                #     term_list = ['x'] * k[0] + ['p']
-                # elif k[1] == 1:
-                #     term_list = ['x'] * k[0] + ['p']
-                # else:
-                #     term_list = ['x'] * k[0]
-                cache[k] = HarmonicOscillatorMatrixGenerator(k)
-            gens.append(cache[k])
-        mg = self.PTMatrixGenerator(gens, prefactor)
-        return mg
-
-    def _build_matgen_prefactor_list(self, operator_splits, operator_index, op_cache):
-        def _prefactor(op_idx, num_subops, inv):
-            base_list = [i for i,v in enumerate(inv) for _ in range(len(v))]
-            base_tup = tuple(base_list[j] for j in np.concatenate(inv))
-            return [
-                PTTensorCoeffProductSum.monomial(self.operator_indices[op_idx][subop_idx] + base_tup)
-                for subop_idx in range(num_subops)
-            ]
-
-        index_sets = operator_splits[0]
-        inverse_sets = operator_splits[1]
-        prefactors = [
-            _prefactor(operator_index, len(self.term_lists[operator_index]), i)
-            for i in zip(*inverse_sets)
-        ] # orderd by partition
-
-        return [
-            [
-                self._build_matrix_generator(operator_index, p, op_cache, f)
-                for p,f in zip(pset, prefactors)
-            ]
-            for pset in index_sets
-        ]
-
-    def build_matrix_generators(self, operator_sets):
-
-
-        # subbies = [
-        #     UniqueSubsets(t)
-        #     for t in term_encodings
-        # ]
-        op_cache = {}
-        parts = [UniquePartitions(np.arange(len(t[0]))) for t in self.term_lists]
-        op_subs = [
-            [
-                # [
-                #     self._build_matrix_generator(subby.get_subsets(s), op_cache)
-                #     # this actually provides an over-estimate, instead we need to take all unique disjoint subsets
-                #     # of
-                #     for subby, s in zip(subbies, dim_subs)
-                # ]
-                # for dim_subs in op_list
-                p.partitions(ol,
-                             take_unique=False,
-                             return_partitions=False,
-                             return_indices=True,
-                             return_inverse=True
-                             ) # I actually don't want to do the unique terms...? (loses scaling)
-                for p, ol in zip(parts, op_list)
-            ]
-            for op_list in operator_sets
-        ]
-        # raise Exception(
-        #     parts[1].partitions(
-        #         operator_sets[1][1],
-        #         take_unique=False,
-        #         return_partitions=False,
-        #         return_indices=True,
-        #         return_inverse=True
-        #     )[0]
-        # )
-
-        # now convert these encoded lists into proper matrix generators
-        mat_gens = [
-            [
-                self._build_matgen_prefactor_list(term_partition_lists, operator_index, op_cache)
-                for operator_index, term_partition_lists in enumerate(sub_list) # iterate across operators themselves
-            ]
-            for sub_list in op_subs # iterate over ways to divide operators across coords
-        ]
-
-        return mat_gens
-
-    def get_correction(self, changes):
-        # Step 1: determine the distinct ways to split the terms up
-        #         that can generate the change
-        # Step 2: create a set of matrix generators for each of these sets
-        # Step 3: set up the 1D poly/energy change lists that will eventually
-        #         be direct product-ed
-        # Step 4: return these + the associated tensor coefficient product to be
-        #         collated into a single sparse polynomial
-
-        if self.total_terms == 0: # just a product of tensor coefficients assuming orthogonality applies
-            cs = np.sum(np.abs(changes))
-            if cs > 0:
-                return 0
-            else:
-                polys = [
-                    [
-                        np.array([TensorCoefficientPoly.monomial(self.operator_indices[i][j])], dtype=object)
-                        for j,_ in enumerate(t)
-                    ]
-                    for i, t in enumerate(self.term_lists)
-                ]
-                shifts = tuple(
-                    (0,)*len(t)
-                    for t in self.term_lists
-                )
-                return AnalyticPTProductContrib(polys, shifts, [])
-
-        operator_sets, dimension = self.enumerate_operator_partitions(changes)
-        if len(operator_sets) == 0: # _not_ an empty operator, just no valid paths
-            return 0
-        changes = np.pad(changes, [0, dimension - len(changes)]).astype(int)
-        mat_gens = self.build_matrix_generators(operator_sets)
-
-        polys = [
-            AnalyticPTPolynomialGenerators(
-                [
-                    [tm[i] for tm in term_mat_list]
-                    for i in range(dimension)
-                ]
-            ).get_correction_poly_generator(changes)
-            for term_mat_list in mat_gens
-        ]
-
-        return AnalyticPTCorrectionSum({ # Not even sure this makes sense to do
-            g.shifts:g for g in polys
-        })
-
-class AnalyticPerturbationTheoryDriver:
-    """
-
-    """
-    def __init__(self,
-                 hamiltonian_terms
-                 ):
-        self.terms = hamiltonian_terms
-        self._cache = {}
-
-    @classmethod
-    def from_order(cls, order, internals=True):
-        if internals:
-            hamiltonian_terms = [
-                [
-                    [
-                        {(o,0):['x']*(o+2)},
-                        {(o,1):['p'] + ['x']*o + ['p']}
-                    ]
-                ] + (
-                    []
-                        if o < 2 else
-                    [
-                        [
-                            {(o,2):['x'] * (o-2)}
-                        ] # V' term has different shape from rest
-                    ]
-                )
-                for o in range(order+1)
-            ]
-        else:
-            raise NotImplementedError("Cartesians coming soon?")
-
-        return cls(hamiltonian_terms)
-
-    def _take_term_direct_prod(self, terms):
-        prod_inds = itertools.product(*[range(len(t)) for t in terms])
-        return [
-            [t[i] for t,i in zip(terms,p)]
-            for p in prod_inds
-        ]
-
-    @classmethod
-    def get_integer_partition_permutation_tuples(cls, order, unique=True, max_part=None):
-        base_parts = IntegerPartitioner.partitions(order, pad=False)
-        if max_part is not None:
-            base_parts = [b[np.max(b) < max_part] for b in base_parts]
-        perm_iterator = itertools.chain(*(  # few enough I can be a bit inefficient
-            list(itertools.permutations(part))
-            for order_parts in base_parts
-            for part in order_parts
-        ))
-        if unique:
-            return set(perm_iterator)
-        else:
-            return list(perm_iterator)
-    def energy_terms(self, order, return_indices=False):
-        term_indices = self.get_integer_partition_permutation_tuples(order)
-
-        terms = [
-            self._take_term_direct_prod([self.terms[i] for i in term_index_list])
-            for term_index_list in term_indices
-        ]
-
-        if return_indices:
-            return terms, term_indices
-        else:
-            return terms
-
-    def energy_correction_driver(self, order):
-        return AnalyticPTEnergyDriver(
-            [
-                self.energy_terms(o, return_indices=True)
-                for o in range(1, order+1)
-            ],
-            self
-        )
-
-    def overlap_terms(self, order, return_indices=False):
-        term_indices = self.get_integer_partition_permutation_tuples(order, max_part=order-1)
-
-        terms = [
-            self._take_term_direct_prod([self.terms[i] for i in term_index_list])
-            for term_index_list in term_indices
-        ]
-
-        if return_indices:
-            return terms, term_indices
-        else:
-            return terms
-
-    def overlap_correction_driver(self, order):
-        return AnalyticPTOverlapDriver(
-            [
-                self.overlap_terms(o, return_indices=True)
-                for o in range(1, order+1)
-            ],
-            self
-        )
-
-class AnalyticPTOperatorElementDriver(metaclass=abc.ABCMeta):
-    def __init__(self, terms_inds, changes, parent:AnalyticPerturbationTheoryDriver):
-        self.parent = parent
-        self.changes = changes
-        self.term_inds = terms_inds
-        self.order = len(terms_inds)
-        self._base_terms = None
-
-    @property
-    def generic_corrections(self):
-        if self._base_terms is None:
-            self._base_terms = self._evaluate_base_corrs()
-        return self._base_terms
-    def _evaluate_base_corrs(self): # this could be shared across orders...
-        term_map = {}
-        for order_list, order_inds in self.term_inds:
-            for terms,inds in zip(order_list, order_inds):
-                term_map[inds] = sum(AnalyticPTCorrectionGenerator(t).get_correction(self.changes) for t in terms)
-        return term_map
-
-    @abc.abstractmethod
-    def enumerate_overlap_energy_exponent_tuples(self, index_tuple):
-        #TODO: figure out parities
-
-        remainder = self.order - sum(index_tuple)
-        nterms = len(index_tuple)
-        if remainder == 0: # just put a Pi between every term
-            return [0], [[]], [[0] + [1]*(nterms - 1) + [0]]
-        elif len(index_tuple) == 1: # only one term, so can only multiply by the overlap
-            return [remainder], [[]], [[0, 0]]
-        else: # need to figure out how to split up terms across the energies and overlaps
-            # somehow we only ever have one overlap term so we'll just loop through those
-            for ov in range(remainder+1):
-                e_terms = []
-                # enumerate all possible
-                e_parts = IntegerPartitioner.partitions(remainder - ov)
-                for part in e_parts:
-                    engs, counts = np.unique(part, return_counts=True)
-            raise NotImplementedError("still working out how to split integer partition permutations over E and Ov")
-
-
-    def get_poly_evaluator(self, coefficient_tensors, freqs):
-        poly_terms = self.generic_corrections
-        polys = []
-        for index_tuple, poly_sum in poly_terms.items():
-            # evaluate sets of overlap * energy_correction * Pi's to weight polynomials
-            if isinstance(poly_sum, (int, float, np.integer, np.floating)) and poly_sum == 0:
-                continue
-
-            base_poly = poly_sum.substitute_coefficients(coefficient_tensors)
-            overlap, ecorrs, exponents = self.enumerate_overlap_energy_exponent_tuples(index_tuple)
-            # poly_scaling = 0
-            for ov, ec, exp in zip(overlap, ecorrs, exponents): # gotta dd up all these products...
-                if ov == 1 or any(e%2 == 1 for e in ec): # ov[1] always zero as well as odd-order energy corrs
-                    continue
-
-                subpoly = base_poly.substitute_paths(freqs, exponents, -1)
-
-                sub_scaling = 1
-                if ov > 0: # ov[0] always one...
-                    sub_scaling *= self.parent.overlap_correction_driver(ov).get_poly_evaluator(coefficient_tensors, freqs)
-                for ec in ec:
-                    # this should be cached...
-                    sub_scaling *= self.parent.energy_correction_driver(ec).get_poly_evaluator(coefficient_tensors, freqs)
-
-                # poly_scaling = poly_scaling + sub_scaling
-
-                subpoly = subpoly * sub_scaling
-                polys.append(subpoly) # this could be made more efficient by not having every exponent set act differently...
-
-        raise Exception(polys)
-        return self._poly_evaluator(polys)
-
-class AnalyticCorrectionPolyEvaluator:
-    def __init__(self, polys):
-        self.polys = polys
-    def eval(self, quanta):
-        # this will need to be optimized and adapted
-        # for resonance handling
-        return sum(
-            subp.evaluate(quanta)
-            for subp in self.polys
-        )
-
-class AnalyticPTEnergyDriver(AnalyticPTOperatorElementDriver):
-
-    def __init__(self, terms_inds, parent:AnalyticPerturbationTheoryDriver):
-        super().__init__(terms_inds, [], parent)
-
-    def enumerate_overlap_energy_exponent_tuples(self, index_tuple):
-        #TODO: figure out parities
-
-        remainder = self.order - sum(index_tuple)
-        nterms = len(index_tuple)
-        if remainder == 0: # just put a Pi between every term
-            return [0], [[]], [[0] + [1]*(nterms - 1) + [0]]
-        elif len(index_tuple) == 1: # only one term, so can only multiply by the overlap
-            return [remainder], [[]], [[0, 0]]
-        else: # need to figure out how to split up terms across the energies and overlaps
-            # somehow we only ever have one overlap term so we'll just loop through those
-            for ov in range(remainder+1):
-                e_terms = []
-                # enumerate all possible
-                e_parts = IntegerPartitioner.partitions(remainder - ov)
-                for part in e_parts:
-                    engs, counts = np.unique(part, return_counts=True)
-            raise NotImplementedError("still working out how to split integer partition permutations over E and Ov")
-
-
-class AnalyticPTOverlapDriver(AnalyticPTOperatorElementDriver):
-
-    def __init__(self, terms_inds, parent:AnalyticPerturbationTheoryDriver):
-        super().__init__(terms_inds, [], parent)
-
-    def enumerate_overlap_energy_exponent_tuples(self, index_tuple):
-        #TODO: figure out parities
-        raise Exception(...)
-
-        remainder = self.order - sum(index_tuple)
-        nterms = len(index_tuple)
-        if remainder == 0: # just put a Pi between every term
-            return [0], [[]], [[0] + [1]*(nterms - 1) + [0]]
-        elif len(index_tuple) == 1: # only one term, so can only multiply by the overlap
-            return [remainder], [[]], [[0, 0]]
-        else: # need to figure out how to split up terms across the energies and overlaps
-            # somehow we only ever have one overlap term so we'll just loop through those
-            for ov in range(remainder+1):
-                e_terms = []
-                # enumerate all possible
-                e_parts = IntegerPartitioner.partitions(remainder - ov)
-                for part in e_parts:
-                    engs, counts = np.unique(part, return_counts=True)
-            raise NotImplementedError("still working out how to split integer partition permutations over E and Ov")
-
-#endregion
