@@ -40,18 +40,17 @@ class VPT2Tests(TestCase):
     @debugTest
     def test_AnalyticPTOperators(self):
 
-        internals = True
+        internals = False
         vpt2 = AnalyticPerturbationTheorySolver.from_order(2, internals=internals)
         # print(
-        #     vpt2.hamiltonian_expansion[1].get_poly_terms([1, 1, 1])
+        #     vpt2.hamiltonian_expansion[2].get_poly_terms([])
         # )
-        # print(vpt2.hamiltonian_expansion[1]([2, 1]))
         # raise Exception(...)
-
-        H1PH1 = vpt2.energy_correction(2).expressions[1]
-
-        H1 = vpt2.hamiltonian_expansion[1]
-        H1H1 = H1*H1
+        #
+        # H1PH1 = vpt2.energy_correction(2).expressions[1]
+        #
+        # H1 = vpt2.hamiltonian_expansion[1]
+        # H1H1 = H1*H1
 
         """
         ==================== V[1](0, 0, 0)V[1](0, 0, 0) 1 ====================
@@ -173,30 +172,57 @@ class VPT2Tests(TestCase):
                 ]
             ]
         else:
-            raise Exception(...)
+            Z = ham.coriolis_terms
             water_expansion = [
                 [V[0] / 2, G[0] / 2],
                 [
-                    # np.zeros(V[1].shape),
-                    np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0) / np.math.factorial(
-                        3) / 6,
-                    # np.zeros(V[1].shape),
-                    -np.moveaxis(G[1], -1, 0) / 2
-                    if isinstance(G[1], np.ndarray) else
-                    np.zeros(V[1].shape)
+                    np.zeros(V[1].shape),
+                    # np.sum(
+                    #     [V[1].transpose(p) for p in itertools.permutations([0, 1, 2])],
+                    #     axis=0
+                    # ) / np.math.factorial(3) / 6,
+                    0 # G
                 ],
                 [
-                    np.zeros(V[2].shape),
-                    # V[2]/24,
-                    np.zeros(V[2].shape),
-                    # -np.moveaxis(G[2], -1, 0)/4
-                    #     if isinstance(G[2], np.ndarray) else
                     # np.zeros(V[2].shape),
-                    0
-                    # U[0]/8
+                    V[2] / 24,
+                    0, # G
+                    0, # V'
+                    # np.zeros(V[2].shape),
+                    -Z[0],
+                    # 0
+                    U[0] / 8 # Watson
                 ]
             ]
+        # raise Exception(
+        #     -.25 * np.array([
+        #         Z[0][0, 0, 2, 2],
+        #         Z[0][0, 2, 0, 2],
+        #         Z[0][0, 2, 2, 0],
+        #         Z[0][2, 0, 0, 2],
+        #         Z[0][2, 0, 2, 0],
+        #         Z[0][2, 2, 0, 0]
+        #     ]) * 219475
+        # )
+        # raise Exception(
+        #     -.25*np.array([
+        #             Z[0][0, 0, 2, 2],
+        #             Z[0][0, 2, 0, 2],
+        #             Z[0][0, 2, 2, 0],
+        #             Z[0][2, 0, 0, 2],
+        #             Z[0][2, 0, 2, 0],
+        #             Z[0][2, 2, 0, 0]
+        #     ]) * 219475
+        # )
+
         water_freqs = ham.modes.freqs
+
+        # raise Exception(list(sorted([
+        #     [p, np.linalg.norm((np.transpose(water_expansion[2][3], p) - water_expansion[2][3]).flatten())]
+        #     for p in itertools.permutations([0, 1, 2, 3])
+        #     ],
+        #     key=lambda x:x[1]
+        # )))
 
         # solver = runner.hamiltonian.get_solver(runner.states.state_list)
         # raise Exception(
@@ -206,22 +232,26 @@ class VPT2Tests(TestCase):
 
         # wfns = runner.get_wavefunctions()
 
-        ham.G_terms = [
-            G[0],
-            # G[1],
-            np.zeros(G[1].shape),
-            # G[2]
-            np.zeros(G[2].shape),
-        ]
-        ham.V_terms = [
-            V[0],
-            np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0) / np.math.factorial(3),
-            # np.zeros(V[1].shape),
-            # V[2],
-            np.zeros(V[2].shape)
-        ]
-        ham.pseudopotential_term = [0]
-        # runner.print_tables(print_intensities=False)
+        # ham.G_terms = [
+        #     G[0],
+        #     # G[1],
+        #     np.zeros(G[1].shape),
+        #     # G[2]
+        #     np.zeros(G[2].shape),
+        # ]
+        # ham.V_terms = [
+        #     V[0],
+        #     # np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0) / np.math.factorial(3),
+        #     np.zeros(V[1].shape),
+        #     V[2],
+        #     # np.zeros(V[2].shape)
+        # ]
+        # ham.coriolis_terms = [
+        #     np.zeros(V[2].shape)
+        #     # (Z[0] + np.transpose(Z[0], [0, 3, 2, 1])) / 2
+        # ]
+        # ham.pseudopotential_term = [0]
+        runner.print_tables(print_intensities=False)
         """
         :: State    <0|dH(2)|0>  <0|dH(1)|1> 
           0 0 0      0.00000   -141.74965
@@ -234,6 +264,12 @@ class VPT2Tests(TestCase):
           0 0 1    276.68965   -545.08549
           0 1 0    281.61581   -538.53511
           1 0 0     88.49014   -213.67502
+          
+        :: State    <0|dH(2)|0>  <0|dH(1)|1>  # Cartesians
+          0 0 0     42.02414   -117.62974
+          0 0 1    199.53514   -467.93034
+          0 1 0    195.87334   -452.78667
+          1 0 0    -32.13943    -93.04841
         >>--------------------------------------------------<<
         >>------------------------- States Energies -------------------------
         :: State     Harmonic   Anharmonic     Harmonic   Anharmonic
@@ -283,7 +319,8 @@ class VPT2Tests(TestCase):
 
         with np.printoptions(linewidth=1e8):
             jesus_fuck = E2([])
-            corr = jesus_fuck.evaluate([0, 0, 0], water_expansion, water_freqs) * UnitsData.convert("Hartrees", "Wavenumbers")
+            # jesus_fuck.expr.print_tree()
+            corr = jesus_fuck.evaluate([0, 0, 0], water_expansion, water_freqs, verbose=True) * UnitsData.convert("Hartrees", "Wavenumbers")
         print(corr)
         raise Exception(corr)
             # vpt2.energy_correction(2).expressions[1].changes[()]

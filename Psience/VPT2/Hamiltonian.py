@@ -244,8 +244,7 @@ class PerturbationTheoryHamiltonian:
                     zz.append(z)
                 return zz
         def adjust_base_term(self, Z):
-            for ax in range(2): # contracting all axes...
-                Z = np.sum(Z, axis=0)
+            Z = Z[0, 0] + Z[1, 1] + Z[2, 2]
             return Z
 
 
