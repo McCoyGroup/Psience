@@ -108,18 +108,18 @@ Provides the real part of the momentum for the [0, 2pi] range
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-45fc62" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-45fc62"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-d65b73" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-d65b73"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-45fc62" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-d65b73" markdown="1">
  - [RingDVR1D](#RingDVR1D)
 - [RingDVR1DExplicitMass](#RingDVR1DExplicitMass)
 - [RingDVR1DCosMass](#RingDVR1DCosMass)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-e055dc" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e055dc"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-d48d86" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-d48d86"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e055dc" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-d48d86" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
