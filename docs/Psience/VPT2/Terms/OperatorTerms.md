@@ -1,11 +1,12 @@
-## <a id="Psience.VPT2.Terms.DipoleTerms">DipoleTerms</a> 
+## <a id="Psience.VPT2.Terms.OperatorTerms">OperatorTerms</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L2223)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2223?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L2685)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2685?message=Update%20Docs)]
 </div>
 
-
+Literally as simple as it comes for an operator expansion.
+One dimensional, no mixed derivative stuff.
 
 
 
@@ -19,13 +20,13 @@
  </div>
  <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
  
-<a id="Psience.VPT2.Terms.DipoleTerms.__init__" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.VPT2.Terms.OperatorTerms.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, molecule, dipole_derivatives=None, mixed_derivs=None, modes=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, **opts): 
+__init__(self, molecule, operator_derivatives=None, modes=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/DipoleTerms.py#L2227)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/DipoleTerms.py#L2227?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/OperatorTerms.py#L2693)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/OperatorTerms.py#L2693?message=Update%20Docs)]
 </div>
 
   - `molecule`: `Molecule`
@@ -38,13 +39,13 @@ __init__(self, molecule, dipole_derivatives=None, mixed_derivs=None, modes=None,
     > the subset of normal modes to use
 
 
-<a id="Psience.VPT2.Terms.DipoleTerms.get_terms" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.VPT2.Terms.OperatorTerms.get_terms" class="docs-object-method">&nbsp;</a> 
 ```python
-get_terms(self, order=None): 
+get_terms(self, order=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/DipoleTerms.py#L2488)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/DipoleTerms.py#L2488?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/OperatorTerms.py#L2785)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/OperatorTerms.py#L2785?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -93,13 +94,13 @@ get_terms(self, order=None):
 [Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Terms/DipoleTerms.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Terms/DipoleTerms.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Terms/OperatorTerms.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Terms/OperatorTerms.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Terms/DipoleTerms.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Terms/DipoleTerms.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Terms/OperatorTerms.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Terms/OperatorTerms.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2223?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2685?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

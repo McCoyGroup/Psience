@@ -93,7 +93,7 @@ build_degenerate_state_spaces(self, degeneracy_specs, states, system=None):
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.filter_generator" class="docs-object-method">&nbsp;</a> 
 ```python
-filter_generator(self, target_property, order=2, postfilters=None): 
+filter_generator(self, target_property, order=2, initial_states=None, postfilters=None): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTStateSpace.py#L396)/
@@ -103,11 +103,11 @@ filter_generator(self, target_property, order=2, postfilters=None):
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.get_filter" class="docs-object-method">&nbsp;</a> 
 ```python
-get_filter(self, target_property, order=2, postfilters=None): 
+get_filter(self, target_property, order=2, initial_states=None, postfilters=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTStateSpace.py#L400)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTStateSpace.py#L400?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTStateSpace.py#L404)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTStateSpace.py#L404?message=Update%20Docs)]
 </div>
 Obtains a state space filter for the given target property
 using the states we want to get corrections for
@@ -121,11 +121,11 @@ using the states we want to get corrections for
 
 <a id="Psience.VPT2.Runner.VPTStateSpace.get_state_space_filter" class="docs-object-method">&nbsp;</a> 
 ```python
-get_state_space_filter(states, n_modes=None, order=2, target='wavefunctions', postfilters=None): 
+get_state_space_filter(states, initial_states=None, n_modes=None, order=2, target='wavefunctions', postfilters=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTStateSpace.py#L417)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTStateSpace.py#L417?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTStateSpace.py#L422)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTStateSpace.py#L422?message=Update%20Docs)]
 </div>
 Gets `state_space_filters` for the input `states` targeting some property
   - `states`: `Any`
@@ -143,9 +143,9 @@ Gets `state_space_filters` for the input `states` targeting some property
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-54f472" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-54f472"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-f4e428" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-f4e428"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-54f472" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-f4e428" markdown="1">
  
 There are multiple possible values for the `degeneracy_specs`.
 The simplest is to use the automatic approach, in which we supply a numeric type (`int`, `float`, etc.) to use as the `WFC` threshold.
@@ -242,17 +242,17 @@ As are total quanta vectors/polyads
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-f13b8a" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-f13b8a"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-58d648" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-58d648"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-f13b8a" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-58d648" markdown="1">
  - [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
 - [GetDegenerateSpaces](#GetDegenerateSpaces)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-a66fcc" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-a66fcc"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-5600c7" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-5600c7"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-a66fcc" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-5600c7" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces

@@ -24,7 +24,7 @@
 [BroadenedSpectrum](Spectra/BaseSpectrum/BroadenedSpectrum.md)   
 </div>
    <div class="col" markdown="1">
-   
+[MultiSpectrum](Spectra/BaseSpectrum/MultiSpectrum.md)   
 </div>
    <div class="col" markdown="1">
    

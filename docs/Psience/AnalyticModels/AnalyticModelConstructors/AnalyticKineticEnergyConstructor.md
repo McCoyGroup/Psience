@@ -1,8 +1,8 @@
 ## <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticKineticEnergyConstructor">AnalyticKineticEnergyConstructor</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors.py#L107)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L107?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors.py#L187)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L187?message=Update%20Docs)]
 </div>
 
 Provides G and V' elements from Frederick and Woywood
@@ -19,13 +19,23 @@ Provides G and V' elements from Frederick and Woywood
  </div>
  <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
  
+<a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticKineticEnergyConstructor.kinetic_exprs" class="docs-object-method">&nbsp;</a> 
+```python
+kinetic_exprs(inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbols=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L237)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L237?message=Update%20Docs)]
+</div>
+
+
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticKineticEnergyConstructor.g" class="docs-object-method">&nbsp;</a> 
 ```python
 g(inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbols=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L138)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L138?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L287)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L287?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +44,8 @@ g(inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbo
 vp(inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbols=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L180)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L180?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L290)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L290?message=Update%20Docs)]
 </div>
 
 
@@ -44,8 +54,8 @@ vp(inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symb
 infer_coord_type(inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L223)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L223?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L294)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.py#L294?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -100,7 +110,7 @@ infer_coord_type(inds):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L107?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L187?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

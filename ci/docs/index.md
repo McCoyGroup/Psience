@@ -1,6 +1,6 @@
 # Where Am I? [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/McCoyGroup/Binder-McUtils/master?urlpath=git-pull%3Frepo%3Dhttps%253A%252F%252Fgithub.com%252FMcCoyGroup%252FPsience%26urlpath%3Dlab%252Ftree%252FPsience%252Fbinder%252Findex.ipynb%26branch%3Dmaster)
 
-This is the reference documentation for the [`Psience`](https://github.com/{gh_username}/{gh_repo}) package,
+This is the reference documentation for the [`Psience`](https://github.com/McCoyGroup/Psience) package,
 written starting in 2018 by the McCoy group at the University of Washington.
 
 The package is split into a two major subsections, focused on two methodologies for solving the time-independent vibrational Schrödinger equation.

@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Terms.KineticTerms">KineticTerms</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L1881)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1881?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L1882)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1882?message=Update%20Docs)]
 </div>
 
 Represents the KE coefficients
@@ -24,8 +24,8 @@ Represents the KE coefficients
 __init__(self, molecule, g_derivative_threshold=0.001, gmatrix_tolerance=1e-06, use_cartesian_kinetic_energy=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/KineticTerms.py#L1889)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/KineticTerms.py#L1889?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/KineticTerms.py#L1890)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/KineticTerms.py#L1890?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,8 @@ __init__(self, molecule, g_derivative_threshold=0.001, gmatrix_tolerance=1e-06, 
 get_terms(self, order=None, logger=None, return_expressions=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/KineticTerms.py#L1901)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/KineticTerms.py#L1901?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/KineticTerms.py#L1902)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/KineticTerms.py#L1902?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -90,7 +90,7 @@ get_terms(self, order=None, logger=None, return_expressions=False):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Terms/KineticTerms.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Terms/KineticTerms.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1881?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1882?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

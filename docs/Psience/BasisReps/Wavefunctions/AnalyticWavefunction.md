@@ -95,10 +95,24 @@ Computes the expectation value of operator op over the wavefunction other and se
 probability_density(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Wavefunctions/AnalyticWavefunction.py#L100)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Wavefunctions/AnalyticWavefunction.py#L100?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Wavefunctions/AnalyticWavefunction.py#L101)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Wavefunctions/AnalyticWavefunction.py#L101?message=Update%20Docs)]
 </div>
 Computes the probability density of the current wavefunction
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunction.marginalize_out" class="docs-object-method">&nbsp;</a> 
+```python
+marginalize_out(self, dofs): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Wavefunctions/AnalyticWavefunction.py#L109)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Wavefunctions/AnalyticWavefunction.py#L109?message=Update%20Docs)]
+</div>
+Computes the projection of the current wavefunction onto a set of degrees
+of freedom
   - `:returns`: `_`
     >
  </div>

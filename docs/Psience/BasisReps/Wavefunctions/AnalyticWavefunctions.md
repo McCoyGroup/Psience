@@ -1,8 +1,8 @@
 ## <a id="Psience.BasisReps.Wavefunctions.AnalyticWavefunctions">AnalyticWavefunctions</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Wavefunctions.py#L108)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Wavefunctions.py#L108?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Wavefunctions.py#L119)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Wavefunctions.py#L119?message=Update%20Docs)]
 </div>
 
 Represents wavefunctions with analytic forms, most commonly harmonic oscillators
@@ -24,8 +24,8 @@ Represents wavefunctions with analytic forms, most commonly harmonic oscillators
 __init__(self, energy_expr, wfn_expr, **ops): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Wavefunctions/AnalyticWavefunctions.py#L112)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Wavefunctions/AnalyticWavefunctions.py#L112?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Wavefunctions/AnalyticWavefunctions.py#L123)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Wavefunctions/AnalyticWavefunctions.py#L123?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,8 @@ __init__(self, energy_expr, wfn_expr, **ops):
 get_wavefunctions(self, which): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Wavefunctions/AnalyticWavefunctions.py#L118)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Wavefunctions/AnalyticWavefunctions.py#L118?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Wavefunctions/AnalyticWavefunctions.py#L129)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Wavefunctions/AnalyticWavefunctions.py#L129?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -90,7 +90,7 @@ get_wavefunctions(self, which):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Wavefunctions/AnalyticWavefunctions.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Wavefunctions/AnalyticWavefunctions.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Wavefunctions.py#L108?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Wavefunctions.py#L119?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

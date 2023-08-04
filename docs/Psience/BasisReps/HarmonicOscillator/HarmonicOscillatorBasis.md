@@ -1,8 +1,8 @@
 ## <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis">HarmonicOscillatorBasis</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator.py#L20)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator.py#L20?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator.py#L25)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator.py#L25?message=Update%20Docs)]
 </div>
 
 Provides a concrete implementation of RepresentationBasis using the H.O.
@@ -31,8 +31,8 @@ x: _lru_cache_wrapper
 __init__(self, n_quanta, m=None, re=None, dimensionless=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L27)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L27?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L32)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L32?message=Update%20Docs)]
 </div>
 
 
@@ -41,8 +41,8 @@ __init__(self, n_quanta, m=None, re=None, dimensionless=True):
 __eq__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L35)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L35?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L40)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L40?message=Update%20Docs)]
 </div>
 
 
@@ -51,8 +51,8 @@ __eq__(self, other):
 pmatrix_ho(n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L54)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L54?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L59)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L59?message=Update%20Docs)]
 </div>
 There's one big subtlety to what we're doing here, which is that
 for efficiency reasons we return an entirely real matrix
@@ -71,8 +71,8 @@ We actually use this assumption across _all_ of our representations
 qmatrix_ho(n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L79)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L79?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L84)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L84?message=Update%20Docs)]
 </div>
 
   - `n`: `Any`
@@ -86,8 +86,8 @@ qmatrix_ho(n):
 operator(self, *terms, logger=None, parallelizer=None, chunk_size=None, **operator_settings): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L96)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L96?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L101)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L101?message=Update%20Docs)]
 </div>
 Builds an operator based on supplied terms, remapping names where possible.
 If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
@@ -106,8 +106,8 @@ If `coeffs` or `axes` are supplied, a `ContractedOperator` is built.
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L153)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L153?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L158)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L158?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -131,9 +131,9 @@ __repr__(self):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-fb7327" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-fb7327"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-92fcb8" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-92fcb8"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-fb7327" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-92fcb8" markdown="1">
  - [HOBasis1DX](#HOBasis1DX)
 - [HOBasis1DXX](#HOBasis1DXX)
 - [HOBasis1DPXP](#HOBasis1DPXP)
@@ -143,9 +143,9 @@ __repr__(self):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-efc429" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-efc429"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-93dbba" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-93dbba"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-efc429" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-93dbba" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -332,7 +332,7 @@ class BasisSetTests(TestCase):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator.py#L20?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator.py#L25?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

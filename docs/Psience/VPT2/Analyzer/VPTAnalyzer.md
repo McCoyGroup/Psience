@@ -584,18 +584,19 @@ print_output_tables(self, print_energy_corrections=False, print_energies=False, 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-f4fbbc" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-f4fbbc"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-95f49c" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-95f49c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-f4fbbc" markdown="1">
- - [HOHCorrectedPostfilters](#HOHCorrectedPostfilters)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-95f49c" markdown="1">
+ - [ResultsFileAnalysis](#ResultsFileAnalysis)
+- [HOHCorrectedPostfilters](#HOHCorrectedPostfilters)
 - [OCHHInternals](#OCHHInternals)
 - [NH3Units](#NH3Units)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-b77675" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-b77675"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-cd6a72" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-cd6a72"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-b77675" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-cd6a72" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -803,6 +804,99 @@ class VPT2Tests(TestCase):
 
  </div>
 </div>
+
+#### <a name="ResultsFileAnalysis">ResultsFileAnalysis</a>
+```python
+    def test_ResultsFileAnalysis(self):
+
+        temp_file = os.path.expanduser('~/Desktop/test_results.hdf5')
+        log_file = os.path.expanduser('~/Desktop/test_results.txt')
+        # os.remove(temp_file)
+
+        # wfns = VPTRunner.run_simple(
+        #     TestManager.test_data("i_hoh_opt.fchk"),
+        #     2,
+        #     plot_spectrum=False
+        #     # initial_states=[
+        #     #     [0, 0, 0, 0, 0, 0],
+        #     #     [0, 0, 0, 2, 0, 0],
+        #     #     [0, 1, 0, 2, 0, 0],
+        #     #     [0, 0, 0, 0, 1, 0]
+        #     # ]
+        # )
+
+        if not os.path.exists(temp_file):
+            VPTRunner.run_simple(
+                TestManager.test_data("i_hoh_opt.fchk"),
+                2,
+                # initial_states=[
+                #     [0, 0, 0, 0, 0, 0],
+                #     [0, 0, 0, 2, 0, 0],
+                #     [0, 1, 0, 2, 0, 0],
+                #     [0, 0, 0, 0, 1, 0]
+                # ],
+                # degeneracy_specs='auto',
+                degeneracy_specs={
+                    "polyads": [
+                        [
+                            [0, 0, 0, 0, 1, 0],
+                            [0, 0, 0, 2, 0, 0]
+                        ],
+                        [
+                            [0, 0, 0, 1, 0, 0],
+                            [0, 0, 2, 0, 0, 0]
+                        ]
+                    ],
+                    "extra_groups": [
+                        [
+                            [0, 0, 0, 0, 1, 0],
+                            [0, 1, 0, 0, 1, 0],
+                            [1, 0, 0, 0, 1, 0],
+                            [0, 0, 0, 2, 0, 0],
+                            [0, 1, 0, 2, 0, 0],
+                            [1, 0, 0, 2, 0, 0],
+                            [0, 0, 2, 1, 0, 0],
+                            [0, 1, 2, 1, 0, 0],
+                            [1, 0, 2, 1, 0, 0],
+                            [0, 0, 4, 0, 0, 0],
+                            [0, 1, 4, 0, 0, 0],
+                            [1, 0, 4, 0, 0, 0]
+                        ]
+                    ]
+                },
+                # target_property='wavefunctions',
+                # logger=os.path.expanduser("~/Desktop/specks/run_wfns.txt"),
+                results=temp_file,
+                logger=log_file,
+                plot_spectrum=False
+            )
+
+        analyzer = VPTAnalyzer(temp_file)
+        # target_state = [0, 0, 2, 0, 0, 0]
+        # for i,block in analyzer.degenerate_states:
+        #     # intersect([target_state], block) -> check non-empty
+        #     ...
+        # McUtils.Numputils.intersection()
+
+        shifted_spec = analyzer.shifted_transformed_spectrum(
+            analyzer.degenerate_states[4], # 2 states, bend and OOP overtone
+            analyzer.deperturbed_hamiltonians[4], # 2x2 matrix
+            [0, -50 / UnitsData.hartrees_to_wavenumbers] # the shifts I want to add onto the diagonal
+        )
+        shifted_spec.plot()#.show()
+        print(shifted_spec.frequencies, shifted_spec.intensities)
+
+        with analyzer.log_parser as parser:
+            for i, block in enumerate(parser.get_blocks()):
+                for subblock in block.lines:
+                    print(subblock.tag)
+
+        from McUtils.Scaffolding import LogParser
+        with LogParser(log_file) as parser:
+            for i, block in enumerate(parser.get_blocks()):
+                for subblock in block.lines:
+                    print(subblock.tag)
+```
 
 #### <a name="HOHCorrectedPostfilters">HOHCorrectedPostfilters</a>
 ```python

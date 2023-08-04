@@ -1,8 +1,8 @@
 ## <a id="Psience.BasisReps.StateSpaces.PermutationallyReducedStateSpace">PermutationallyReducedStateSpace</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces.py#L1664)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L1664?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces.py#L1686)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L1686?message=Update%20Docs)]
 </div>
 
 Defines a basis state space where terms are reduced over their
@@ -26,8 +26,8 @@ dramatically faster
 __init__(self, basis, class_reps, perms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1671)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1671?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1693)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1693?message=Update%20Docs)]
 </div>
 
   - `original_space`: `BasisStateSpace`
@@ -39,8 +39,8 @@ __init__(self, basis, class_reps, perms):
 to_equivalence_class_space(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1679)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1679?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1701)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1701?message=Update%20Docs)]
 </div>
 
 
@@ -49,8 +49,8 @@ to_equivalence_class_space(self):
 from_space(original_space): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1682)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1682?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1704)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1704?message=Update%20Docs)]
 </div>
 
 
@@ -59,8 +59,8 @@ from_space(original_space):
 get_equivalent_permutations(exc): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1687)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1687?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1709)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1709?message=Update%20Docs)]
 </div>
 
   - `exc`: `np.ndarray`
@@ -74,8 +74,8 @@ get_equivalent_permutations(exc):
 permutation_direct_product(self, perms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1710)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1710?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1732)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1732?message=Update%20Docs)]
 </div>
 Creates a new space by taking permutation products
   - `perms`: `Any`
@@ -89,8 +89,8 @@ Creates a new space by taking permutation products
 apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None, logger=None, iterations=1, new_state_space_class=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1730)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1730?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1752)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1752?message=Update%20Docs)]
 </div>
 
 
@@ -99,8 +99,8 @@ apply_selection_rules(self, selection_rules, target_dimensions=None, filter_spac
 permutationally_reduce(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1750)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1750?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1772)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1772?message=Update%20Docs)]
 </div>
 
 
@@ -109,8 +109,8 @@ permutationally_reduce(self):
 representative_space(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1752)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1752?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1774)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1774?message=Update%20Docs)]
 </div>
 
 
@@ -119,8 +119,8 @@ representative_space(self):
 permutationally_expand(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1754)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1754?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1776)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1776?message=Update%20Docs)]
 </div>
 
   - `:returns`: `BasisStateSpace`
@@ -132,8 +132,8 @@ permutationally_expand(self):
 take_permutations(self, *p): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1765)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1765?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1787)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1787?message=Update%20Docs)]
 </div>
 Takes subsets of the stored permutations.
 This function is subject to change as the held structure of the permutations
@@ -152,8 +152,8 @@ will give you the states where the original state was `i` and the first product 
 take_subspace(self, sel, assume_sorted=False, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1781)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1781?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1803)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1803?message=Update%20Docs)]
 </div>
 Returns a subsample of the space.
 Intended to be a cheap operation, so samples
@@ -172,8 +172,8 @@ and so we make use of that
 take_subdimensions(self, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1806)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1806?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1828)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/PermutationallyReducedStateSpace.py#L1828?message=Update%20Docs)]
 </div>
 Returns a subsample of the space with some dimensions
 dropped
@@ -234,7 +234,7 @@ dropped
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateSpaces/PermutationallyReducedStateSpace.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L1664?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L1686?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

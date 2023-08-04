@@ -39,8 +39,8 @@ __init__(self):
 find_expressions(self, k, return_permutation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/KEData/KEDataHandler.py#L26)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/KEData/KEDataHandler.py#L26?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/KEData/KEDataHandler.py#L50)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/KEData/KEDataHandler.py#L50?message=Update%20Docs)]
 </div>
  </div>
 </div>

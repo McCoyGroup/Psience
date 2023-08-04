@@ -24,7 +24,7 @@ Provides a general base spectrum class that can be extended to new fancy spectra
 [BroadenedSpectrum](BaseSpectrum/BroadenedSpectrum.md)   
 </div>
    <div class="col" markdown="1">
-   
+[MultiSpectrum](BaseSpectrum/MultiSpectrum.md)   
 </div>
    <div class="col" markdown="1">
    

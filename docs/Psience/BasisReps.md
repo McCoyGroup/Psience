@@ -38,26 +38,26 @@ BasisReps manages useful functions for generating & working with basis-set repre
 [HarmonicOscillatorProductBasis](BasisReps/HarmonicOscillator/HarmonicOscillatorProductBasis.md)   
 </div>
    <div class="col" markdown="1">
-[LegendreBasis](BasisReps/ClassicalBases/LegendreBasis.md)   
+[HarmonicOscillatorMatrixGenerator](BasisReps/HarmonicOscillator/HarmonicOscillatorMatrixGenerator.md)   
 </div>
 </div>
   <div class="row">
    <div class="col" markdown="1">
+[HarmonicOscillatorRaisingLoweringPolyTerms](BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.md)   
+</div>
+   <div class="col" markdown="1">
+[LegendreBasis](BasisReps/ClassicalBases/LegendreBasis.md)   
+</div>
+   <div class="col" markdown="1">
 [ChebyshevBasis](BasisReps/ClassicalBases/ChebyshevBasis.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [AnalyticWavefunctions](BasisReps/Wavefunctions/AnalyticWavefunctions.md)   
 </div>
    <div class="col" markdown="1">
 [AnalyticWavefunction](BasisReps/Wavefunctions/AnalyticWavefunction.md)   
-</div>
-</div>
-  <div class="row">
-   <div class="col" markdown="1">
-[ExpansionWavefunctions](BasisReps/Wavefunctions/ExpansionWavefunctions.md)   
-</div>
-   <div class="col" markdown="1">
-[ExpansionWavefunction](BasisReps/Wavefunctions/ExpansionWavefunction.md)   
 </div>
    <div class="col" markdown="1">
 [WavefunctionBasis](BasisReps/Wavefunctions/WavefunctionBasis.md)   
@@ -151,10 +151,11 @@ BasisReps manages useful functions for generating & working with basis-set repre
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-b162c4" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-b162c4"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-00b0ae" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-00b0ae"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-b162c4" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-00b0ae" markdown="1">
  - [HOBasis1DX](#HOBasis1DX)
+- [HOElements](#HOElements)
 - [HOBasis1DXX](#HOBasis1DXX)
 - [HOBasis1DPXP](#HOBasis1DPXP)
 - [HOBasis1DPP](#HOBasis1DPP)
@@ -188,9 +189,9 @@ BasisReps manages useful functions for generating & working with basis-set repre
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-728ac3" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-728ac3"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-b18b10" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-b18b10"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-728ac3" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-b18b10" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -223,6 +224,80 @@ class BasisSetTests(TestCase):
         x2 = iphase * rep2[:, :].todense()
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
+```
+
+#### <a name="HOElements">HOElements</a>
+```python
+    def test_HOElements(self):
+
+        # mat_gen = HarmonicOscillatorMatrixGenerator(['x', 'x', 'x', 'x', 'p', 'p'])
+        # raise Exception(
+        #     mat_gen._get_poly_coeffs(0)
+        # )
+        terms = ['p', 'x', 'x', 'p', 'x', 'x']
+        mat_gen_old = HarmonicOscillatorMatrixGenerator(terms, mode='rho')
+        mat_gen_new = HarmonicOscillatorMatrixGenerator(terms, mode='poly')
+        # raise Exception(mat_gen_new(np.array([
+        #     [0, 2, 4],
+        #     [0, 2, 4]
+        # ])))
+        n = 5
+        rows, cols = np.triu_indices(n)
+        states = (
+            np.concatenate([rows, cols]),
+            np.concatenate([cols, rows])
+        )
+        old_vals = mat_gen_old.evaluate_state_terms(states)
+        new_vals = mat_gen_new.evaluate_state_terms(states)
+
+        old_mat = np.zeros((n, n))
+        new_mat = np.zeros((n, n))
+
+        old_mat[np.concatenate([rows, cols]), np.concatenate([cols, rows])] = old_vals
+        new_mat[np.concatenate([rows, cols]), np.concatenate([cols, rows])] = new_vals
+        print("==="*10)
+        print(np.round(old_mat, 6))
+        print(np.round(new_mat, 6))
+        raise Exception(...)
+
+        self.assertTrue(
+            np.allclose(
+                mat_gen_old.evaluate_state_terms(states),
+                mat_gen_new.evaluate_state_terms(states)
+            )
+        )
+
+        mat_gen_old = HarmonicOscillatorMatrixGenerator(['p', 'x', 'x', 'p'], mode='rho')
+        mat_gen_new = HarmonicOscillatorMatrixGenerator(['p', 'x', 'x', 'p'], mode='poly')
+        states = np.array([
+            [0, 0, 0, 0],
+            [0, 2, 4, 6]
+            ])
+        raise Exception(
+            mat_gen_old.evaluate_state_terms(states),
+            mat_gen_new.evaluate_state_terms(states)
+        )
+
+        # mat_gen = HarmonicOscillatorMatrixGenerator(['p', 'p', 'x', 'x'])
+        # mat_gen = HarmonicOscillatorMatrixGenerator(['p', 'p', 'p', 'p'])
+        d = 4
+        n = np.arange(4)
+        cf = mat_gen._get_poly_coeffs(d)
+        if not isinstance(cf, np.ndarray) and cf == 0:
+            raise Exception(0)
+        else:
+            raise Exception(
+                cf,
+                np.dot(
+                    cf,
+                    np.power(n[np.newaxis, :], np.arange(len(cf))[:, np.newaxis])
+                ) * np.sqrt(np.prod([n+i for i in range(1, abs(d)+1)], axis=0))
+            )
+
+        mat_gen = HarmonicOscillatorMatrixGenerator(['p', 'x', 'x', 'p'])
+        raise Exception(
+            mat_gen._get_poly_coeffs(1)
+        )
 ```
 
 #### <a name="HOBasis1DXX">HOBasis1DXX</a>

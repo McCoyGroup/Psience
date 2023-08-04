@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Runner.VPTSolverOptions">VPTSolverOptions</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner.py#L755)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L755?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner.py#L764)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L764?message=Update%20Docs)]
 </div>
 
 Provides a helper to keep track of the options available
@@ -25,8 +25,8 @@ for configuring the way the perturbation theory is applied
 __init__(self, order=2, expansion_order=None, coupled_states=None, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, state_space_filters=None, allow_post_PT_calc=None, modify_degenerate_perturbations=None, gaussian_resonance_handling=None, ignore_odd_order_energies=None, intermediate_normalization=None, zero_element_warning=None, degenerate_states=None, handle_strong_couplings=None, strong_coupling_test_modes=None, strong_couplings_state_filter=None, strongly_coupled_group_filter=None, extend_strong_coupling_spaces=None, strong_coupling_zero_order_energy_cutoff=None, low_frequency_mode_cutoff=None, zero_order_energy_corrections=None, check_overlap=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSolverOptions.py#L813)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSolverOptions.py#L813?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSolverOptions.py#L822)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSolverOptions.py#L822?message=Update%20Docs)]
 </div>
 
   - `order`: `int`
@@ -79,8 +79,8 @@ expansion_order = {
 get_zero_order_energies(corrected_fundamental_freqs, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSolverOptions.py#L938)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSolverOptions.py#L938?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSolverOptions.py#L947)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSolverOptions.py#L947?message=Update%20Docs)]
 </div>
 
   - `corrected_fundamental_freqs`: `Any`
@@ -96,9 +96,9 @@ get_zero_order_energies(corrected_fundamental_freqs, states):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-fc84e3" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-fc84e3"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-61deae" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-61deae"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-fc84e3" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-61deae" markdown="1">
  The `basis_postfilters` have multiple possible values.
 Here are the currently supported cases
 
@@ -143,16 +143,16 @@ Here are the currently supported cases
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-bec9ac" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-bec9ac"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-20657f" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-20657f"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-bec9ac" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-20657f" markdown="1">
  - [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-bde6f9" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-bde6f9"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-919e26" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-919e26"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-bde6f9" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-919e26" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -428,7 +428,7 @@ class VPT2Tests(TestCase):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTSolverOptions.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTSolverOptions.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L755?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L764?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -97,9 +97,9 @@ from_harmonic_scan(scan_array):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-3044ad" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-3044ad"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-1e387f" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-1e387f"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-3044ad" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-1e387f" markdown="1">
  When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
 ```python
 def conv(r, t, f, **kwargs):
@@ -131,16 +131,17 @@ and then the inverse function will take the output of `conv` and return the orig
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-28a885" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-28a885"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-508592" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-508592"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-28a885" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-508592" markdown="1">
  - [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
+- [CrieegeeVPTRunnerShifted](#CrieegeeVPTRunnerShifted)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-cf0ee8" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-cf0ee8"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-4ba7df" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-4ba7df"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-cf0ee8" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-4ba7df" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -367,6 +368,26 @@ class VPT2Tests(TestCase):
         run_opts = VPTRuntimeOptions(logger=True)
         runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
         runner.print_tables()
+```
+
+#### <a name="CrieegeeVPTRunnerShifted">CrieegeeVPTRunnerShifted</a>
+```python
+    def test_CrieegeeVPTRunnerShifted(self):
+        # with BlockProfiler('Crieegee', print_res=True):
+        freqs = VPTSystem('criegee_eq_anh.fchk').mol.normal_modes.modes.freqs
+        freqs = freqs.copy()
+        freqs[1] += 10/UnitsData.convert("Hartrees", "Wavenumbers")
+        VPTRunner.run_simple(
+            # 'criegee_eq_anh.fchk',
+            2,
+            logger=True,
+            degeneracy_specs='auto',
+            corrected_fundamental_frequencies=freqs
+            # corrected_fundamental_frequencies=np.array([
+            #     200.246, 301.985 + 10, 462.536, 684.792, 736.234, 961.474, 984.773, 1038.825, 1120.260, 1327.450, 1402.397,
+            #     1449.820, 1472.576, 1519.875, 3037.286, 3078.370, 3174.043, 3222.828
+            # ])/UnitsData.convert("Hartrees", "Wavenumbers")
+        )
 ```
 
  </div>

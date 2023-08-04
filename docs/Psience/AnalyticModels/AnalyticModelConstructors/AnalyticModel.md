@@ -1,12 +1,14 @@
 ## <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel">AnalyticModel</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors.py#L264)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L264?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors.py#L335)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L335?message=Update%20Docs)]
 </div>
 
 Provides a symbolic representation of an analytically evaluatable Hamiltonian
 which can be used to get derived expressions to evaluate.
+Supplies methods to automatically run DVR and VPT calculations from the model
+specifications as well.
 
 
 
@@ -23,14 +25,25 @@ which can be used to get derived expressions to evaluate.
 SympyExpr: SympyExpr
 Potential: AnalyticPotentialConstructor
 KE: AnalyticKineticEnergyConstructor
+NamespaceContext: NamespaceContext
 ```
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, coordinates, potential, dipole=None, values=None, rotation=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L270)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L270?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L345)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L345?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.from_potential" class="docs-object-method">&nbsp;</a> 
+```python
+from_potential(potential, dipole=None, values=None, rotation=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L372)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L372?message=Update%20Docs)]
 </div>
 
 
@@ -40,8 +53,8 @@ __init__(self, coordinates, potential, dipole=None, values=None, rotation=None):
 internal_coordinates(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L297)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L297?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L390)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L390?message=Update%20Docs)]
 </div>
 
 
@@ -51,8 +64,8 @@ internal_coordinates(self):
 constants(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L302)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L302?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L395)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L395?message=Update%20Docs)]
 </div>
 
 
@@ -61,8 +74,8 @@ constants(self):
 normal_modes(self, dimensionless=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L306)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L306?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L399)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L399?message=Update%20Docs)]
 </div>
 
 
@@ -71,8 +84,8 @@ normal_modes(self, dimensionless=True):
 to_normal_modes(self, dimensionless=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L327)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L327?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L420)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L420?message=Update%20Docs)]
 </div>
 
 
@@ -81,38 +94,38 @@ to_normal_modes(self, dimensionless=True):
 get_VPT_expansions(self, order=2, expansion_order=None, include_potential=None, include_gmatrix=None, include_pseudopotential=None, evaluate=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L340)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L340?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L433)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L433?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.run_VPT" class="docs-object-method">&nbsp;</a> 
 ```python
-run_VPT(self, order=2, states=2, return_analyzer=True, expansion_order=None, include_potential=None, include_gmatrix=None, include_pseudopotential=None, **kwargs): 
+run_VPT(self, order=2, states=2, return_analyzer=True, expansion_order=None, include_potential=None, include_gmatrix=None, include_pseudopotential=None, atoms=None, coords=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L387)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L387?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L481)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L481?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.wrap_function" class="docs-object-method">&nbsp;</a> 
 ```python
-wrap_function(self, expr, transform_coordinates=True): 
+wrap_function(self, expr, transform_coordinates=True, mode=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L462)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L462?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L627)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L627?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.expand_potential" class="docs-object-method">&nbsp;</a> 
 ```python
-expand_potential(self, order, lambdify=True, evaluate=True): 
+expand_potential(self, order, lambdify=True, evaluate=True, contract=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L478)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L478?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L646)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L646?message=Update%20Docs)]
 </div>
 
 
@@ -121,8 +134,8 @@ expand_potential(self, order, lambdify=True, evaluate=True):
 get_DVR_parameters(self, expansion_order=None, lambdify=True, evaluate='constants'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L490)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L490?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L661)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L661?message=Update%20Docs)]
 </div>
 
 
@@ -131,8 +144,8 @@ get_DVR_parameters(self, expansion_order=None, lambdify=True, evaluate='constant
 setup_DVR(self, domain=None, divs=None, use_normal_modes=False, expansion_order=None, **params): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L528)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L528?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L702)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L702?message=Update%20Docs)]
 </div>
 
 
@@ -141,18 +154,18 @@ setup_DVR(self, domain=None, divs=None, use_normal_modes=False, expansion_order=
 evaluate(self, expr, mode='all', numericize=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L552)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L552?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L726)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L726?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.jacobian" class="docs-object-method">&nbsp;</a> 
 ```python
-jacobian(self, order=0, evaluate=False): 
+jacobian(self, order=0, evaluate=False, lambdify=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L584)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L584?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L758)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L758?message=Update%20Docs)]
 </div>
 
 
@@ -161,58 +174,58 @@ jacobian(self, order=0, evaluate=False):
 jacobian_inverse(self, order=0, evaluate=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L600)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L600?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L776)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L776?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.g" class="docs-object-method">&nbsp;</a> 
 ```python
-g(self, order=0, evaluate=False): 
+g(self, order=0, evaluate=False, lambdify=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L639)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L639?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L815)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L815?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.v" class="docs-object-method">&nbsp;</a> 
 ```python
-v(self, order=2, evaluate=False): 
+v(self, order=2, evaluate=False, lambdify=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L661)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L661?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L839)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L839?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.vp" class="docs-object-method">&nbsp;</a> 
 ```python
-vp(self, order=0, evaluate=False): 
+vp(self, order=0, evaluate=False, lambdify=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L688)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L688?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L868)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L868?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.mu" class="docs-object-method">&nbsp;</a> 
 ```python
-mu(self, order=1, evaluate=False): 
+mu(self, order=1, evaluate=False, lambdify=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L710)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L710?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L892)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L892?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.morse" class="docs-object-method">&nbsp;</a> 
 ```python
-morse(*args, De=None, a=None, re=None): 
+morse(i, j, De=None, a=None, re=None, eq=None, w=None, wx=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L20)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L20?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L25)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L25?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of a Morse potential
   - `:returns`: `_`
@@ -221,11 +234,11 @@ Returns a fully symbolic form of a Morse potential
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.harmonic" class="docs-object-method">&nbsp;</a> 
 ```python
-harmonic(*args, k=None, qe=None): 
+harmonic(*args, k=None, eq=None, qe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L40)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L40?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L61)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L61?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of a Morse potential
   - `:returns`: `_`
@@ -234,13 +247,52 @@ Returns a fully symbolic form of a Morse potential
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.linear" class="docs-object-method">&nbsp;</a> 
 ```python
-linear(*args, k=1, xe=None): 
+linear(*args, k=1, eq=None, xe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L56)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L56?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L82)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L82?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of a linear function
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.power" class="docs-object-method">&nbsp;</a> 
+```python
+power(*args, k=1, eq=None, n=None, xe=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L100)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L100?message=Update%20Docs)]
+</div>
+Returns a fully symbolic form of a linear function
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.sin" class="docs-object-method">&nbsp;</a> 
+```python
+sin(*args, eq=None, qe=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L130)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L130?message=Update%20Docs)]
+</div>
+Returns a fully symbolic form of sin
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.cos" class="docs-object-method">&nbsp;</a> 
+```python
+cos(*args, eq=None, qe=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L116)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L116?message=Update%20Docs)]
+</div>
+Returns a fully symbolic form of cos
   - `:returns`: `_`
     >
 
@@ -250,8 +302,8 @@ Returns a fully symbolic form of a linear function
 sym(base, *args): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L736)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L736?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L963)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L963?message=Update%20Docs)]
 </div>
 
 
@@ -260,8 +312,8 @@ sym(base, *args):
 m(i): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L739)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L739?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L966)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L966?message=Update%20Docs)]
 </div>
 
 
@@ -270,8 +322,8 @@ m(i):
 r(i, j): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L742)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L742?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L969)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L969?message=Update%20Docs)]
 </div>
 
 
@@ -280,8 +332,8 @@ r(i, j):
 a(i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L745)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L745?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L972)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L972?message=Update%20Docs)]
 </div>
 
 
@@ -290,8 +342,8 @@ a(i, j, k):
 t(i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L748)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L748?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L975)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L975?message=Update%20Docs)]
 </div>
 
 
@@ -300,8 +352,8 @@ t(i, j, k, l):
 y(i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L751)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L751?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L978)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L978?message=Update%20Docs)]
 </div>
 
 
@@ -327,8 +379,38 @@ Converts base unit into target using the scraped NIST data
 mass(atom): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L756)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L756?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L983)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L983?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.molecular_potential" class="docs-object-method">&nbsp;</a> 
+```python
+molecular_potential(self, mol): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L987)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L987?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.molecular_dipole" class="docs-object-method">&nbsp;</a> 
+```python
+molecular_dipole(self, mol): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L991)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L991?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel.molecular_gmatrix" class="docs-object-method">&nbsp;</a> 
+```python
+molecular_gmatrix(self, mol): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L995)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticModel.py#L995?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -383,7 +465,7 @@ mass(atom):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticModel.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticModel.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L264?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L335?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

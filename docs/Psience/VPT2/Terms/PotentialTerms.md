@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Terms.PotentialTerms">PotentialTerms</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L1231)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1231?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L1232)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1232?message=Update%20Docs)]
 </div>
 
 A helper class that can transform the derivatives of the potential from Cartesian to normal coordinates
@@ -24,8 +24,8 @@ A helper class that can transform the derivatives of the potential from Cartesia
 __init__(self, molecule, mixed_derivs=None, modes=None, potential_derivatives=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, check_input_force_constants=True, allow_higher_potential_terms=False, hessian_tolerance=0.0001, grad_tolerance=0.0001, freq_tolerance=0.002, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/PotentialTerms.py#L1242)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/PotentialTerms.py#L1242?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/PotentialTerms.py#L1243)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/PotentialTerms.py#L1243?message=Update%20Docs)]
 </div>
 
   - `molecule`: `Molecule`
@@ -44,8 +44,8 @@ __init__(self, molecule, mixed_derivs=None, modes=None, potential_derivatives=No
 v_derivs(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/PotentialTerms.py#L1284)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/PotentialTerms.py#L1284?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/PotentialTerms.py#L1285)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/PotentialTerms.py#L1285?message=Update%20Docs)]
 </div>
 
 
@@ -54,8 +54,8 @@ v_derivs(self):
 get_terms(self, order=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/PotentialTerms.py#L1548)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/PotentialTerms.py#L1548?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/PotentialTerms.py#L1549)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/PotentialTerms.py#L1549?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -110,7 +110,7 @@ get_terms(self, order=None, logger=None):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Terms/PotentialTerms.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Terms/PotentialTerms.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1231?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1232?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

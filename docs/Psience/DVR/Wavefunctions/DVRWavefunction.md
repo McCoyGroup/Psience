@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.Wavefunctions.DVRWavefunction">DVRWavefunction</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions.py#L14)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions.py#L14?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions.py#L15)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions.py#L15?message=Update%20Docs)]
 </div>
 
 
@@ -19,38 +19,43 @@
  </div>
  <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
  
-<a id="Psience.DVR.Wavefunctions.DVRWavefunction.plot" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.DVR.Wavefunctions.DVRWavefunction.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-plot(self, figure=None, grid=None, index=0, scaling=1, shift=0, **opts): 
+__init__(self, energy, data, parent=None, grid=None, index=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunction.py#L15)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunction.py#L15?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunction.py#L17)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunction.py#L17?message=Update%20Docs)]
 </div>
-Plots a single wave function on the grid
-  - `figure`: `Any`
-    > 
-  - `grid`: `Any`
-    > 
-  - `index`: `Any`
-    > 
-  - `scaling`: `Any`
-    > 
-  - `shift`: `Any`
-    > 
-  - `opts`: `Any`
-    > 
-  - `:returns`: `_`
-    >
+
+
+<a id="Psience.DVR.Wavefunctions.DVRWavefunction.get_dimension" class="docs-object-method">&nbsp;</a> 
+```python
+get_dimension(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunction.py#L23)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunction.py#L23?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.DVR.Wavefunctions.DVRWavefunction.plot" class="docs-object-method">&nbsp;</a> 
+```python
+plot(self, figure=None, grid=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunction.py#L26)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunction.py#L26?message=Update%20Docs)]
+</div>
 
 
 <a id="Psience.DVR.Wavefunctions.DVRWavefunction.expectation" class="docs-object-method">&nbsp;</a> 
 ```python
-expectation(self, op, other): 
+expectation(self, op, other=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunction.py#L53)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunction.py#L53?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunction.py#L31)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunction.py#L31?message=Update%20Docs)]
 </div>
 Computes the expectation value of operator op over the wavefunction other and self
   - `other`: `Wavefunction | np.ndarray`
@@ -61,15 +66,40 @@ Computes the expectation value of operator op over the wavefunction other and se
     >
 
 
-<a id="Psience.DVR.Wavefunctions.DVRWavefunction.probability_density" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.DVR.Wavefunctions.DVRWavefunction.interp" class="docs-object-method">&nbsp;</a> 
 ```python
-probability_density(self): 
+@property
+interp(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunction.py#L70)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunction.py#L70?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunction.py#L46)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunction.py#L46?message=Update%20Docs)]
 </div>
-Computes the probability density of the current wavefunction
+
+
+<a id="Psience.DVR.Wavefunctions.DVRWavefunction.evaluate" class="docs-object-method">&nbsp;</a> 
+```python
+evaluate(self, points): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunction.py#L51)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunction.py#L51?message=Update%20Docs)]
+</div>
+Evaluates the functions at the given points
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.DVR.Wavefunctions.DVRWavefunction.marginalize_out" class="docs-object-method">&nbsp;</a> 
+```python
+marginalize_out(self, dofs): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunction.py#L60)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunction.py#L60?message=Update%20Docs)]
+</div>
+Computes the projection of the current wavefunction onto a set of degrees
+of freedom
   - `:returns`: `_`
     >
  </div>
@@ -125,7 +155,7 @@ Computes the probability density of the current wavefunction
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/Wavefunctions/DVRWavefunction.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/Wavefunctions/DVRWavefunction.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions.py#L14?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions.py#L15?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
