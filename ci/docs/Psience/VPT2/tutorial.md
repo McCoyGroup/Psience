@@ -518,13 +518,17 @@ VPTRunner.helpers.run_anne_job(
 <div markdown="1" class="text-secondary">
 <div class="container">
 <div class="row">
-<div class="col" markdown="1">**Feedback**</div>
-<div class="col" markdown="1">**Documentation**</div>
-<div class="col" markdown="1"></div>
-<div class="col" markdown="1"></div>
-<div class="col" markdown="1"></div>
-<div class="col" markdown="1"></div>
-<div class="col" markdown="1"></div>
+<div class="col" markdown="1">
+**Feedback** 
+</div>
+<div class="col" markdown="1">
+**Documentation** 
+</div>
+<div class="col"></div>
+<div class="col"></div>
+<div class="col"></div>
+<div class="col"></div>
+<div class="col"></div>
 </div>
 <div class="row">
 <div class="col" markdown="1">
@@ -533,11 +537,11 @@ VPTRunner.helpers.run_anne_job(
 <div class="col" markdown="1">
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/tutorial.md?message=Update%20Docs)
 </div>
-<div class="col" markdown="1"></div>
-<div class="col" markdown="1"></div>
-<div class="col" markdown="1"></div>
-<div class="col" markdown="1"></div>
-<div class="col" markdown="1"></div>
+<div class="col"></div>
+<div class="col"></div>
+<div class="col"></div>
+<div class="col"></div>
+<div class="col"></div>
 </div>
 </div>
 </div>
