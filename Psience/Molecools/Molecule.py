@@ -823,7 +823,7 @@ class Molecule(AbstractMolecule):
 
         if which is not None:
             which = tuple(
-                np.ravel_multi_index(idx, (3, len(self._ats)))
+                np.ravel_multi_index(idx, (len(self._ats), 3))
                     if not isinstance(idx, (int, np.integer)) else
                 idx
                 for idx in which

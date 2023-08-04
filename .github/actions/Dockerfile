@@ -17,6 +17,7 @@ LABEL "com.github.actions.color"="orange"
 
 RUN \
     cd /home && \
+    git config --system --add safe.directory /github/workspace && \
     git clone https://github.com/McCoyGroup/Peeves.git && \
     git clone https://github.com/McCoyGroup/McUtils.git && \
     git clone https://github.com/McCoyGroup/Psience.git

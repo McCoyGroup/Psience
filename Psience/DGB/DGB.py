@@ -36,7 +36,8 @@ class DGB:
             quadrature_degree=None,
             expansion_degree=None,
             expansion_type=None,
-            reference_structure=None
+            reference_structure=None,
+            pairwise_potential_functions=None # we can integrate this cleanly, not sure about anything else
             ):
         opts = dict(
             masses=masses,
@@ -54,7 +55,8 @@ class DGB:
             quadrature_degree=quadrature_degree,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
-            reference_structure=reference_structure
+            reference_structure=reference_structure,
+            pairwise_potential_functions=pairwise_potential_functions
         )
         opts = {k:v for k,v in opts.items() if v is not None}
         logger = Logger.lookup(logger)
@@ -70,8 +72,11 @@ class DGB:
                  mass_weighted=False,
                  atoms=None,
                  alphas=None,
+                 coord_shape=None,
                  projection_indices=None,
                  transformations=None,
+                 internals=None,
+                 modes=None,
                  logger=False,
                  optimize_centers=False,
                  clustering_radius=-1,
@@ -82,8 +87,13 @@ class DGB:
                  expansion_degree=None,
                  expansion_type='multicenter',
                  reference_structure=None,
-                 poly_coeffs=None
+                 poly_coeffs=None,
+                 pairwise_potential_functions=None
     ):
+
+        if internals is not None:
+            raise NotImplementedError("internals coming in the future")
+
         self._S, self._T, self._V = None, None, None
         self._scaling_S = None
         self.logger = Logger.lookup(logger)
@@ -109,10 +119,20 @@ class DGB:
         if isinstance(masses, (int, np.integer, float, np.floating)):
             masses = [masses]
         self.masses = np.asanyarray(masses)
+        if coord_shape is None:
+            if centers.ndim > 2:
+                coord_shape = centers.shape[1:]
+            elif atoms is not None:
+                coord_shape = (len(atoms), centers.shape[-1] // len(atoms))
+            else:
+                coord_shape = (centers.shape[-1],)
+        self.coord_shape = coord_shape
         self.inds = projection_indices
         self.mass_weighted = mass_weighted
         # print("MAsSES:", masses)
 
+        if centers.ndim > 2:
+            centers = np.reshape(centers, (len(centers), -1))
         if optimize_centers:
             self.logger.log_print("optimizing DGB centers...")
             self.clustering_radius, self.centers, self.alphas, self._S, self._T = self.optimize_centers(
@@ -160,6 +180,10 @@ class DGB:
         if poly_coeffs is not None:
             poly_coeffs = self.canonicalize_poly_coeffs(poly_coeffs, self.alphas)
         self._poly_coeffs = poly_coeffs
+
+        self.pairwise_potential_functions = pairwise_potential_functions
+        self.modes = modes
+        self.internals = internals
 
     def canonicalize_transforms(self, tfs):
         if tfs is None:
@@ -258,7 +282,7 @@ class DGB:
                 setattr(self, k, v)
 
         if isinstance(alphas, (int, float, np.integer, np.floating)):
-            alphas = np.full(len(centers), alphas)
+            alphas = np.full(centers.shape, alphas)
         else:
             alphas = np.asanyarray(alphas)
             if mask is not None:
@@ -283,7 +307,7 @@ class DGB:
                 self.masses,
                 centers,
                 **opts
-            ), None
+            ), None, {}
         else:
             raise ValueError("unknown method for getting alphas {}".format(alphas['method']))
 
@@ -317,6 +341,8 @@ class DGB:
                           translation_rotation_frequency=1e-12, # tiny to keep well separated from others...
                           min_frequency=1e-12,
                           allow_rotations=False,
+                          reference_modes=None,
+                          construct_reference_modes=None,
                           base_rotation=None,
                           scaling=1
                           ):
@@ -341,9 +367,10 @@ class DGB:
                 isinstance(derivs[0], np.ndarray) and derivs[0].shape == (len(pts),)
         ):
             hess = derivs
+            pots = potential_function(pts)
             grads = potential_function(pts, deriv_order=1)
         else:
-            _, grads, hess = derivs
+            pots, grads, hess = derivs
 
         if allow_rotations:
             npts = len(pts)
@@ -395,7 +422,7 @@ class DGB:
                     # if unweight:
                     #     structs = structs / np.sqrt(mass_array)[np.newaxis]
                     structs = np.concatenate([structs, np.zeros((len(structs), mass_array.shape[0], 1))], axis=-1)
-                else:
+                else: #TODO: wat
                     raise ValueError("can't remove translations and rotation eigenvectors for inconsistent structures")
 
                 # check that masses are consistent
@@ -482,17 +509,27 @@ class DGB:
                 # modes[:, :, -1] = modes[:, :, -1] * np.linalg.det(modes)[:, np.newaxis] # fix inversions
                 rots[stationary] = modes
 
-            # rots = rots.transpose(0, 2, 1)
-            # M = np.broadcast_to(np.diag(np.sqrt(masses))[np.newaxis], rots.shape)
-            # Minv = np.broadcast_to(np.diag(np.sqrt(1/masses))[np.newaxis], rots.shape)
+            if (
+                    reference_modes is None
+                    and (construct_reference_modes is None or construct_reference_modes)
+            ):
+                # we choose a set of reference modes and reexpress all rotations in terms of these
+                if len(stationary) > 0:
+                    ref_pos = stationary[np.argmin(pots[stationary])]
+                else:
+                    ref_pos = np.argmin(pots) # no stationary points so...
+
+                reference_modes = rots[ref_pos]
+
             rots_inv = rots.transpose(0, 2, 1)
-            #
-            # rots_inv = Minv @ rots_inv @ M
-            # rots = Minv @ rots @ M
+
+            if reference_modes is not None:
+                rots = rots@reference_modes[np.newaxis] # express rotations in this new basis
+                rots_inv = reference_modes.T[np.newaxis]@rots_inv
 
             rots = (rots, rots_inv)
 
-            opts = {'mass_weighted':True}
+            opts = {'mass_weighted':True, 'modes':reference_modes}
 
         else:
 
@@ -1085,6 +1122,7 @@ class DGB:
 
     @classmethod
     def _rot_poly_ST(cls, rot_data, base_polys, centers, alphas, masses, inds):
+        raise ValueError("need to account for Coriolis effects...")
 
         # S = np.eye(len(centers))
         alphas, rotas, L, Lt, row_inds, col_inds, ndim, rdets, cdets, dets, C = \
@@ -1344,6 +1382,43 @@ class DGB:
 
         return S_base, S, T
 
+    @staticmethod
+    def quad_nd(centers, alphas, function, degree=3, normalize=True):
+        """
+        N-dimensional quadrature
+
+        :param centers:
+        :param alphas:
+        :param function:
+        :param degree:
+        :return:
+        """
+
+        centers = np.asanyarray(centers)
+        if centers.ndim == 1:
+            centers = centers[np.newaxis]
+            alphas = [alphas]
+        alphas = np.asanyarray(alphas)
+
+        # Quadrature point displacements and weights (thanks NumPy!)
+        disps, weights = np.polynomial.hermite.hermgauss(degree)
+
+        ndim = centers.shape[-1]
+        indices = np.moveaxis(np.array(
+                np.meshgrid(*([np.arange(0, degree, dtype=int)] * ndim))
+            ), 0, -1).reshape(-1, ndim)
+
+        w = np.prod(weights[indices], axis=-1)
+        d = disps[indices][np.newaxis] / np.sqrt(alphas)[:, np.newaxis]
+        c = centers[:, np.newaxis, :] + d
+        fv = function(c.reshape(-1, ndim)).reshape(c.shape[:2])
+        val = np.sum(w[np.newaxis, :] * fv, axis=1)
+
+        if normalize:
+            normalization = 1 / np.prod(np.sqrt(alphas), axis=-1)
+            val = val * normalization
+        return val
+
     def quad_integrate(self, function, degree=2):
         """
         Integrate potential over all pairs of Gaussians at once
@@ -1358,24 +1433,33 @@ class DGB:
             raise NotImplementedError("quadrature in rotated basis not implemented yet")
 
         # TODO: add in ability to do quadrature along ellipsoid axes
-
-        # Quadrature point displacements and weights (thanks NumPy!)
-        disps, weights = np.polynomial.hermite.hermgauss(degree)
-
+        # disps, weights = np.polynomial.hermite.hermgauss(degree)
         centers, alphas = self.get_overlap_gaussians() # Only upper triangle here
+
         npts = len(self.alphas)
-        rows, cols = np.triu_indices(npts)
         pots = np.zeros((npts, npts))
-        ndim = centers.shape[-1]
-        for disp_inds in itertools.product(*([range(degree)]*ndim)):
-            disp_inds = np.array(disp_inds)
-            w = np.prod(weights[disp_inds])
-            c = centers + disps[disp_inds][np.newaxis, :] / np.sqrt(alphas)
-            pots[rows, cols] += w * function(c)
-        pots[cols, rows] = pots[rows, cols]
+        rows, cols = np.triu_indices(npts)
+        #
+        vals = self.quad_nd(centers, alphas, function, degree=degree, normalize=False)
+        pots[rows, cols] = vals
+        pots[cols, rows] = vals
+
+        # pots = np.zeros((npts, npts))
+        #
+        # ndim = centers.shape[-1]
+        # for disp_inds in itertools.product(*([range(degree)] * ndim)):
+        #     disp_inds = np.array(disp_inds)
+        #     w = np.prod(weights[disp_inds])
+        #     c = centers + disps[disp_inds][np.newaxis, :] / np.sqrt(alphas)
+        #     print(w, function(c))
+        #     pots[rows, cols] += w * function(c)
+        # pots[cols, rows] = pots[rows, cols]
+        # raise Exception(pots[0, 0]/pots2[0, 0])
 
         normalization = 1 / (np.sqrt(np.pi)) ** self.centers.shape[-1]
-        return pots * normalization
+        pots *= normalization
+
+        return pots
 
     @classmethod
     def poch(cls, n, m): #pochammer/generalized gamma
@@ -1408,27 +1492,27 @@ class DGB:
 
     @staticmethod
     def mass_weighted_eval(function, coords, masses, deriv_order=None, **opts):
-            # expects just x and y coordinates for the atoms
-            mass_vec = np.asanyarray(masses)
+        # expects just x and y coordinates for the atoms
+        mass_vec = np.asanyarray(masses)
 
-            coords = coords / np.sqrt(mass_vec[np.newaxis])
-            coords = coords.reshape(-1, 3, 2)
-            derivs = function(coords, deriv_order=deriv_order, **opts)
-            new_d = []
-            for n, do in enumerate(derivs):
-                if n > 0:
-                    mv = np.sqrt(mass_vec)[np.newaxis]
-                    weight = mv
-                    for j in range(n - 1):
-                        mv = np.expand_dims(mv, 0)
-                        weight = np.expand_dims(weight, -1) * mv
-                    # with np.printoptions(linewidth=1e8):
-                    #     print(weight[0])
-                    new_d.append(do / weight)
-                else:
-                    new_d.append(do)
-            derivs = new_d
-            return derivs
+        coords = coords / np.sqrt(mass_vec[np.newaxis])
+        coords = coords.reshape(-1, 3, 2)
+        derivs = function(coords, deriv_order=deriv_order, **opts)
+        new_d = []
+        for n, do in enumerate(derivs):
+            if n > 0:
+                mv = np.sqrt(mass_vec)[np.newaxis]
+                weight = mv
+                for j in range(n - 1):
+                    mv = np.expand_dims(mv, 0)
+                    weight = np.expand_dims(weight, -1) * mv
+                # with np.printoptions(linewidth=1e8):
+                #     print(weight[0])
+                new_d.append(do / weight)
+            else:
+                new_d.append(do)
+        derivs = new_d
+        return derivs
 
     @classmethod
     def tensor_expansion_integrate(cls,
@@ -1449,12 +1533,7 @@ class DGB:
         :param logger:
         :return:
         """
-        """
-        [[-0.00000000e+00 -0.00000000e+00  2.43978381e+02 -1.34979790e-02]
- [-0.00000000e+00 -0.00000000e+00  2.43978381e+02 -1.34979790e-02]
- [ 2.43978381e+02  2.43978381e+02 -0.00000000e+00 -0.00000000e+00]
- [-1.34979790e-02 -1.34979790e-02 -0.00000000e+00 -0.00000000e+00]]
- """
+
         ndim = centers.shape[-1]
         if rot_data is not None:
             rotations = rot_data['rotations']
@@ -1551,7 +1630,11 @@ class DGB:
 
         return pot
 
-    def expansion_integrate(self, function, deriv_order=2, expansion_type=None):
+    def expansion_integrate(self, function, deriv_order=2,
+                            expansion_type=None,
+                            pairwise_functions=None,
+                            pairwise_quadrature_degree=None
+                            ):
         if expansion_type is None:
             expansion_type = self.expansion_type
 
@@ -1559,9 +1642,22 @@ class DGB:
             centers, alphas = self.get_overlap_gaussians()
             rot_data = None
         else:
+            if pairwise_functions is not None:
+                raise ValueError("currently can't have pairwise functions & rotations")
             rot_data = self.get_overlap_gaussians()
             centers = rot_data['centers']
             alphas = rot_data['alphas']
+
+        if pairwise_functions is not None:
+
+            pot_contribs, deriv_corrs = self.integrate_pairwise_potential_contrib(
+                pairwise_functions,
+                centers,
+                alphas,
+                coord_shape=self.coord_shape,
+                quadrature_degree=pairwise_quadrature_degree,
+                expansion_degree=deriv_order
+            )
 
         if expansion_type == 'taylor':
             self.logger.log_print("expanding as a Taylor series about the minumum energy geometry...")
@@ -1592,6 +1688,7 @@ class DGB:
                         function(centers, deriv_order=d) for d in range(1, deriv_order+1)
                     ]
 
+
         pot = self.tensor_expansion_integrate(
             len(self.centers),
             derivs,
@@ -1615,11 +1712,126 @@ class DGB:
             alphas
         )
 
-    def evaluate_multiplicative_operator_base(self, function,
+    def integrate_pairwise_potential_contrib(self,
+                                             functions,
+                                             centers,
+                                             alphas,
+                                             coord_shape=None,
+                                             quadrature_degree=4,
+                                             expansion_degree=4
+                                             ):
+
+        # if self.transformations is None:
+        #     centers, alphas = self.get_overlap_gaussians()
+        #     rot_data = None
+        # else:
+        #     rot_data = self.get_overlap_gaussians()
+        #     centers = rot_data['centers']
+        #     alphas = rot_data['alphas']
+        if coord_shape is not None and len(coord_shape) == 1:
+            raise ValueError("can't determine if coords are planar or not")
+
+        planar = coord_shape is not None and coord_shape[-1] == 2
+
+        npts = centers.shape[0]
+        if planar:
+            tf = np.array([
+                [1, -1, 0,  0],  # 0,  0],
+                [0,  0, 1, -1],  # 0,  0],
+                # [0,  0, 0,  0, 1, -1],
+                [1,  1, 0,  0],  # 0,  0],
+                [0,  0, 1,  1],  # 0,  0],
+                # [0,  0, 0,  0, 1,  1]
+            ]) / np.sqrt(2)
+            centers = centers.reshape(npts, -1, 2)
+            alphas = alphas.reshape(npts, -1, 2)
+        else:
+            tf = np.array([
+                [1, -1, 0,  0, 0,  0],
+                [0,  0, 1, -1, 0,  0],
+                [0,  0, 0,  0, 1, -1],
+                [1,  1, 0,  0, 0,  0],
+                [0,  0, 1,  1, 0,  0],
+                [0,  0, 0,  0, 1,  1]
+            ]) / np.sqrt(2)
+            centers = centers.reshape(npts, -1, 3)
+            alphas = alphas.reshape(npts, -1, 3)
+        tf = tf[np.newaxis]
+        ndim = tf.shape[-1]
+        sdim = ndim // 2
+
+        potential_contrib = 0
+        if expansion_degree is not None:
+            derivative_contribs = [
+                np.zeros((npts,) + (centers.shape[-1],)*i)
+                    if i > 0 else
+                0
+                for i in range(expansion_degree+1)
+            ]
+        else:
+            derivative_contribs = [0]
+        for index_pair, f in functions.items():
+            subcenters = centers[:, index_pair, :].reshape(-1, ndim)
+            subalphas = alphas[:, index_pair, :].reshape(-1, ndim)
+            subcov = np.zeros((subalphas.shape[0], ndim, ndim))
+            # fill diagonals across subcov
+            diag_inds = (slice(None, None, None),) + np.diag_indices(ndim)
+            subcov[diag_inds] = 2 * subalphas
+            tf_centers = subcenters[:, np.newaxis, :]@tf
+            tf_alphas = (tf@subcov@tf.T)[diag_inds] / 2
+            # a2 = np.diag(np.dot(np.dot(tf, np.diag(2 * gauss_alpha)), tf.T)) / 2
+            pairwise_contrib = self.quad_nd(
+                tf_centers[:, :sdim],
+                tf_alphas[:, :sdim],
+                f,
+                degree=quadrature_degree
+            ) * (
+                    np.sqrt(np.pi) ** sdim /
+                        np.prod(np.sqrt(tf_alphas[:, sdim:]), axis=-1)
+            )
+            potential_contrib += pairwise_contrib
+            if expansion_degree is not None:
+                # need to map index_pair (which correspond to 4 or 6 inds) to the
+                # correct list of inds in full space
+                idx_pair_full_inds = sum(
+                    (tuple(range(sdim*x, sdim*(x+1))) for x in index_pair),
+                    ()
+                )
+                deriv_contrib = f(tf_centers[:, :sdim], deriv_order=expansion_degree)
+                for i,d in deriv_contrib:
+                    if i == 0:
+                        derivative_contribs[0] += d
+                    else:
+                        subd_contrib = np.zeros((npts,) + (ndim,) * i)
+                        subd_inds = (slice(None, None, None),) + (slice(None, sdim, None),)*i
+                        subd_contrib[subd_inds] = d
+                        for j in range(i):
+                            subd_contrib = np.tensordot(subd_contrib, tf, axes=[j+1, 0])
+                        dc_inds = (slice(None, None, None),) + (idx_pair_full_inds,)*i
+                        derivative_contribs[i][dc_inds] += subd_contrib
+            else:
+                derivative_contribs[0] += f(tf_centers[:, :sdim])
+
+        return potential_contrib, derivative_contribs
+
+    # def wrap_pairwise_distance_function(self, ...):
+    #     """
+    #     Want to wrap have a way to wrap a function (with derivatives) that only
+    #     depends on the norm of a transformed set of those coordinates (which will be the distance between two atoms)
+    #     and have it return both the function value and, if requested, the derivatives evaluated at
+    #     those points
+    #
+    #     :return:
+    #     """
+    #     ...
+
+    def evaluate_multiplicative_operator_base(self,
+                                              function,
                                               handler=None,
                                               expansion_degree=None,
                                               expansion_type=None,
-                                              quadrature_degree=None
+                                              quadrature_degree=None,
+                                              pairwise_functions=None
                                               ):
         if expansion_degree is None:
             expansion_degree = self.expansion_degree
@@ -1634,11 +1846,17 @@ class DGB:
                 handler = 'quad'
 
         if handler == 'quad':
+            if pairwise_functions is not None:
+                raise ValueError("pairwise functions can't go with direct quadrature")
             self.logger.log_print("evauating integrals with {n}-order quadrature", n=self.quadrature_degree)
             pot_mat = self.quad_integrate(function, degree=self.quadrature_degree if quadrature_degree is None else quadrature_degree)
         elif handler == 'expansion':
             self.logger.log_print("evauating integrals with {n}-degree expansions", n=self.expansion_degree)
-            pot_mat = self.expansion_integrate(function, deriv_order=expansion_degree, expansion_type=expansion_type)
+            pot_mat = self.expansion_integrate(function,
+                                               deriv_order=expansion_degree,
+                                               expansion_type=expansion_type,
+                                               pairwise_functions=pairwise_functions
+                                               )
         elif handler == 'analytic':
             self.logger.log_print("evauating integrals analytically", n=self.expansion_degree)
             pot_mat = self.analytic_integrate()
@@ -1647,18 +1865,22 @@ class DGB:
 
         return pot_mat
 
-    def evaluate_multiplicative_operator(self, function,
+    def evaluate_multiplicative_operator(self,
+                                         function,
                                          handler=None,
                                          expansion_degree=None,
                                          expansion_type=None,
-                                         quadrature_degree=None
+                                         quadrature_degree=None,
+                                         pairwise_functions=None # integrate out pairwise contribution
                                          ):
 
         pot_mat = self.evaluate_multiplicative_operator_base(
             function,
             handler=handler,
-            expansion_degree=expansion_degree, expansion_type=expansion_type,
-            quadrature_degree=quadrature_degree
+            expansion_degree=expansion_degree,
+            expansion_type=expansion_type,
+            quadrature_degree=quadrature_degree,
+            pairwise_functions=pairwise_functions
         )
         if self._scaling_S is None:
             _ = self.S

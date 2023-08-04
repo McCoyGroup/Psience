@@ -295,7 +295,10 @@ class StructuralProperties:
                 (n_sys,) + ref_com.shape[1:]
             )
 
-        planar_ref = np.allclose(ref[:, 2], 0., atol=planar_ref_tolerance)
+        # needs to be updated for the multiple reference case?
+        # TODO: make sure that we broadcast this correctly to check if all or
+        #       none of the reference structures are planar
+        planar_ref = np.allclose(ref[0][:, 2], 0., atol=planar_ref_tolerance)
 
         if not planar_ref:
             # generate pair-wise product matrix

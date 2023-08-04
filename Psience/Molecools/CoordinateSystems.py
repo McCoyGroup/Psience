@@ -116,7 +116,8 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
             ordering = np.array(converter_options['ordering'], dtype=int)
             ordering[0, 1] = -3; ordering[0, 2] = -1; ordering[0, 3] = -2
             ordering[1, 2] = -1; ordering[1, 3] = -2
-            ordering[2, 3] = -2
+            if len(ordering) > 2:
+                ordering[2, 3] = -2
             converter_options['ordering'] = ordering
             first = ordering[0, 0]
         else:
@@ -239,7 +240,8 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             ordering = np.array(converter_options['ordering'], dtype=int)
             ordering[0, 1] = -3; ordering[0, 2] = -2; ordering[0, 3] = -1
             ordering[1, 2] = -1; ordering[1, 3] = -2
-            ordering[2, 3] = -2
+            if len(ordering) > 2:
+                ordering[2, 3] = -2
             converter_options['ordering'] = ordering
             first = ordering[0, 0]
         else:
@@ -424,7 +426,8 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
             ordering = np.array(ordering, dtype=int)
             ordering[0, 1] = -3; ordering[0, 2] = -2; ordering[0, 3] = -1
             ordering[1, 2] = -2; ordering[1, 3] = -1
-            ordering[2, 3] = -1
+            if len(ordering) > 2:
+                ordering[2, 3] = -1
             ordering = ordering + 3
             ordering = np.concatenate([ [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]], ordering])
             # print("...?", ordering)
