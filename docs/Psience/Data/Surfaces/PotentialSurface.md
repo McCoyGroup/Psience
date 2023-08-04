@@ -95,16 +95,16 @@ Loads potential from a Gaussian formatted checkpoint file and builds a potential
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-cc3776" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-cc3776"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-769a04" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-769a04"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-cc3776" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-769a04" markdown="1">
  - [LogFilePotentialSurface](#LogFilePotentialSurface)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-fb70f2" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-fb70f2"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-ca6e58" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-ca6e58"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-fb70f2" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-ca6e58" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces

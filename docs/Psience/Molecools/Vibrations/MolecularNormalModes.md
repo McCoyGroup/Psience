@@ -179,16 +179,16 @@ Takes a slice of the modes
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-3159f7" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-3159f7"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-f1900c" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-f1900c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-3159f7" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-f1900c" markdown="1">
  - [VisualizeNormalModes](#VisualizeNormalModes)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-3d2705" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-3d2705"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-9d8a8b" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-9d8a8b"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-3d2705" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-9d8a8b" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
