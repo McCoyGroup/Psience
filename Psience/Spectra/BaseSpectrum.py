@@ -4,12 +4,14 @@ Provides a general base spectrum class that can be extended to new fancy spectra
 
 import numpy as np, json, abc
 import McUtils.Plots as plt
+from McUtils.Data import UnitsData
 
 __all__ = [
     "BaseSpectrum",
     "DiscreteSpectrum",
     "ContinuousSpectrum",
-    "BroadenedSpectrum"
+    "BroadenedSpectrum",
+    "MultiSpectrum"
 ]
 
 # TODO: should add in support for various flavors of unit conversion
@@ -142,6 +144,35 @@ class DiscreteSpectrum(BaseSpectrum):
     Concrete implementation of `BaseSpectrum` that exists
     solely to allow for plotting and broadening.
     """
+
+    @classmethod
+    def from_transition_moments(cls, frequencies, transition_moments, **meta):
+        """
+        Assumes frequencies and transition moments in a.u.
+
+        :param frequencies:
+        :type frequencies:
+        :param transition_moments:
+        :type transition_moments:
+        :return:
+        :rtype:
+        """
+
+        oscillator_strengths = np.linalg.norm(transition_moments, axis=-1) ** 2
+        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        return cls(
+            frequencies * h2w,
+            units * frequencies * oscillator_strengths,
+            **meta
+        )
+
+    def normalize(self, which=None):
+        return type(self)(
+            self.frequencies,
+            self.intensities / (np.max(self.intensities) if which is None else self.intensities[which]),
+            **self.meta
+        )
 
     def plot(self,
              figure=None,
@@ -376,3 +407,81 @@ class BroadenedSpectrum(BaseSpectrum):
                      **opts
                      )
         return main
+
+class MultiSpectrum:
+    """
+    A wrapper for multiple spectra, really just for the plotting convenience
+    """
+    """
+        Base class to support spectral operation
+        """
+
+    def __init__(self, spectra:"Iterable[BaseSpectrum]", **meta):
+        """
+        :param frequencies: frequency list
+        :type frequencies: np.ndarray
+        :param intensities: intensity list
+        :type intensities: np.ndarray
+        :param meta: metadata
+        :type meta:
+        """
+        self.specs = spectra
+        self.meta = meta
+
+    def __getitem__(self, item):
+
+        specs = self.specs[item]
+        if isinstance(specs, BaseSpectrum):
+            return specs
+        else:
+            return type(self)(specs)
+
+    def frequency_filter(self, freq_min, freq_max):
+        """
+        Filters by frequencies >= `freq_min` and <= `freq_max`
+
+        :param freq_min: min frequency
+        :type freq_min: float
+        :param freq_max: max frequency
+        :type freq_max: float
+        :return: subspectrum
+        :rtype: MultiSpectrum
+        """
+
+        return type(self)([
+            s.frequency_filter(freq_min, freq_max)
+            for s in self.specs
+        ])
+
+    def intensity_filter(self, int_min, int_max):
+        """
+        Filters by intensities >= `int_min` and <= `int_max`
+
+        :param int_min: min intensity
+        :type int_min: float
+        :param int_max: max intensity
+        :type int_max: float
+        :return: subspectrum
+        :rtype: BaseSpectrum
+        """
+
+        return type(self)([
+            s.intensity_filter(int_min, int_max)
+            for s in self.specs
+        ])
+
+    def plot(self, figure=None, **opts):
+        """
+        A just plots all the spectra on the same figure
+
+        :param opts: plotting options to be fed through to whatever the plotting function uses
+        :type opts:
+        :return:
+        :rtype:
+        """
+
+        for p in self.specs:
+            subfig = p.plot(figure=figure, **opts)
+            if figure is None:
+                figure = subfig
+        return figure

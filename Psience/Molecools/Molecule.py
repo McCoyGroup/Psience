@@ -8,6 +8,8 @@ import os, numpy as np
 
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D, CompositeCoordinateSystem
+from McUtils.Parallelizers import Parallelizer
+from McUtils.Zachary import TensorDerivativeConverter
 import McUtils.Numputils as nput
 
 from .MoleculeInterface import *
@@ -18,7 +20,6 @@ from .CoordinateSystems import (
     MolecularZMatrixToRegularZMatrixConverter, RegularZMatrixToMolecularZMatrixConverter
 )
 from .Properties import *
-from .Transformations import *
 
 __all__ = [
     "Molecule",
@@ -92,12 +93,18 @@ class Molecule(AbstractMolecule):
         self._coords = coords
         self._sys = MolecularCartesianCoordinateSystem(self)
         self._coords = CoordinateSet(self._coords, self._sys)
+        MolecularCartesianToRegularCartesianConverter(self.coords.system).register()
+        RegularCartesianToMolecularCartesianConverter(self.coords.system).register()
         if isinstance(internals, CoordinateSet):
             self._int_spec = None
             self._ints = internals
         else:
             self._int_spec = self.canonicalize_internal_coordinate_spec(internals)
             self._ints = None
+        self._jacobians = {
+            'internal':[],
+            'cartesian':[]
+        }
 
         self._bonds = bonds
 
@@ -234,6 +241,9 @@ class Molecule(AbstractMolecule):
         if min(m) < 100:
             m = m*UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         return m
+    @property
+    def atomic_masses(self):
+        return self._atomic_masses()
     @property
     def bonds(self):
         if self._bonds is None and self.guess_bonds:
@@ -549,8 +559,6 @@ class Molecule(AbstractMolecule):
                 zms = MolecularZMatrixCoordinateSystem(self, ordering=self._int_spec['zmatrix'])
                 MolecularCartesianToZMatrixConverter(self.coords.system, zms).register()
                 MolecularZMatrixToCartesianConverter(zms, self.coords.system).register()
-                MolecularCartesianToRegularCartesianConverter(self.coords.system).register()
-                RegularCartesianToMolecularCartesianConverter(self.coords.system).register()
                 MolecularZMatrixToRegularZMatrixConverter(zms).register()
                 RegularZMatrixToMolecularZMatrixConverter(zms).register()
                 coords = self.coords.convert(zms)
@@ -573,6 +581,501 @@ class Molecule(AbstractMolecule):
                 ics, CoordinateSet.__name__
             ))
         self._ints = ics
+
+    def _get_int_jacobs(self,
+                       jacs,
+                       strip_dummies=False,
+                       stencil=None, mesh_spacing=1.0e-3,
+                       all_numerical=True, reembed=False,
+                       planar_ref_tolerance=None,
+                       parallelizer=None
+                       ):
+        """
+        Gets the specified dX/dRs
+
+        :param jacs:
+        :type jacs:
+        :return:
+        :rtype:
+        """
+        intcds = self.internal_coordinates
+        ccoords = self.coords
+        carts = ccoords.system
+        internals = intcds.system
+
+        if isinstance(jacs, int):
+            jacs = list(range(1, jacs + 1))
+
+        exist_jacs = self._jacobians['internal']
+        max_jac = max(jacs)
+        need_jacs = [x+1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
+        if len(need_jacs) > 0:
+            stencil = (max(need_jacs) + 2 + (1+max(need_jacs))%2) if stencil is None else stencil
+            # odd behaves better
+            with Parallelizer.lookup(parallelizer) as par:
+                new_jacs = [
+                    x.squeeze() if isinstance(x, np.ndarray) else x
+                    for x in intcds.jacobian(carts, need_jacs,
+                                             # odd behaves better
+                                             mesh_spacing=mesh_spacing,
+                                             stencil=stencil,
+                                             all_numerical=all_numerical,
+                                             converter_options=dict(
+                                                 reembed=reembed,
+                                                 planar_ref_tolerance=planar_ref_tolerance,
+                                                 strip_dummies=strip_dummies
+                                             ),
+                                             parallelizer=par
+                                             )
+                ]
+                # np.set_printoptions
+                # with np.printoptions(linewidth=1e8, threshold=1e8, floatmode='fixed', precision=10):
+                #     raise Exception(str(np.round(new_jacs[0].reshape(9, 9)[(3, 6, 7), :], 12)))
+            for j,v in zip(need_jacs, new_jacs):
+                for d in range(j-len(exist_jacs)):
+                    exist_jacs.append(None)
+                exist_jacs[j-1] = v
+
+        return [exist_jacs[j-1] for j in jacs]
+
+    def _get_cart_jacobs(self, jacs,
+                         strip_dummies=False,
+                         stencil=None, mesh_spacing=1.0e-3,
+                         all_numerical=True,
+                         parallelizer=None
+                         ):
+        """
+        Gets the specified dR/dXs
+
+        :param jacs:
+        :type jacs:
+        :return:
+        :rtype:
+        """
+        intcds = self.internal_coordinates
+        ccoords = self.coords
+        carts = ccoords.system
+        internals = intcds.system
+
+        if isinstance(jacs, int):
+            jacs = list(range(1, jacs + 1))
+
+        exist_jacs = self._jacobians['cartesian']
+        max_jac = max(jacs)
+        need_jacs = [x+1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
+        if len(need_jacs) > 0:
+            stencil = (max(need_jacs) + 2 + (1+max(need_jacs))%2) if stencil is None else stencil
+            # odd behaves better
+            with Parallelizer.lookup(parallelizer) as par:
+                new_jacs = [
+                    x.squeeze() if isinstance(x, np.ndarray) else x
+                    for x in ccoords.jacobian(internals, need_jacs,
+                                                          mesh_spacing=mesh_spacing,
+                                                          stencil=stencil,
+                                                          all_numerical=all_numerical,
+                                                          converter_options=dict(strip_dummies=strip_dummies),
+                                                          parallelizer=par
+                                                          )
+                ]
+
+                for j, v in zip(need_jacs, new_jacs):
+                    for d in range(j - len(exist_jacs)):
+                        exist_jacs.append(None)
+                    exist_jacs[j - 1] = v
+
+        return [exist_jacs[j-1] for j in jacs]
+
+    def _get_embedding_coords(self):
+        try:
+            embedding = self.internal_coordinates.system.embedding_coords
+        except AttributeError:
+            try:
+                embedding = self.internal_coordinates.system.converter_options['embedding_coords']
+            except KeyError:
+                embedding = None
+        return embedding
+
+    def get_cartesians_by_internals(self, order=None, strip_embedding=False):
+        base = self._get_int_jacobs(order) if order is not None else self._jacobians['internals']
+        if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'CartesiansByInternals',
+                    len(base),
+                    order
+                ))
+            base = base[:order]
+
+        _ = []
+        sh = self.coords.shape[:-2]
+        nc = 3 * len(self.atoms)
+        for i, b in enumerate(base):
+            b = b.reshape(sh + (nc,) * (i + 2))
+            _.append(b)
+        base = _
+
+        embedding_coords = self._get_embedding_coords() if strip_embedding else None
+        if embedding_coords is not None and strip_embedding:
+            good_coords = np.setdiff1d(np.arange(3 * len(self.masses)), embedding_coords)
+            base = [t[np.ix_(*((good_coords,) * (t.ndim - 1)))] for t in base]
+        return base
+    def get_internals_by_cartesians(self, order=None, strip_embedding=False):
+        base = self._get_cart_jacobs(order) if order is not None else self._jacobians['cartesian']
+        if order is not None:
+            if len(base) < order:
+                raise ValueError("insufficient {} (have {} but expected {})".format(
+                    'InternalsByCartesians',
+                    len(base),
+                    order
+                ))
+            base = base[:order]
+
+        _ = []
+        sh = self.coords.shape[:-2]
+        nc = 3*len(self.atoms)
+        for i,b in enumerate(base):
+            b = b.reshape(sh+(nc,)*(i+2))
+            _.append(b)
+        base = _
+
+        if strip_embedding:
+            embedding_coords = self._get_embedding_coords()
+            if embedding_coords is not None:
+                good_coords = np.setdiff1d(np.arange(3 * len(self.masses)), embedding_coords)
+                base = [t[..., good_coords] for t in base]
+        return base
+
+    def evaluate(self,
+                 func,
+                 internals=None,
+                 deriv_order=None,
+                 strip_embedding=False
+                 ):
+        if internals is None:
+            internals = self.internals is not None
+        if internals:
+            coords = self.internal_coordinates
+            if strip_embedding:
+                embedding_coords = self._get_embedding_coords()
+                if embedding_coords is not None:
+                    good_coords = np.setdiff1d(np.arange(3 * len(self.masses)), embedding_coords)
+                    coords = coords.reshape(coords.shape[:-2] + (3 * len(self.masses),))
+                    coords = coords[..., good_coords]
+            if deriv_order is None:
+                return func(coords).view(np.ndarray)
+
+            terms = func(coords, deriv_order=deriv_order)
+            # raise Exception([t.shape for t in terms], coords.shape)
+            if strip_embedding:
+                embedding_coords = self._get_embedding_coords()
+                if embedding_coords is not None:
+                    good_coords = np.setdiff1d(np.arange(3 * len(self.masses)), embedding_coords)
+
+                    const = terms[0]
+                    terms = terms[1:]
+                    new = []
+                    ncs = 3 * len(self.masses)
+                    if self.coords.ndim > 2:
+                        npts = len(coords)
+                    else:
+                        npts = 1
+                    for n, ders in enumerate(terms):
+                        dt = np.zeros((npts,) + (ncs,)*(n+1))
+                        idx_pos = (...,) + np.ix_(*[good_coords]*(n+1))
+                        dt[idx_pos] = ders.view(np.ndarray)
+                        if self.coords.ndim == 2:
+                            dt = dt[0]
+                        new.append(dt)
+                    terms = [const] + new
+
+            const = terms[0]
+            jacs = self.get_internals_by_cartesians(deriv_order)
+
+            terms = TensorDerivativeConverter(
+                jacs,
+                terms[1:],
+                jacobians_name='dXdR',
+                values_name='f'
+            ).convert()  # , check_arrays=True)
+
+            return [const.view(np.ndarray)] + [t.view(np.ndarray) for t in terms]
+        else:
+            if deriv_order is None:
+                return func(self.coords).view(np.ndarray)
+            else:
+                return [x.view(np.ndarray) for x in func(self.coords, deriv_order=deriv_order)]
+
+    def evaluate_at(self,
+                    func,
+                    coords,
+                    internals=None,
+                    deriv_order=None,
+                    strip_embedding=False
+                    ):
+        return type(self)(
+            self.atoms,
+            coords,
+            internals=self.internals
+        ).evaluate(func, internals=internals, deriv_order=deriv_order, strip_embedding=strip_embedding)
+
+    def get_displaced_coordinates(self, displacements, which=None, sel=None, axes=None, internals=False, shift=True):
+        displacements = np.asanyarray(displacements)
+
+        if which is not None:
+            which = tuple(
+                np.ravel_multi_index(idx, (len(self._ats), 3))
+                    if not isinstance(idx, (int, np.integer)) else
+                idx
+                for idx in which
+            )
+
+        if internals and self.internals is None:
+            raise ValueError("can't displace in internals without internal coordinate spec")
+        base_coords = self.coords if not internals else self.internal_coordinates
+
+        if which is not None:
+            if displacements.shape[-1] != len(which):  # displacements provided in atom coordinates
+                displacements = displacements.reshape(
+                    displacements.shape[:-2] +
+                    (np.prod(displacements.shape[-2:], dtype=int),)
+                )
+            if displacements.ndim > 1:
+                for _ in range(displacements.ndim - 1):
+                    base_coords = np.expand_dims(base_coords, 0)
+                base_coords = np.broadcast_to(base_coords, displacements.shape[:-1] + base_coords.shape[-2:])
+            base_coords = base_coords.copy()
+            flat_coords = base_coords.reshape(displacements.shape[:-1] + (-1,))
+
+            if shift:
+                flat_coords[..., which] += displacements
+            else:
+                flat_coords[..., which] = displacements
+            base_coords = flat_coords.reshape(base_coords.shape)
+
+        elif sel is not None or axes is not None:
+            if displacements.ndim > 2:
+                for _ in range(displacements.ndim - 2):
+                    base_coords = np.expand_dims(base_coords, 0)
+                base_coords = np.broadcast_to(base_coords, displacements.shape[:-2] + base_coords.shape[-2:])
+            base_coords = base_coords.copy()
+
+            if sel is None:
+                sel = np.arange(len(self.masses))
+            if axes is None:
+                axes = np.arange(3)
+
+            sel = np.asanyarray(sel)[:, np.newaxis]
+            axes = np.asanyarray(axes)[np.newaxis, :]
+
+            if shift:
+                base_coords[..., sel, axes] += displacements
+            else:
+                base_coords[..., sel, axes] = displacements
+
+        else:
+            if displacements.shape[-2:] != base_coords.shape:
+                raise ValueError("displacements with shape {} passed but coordinates have shape {}".format(
+                    displacements.shape,
+                    base_coords.shape
+                ))
+            base_coords = displacements
+
+        if internals:
+            # track the embedding info...
+            base_coords = self.internal_coordinates.system(base_coords, **self.internal_coordinates.converter_options)
+            if isinstance(internals, str):
+                if internals == 'convert':
+                    base_coords = base_coords.convert(self.coords.system)
+                elif internals == 'reembed':
+                    base_coords = self.embed_coords(base_coords.convert(self.coords.system))
+        else:
+            base_coords = self.coords.system(base_coords)
+        return base_coords
+
+    def get_scan_coordinates(self,
+                             domains,
+                             internals=False,
+                             which=None, sel=None, axes=None,
+                             shift=True
+                             ):
+
+        displacement_mesh = np.moveaxis(
+            np.array(
+                np.meshgrid(*[np.linspace(*d) for d in domains], indexing='ij')
+            ),
+            0, -1
+        )
+        return self.get_displaced_coordinates(displacement_mesh, shift=shift,
+                                              internals=internals, which=which, sel=sel, axes=axes)
+
+    def get_nearest_displacement_coordinates(self, points, sel=None, axes=None, weighting_function=None):
+        pts = np.asanyarray(points)
+        smol = pts.ndim == 1
+        if smol: pts = pts[np.newaxis]
+        base_shape = pts.shape[:-1]
+        pts = pts.reshape(-1, pts.shape[-1])
+
+        if axes is None:
+            axes = [0, 1, 2]
+        axes = np.asanyarray(axes)
+
+        if sel is None:
+            sel = np.arange(len(self.masses))
+        sel = np.asanyarray(sel)
+
+        ref = self.coords
+        masses = self.masses
+        dists = np.linalg.norm(
+            pts[:, np.newaxis, :] - ref[np.newaxis, sel[:, np.newaxis], axes[np.newaxis, :]],
+            axis=-1
+        )
+        if weighting_function is None:
+            weighting_function = np.sqrt
+        dists = dists * weighting_function(masses)[np.newaxis, sel]
+        nearest = np.argmin(dists, axis=-1)
+        atom_idx = sel[nearest]
+        coords = np.broadcast_to(ref[np.newaxis], (len(pts),) + ref.shape).copy()
+        coords[np.arange(len(nearest))[:, np.newaxis], atom_idx[:, np.newaxis], axes[np.newaxis, :]] = pts
+
+        coords = coords.reshape(base_shape + coords.shape[-2:])
+        if smol:
+            coords = coords[0]
+
+        return coords
+
+    def get_nearest_scan_coordinates(self, domains, sel=None, axes=None):
+        displacement_mesh = np.moveaxis(
+            np.array(
+                np.meshgrid(*[np.linspace(*d) for d in domains], indexing='ij')
+            ),
+            0, -1
+        )
+        return self.get_nearest_displacement_coordinates(displacement_mesh, axes=axes, sel=sel)
+
+    def get_model(self, potential_specs, dipole=None):
+        from ..AnalyticModels import MolecularModel
+
+        if self.internals is None:
+            raise ValueError("need internal coordinates to generate analytic model")
+
+        internals = self.internals
+        if internals['zmatrix'] is None or internals['conversion'] is not None:
+            raise ValueError("only plain Z-matrix coordinate specs currently supported")
+
+        eq_vals = self.internal_coordinates
+        embedding_coords = [0, 1, 2, 4, 5, 8]
+        good_coords = np.setdiff1d(np.arange(3 * len(self.atoms)), embedding_coords)
+        eq_vals = eq_vals.flatten()[good_coords]
+
+        zmat = np.array(internals['zmatrix'])
+        def canonicalize_coord(coord_index):
+            if coord_index == 0:
+                atoms = zmat[1, :2]
+            elif coord_index == 1:
+                atoms = zmat[2, :2]
+            elif coord_index == 2:
+                atoms = zmat[2, :3]
+            else:
+                row = 3 + (coord_index - 3) // 3
+                num = 2 + (coord_index - 3) % 3
+                atoms = zmat[row, :num]
+
+            if len(atoms) == 2:
+                coord_type = 'r'
+            elif len(atoms) == 3:
+                coord_type = 'a'
+            elif len(atoms) == 4:
+                coord_type = 't'
+            else:
+                raise ValueError("bad coord type")
+            coord = getattr(MolecularModel, coord_type)(*atoms)
+
+            return coord, atoms
+
+        def canonicalize_spec(coord_index, spec_dict):
+            if 'function_type' not in spec_dict and len(spec_dict) == 1:
+                function_type, spec_dict = next(iter(spec_dict.items()))
+            else:
+                function_type = spec_dict['function_type']
+            atoms = canonicalize_coord(coord_index)[1]
+
+            scaling = spec_dict.get('scaling', 1)
+            params = spec_dict.copy()
+            if 'scaling' in params:
+                del params['scaling']
+            if 'function_type' in params:
+                del params['function_type']
+
+            if 'eq' not in params:
+                params['eq'] = eq_vals[coord_index]
+
+            return scaling * getattr(MolecularModel, function_type)(*atoms, **params)
+
+        coord_indices = set()
+
+        if isinstance(potential_specs, dict):
+            potential_contribs = []
+            for idx, spec in potential_specs.items():
+                if isinstance(idx, int):
+                    idx = [idx]
+                    spec = [spec]
+                coord_indices.update(idx)
+                fns = [canonicalize_spec(i, s) for i,s in zip(idx, spec)]
+                f = fns[0]
+                for fn in fns[1:]:
+                    f = f * fn
+                potential_contribs.append(f)
+            pot = sum(potential_contribs)
+        else:
+            pot = potential_specs
+
+        if dipole is not None:
+            if len(dipole) != 3:
+                raise ValueError("need xyz for dipole contribs")
+
+            dip = []
+            for d in dipole:
+                if not isinstance(d, dict):
+                    dip.append(d)
+                    continue
+
+                contribs = []
+                for idx, spec in d.items():
+                    if isinstance(idx, int):
+                        idx = [idx]
+                        spec = [spec]
+                    coord_indices.update(idx)
+                    fns = [canonicalize_spec(i, s) for i, s in zip(idx, spec)]
+                    f = fns[0]
+                    for fn in fns[1:]:
+                        f = f * fn
+                    contribs.append(f)
+                dip.append(sum(contribs))
+        else:
+            dip = None
+
+        atoms = set()
+        coords = []
+        vals = {}
+        for idx in sorted(list(coord_indices)):
+            c, a = canonicalize_coord(idx)
+            atoms.update(a)
+            coords.append(c)
+            vals[c] = eq_vals[idx]
+        masses = self._atomic_masses()
+
+        vals.update({
+                MolecularModel.m(i): masses[i]
+                for i in sorted(list(atoms))
+            })
+
+        return MolecularModel(
+            self,
+            coords,
+            pot,
+            dipole=dip,
+            values=vals
+        )
 
     @property
     def g_matrix(self):
@@ -652,6 +1155,7 @@ class Molecule(AbstractMolecule):
     def eckart_frame(self, mol, sel=None, inverse=False, planar_ref_tolerance=None):
         """
         Gets the Eckart frame(s) for the molecule
+
         :param mol:
         :type mol:
         :param sel: selection of atoms to use when getting the Eckart frame
@@ -663,28 +1167,32 @@ class Molecule(AbstractMolecule):
         """
         return self.prop('eckart_transformation', mol, sel=sel, inverse=inverse, planar_ref_tolerance=planar_ref_tolerance)
 
-    def embed_coords(self, crds, sel=None, planar_ref_tolerance=None):
+    def embed_coords(self, crds, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
         Embeds coords in the Eckart frame using `self` as a reference
+
         :param crds:
         :type crds:
         :return:
         :rtype:
         """
 
-        return self.prop('eckart_embedded_coords', crds, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
-    def get_embedding_data(self, crds, sel=None):
+        return self.prop('eckart_embedded_coords', crds, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
+    def get_embedding_data(self, crds, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
         Gets the necessary data to embed crds in the Eckart frame using `self` as a reference
+
         :param crds:
         :type crds:
         :return:
         :rtype: tuple[np.ndarray, tuple[np.ndarray], tuple[np.ndarray]]
         """
-        return self.prop('eckart_embedding_data', crds, sel=sel)
+        return self.prop('eckart_embedding_data', crds, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
     def get_embedded_molecule(self,
                               ref=None,
-                              embed_properties=True
+                              sel=None, planar_ref_tolerance=None,
+                              embed_properties=True,
+                              load_properties=True
                               ):
         """
         Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
@@ -694,9 +1202,9 @@ class Molecule(AbstractMolecule):
         """
 
         if ref is None:
-            frame = self.principle_axis_frame(inverse=False)
+            frame = self.principle_axis_frame(sel=sel, inverse=False)
         else:
-            frame = self.eckart_frame(ref, inverse=False)
+            frame = self.eckart_frame(ref, sel=sel, planar_ref_tolerance=planar_ref_tolerance, inverse=False)
         # self.normal_modes.modes
         new = frame.apply(self)
         if embed_properties:
@@ -705,9 +1213,12 @@ class Molecule(AbstractMolecule):
             #     inv_frame = self.principle_axis_frame(inverse=True)
             # else:
             #     inv_frame = self.eckart_frame(ref, inverse=True)
-            new.normal_modes = new.normal_modes.apply_transformation(frame)
-            new.potential_surface = new.potential_surface.apply_transformation(frame)
-            new.dipole_surface = new.dipole_surface.apply_transformation(frame)
+            if load_properties or new._normal_modes._modes is not None:
+                new.normal_modes = new.normal_modes.apply_transformation(frame)
+            if load_properties or new._pes._surf is not None or new._pes._derivs is not None:
+                new.potential_surface = new.potential_surface.apply_transformation(frame)
+            if load_properties or new._dips._surf is not None or new._dips._derivs is not None:
+                new.dipole_surface = new.dipole_surface.apply_transformation(frame)
         new.source_file = None # for safety
 
         return new

@@ -2,6 +2,7 @@
 Provides a relatively haphazard set of simple classes to keep track of state information.
 By providing a single interface here, we can avoid recomputing information over and over.
 """
+import itertools
 
 import numpy as np, itertools as ip, enum, scipy.sparse as sp
 import abc
@@ -446,6 +447,20 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
             dtype=cls.excitations_dtype
         )
 
+    @classmethod
+    def num_states_with_quanta(cls, n, ndim):
+        """
+        Returns the states with number of quanta equal to n
+
+        :param quanta:
+        :type quanta:
+        :return:
+        :rtype:
+        """
+
+        # generate basic padded partitions of `n`
+        return SymmetricGroupGenerator(ndim).num_terms(n)
+
     @abc.abstractmethod
     def to_single(self,
                   track_excitations=True,
@@ -668,9 +683,11 @@ class BasisStateSpace(AbstractStateSpace):
                     self._max_ind = np.max(self.indices)
                 return self.full_basis.take(self.indices, max_size=self._max_ind, uncoerce=False)
 
+            # print(">>>", states.flatten().dtype, states.flatten())
             states, self._indexer, uinds, inv = nput.unique(states, sorting=self._indexer, return_index=True, return_inverse=True)
             self._sort_uinds = uinds
             self._uinds = np.sort(uinds)
+            # print(states.flatten().dtype, states.flatten())
             raw_exc = self.basis.unravel_state_inds(states.flatten())
             return raw_exc[inv]
         else:
@@ -1250,7 +1267,12 @@ class BasisStateSpace(AbstractStateSpace):
             if track_excitations and self._excitations is not None or other._excitations is not None:
                 self_exc = self.excitations
                 other_exc = other.excitations
-                new_exc = np.concatenate([self_exc, other_exc], axis=0)
+                if len(self_exc) == 0:
+                    new_exc = other_exc
+                elif len(other_exc) == 0:
+                    new_exc = self_exc
+                else:
+                    new_exc = np.concatenate([self_exc, other_exc], axis=0)
                 new._excitations = new_exc
 
         else:
@@ -2200,7 +2222,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
     A `BasisMultiStateSpace` subclass that is only built from applying selection rules to an initial space
     This really should have been called `TransformedStateSpace` but I am dumb
     """
-    def __init__(self, init_space, excitations, selection_rules=None, ignore_shapes=False):
+    def __init__(self, init_space, excitations, selection_rules=None, ignore_shapes=False, changes=None):
         """
         :param init_space:
         :type init_space:
@@ -2223,6 +2245,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             raise ValueError("index space {} contains duplicate elements")
         self._base_space = init_space
         self.sel_rules = selection_rules
+        self.changes = changes
+        # if changes is not None:
+        #     raise Exception(...)
         super().__init__(excitations)
 
     def to_state(self, serializer=None):
@@ -2300,6 +2325,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
 
+        if self.changes is not None:
+            raise NotImplementedError("need to handle state change tracking")
+
 
         # if self.spaces.ndim == 1:
         new_spaces = [
@@ -2324,6 +2352,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :return:
         :rtype:
         """
+
+
+        if self.changes is not None:
+            raise NotImplementedError("need to handle state change tracking")
 
         def take_inter(space, states=states):
             try:
@@ -2352,6 +2384,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
 
+        if self.changes is not None:
+            raise NotImplementedError("need to work in changes")
+
         def take(space, inds=inds):
             return space.take_subdimensions(inds)
 
@@ -2376,6 +2411,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
 
+        if self.changes is not None:
+            raise NotImplementedError("need to handle state change tracking")
+
         def take_inter(space, states=states):
             try:
                 return space.drop_states(states)
@@ -2397,6 +2435,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :rtype:
         """
 
+
+        if self.changes is not None:
+            raise NotImplementedError("need to handle state change tracking")
+
         def take_inter(space, states=inds):
             try:
                 return space.drop_subspace(states)
@@ -2417,6 +2459,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         :return:
         :rtype:
         """
+
+        if self.changes is not None:
+            raise NotImplementedError("need to work in changes")
 
         def take(space, inds=inds):
             return space.drop_subdimension(inds)
@@ -2500,7 +2545,6 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             return upairs, filter
         else:
             return upairs
-
     def filter_representation_inds(self, ind_pairs, q_changes):
         """
         Filters representation indices by the allowed #quantum changes.
@@ -2529,6 +2573,27 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         new_stuff = np.array([d[good_doggo] for d in ind_pairs])
         return new_stuff
+
+    def get_representation_brakets(self,
+                                   freqs=None,
+                                   freq_threshold=None,
+                                   other=None,
+                                   selection_rules=None,
+                                   filter=None,
+                                   return_filter=False
+                                   ):
+        brakets = super().get_representation_brakets(
+            freqs=freqs,
+            freq_threshold=freq_threshold,
+            other=other,
+            selection_rules=selection_rules,
+            filter=filter,
+            return_filter=return_filter
+        )
+        if self.changes is not None:
+            flat_changes = np.concatenate(self.changes, axis=0)
+            brakets.changes = flat_changes
+        return brakets
 
     @classmethod
     def _from_permutations(cls, space, permutations, filter_space, selection_rules):
@@ -2656,6 +2721,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 new[n] = cls._apply_rules_recursive(s,  permutations, filter_space, selection_rules, iterations=iterations-1)
         return new
 
+    track_change_positions=True
     @classmethod
     def _get_direct_product_spaces(cls, selection_rules, symm_grp, filter_space, logger, full_basis=None, exc=None, parallelizer=None):
 
@@ -2667,11 +2733,27 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
         # ))
 
         if filter_space is None:
-            new_exc, new_inds = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
-                                                                          full_basis=full_basis,
-                                                                          return_indices=True, split_results=True,
-                                                                          logger=logger
-                                                                          )
+            res = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
+                                                            full_basis=full_basis,
+                                                            return_indices=True,
+                                                            split_results=True,
+                                                            return_change_positions=cls.track_change_positions,
+                                                            logger=logger
+                                                            )
+            if cls.track_change_positions:
+                new_exc, new_inds, changes = res
+            else:
+                changes = None
+                new_exc, new_inds = res
+
+            # print("="*50)
+            # if new_exc is None:
+            #     new_exc = [symm_grp.from_indices(i) for i in new_inds]
+            # for e,n,c in zip(exc, new_exc, changes):
+            #     print(e)
+            #     print(n)
+            #     print(c)
+            #     print("-"*10)
 
             # raise Exception(new_exc, selection_rules)
             filter = None
@@ -2679,20 +2761,37 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             if isinstance(filter_space, BasisStateSpace):
                 filter_space = (filter_space.excitations, filter_space.indices)
 
-            new_exc, new_inds, filter = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
-                                                                                  full_basis=full_basis,
-                                                                                  filter_perms=filter_space,
-                                                                                  return_filter=True,
-                                                                                  return_indices=True,
-                                                                                  split_results=True,
-                                                                                  logger=logger
-                                                                                  )
+
+            res = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
+                                                            full_basis=full_basis,
+                                                            filter_perms=filter_space,
+                                                            return_filter=True,
+                                                            return_indices=True,
+                                                            return_change_positions=cls.track_change_positions,
+                                                            split_results=True,
+                                                            logger=logger
+                                                            )
+            if cls.track_change_positions:
+                new_exc, new_inds, changes, filter = res
+            else:
+                changes = None
+                new_exc, new_inds, filter = res
+
+            # new_exc, new_inds, changes, filter = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
+            #                                                                       full_basis=full_basis,
+            #                                                                       filter_perms=filter_space,
+            #                                                                       return_filter=True,
+            #                                                                       return_indices=True,
+            #                                                                        return_change_positions=True,
+            #                                                                       split_results=True,
+            #                                                                       logger=logger
+            #                                                                       )
 
         new_exc = parallelizer.gather(new_exc)
         new_inds = parallelizer.gather(new_inds)
 
         if parallelizer.on_main:
-            return new_exc, new_inds, filter
+            return new_exc, new_inds, changes, filter
 
     direct_sum_chunk_size = int(1e4) # so I can mess with this as I debug
     @classmethod
@@ -2738,6 +2837,9 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 )
 
             if target_dimensions is not None:
+                if cls.track_change_positions:
+                    raise NotImplementedError("positions tracking and using target dimensions not currently supported")
+
                 if filter_space is not None:
                     raise NotImplementedError(
                         "simultaneously filtering and using target_dimensions not currently supported"
@@ -2754,13 +2856,13 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 symm_grp = SymmetricGroupGenerator(exc.shape[-1])
 
                 new_exc = symm_grp.take_permutation_rule_direct_sum(exc, selection_rules,
-                                                                                      filter_perms=None,
-                                                                                      return_filter=False,
-                                                                                      full_basis=full_basis,
-                                                                                      return_indices=False,
-                                                                                      split_results=True,
-                                                                                      logger=logger
-                                                                                      )
+                                                                    filter_perms=None,
+                                                                    return_filter=False,
+                                                                    full_basis=full_basis,
+                                                                    return_indices=False,
+                                                                    split_results=True,
+                                                                    logger=logger
+                                                                    )
 
                 new = np.full(len(space), None, dtype=object)
                 for n,e in enumerate(new_exc):  # same size as input permutations
@@ -2797,15 +2899,17 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                     if len(exc) > chunk_size:
                         new_exc = []
                         new_inds = []
+                        new_changes = []
                         filter = filter_space
                         num_chunks = len(exc) // chunk_size
                         chunks = np.array_split(exc, num_chunks, axis=0)
                         for chunk in chunks:
-                            new_exc_chunk, new_inds_chunk, filter = par.run(cls._get_direct_product_spaces,
+                            new_exc_chunk, new_inds_chunk, new_changes_chunk, filter = par.run(cls._get_direct_product_spaces,
                                                                             selection_rules, symm_grp, filter, logger, full_basis,
                                                                             main_kwargs={'exc':chunk},
                                                                             comm = list(range(len(chunk))) if len(chunk) < (1 + par.nprocs) else None
                                                                             )
+
                             if new_exc_chunk is not None:
                                 if new_exc_chunk[0] is None:
                                     if not isinstance(new_inds_chunk[0], np.ndarray):
@@ -2821,11 +2925,20 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                     # means we got too blocky of a shape out of the parallelizer
                                     new_inds_chunk = sum(new_inds_chunk, [])
                                 new_exc_chunk = [None] * len(new_inds_chunk)
+
+                            if new_changes_chunk is not None and new_changes_chunk[0] is not None:
+                                if not isinstance(new_changes_chunk[0], np.ndarray):
+                                    # means we got too blocky of a shape out of the parallelizer
+                                    new_changes_chunk = sum(new_changes_chunk, [])
                             new_exc.extend(new_exc_chunk)
                             new_inds.extend(new_inds_chunk)
+                            if new_changes_chunk is not None and new_changes_chunk[0] is not None:
+                                new_changes.extend(new_changes_chunk)
+                            else:
+                                new_changes = None
 
                     else:
-                        new_exc, new_inds, filter = par.run(cls._get_direct_product_spaces,
+                        new_exc, new_inds, new_changes, filter = par.run(cls._get_direct_product_spaces,
                                                             selection_rules, symm_grp, filter_space, logger, full_basis,
                                                             main_kwargs={'exc':exc},
                                                             comm=list(range(len(exc))) if len(exc) < (1 + par.nprocs) else None
@@ -2848,11 +2961,18 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                 new_exc = [None] * len(new_inds)
                             else:
                                 new_exc = []
+                        if new_changes is not None and new_changes[0] is not None:
+                            if not isinstance(new_changes[0], np.ndarray):
+                                # means we got too blocky of a shape out of the parallelizer
+                                new_changes = sum(new_changes, [])
 
                 new = []
-                for e,i in zip(new_exc, new_inds): # looping over input excitations
+                new_chng = [] if new_changes is not None else None
+                for n,(e,i) in enumerate(zip(new_exc, new_inds)): # looping over input excitations
                     # make stuff unique...kinda just because?
                     i, _, inds = nput.unique(i, return_index=True)
+                    if new_chng is not None:
+                        new_chng.append(new_changes[n][inds,])
                     if track_excitations:
                         e = e[inds,]
                         new_space = BasisStateSpace(space.basis, e, mode=BasisStateSpace.StateSpaceSpec.Excitations,
@@ -2877,10 +2997,16 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             if len(new) == 0:
                 return None
 
+            # raise Exception(
+            #     space.excitations,
+            #     new[0].excitations,
+            #     new_chng[0]
+            # )
+
             if filter_space is None:
-                return cls(space, new, selection_rules)
+                return cls(space, new, selection_rules, changes=new_chng)
             else:
-                return cls(space, new, selection_rules), filter
+                return cls(space, new, selection_rules, changes=new_chng), filter
 
     @classmethod
     def _filter_transitions(cls, space:BasisStateSpace, excitations:"Iterable[BasisStateSpace]", excluded_transitions):
@@ -2990,7 +3116,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         return vals
 
-    def union(self, other,
+    def union(self,
+              other,
               handle_subspaces=True,
               track_excitations=True,
               track_indices=True
@@ -3026,6 +3153,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             and self.representative_space.has_excitations
             and other.representative_space.has_excitations
         )
+        # we determine which initial states are new between self and other
         if excitation_mode: # special case I guess?
             self_exc = self.representative_space.excitations
             other_exc = other.representative_space.excitations
@@ -3056,10 +3184,17 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                       )
             where_inds = np.sort(where_inds)
 
-        new_rep = self.representative_space.union(other.representative_space,
-                                                  track_excitations=track_excitations,
-                                                  track_indices=track_indices
-                                                  )#, union_sorting=union_sorting)
+        c1 = self.changes
+        c2 = other.changes
+        if c1 is None and c2 is not None or c2 is None and c1 is not None:
+            raise Exception("selection rule space with tracked changes and without can't be merged")
+
+
+        new_rep = self.representative_space.union(
+            other.representative_space,
+            track_excitations=track_excitations,
+            track_indices=track_indices
+        )#, union_sorting=union_sorting)
         new_spaces = np.concatenate(
             [
                 self.spaces,
@@ -3067,6 +3202,10 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             ],
             axis=0
         )
+        if c1 is not None:
+            changes = c1 + [c2[w] for w in where_inds]
+        else:
+            changes = None
         if len(new_rep) != len(new_spaces):
             raise ValueError("Mismatch between union of {} and {} (rep space. len={} and subspaces len={})".format(
                 self, other, len(new_rep), len(new_spaces)
@@ -3088,12 +3227,44 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                     union_sorting=union_sorting
                 )
             for i_new, i_old in zip(self_inc_inds, other_inc_inds):
-                new_spaces[i_new] = new_spaces[i_new].union(other[i_old],
-                                                            track_indices=track_indices,
-                                                            track_excitations=track_excitations
-                                                            )
+                if changes is not None: #TODO: be careful about sorting
+                    ospace = other[i_old]
+                    sspace = self[i_new]
+                    if excitation_mode:
+                        ote = ospace.excitations
+                        ste = sspace.excitations
+                        other_exclusions, subsortings, subunion_sorting = nput.difference(
+                            ote, ste
+                            # sortings=(other.representative_space._exc_indexer, self.representative_space._exc_indexer)
+                        )
+                        ospace._exc_indexer, sspace._exc_indexer = subsortings
+                        where_inds, _ = nput.find(ote, other_exclusions,
+                                                  sorting=ospace._exc_indexer
+                                                  )
+                    else:
+                        oti = ospace.indices
+                        sti = sspace.indices
+                        other_exclusions, subsortings, subunion_sorting = nput.difference(
+                            oti, sti
+                            # sortings=(other.representative_space._exc_indexer, self.representative_space._exc_indexer)
+                        )
+                        ospace._indexer, sspace._indexer = subsortings
+                        where_inds, _ = nput.find(oti, other_exclusions,
+                                                  sorting=ospace._indexer
+                                                  )
+                    if len(where_inds) > 0:
+                        where_inds = np.sort(where_inds)
+                        changes[i_new] = np.concatenate([changes[i_new], *[c2[w] for w in where_inds]], axis=0)
+                        # changes[i_new] = np.concatenate([changes[i_new], c2[where_inds]])
+                    # print(" >", changes[i_new])
 
-        return type(self)(new_rep, new_spaces)
+                new_spaces[i_new] = new_spaces[i_new].union(
+                    other[i_old],
+                    track_indices=track_indices,
+                    track_excitations=track_excitations
+                )
+
+        return type(self)(new_rep, new_spaces, changes=changes)
 
     def intersection(self, other, handle_subspaces=True, use_indices=False,
                      track_excitations=True,
@@ -3110,6 +3281,11 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         if self.representative_space.full_basis is not None:
             track_excitations = False
+
+        c1 = self.changes
+        c2 = other.changes
+        if c1 is None and c2 is not None or c2 is None and c1 is not None:
+            raise Exception("selection rule space with tracked changes and without can't be merged")
 
 
         if not isinstance(other, SelectionRuleStateSpace):
@@ -3157,13 +3333,48 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             # _, where_inds, other_where = np.intersect1d(self_inds, other_inds, return_indices=True)
 
         new_spaces = self.spaces[where_inds,]
+        if c1 is not None:
+            changes = [c1[w] for w in where_inds]
+        else:
+            changes = None
         if handle_subspaces:
             for n,i in enumerate(other_where):
+                if changes is not None:
+                    sspace = self[n]
+                    ospace = other[n]
+                    if track_excitations and not use_indices and (
+                            sspace.has_excitations
+                            and ospace.has_excitations
+                    ):  # special case I guess?
+                        self_exc = sspace.excitations
+                        other_exc = ospace.excitations
+
+                        inter_ind, sortings, _, where_inds, _ = nput.intersection(
+                            self_exc, other_exc,
+                            sortings=(sspace._exc_indexer, ospace._exc_indexer),
+                            return_indices=True
+                        )
+
+                        self.representative_space._exc_indexer, ospace._exc_indexer = sortings
+                        where_inds = np.sort(where_inds)
+                    else:
+                        self_inds = sspace.indices
+                        other_inds = ospace.indices
+
+                        inter_ind, _, _, where_inds, _ = nput.intersection(
+                            self_inds, other_inds,
+                            sortings=(sspace.indexer, ospace.indexer),
+                            return_indices=True
+                        )
+                        where_inds = np.sort(where_inds)
+                    changes[n] = changes[n][where_inds,]
+
                 new_spaces[n] = new_spaces[n].intersection(other[n])
+
 
         new_rep = self.representative_space.take_subspace(where_inds)#(other.representative_space)
 
-        return type(self)(new_rep, new_spaces)
+        return type(self)(new_rep, new_spaces, changes=changes)
     def difference(self, other, handle_subspaces=True):
         """
         Returns an diff'ed self and other.
@@ -3193,6 +3404,13 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                 self.basis,
                 other.basis
             ))
+
+        c1 = self.changes
+        c2 = other.changes
+        if c1 is None and c2 is not None or c2 is None and c1 is not None:
+            raise Exception("selection rule space with tracked changes and without can't be merged")
+        if c1 is not None:
+            raise NotImplementedError("change tracking for difference not implemented yet")
 
         self_inds = self.representative_space.indices
         other_inds = other.representative_space.indices
@@ -3291,7 +3509,8 @@ class BraKetSpace:
     """
     def __init__(self,
                  bra_space,
-                 ket_space
+                 ket_space,
+                 changes=None
                  ):
         """
         :param bra_space:
@@ -3308,6 +3527,8 @@ class BraKetSpace:
             raise ValueError("Bras {} and kets {} have different dimension".format(bra_space, ket_space))
         self._state_pairs = None
         self._state_diffs = None
+        self.changes = changes
+        self._unique_changes = None
 
     @property
     def state_pairs(self):
@@ -3701,6 +3922,7 @@ class BraKetSpace:
             :return:
             :rtype:
             """
+
             orthos = self.tests
             unused = np.delete(np.arange(len(orthos)), inds)
             if subinds is None:
@@ -3885,9 +4107,14 @@ class BraKetSpace:
         return fp.reduce(np.logical_and, sels[1:], sels[0])
 
     def take_subspace(self, sel):
+        if self.changes is not None:
+            changes = self.changes[sel,]
+        else:
+            changes = None
         sub = type(self)(
             self.bras.take_subspace(sel),
-            self.kets.take_subspace(sel)
+            self.kets.take_subspace(sel),
+            changes=changes
         )
         if len(self) > 0:
             sub.state_pairs = (
@@ -3907,12 +4134,14 @@ class BraKetSpace:
         )
         return new
 
+    use_change_indices = True
     def apply_non_orthogonality(self,
                                 inds,
                                 use_aggressive_caching=None,
                                 use_preindex_trie=None,
                                 preindex_trie_depth=None,
-                                assume_unique=False
+                                assume_unique=False,
+                                use_change_indices=None
                                 ):
         """
         Takes the bra-ket pairs that are non-orthogonal under the indices `inds`
@@ -3924,16 +4153,68 @@ class BraKetSpace:
         :return:
         :rtype:
         """
-        if use_aggressive_caching is None:
-            use_aggressive_caching = self.aggressive_caching_enabled
-        if use_preindex_trie is None:
-            use_preindex_trie = self.preindex_trie_enabled
-        non_orthog = self.get_non_orthog(inds,
-                                         use_aggressive_caching=use_aggressive_caching,
-                                         assume_unique=assume_unique,
-                                         use_preindex_trie=use_preindex_trie,
-                                         preindex_trie_depth=preindex_trie_depth
-                                         )
+
+        if use_change_indices is None:
+            use_change_indices = self.use_change_indices
+        if use_change_indices and self.changes is not None:
+            if self._unique_changes is None:
+                changes, indices = nput.group_by(np.arange(len(self.changes)), self.changes)[0]
+                self._unique_changes = dict(zip(changes, indices))
+
+            # raise Exception(self._unique_changes)
+
+            inds = np.unique(inds)
+            radix = self.ndim
+            possible_change_ints = np.unique([
+                SymmetricGroupGenerator.changed_index_number(
+                    idx,
+                    radix
+                )
+                for r in range(0, len(inds)+1)
+                for idx in itertools.combinations(inds, r=r)
+            ])
+            non_orthog = np.sort(np.concatenate([
+                self._unique_changes.get(c, np.array([], dtype=int))
+                for c in possible_change_ints
+            ]))
+            # if len(possible_change_ints) == 1:
+            #     non_orthog = np.where(self.changes==possible_change_ints[0])[0]
+            #     # print(">", self.state_pairs[0].T[:5])
+            #     # print(">", self.state_pairs[1].T[:5])
+            #     # print(">", self.changes[:5])
+            #     # raise Exception(...) from None
+            # else:
+            #     mask = np.full(len(self.changes), True, dtype=bool)
+            #     for c in possible_change_ints:
+            #         # print(c)
+            #         mask[mask] = np.logical_and(
+            #             mask[mask],
+            #             self.changes[mask] != c
+            #         )
+            #         # print(mask)
+            #     non_orthog = np.where(np.logical_not(mask))[0]
+            # print(">>>", non_orthog)
+        else:
+        # no = non_orthog
+            if use_aggressive_caching is None:
+                use_aggressive_caching = self.aggressive_caching_enabled
+            if use_preindex_trie is None:
+                use_preindex_trie = self.preindex_trie_enabled
+            non_orthog = self.get_non_orthog(inds,
+                                             use_aggressive_caching=use_aggressive_caching,
+                                             assume_unique=assume_unique,
+                                             use_preindex_trie=use_preindex_trie,
+                                             preindex_trie_depth=preindex_trie_depth
+                                             )
+        # print(" > ", non_orthog_old)
+        # new_issues = np.setdiff1d(non_orthog, non_orthog_old)
+        # if len(new_issues) > 0:
+        #     print(inds)
+        #     print(self.state_pairs[0].T[new_issues[0]])
+        #     print(self.state_pairs[1].T[new_issues[0]])
+        #     print(self.changes[new_issues[0]])
+        #     raise Exception(new_issues)
+
         return self.take_subspace(non_orthog), non_orthog
 
     @staticmethod

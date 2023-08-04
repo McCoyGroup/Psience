@@ -5,7 +5,7 @@ A little package of utilities for setting up/running VPT jobs
 import numpy as np, sys, os, itertools, scipy
 
 from McUtils.Data import UnitsData, AtomData
-from McUtils.Scaffolding import ParameterManager
+from McUtils.Scaffolding import ParameterManager, Logger
 from McUtils.Zachary import FiniteDifferenceDerivative
 from McUtils.Extensions import ModuleLoader
 
@@ -393,11 +393,15 @@ class VPTStateSpace:
         # else:
         #     raise NotImplementedError("don't know what to do with degeneracy spec {}".format(degeneracy_specs))
 
-    def filter_generator(self, target_property, order=2, postfilters=None):
-        def filter(states):
-            return self.get_state_space_filter(states, target=target_property, order=order, postfilters=postfilters)
+    def filter_generator(self, target_property, order=2, initial_states=None, postfilters=None):
+        def filter(states, **opts):
+            return self.get_state_space_filter(states,
+                                               initial_states=initial_states, target=target_property,
+                                               order=order, postfilters=postfilters,
+                                               **opts
+                                               )
         return filter
-    def get_filter(self, target_property, order=2, postfilters=None):
+    def get_filter(self, target_property, order=2, initial_states=None, postfilters=None):
         """
         Obtains a state space filter for the given target property
         using the states we want to get corrections for
@@ -412,10 +416,11 @@ class VPTStateSpace:
         return self.get_state_space_filter(self.state_list,
                                            target=target_property,
                                            order=order,
+                                           initial_states=initial_states,
                                            postfilters=postfilters
                                            )
     @classmethod
-    def get_state_space_filter(cls, states, n_modes=None, order=2, target='wavefunctions', postfilters=None):
+    def get_state_space_filter(cls, states, initial_states=None, n_modes=None, order=2, target='wavefunctions', postfilters=None, **opts):
         """
         Gets `state_space_filters` for the input `states` targeting some property
 
@@ -441,7 +446,7 @@ class VPTStateSpace:
             return None
         elif target == 'intensities':
             return BasisStateSpaceFilter.from_property_rules(
-                cls.get_state_list_from_quanta(0, n_modes),
+                cls.get_state_list_from_quanta(0, n_modes) if initial_states is None else initial_states,
                 states,
                 [
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"]*i) for i in range(3, order+3)
@@ -450,7 +455,8 @@ class VPTStateSpace:
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"]*i) for i in range(1, order+2)
                 ],
                 order=order,
-                postfilters=postfilters
+                postfilters=postfilters,
+                **opts
             )
         elif target == 'frequencies':
             # return {
@@ -458,7 +464,7 @@ class VPTStateSpace:
             #     (2, 0): (None, [[0]])
             # }
             return BasisStateSpaceFilter.from_property_rules(
-                cls.get_state_list_from_quanta(0, n_modes),
+                cls.get_state_list_from_quanta(0, n_modes) if initial_states is None else initial_states,
                 states,
                 [
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"] * i) for i in range(3, order + 3)
@@ -486,41 +492,42 @@ class VPTHamiltonianOptions:
         "mode_selection",
         "include_potential",
         "include_gmatrix",
-         "include_coriolis_coupling",
-         "include_pseudopotential",
-         "potential_terms",
-         "kinetic_terms",
-         "coriolis_terms",
-         "pseudopotential_terms",
-         "dipole_terms",
-         "dipole_derivatives",
-         "undimensionalize_normal_modes",
-         "use_numerical_jacobians",
-         "eckart_embed_derivatives",
-         "eckart_embed_planar_ref_tolerance",
-         "strip_dummy_atoms",
-         "strip_embedding_coordinates",
-         "mixed_derivative_handling_mode",
-         "backpropagate_internals",
-         "direct_propagate_cartesians",
-         "zero_mass_term",
-         "use_internal_modes",
-         "internal_fd_mesh_spacing",
-         "internal_fd_stencil",
-         "cartesian_fd_mesh_spacing",
-         "cartesian_fd_stencil",
-         "cartesian_analytic_deriv_order",
-         "internal_by_cartesian_order",
-         "cartesian_by_internal_order",
-         "jacobian_warning_threshold",
-         "check_input_force_constants",
-         "hessian_tolerance",
-         "grad_tolerance",
-         "freq_tolerance",
-         "g_derivative_threshold",
-         "gmatrix_tolerance",
-         'use_cartesian_kinetic_energy',
-         'operator_coefficient_threshold'
+        "include_coriolis_coupling",
+        "include_pseudopotential",
+        "include_only_mode_couplings",
+        "potential_terms",
+        "kinetic_terms",
+        "coriolis_terms",
+        "pseudopotential_terms",
+        "dipole_terms",
+        "dipole_derivatives",
+        "undimensionalize_normal_modes",
+        "use_numerical_jacobians",
+        "eckart_embed_derivatives",
+        "eckart_embed_planar_ref_tolerance",
+        "strip_dummy_atoms",
+        "strip_embedding_coordinates",
+        "mixed_derivative_handling_mode",
+        "backpropagate_internals",
+        "direct_propagate_cartesians",
+        "zero_mass_term",
+        "use_internal_modes",
+        "internal_fd_mesh_spacing",
+        "internal_fd_stencil",
+        "cartesian_fd_mesh_spacing",
+        "cartesian_fd_stencil",
+        "cartesian_analytic_deriv_order",
+        "internal_by_cartesian_order",
+        "cartesian_by_internal_order",
+        "jacobian_warning_threshold",
+        "check_input_force_constants",
+        "hessian_tolerance",
+        "grad_tolerance",
+        "freq_tolerance",
+        "g_derivative_threshold",
+        "gmatrix_tolerance",
+        'use_cartesian_kinetic_energy',
+        'operator_coefficient_threshold'
     )
 
     def __init__(self,
@@ -529,6 +536,7 @@ class VPTHamiltonianOptions:
                  include_gmatrix=None,
                  include_coriolis_coupling=None,
                  include_pseudopotential=None,
+                 include_only_mode_couplings=None,
                  potential_terms=None,
                  kinetic_terms=None,
                  coriolis_terms=None,
@@ -623,6 +631,7 @@ class VPTHamiltonianOptions:
             include_gmatrix=include_gmatrix,
             include_coriolis_coupling=include_coriolis_coupling,
             include_pseudopotential=include_pseudopotential,
+            include_only_mode_couplings=include_only_mode_couplings,
             potential_terms=potential_terms,
             kinetic_terms=kinetic_terms,
             coriolis_terms=coriolis_terms,
@@ -961,6 +970,7 @@ class VPTRunner:
     def __init__(self,
                  system,
                  states,
+                 initial_states=None,
                  hamiltonian_options=None,
                  solver_options=None,
                  runtime_options=None
@@ -992,6 +1002,9 @@ class VPTRunner:
 
         self.system = system
         self.states = states
+        if initial_states is None:
+            initial_states = VPTStateSpace.from_system_and_quanta(self.system, 0)
+        self.initial_states = initial_states
 
         self._ham = None
         self._wfns = None
@@ -1018,16 +1031,19 @@ class VPTRunner:
             pt_opts['degenerate_states'] = self.states.degenerate_states
         return self.hamiltonian.get_wavefunctions(
             self.states.state_list,
+            initial_states=self.initial_states.state_list,
             **pt_opts,
             **self.runtime_opts.solver_opts
         )
 
     @classmethod
-    def print_output_tables(cls, wfns=None, file=None,
+    def print_output_tables(cls,
+                            wfns=None, file=None,
                             print_intensities=True,
                             print_energies=True,
                             print_energy_corrections=True,
                             print_transition_moments=True,
+                            operators=None,
                             logger=None, sep_char="=", sep_len=100):
         """
         Prints a bunch of formatted output data from a PT run
@@ -1042,8 +1058,8 @@ class VPTRunner:
             logger = wfns.logger
         if logger is not None:
             def print_block(label, *args, **kwargs):
-                with wfns.logger.block(tag=label):
-                    wfns.logger.log_print(" ".join("{}".format(x) for x in args), **kwargs)
+                with logger.block(tag=label):
+                    logger.log_print(" ".join("{}".format(x) for x in args), **kwargs)
         else:
             if file is None:
                 file = sys.stdout
@@ -1093,11 +1109,17 @@ class VPTRunner:
                     print_block("{} Dipole Contributions".format(a), m)
             print_block("IR Data", wfns.format_intensities_table())
 
+        if operators is not None:
+            print_block("Operator Data", wfns.format_operator_table(operators))
+
+
     def print_tables(self,
                      wfns=None, file=None,
                      print_intensities=True,
                      print_energy_corrections=True,
                      print_transition_moments=True,
+                     operators=None,
+                     logger=None,
                      sep_char="=", sep_len=100):
         """
         Prints a bunch of formatted output data from a PT run
@@ -1111,23 +1133,33 @@ class VPTRunner:
         if wfns is None:
             wfns = self.get_wavefunctions()
 
+        if isinstance(logger, Logger):
+            logger = logger
+        elif logger is True or logger is None:
+            logger = Logger()
+        else:
+            logger = Logger(logger)
+
+
         self.print_output_tables(wfns=wfns, file=file,
                                  print_intensities=print_intensities,
                                  print_energy_corrections=print_energy_corrections,
                                  print_transition_moments=print_transition_moments,
+                                 operators=operators, logger=logger,
                                  sep_char=sep_char, sep_len=sep_len)
 
         return wfns
 
     @classmethod
     def construct(cls,
-               system,
-               states,
-               target_property=None,
-               basis_filters=None,
-               corrected_fundamental_frequencies=None,
-               **opts
-               ):
+                  system,
+                  states,
+                  target_property=None,
+                  basis_filters=None,
+                  initial_states=None,
+                  corrected_fundamental_frequencies=None,
+                  **opts
+                  ):
         full_opts = (
                 VPTSystem.__props__
                 + VPTStateSpace.__props__
@@ -1160,6 +1192,20 @@ class VPTRunner:
                 **par.filter(VPTStateSpace)
             )
 
+        if initial_states is not None:
+            if isinstance(initial_states, int) or isinstance(initial_states[0], int):
+                initial_states = VPTStateSpace.from_system_and_quanta(
+                    sys,
+                    initial_states,
+                    **par.filter(VPTStateSpace)
+                )
+            else:
+                initial_states = VPTStateSpace(
+                    initial_states,
+                    system=sys,
+                    **par.filter(VPTStateSpace)
+                )
+
         order = 2 if 'order' not in opts.keys() else opts['order']
         if target_property is None:
             target_property = 'intensities'
@@ -1168,7 +1214,11 @@ class VPTRunner:
                 expansion_order = opts['expansion_order']
             else:
                 expansion_order = order
-            par.ops['state_space_filters'] = states.filter_generator(target_property, order=order, postfilters=basis_filters)
+            par.ops['state_space_filters'] = states.filter_generator(target_property,
+                                                                     initial_states=initial_states.state_list if initial_states is not None else None,
+                                                                     order=order,
+                                                                     postfilters=basis_filters
+                                                                     )
 
         if corrected_fundamental_frequencies is not None and (
                 'zero_order_energy_corrections' not in opts
@@ -1190,6 +1240,7 @@ class VPTRunner:
         runner = cls(
             sys,
             states,
+            initial_states=initial_states,
             hamiltonian_options=hops,
             runtime_options=rops,
             solver_options=sops
@@ -1202,6 +1253,8 @@ class VPTRunner:
                    target_property=None,
                    corrected_fundamental_frequencies=None,
                    calculate_intensities=True,
+                   plot_spectrum=False,
+                   operators=None,
                    **opts
                    ):
         """
@@ -1265,7 +1318,46 @@ class VPTRunner:
                         else:
                             logger.log_print(str(ds))
 
-                return runner.print_tables(print_intensities=calculate_intensities)
+                wfns = runner.get_wavefunctions()
+                runner.print_tables(
+                    wfns=wfns,
+                    print_intensities=calculate_intensities,
+                    operators=operators,
+                    logger=wfns.logger
+                )
+                if plot_spectrum:
+                    wfns.get_spectrum().plot().show()
+                return wfns
+
+    class helpers:
+        """
+        A stub to be replaced with the AnneInputHelpers interface
+        """
+        @classmethod
+        def run_anne_job(cls,
+                         base_dir,
+                         states=2,
+                         calculate_intensities=None,
+                         return_analyzer=False,
+                         return_runner=False,
+                         modes_file=('nm_int.dat', 'modes.dat'),
+                         atoms_file='atom.dat',
+                         masses_file='mass.dat',
+                         coords_file='cart_ref.dat',
+                         zmat_file='z_mat.dat',
+                         potential_files=('cub.dat', 'quart.dat', 'quintic.dat', 'sextic.dat'),
+                         dipole_files=('lin_dip.dat', 'quad_dip.dat', "cub_dip.dat", "quart_dip.dat", 'quintic_dip.dat'),
+                         coordinate_transformation=None,
+                         coordinate_transformation_file='coordinate_transformation.py',
+                         results_file=None,  # 'output.hdf5',
+                         order=None,
+                         expansion_order=None,
+                         energy_units=None,
+                         normalization_type=0,
+                         **opts
+                         ):
+            ...
+        convert = UnitsData.convert
 
 class VPTStateMaker:
     """
@@ -1394,37 +1486,59 @@ class AnneInputHelpers:
             return None
 
     @classmethod
-    def parse_modes(cls, block):
-        inds = {}
-        m = 0
+    def _parse_modes(cls, line_iter, energy_units=None):
+
         freqs = None
         L = None
         Linv = None
+
+        block = []
+        for line in line_iter:
+            line = line.strip()
+            if len(line) > 0:
+                block.append(line)
+            else:
+                if len(block) > 0:
+                    if freqs is None:
+                        freqs = cls.parse_freqs_line(" ".join(block))
+                        block = []
+                    elif L is None:
+                        L = cls.parse_modes_line(" ".join(block), len(freqs))
+                        block = []
+                    elif Linv is None:
+                        Linv = cls.parse_modes_line(" ".join(block), L.shape[1])
+                        block = []
+                        break
+        else:
+            if len(block) > 0:
+                Linv = cls.parse_modes_line(" ".join(block), L.shape[1])
+            else:
+                if energy_units is None:
+                    if np.max(freqs) > 1:
+                        conv = cls.convert("Wavenumbers", "Hartrees")
+                    else:
+                        conv = 1
+                else:
+                    conv = cls.convert(freqs, "Hartrees")
+                freqs_conv = freqs * conv
+
+                # raise Exception(freqs_conv, np.diag(L.T @ L))
+                Linv = L.T #/ freqs[:, np.newaxis]
+
+        return freqs, L, Linv
+    @classmethod
+    def parse_modes(cls, block, energy_units=None):
+        if not isinstance(block, str):
+            for file in block:
+                if os.path.isfile(file):
+                    return cls.parse_modes(file, energy_units=energy_units)
         if os.path.isfile(block):
             with open(block) as f:
-                for line in f:
-                    line = line.strip()
-                    if len(line) > 0:
-                        if freqs is None:
-                            freqs = cls.parse_freqs_line(line)
-                        elif L is None:
-                            L = cls.parse_modes_line(line, len(freqs))
-                        elif Linv is None:
-                            Linv = cls.parse_modes_line(line, L.shape[1])
-                            break
+                return cls._parse_modes(f, energy_units=energy_units)
         else:
             cls._check_file(block)
-            for line in block.splitlines():
-                line = line.strip()
-                if len(line) > 0:
-                    if freqs is None:
-                        freqs = cls.parse_freqs_line(line)
-                    elif L is None:
-                        L = cls.parse_modes_line(line, len(freqs))
-                    elif Linv is None:
-                        Linv = cls.parse_modes_line(line, L.shape[1])
-                        break
-        return freqs, L, Linv
+            return cls._parse_modes(block.splitlines(), energy_units=energy_units)
+
 
     @classmethod
     def parse_coords(cls, block):
@@ -1530,6 +1644,8 @@ class AnneInputHelpers:
         :return:
         :rtype:
         """
+        if zmat is None:
+            return None
         nats = len(zmat)
         ncoords = 3*nats - 6
         if nats < 4:
@@ -1718,10 +1834,12 @@ class AnneInputHelpers:
     def run_anne_job(cls,
                      base_dir,
                      states=2,
+                     initial_states=0,
+                     # operators=[{'coords':[[0, 1], ... ,...]}], # coords_zero, coords_first, coords_second <-
                      calculate_intensities=None,
                      return_analyzer=False,
                      return_runner=False,
-                     modes_file='nm_int.dat',
+                     modes_file=('nm_int.dat', 'modes.dat'),
                      atoms_file='atom.dat',
                      masses_file='mass.dat',
                      coords_file='cart_ref.dat',
@@ -1734,7 +1852,7 @@ class AnneInputHelpers:
                      order=None,
                      expansion_order=None,
                      energy_units=None,
-                     type=0,
+                     normalization_type=0,
                      **opts
                      ):
         from .Analyzer import VPTAnalyzer
@@ -1757,7 +1875,7 @@ class AnneInputHelpers:
             base_freqs *= conv
             potential = [cls.parse_tensor(f) for f in potential_files if os.path.isfile(f)]
             if energy_units is None:
-                if np.max(np.abs(potential[0])) > 1:
+                if max(np.max(np.abs(x)) for x in potential) > 1:
                     conv = cls.convert("Wavenumbers", "Hartrees")
                 else:
                     conv = 1
@@ -1815,13 +1933,22 @@ class AnneInputHelpers:
             else:
                 dipole_terms = None
             # raise Exception(sorting)
-            (freq, matrix, inv), potential_terms, dipole_terms = cls.reexpress_normal_modes(
-                (base_freqs, base_mat, base_inv),
-                [np.diag(base_freqs)] + potential,
-                dipole_terms,
-                sorting=sorting,
-                type=type
-            )
+            if zmat is not None:
+                (freq, matrix, inv), potential_terms, dipole_terms = cls.reexpress_normal_modes(
+                    (base_freqs, base_mat, base_inv),
+                    [np.diag(base_freqs)] + potential,
+                    dipole_terms,
+                    sorting=sorting,
+                    type=normalization_type
+                )
+            else:
+                freq, matrix, inv = base_freqs, base_mat, base_inv
+                potential_terms = [np.diag(base_freqs)] + potential
+                    # print(dipole[0].shape, base_modes[1].shape, matrix.shape)
+                dipole_terms = [
+                    [0] + [d[a] for d in dipole_terms]
+                    for a in range(3)
+                ]
             # if type == 0:
             #     # (freq, matrix, inv) = (base_freqs, base_mat, base_inv)
             #     potential_terms = [np.diag(base_freqs)] + potential
@@ -1863,6 +1990,7 @@ class AnneInputHelpers:
             res = runner(
                 [atoms, coords, dict(masses=masses)],
                 states,
+                initial_states=initial_states,
                 modes={
                     "freqs": freq,
                     "matrix": matrix,

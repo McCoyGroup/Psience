@@ -673,6 +673,11 @@ class Representation:
                 utri, full_inds = self._pull_rep_mat_inds(logger, total_space, m_pairs)
 
                 logger.log_print("getting vals array...", log_level=logger.LogLevel.Debug)
+                if len(sub) != len(m_pairs): # happens when multioperator asks for just one state
+                    if len(m_pairs) > 1:
+                        raise ValueError("matrix element evaluation broke in way I don't understand")
+                    sub = sub[np.newaxis]
+
                 full_dat = np.concatenate([sub, sub[utri]], axis=0)
                 del sub, utri
 

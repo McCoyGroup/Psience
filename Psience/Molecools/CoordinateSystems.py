@@ -116,7 +116,8 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
             ordering = np.array(converter_options['ordering'], dtype=int)
             ordering[0, 1] = -3; ordering[0, 2] = -1; ordering[0, 3] = -2
             ordering[1, 2] = -1; ordering[1, 3] = -2
-            ordering[2, 3] = -2
+            if len(ordering) > 2:
+                ordering[2, 3] = -2
             converter_options['ordering'] = ordering
             first = ordering[0, 0]
         else:
@@ -132,12 +133,14 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         converter_options['molecule'] = molecule
 
     def jacobian(self,
+                 coords,
                  *args,
                  reembed=None,
                  strip_dummies=None,
                  converter_options=None,
                  **kwargs
                  ):
+
         if converter_options is None:
             converter_options = {}
         merged_convert_options = dict(self.converter_options, **converter_options)
@@ -162,16 +165,30 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
                 dummies
             )
 
+        if coords.ndim > 3:
+            og_shape = coords.shape
+            coords = coords.reshape((-1,) + coords.shape[-2:])
+        else:
+            og_shape = (coords.shape[0],) if coords.ndim == 3 else ()
+
+        # print("...?", coords.shape)
+
         try:
             self.converter_options['reembed'] = True if remb is None else remb
-            jacs = super().jacobian(*args, converter_options=converter_options, **kwargs)
+            jacs = super().jacobian(coords, *args, converter_options=converter_options, **kwargs)
+            if isinstance(jacs, np.ndarray):
+                jacs = [jacs]
             raw_jacs = []
             for j in jacs:
-                ext_dim = j.ndim - 2
-                shp = sum(
-                    ((j.shape[i] // 3, 3) for i in range(ext_dim)),
+                skip_dim = coords.ndim - 2
+                if skip_dim > 0:
+                    j = np.moveaxis(j, -3, 0) # skip_dim == 1 by construction so only need 1 move...
+                ext_dim = j.ndim - 2 - skip_dim
+                # print("????", j.shape, coords.shape, skip_dim)
+                shp = og_shape + sum(
+                    ((j.shape[i] // 3, 3) for i in range(skip_dim, ext_dim+skip_dim)),
                     ()
-                ) +  j.shape[-2:]
+                ) + j.shape[-2:]
                 j = j.reshape(shp)
                 if dummies is not None:
                     for i in range(ext_dim):
@@ -203,7 +220,7 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         if converter_options is None:
             converter_options = opts
             opts = {}
-        super().__init__(converter_options=converter_options, dimension=(nats, 3), opts=opts)
+        super().__init__(converter_options=converter_options, dimension=(nats, 3), coordinate_shape=(nats, 3), opts=opts)
 
     def pre_convert(self, system):
         self.converter_options['molecule'] = self.molecule
@@ -223,7 +240,8 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             ordering = np.array(converter_options['ordering'], dtype=int)
             ordering[0, 1] = -3; ordering[0, 2] = -2; ordering[0, 3] = -1
             ordering[1, 2] = -1; ordering[1, 3] = -2
-            ordering[2, 3] = -2
+            if len(ordering) > 2:
+                ordering[2, 3] = -2
             converter_options['ordering'] = ordering
             first = ordering[0, 0]
         else:
@@ -246,6 +264,7 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
                  analytic_deriv_order=None,
                  **kwargs
                  ):
+
         if converter_options is None:
             converter_options = {}
         merged_convert_options = dict(self.converter_options, **converter_options)
@@ -275,6 +294,8 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             main_excludes = None
 
         jacs = super().jacobian(coords, system, analytic_deriv_order=analytic_deriv_order, converter_options=converter_options, **kwargs)
+        if isinstance(jacs, np.ndarray):
+            jacs = [jacs]
         raw_jacs = []
         for n,j in enumerate(jacs): # this expects a full filling of the jacobians which maybe I need to not expect...
             baseline = 2*analytic_deriv_order + len(coords.shape)
@@ -345,6 +366,7 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
                      ordering=None,
                      strip_embedding=True,
                      strip_dummies=False,
+                     return_derivs=None,
                      **kwargs):
         """
         Converts from Cartesian to ZMatrix coords, preserving the embedding
@@ -368,6 +390,7 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
         :return:
         :rtype:
         """
+        return_derivs=False
 
         n_sys = coords.shape[0]
         n_coords = coords.shape[1]
@@ -403,7 +426,8 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
             ordering = np.array(ordering, dtype=int)
             ordering[0, 1] = -3; ordering[0, 2] = -2; ordering[0, 3] = -1
             ordering[1, 2] = -2; ordering[1, 3] = -1
-            ordering[2, 3] = -1
+            if len(ordering) > 2:
+                ordering[2, 3] = -1
             ordering = ordering + 3
             ordering = np.concatenate([ [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]], ordering])
             # print("...?", ordering)
@@ -412,6 +436,7 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
                                                                     ordering=ordering,
                                                                     origins=origins,
                                                                     axes=axes,
+                                                                    return_derivs=return_derivs,
                                                                     **kwargs
                                                                     )
 
@@ -521,6 +546,7 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
         Converts from Cartesian to ZMatrix coords, attempting to preserve the embedding
         """
         from .Molecule import Molecule
+        return_derivs = False
 
         n_sys = coords.shape[0]
         n_coords = coords.shape[1]
@@ -533,11 +559,42 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
                     n_atoms
                 ))
 
+            # TODO:
+            # these need broadcasting when
+            # doing jacobian calcs but this is currently pretty
+            # hacky
+            # print(axes.shape, n_sys)
+            if axes.ndim == 2:
+                axes = axes[np.newaxis]
+            if axes.shape[0] > 1 and axes.shape[0] < n_sys:
+                # print((n_sys // axes.shape[0], axes.shape[0]) + axes.shape)
+                axes = np.reshape(
+                    np.broadcast_to(
+                        axes[np.newaxis],
+                        (n_sys // axes.shape[0],) + axes.shape
+                    ),
+                    (n_sys, ) + axes.shape[1:]
+                )
+
+            if origins.ndim == 1:
+                origins = origins[np.newaxis]
+            # print(axes.shape, n_sys)
+            if origins.shape[0] > 1 and origins.shape[0] < n_sys:
+                # print((n_sys // axes.shape[0], axes.shape[0]) + axes.shape)
+                origins = np.reshape(
+                    np.broadcast_to(
+                        origins[np.newaxis],
+                        (n_sys // origins.shape[0],) + origins.shape
+                    ),
+                    (n_sys, ) + origins.shape[1:]
+                )
+
             x_ax = axes[..., 0, :]
             y_ax = axes[..., 1, :]
             extra_norms0 = nput.vec_norms(x_ax)
             extra_norms1 = nput.vec_norms(y_ax)
             extra_angles, _ = nput.vec_angles(x_ax, y_ax)
+
             extra_coords = np.zeros((n_sys, 2, 3))
             extra_coords[..., 0, 0] = extra_norms0
             extra_coords[..., 1, 0] = extra_norms1

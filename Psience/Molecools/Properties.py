@@ -267,18 +267,52 @@ class StructuralProperties:
         og_ref = ref
         ref = ref[..., real_pos, :]
 
-        planar_ref = np.allclose(ref[:, 2], 0., atol=planar_ref_tolerance)
+        if ref.ndim == 2:
+            ref = ref[np.newaxis]
+        if ref.shape[0] > 1 and ref.shape[0] < coords.shape[0]: # TODO: make less hacky
+            # need to make them broadcast together and we assume
+            # we have an extra stack of coords
+            n_sys = coords.shape[0]
+            ref =  np.reshape(
+                    np.broadcast_to(
+                        ref[np.newaxis],
+                        (n_sys // ref.shape[0],) + ref.shape
+                    ),
+                    (n_sys, ) + ref.shape[1:]
+                )
+            ref_axes = np.reshape(
+                np.broadcast_to(
+                    ref_axes[np.newaxis],
+                    (n_sys // ref_axes.shape[0],) + ref_axes.shape
+                ),
+                (n_sys,) + ref_axes.shape[1:]
+            )
+            ref_com = np.reshape(
+                np.broadcast_to(
+                    ref_com[np.newaxis],
+                    (n_sys // ref_com.shape[0],) + ref_com.shape
+                ),
+                (n_sys,) + ref_com.shape[1:]
+            )
+
+        # needs to be updated for the multiple reference case?
+        # TODO: make sure that we broadcast this correctly to check if all or
+        #       none of the reference structures are planar
+        planar_ref = np.allclose(ref[0][:, 2], 0., atol=planar_ref_tolerance)
+
         if not planar_ref:
             # generate pair-wise product matrix
-            A = np.tensordot(masses / np.sum(masses),
-                             ref[np.newaxis, :, :, np.newaxis] * coords[:, :, np.newaxis, :],
-                             axes=[0, 1])
+            A = np.tensordot(
+                masses / np.sum(masses),
+                ref[:, :, :, np.newaxis] * coords[:, :, np.newaxis, :],
+                axes=[0, 1]
+            )
             # take SVD of this
             U, S, V = np.linalg.svd(A)
             rot = np.matmul(U, V)
         else:
             # generate pair-wise product matrix but only in 2D
-            F = ref[np.newaxis, :, :2, np.newaxis] * coords[:, :, np.newaxis, :2]
+            F = ref[:, :, :2, np.newaxis] * coords[:, :, np.newaxis, :2]
             A = np.tensordot(masses / np.sum(masses), F, axes=[0, 1])
             U, S, V = np.linalg.svd(A)
             rot = np.broadcast_to(np.eye(3, dtype=float), (len(coords), 3, 3)).copy()
@@ -297,7 +331,7 @@ class StructuralProperties:
         return rot, (og_ref, ref_com, ref_axes), (og_coords, com, pax_axes)
 
     @classmethod
-    def get_eckart_embedding_data(cls, masses, ref, coords, sel=None):
+    def get_eckart_embedding_data(cls, masses, ref, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
         Embeds a set of coordinates in the reference frame
 
@@ -311,7 +345,7 @@ class StructuralProperties:
         :rtype:
         """
 
-        return cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False)
+        return cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
     def get_prop_eckart_transformation(cls, masses, ref, coords,
@@ -367,6 +401,7 @@ class StructuralProperties:
     def get_eckart_embedded_coords(cls, masses,
                                    ref, coords,
                                    reset_com=False,
+                                   in_paf=False,
                                    sel=None,
                                    planar_ref_tolerance=None
                                    ):
@@ -389,7 +424,7 @@ class StructuralProperties:
             masses = masses[sel]
             ref = ref[..., sel, :]
 
-        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, in_paf=False, planar_ref_tolerance=planar_ref_tolerance)
+        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
         ref, ref_com, ref_rot = ref_stuff
         crd, crd_com, crd_rot = coord_stuff
 
@@ -397,7 +432,9 @@ class StructuralProperties:
         ek_rot = np.swapaxes(ek_rot, -2, -1)
         crd = crd @ ek_rot
         # now we rotate this back to the reference frame
-        crd = crd @ (ref_rot.T)[np.newaxis, :, :]
+        if ref_rot.ndim == 2:
+            ref_rot = ref_rot[np.newaxis]
+        crd = crd @ ref_rot.transpose((0, 2, 1))
 
         if reset_com:
             # and then shift so the COM doesn't change
@@ -428,24 +465,49 @@ class StructuralProperties:
         mT = np.sqrt(np.sum(masses))
         mvec = np.sqrt(masses)
 
+        smol = coords.ndim == 2
+        if smol:
+            coords = coords[np.newaxis]
+        base_shape = None
+        if coords.ndim > 3:
+            base_shape = coords.shape[:-2]
+            coords = coords.reshape((-1,) + coords.shape[-2:])
+
         M = np.kron(mvec / mT, np.eye(3)).T  # translation eigenvectors
         mom_rot, ax_rot = cls.get_prop_moments_of_inertia(coords, masses)
-        inv_rot_2 = np.dot(np.dot(ax_rot, np.diag(1 / np.sqrt(mom_rot))), ax_rot.T)
+        inv_mom_2 = np.zeros(ax_rot.shape)
+        diag_inds = np.diag_indices(3)
+        idx = (slice(None, None, None),) + diag_inds
+        inv_mom_2[idx] = 1/np.sqrt(mom_rot)
+        inv_rot_2 = nput.vec_tensordot(
+            ax_rot,
+            nput.vec_tensordot(
+                ax_rot,
+                inv_mom_2,
+                shared=1,
+                axes=[-1, -1]
+            ),
+            shared=1,
+            axes=[-1, -1]
+        )
         com = cls.get_prop_center_of_mass(coords, masses)
-        shift_crds = mvec[:, np.newaxis] * (coords - com[np.newaxis, :])
+        com = np.expand_dims(com, 1)
+        shift_crds = mvec[np.newaxis, :, np.newaxis] * (coords - com[: np.newaxis, :])
         e = nput.levi_cevita3
-        R = np.tensordot(
+        R = nput.vec_tensordot(
             shift_crds,
-            np.tensordot(e, inv_rot_2, axes=[0, 1]),
-            axes=[1, 0]
-        ).reshape((3 * n, 3))  # rotations
+            np.moveaxis(np.tensordot(e, inv_rot_2, axes=[0, -1]), -2, 0),
+            shared=1,
+            axes=[-1, 1]
+        ).reshape((coords.shape[0], 3 * n, 3))  # rotations
         freqs = np.concatenate([
-            [1e-14, 1e-14, 1e-14],
+            np.broadcast_to([[1e-14, 1e-14, 1e-14]], mom_rot.shape),
             (1 / (2 * mom_rot))
             # this isn't right, I'm totally aware, but I think the frequency is supposed to be zero anyway and this
             # will be tiny
-        ])
-        eigs = np.concatenate([M, R], axis=1)
+        ], axis=-1)
+        M = np.broadcast_to(M[np.newaxis], R.shape)
+        eigs = np.concatenate([M, R], axis=2)
 
         # import McUtils.Plots as plt
         # print(np.round(eigs, 10))
@@ -766,7 +828,7 @@ class MolecularProperties:
         return StructuralProperties.get_prop_principle_axis_rotation(mol.coords, mol._atomic_masses(), sel=sel, inverse=inverse)
 
     @classmethod
-    def eckart_embedding_data(cls, mol, coords, sel=None, planar_ref_tolerance=None):
+    def eckart_embedding_data(cls, mol, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
 
         :param mol:
@@ -781,7 +843,7 @@ class MolecularProperties:
         masses = mol._atomic_masses()
         ref = mol.coords
         coords = CoordinateSet(coords)
-        return StructuralProperties.get_eckart_embedding_data(masses, ref, coords, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
+        return StructuralProperties.get_eckart_embedding_data(masses, ref, coords, in_paf=in_paf, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
     def eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False, planar_ref_tolerance=None):
@@ -806,7 +868,7 @@ class MolecularProperties:
         return StructuralProperties.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
-    def eckart_embedded_coords(cls, mol, coords, sel=None, planar_ref_tolerance=None):
+    def eckart_embedded_coords(cls, mol, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
 
         :param mol:
@@ -821,7 +883,7 @@ class MolecularProperties:
         masses = mol._atomic_masses()
         ref = mol.coords
         coords = CoordinateSet(coords)
-        return StructuralProperties.get_eckart_embedded_coords(masses, ref, coords, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
+        return StructuralProperties.get_eckart_embedded_coords(masses, ref, coords, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
 
     @classmethod
     def translation_rotation_eigenvectors(cls, mol, sel=None):
@@ -1218,10 +1280,13 @@ class PropertyManager(metaclass=abc.ABCMeta):
         # else:
         #     base_shape = derivs[0].shape
 
-        n_coords = derivs[0].shape[0]
-        if transf.is_affine: # most relevant subcase
+        n_coords = derivs[0].shape[-1]
+        if isinstance(transf, np.ndarray) or transf.is_affine: # most relevant subcase
             # take inverse?
-            tf = transf.transformation_function.transform #type: np.ndarray
+            if isinstance(transf, np.ndarray):
+                tf = transf
+            else:
+                tf = transf.transformation_function.transform #type: np.ndarray
             new_derivs = []
             for i, d in enumerate(derivs):
                 if d is None:
@@ -1229,10 +1294,12 @@ class PropertyManager(metaclass=abc.ABCMeta):
                 elif isinstance(d, (int, float, np.integer, np.floating)):
                     new_derivs.append(d)
                 else:
+                    shift_dim = tf.ndim - 2
                     shp = d.shape
+
                     # print(">>", shp)
-                    for j in range(d.ndim):
-                        # print(j, d.shape[j])
+                    for j in range(shift_dim, d.ndim):
+                        # print(j, d.shape[j], shift_dim)
                         if d.shape[j] == n_coords:
                             target_shape = (
                                     d.shape[:j] +
@@ -1243,10 +1310,13 @@ class PropertyManager(metaclass=abc.ABCMeta):
                                     d.shape[j + 1:]
                             )
                             reshape_d = np.reshape(d, target_shape)
-                            reshape_d = np.moveaxis(
-                                np.tensordot(tf, reshape_d, axes=[[1], [j+1]]),
-                                0, j+1
+                            reshape_d = (
+                                nput.vec_tensordot(tf, reshape_d, shared=shift_dim, axes=[[tf.ndim-1], [j+1]])
+                                    if tf.ndim > 2 else
+                                np.tensordot(tf, reshape_d, axes=[[tf.ndim-1], [j+1]])
                             )
+                            # print(tf.shape, shp, reshape_d.shape)
+                            reshape_d = np.moveaxis(reshape_d, tf.ndim - 2, j+1)
                             d = reshape_d.reshape(shp)
                     new_derivs.append(d)
             return tuple(new_derivs)
@@ -1771,26 +1841,25 @@ class NormalModesManager(PropertyManager):
             amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
             masses = parse['Real atomic weights'] # * amu_conv
 
-            fcs = self.mol.potential_surface.force_constants
+            # fcs = self.mol.potential_surface.force_constants
 
-            sqrt_freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
+            # sqrt_freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
 
-            # I do a bunch of messing with stuff here for like 0 pay off
-            # over the old simple method...not sure what un-dimensioning
-            # is really happening here...
             mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten() * amu_conv
-            modes_conv = modes * np.sqrt(mass_vec[np.newaxis, :])
-            modes_conv = modes_conv / (
-                    np.linalg.norm(modes_conv, axis=1)[:, np.newaxis] *
-                    sqrt_freqs[:, np.newaxis] * np.sqrt(mass_vec[np.newaxis, :])
-            )
+            mw_modes = modes * np.sqrt(mass_vec[np.newaxis, :])
+            modes /= np.linalg.norm(mw_modes, axis=1)[:, np.newaxis] # Gaussian applied a bad normalization
 
+            # ud_modes = modes / sqrt_freqs[:, np.newaxis]
             #
-            internal_F2 = np.dot(np.dot(modes_conv, fcs), modes_conv.T)
+            # internal_F2 = np.dot(np.dot(ud_modes, fcs), ud_modes.T)
+            #
+            # final_scale = freqs / np.diag(internal_F2)
+            # raise Exception(np.allclose(final_scale, 1))
+            # modes *= final_scale[:, np.newaxis]
 
-            final_scale = sqrt_freqs**(3) / np.diag(internal_F2)
-            modes_conv *= final_scale[:, np.newaxis]
-            modes = modes_conv
+            # raise Exception(modes@modes.T)
+            #
+            # modes = modes_conv
 
             modes = modes.T
 

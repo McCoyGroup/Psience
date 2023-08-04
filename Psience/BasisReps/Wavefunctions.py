@@ -14,8 +14,8 @@ from .Operators import Operator
 __all__ = [
     "AnalyticWavefunctions",
     "AnalyticWavefunction",
-    "ExpansionWavefunctions",
-    "ExpansionWavefunction",
+    # "ExpansionWavefunctions",
+    # "ExpansionWavefunction",
     "WavefunctionBasis"
 ]
 
@@ -92,6 +92,7 @@ class AnalyticWavefunction(Wavefunction):
         :return:
         :rtype:
         """
+        raise NotImplementedError("...woof")
         o = Representation(op, ...)
         # What kind of quanta info do I have?
         # These things clearly need to know about multi-dimensional systems
@@ -104,6 +105,16 @@ class AnalyticWavefunction(Wavefunction):
         :rtype:
         """
         return self.data
+
+    def marginalize_out(self, dofs):
+        """
+        Computes the projection of the current wavefunction onto a set of degrees
+        of freedom
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("analytic wave function projections not yet implemented")
 
 class AnalyticWavefunctions(Wavefunctions):
     """
@@ -120,138 +131,148 @@ class AnalyticWavefunctions(Wavefunctions):
         wfn = self._wfn_expr(which, **self.opts)
         return self.wavefunction_class(energy, wfn, index=which)
 
-class ExpansionWavefunction(AnalyticWavefunction):
-    """
-    Simple wave function that takes a set of expansion coefficients alongside its basis.
-    Technically this should be called a _linear expansion wave function_, but
-    that was too long for my taste.
-    """
-    def __init__(self, energy, coefficients, basis_wfns):
-        """
-        :param energy: energy of the wavefunction
-        :type energy: float
-        :param coefficients: expansion coefficients
-        :type coefficients: Iterable[float]
-        :param basis_wfns: basis functions for the expansion
-        :type basis_wfns: Wavefunctions
-        """
-        super().__init__(
-            energy,
-            {
-                'coeffs':coefficients,
-                'basis':basis_wfns
-            }
-        )
-
-    @property
-    def coeffs(self):
-        return self.data['coeffs']
-    @property
-    def basis(self):
-        return self.data['basis']
-
-    def evaluate(self, *args, **kwargs):
-        """
-        Evaluates the wavecfunction as any other linear expansion.
-
-        :param args: coordinates + any other args the basis takes
-        :type args:
-        :param kwargs: any keyword arguments the basis takes
-        :type kwargs:
-        :return: values of the wavefunction
-        :rtype:
-        """
-        return np.dot(self.data['coeffs'], np.array([f(args, **kwargs) for f in self.data['basis']]))
-
-    def expect(self, operator):
-        """
-        Provides the expectation value of the operator `op`.
-        Uses the basis to compute the reps and then expands with the expansion coeffs.
-
-        :param operator:
-        :type operator:
-        :return:
-        :rtype:
-        """
-        op_vector = operator[
-                tuple(x.index for x in self.data['basis']),
-                tuple(x.index for x in self.data['basis'])
-            ]
-        # For multidimensional bases this will probably not work without modification
-        # In that case, the operator returns a slice of a high-dimensional object,
-        #  and we'll need multidimensional index information for this to work right
-        return np.dot(self.data['coeffs'], op_vector)
-
-    def expectation(self, op, other):
-        """
-        Computes the expectation value of operator `op` over the wavefunction `other` and `self`.
-        **Note**: _the basis of `other`, `self`, and `op` are assumed to be the same_.
-
-        :param op: an operator represented in the basis of the expansion
-        :type op: Operator
-        :param other: the other wavefunction to expand over
-        :type other: ExpansionWavefunction
-        :return:
-        :rtype:
-        """
-        op_matrix = op[
-                tuple(x.index for x in self.data['basis']),
-                tuple(o.index for o in other.basis)
-            ]
-        # See the note about needing to handle multidimensional cases better in `expect`
-        return np.dot(self.data('coeffs'), np.dot(op_matrix, other.coeffs))
-
-    def probability_density(self):
-        """Computes the probability density of the current wavefunction
-
-        :return:
-        :rtype:
-        """
-        raise NotImplementedError
-
-class ExpansionWavefunctions(Wavefunctions):
-    """
-    Simple expansion wave function rep that takes multiple sets of coefficients.
-    As with all objects deriving from `Wavefunctions`, can be iterated through to
-    provide a manifold of standalone `ExpansionWavefunction` objects.
-    Currently there are major conceptual issues, as I need this to _both_ support `AnalyticWavefunctions`
-    and `RepresentationBasis` as the basis...
-    which means `AnalyticWavefunctions` needs to track a basis...
-    but `AnalyticWavefunctions` wasn't really designed for that, so I need to go back and figure out how
-    that binding is going to be managed.
-    """
-    def __init__(self, energies, coefficients, basis_wfns, **ops):
-        """
-        :param energies: energies for the stored wavefunctions
-        :type energies: Iterable[float]
-        :param coefficients: expansion coefficients
-        :type coefficients: Iterable[Iterable[float]]
-        :param basis_wfns: wavefunctions to use as the basis for the expansion
-        :type basis_wfns: Wavefunctions
-        :param ops: extra options for feeding through to `Wavefunctions`
-        :type ops:
-        """
-        # self._coeffs = coefficients
-        # self._energies = energies
-        self._basis = basis_wfns
-        if 'wavefunction_class' not in ops:
-            ops['wavefunction_class'] = ExpansionWavefunction
-        super().__init__(energies, coefficients, **ops)
-
-    # def expect(self, op, other):
-    #     """
-    #     Provides expectation values of the wavefunctions o
-    #     :param op:
-    #     :type op:
-    #     :param other:
-    #     :type other:
-    #     :return:
-    #     :rtype:
-    #     """
-    #     return NotImplemented
-
-
-    # def get_wavefunctions(self, which):
-    #     energy = self.energies[which]
-    #     wfn = self.wavefunctions[which]
-    #     return self.wavefunction_class(energy, wfn, self._basis)
+# class ExpansionWavefunction(AnalyticWavefunction):
+#     """
+#     Simple wave function that takes a set of expansion coefficients alongside its basis.
+#     Technically this should be called a _linear expansion wave function_, but
+#     that was too long for my taste.
+#     """
+#     def __init__(self, energy, coefficients, basis_wfns):
+#         """
+#         :param energy: energy of the wavefunction
+#         :type energy: float
+#         :param coefficients: expansion coefficients
+#         :type coefficients: Iterable[float]
+#         :param basis_wfns: basis functions for the expansion
+#         :type basis_wfns: Wavefunctions
+#         """
+#         super().__init__(
+#             energy,
+#             {
+#                 'coeffs':coefficients,
+#                 'basis':basis_wfns
+#             }
+#         )
+#
+#     @property
+#     def coeffs(self):
+#         return self.data['coeffs']
+#     @property
+#     def basis(self):
+#         return self.data['basis']
+#
+#     def evaluate(self, *args, **kwargs):
+#         """
+#         Evaluates the wavecfunction as any other linear expansion.
+#
+#         :param args: coordinates + any other args the basis takes
+#         :type args:
+#         :param kwargs: any keyword arguments the basis takes
+#         :type kwargs:
+#         :return: values of the wavefunction
+#         :rtype:
+#         """
+#         return np.dot(self.data['coeffs'], np.array([f(args, **kwargs) for f in self.data['basis']]))
+#
+#     def expect(self, operator):
+#         """
+#         Provides the expectation value of the operator `op`.
+#         Uses the basis to compute the reps and then expands with the expansion coeffs.
+#
+#         :param operator:
+#         :type operator:
+#         :return:
+#         :rtype:
+#         """
+#         op_vector = operator[
+#                 tuple(x.index for x in self.data['basis']),
+#                 tuple(x.index for x in self.data['basis'])
+#             ]
+#         # For multidimensional bases this will probably not work without modification
+#         # In that case, the operator returns a slice of a high-dimensional object,
+#         #  and we'll need multidimensional index information for this to work right
+#         return np.dot(self.data['coeffs'], op_vector)
+#
+#     def expectation(self, op, other):
+#         """
+#         Computes the expectation value of operator `op` over the wavefunction `other` and `self`.
+#         **Note**: _the basis of `other`, `self`, and `op` are assumed to be the same_.
+#
+#         :param op: an operator represented in the basis of the expansion
+#         :type op: Operator
+#         :param other: the other wavefunction to expand over
+#         :type other: ExpansionWavefunction
+#         :return:
+#         :rtype:
+#         """
+#         op_matrix = op[
+#                 tuple(x.index for x in self.data['basis']),
+#                 tuple(o.index for o in other.basis)
+#             ]
+#         # See the note about needing to handle multidimensional cases better in `expect`
+#         return np.dot(self.data('coeffs'), np.dot(op_matrix, other.coeffs))
+#
+#     def probability_density(self):
+#         """Computes the probability density of the current wavefunction
+#
+#         :return:
+#         :rtype:
+#         """
+#         raise NotImplementedError("expansion wave function probability densities not yet implemented")
+#
+#     def project(self, dofs):
+#         """
+#         Computes the projection of the current wavefunction onto a set of degrees
+#         of freedom
+#
+#         :return:
+#         :rtype:
+#         """
+#         raise NotImplementedError("expansion wave function projections not yet implemented")
+#
+# class ExpansionWavefunctions(Wavefunctions):
+#     """
+#     Simple expansion wave function rep that takes multiple sets of coefficients.
+#     As with all objects deriving from `Wavefunctions`, can be iterated through to
+#     provide a manifold of standalone `ExpansionWavefunction` objects.
+#     Currently there are major conceptual issues, as I need this to _both_ support `AnalyticWavefunctions`
+#     and `RepresentationBasis` as the basis...
+#     which means `AnalyticWavefunctions` needs to track a basis...
+#     but `AnalyticWavefunctions` wasn't really designed for that, so I need to go back and figure out how
+#     that binding is going to be managed.
+#     """
+#     def __init__(self, energies, coefficients, basis_wfns, **ops):
+#         """
+#         :param energies: energies for the stored wavefunctions
+#         :type energies: Iterable[float]
+#         :param coefficients: expansion coefficients
+#         :type coefficients: Iterable[Iterable[float]]
+#         :param basis_wfns: wavefunctions to use as the basis for the expansion
+#         :type basis_wfns: Wavefunctions
+#         :param ops: extra options for feeding through to `Wavefunctions`
+#         :type ops:
+#         """
+#         # self._coeffs = coefficients
+#         # self._energies = energies
+#         self._basis = basis_wfns
+#         if 'wavefunction_class' not in ops:
+#             ops['wavefunction_class'] = ExpansionWavefunction
+#         super().__init__(energies, coefficients, **ops)
+#
+#     # def expect(self, op, other):
+#     #     """
+#     #     Provides expectation values of the wavefunctions o
+#     #     :param op:
+#     #     :type op:
+#     #     :param other:
+#     #     :type other:
+#     #     :return:
+#     #     :rtype:
+#     #     """
+#     #     return NotImplemented
+#
+#
+#     # def get_wavefunctions(self, which):
+#     #     energy = self.energies[which]
+#     #     wfn = self.wavefunctions[which]
+#     #     return self.wavefunction_class(energy, wfn, self._basis)

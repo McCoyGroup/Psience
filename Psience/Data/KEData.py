@@ -23,6 +23,30 @@ class KEDataHandler(DataHandler):
         "t":[[3, 2, 1, 0]],
         "y":[]
     }
+    def _get_remapping(self, i1, i2):
+        remapping = {}
+        n = 1
+        _ = []
+        for i in i1:
+            if i not in remapping:
+                remapping[i] = n
+                _.append(n)
+                n += 1
+            else:
+                _.append(remapping[i])
+        i1 = tuple(_)
+
+        _ = []
+        for i in i2:
+            if i not in remapping:
+                remapping[i] = n
+                _.append(n)
+                n += 1
+            else:
+                _.append(remapping[i])
+        i2 = tuple(_)
+
+        return i1, i2
     def find_expressions(self, k, return_permutation=False):
         try:
             val = self[(k,)]
@@ -38,9 +62,23 @@ class KEDataHandler(DataHandler):
             ((type1, type2), inds1, inds2) = k
         except:
             ((type1, type2), (inds1, inds2)) = k
+
+        i1, i2 = self._get_remapping(inds1, inds2)
+        k = ((type1, type2), i1, i2)
+        try:
+            val = self[(k,)]
+        except KeyError:
+            pass
+        else:
+            if return_permutation:
+                return val, None
+            else:
+                return val
+
+
         for p1 in self.equivalent_perms[type1]:
-            i1 = tuple(inds1[j] for j in p1)
-            k = ((type1, type2), i1, inds2)
+            i1, i2 = self._get_remapping(tuple(inds1[j] for j in p1), inds2)
+            k = ((type1, type2), i1, i2)
             try:
                 val = self[(k,)]
             except KeyError:
@@ -50,9 +88,10 @@ class KEDataHandler(DataHandler):
                     return val, (p1, None)
                 else:
                     return val
+
             for p2 in self.equivalent_perms[type2]:
-                i2 = tuple(inds2[j] for j in p2)
-                k = ((type1, type2), inds1, i2)
+                i1, i2 = self._get_remapping(inds1, tuple(inds2[j] for j in p2))
+                k = ((type1, type2), i1, i2)
                 try:
                     val = self[(k,)]
                 except KeyError:
@@ -63,6 +102,7 @@ class KEDataHandler(DataHandler):
                     else:
                         return val
 
+                i1, i2 = self._get_remapping(tuple(inds1[j] for j in p1), tuple(inds2[j] for j in p2))
                 k = ((type1, type2), i1, i2)
                 try:
                     val = self[(k,)]

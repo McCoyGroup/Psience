@@ -4,10 +4,13 @@ Provides representations based on starting from a harmonic oscillator basis
 
 __all__ = [
     "HarmonicOscillatorBasis",
-    "HarmonicOscillatorProductBasis"
+    "HarmonicOscillatorProductBasis",
+    "HarmonicOscillatorMatrixGenerator",
+    "HarmonicOscillatorRaisingLoweringPolyTerms"
 ]
 
 import scipy.sparse as sp, numpy as np, functools, itertools
+import scipy.signal
 
 from .Bases import *
 from .Operators import Operator, ContractedOperator
@@ -16,6 +19,8 @@ from .StateSpaces import BraKetSpace
 from McUtils.Data import WavefunctionData
 from McUtils.Scaffolding import MaxSizeCache
 import McUtils.Numputils as nput
+from McUtils.Combinatorics import StirlingS1, Binomial
+from McUtils.Zachary import DensePolynomial
 
 class HarmonicOscillatorBasis(RepresentationBasis):
     """
@@ -239,6 +244,505 @@ class HarmonicOscillatorProductBasis(SimpleProductBasis):
         # )
 
 default_cache_size = 128
+
+
+class HarmonicOscillatorRaisingLoweringPolyTerms:
+    """
+    The polynomial induced by _a_ raising operations and _b_ lowering ops
+    """
+    _stirlings = None
+    _binomials = None
+
+    @classmethod
+    def get_poly_coeffs(cls, a, b, shift=0):
+        if b > a:
+            shift = a - b + shift
+            a, b = b, a
+        prefactor = cls.binom(a + b, a)
+        coeffs = prefactor * cls.get_reduced_raising_lowering_coeffs(a, b)
+        if shift != 0:
+            coeffs = DensePolynomial._compute_shifted_coeffs(coeffs, shift)
+        return coeffs
+
+    @classmethod
+    def get_direction_change_poly(cls, delta, shift):
+        if not isinstance(delta, (int, np.integer)):
+            return [cls.get_direction_change_poly(d, s) for d,s in zip(delta, shift)]
+
+        sqrt_contrib = [1]
+        if delta != 0:
+            dir_change = np.sign(delta) == -np.sign(shift)  # avoid the zero case
+            if dir_change:
+                sqrt_contrib = HarmonicOscillatorRaisingLoweringPolyTerms.get_sqrt_remainder_coeffs(delta, shift)
+        return sqrt_contrib
+
+    @classmethod
+    def get_sqrt_remainder_coeffs(cls, delta, k):
+        # provides rising or falling coeffs with a starting shift
+        # by essentially only providing rising coeffs but
+        # shifting appropriately
+        d = min(abs(delta), abs(k))
+        if delta == 0:
+            return 1
+        elif delta < 0:
+            # we're falling towards zero from above, so we shift our starting point
+            # and swap the ordering so we can use a rising fac instead
+            k = k - d
+        # because of the asymmetry of falling and rising
+        # we shift our starting point
+        k = k + 1
+        if k == 0:
+            return np.array([ np.abs(cls.s1(d, j)) for j in range(0, d + 1) ])
+        else:
+            return np.array([
+                sum(
+                    cls.binom(j, l) * np.abs(cls.s1(d, j)) * (k**(j-l))
+                    for j in range(l, d+1)
+                )
+                for l in range(0, d+1)
+            ])
+
+    @classmethod
+    def s1(cls, i, j):
+        if cls._stirlings is None or cls._stirlings.shape[0] <= i or cls._stirlings.shape[0] <= j:
+            cls._stirlings = StirlingS1(2 ** int(np.ceil(np.log2(max([64, i, j])))))
+        return cls._stirlings[i, j]
+
+    @classmethod
+    def binom(cls, i, j):
+        if cls._binomials is None or cls._binomials.shape[0] <= i or cls._binomials.shape[0] <= j:
+            cls._binomials = Binomial(2 ** int(np.ceil(np.log2(max([64, i, j])))))
+        return cls._binomials[i, j]
+
+    @classmethod
+    def get_reduced_raising_lowering_coeffs(cls, a, b):
+        return np.array([
+            sum(
+                (cls.s1(b - w, j) * cls.binom(a, w) * cls.binom(b, w) * np.math.factorial(w) / (2 ** w))
+                for w in range(0, b - j + 1)
+            )
+            for j in range(0, b + 1)
+        ])
+
+
+class HarmonicOscillatorMatrixGenerator:
+    """
+    1D evaluator for terms looking like `x`, `p`, `q`, etc.
+    All of the overall `(-i)^N` info is in the `ProdOp` class that's expected to hold this.
+    Only maintains phase info & calculates elements.
+    """
+
+    state_cache_size = default_cache_size
+    default_evaluator_mode = 'poly'
+    def __init__(self, terms, mode=None):
+        self.terms = tuple(terms)
+        self.N = len(terms)
+        self.generators = {}
+        if mode is None:
+            mode = self.default_evaluator_mode
+        self.mode = mode
+        if mode == 'poly':
+            self.p_pos = None
+        else:
+            p_pos = []
+            for i, o in enumerate(terms):
+                if o == "p":
+                    p_pos.append(i)
+            self.p_pos = tuple(p_pos)
+        self._state_group_cache = MaxSizeCache(self.state_cache_size)
+        self._poly_cache = {}
+
+    def __repr__(self):
+        return "{}({})".format(
+            type(self).__name__,
+            ", ".join(self.terms)
+        )
+
+    _eval_cache_size = default_cache_size
+    _evaluators = None
+    @classmethod
+    def clear_cache(cls):
+        cls._evaluators = MaxSizeCache(cls._eval_cache_size)
+    @classmethod
+    def set_cache_size(cls, new_size):
+        cls._eval_cache_size = new_size
+        cls._evaluators = cls._evaluators[:new_size]
+    @classmethod
+    def load_cached(cls, terms):
+        if cls._evaluators is None:
+            cls.clear_cache() # lol
+        if terms in cls._evaluators:
+            eval = cls._evaluators[terms]
+        else:
+            eval = cls(terms)
+            cls._evaluators[terms] = eval
+
+        return eval
+
+    @property
+    def selection_rules(self):
+        return list(range(-self.N, self.N+1, 2))
+
+    def __call__(self, states):
+        return self.evaluate_state_terms(states)
+        # return self.evaluate_state_terms(states)
+
+    def state_pair_hash(self, states):
+        # we use a hash to avoid recomputing harmonic terms
+        # whether or not this is the best hash is certainly up for debate
+        h1 = states[0]
+        h1.flags.writeable = False
+        h2 = states[1]
+        h2.flags.writeable = False
+        # raise Exception(h1.data, h2.data)
+        return (hash(h1.data.tobytes()), hash(h2.data.tobytes()))
+        # return (len(states[0]), np.max(states[0]), np.min(states[0]), np.max(states[1]), np.min(states[1]),)
+
+    def pull_state_groups(self, states):
+
+        deltas = states[1] - states[0]
+        groups, _ = nput.group_by(np.arange(len(states[1])), deltas)
+        # delta_vals = np.unique(deltas)
+        # delta_sels = [np.where(deltas == a) for a in delta_vals]
+        # delta_sels = []
+        # reminds = np.arange(len(deltas))
+        # for a in delta_vals:
+        #     woop = np.where(deltas[reminds] == a)
+        #     reminds = np.setdiff1d(reminds, woop[0])
+        #     delta_sels.append(woop)
+        return groups
+
+    def evaluate_state_terms(self, states, mode=None):
+        """
+        Evaluates terms coming from different state excitations.
+        Doesn't do any pre-filtering, since that's expected to be in the caller.
+
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+
+        if mode is None:
+            mode = self.mode
+
+        h = self.state_pair_hash(states)
+        # might fuck things up from a memory perspective...
+        if h not in self._state_group_cache:
+            (delta_vals, delta_sels) = self.pull_state_groups(states)
+
+            biggo = np.zeros(states[0].shape)
+            for a, s in zip(delta_vals, delta_sels):
+                gen = self.load_generator(a, mode=mode)
+                biggo[s] = gen(states[0][s])
+
+            self._state_group_cache[h] = biggo
+
+        return self._state_group_cache[h]
+
+    def load_generator(self, a, mode=None):
+        # print(a)
+        if a not in self.generators:
+            if mode == 'poly':
+                gen = self.poly_term_generator(self.terms, a)
+            else:
+                gen = self.rho_term_generator(a, self.N, self.p_pos)
+            self.generators[a] = gen
+        else:
+            gen = self.generators[a]
+        return gen
+
+    @classmethod
+    def _enumerate_path(self, steps, cumsteps, delta): # we assume the parity is fine, cumsteps just an optimization
+        if len(steps) == 1:
+            a = (steps[0]+delta)//2
+            b = (steps[0]-delta)//2
+            return [[[a, b]]]
+        else:
+            s = steps[0]
+            sT = cumsteps[0]
+            min_a = max(0, (delta + (s-sT))//2)
+            max_a = min(s, (delta + (s+sT))//2)
+            paths = []
+            for a in range(min_a, max_a+1):
+                b = s - a
+                d = delta - (a - b)
+                subpaths = [p + [[a, b]] for p in self._enumerate_path(steps[1:], cumsteps[1:], d)]
+                paths.extend(subpaths)
+            return paths
+
+    @classmethod
+    def get_paths(cls, sizes, change):
+        cumsums = np.flip(np.cumsum(np.flip(sizes)))
+        # print("===", delta, "===")
+        return cls._enumerate_path(sizes, cumsums[1:], change)
+
+    @classmethod
+    def _build_xp_blocks(self, terms):
+        parities = []
+        sizes = []
+        cur_parity = (-1 if terms[0] == 'p' else 1)
+        s = 0
+        for t in terms:
+            new_parity = (-1 if t == 'p' else 1)
+            if new_parity != cur_parity:
+                parities.append(cur_parity)
+                cur_parity = new_parity
+                sizes.append(s)
+                s = 1
+            else:
+                s += 1
+        else:
+            parities.append(cur_parity)
+            sizes.append(s)
+        return np.array(sizes), np.array(parities)
+
+    @classmethod
+    def get_path_poly(cls, path, parities=None):
+        poly_contrib = None
+        k = 0
+        # print(">>>", path, parities)
+        if parities is None:
+            parities = [1]*len(path)
+
+        total_parity = 1
+        for (a, b), p in zip(reversed(path), parities):
+            total_parity *= p ** b
+            coeffs = HarmonicOscillatorRaisingLoweringPolyTerms.get_poly_coeffs(a, b, k)
+            # print(f" p({a},{b})({k})>", coeffs)
+            if poly_contrib is None:
+                poly_contrib = coeffs
+            else:
+                poly_contrib = scipy.signal.convolve(poly_contrib, coeffs)
+
+            d = a - b
+            if d != 0:
+                dir_change = np.sign(d) == -np.sign(k)  # avoid the zero case
+                if dir_change:
+                    sqrt_contrib = HarmonicOscillatorRaisingLoweringPolyTerms.get_sqrt_remainder_coeffs(d, k)
+                    # print(f" s({a},{b})({k})>", sqrt_contrib)
+                    poly_contrib = scipy.signal.convolve(poly_contrib, sqrt_contrib)
+            k = k + d
+            # print("..>", poly_contrib)
+        # print("+->", total_parity)
+        poly_contrib *= total_parity
+        # print(" > ", poly_contrib)
+
+        return poly_contrib
+
+    _size_blocks_cache = MaxSizeCache()
+    @classmethod
+    def _get_poly_coeffs(cls, terms, delta):
+
+        if (delta % 2) != len(terms) % 2:
+            return 0
+        if abs(delta) > len(terms):
+            return 0
+        if len(terms) == 0:
+            return [1] # just the constant overlap term
+        # we know we need to change by delta
+        # over
+        if terms not in cls._size_blocks_cache:
+            cls._size_blocks_cache[terms] = cls._build_xp_blocks(terms)
+        sizes, parities = cls._size_blocks_cache[terms]
+        # total_parity = (-1)**(np.count_nonzero(parities-1)//2)
+        poly = None
+        cumsums = np.flip(np.cumsum(np.flip(sizes)))
+        # print("===", delta, "===")
+        for path in cls._enumerate_path(sizes, cumsums[1:], delta):
+            poly_contrib = cls.get_path_poly(path, parities=parities)
+
+            if poly is None:
+                poly = poly_contrib
+            else:
+                if len(poly) < len(poly_contrib):
+                    poly = np.pad(poly, [0, len(poly_contrib)-len(poly)])
+                elif len(poly_contrib) < len(poly):
+                    poly_contrib = np.pad(poly_contrib, [0, len(poly)-len(poly_contrib)])
+                poly = poly + poly_contrib
+
+        return poly / np.sqrt(2)**len(terms)
+
+    def poly_coeffs(self, delta, shift=0):
+        if (delta, shift) not in self._poly_cache:
+            if delta not in self._poly_cache:
+                self._poly_cache[delta] = self._get_poly_coeffs(self.terms, delta)
+            if shift != 0:
+                base_coeffs = self._poly_cache[delta]
+                if isinstance(base_coeffs, (int, float, np.integer, np.floating)):
+                    self._poly_cache[(delta, shift)] = base_coeffs
+                else:
+                    self._poly_cache[(delta, shift)] = DensePolynomial._compute_shifted_coeffs(base_coeffs, shift=shift)
+            else:
+                self._poly_cache[(delta, shift)] = self._poly_cache[delta]
+        return self._poly_cache[(delta, shift)]
+
+
+    @classmethod
+    def get_poly_coeffs(cls, terms, delta, shift=0):
+        coeffs = cls._get_poly_coeffs(terms, delta)
+        if shift != 0:
+            coeffs = DensePolynomial._compute_shifted_coeffs(coeffs, shift=shift)
+        return coeffs
+
+    @classmethod
+    def poly_term_generator(cls, terms, delta, shift=0):
+        coeffs = cls.get_poly_coeffs(terms, delta, shift=shift)
+        if not isinstance(coeffs, np.ndarray) and coeffs == 0:
+            return lambda n: np.zeros(n.shape)
+        else:
+            orders = np.arange(len(coeffs))[:, np.newaxis]
+            dstart = delta+1 if delta < 0 else 1
+            dend = 1 if delta < 0 else delta + 1
+            if shift != 0:
+                return lambda n: np.dot(
+                    coeffs,
+                    np.power(n[np.newaxis, :], orders)
+                ) * np.sqrt(np.prod([n + i + shift for i in range(dstart, dend)], axis=0))
+            else:
+                return lambda n: np.dot(
+                    coeffs,
+                    np.power(n[np.newaxis, :], orders)
+                ) * np.sqrt(np.prod([n + i for i in range(dstart, dend)], axis=0))
+
+    _partitions_cache = MaxSizeCache()
+    @staticmethod
+    def _unique_permutations(elements):
+        """
+        From StackOverflow, an efficient enough
+        method to get unique permutations
+        :param perms:
+        :type perms:
+        :return:
+        :rtype:
+        """
+
+        class unique_element:
+            def __init__(self, value, occurrences):
+                self.value = value
+                self.occurrences = occurrences
+
+        def perm_unique_helper(listunique, result_list, d):
+            if d < 0:
+                yield tuple(result_list)
+            else:
+                for i in listunique:
+                    if i.occurrences > 0:
+                        result_list[d] = i.value
+                        i.occurrences -= 1
+                        for g in perm_unique_helper(listunique, result_list, d - 1):
+                            yield g
+                        i.occurrences += 1
+
+        if not hasattr(elements, 'count'):
+            elements = list(elements)
+        eset = set(elements)
+        listunique = [unique_element(i, elements.count(i)) for i in eset]
+        u = len(elements)
+        return list(sorted(list(perm_unique_helper(listunique, [0] * u, u - 1)), reverse=True))
+
+    @classmethod
+    def rho_term_generator(cls, a, N, sel):
+        """
+        Returns a function to be called on a quantum number to get the coefficient associated with exciting that mode by `a` quanta over
+        `N` steps w/ phase info coming from where the momenta-terms are.
+
+        :param a:
+        :type a:
+        :param N:
+        :type N:
+        :param i_phase:
+        :type i_phase:
+        :param is_complex:
+        :type is_complex:
+        :param sel:
+        :type sel:
+        :return:
+        :rtype:
+        """
+
+        if abs(a) > N or (N - a) % 2 != 0:
+            def terms(ni):
+                if isinstance(ni, (int, np.integer)):
+                    return 0
+                else:
+                    return np.zeros(ni.shape)
+            return terms
+
+        if a < 0:
+            up_steps = (N - abs(a)) // 2
+            down_steps = (N + abs(a)) // 2
+        else:
+            down_steps = (N - abs(a)) // 2
+            up_steps = (N + abs(a)) // 2
+
+        # this can be sped up considerably by using cleverer integer partitioning stuff and whatno
+        #TODO: use properer unique permutations code...
+        partitions = np.array(cls._unique_permutations(
+            [-1] * down_steps
+            + [1] * up_steps
+        ))
+        # np.unique(
+        #     np.array(list(
+        #         itertools.permutations(
+        #             [-1] * down_steps
+        #             + [1] * up_steps
+        #         )
+        #     )),
+        #     axis=0
+        # )
+
+        # print(a, down_steps, up_steps, partitions)
+        # determine the 'phase' of each 'path'
+        phases = np.prod(partitions[:, sel], axis=1) / np.sqrt(2) ** N
+        # print("   > p", sel, phases)
+        # then compute the 'paths' themselves
+        unitized = np.abs(np.sign(partitions - 1))
+        paths = np.cumsum(partitions, axis=1) + unitized
+
+        def terms(ni, phases=phases, paths=paths):
+            return cls.rho(phases, paths, ni)
+
+        return terms
+
+    @classmethod
+    def rho(cls, phases, paths, ni):
+        """
+
+        :param phases:
+        :type phases:
+        :param paths:
+        :type paths:
+        :param ni:
+        :type ni:
+        :return:
+        :rtype:
+        """
+        # finally define a function that will apply the the "path" to a quantum number and add everything up
+        mult = not isinstance(ni, (int, np.integer))
+        if mult:
+            # print("   ??", ni)
+            ni = np.asanyarray(ni)
+            # we need to make the broadcasting work
+            # requires basically that we copy the shape from ni to the beginning for phases and paths
+            # so basically we figure out how many (1) we need to insert at the end of paths
+            # and add a (1) to the start of ni
+            nidim = ni.ndim
+            for i in range(nidim):
+                # phases = np.expand_dims(phases, axis=-1)
+                paths = np.expand_dims(paths, axis=-1)
+            ni = np.expand_dims(ni, 0)
+
+        path_displacements = paths + ni
+        path_displacements[path_displacements < 0] = 0
+        path_terms = np.sqrt(np.prod(path_displacements, axis=1))
+
+        # return np.sum(phases * path_terms, axis=0)
+        if mult:
+            return np.dot(phases, path_terms)
+        else:
+            return phases * path_terms
+
 class HarmonicProductOperatorTermEvaluator:
     """
     A simple class that can be used to directly evaluate any operator built as a product of `p` and `x` terms.
@@ -271,7 +775,7 @@ class HarmonicProductOperatorTermEvaluator:
     _operator_cache_size = default_cache_size
     @classmethod
     def clear_cache(cls):
-        cls.TermEvaluator1D.clear_cache()
+        HarmonicOscillatorMatrixGenerator.clear_cache()
         cls._operator_cache = MaxSizeCache(cls._operator_cache_size)
     @classmethod
     def set_cache_size(cls, new_size):
@@ -318,7 +822,7 @@ class HarmonicProductOperatorTermEvaluator:
         if term_spec in cache:
             prop = cache[term_spec]
         else:
-            terms_1D = [self.TermEvaluator1D.load_cached(terms) for terms in term_spec]
+            terms_1D = [HarmonicOscillatorMatrixGenerator.load_cached(terms) for terms in term_spec]
             uinds = list(ind_map.keys())
             prop = self.ProdOp(terms_1D, uinds, self.i_phase, self.is_complex)
             cache[term_spec] = prop
@@ -397,260 +901,6 @@ class HarmonicProductOperatorTermEvaluator:
         @property
         def selection_rules(self):
             return [o.selection_rules for o in self.ops]
-
-    class TermEvaluator1D:
-        """
-        1D evaluator for terms looking like `x`, `p`, `q`, etc.
-        All of the overall `(-i)^N` info is in the `ProdOp` class that's expected to hold this.
-        Only maintains phase info & calculates elements.
-        """
-
-
-        state_cache_size = default_cache_size
-        def __init__(self, terms):
-            self.terms = terms
-            self.N = len(terms)
-            self.generators = {}
-            p_pos = []
-            for i, o in enumerate(terms):
-                if o == "p":
-                    p_pos.append(i)
-            self.p_pos = tuple(p_pos)
-            self._state_group_cache = MaxSizeCache(self.state_cache_size)
-
-        def __repr__(self):
-            return "{}({})".format(
-                type(self).__name__,
-                ", ".join(self.terms)
-            )
-
-        _eval_cache_size = default_cache_size
-        _evaluators = None
-        @classmethod
-        def clear_cache(cls):
-            cls._evaluators = MaxSizeCache(cls._eval_cache_size)
-        @classmethod
-        def set_cache_size(cls, new_size):
-            cls._eval_cache_size = new_size
-            cls._evaluators = cls._evaluators[:new_size]
-        @classmethod
-        def load_cached(cls, terms):
-            if cls._evaluators is None:
-                cls.clear_cache() # lol
-            if terms in cls._evaluators:
-                eval = cls._evaluators[terms]
-            else:
-                eval = cls(terms)
-                cls._evaluators[terms] = eval
-
-            return eval
-
-        @property
-        def selection_rules(self):
-            return list(range(-self.N, self.N+1, 2))
-
-        def __call__(self, states):
-            return self.evaluate_state_terms(states)
-
-        def state_pair_hash(self, states):
-            # we use a hash to avoid recomputing harmonic terms
-            # whether or not this is the best hash is certainly up for debate
-            h1 = states[0]
-            h1.flags.writeable = False
-            h2 = states[1]
-            h2.flags.writeable = False
-            # raise Exception(h1.data, h2.data)
-            return (hash(h1.data.tobytes()), hash(h2.data.tobytes()))
-            # return (len(states[0]), np.max(states[0]), np.min(states[0]), np.max(states[1]), np.min(states[1]),)
-
-        def pull_state_groups(self, states):
-
-            deltas = states[1] - states[0]
-            groups, _ = nput.group_by(np.arange(len(states[1])), deltas)
-            # delta_vals = np.unique(deltas)
-            # delta_sels = [np.where(deltas == a) for a in delta_vals]
-            # delta_sels = []
-            # reminds = np.arange(len(deltas))
-            # for a in delta_vals:
-            #     woop = np.where(deltas[reminds] == a)
-            #     reminds = np.setdiff1d(reminds, woop[0])
-            #     delta_sels.append(woop)
-            return groups
-
-        def evaluate_state_terms(self, states):
-            """
-            Evaluates terms coming from different state excitations.
-            Doesn't do any pre-filtering, since that's expected to be in the caller.
-
-            :param states:
-            :type states:
-            :return:
-            :rtype:
-            """
-
-            h = self.state_pair_hash(states)
-            # might fuck things up from a memory perspective...
-            if h not in self._state_group_cache:
-                (delta_vals, delta_sels) = self.pull_state_groups(states)
-
-                biggo = np.zeros(states[0].shape)
-                for a, s in zip(delta_vals, delta_sels):
-                    gen = self.load_generator(a)
-                    og = states[0][s]
-                    vals, inv = np.unique(og, return_inverse=True)
-                    biggo[s] = gen(vals)[inv]
-
-                self._state_group_cache[h] = biggo
-
-            return self._state_group_cache[h]
-
-
-        def load_generator(self, a):
-            # print(a)
-            if a not in self.generators:
-                gen = self.rho_term_generator(a, self.N, self.p_pos)
-                self.generators[a] = gen
-            else:
-                gen = self.generators[a]
-            return gen
-
-        _partitions_cache = MaxSizeCache()
-        @staticmethod
-        def _unique_permutations(elements):
-            """
-            From StackOverflow, an efficient enough
-            method to get unique permutations
-            :param perms:
-            :type perms:
-            :return:
-            :rtype:
-            """
-
-            class unique_element:
-                def __init__(self, value, occurrences):
-                    self.value = value
-                    self.occurrences = occurrences
-
-            def perm_unique_helper(listunique, result_list, d):
-                if d < 0:
-                    yield tuple(result_list)
-                else:
-                    for i in listunique:
-                        if i.occurrences > 0:
-                            result_list[d] = i.value
-                            i.occurrences -= 1
-                            for g in perm_unique_helper(listunique, result_list, d - 1):
-                                yield g
-                            i.occurrences += 1
-
-            if not hasattr(elements, 'count'):
-                elements = list(elements)
-            eset = set(elements)
-            listunique = [unique_element(i, elements.count(i)) for i in eset]
-            u = len(elements)
-            return list(sorted(list(perm_unique_helper(listunique, [0] * u, u - 1)), reverse=True))
-
-        @classmethod
-        def rho_term_generator(cls, a, N, sel):
-            """
-            Returns a function to be called on a quantum number to get the coefficient associated with exciting that mode by `a` quanta over
-            `N` steps w/ phase info coming from where the momenta-terms are.
-
-            :param a:
-            :type a:
-            :param N:
-            :type N:
-            :param i_phase:
-            :type i_phase:
-            :param is_complex:
-            :type is_complex:
-            :param sel:
-            :type sel:
-            :return:
-            :rtype:
-            """
-
-            if abs(a) > N or (N - a) % 2 != 0:
-                def terms(ni):
-                    if isinstance(ni, (int, np.integer)):
-                        return 0
-                    else:
-                        return np.zeros(ni.shape)
-                return terms
-
-            if a < 0:
-                up_steps = (N - abs(a)) // 2
-                down_steps = (N + abs(a)) // 2
-            else:
-                down_steps = (N - abs(a)) // 2
-                up_steps = (N + abs(a)) // 2
-
-            # this can be sped up considerably by using cleverer integer partitioning stuff and whatno
-            #TODO: use properer unique permutations code...
-            partitions = np.array(cls._unique_permutations(
-                [-1] * down_steps
-                + [1] * up_steps
-            ))
-            # np.unique(
-            #     np.array(list(
-            #         itertools.permutations(
-            #             [-1] * down_steps
-            #             + [1] * up_steps
-            #         )
-            #     )),
-            #     axis=0
-            # )
-
-            # print(a, down_steps, up_steps, partitions)
-            # determine the 'phase' of each 'path'
-            phases = np.prod(partitions[:, sel], axis=1) / np.sqrt(2) ** N
-            # print("   > p", sel, phases)
-            # then compute the 'paths' themselves
-            unitized = np.abs(np.sign(partitions - 1))
-            paths = np.cumsum(partitions, axis=1) + unitized
-
-            def terms(ni, phases=phases, paths=paths):
-                return cls.rho(phases, paths, ni)
-
-            return terms
-
-        @classmethod
-        def rho(cls, phases, paths, ni):
-            """
-
-            :param phases:
-            :type phases:
-            :param paths:
-            :type paths:
-            :param ni:
-            :type ni:
-            :return:
-            :rtype:
-            """
-            # finally define a function that will apply the the "path" to a quantum number and add everything up
-            mult = not isinstance(ni, (int, np.integer))
-            if mult:
-                # print("   ??", ni)
-                ni = np.asanyarray(ni)
-                # we need to make the broadcasting work
-                # requires basically that we copy the shape from ni to the beginning for phases and paths
-                # so basically we figure out how many (1) we need to insert at the end of paths
-                # and add a (1) to the start of ni
-                nidim = ni.ndim
-                for i in range(nidim):
-                    # phases = np.expand_dims(phases, axis=-1)
-                    paths = np.expand_dims(paths, axis=-1)
-                ni = np.expand_dims(ni, 0)
-
-            path_displacements = paths + ni
-            path_displacements[path_displacements < 0] = 0
-            path_terms = np.sqrt(np.prod(path_displacements, axis=1))
-
-            # return np.sum(phases * path_terms, axis=0)
-            if mult:
-                return np.dot(phases, path_terms)
-            else:
-                return phases * path_terms
 
     def __repr__(self):
         return "{}({})".format("HOTermEvaluator", ", ".join(str(t) for t in self.terms))

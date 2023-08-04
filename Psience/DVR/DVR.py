@@ -54,6 +54,8 @@ class DVRConstructor:
         if isinstance(domain[0], (int, float, np.integer, np.floating)): # 1D
             domain = [domain]
             divs = [divs]
+            if mass is not None:
+                mass = [mass]
         if classes is None:
             classes = [None] * len(domain)
         if g is not None:
@@ -73,13 +75,18 @@ class DVRConstructor:
 
         ndim = len(list(zip(domain, divs, classes, mass, subg, g_deriv)))
         if ndim == 1:
+            classes = [
+                cls.infer_DVR_type(r) if c is None else c
+                for r, n, c, m, sg, gd, nwf in zip(domain, divs, classes, mass, subg, g_deriv, po_divs)
+            ]
+
             dvr = classes[0](
                 domain=domain[0],
                 divs=divs[0],
                 potential_function=potential_function,
-                g=g,
-                mass=mass,
-                g_deriv=g_deriv,
+                g=subg[0],
+                mass=mass[0],
+                g_deriv=g_deriv[0],
                 logger=logger,
                 **base_opts
             )
@@ -94,6 +101,7 @@ class DVRConstructor:
                 divs=divs,
                 potential_function=potential_function,
                 g=g,
+                mass=mass,
                 g_deriv=g_deriv,
                 logger=logger if not potential_optimize or scf else None,
                 **ParameterManager(base_opts).exclude((SelfConsistentDVR, PotentialOptimizedDVR))

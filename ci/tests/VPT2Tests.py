@@ -1,3 +1,6 @@
+import itertools
+
+import McUtils.Numputils
 
 try:
     from Peeves.TestUtils import *
@@ -34,14 +37,1064 @@ class VPT2Tests(TestCase):
     #         # logger=True
     #     )
 
+    @debugTest
+    def test_AnalyticPTOperators(self):
+
+        internals = False
+        vpt2 = AnalyticPerturbationTheorySolver.from_order(2, internals=internals)
+        # print(
+        #     vpt2.hamiltonian_expansion[2].get_poly_terms([])
+        # )
+        # raise Exception(...)
+        #
+        # H1PH1 = vpt2.energy_correction(2).expressions[1]
+        #
+        # H1 = vpt2.hamiltonian_expansion[1]
+        # H1H1 = H1*H1
+
+        """
+        ==================== V[1](0, 0, 0)V[1](0, 0, 0) 1 ====================
+  :: 1
+   > 1 [array([0.   , 0.   , 0.   , 1.125])]
+   > 1.1249999999999993 [array([1., 3., 3., 1.])]
+   > 0.7499999999999996 [array([1.        , 1.83333333, 1.        , 0.16666667])]
+   > 1 [array([ 0.   ,  0.25 , -0.375,  0.125])]
+   """
+
+        # H1H1.get_poly_terms([],
+        #                     # allowed_paths=[
+        #                     #     ((1,), (-1,)),
+        #                     #     ((3,), (-3,))
+        #                     # ]
+        #                     ).prune_operators([(1, 1)]).print_tree()
+        # raise Exception(...)
+
+        PH1 = vpt2.wavefunction_correction(1).expressions[0]
+        E2 = vpt2.energy_correction(2)
+
+        # # pt_shit = H1PH1.get_poly_terms((4,)).combine()
+        # pt_shit = PH1((1,), simplify=False).expr.combine()
+
+        # raise Exception(
+        #     PH1.get_poly_terms((1,)).terms[((1,0, 0, 0, 0),)].terms[((1,),)].coeffs
+        # )
+
+        # pt_shit = E2.expressions[1]([], simplify=False).expr
+        # raise Exception(pt_shit)
+
+        # subpoly = pt_shit.terms[((1, 1, 0, 2, 1), (1, 1, 1, 0, 2))].combine(combine_energies=False).terms[((1, 1, 1),)]
+        # for p in subpoly.polys:
+        #     print(p.prefactor, p.coeffs)
+        # raise Exception(...)
+
+        # h3_poly = vpt2.hamiltonian_expansion[1]([3]).expr.terms[((1, 0, 0, 0, 0),)]
+        # raise Exception(
+        #     h3_poly.prefactor,
+        #     h3_poly.coeffs
+        # )
+        # with np.printoptions(linewidth=1e8):
+        #     pt_shit = H1H1([]).expr
+        #     pt_shit.print_tree()
+        #
+        # raise Exception(...)
+
+        # # raise Exception(
+        # #     Y1.get_poly_terms((1,))
+        # #     # [
+        # #     #     [p.prefactor for p in psum.polys]
+        # #     #     for psum in h1y1.get_poly_terms(()).terms.values()
+        # #     # ]
+        # # )
+        #
+        # h1y1 = E2.expressions[1]
+        # # raise Exception(h1y1, h1y1.gen2, h1y1.gen2.expressions)
+        #
+        # raise Exception(
+        #     h1y1.get_poly_terms(()).combine()
+        #     # [
+        #     #     [p.prefactor for p in psum.polys]
+        #     #     for psum in h1y1.get_poly_terms(()).terms.values()
+        #     # ]
+        # )
+
+        # for _ in vpt2.energy_correction(2).expressions[1].changes[()]:
+        #     print(_)
+
+        # test_sum = list(jesus_fuck.terms.values())[1]
+        # # for poly in test_sum.polys:
+        # #     print(poly.coeffs)
+        # raise Exception(test_sum, test_sum.combine())
+        # raise Exception(test_sum.polys[0].combine(test_sum.polys[1]).coeffs)
+
+
+        # load H20 parameters...
+        file_name = "HOH_freq.fchk"
+        from Psience.BasisReps import HarmonicOscillatorMatrixGenerator
+        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'rho'
+        runner, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            1,
+            internals=(
+                [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+                    if internals else
+                None
+            ),
+            logger=False,
+            zero_element_warning=False
+            # mode_selection=[0, 1]
+        )
+        ham = runner.hamiltonian
+        V = ham.V_terms
+        G = ham.G_terms
+        U = ham.pseudopotential_term
+        g2 = G[2]
+
+        if internals:
+            water_expansion = [
+                [V[0]/2,  G[0]/2],
+                [
+                    # np.zeros(V[1].shape),
+                    np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0)/np.math.factorial(3)/6,
+                    # np.zeros(V[1].shape),
+                    -np.moveaxis(G[1], -1, 0)/2
+                        if isinstance(G[1], np.ndarray) else
+                    np.zeros(V[1].shape)
+                ],
+                [
+                    # np.zeros(V[2].shape),
+                    V[2]/24,
+                    # np.zeros(V[2].shape),
+                    -np.moveaxis(G[2], -1, 0)/4
+                        if isinstance(G[2], np.ndarray) else
+                    np.zeros(V[2].shape),
+                    # 0
+                    U[0]/8
+                ]
+            ]
+        else:
+            Z = ham.coriolis_terms
+            water_expansion = [
+                [V[0] / 2, G[0] / 2],
+                [
+                    np.zeros(V[1].shape),
+                    # np.sum(
+                    #     [V[1].transpose(p) for p in itertools.permutations([0, 1, 2])],
+                    #     axis=0
+                    # ) / np.math.factorial(3) / 6,
+                    0 # G
+                ],
+                [
+                    # np.zeros(V[2].shape),
+                    V[2] / 24,
+                    0, # G
+                    0, # V'
+                    # np.zeros(V[2].shape),
+                    -Z[0],
+                    # 0
+                    U[0] / 8 # Watson
+                ]
+            ]
+        # raise Exception(
+        #     -.25 * np.array([
+        #         Z[0][0, 0, 2, 2],
+        #         Z[0][0, 2, 0, 2],
+        #         Z[0][0, 2, 2, 0],
+        #         Z[0][2, 0, 0, 2],
+        #         Z[0][2, 0, 2, 0],
+        #         Z[0][2, 2, 0, 0]
+        #     ]) * 219475
+        # )
+        # raise Exception(
+        #     -.25*np.array([
+        #             Z[0][0, 0, 2, 2],
+        #             Z[0][0, 2, 0, 2],
+        #             Z[0][0, 2, 2, 0],
+        #             Z[0][2, 0, 0, 2],
+        #             Z[0][2, 0, 2, 0],
+        #             Z[0][2, 2, 0, 0]
+        #     ]) * 219475
+        # )
+
+        water_freqs = ham.modes.freqs
+
+        # raise Exception(list(sorted([
+        #     [p, np.linalg.norm((np.transpose(water_expansion[2][3], p) - water_expansion[2][3]).flatten())]
+        #     for p in itertools.permutations([0, 1, 2, 3])
+        #     ],
+        #     key=lambda x:x[1]
+        # )))
+
+        # solver = runner.hamiltonian.get_solver(runner.states.state_list)
+        # raise Exception(
+        #     solver.representations[1].todense()[0][:4],
+        #     solver.flat_total_space.excitations[:4]
+        # )
+
+        # wfns = runner.get_wavefunctions()
+
+        # ham.G_terms = [
+        #     G[0],
+        #     # G[1],
+        #     np.zeros(G[1].shape),
+        #     # G[2]
+        #     np.zeros(G[2].shape),
+        # ]
+        # ham.V_terms = [
+        #     V[0],
+        #     # np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0) / np.math.factorial(3),
+        #     np.zeros(V[1].shape),
+        #     V[2],
+        #     # np.zeros(V[2].shape)
+        # ]
+        # ham.coriolis_terms = [
+        #     np.zeros(V[2].shape)
+        #     # (Z[0] + np.transpose(Z[0], [0, 3, 2, 1])) / 2
+        # ]
+        # ham.pseudopotential_term = [0]
+        runner.print_tables(print_intensities=False)
+        """
+        :: State    <0|dH(2)|0>  <0|dH(1)|1> 
+          0 0 0      0.00000   -141.74965
+          0 0 1      0.00000   -514.12544
+          0 1 0      0.00000   -509.59810
+          1 0 0      0.00000   -165.17359
+  
+        :: State    <0|dH(2)|0>  <0|dH(1)|1> 
+          0 0 0     81.09533   -156.70145
+          0 0 1    276.68965   -545.08549
+          0 1 0    281.61581   -538.53511
+          1 0 0     88.49014   -213.67502
+          
+        :: State    <0|dH(2)|0>  <0|dH(1)|1>  # Cartesians
+          0 0 0     42.02414   -117.62974
+          0 0 1    199.53514   -467.93034
+          0 1 0    195.87334   -452.78667
+          1 0 0    -32.13943    -93.04841
+        >>--------------------------------------------------<<
+        >>------------------------- States Energies -------------------------
+        :: State     Harmonic   Anharmonic     Harmonic   Anharmonic
+                       ZPE          ZPE    Frequency    Frequency
+        0 0 0   4681.56362   4605.95750            -            - 
+        0 0 1            -            -   3937.52464   3744.73491 
+        0 1 0            -            -   3803.29958   3621.98639 
+        1 0 0            -            -   1622.30304   1572.72428 
+        >>--------------------------------------------------<<
+        """
+
+        # V1 = water_expansion[1][0]
+        # G1 = water_expansion[1][1]
+        # print(G[1]/2)
+        # print(G1)
+        # raise Exception(...)
+
+        # raise Exception(
+        #     wfns.corrs.wfn_corrections[1].todense()[0][:4],
+        #     wfns.corrs.total_basis.excitations[:4],
+        #     -7.14635718e-03 * water_freqs[0],
+        #     -5.83925920e-03 * water_freqs[0],
+        #     0.02061049 * water_freqs[0],
+        #     (
+        #             V1[0, 0, 0]*1.060660171779821
+        #             +(V1[0, 1, 1] + V1[0, 2, 2])*1.060660171779821
+        #             + G1[0, 0, 0]*-0.35355339
+        #             + (G1[1, 0, 1] + G1[2, 0, 2])*-0.35355339
+        #     ) / water_freqs[0]
+        #     # # wfns.corrs.wfn_corrections[1].todense()[0, 1],
+        #     # # should be .005839259198189573
+        #     # V[1][0, 0, 0]/water_freqs[0]*1.06066017
+        #     # # + G[1][0, 0, 0]/water_freqs[0]*-0.35355339
+        #     # + (V[1][0, 1, 1] + V[1][0, 2, 2])/water_freqs[0]*0.70710678*.5
+        #     # # + (G[1][0, 1, 1] + G[1][0, 2, 2])/water_freqs[0]*0.70710678*-.5
+        # )
+        # 0.02819074222400865, -0.035337103975354986, [-0.00758025182870669, -0.027756852139690837]
+
+        # wfns = runner.get_wavefunctions()
+        # Y1 = vpt2.wavefunction_correction(1)
+        # raise Exception(
+        #     wfns.corrs.wfn_corrections[1].todense()[0][:10],
+        #     wfns.corrs.total_basis.excitations[:10],
+        #     Y1([3,]).evaluate([0, 0, 0], water_expansion, water_freqs),
+        #     Y1([2, 1]).evaluate([0, 0, 0], water_expansion, water_freqs),
+        # )
+
+        with np.printoptions(linewidth=1e8):
+            jesus_fuck = E2([])
+            # jesus_fuck.expr.print_tree()
+            corr = jesus_fuck.evaluate([0, 0, 0], water_expansion, water_freqs, verbose=True) * UnitsData.convert("Hartrees", "Wavenumbers")
+        print(corr)
+        raise Exception(corr)
+            # vpt2.energy_correction(2).expressions[1].changes[()]
+
+        raise Exception(
+            AnalyticPerturbationTheoryDriver.from_order(2).energy_correction_driver(
+                2
+            ).get_poly_evaluator(
+                [ # tensor coeffs
+                    [
+                        np.eye(3),
+                        np.eye(3),
+                    ],
+                    [
+                        np.ones((3, 3, 3)),
+                        np.ones((3, 3, 3))
+                    ],
+                    [
+                        np.ones((3, 3, 3, 3)),
+                        np.ones((3, 3, 3, 3)),
+                        1
+                    ]
+                ],
+                [1, 1, 1] # freqs
+            )
+        )
+
+        corrections = AnalyticPTCorrectionGenerator([
+            [
+                ['x', 'x', 'x'],
+                ['p', 'x', 'p']
+            ],
+            # ['x'],
+            [
+                ['x', 'x', 'x'],
+                ['p', 'x', 'p']
+            ]
+        ]).get_correction([2])
+
+        v1 = np.ones((3, 3, 3))
+        g1 = np.ones((3, 3, 3))
+
+        return corrections.evaluate([0, 0, 0], [[v1, g1], [v1, g1]], [1, 1, 1], 1)
+
+        raise Exception(corrections)
+
+        coeffs = np.array([
+            TensorCoeffPoly({((1, 0, 0),):2, ((0, 1, 0),):1}),
+            TensorCoeffPoly({((0, 0, 1),):1}),
+        ], dtype=object)
+
+        # new_b_poly = np.dot(
+        #             [[1, 3], [2, 1]],
+        #             coeffs
+        #         )
+        # raise Exception(
+        #     np.dot(
+        #         [[-1, 3], [2, -1]],
+        #         np.dot(
+        #             [[1, 3], [2, 1]],
+        #             coeffs
+        #         )
+        #     )/5
+        # )
+
+        # from Psience.AnalyticModels import AnalyticModel
+        #
+        # AnalyticModel(
+        #     [
+        #         AnalyticModel.r(0, 1),
+        #
+        #         ]
+        # ).g()
+
+
+
+
+        from McUtils.Zachary import DensePolynomial
+
+        shifted = DensePolynomial([
+            [1, 2, 3, 4, 5],
+            [1, -2, 0, 6, 8]
+        ]).shift([2, 3])
+
+        # raise Exception(shifted.deriv(1).coeffs)
+
+        self.assertTrue(
+            np.allclose(
+                shifted.coeffs,
+                [
+                    [2157., 2716., 1281., 268., 21.],
+                    [ 805., 1024.,  486., 102.,  8.]
+                ]
+            )
+        )
+
+        #
+        new = DensePolynomial(coeffs)*DensePolynomial(coeffs)
+        raise Exception(new)
+
+ #        """
+ #        DensePolynomial([TensorCoeffPoly({((1, 0, 0), (1, 0, 0)): 4, ((0, 1, 0), (1, 0, 0)): 4, ((0, 1, 0), (0, 1, 0)): 1},1)
+ # TensorCoeffPoly({((0, 0, 1), (0, 1, 0)): 2, ((0, 0, 1), (1, 0, 0)): 4},1)
+ # TensorCoeffPoly({((0, 0, 1), (0, 0, 1)): 1},1)], 1)"""
+
+        # raise Exception(
+        #     PTPoly(coeffs)*
+        #     PTPoly(coeffs)
+        # )
+
+        base_classes = RaisingLoweringClasses(14, [2, 4, 2])
+        print(list(base_classes))
+        # op = AnalyticPTOperator(['x', 'x', 'x'])
+        #
+        #
+        # op = PTOperator(
+        #     ["x", "x", "x"],
+        #     ["x", "x"],
+        #     ["x", "x", "x"],
+        #     3
+        # )
+
+        # raise Exception(op.poly_sum())
+
+
     @validationTest
     def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
+        from Psience.BasisReps import HarmonicOscillatorMatrixGenerator
+        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'rho'
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             3,
             memory_constrained=True,
+            logger=True
+        )
+        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'poly'
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3,
+            memory_constrained=True,
+            logger=True
+        )
+
+    @validationTest
+    def test_HOHVPTSubstates(self):
+
+        file_name = "HOH_freq.fchk"
+        mol = Molecule.from_file(TestManager.test_data(file_name),
+                                 internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]])
+        # raise Exception(mol.internal_coordinates)
+        ics = mol.internal_coordinates
+        derivs = mol.coords.jacobian(
+            ics.system,
+            [1, 2],
+            all_numerical=True,
+            converter_options={'reembed': True}
+        )
+        derivs = [x.reshape((9,) * (i + 1) + (3, 3)) for i, x in enumerate(derivs)]
+
+        VPTRunner.run_simple(
+            # TestManager.test_data(file_name),
+            mol,
+            # 1,
+            [[0, 0, 0], [1, 0, 0]],
+            # [[0, 0, 0], [0, 2, 1]],
+            # 2,
+            order=2,
+            expansion_order=2,
+            # 3,
+            # expansion_order={'default':1, 'dipole':2},
+            # target_property='wavefunctions',
+            # internals=mol.zmatrix,
+            # initial_states=1,
+            # operators={
+            #     'OH1': [ics[1, 0], derivs[0][:, 1, 0], derivs[1][:, :, 1, 0]],
+            #     'OH2': [ics[2, 0], derivs[0][:, 2, 0], derivs[1][:, :, 2, 0]],
+            #     'HOH': [ics[2, 1], derivs[0][:, 2, 1], derivs[1][:, :, 2, 1]]
+            # },
+            logger=True
+        )
+
+    # @debugTest
+    # def test_IHOHBasic(self):
+    #     wfns = VPTRunner.run_simple(
+    #         TestManager.test_data("i_hoh_opt.fchk"),
+    #         2,
+    #         # initial_states=1,
+    #         degeneracy_specs={'wfc_threshold':.3},
+    #         # internals=VPTRunner.helpers.parse_zmatrix("criegee/z_mat.dat"),
+    #         mixed_derivative_handling_mode='unhandled',
+    #         # logger=filename,  # output file name
+    #         plot_spectrum=True
+    #     )
+
+    @validationTest
+    def test_BlockLabels(self):
+        VPTRunner.run_simple(
+            TestManager.test_data("i_hoh_opt.fchk"),
+            VPTStateSpace.get_state_list_from_quanta(4, 6) + [
+                [0, 1, 2, 2, 0, 0]
+            ],
+            initial_states=[
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 2, 0, 0],
+                [0, 1, 0, 2, 0, 0],
+                [0, 0, 0, 0, 1, 0]
+            ],
+            # degeneracy_specs='auto',
+            degeneracy_specs={
+                'wfc_threshold':.3
+                # "polyads": [
+                #     [
+                #         [0, 0, 0, 0, 1, 0],
+                #         [0, 0, 0, 2, 0, 0]
+                #     ],
+                #     [
+                #         [0, 0, 0, 1, 0, 0],
+                #         [0, 0, 2, 0, 0, 0]
+                #     ]
+                # ]
+            },
+            # target_property='wavefunctions',
+            logger=True,
+            # logger=os.path.expanduser("~/Desktop/specks/run.txt"),
+            plot_spectrum=False
+        )
+
+    @validationTest
+    def test_ResultsFileAnalysis(self):
+
+        temp_file = os.path.expanduser('~/Desktop/test_results.hdf5')
+        log_file = os.path.expanduser('~/Desktop/test_results.txt')
+        # os.remove(temp_file)
+
+        # wfns = VPTRunner.run_simple(
+        #     TestManager.test_data("i_hoh_opt.fchk"),
+        #     2,
+        #     plot_spectrum=False
+        #     # initial_states=[
+        #     #     [0, 0, 0, 0, 0, 0],
+        #     #     [0, 0, 0, 2, 0, 0],
+        #     #     [0, 1, 0, 2, 0, 0],
+        #     #     [0, 0, 0, 0, 1, 0]
+        #     # ]
+        # )
+
+        if not os.path.exists(temp_file):
+            VPTRunner.run_simple(
+                TestManager.test_data("i_hoh_opt.fchk"),
+                2,
+                # initial_states=[
+                #     [0, 0, 0, 0, 0, 0],
+                #     [0, 0, 0, 2, 0, 0],
+                #     [0, 1, 0, 2, 0, 0],
+                #     [0, 0, 0, 0, 1, 0]
+                # ],
+                # degeneracy_specs='auto',
+                degeneracy_specs={
+                    "polyads": [
+                        [
+                            [0, 0, 0, 0, 1, 0],
+                            [0, 0, 0, 2, 0, 0]
+                        ],
+                        [
+                            [0, 0, 0, 1, 0, 0],
+                            [0, 0, 2, 0, 0, 0]
+                        ]
+                    ],
+                    "extra_groups": [
+                        [
+                            [0, 0, 0, 0, 1, 0],
+                            [0, 1, 0, 0, 1, 0],
+                            [1, 0, 0, 0, 1, 0],
+                            [0, 0, 0, 2, 0, 0],
+                            [0, 1, 0, 2, 0, 0],
+                            [1, 0, 0, 2, 0, 0],
+                            [0, 0, 2, 1, 0, 0],
+                            [0, 1, 2, 1, 0, 0],
+                            [1, 0, 2, 1, 0, 0],
+                            [0, 0, 4, 0, 0, 0],
+                            [0, 1, 4, 0, 0, 0],
+                            [1, 0, 4, 0, 0, 0]
+                        ]
+                    ]
+                },
+                # target_property='wavefunctions',
+                # logger=os.path.expanduser("~/Desktop/specks/run_wfns.txt"),
+                results=temp_file,
+                logger=log_file,
+                plot_spectrum=False
+            )
+
+        analyzer = VPTAnalyzer(temp_file)
+        # target_state = [0, 0, 2, 0, 0, 0]
+        # for i,block in analyzer.degenerate_states:
+        #     # intersect([target_state], block) -> check non-empty
+        #     ...
+        # McUtils.Numputils.intersection()
+
+        shifted_spec = analyzer.shifted_transformed_spectrum(
+            analyzer.degenerate_states[4], # 2 states, bend and OOP overtone
+            analyzer.deperturbed_hamiltonians[4], # 2x2 matrix
+            [0, -50 / UnitsData.hartrees_to_wavenumbers] # the shifts I want to add onto the diagonal
+        )
+        shifted_spec.plot()#.show()
+        print(shifted_spec.frequencies, shifted_spec.intensities)
+
+        with analyzer.log_parser as parser:
+            for i, block in enumerate(parser.get_blocks()):
+                for subblock in block.lines:
+                    print(subblock.tag)
+
+        from McUtils.Scaffolding import LogParser
+        with LogParser(log_file) as parser:
+            for i, block in enumerate(parser.get_blocks()):
+                for subblock in block.lines:
+                    print(subblock.tag)
+
+    @validationTest
+    def test_IHOHExcited(self):
+        wfns = VPTRunner.run_simple(
+            TestManager.test_data("i_hoh_opt.fchk"),
+            VPTStateSpace.get_state_list_from_quanta(4, 6) + [
+                [0, 1, 2, 2, 0, 0]
+            ],
+            initial_states=[
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 2, 0, 0],
+                [0, 1, 0, 2, 0, 0],
+                [0, 0, 0, 0, 1, 0]
+            ],
+            # degeneracy_specs='auto',
+            degeneracy_specs = {
+                "polyads":[
+                    [
+                        [0, 0, 0, 0, 1, 0],
+                        [0, 0, 0, 2, 0, 0]
+                    ],
+                    [
+                        [0, 0, 0, 1, 0, 0],
+                        [0, 0, 2, 0, 0, 0]
+                    ]
+                ],
+                "extra_groups": [
+                    [
+                        [0, 0, 0, 0, 1, 0],
+                        [0, 1, 0, 0, 1, 0],
+                        [1, 0, 0, 0, 1, 0],
+                        [0, 0, 0, 2, 0, 0],
+                        [0, 1, 0, 2, 0, 0],
+                        [1, 0, 0, 2, 0, 0],
+                        [0, 0, 2, 1, 0, 0],
+                        [0, 1, 2, 1, 0, 0],
+                        [1, 0, 2, 1, 0, 0],
+                        [0, 0, 4, 0, 0, 0],
+                        [0, 1, 4, 0, 0, 0],
+                        [1, 0, 4, 0, 0, 0]
+                    ]
+                    # [
+                    #     [0, 0, 0, 1, 1, 0],
+                    #     [0, 1, 0, 1, 1, 0],
+                    #     [1, 0, 0, 1, 1, 0],
+                    #     [0, 0, 0, 3, 0, 0],
+                    #     [0, 1, 0, 3, 0, 0],
+                    #     [1, 0, 0, 3, 0, 0],
+                    #     [0, 0, 2, 2, 0, 0],
+                    #     [0, 1, 2, 2, 0, 0],
+                    #     [1, 0, 2, 2, 0, 0],
+                    #     [0, 0, 4, 1, 0, 0],
+                    #     [0, 1, 4, 1, 0, 0],
+                    #     [1, 0, 4, 1, 0, 0]
+                    # ]
+                ]
+            },
+            target_property='wavefunctions',
+            logger=os.path.expanduser("~/Desktop/specks/run_wfns.txt"),
+            # logger=os.path.expanduser("~/Desktop/specks/run.txt"),
+            plot_spectrum=False
+        )
+        # raise Exception(wfns.initial_states, wfns.initial_state_indices)
+
+        multispec = wfns.get_spectrum().frequency_filter(600, 4400)
+        multispec.plot().savefig(
+                os.path.expanduser(f"~/Desktop/specks/full.pdf"),
+                transparent=True
+            )
+        for state,spec in zip(wfns.initial_states, multispec):
+            s = "".join(str(s) for s in state)
+            spec.plot(plot_range=[[600, 4400], [0, 500]], padding=[[0, 0], [0, 0]],
+                      image_size=[.75 * 20, 5.48 * 20]
+                      ).savefig(
+                os.path.expanduser(f"~/Desktop/specks/state_{s}.pdf"),
+                transparent=True
+            )
+        multispec = wfns.get_deperturbed_spectrum().frequency_filter(600, 4400)
+        for state,spec in zip(wfns.initial_states, multispec):
+            s = "".join(str(s) for s in state)
+            spec.plot(plot_range=[[600, 4400], [0, 500]], padding=[[0, 0], [0, 0]],
+                      image_size=[.75 * 20, 5.48 * 20]
+                      ).savefig(
+                os.path.expanduser(f"~/Desktop/specks/state_depert_{s}.pdf"),
+                transparent=True
+            )
+
+    @validationTest
+    def test_HOHVPTAnneManip(self):
+
+        runner, _ = VPTRunner.helpers.run_anne_job(
+            TestManager.test_data("vpt2_helpers_api/hod/r"),
+            return_runner=True,
+            order=2,
+            expansion_order=2
+        )
+        # runner, opts = VPTRunner.construct('HOH', 3)
+
+        # Collect expansion data from runner
+        H = runner.hamiltonian
+        V = H.V_terms
+        freqs = np.diag(V[0]) # how they actually get fed into the code...
+        G = H.G_terms
+        U = H.pseudopotential_term
+        D = H.expansion_options['dipole_terms'] # these usually get fed forward to the wave functions
+
+        # raise Exception([[x.shape if isinstance(x, np.ndarray) else x for x in D[a]] for a in range(3)])
+
+        # Define new shifted frequencies
+        frequency_shift = np.array([-1, 0, 0]) * UnitsData.convert("Wavenumbers", "Hartrees")
+        new_freqs = freqs + frequency_shift
+
+        # Rescale parameters
+        scaling_factor = np.sqrt(new_freqs) / np.sqrt(freqs)
+        # we use NumPy broadcasting tricks to rescale everything
+
+        G[2] # this requires the highest-order derivatives, so by doing it first and letting everything
+             # cache less junk gets printed to screen
+
+        v_expansion = [
+            # d V /dq_i dq_j
+            V[0] * (scaling_factor[:, np.newaxis] * scaling_factor[np.newaxis, :]),
+            # d V /dq_i dq_j dq_k
+            V[1] * (
+                    scaling_factor[:, np.newaxis, np.newaxis] *
+                    scaling_factor[np.newaxis, :, np.newaxis] *
+                    scaling_factor[np.newaxis, np.newaxis, :]
+            ),
+            # d V /dq_i dq_j dq_k dq_l
+            V[2] * (
+                    scaling_factor[:, np.newaxis, np.newaxis, np.newaxis] *
+                    scaling_factor[np.newaxis, :, np.newaxis, np.newaxis] *
+                    scaling_factor[np.newaxis, np.newaxis, :, np.newaxis] *
+                    scaling_factor[np.newaxis, np.newaxis, np.newaxis, :]
+            ),
+        ]
+
+        # For the momentum axes we _divide_ by the scaling factor
+        g_expansion = [
+            # Formally we should be dividing by this scaling factor, but to make sure
+            # V[0] == G[0] we multiply
+            # G_i,j
+            G[0] * (scaling_factor[:, np.newaxis] * scaling_factor[np.newaxis, :]),
+            # For the derivatives, we do the scaling correct
+            # d G_j,k / dq_i (i.e. q-index corresponds to axis 0)
+            G[1] * (
+                    scaling_factor[:, np.newaxis, np.newaxis] /
+                    scaling_factor[np.newaxis, :, np.newaxis] /
+                    scaling_factor[np.newaxis, np.newaxis, :]
+            ),
+            # d G_k,l / dq_i dq_j (i.e. q-indices correspond to axes 0,1)
+            G[2] * (
+                    scaling_factor[:, np.newaxis, np.newaxis, np.newaxis] * # Note that we multiply for the first two axes
+                    scaling_factor[np.newaxis, :, np.newaxis, np.newaxis] /
+                    scaling_factor[np.newaxis, np.newaxis, :, np.newaxis] /
+                    scaling_factor[np.newaxis, np.newaxis, np.newaxis, :]
+            )
+        ]
+
+        # I haven't done the math to figure out how exactly u should transform
+        u_expansion = [U[0]]
+
+        d_expansion = [
+            [
+                D[a][0],  # mu_a
+                # d mu_a / dq_i
+                D[a][1] * scaling_factor[:],
+                # d mu_a / dq_i dq_j
+                D[a][2] * (
+                        scaling_factor[:, np.newaxis] *
+                        scaling_factor[np.newaxis, :]
+                ),
+                # d mu_a / dq_i dq_j dq_k
+                D[a][3] * (
+                        scaling_factor[:, np.newaxis, np.newaxis] *
+                        scaling_factor[np.newaxis, :, np.newaxis] *
+                        scaling_factor[np.newaxis, np.newaxis, :]
+                )
+            ]
+            for a in range(3)  # loop over the x, y, and z axes
+        ]
+
+        new_runner, _ = VPTRunner.construct(
+            runner.system.mol, # not actually used
+            runner.states.state_list,
+            potential_terms=v_expansion,
+            kinetic_terms=g_expansion,
+            pseudopotential_terms=u_expansion,
+            dipole_terms=d_expansion
+        )
+
+        runner.print_tables() # runs the code and prints the IR tables
+        new_runner.print_tables()
+
+    @validationTest
+    def test_HOHPartialQuartic(self):
+
+        VPTRunner.helpers.run_anne_job(
+            # os.path.expanduser("~/Desktop/r_as"),
+            TestManager.test_data("vpt2_helpers_api/hod/x"),
+            # states=2, # max quanta to be focusing on
+            states=[[0, 0, 0], [0, 0, 1], [0, 1, 0]],
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            # mode_selection=[1, 2],
+            calculate_intensities=False,
+            zero_element_warning=False,
+            include_only_mode_couplings=[1, 2],
+            include_coriolis_coupling=False
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        VPTRunner.helpers.run_anne_job(
+            # os.path.expanduser("~/Desktop/r_as"),
+            TestManager.test_data("vpt2_helpers_api/hod/x_no_bend"),
+            # states=2, # max quanta to be focusing on
+            states=[[0, 0, 0], [0, 0, 1], [0, 1, 0]],
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            # mode_selection=[1, 2],
+            calculate_intensities=False,
+            zero_element_warning=False,
+            # include_only_mode_couplings=[1, 2],
+            include_coriolis_coupling=True
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        raise Exception(...)
+
+        VPTRunner.helpers.run_anne_job(
+            # os.path.expanduser("~/Desktop/r_as"),
+            TestManager.test_data("vpt2_helpers_api/hod/x_decoupled"),
+            # states=2, # max quanta to be focusing on
+            states=1,
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            # mode_selection=[1, 2],
+            calculate_intensities=False,
+            zero_element_warning=False,
+            include_coriolis_coupling=False
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        """
+::> States Energies
+  > State     Harmonic   Anharmonic     Harmonic   Anharmonic
+               ZPE          ZPE    Frequency    Frequency
+0 0 0   4052.91097   4001.04707            -            - 
+0 0 1            -            -   3873.84521   3688.94993 
+0 1 0            -            -   2810.03028   2723.42011 
+1 0 0            -            -   1421.94645   1383.13454 
+"""
+
+        VPTRunner.helpers.run_anne_job(
+            # os.path.expanduser("~/Desktop/r_as"),
+            TestManager.test_data("vpt2_helpers_api/hod/x"),
+            # states=2, # max quanta to be focusing on
+            states=1,
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            mode_selection=[0, 2],
+            calculate_intensities=False,
+            zero_element_warning=False,
+            include_coriolis_coupling=False
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        # runner3 = VPTRunner.helpers.run_anne_job(
+        #     # os.path.expanduser("~/Desktop/r_as"),
+        #     TestManager.test_data("vpt2_helpers_api/hod/x"),
+        #     # states=2, # max quanta to be focusing on
+        #     states=1,
+        #     # max quanta to be focusing on
+        #     order=2,  # None, # orderr of VPT
+        #     expansion_order=2,  # None, # order of expansion of H can use {
+        #     # 'potential':int,
+        #     # 'kinetic':int,
+        #     # 'dipole':int}
+        #     # logger=filename
+        #     # mode_selection=[1, 2],
+        #     calculate_intensities=False,
+        #     operator_coefficient_threshold=1e-12,
+        #     zero_element_warning=False,
+        #     # target_property='wavefunctions'
+        #     return_runner=True
+        # )  # output file name
+        #
+        # runner4 = VPTRunner.helpers.run_anne_job(
+        #     # os.path.expanduser("~/Desktop/r_as"),
+        #     TestManager.test_data("vpt2_helpers_api/hod/x_sub"),
+        #     # states=2, # max quanta to be focusing on
+        #     states=1,
+        #     # max quanta to be focusing on
+        #     order=2,  # None, # orderr of VPT
+        #     expansion_order=2,  # None, # order of expansion of H can use {
+        #     # 'potential':int,
+        #     # 'kinetic':int,
+        #     # 'dipole':int}
+        #     # logger=filename
+        #     # mode_selection=[1, 2],
+        #     calculate_intensities=False,
+        #     operator_coefficient_threshold=-1,
+        #     zero_element_warning=False
+        #     # target_property='wavefunctions'
+        #     , return_runner=True
+        # )  # output file name
+
+        """
+0 0 0   4052.91097   3994.84632            -            - 
+0 0 1            -            -   3873.84521   3685.79215 
+0 1 0            -            -   2810.03028   2706.14630 
+1 0 0            -            -   1421.94645   1383.40761 
+
+0 0 0   4052.91097   4033.89584            -            - 
+0 0 1            -            -   3873.84521   3697.97351 
+0 1 0            -            -   2810.03028   2902.77195 
+1 0 0            -            -   1421.94645   1380.70462
+"""
+        # split1 = runner3[0].hamiltonian.get_Nielsen_energies([[0, 0, 0], [0, 0, 1]], return_split=True)
+        # split2 = runner4[0].hamiltonian.get_Nielsen_energies([[0, 0, 0], [0, 0, 1]], return_split=True)
+        # raise Exception(
+        #     split1[2][0] - split2[2][0] # cubic contributions to X matrix
+        # )
+        # nie_full = np.sum(runner3[0].hamiltonian.get_Nielsen_energies([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]), axis=0)
+        # nie_sub = np.sum(runner4[0].hamiltonian.get_Nielsen_energies([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]), axis=0)
+        """
+        array([1383.40761359, 2706.14629421, 3685.79215281])
+        array([1380.70462067, 2902.77194309, 3697.97351711]))
+        """
+        raise Exception(...)
+        #     (nie_full[1:] - nie_full[0]) * UnitsData.hartrees_to_wavenumbers,
+        #     (nie_sub[1:] - nie_sub[0]) * UnitsData.hartrees_to_wavenumbers
+        # )
+
+
+        raise Exception(...)
+        """
+        0   1973.85245   1992.46835            -            - 
+        1            -            -   3947.70491   4042.24072
+        """
+
+        runner1 = VPTRunner.helpers.run_anne_job(
+            os.path.expanduser("~/Desktop/r_as"),
+            # states=2, # max quanta to be focusing on
+            states=1,
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            calculate_intensities=False,
+            operator_coefficient_threshold=-1
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        """
+  State       Frequency    Intensity       Frequency    Intensity
+  0 0 1    3947.69802     75.46200      3761.26977     70.72838
+  0 1 0    3821.87392      5.56098      3652.31667      4.82837
+  1 0 0    1628.37574      0.00000      1590.97610      0.00483
+  State       Frequency    Intensity       Frequency    Intensity
+  0 0 1    3947.69802     75.46200      3874.95435     71.78714
+  0 1 0    3821.87392      0.00000      3864.33291      0.00111
+  1 0 0    1628.37574      0.00000      1620.53058      0.00003
+"""
+
+        """
+        ::> States Energies
+  > State     Harmonic   Anharmonic     Harmonic   Anharmonic
+               ZPE          ZPE    Frequency    Frequency
+0 0 0   4698.97384   4628.17891            -            - 
+0 0 1            -            -   3947.69802   3761.26977 
+0 1 0            -            -   3821.87392   3652.31667 
+1 0 0            -            -   1628.37574   1590.97610 
+"""
+
+        runner2 = VPTRunner.helpers.run_anne_job(
+            os.path.expanduser("~/Desktop/r_a"),
+            # states=2, # max quanta to be focusing on
+            states=1,
+            # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            expansion_order=2,  # None, # order of expansion of H can use {
+            # 'potential':int,
+            # 'kinetic':int,
+            # 'dipole':int}
+            # logger=filename
+            calculate_intensities=False,
+            operator_coefficient_threshold=-1
+            # target_property='wavefunctions'
+            # return_runner=True
+        )  # output file name
+
+        raise Exception(...)
+
+        raise Exception(
+            runner1[0].ham_opts.opts['potential_terms'][1],
+            runner2[0].ham_opts.opts['potential_terms'][1]
+            # runner2.ham_opts['potential_derivatives'],
+        )
+
+    @validationTest
+    def test_HOHVPTNonGSRunner(self):
+
+        file_name = "HOH_freq.fchk"
+        mol = Molecule.from_file(TestManager.test_data(file_name),
+                                 internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]])
+        # raise Exception(mol.internal_coordinates)
+        ics = mol.internal_coordinates
+        derivs = mol.coords.jacobian(
+            ics.system,
+            [1, 2],
+            all_numerical=True,
+            converter_options={'reembed':True}
+        )
+        derivs = [x.reshape((9,)*(i+1) + (3, 3)) for i,x in enumerate(derivs)]
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            # target_property='wavefunctions',
+            # internals=mol.zmatrix,
+            initial_states=1,
+            operators={
+                'OH1':[ics[1, 0], derivs[0][:, 1, 0], derivs[1][:, :, 1, 0]],
+                'OH2':[ics[2, 0], derivs[0][:, 2, 0], derivs[1][:, :, 2, 0]],
+                'HOH':[ics[2, 1], derivs[0][:, 2, 1], derivs[1][:, :, 2, 1]]
+            },
             logger=True
         )
 
@@ -63,7 +1116,7 @@ class VPT2Tests(TestCase):
         runner = VPTRunner(system, states, runtime_options=run_opts, solver_options=pt_opts)
         runner.print_tables()
 
-    @debugTest
+    @validationTest
     def test_HOHVPTRunnerShifted(self):
 
         file_name = "HOH_freq.fchk"
@@ -71,7 +1124,52 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             3,
             logger=True,
+            degeneracy_specs='auto',
             corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/UnitsData.convert("Hartrees", "Wavenumbers")
+        )
+
+    @validationTest
+    def test_OCHHVPTRunnerShifted(self):
+        file_name = "OCHH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs='auto',
+            corrected_fundamental_frequencies=np.array([1188, 1252, 1527, 1727, 2977, 3070]) / UnitsData.convert("Hartrees", "Wavenumbers")
+        )
+
+    @validationTest
+    def test_HOONOVPTRunnerShifted(self):
+        file_name = "HOONO_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs='auto',
+            corrected_fundamental_frequencies=np.array([
+                355.73348, 397.16760, 524.09935,
+                715.88331, 836.39478, 970.87676,
+                1433.60940, 1568.50215, 3486.85528
+            ]) / UnitsData.convert("Hartrees", "Wavenumbers")
+        )
+
+    @inactiveTest
+    def test_CrieegeeVPTRunnerShifted(self):
+        # with BlockProfiler('Crieegee', print_res=True):
+        freqs = VPTSystem('criegee_eq_anh.fchk').mol.normal_modes.modes.freqs
+        freqs = freqs.copy()
+        freqs[1] += 10/UnitsData.convert("Hartrees", "Wavenumbers")
+        VPTRunner.run_simple(
+            # 'criegee_eq_anh.fchk',
+            2,
+            logger=True,
+            degeneracy_specs='auto',
+            corrected_fundamental_frequencies=freqs
+            # corrected_fundamental_frequencies=np.array([
+            #     200.246, 301.985 + 10, 462.536, 684.792, 736.234, 961.474, 984.773, 1038.825, 1120.260, 1327.450, 1402.397,
+            #     1449.820, 1472.576, 1519.875, 3037.286, 3078.370, 3174.043, 3222.828
+            # ])/UnitsData.convert("Hartrees", "Wavenumbers")
         )
 
     @validationTest
@@ -432,6 +1530,8 @@ class VPT2Tests(TestCase):
                 Model.a(1, 2, 3): hoh_params["b_e"]
             }
         )
+
+        # raise Exception(model.g())
 
         model.run_VPT(order=order, return_analyzer=False, expansion_order=expansion_order)
 
@@ -1204,3 +2304,70 @@ State             Frequency    Intensity       Frequency    Intensity
   0 3 0 0 0 0    5006.71100      0.00000      4847.85818      0.00744
   0 0 3 0 0 0    5006.71098      0.00000      4847.85797      0.00578
   """
+
+    @validationTest
+    def test_AnneAPI(self):
+        VPTRunner.run_simple(
+            TestManager.test_data('HOD_freq_16.fchk'), 2,
+            # calculate_intensities=False
+        )
+        # raise Exception("...")
+        # test_folder = TestManager.test_data('vpt2_helpers_api/hod')
+        # runner, dat = VPTRunner.construct(TestManager.test_data('HOD_freq_16.fchk'), 2)
+
+        # fuck = dat[0]
+        # raise Exception(fuck.mol.normal_modes.modes.basis.matrix.T)
+
+        # fuck = runner.hamiltonian
+        # shit_strings = []
+        # cub = fuck.V_terms[1]
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        # for i in range(cub.shape[0]):
+        #     for j in range(i, cub.shape[1]):
+        #         for k in range(j, cub.shape[2]):
+        #             shit_strings.append(f"{i+1} {j+1} {k+1} {cub[i, j ,k]*h2w}")
+
+        # fuck = runner.hamiltonian
+        # shit_strings = []
+        # quart = fuck.V_terms[2]
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        # for i in range(quart.shape[0]):
+        #     for j in range(i, quart.shape[2]):
+        #         for k in range(j, quart.shape[2]):
+        #             for l in range(k, quart.shape[3]):
+        #                 shit_strings.append(f"{i+1} {j+1} {k+1} {l+1} {quart[i, j, k, l]*h2w}")
+        # #
+        # raise Exception("\n".join(shit_strings))
+
+
+        # fuck = runner.get_wavefunctions()
+        # shit_strings = []
+        # dts = fuck.dipole_terms
+        #
+        # lints = np.array([d[1] for d in dts])
+        # for a in range(lints.shape[0]):
+        #     for i in range(lints.shape[1]):
+        #         shit_strings.append(f"{a+1} {i+1} {lints[a, i]}")
+        # shit_strings.append("")
+        #
+        # dints = np.array([d[2] for d in dts])
+        # for a in range(dints.shape[0]):
+        #     for i in range(dints.shape[1]):
+        #         for j in range(i, dints.shape[2]):
+        #             shit_strings.append(f"{a + 1} {i + 1} {j + 1} {dints[a, i, j]}")
+        # shit_strings.append("")
+        #
+        # cints = np.array([d[3] for d in dts])
+        # for a in range(cints.shape[0]):
+        #     for i in range(cints.shape[1]):
+        #         for j in range(i, cints.shape[2]):
+        #             for k in range(j, cints.shape[3]):
+        #                 shit_strings.append(f"{a + 1} {i + 1} {j + 1} {k + 1} {cints[a, i, j, k]}")
+        # #
+        # raise Exception("\n".join(shit_strings))
+
+        VPTRunner.helpers.run_anne_job(
+            TestManager.test_data('vpt2_helpers_api/hod/x'),
+            # calculate_intensities=False,
+            # expansion_order=2
+        )

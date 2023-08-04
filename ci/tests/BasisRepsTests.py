@@ -31,6 +31,78 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
 
+    @debugTest
+    def test_HOElements(self):
+
+        # mat_gen = HarmonicOscillatorMatrixGenerator(['x', 'x', 'x', 'x', 'p', 'p'])
+        # raise Exception(
+        #     mat_gen._get_poly_coeffs(0)
+        # )
+        terms = ['p', 'x', 'x', 'p', 'x', 'x']
+        mat_gen_old = HarmonicOscillatorMatrixGenerator(terms, mode='rho')
+        mat_gen_new = HarmonicOscillatorMatrixGenerator(terms, mode='poly')
+        # raise Exception(mat_gen_new(np.array([
+        #     [0, 2, 4],
+        #     [0, 2, 4]
+        # ])))
+        n = 5
+        rows, cols = np.triu_indices(n)
+        states = (
+            np.concatenate([rows, cols]),
+            np.concatenate([cols, rows])
+        )
+        old_vals = mat_gen_old.evaluate_state_terms(states)
+        new_vals = mat_gen_new.evaluate_state_terms(states)
+
+        old_mat = np.zeros((n, n))
+        new_mat = np.zeros((n, n))
+
+        old_mat[np.concatenate([rows, cols]), np.concatenate([cols, rows])] = old_vals
+        new_mat[np.concatenate([rows, cols]), np.concatenate([cols, rows])] = new_vals
+        print("==="*10)
+        print(np.round(old_mat, 6))
+        print(np.round(new_mat, 6))
+        raise Exception(...)
+
+        self.assertTrue(
+            np.allclose(
+                mat_gen_old.evaluate_state_terms(states),
+                mat_gen_new.evaluate_state_terms(states)
+            )
+        )
+
+        mat_gen_old = HarmonicOscillatorMatrixGenerator(['p', 'x', 'x', 'p'], mode='rho')
+        mat_gen_new = HarmonicOscillatorMatrixGenerator(['p', 'x', 'x', 'p'], mode='poly')
+        states = np.array([
+            [0, 0, 0, 0],
+            [0, 2, 4, 6]
+            ])
+        raise Exception(
+            mat_gen_old.evaluate_state_terms(states),
+            mat_gen_new.evaluate_state_terms(states)
+        )
+
+        # mat_gen = HarmonicOscillatorMatrixGenerator(['p', 'p', 'x', 'x'])
+        # mat_gen = HarmonicOscillatorMatrixGenerator(['p', 'p', 'p', 'p'])
+        d = 4
+        n = np.arange(4)
+        cf = mat_gen._get_poly_coeffs(d)
+        if not isinstance(cf, np.ndarray) and cf == 0:
+            raise Exception(0)
+        else:
+            raise Exception(
+                cf,
+                np.dot(
+                    cf,
+                    np.power(n[np.newaxis, :], np.arange(len(cf))[:, np.newaxis])
+                ) * np.sqrt(np.prod([n+i for i in range(1, abs(d)+1)], axis=0))
+            )
+
+        mat_gen = HarmonicOscillatorMatrixGenerator(['p', 'x', 'x', 'p'])
+        raise Exception(
+            mat_gen._get_poly_coeffs(1)
+        )
+
     @validationTest
     def test_HOBasis1DXX(self):
 
@@ -815,7 +887,7 @@ class BasisSetTests(TestCase):
 
     #region State spaces
 
-    @debugTest
+    @validationTest
     def test_StateSpaceIntersections(self):
 
         basis = HarmonicOscillatorProductBasis(6)

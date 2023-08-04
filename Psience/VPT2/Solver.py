@@ -431,6 +431,16 @@ class PerturbationTheorySolver:
                         self.perts[0].clear_cache()
                         self._zo_engs = None
 
+                    # dm = np.abs(
+                    #     self.zero_order_energies[np.newaxis, :] - self.zero_order_energies[:, np.newaxis]
+                    # )
+                    # np.fill_diagonal(dm, 10)
+                    #
+                    # print(np.min(dm))
+                    #
+                    # self._get_Pi0([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]])
+                    # raise Exception(...)
+
                     for i, h in enumerate(self.perts[1:]):
                         if n_spaces > i + 1:
                             cs = new_states[i]
@@ -606,8 +616,8 @@ class PerturbationTheorySolver:
             elif any(not isinstance(cs, (BasisStateSpace, SelectionRuleStateSpace)) for cs in self._coupled_states):
                 self._coupled_states = [
                     BasisStateSpace(self.states.basis, cs, full_basis=self.full_basis)
-                    if not isinstance(cs, (BasisStateSpace, SelectionRuleStateSpace))
-                    else cs
+                        if not isinstance(cs, (BasisStateSpace, SelectionRuleStateSpace)) else
+                    cs
                     for cs in self._coupled_states
                 ]
 
@@ -694,8 +704,9 @@ class PerturbationTheorySolver:
                 for p,cs in zip(self.perts[1:], self.coupled_states):
                     existing_spaces[p] = ({None:cs}, cs)
                 if self.state_space_filter_generator is not None:
-                    filters = BasisStateSpaceFilter.from_data(new_targets, self.state_space_filter_generator(new_targets))
-                    # raise Exception(filters[(1, 1)].prefilters)
+                    filters = BasisStateSpaceFilter.from_data(new_targets,
+                                                              self.state_space_filter_generator(new_targets, check_subspaces=False)
+                                                              )
                 else:
                     filters = None
                 new_spaces = self.load_coupled_spaces([new_targets],
@@ -1092,7 +1103,9 @@ class PerturbationTheorySolver:
                         # raise Exception(projections, rep_space, diffs)
                         # we have an initial space we've already transformed, so we
                         # make sure not to recompute that
-                        b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True)  # just some type fuckery
+                        b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True, # just some type fuckery
+                                                         changes=[] if SelectionRuleStateSpace.track_change_positions else None
+                                                         )
                         existing = cur.intersection(b_sels, handle_subspaces=False)
                         # and now we do extra transformations where we need to
 
@@ -1124,7 +1137,9 @@ class PerturbationTheorySolver:
                         # means we already calculated everything
                         # so we don't need to worry about this
                         if cur is not None:
-                            b_sels = SelectionRuleStateSpace(b, [], ignore_shapes=True) # just some type fuckery
+                            b_sels = SelectionRuleStateSpace(b, [],
+                                                             changes=[] if SelectionRuleStateSpace.track_change_positions else None,
+                                                             ignore_shapes=True) # just some type fuckery
                             new = cur.intersection(b_sels, handle_subspaces=False)
                             new = new.to_single().take_unique()
                         else:
@@ -1243,6 +1258,8 @@ class PerturbationTheorySolver:
 
         H = self.PastIndexableTuple(self.perts)
 
+        if filter_spaces is None:
+            filter_spaces = {}
         if property_filter is None:
             # This is intentionally written to parallel the non-degenerate VPT equations
             for k in range(1, order):
@@ -1281,11 +1298,11 @@ class PerturbationTheorySolver:
                                 self.logger.log_print('H({a})|n({b})>', a=k - i, b=i)
                                 if k < order-1:
                                     corrs[k] += dot(H[k - i], corrs[i],
-                                                    filter_space=filter_spaces[(k-i, i)] if filter_spaces is not None and (k-i, i) in filter_spaces else None
+                                                    filter_space=filter_spaces.get((k-i, i), None)
                                                     )
                                 else:
                                     dot(H[k - i], corrs[i], ret_space=False,
-                                                    filter_space=filter_spaces[(k-i, i)] if filter_spaces is not None and (k-i, i) in filter_spaces else None
+                                                    filter_space=filter_spaces.get((k-i, i), None)
                                                     )
         else:
             raise NotImplementedError("property filters not here yet")
@@ -2031,10 +2048,11 @@ class PerturbationTheorySolver:
         rotation_col_inds = []
 
         ndeg_ham_corrs = []
-        for group in degenerate_states:
+        for group_num,group in enumerate(degenerate_states):
             deg_inds, H_nd, deg_rot, deg_engs = corrs.get_degenerate_transformation(
                 group,
                 self.representations,
+                label="Block {group_num}".format(group_num=group_num),
                 gaussian_resonance_handling=self.gaussian_resonance_handling
             )
             if H_nd is not None:
