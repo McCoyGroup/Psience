@@ -30,6 +30,7 @@ setup(
     version=get_version(),
     license='MIT',
 
+
     # Which Python importable modules should be included when your package is installed
     # Handled automatically by setuptools. Use 'exclude' to prevent some specific
     # subpackage(s) from being added, if needed
@@ -39,6 +40,7 @@ setup(
     # Customize MANIFEST.in if the general case does not suit your needs
     # Comment out this line to prevent the files from being packaged with your software
     # include_package_data=True
+    python_requires=">=3.8",
     install_requires=[
         'mccoygroup-mcutils>=0.1.2.1'
     ]

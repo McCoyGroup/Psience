@@ -1,7 +1,6 @@
 import itertools
 
 import numpy as np, scipy
-import sympy as sym
 
 from McUtils.Data import AtomData, UnitsData
 import McUtils.Numputils as nput
@@ -40,7 +39,7 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
                     + 1/AnalyticModelBase.symbolic_m(j)
             )
             De = (w ** 2) / (4 * wx)
-            a = sym.sqrt(2 * wx / muv)
+            a = AnalyticModelBase.sym.sqrt(2 * wx / muv)
 
         if re is None:
             re = eq
@@ -168,7 +167,7 @@ class AnalyticPotentialConstructor(AnalyticModelBase):
         integrand = terms[0]
         for t in terms[1:]:
             integrand *= t
-        poly = sym.integrate(integrand, x)
+        poly = AnalyticModelBase.sym.integrate(integrand, x)
         min_val = np.inf
         min_pos = None
         turning_vals = [poly.subs([[x, t]]) for t in turning_points]
@@ -614,8 +613,8 @@ class AnalyticModel:
 
         @classmethod
         def _lambdiy(cls, vars, expr):
-            if isinstance(expr, sym.Expr):
-                core = sym.lambdify(vars, expr)
+            if isinstance(expr, AnalyticModelBase.sym.Expr):
+                core = AnalyticModelBase.sym.lambdify(vars, expr)
                 return core
             else:
                 return [cls._lambdiy(vars, e) for e in expr]
