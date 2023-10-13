@@ -37,7 +37,7 @@ class VPT2Tests(TestCase):
     #         # logger=True
     #     )
 
-    @debugTest
+    @validationTest
     def test_AnalyticPTOperators(self):
 
         internals = False
@@ -1127,6 +1127,218 @@ class VPT2Tests(TestCase):
             degeneracy_specs='auto',
             corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/UnitsData.convert("Hartrees", "Wavenumbers")
         )
+
+    @validationTest
+    def test_OCHHSubspaceTargetProps(self):
+
+        file_name = "OCHH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 1],
+                [0, 1, 2, 0, 0, 0]
+            ],
+            # expansion_order=1,
+            logger=True,
+            target_property='wavefunctions'
+            # , calculate_intensities=False
+            , degeneracy_specs='auto',
+            # extended_space_target_property='frequencies'
+        )
+        """
+State           Harmonic   Anharmonic     Harmonic   Anharmonic
+                     ZPE          ZPE    Frequency    Frequency
+0 0 0 0 0 0   5866.87156   5785.95861            -            - 
+0 0 1 0 0 1            -            -   4588.74227   4415.63305 
+0 1 2 0 0 0            -            -   4306.24556   4191.96329 
+"""
+        """
+::> IR Data
+  > Initial State: 0 0 0 0 0 0 
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 1 0 0 1    4588.74227      0.00000      4446.79734      0.00164
+  0 1 2 0 0 0    4306.24556      0.00000      4167.25991      0.30489
+  0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.48928
+  """
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 1],
+                [0, 1, 2, 0, 0, 0]
+            ],
+            # expansion_order=1,
+            logger=True,
+            target_property='intensities'
+            # , calculate_intensities=False
+            , degeneracy_specs='auto'
+            # extended_space_target_property='frequencies'
+        )
+        """
+::> IR Data
+  > Initial State: 0 0 0 0 0 0 
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 1 0 0 1    4588.74227      0.00000      4446.79734      0.00164
+  0 1 2 0 0 0    4306.24556      0.00000      4167.25991      0.30489
+  0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.48928
+  """
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 1],
+                [0, 1, 2, 0, 0, 0]
+            ],
+            # expansion_order=1,
+            logger=True,
+            target_property='frequencies'
+            # , calculate_intensities=False
+            , degeneracy_specs='auto'
+        )
+        """
+::> IR Data
+  > Initial State: 0 0 0 0 0 0 
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 1 0 0 1    4588.74227      0.00000      4458.35353      0.00402
+  0 1 2 0 0 0    4306.24556      0.00000      4170.69772      0.23905
+  0 1 1 1 0 0    4506.28742      0.00000      4330.62726      0.55570
+  """
+
+    @validationTest
+    def test_OCHHFasterDegen(self):
+
+        file_name = "OCHH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs='auto',
+            extended_space_target_property='frequencies'
+        )
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs='auto'
+        )
+
+    @validationTest
+    def test_OCHHFasterDegenSubspace(self):
+
+        file_name = "OCHH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 1]
+            ],
+            logger=True,
+            degeneracy_specs='auto',
+            extended_space_target_property='frequencies'
+        )
+        """
+::> IR Data
+  > Initial State: 0 0 0 0 0 0 
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 1 0 0 1    4588.74227      0.00000      4446.79734      0.00134
+  0 1 2 0 0 0    4306.24556      0.00000      4167.25991      0.29964
+  0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.48923
+  """
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 1]
+            ],
+            logger=True,
+            degeneracy_specs='auto'
+        )
+        """
+::> IR Data
+  > Initial State: 0 0 0 0 0 0 
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 1 0 0 1    4588.74227      0.00000      4446.79734      0.00000
+  0 1 2 0 0 0    4306.24556      0.00000      4167.25991      0.26680
+  0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.47084
+  """
+
+    @debugTest
+    def test_HOONOFasterDegen(self):
+
+        file_name = "HOONO_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs='auto',
+            extended_space_target_property='frequencies'
+        )
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs='auto'
+        )
+
+    @validationTest
+    def test_HOONOFasterDegenSubspace(self):
+
+        file_name = "HOONO_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [[0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [1, 0, 0, 0, 0, 0, 1, 0, 0],
+             [1, 0, 0, 0, 0, 0, 0, 1, 0],
+             [0, 0, 1, 0, 0, 0, 1, 0, 0],
+             [0, 0, 1, 0, 0, 0, 0, 1, 0]],
+            logger=True,
+            degeneracy_specs='auto',
+            extended_space_target_property='frequencies'
+        )
+        """
+State                   Frequency    Intensity       Frequency    Intensity
+  1 0 0 0 0 0 1 0 0    1789.34288      0.00000      1669.11650      0.00850
+  1 0 0 0 0 0 0 1 0    1924.23563      0.00000      1825.06905      0.30108
+  0 0 1 0 0 0 1 0 0    1957.70875      0.00000      1886.51516      0.05466
+  0 0 1 0 0 0 0 1 0    2092.60150      0.00000      2045.13170      0.02941
+  1 0 0 2 0 0 0 0 0    1787.50010      0.00000      2413.94904     80.96353
+  0 0 1 2 0 0 0 0 0    1955.86597      0.00000      1971.94764      2.37340
+  1 0 0 1 1 0 0 0 0    1908.01157      0.00000      2131.62528      0.72881
+  0 0 1 1 1 0 0 0 0    2076.37744      0.00000      2080.76165      2.72838
+  """
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [[0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [1, 0, 0, 0, 0, 0, 1, 0, 0],
+             [1, 0, 0, 0, 0, 0, 0, 1, 0],
+             [0, 0, 1, 0, 0, 0, 1, 0, 0],
+             [0, 0, 1, 0, 0, 0, 0, 1, 0]],
+            logger=True,
+            degeneracy_specs='auto'
+        )
+        """
+State                   Frequency    Intensity       Frequency    Intensity
+  1 0 0 0 0 0 1 0 0    1789.34288      0.00000      1669.11650      0.04924
+  1 0 0 0 0 0 0 1 0    1924.23563      0.00000      1825.06905      0.07528
+  0 0 1 0 0 0 1 0 0    1957.70875      0.00000      1886.51516      0.00766
+  0 0 1 0 0 0 0 1 0    2092.60150      0.00000      2045.13170      0.01768
+  1 0 0 2 0 0 0 0 0    1787.50010      0.00000      2413.94904      0.08504
+  0 0 1 2 0 0 0 0 0    1955.86597      0.00000      1971.94764      0.00159
+  1 0 0 1 1 0 0 0 0    1908.01157      0.00000      2131.62528      0.00035
+  0 0 1 1 1 0 0 0 0    2076.37744      0.00000      2080.76165      0.00332
+        """
 
     @validationTest
     def test_OCHHVPTRunnerShifted(self):

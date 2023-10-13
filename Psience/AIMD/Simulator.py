@@ -402,7 +402,7 @@ class PairwisePotential:
         dists = np.linalg.norm(diffs, axis=1)
         pot_vals = pot(dists)
 
-        print(row_map)
+        # print(row_map)
 
         # now reduce over different chunks for the positive contribs...
         pos_chunks = np.add.reduceat(

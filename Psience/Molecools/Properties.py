@@ -8,7 +8,7 @@ from McUtils.Coordinerds import CoordinateSet
 from McUtils.ExternalPrograms import OpenBabelInterface
 from McUtils.GaussianInterface import GaussianFChkReader, GaussianFChkReaderException
 from McUtils.Data import AtomData, UnitsData, BondData
-from McUtils.Zachary import FiniteDifferenceDerivative
+from McUtils.Zachary import FiniteDifferenceDerivative, TensorDerivativeConverter
 
 from .MoleculeInterface import AbstractMolecule
 from .Transformations import MolecularTransformation
@@ -1534,17 +1534,31 @@ class DipoleSurfaceManager(PropertyManager):
             ))
 
     def apply_transformation(self, transf):
+        # Applies an affine transformation
         new = self.copy()
         if new._surf is not None:
             new._surf = new._surf.transform(transf)
         if new._derivs is not None:
-            tf = transf.transformation_function.transform
-            base_derivs = (
-                    (new._derivs[0],) +
-                    tuple(new._transform_derivatives(new._derivs[1:], transf))
-            )
-            new._derivs = tuple(np.tensordot(d, tf, axes=[-1, -1]) for d in base_derivs)
+            if hasattr(transf, 'transformation_function') or (
+                    isinstance(transf, np.ndarray) and transf.shape == [3, 3]
+            ):
+                if hasattr(transf, 'transformation_function'):
+                    tf = transf.transformation_function.transform
+                else:
+                    tf = transf
+                base_derivs = (
+                        (new._derivs[0],) +
+                        tuple(new._transform_derivatives(new._derivs[1:], transf))
+                )
+                new._derivs = tuple(np.tensordot(d, tf, axes=[-1, -1]) for d in base_derivs)
+            else:
+                raise NotImplementedError("non-linear transf to dipole surface needs work")
+                new._derivs = TensorDerivativeConverter(
+                    new._derivs,
+                    transf
+                ).convert()
         return new
+
 
     def insert_atoms(self, atoms, coords, where):
         """
@@ -1709,7 +1723,15 @@ class PotentialSurfaceManager(PropertyManager):
         if new._derivs is not None:
             # raise Exception(new._derivs)
             # print([x.shape for x in new._derivs])
-            new._derivs = new._transform_derivatives(new._derivs, transf)
+            if hasattr(transf, 'transformation_function') or (
+                    isinstance(transf, np.ndarray) and transf.shape == [3, 3]
+            ):
+                new._derivs = new._transform_derivatives(new._derivs, transf)
+            else:
+                new._derivs = TensorDerivativeConverter(
+                    transf,
+                    new._derivs
+                ).convert(order=len(transf))
         return new
 
     def insert_atoms(self, atoms, coords, where):

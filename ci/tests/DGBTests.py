@@ -2392,9 +2392,11 @@ class DGBTests(TestCase):
 
         r1 = 0
         w2h = UnitsData.convert("Wavenumbers", "Hartrees")
+        freq = 3869.47 * w2h
+        anh = 84 * w2h
         model = mol.get_model(
             {
-                r1: {'morse': {'w': 3869.47 * w2h, 'wx': 84 * w2h}},
+                r1: {'morse': {'w': freq, 'wx': anh}},
                 # r2: {'morse': {'w': 3869.47 * w2h, 'wx': 84 * w2h}},
                 # a12: {'harmonic': {'k': 1600 ** 2 / 150 * w2h}}
             }
@@ -2433,7 +2435,24 @@ class DGBTests(TestCase):
         cart_pot_func = model.potential
         cart_dipole_func = model.dipole
 
+
+        pot_derivs = model.v(order=4, evaluate='constants', lambdify=True)
+        def r_pot_func(rs, deriv_order=None):
+            if deriv_order is None:
+                return pot_derivs[0](rs)
+            elif deriv_order > 4:
+                raise ValueError("only imp'd up to 2nd order")
+            else:
+                return [p(rs) for p in pot_derivs[:deriv_order+1]]
+
         def sub_cart_pot_func(coords, deriv_order=None):
+            if coords.shape[-1] == 2:
+                coords = np.concatenate([
+                    coords.reshape(-1, 2, 1),
+                    np.zeros(coords.shape[:2] + (2,))
+                ],
+                    axis=-1
+                )
             coords = coords.reshape(-1, 2, 3)
             return cart_pot_func(coords, deriv_order=deriv_order)
 
@@ -2455,45 +2474,87 @@ class DGBTests(TestCase):
             coords = coords.reshape(-1, 2, 3)
             return cart_dipole_func(coords, deriv_order=deriv_order)
 
-        np.random.seed(0)
-        initial_displacements = [1]
-        init_pos = mol.get_displaced_coordinates(
-            initial_displacements,
+        # np.random.seed(0)
+        # initial_displacements = [2]
+        # ts = .4
+        # init_pos = mol.get_displaced_coordinates(
+        #     initial_displacements,
+        #     which=[[1, 0]],
+        #     internals='reembed'
+        # )
+
+        # sim = AIMDSimulator(
+        #     mol.masses,
+        #     init_pos,
+        #     lambda c: -cart_pot_func(c, deriv_order=1)[1].reshape(c.shape),
+        #     timestep=ts,
+        #     track_kinetic_energy=True
+        # )
+        #
+        # sim.propagate(25)
+        # coords = np.array(sim.trajectory).reshape((-1, ) + mol.coords.shape)
+        # coords = mol.embed_coords(coords)
+
+        # raise Exception(
+        #     np.linalg.norm(coords.reshape(-1, 6)[:, (1, 2, 4, 5)].flatten()),
+        #     np.linalg.norm(coords.reshape(-1, 6)[:, (0, 3)].flatten())
+        # )
+
+        # plot_points = False
+        # if plot_points:
+        #     ke_list = np.array(sim.kinetic_energies).flatten()
+        #     r_vals = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates[:, 1, 0]
+        #
+        #     ke_plot = plt.Plot(
+        #         r_vals,
+        #         ke_list
+        #     )
+        #
+        #     pe_list = cart_pot_func(coords)
+        #     plt.Plot(r_vals, pe_list, figure=ke_plot)
+        #     plt.ScatterPlot(r_vals, pe_list, figure=ke_plot)
+        #     plt.Plot(r_vals, pe_list + ke_list, figure=ke_plot).show()
+
+        coords = mol.get_displaced_coordinates(
+            np.linspace(-.65, .65, 50).reshape(-1, 1),
             which=[[1, 0]],
             internals='reembed'
         )
 
-        def morse_basic(carts_1, carts_2, deriv_order=0):
-            ...
+        plot_points = False
+        if plot_points:
+            r_vals = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates[:, 1, 0]
+            pe_list = cart_pot_func(coords)
+            pe_plot = plt.Plot(r_vals, pe_list)
+            plt.ScatterPlot(r_vals, pe_list, figure=pe_plot).show()
+
+
+        # def morse_basic(carts_1, carts_2, deriv_order=0):
+        #     ...
+
+        from McUtils.Data import PotentialData
+        De = (freq ** 2) / (4 * anh)
+        muv = (1/model.vals[model.m(0)] + 1/model.vals[model.m(1)])
+        a = np.sqrt(2 * anh / muv)
+        re = model.vals[model.r(0, 1)]
+
+        # raise Exception(model.pot)
+        # 1.8253409520594046 0.2030389515643527 0.000665515760313665
+        def morse_basic(r,
+                        re=re,
+                        alpha=a,
+                        De=De,
+                        deriv_order=None,
+                        _morse=PotentialData["MorsePotential"]
+                        ):
+            return _morse(r, re=re, alpha=alpha, De=De, deriv_order=deriv_order)
+
+        raise Exception([x*219475 for x in morse_basic(re - .1, deriv_order=1)])
 
         pairwise_potential_functions = {
             (0, 1):morse_basic
         }
 
-        sim = AIMDSimulator(
-            mol.masses,
-            init_pos,
-            lambda c: -cart_pot_func(c, deriv_order=1)[1].reshape(c.shape),
-            timestep=1,
-            track_kinetic_energy=True
-        )
-
-        sim.propagate(35)
-        coords = np.array(sim.trajectory).reshape((-1, ) + mol.coords.shape)
-        coords = mol.embed_coords(coords)
-
-        # ke_list = np.array(sim.kinetic_energies).flatten()
-        # r_vals = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates[:, 1, 0]
-        #
-        # ke_plot = plt.Plot(
-        #     r_vals,
-        #     ke_list
-        # )
-        #
-        # pe_list = cart_pot_func(coords)
-        # plt.Plot(r_vals, pe_list, figure=ke_plot)
-        # plt.Plot(r_vals, pe_list + ke_list, figure=ke_plot).show()
-        #
         # raise Exception(
         #     np.array(sim.kinetic_energies)
         # )
@@ -2509,14 +2570,42 @@ class DGBTests(TestCase):
             + [AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 3
         )
 
+        r_vals = (coords.reshape(-1, 6)[:, 3] - coords.reshape(-1, 6)[:, 0])**2
+        red_mass = 1/(1/mass_vec[0] + 1/mass_vec[3])
+        ham_1D = DGB(
+            r_vals.view(np.ndarray),
+            r_pot_func,
+            alphas=100,
+            masses=[red_mass],
+            expansion_degree=2,
+            min_singular_value=1e-8,
+            logger=True
+        )
+
+        wfns_1D = ham_1D.get_wavefunctions(
+            nodeless_ground_state=True,
+            stable_epsilon=2e-4,
+            # min_singular_value=2e-4,
+            # subspace_size=ssize,
+            mode='classic'
+        )
+        # raise Exception(
+        #     wfns_1D.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
+        # )
+
         ham = DGB(
             coords.view(np.ndarray),
             sub_cart_pot_func,
-            alphas = 15,#{'method': 'min_dist', 'scaling': 1/5},
+            alphas=[[1600, 3, 3, 100, 3, 3]]*len(coords),
+            # alphas={'method': 'virial'},
+            # [
+            #     [15, 3, 3, 15, 3, 3]
+            #     ]*len(coords),#{'method': 'min_dist', 'scaling': 1/5},
             expansion_degree=2,
             masses=mass_vec,
             min_singular_value=1e-8,
-            logger=True
+            logger=True,
+            projection_indices=[0, 3]
         )
 
         wfns = ham.get_wavefunctions(
@@ -2527,7 +2616,10 @@ class DGBTests(TestCase):
             mode='classic'
         )
 
-        raise Exception(wfns.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers"))
+        raise Exception(np.array([
+            wfns_1D.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers"),
+            wfns.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
+        ]).T)
 
         # hmm, grads = cart_pot_derivs(coords, deriv_order=1)
         # ics = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates

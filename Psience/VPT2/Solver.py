@@ -36,6 +36,8 @@ class PerturbationTheorySolver:
                  state_space_iterations=None,
                  state_space_terms=None,
                  state_space_filters=None,
+                 extended_state_space_filter_generator=None,
+                 extended_state_space_postprocessor=None,
                  target_property_rules=None,
                  allow_sakurai_degs=False,
                  allow_post_PT_calc=True,
@@ -104,6 +106,20 @@ class PerturbationTheorySolver:
         else:
             self.state_space_filter_generator = None
             self.state_space_filters = BasisStateSpaceFilter.from_data(states, state_space_filters)
+
+        if isinstance(extended_state_space_filter_generator, (types.FunctionType, types.MethodType, types.LambdaType)):
+            self.extended_state_space_filter_generator = extended_state_space_filter_generator
+        elif extended_state_space_filter_generator is not None:
+            raise ValueError("bad filter generator {}".format(extended_state_space_filter_generator))
+        else:
+            self.extended_state_space_filter_generator = None
+        if isinstance(extended_state_space_postprocessor, (types.FunctionType, types.MethodType, types.LambdaType)):
+            self.extended_state_space_postprocessor = extended_state_space_postprocessor
+        elif extended_state_space_postprocessor is not None:
+            raise ValueError("bad filter generator {}".format(extended_state_space_postprocessor))
+        else:
+            self.extended_state_space_postprocessor = None
+
         self.target_property_rules=target_property_rules
 
         self.logger = logger
@@ -690,7 +706,7 @@ class PerturbationTheorySolver:
             else:
                 self._total_dim = len(self._flat_space)
 
-    def extend_state_spaces(self, new_targets):
+    def extend_state_spaces(self, new_targets, degenerate_states=None):
         with self.logger.block(tag='extending basis'):
             parallelizer = Parallelizer.lookup(self.parallelizer)
             if parallelizer.nprocs > 1:
@@ -703,15 +719,21 @@ class PerturbationTheorySolver:
                 existing_spaces = {self.perts[0]:None}
                 for p,cs in zip(self.perts[1:], self.coupled_states):
                     existing_spaces[p] = ({None:cs}, cs)
-                if self.state_space_filter_generator is not None:
+                if self.extended_state_space_filter_generator is not None:
+                    filters = BasisStateSpaceFilter.from_data(new_targets,
+                                                              self.extended_state_space_filter_generator(new_targets, check_subspaces=False)
+                                                              )
+                elif self.state_space_filter_generator is not None:
                     filters = BasisStateSpaceFilter.from_data(new_targets,
                                                               self.state_space_filter_generator(new_targets, check_subspaces=False)
                                                               )
                 else:
-                    filters = None
+                    filters = None #TODO: is this really the right choice...?
                 new_spaces = self.load_coupled_spaces([new_targets],
                                                       filter_spaces=filters
                                                       )#, spaces=existing_spaces)
+                if self.extended_state_space_postprocessor is not None:
+                    new_spaces = self.extended_state_space_postprocessor(new_targets, new_spaces, degenerate_states)
                 self.states = self.states.union(new_targets)
 
                 if all(n is None for n in new_spaces):
@@ -1436,7 +1458,7 @@ class PerturbationTheorySolver:
                         missing.excitations,
                         message_prepper=lambda a: str(np.array(a)).splitlines()
                     )
-                extended_spaces = self.extend_state_spaces(missing)
+                extended_spaces = self.extend_state_spaces(missing, degenerate_states=degenerate_states)
                 if extended_spaces is not None:
                     new_perts = self.extend_VPT_representations(*extended_spaces)
                     # new_perts2 = self.get_VPT_representations()

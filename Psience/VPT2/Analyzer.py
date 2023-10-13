@@ -647,6 +647,10 @@ class VPTAnalyzer:
         :rtype:
         """
 
+        shifts = np.asanyarray(shifts)
+        if shifts.ndim == 1:
+            shifts = np.diag(shifts)
+
         ham = sum(hams) + shifts
         deg_engs, deg_transf = np.linalg.eigh(ham)
 

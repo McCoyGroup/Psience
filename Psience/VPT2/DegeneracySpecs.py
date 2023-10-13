@@ -60,6 +60,8 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
             test_modes = self.test_modes
             if test_modes is None:
                 test_modes = solver.high_frequency_modes
+            if len(test_modes) == 0:
+                test_modes = None
             group_filter = dict(
                 corrections=corrs,
                 energy_cutoff=zero_order_energy_cutoff,

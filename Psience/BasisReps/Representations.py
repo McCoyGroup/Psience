@@ -714,6 +714,7 @@ class Representation:
                 # else:
                 cs = self.chunk_size
                 if cs is not None:
+                    cs = int(cs)
                     blocks = int(np.ceil(len(full_dat) / cs))
                     sub = None
                     for i in range(blocks):
