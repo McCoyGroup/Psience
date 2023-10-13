@@ -535,7 +535,7 @@ VPTRunner.helpers.run_anne_job(
 [Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
 </div>
 <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/tutorial.md?message=Update%20Docs)
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/Psience/VPT2/tutorial.md?message=Update%20Docs)
 </div>
 <div class="col"></div>
 <div class="col"></div>
