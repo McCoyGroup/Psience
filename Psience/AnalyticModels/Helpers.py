@@ -15,7 +15,10 @@ class SympyShim:
     @classmethod
     def _load_sympy(self):
         if self.sym is None:
-            import sympy as sym
+            try:
+                import sympy as sym
+            except ImportError:
+                raise ImportError("sympy must be installed to use analytic models")
             self.sym = sym
         return self.sym
     def __getattr__(self, item):
@@ -43,7 +46,9 @@ class AnalyticModelBase:
     Provides a base class for analytic models
     """
     sym = sym
-    numeric_types = (int, float, np.integer, np.floating, np.ndarray, sym.Float, sym.Integer, sym.Rational)
+    @classmethod
+    def get_numeric_types(cls):
+        return (int, float, np.integer, np.floating, np.ndarray, sym.Float, sym.Integer, sym.Rational)
     @classmethod
     def take_derivs(cls, expr, vars):
         """
@@ -88,7 +93,7 @@ class AnalyticModelBase:
                 expr = sym.Array(expr)
             except ValueError:
                 pass
-        if isinstance(expr, cls.numeric_types):
+        if isinstance(expr, cls.get_numeric_types()):
             return expr
         elif not isinstance(expr, list):
             return expr.subs(subs)
