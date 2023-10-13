@@ -26,5 +26,6 @@ __all__ = [
     "Data",
     "BasisReps",
     "Spectra",
-    "AnalyticModels"
+    "AnalyticModels",
+    "LocalModes"
 ]

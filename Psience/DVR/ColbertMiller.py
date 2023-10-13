@@ -45,8 +45,7 @@ class CartesianDVR(BaseDVR):
         coeff = (hb ** 2) / (2 * mass * (dx ** 2))
         # compute the band values for the first row
         b_val_0 = coeff * (np.pi ** 2) / 3
-        col_rng = np.arange(1,
-                            divs + 1)  # the column indices -- also what will be used for computing the off diagonal bands
+        col_rng = np.arange(1, divs + 1)  # the column indices -- also what will be used for computing the off diagonal bands
         row_rng = np.arange(0, divs)  # the row indices -- computed once and sliced
         b_vals = coeff * ((-1) ** col_rng) * 2 / (col_rng ** 2)
 
@@ -63,7 +62,7 @@ class CartesianDVR(BaseDVR):
 
     def real_momentum(self, grid=None, mass=None, hb=1, **kwargs):
         """
-        Provides the real part of the momentum for the [0, 2pi] range
+        Provides the real part of the momentum for the [-inf, inf] range
         :param grid:
         :type grid:
         :param hb:

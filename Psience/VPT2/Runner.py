@@ -9,7 +9,7 @@ from McUtils.Scaffolding import ParameterManager, Logger
 from McUtils.Zachary import FiniteDifferenceDerivative
 from McUtils.Extensions import ModuleLoader
 
-from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis, BasisStateSpaceFilter
+from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis, BasisStateSpaceFilter, SelectionRuleStateSpace
 from ..Molecools import Molecule
 
 from .DegeneracySpecs import DegeneracySpec
@@ -396,7 +396,8 @@ class VPTStateSpace:
     def filter_generator(self, target_property, order=2, initial_states=None, postfilters=None):
         def filter(states, **opts):
             return self.get_state_space_filter(states,
-                                               initial_states=initial_states, target=target_property,
+                                               initial_states=initial_states,
+                                               target=target_property,
                                                order=order, postfilters=postfilters,
                                                **opts
                                                )
@@ -802,6 +803,8 @@ class VPTSolverOptions:
         "state_space_iterations",
         "state_space_terms",
         "state_space_filters",
+        "extended_state_space_filter_generator",
+        "extended_state_space_postprocessor",
         "allow_post_PT_calc",
         "modify_degenerate_perturbations",
         "gaussian_resonance_handling",
@@ -828,6 +831,8 @@ class VPTSolverOptions:
                  state_space_iterations=None,
                  state_space_terms=None,
                  state_space_filters=None,
+                 extended_state_space_filter_generator=None,
+                 extended_state_space_postprocessor=None,
                  allow_post_PT_calc=None,
                  modify_degenerate_perturbations=None,
                  gaussian_resonance_handling=None,
@@ -913,6 +918,8 @@ class VPTSolverOptions:
             state_space_iterations=state_space_iterations,
             state_space_terms=state_space_terms,
             state_space_filters=state_space_filters,
+            extended_state_space_filter_generator=extended_state_space_filter_generator,
+            extended_state_space_postprocessor=extended_state_space_postprocessor,
             allow_post_PT_calc=allow_post_PT_calc,
             modify_degenerate_perturbations=modify_degenerate_perturbations,
             gaussian_resonance_handling=gaussian_resonance_handling,
@@ -1151,10 +1158,71 @@ class VPTRunner:
         return wfns
 
     @classmethod
+    def _quanta_coupled_state_spaces(cls, states, order, track=False):
+        exc = states.excitations
+        qdiffs = np.sum(np.abs(exc[:, np.newaxis] - exc[np.newaxis, :]), axis=-1)
+        # we extend state spaces bidirectionally because symmetry will be applied later
+        spaces = [
+            np.full((len(states),), None, dtype=object) for _ in range(order)
+        ]
+        for i,row in enumerate(qdiffs):
+            odd_parts = np.where(row % 2 == 1)
+            if len(odd_parts) > 0:
+                odd_vals = row[odd_parts]
+                odd_parts = odd_parts[0]
+            else:
+                odd_vals = np.array([], dtype=int)
+            even_parts = np.where(row % 2 == 0)
+            if len(even_parts) > 0:
+                even_vals = row[even_parts]
+                even_parts = even_parts[0]
+            else:
+                even_vals = np.array([], dtype=int)
+
+            for j in range(1, order+1):
+                if j % 2 == 1 and len(odd_parts) > 0:
+                    sel = odd_parts[odd_vals <= j + 2]
+                elif j % 2 == 0 and len(even_parts) > 0:
+                    sel = even_parts[np.logical_and(even_vals <= j+2, even_parts != i)]
+                else:
+                    sel = []
+                spaces[j-1][i] = states.take_subspace(sel)
+
+        spaces = [
+            SelectionRuleStateSpace(states, s) for s in spaces
+        ]
+        if track:
+            for s in spaces:
+                s.generate_change_indices()
+
+        return spaces
+
+    @classmethod
+    def _matrix_element_filler(cls, new_states, new_spaces, degeneracy_spec):
+        order = len(new_spaces)
+        track = any(s.track_change_positions for s in new_spaces)
+        if degeneracy_spec is None:
+            qspaces = cls._quanta_coupled_state_spaces(new_states, order)
+            raise Exception(qspaces, new_spaces)
+            new_spaces = [
+                old.union(new)
+                for old, new in zip(new_spaces, qspaces)
+            ]
+        else:
+            for group in degeneracy_spec:
+                qspaces = cls._quanta_coupled_state_spaces(group, order, track=track)
+                new_spaces = [
+                    old.union(new)
+                    for old, new in zip(new_spaces, qspaces)
+                ]
+        return new_spaces
+        # raise ValueError(new_states, new_spaces)
+    @classmethod
     def construct(cls,
                   system,
                   states,
                   target_property=None,
+                  extended_space_target_property=None,
                   basis_filters=None,
                   initial_states=None,
                   corrected_fundamental_frequencies=None,
@@ -1210,15 +1278,30 @@ class VPTRunner:
         if target_property is None:
             target_property = 'intensities'
         if target_property is not None and 'state_space_filters' not in opts:
-            if 'expansion_order' in opts.keys():
-                expansion_order = opts['expansion_order']
-            else:
-                expansion_order = order
+            # if 'expansion_order' in opts.keys():
+            #     expansion_order = opts['expansion_order']
+            # else:
+            #     expansion_order = order
             par.ops['state_space_filters'] = states.filter_generator(target_property,
                                                                      initial_states=initial_states.state_list if initial_states is not None else None,
                                                                      order=order,
                                                                      postfilters=basis_filters
                                                                      )
+
+        if extended_space_target_property is not None:
+            if 'extended_state_space_filter_generator' not in opts:
+                # if 'expansion_order' in opts.keys():
+                #     expansion_order = opts['expansion_order']
+                # else:
+                #     expansion_order = order
+                par.ops['extended_state_space_filter_generator'] = states.filter_generator(
+                    extended_space_target_property,
+                    initial_states=initial_states.state_list if initial_states is not None else None,
+                    order=order,
+                    postfilters=basis_filters
+                )
+        if 'extended_state_space_postprocessor' not in opts:
+            par.ops['extended_state_space_postprocessor'] = cls._matrix_element_filler
 
         if corrected_fundamental_frequencies is not None and (
                 'zero_order_energy_corrections' not in opts
@@ -1787,7 +1870,7 @@ class AnneInputHelpers:
             if file_template is None:
                 file = io.StringIO()
             else:
-                file = file_template.format(index_function(i))
+                file = file_template.format_tex(index_function(i))
             with file if file_template is None else open(file, 'w+') as out:
                 out.writelines(
                     " ".join((int_fmt if isinstance(x, int) else float_fmt).format(x) for x in row)+"\n"

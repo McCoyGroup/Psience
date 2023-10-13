@@ -574,10 +574,17 @@ class MolecularNormalModes(CoordinateSystem):
             masses = np.eye(len(fcs))
 
         # temporary hack
-        freqs, modes = slag.eigh(fcs, masses, type=(1 if inverse_mass_matrix else 3))
-        if normalize:
-            normalization = np.broadcast_to(1/np.linalg.norm(modes, axis=0), modes.shape)
-            modes = modes * normalization
+        t = (1 if inverse_mass_matrix else 2)
+        freqs, modes = slag.eigh(fcs, masses, type=t)
+        if t == 2:
+            modes = modes * np.sqrt(freqs)[np.newaxis, :]
+            inv = np.linalg.inv(modes)
+        else:
+            inv = (modes.T / np.sqrt(freqs)[:, np.newaxis])
+            modes = np.linalg.inv(inv)
+        # if normalize:
+        #     normalization = np.broadcast_to(1/np.linalg.norm(modes, axis=0), modes.shape)
+        #     modes = modes * normalization
 
         freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
         sorting = np.argsort(freqs)
@@ -587,7 +594,7 @@ class MolecularNormalModes(CoordinateSystem):
         freqs = freqs[sorting]
         modes = modes[:, sorting]
 
-        return cls(molecule, modes, freqs = freqs, **opts)
+        return cls(molecule, modes, inverse=inv, freqs = freqs, **opts)
 
     def __getitem__(self, item):
         """

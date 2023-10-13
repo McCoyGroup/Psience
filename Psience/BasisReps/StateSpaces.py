@@ -765,7 +765,8 @@ class BasisStateSpace(AbstractStateSpace):
                 self._sorted = (self.indexer == np.arange(len(self.indexer))).all()
         return self._sorted
 
-    def take_unique(self, sort=False,
+    def take_unique(self,
+                    sort=False,
                     track_excitations=True,
                     track_indices=True
                     ):
@@ -1316,12 +1317,12 @@ class BasisStateSpace(AbstractStateSpace):
 
         if (not track_excitations) or sort or (
                 track_indices and (
-                (self.has_indices and other.has_indices) or (
-                self.has_indices
-                and not (self.has_excitations and other.has_excitations)
-                and len(self) > len(other)
+                    (self.has_indices and other.has_indices) or (
+                    self.has_indices
+                    and not (self.has_excitations and other.has_excitations)
+                    and len(self) > len(other)
+                    )
                 )
-        )
         ):  # no need to be wasteful and recalc stuff, right?
             # create merge based on indices and then
             # secondarily based on excitations if possible
@@ -1344,7 +1345,15 @@ class BasisStateSpace(AbstractStateSpace):
             if len(uinds) == len(self.unique_indices):
                 return self.take_unique(sort=sort)
             elif len(uinds) == len(other.unique_indices):
-                return other.take_unique(sort=sort)
+                if sort:
+                    return other.take_unique(sort=True)
+                else:
+                    # maintaining sorting is a pain...
+                    #TODO: optimize this so I'm not merging a bunch...
+                    base = other.take_unique(sort=False)
+                    initial = self.take_unique(sort=False)
+                    diff = base.difference(initial, sort=False)
+                    return initial.union(diff, sort=False)
             else:
                 if not sort:
                     sorting = nput.argsort(uinds)
@@ -2245,6 +2254,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             raise ValueError("index space {} contains duplicate elements")
         self._base_space = init_space
         self.sel_rules = selection_rules
+        if changes is not None and not ignore_shapes and len(init_space) != len(changes):
+            raise ValueError("index space {} doesn't work with changes {}".format(init_space, excitations))
         self.changes = changes
         # if changes is not None:
         #     raise Exception(...)
@@ -3116,6 +3127,18 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
 
         return vals
 
+    def generate_change_indices(self):
+        changes = []
+        for base_exc, space in zip(self.representative_space.excitations, self.spaces):
+            new_exc = space.excitations
+            if len(new_exc) == 0:
+                changes.append(np.array([], dtype=int))
+                continue
+            mask = new_exc != base_exc[np.newaxis]
+            idx = SymmetricGroupGenerator._compute_changed_index_numbers(mask) #TODO: keep this from breaking...
+            changes.append(idx)
+        self.changes = changes
+
     def union(self,
               other,
               handle_subspaces=True,
@@ -3184,16 +3207,16 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                                       )
             where_inds = np.sort(where_inds)
 
-        c1 = self.changes
-        c2 = other.changes
-        if c1 is None and c2 is not None or c2 is None and c1 is not None:
+        self_changes = self.changes
+        other_changes = other.changes
+        if self_changes is None and other_changes is not None or other_changes is None and self_changes is not None:
             raise Exception("selection rule space with tracked changes and without can't be merged")
-
 
         new_rep = self.representative_space.union(
             other.representative_space,
             track_excitations=track_excitations,
-            track_indices=track_indices
+            track_indices=track_indices,
+            sort=False
         )#, union_sorting=union_sorting)
         new_spaces = np.concatenate(
             [
@@ -3202,8 +3225,8 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             ],
             axis=0
         )
-        if c1 is not None:
-            changes = c1 + [c2[w] for w in where_inds]
+        if self_changes is not None:
+            changes = self_changes + [other_changes[w] for w in where_inds]
         else:
             changes = None
         if len(new_rep) != len(new_spaces):
@@ -3227,42 +3250,57 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
                     union_sorting=union_sorting
                 )
             for i_new, i_old in zip(self_inc_inds, other_inc_inds):
-                if changes is not None: #TODO: be careful about sorting
-                    ospace = other[i_old]
-                    sspace = self[i_new]
-                    if excitation_mode:
-                        ote = ospace.excitations
-                        ste = sspace.excitations
-                        other_exclusions, subsortings, subunion_sorting = nput.difference(
-                            ote, ste
-                            # sortings=(other.representative_space._exc_indexer, self.representative_space._exc_indexer)
-                        )
-                        ospace._exc_indexer, sspace._exc_indexer = subsortings
-                        where_inds, _ = nput.find(ote, other_exclusions,
-                                                  sorting=ospace._exc_indexer
-                                                  )
-                    else:
-                        oti = ospace.indices
-                        sti = sspace.indices
-                        other_exclusions, subsortings, subunion_sorting = nput.difference(
-                            oti, sti
-                            # sortings=(other.representative_space._exc_indexer, self.representative_space._exc_indexer)
-                        )
-                        ospace._indexer, sspace._indexer = subsortings
-                        where_inds, _ = nput.find(oti, other_exclusions,
-                                                  sorting=ospace._indexer
-                                                  )
-                    if len(where_inds) > 0:
-                        where_inds = np.sort(where_inds)
-                        changes[i_new] = np.concatenate([changes[i_new], *[c2[w] for w in where_inds]], axis=0)
-                        # changes[i_new] = np.concatenate([changes[i_new], c2[where_inds]])
-                    # print(" >", changes[i_new])
+                if len(other[i_old]) > 0:
+                    if changes is not None: #TODO: be careful about sorting
+                        ospace = other[i_old]
+                        sspace = self[i_new]
+                        ochanges = other_changes[i_old]
+                        if excitation_mode:
+                            ote = ospace.excitations
+                            ste = sspace.excitations
+                            other_exclusions, subsortings, subunion_sorting = nput.difference(
+                                ote, ste
+                                # sortings=(other.representative_space._exc_indexer, self.representative_space._exc_indexer)
+                            )
+                            ospace._exc_indexer, sspace._exc_indexer = subsortings
+                            merge_changes_inds, _ = nput.find(ote, other_exclusions,
+                                                      sorting=ospace._exc_indexer
+                                                      )
+                        else: # find positions of elements in "other" indices that aren't in self
+                            oti = ospace.indices
+                            sti = sspace.indices
+                            other_exclusions, subsortings, subunion_sorting = nput.difference(
+                                oti, sti
+                                # sortings=(other.representative_space._exc_indexer, self.representative_space._exc_indexer)
+                            )
+                            ospace._indexer, sspace._indexer = subsortings
+                            merge_changes_inds, _ = nput.find(oti, other_exclusions, sorting=ospace._indexer)
+                        if len(merge_changes_inds) > 0:
+                            merge_changes_inds = np.sort(merge_changes_inds)
+                            # try:
+                            merged_other_changes = ochanges[merge_changes_inds]
+                            # except:
+                            #     raise Exception(
+                            #         "other_changes len {} not good for {}".format(len(ochanges), merge_changes_inds)
+                            #     )
+                            # try:
+                            changes[i_new] = np.concatenate([changes[i_new], merged_other_changes], axis=0)
+                            # except:
+                            #     changes[i_new]
+                            #     # print("-"*50)
+                            #     # print(merged_other_changes)
+                            #     raise ValueError(
+                            #         len(ochanges),
+                            #         merge_changes_inds
+                            #     )
+                            # changes[i_new] = np.concatenate([changes[i_new], c2[where_inds]])
+                        # print(" >", changes[i_new])
 
-                new_spaces[i_new] = new_spaces[i_new].union(
-                    other[i_old],
-                    track_indices=track_indices,
-                    track_excitations=track_excitations
-                )
+                    new_spaces[i_new] = new_spaces[i_new].union(
+                        other[i_old],
+                        track_indices=track_indices,
+                        track_excitations=track_excitations
+                    )
 
         return type(self)(new_rep, new_spaces, changes=changes)
 

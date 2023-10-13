@@ -1,11 +1,11 @@
 import numpy as np, scipy as sp, itertools, functools
 
-from McUtils.Zachary import RBFDInterpolator, DensePolynomial
+from McUtils.Zachary import RBFDInterpolator, DensePolynomial, TensorDerivativeConverter
 from McUtils.Scaffolding import Logger
 from McUtils.Data import AtomData, UnitsData
 import McUtils.Numputils as nput
 
-__all__ =  [
+__all__ = [
     "DGB"
 ]
 
@@ -651,10 +651,10 @@ class DGB:
             tfs = transformations[0][:, :, inds]
             inv = transformations[1][:, inds, :]
             diag_covs = diag_covs[:, :, inds][:, inds, :]
-            covs = tfs @ diag_covs @ inv
+            covs = tfs @ diag_covs @ tfs.transpose(0, 2, 1)
         else:
             tfs, inv = transformations
-            covs = tfs @ diag_covs @ inv
+            covs = tfs @ diag_covs @ tfs.transpose((0, 2, 1))
 
         # if self.inds is not None:
         #     complement = np.setdiff1d(np.arange(self.centers.shape[-1]), self.inds)
@@ -784,7 +784,7 @@ class DGB:
                     i[np.newaxis, :]
                 )
                 d[diag_inds] = 1/new_alphas[:, i]
-                new_inv = new_rots @ d @ new_rots_inv
+                new_inv = new_rots @ d @ new_rots.transpose(0, 2, 1)
             else:
                 # I _could_ construct the inverse from the alphas and rotations
                 # but I think it makes more sense to use a potentially more stable
@@ -1734,31 +1734,10 @@ class DGB:
         planar = coord_shape is not None and coord_shape[-1] == 2
 
         npts = centers.shape[0]
-        if planar:
-            tf = np.array([
-                [1, -1, 0,  0],  # 0,  0],
-                [0,  0, 1, -1],  # 0,  0],
-                # [0,  0, 0,  0, 1, -1],
-                [1,  1, 0,  0],  # 0,  0],
-                [0,  0, 1,  1],  # 0,  0],
-                # [0,  0, 0,  0, 1,  1]
-            ]) / np.sqrt(2)
-            centers = centers.reshape(npts, -1, 2)
-            alphas = alphas.reshape(npts, -1, 2)
-        else:
-            tf = np.array([
-                [1, -1, 0,  0, 0,  0],
-                [0,  0, 1, -1, 0,  0],
-                [0,  0, 0,  0, 1, -1],
-                [1,  1, 0,  0, 0,  0],
-                [0,  0, 1,  1, 0,  0],
-                [0,  0, 0,  0, 1,  1]
-            ]) / np.sqrt(2)
-            centers = centers.reshape(npts, -1, 3)
-            alphas = alphas.reshape(npts, -1, 3)
-        tf = tf[np.newaxis]
-        ndim = tf.shape[-1]
+        ndim = 2 if planar else 3
         sdim = ndim // 2
+        centers = centers.reshape(npts, -1, ndim)
+        alphas = alphas.reshape(npts, -1, ndim)
 
         potential_contrib = 0
         if expansion_degree is not None:
@@ -1771,8 +1750,38 @@ class DGB:
         else:
             derivative_contribs = [0]
         for index_pair, f in functions.items():
-            subcenters = centers[:, index_pair, :].reshape(-1, ndim)
-            subalphas = alphas[:, index_pair, :].reshape(-1, ndim)
+            subcenters = centers[:, index_pair, :].reshape(npts, 2, ndim)
+            subalphas = alphas[:, index_pair, :].reshape(npts, 2, ndim)
+
+            if planar:
+                tf = np.array([
+                    [1, 0, -1, 0],  # 0,  0],
+                    [0, 1,  0, -1],  # 0,  0],
+                    # [0,  0, 0,  0, 1, -1],
+                    [1, 0, 1, 0],  # 0,  0],
+                    [0, 1, 0, 1],  # 0,  0],
+                    # [0,  0, 0,  0, 1,  1]
+                ]) #/ np.sqrt(2)
+                tf = np.broadcast_to(tf[np.newaxis], (npts, 4, 4))
+                tf[:, 2, 2] = subalphas[:, 0, 0] / subalphas[:, 1, 0]
+                tf[:, 3, 3] = subalphas[:, 0, 1] / subalphas[:, 1, 1]
+            else:
+                tf = np.array([
+                    [1, 0, 0, -1, 0, 0],
+                    [0, 1, 0,  0, -1, 0],
+                    [0, 0, 1,  0, 0, -1],
+                    [1, 0, 0,  1, 0, 0],
+                    [0, 1, 0,  0, 1, 0],
+                    [0, 0, 1,  0, 0, 1]
+                ]) #/ np.sqrt(2)
+                tf = np.broadcast_to(tf[np.newaxis], (npts, 6, 6))
+                tf[:, 3, 3] = subalphas[:, 0, 0] / subalphas[:, 1, 0]
+                tf[:, 4, 4] = subalphas[:, 0, 1] / subalphas[:, 1, 1]
+                tf[:, 5, 5] = subalphas[:, 0, 2] / subalphas[:, 1, 2]
+
+            subcenters = centers[:, index_pair, :].reshape(npts, 2 * ndim)
+            subalphas = alphas[:, index_pair, :].reshape(npts, 2 * ndim)
+
             subcov = np.zeros((subalphas.shape[0], ndim, ndim))
             # fill diagonals across subcov
             diag_inds = (slice(None, None, None),) + np.diag_indices(ndim)
@@ -1788,7 +1797,7 @@ class DGB:
             ) * (
                     np.sqrt(np.pi) ** sdim /
                         np.prod(np.sqrt(tf_alphas[:, sdim:]), axis=-1)
-            )
+            ) #TODO: do I need to multiply by determinant????
             potential_contrib += pairwise_contrib
             if expansion_degree is not None:
                 # need to map index_pair (which correspond to 4 or 6 inds) to the
@@ -1813,6 +1822,41 @@ class DGB:
                 derivative_contribs[0] += f(tf_centers[:, :sdim])
 
         return potential_contrib, derivative_contribs
+
+    class PairwisePotentialFunction:
+        """
+        A wrapper for a base function with derivatives that allows it to be evaluate
+        """
+
+        def __init__(self, pot_fun):
+            self.pot = pot_fun
+        def eval(self, delta_values, deriv_order=None):
+            """
+            We assume the delta_values can be used to directly construct the distances by taking their norms squared
+
+            :param delta_values:
+            :return:
+            """
+
+            if deriv_order > 2:
+                raise NotImplementedError("need to use FD on the second derivs...")
+            r_derivs = nput.vec_norm_derivs(delta_values, order=deriv_order)
+            r_vals = r_derivs[0]
+            r_derivs = r_derivs[1:]
+            fun_derivs = self.pot(r_vals, deriv_order=deriv_order)
+            # need to do tensor derivative conversion on fun_derivs
+            fun_vals = fun_derivs[0]
+            fun_derivs = fun_derivs[1:]
+
+            fun_derivs = TensorDerivativeConverter(r_derivs, fun_derivs).convert()
+
+            return fun_vals, fun_derivs
+
+    class PairwiseMorsePotential:
+        def __init__(self, re, alpha, de):
+            self.pot = ... #TODO: load from data source
+
+
 
     # def wrap_pairwise_distance_function(self, ...):
     #     """

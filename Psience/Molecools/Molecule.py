@@ -168,6 +168,25 @@ class Molecule(AbstractMolecule):
     @potential_derivatives.setter
     def potential_derivatives(self, derivs):
         self.potential_surface.derivatives = derivs
+
+    def get_internal_potential_derivatives(self, order=None):
+        if self.potential_derivatives is None:
+            raise ValueError("no potential derivatives")
+        if order is None:
+            order = len(self.potential_derivatives)
+        derivs = self.potential_surface.apply_transformation(
+            self.get_cartesians_by_internals(order)
+        ).derivatives
+        ecs = self._get_embedding_coords()
+        comp_coords = np.setdiff1d(np.arange(derivs[0].shape[0]), ecs)
+        _ = []
+        for d in derivs:
+            for i in range(d.ndim):
+                d = np.take(d, comp_coords, axis=i)
+            _.append(d)
+        derivs = _
+        return derivs
+
     @property
     def normal_modes(self):
         """
