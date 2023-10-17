@@ -118,6 +118,21 @@ class LocalTests(TestCase):
 
             f, g, u, ui = ortho.run()
 
+            s, l = np.linalg.eigh(f)
+            print(s)
+            print(l)
+            print(ortho.rotation)
+            print(ui)
+            print("-"*20)
+            H = ortho.modes @ ortho.modes.T
+            sh, qh = np.linalg.eigh(H)
+            P = qh @ np.diag(np.sqrt(sh)) @ qh.T
+            print(P)
+            s, l = np.linalg.eigh(P@ortho.f@P)
+            print(s)
+            print(l)
+
+
             # print("-"*50)
             # print(u)
             #
@@ -237,7 +252,6 @@ class LocalTests(TestCase):
             # print(
             #     format_mat('G_scaled', g_test * UnitsData.convert("Hartrees", "Wavenumbers"), label='G_ochh')
             # )
-
 
     @validationTest
     def test_HOONO(self):
@@ -371,11 +385,6 @@ class LocalTests(TestCase):
 
         self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
 
-        mol = Molecule.from_file(
-            TestManager.test_data('nh3.fchk'),
-            internals=internals
-        )
-
         iterative = False
         if iterative:
             ortho = BlockLocalFGOrthogonalizerIterative.from_molecule(mol, logger=True)
@@ -445,7 +454,7 @@ class LocalTests(TestCase):
 
             from McUtils.Misc import TeX
 
-            def format_mat(lhs, m, label=None, digits=2):
+            def format_mat(lhs, m, label=None, digits=1):
                 f_og = m.astype(object)
                 f_og[np.tril_indices_from(f_og, -1)] = ""
                 fsym = TeX.bold(lhs).as_expr()
@@ -455,18 +464,22 @@ class LocalTests(TestCase):
 
             sys = 'nh3_nosymm'
             print(
-                format_mat('f', ortho.f * UnitsData.convert("Hartrees", "Wavenumbers"), label='f_' + sys)
+                format_mat('F', ortho.f * UnitsData.convert("Hartrees", "Wavenumbers"), label='f_' + sys)
             )
             print(
-                format_mat('g', ortho.g * UnitsData.convert("Hartrees", "Wavenumbers"), label='g_' + sys)
+                format_mat('G', ortho.g * UnitsData.convert("Hartrees", "Wavenumbers"), label='g_' + sys)
             )
             print(
                 format_mat('F', f * UnitsData.convert("Hartrees", "Wavenumbers"), label='F_' + sys)
             )
             print(
-                format_mat('P', u, label='P_' + sys, digits=3)
+                format_mat('A', u, label='P_' + sys, digits=3)
             )
 
+            mol = Molecule.from_file(
+                TestManager.test_data('nh3.fchk'),
+                internals=internals
+            )
 
             ortho = BlockLocalFGOrthogonalizer.from_molecule(mol, sel=[0, 1, 3, 2, 4, 5])
             f, g, u, ui = ortho.run()
@@ -480,7 +493,7 @@ class LocalTests(TestCase):
 
             from McUtils.Misc import TeX
 
-            def format_mat(lhs, m, label=None, digits=2):
+            def format_mat(lhs, m, label=None, digits=1):
                 f_og = m.astype(object)
                 f_og[np.tril_indices_from(f_og, -1)] = ""
                 fsym = TeX.bold(lhs).as_expr()
@@ -491,16 +504,16 @@ class LocalTests(TestCase):
             print("="*50)
             sys = 'nh3_symm'
             print(
-                format_mat('f', ortho.f * UnitsData.convert("Hartrees", "Wavenumbers"), label='f_' + sys)
+                format_mat('F', ortho.f * UnitsData.convert("Hartrees", "Wavenumbers"), label='f_' + sys)
             )
             print(
-                format_mat('g', ortho.g * UnitsData.convert("Hartrees", "Wavenumbers"), label='g_' + sys)
+                format_mat('G', ortho.g * UnitsData.convert("Hartrees", "Wavenumbers"), label='g_' + sys)
             )
             print(
-                format_mat('F', f * UnitsData.convert("Hartrees", "Wavenumbers"), label='F_' + sys)
+                format_mat("F", f * UnitsData.convert("Hartrees", "Wavenumbers"), label='F_' + sys)
             )
             print(
-                format_mat('P', u, label='P_' + sys, digits=3)
+                format_mat('A', u, label='P_' + sys, digits=3)
             )
 
     @debugTest
@@ -538,6 +551,18 @@ class LocalTests(TestCase):
             TestManager.test_data('water_dimer_freq.fchk'),
             internals=internals
         )
+
+        ics = dimer.internal_coordinates * np.array([
+            UnitsData.convert("BohrRadius", "Angstroms"),
+            180/np.pi,
+            180/np.pi
+        ])[np.newaxis]
+        ics = ics.flatten()
+        bad_coords = dimer._get_embedding_coords()
+        good_coords = np.setdiff1d(np.arange(len(ics)), bad_coords)
+        ics_1 = ics[good_coords][sel]
+
+
         pd = dimer.potential_derivatives
         dimer.potential_derivatives = [
             np.zeros_like(pd[0]),
@@ -721,6 +746,29 @@ class LocalTests(TestCase):
                 TestManager.test_data('water_dimer_freq.fchk'),
                 internals=internals
             )
+
+            ics = dimer.internal_coordinates * np.array([
+                UnitsData.convert("BohrRadius", "Angstroms"),
+                180 / np.pi,
+                180 / np.pi
+            ])[np.newaxis]
+            ics = ics.flatten()
+            bad_coords = dimer._get_embedding_coords()
+            good_coords = np.setdiff1d(np.arange(len(ics)), bad_coords)
+            ics_2 = ics[good_coords][sel]
+
+            TeX.Writer.real_digits = 3
+            raise Exception(
+                TeX.Array(
+                np.array(
+                    [
+                        np.concatenate([ics_1, ics_2]),
+                        np.concatenate([ics_1, ics_2])
+                        ]
+                ).T
+            ).format_tex()
+            )
+
             pd = dimer.potential_derivatives
             dimer.potential_derivatives = [
                 np.zeros_like(pd[0]),

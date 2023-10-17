@@ -43,6 +43,7 @@ class BlockLocalFGOrthogonalizer:
         # with np.printoptions(linewidth=1e8, suppress=True):
         #     print(np.round(r, 8))
 
+        self.modes = modes
         self.rotation = R
         self.scaling = modes @ R.T # wow...
 

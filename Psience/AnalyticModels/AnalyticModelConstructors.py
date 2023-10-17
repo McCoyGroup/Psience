@@ -545,7 +545,7 @@ class AnalyticModel:
             self.lam = core
             self.ndim = ndim
         def _broadcast_tree(self, shape, expr_list):
-            if not isinstance(expr_list, (np.ndarray,) + AnalyticModelBase.numeric_types):
+            if not isinstance(expr_list, (np.ndarray,) + AnalyticModelBase.get_numeric_types()):
                 return [self._broadcast_tree(shape, l) for l in expr_list]
             elif isinstance(expr_list, np.ndarray):
                 return expr_list
@@ -556,7 +556,7 @@ class AnalyticModel:
             vals = core(*grid)
             # broadcast appropriately
             if not isinstance(vals, np.ndarray):
-                if isinstance(vals, AnalyticModelBase.numeric_types):
+                if isinstance(vals, AnalyticModelBase.get_numeric_types()):
                     vals = np.full(grid.shape[1:], vals)
                 else:
                     vals = np.array(self._broadcast_tree(grid.shape[1:], vals))
@@ -578,7 +578,7 @@ class AnalyticModel:
             grid = np.asanyarray(grid)
             if grid.ndim == 1:
                 vals = core(*grid)
-                if not isinstance(vals, AnalyticModelBase.numeric_types):
+                if not isinstance(vals, AnalyticModelBase.get_numeric_types()):
                     vals = np.array(vals)
                 return vals
 
@@ -626,7 +626,7 @@ class AnalyticModel:
     def wrap_function(self, expr, transform_coordinates=True, mode=None):
         coord_vec = self.coords
         ndim = len(coord_vec)
-        if isinstance(expr, AnalyticModelBase.numeric_types):
+        if isinstance(expr, AnalyticModelBase.get_numeric_types()):
             if isinstance(expr, np.ndarray):
                 val = expr
             else:

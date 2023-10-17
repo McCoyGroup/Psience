@@ -126,8 +126,20 @@ class DGB:
                 coord_shape = (len(atoms), centers.shape[-1] // len(atoms))
             else:
                 coord_shape = (centers.shape[-1],)
-        self.coord_shape = coord_shape
         self.inds = projection_indices
+        if self.inds is not None:
+            if len(coord_shape) == 2 and len(self.inds) % coord_shape[0] == 0:
+                # we check if we're just subsampling the x/y/z coords of each structure
+                mod_inds = np.asanyarray(self.inds) % coord_shape[1]
+                mod_inds = mod_inds.reshape(coord_shape[0], -1)
+                if len(np.unique(mod_inds, axis=0)) == 1:
+                    coord_shape = mod_inds.shape
+                else:
+                    # just took some sample of the initial inds...
+                    coord_shape = (len(self.inds),)
+            else:
+                coord_shape = (len(self.inds),)
+        self.coord_shape = coord_shape
         self.mass_weighted = mass_weighted
         # print("MAsSES:", masses)
 
@@ -680,8 +692,16 @@ class DGB:
             new_alphas = alphas[rows] + alphas[cols]
             w_centers = alphas*centers
             # moving weighted average by alpha value
-            overlap_data = (w_centers[rows] + w_centers[cols])/new_alphas, new_alphas
+            new_centers = (w_centers[rows] + w_centers[cols])/new_alphas
+            # scaling factors to pull out
+            # prefactors = (2 * np.prod(new_alphas, axis=-1) / np.pi)**(1/4) * np.exp(np.sum(
+            #     -new_alphas*( (w_centers[rows] - w_centers[cols])**2 ),
+            #     axis=-1
+            # ))
+            # print(prefactors)
+            overlap_data = new_centers, new_alphas#, prefactors
         else:
+            raise NotImplementedError("forgot prefactors...")
             # if self.inds is not None:
             #     centers = centers[:, self.inds]
 
@@ -1430,7 +1450,7 @@ class DGB:
         """
 
         if self.transformations is not None:
-            raise NotImplementedError("quadrature in rotated basis not implemented yet")
+            raise NotImplementedError("quadraturfe in rotated basis not implemented yet")
 
         # TODO: add in ability to do quadrature along ellipsoid axes
         # disps, weights = np.polynomial.hermite.hermgauss(degree)
@@ -1439,7 +1459,6 @@ class DGB:
         npts = len(self.alphas)
         pots = np.zeros((npts, npts))
         rows, cols = np.triu_indices(npts)
-        #
         vals = self.quad_nd(centers, alphas, function, degree=degree, normalize=False)
         pots[rows, cols] = vals
         pots[cols, rows] = vals
@@ -1456,7 +1475,7 @@ class DGB:
         # pots[cols, rows] = pots[rows, cols]
         # raise Exception(pots[0, 0]/pots2[0, 0])
 
-        normalization = 1 / (np.sqrt(np.pi)) ** self.centers.shape[-1]
+        normalization = 1 / (np.sqrt(np.pi)) ** centers.shape[-1] # part of the prefactor...
         pots *= normalization
 
         return pots
@@ -1630,10 +1649,11 @@ class DGB:
 
         return pot
 
-    def expansion_integrate(self, function, deriv_order=2,
+    def expansion_integrate(self, function,
+                            deriv_order=2,
                             expansion_type=None,
                             pairwise_functions=None,
-                            pairwise_quadrature_degree=None
+                            pairwise_quadrature_degree=3
                             ):
         if expansion_type is None:
             expansion_type = self.expansion_type
@@ -1658,6 +1678,9 @@ class DGB:
                 quadrature_degree=pairwise_quadrature_degree,
                 expansion_degree=deriv_order
             )
+        else:
+            pot_contribs = None
+            deriv_corrs = None
 
         if expansion_type == 'taylor':
             self.logger.log_print("expanding as a Taylor series about the minumum energy geometry...")
@@ -1688,9 +1711,26 @@ class DGB:
                         function(centers, deriv_order=d) for d in range(1, deriv_order+1)
                     ]
 
+        if deriv_corrs is not None:
+            _ = []
+            for i,(d1,d2) in enumerate(zip(derivs, deriv_corrs)):
+                if i == 0 or self.inds is None:
+                    _.append(d1 - d2)
+                else:
+                    d1 = d1.copy()
+                    idx = (slice(None, None, None),)+ np.ix_(*[self.inds,] * i)
+                    # print("="*50)
+                    # print(d1[idx][0])
+                    # print("-"*50)
+                    # print(d2[0])
+                    d1[idx] -= d2
+                    _.append(d1)
 
+            derivs = _
+
+        npts = len(self.centers)
         pot = self.tensor_expansion_integrate(
-            len(self.centers),
+            npts,
             derivs,
             centers,
             alphas,
@@ -1699,6 +1739,20 @@ class DGB:
             expansion_type=expansion_type,
             logger=self.logger
         )
+
+        # if prefactors is not None:
+        #     row_inds, col_inds = np.triu_indices(npts)
+        #     pref = np.zeros((npts, npts))
+        #     pref[row_inds, col_inds] = prefactors
+        #     pref[col_inds, row_inds] = prefactors
+        #     pot *= pref
+
+        if pot_contribs is not None: # implies no rotation
+            row_inds, col_inds = np.triu_indices(npts)
+            pot2 = np.zeros((npts, npts))
+            pot2[row_inds, col_inds] = pot_contribs
+            pot2[col_inds, row_inds] = pot_contribs
+            pot += pot2
 
         return pot
 
@@ -1712,6 +1766,24 @@ class DGB:
             alphas
         )
 
+    def _wrap_pairwise(self, func):
+        def eval(coords, deriv_order=None):
+            if deriv_order is None:
+                r = np.linalg.norm(coords, axis=-1) # we ensure no scaling of difference coords
+                r_derivs = None
+            else:
+                r_derivs = nput.vec_norm_derivs(coords, order=deriv_order)
+                r, r_derivs = r_derivs[0], r_derivs[1:]
+            fdat = func(r, deriv_order=deriv_order)
+            if r_derivs is not None:
+                f_vals = fdat[0]
+                r_derivs = [r[..., np.newaxis] for r in r_derivs]
+                f_derivs = [fdat[i].reshape(f_vals.shape + (1,)*i) for i in range(1, deriv_order+1)]
+                f_derivs = list(TensorDerivativeConverter(r_derivs, f_derivs).convert())
+                fdat = [f_vals] + f_derivs
+            return fdat
+
+        return eval
     def integrate_pairwise_potential_contrib(self,
                                              functions,
                                              centers,
@@ -1731,95 +1803,156 @@ class DGB:
         if coord_shape is not None and len(coord_shape) == 1:
             raise ValueError("can't determine if coords are planar or not")
 
-        planar = coord_shape is not None and coord_shape[-1] == 2
+        if coord_shape is None:
+            raise NotImplementedError("coord shape inference not implemented for pairwise potentials")
+        else:
+            ndim = coord_shape[1]
 
         npts = centers.shape[0]
-        ndim = 2 if planar else 3
-        sdim = ndim // 2
+        fdim = centers.shape[1]
         centers = centers.reshape(npts, -1, ndim)
         alphas = alphas.reshape(npts, -1, ndim)
 
         potential_contrib = 0
         if expansion_degree is not None:
             derivative_contribs = [
-                np.zeros((npts,) + (centers.shape[-1],)*i)
+                np.zeros((npts,) + (fdim,)*i)
                     if i > 0 else
-                0
+                np.zeros((npts,))
                 for i in range(expansion_degree+1)
             ]
         else:
-            derivative_contribs = [0]
-        for index_pair, f in functions.items():
-            subcenters = centers[:, index_pair, :].reshape(npts, 2, ndim)
+            derivative_contribs = [np.zeros((npts,))]
+        for index_pair, pairwise_func in functions.items():
+            f = self._wrap_pairwise(pairwise_func)
+            subcenters = centers[:, index_pair, :].reshape(npts, 2*ndim)
             subalphas = alphas[:, index_pair, :].reshape(npts, 2, ndim)
 
-            if planar:
-                tf = np.array([
-                    [1, 0, -1, 0],  # 0,  0],
-                    [0, 1,  0, -1],  # 0,  0],
-                    # [0,  0, 0,  0, 1, -1],
-                    [1, 0, 1, 0],  # 0,  0],
-                    [0, 1, 0, 1],  # 0,  0],
-                    # [0,  0, 0,  0, 1,  1]
-                ]) #/ np.sqrt(2)
-                tf = np.broadcast_to(tf[np.newaxis], (npts, 4, 4))
-                tf[:, 2, 2] = subalphas[:, 0, 0] / subalphas[:, 1, 0]
-                tf[:, 3, 3] = subalphas[:, 0, 1] / subalphas[:, 1, 1]
-            else:
-                tf = np.array([
-                    [1, 0, 0, -1, 0, 0],
-                    [0, 1, 0,  0, -1, 0],
-                    [0, 0, 1,  0, 0, -1],
-                    [1, 0, 0,  1, 0, 0],
-                    [0, 1, 0,  0, 1, 0],
-                    [0, 0, 1,  0, 0, 1]
-                ]) #/ np.sqrt(2)
-                tf = np.broadcast_to(tf[np.newaxis], (npts, 6, 6))
-                tf[:, 3, 3] = subalphas[:, 0, 0] / subalphas[:, 1, 0]
-                tf[:, 4, 4] = subalphas[:, 0, 1] / subalphas[:, 1, 1]
-                tf[:, 5, 5] = subalphas[:, 0, 2] / subalphas[:, 1, 2]
+            # if ndim == 1:
+            #     tf = np.array([
+            #         [1, -1],
+            #         [1,  1]
+            #     ]) # / np.sqrt(2)
+            #     tf = np.broadcast_to(tf[np.newaxis], (npts, 2, 2)).copy()
+            #     tf[:, 1, 1] = subalphas[:, 0, 0] / subalphas[:, 1, 0]
+            # elif ndim == 2:
+            #     tf = np.array([
+            #         [1, 0, -1,  0],
+            #         [0, 1,  0, -1],
+            #         [1, 0,  1,  0],
+            #         [0, 1,  0,  1]
+            #     ]) #/ np.sqrt(2)
+            #     tf = np.broadcast_to(tf[np.newaxis], (npts, 4, 4)).copy()
+            #     tf[:, 2, 2] = subalphas[:, 0, 0] / subalphas[:, 1, 0]
+            #     tf[:, 3, 3] = subalphas[:, 0, 1] / subalphas[:, 1, 1]
+            # elif ndim == 3:
+            #     tf = np.array([
+            #         [1, 0, 0, -1,  0,  0],
+            #         [0, 1, 0,  0, -1,  0],
+            #         [0, 0, 1,  0,  0, -1],
+            #         [1, 0, 0,  1,  0,  0],
+            #         [0, 1, 0,  0,  1,  0],
+            #         [0, 0, 1,  0,  0,  1]
+            #     ]) #/ np.sqrt(2)
+            #     tf = np.broadcast_to(tf[np.newaxis], (npts, 6, 6)).copy()
+            #     tf[:, 3, 3] = subalphas[:, 0, 0] / subalphas[:, 1, 0]
+            #     tf[:, 4, 4] = subalphas[:, 0, 1] / subalphas[:, 1, 1]
+            #     tf[:, 5, 5] = subalphas[:, 0, 2] / subalphas[:, 1, 2]
+            # else: # implements the above transformations for arbitary dims
 
-            subcenters = centers[:, index_pair, :].reshape(npts, 2 * ndim)
-            subalphas = alphas[:, index_pair, :].reshape(npts, 2 * ndim)
+            tf = np.eye(2*ndim)
+            off_diag_rows = np.arange(ndim)
+            off_diag_cols = ndim + off_diag_rows
+            tf[off_diag_rows, off_diag_cols] = -1
+            tf[off_diag_cols, off_diag_rows] =  1
+            tf = np.broadcast_to(tf[np.newaxis], (npts, 2*ndim, 2*ndim)).copy()
+            for i in range(ndim):
+                j = ndim + i
+                tf[:, j, j] = subalphas[:, 0, i] / subalphas[:, 1, i]
 
-            subcov = np.zeros((subalphas.shape[0], ndim, ndim))
+            # tf_inv = np.eye(2*ndim)
+            # tf_inv = np.broadcast_to(tf_inv[np.newaxis], (npts, 2 * ndim, 2 * ndim)).copy()
+            # for i in range(ndim):
+            #     j = ndim + i
+            #     a = 1 + subalphas[:, 0, i] / subalphas[:, 1, i]
+            #     tf_inv[:, i, i] = (a - 1) / a
+            #     tf_inv[:, j, j] =  1 / a
+            #     tf_inv[:, i, j] =  1 / a
+            #     tf_inv[:, j, i] = -1 / a
+            # tf_dets = np.linalg.det(tf)
+            # print(tf[0])
+            # print(tf_inv[0])
+            # print(tf_dets)
+
+            subcov = np.zeros((subalphas.shape[0], 2*ndim, 2*ndim))
             # fill diagonals across subcov
-            diag_inds = (slice(None, None, None),) + np.diag_indices(ndim)
-            subcov[diag_inds] = 2 * subalphas
-            tf_centers = subcenters[:, np.newaxis, :]@tf
-            tf_alphas = (tf@subcov@tf.T)[diag_inds] / 2
-            # a2 = np.diag(np.dot(np.dot(tf, np.diag(2 * gauss_alpha)), tf.T)) / 2
+            diag_inds = (slice(None, None, None),) + np.diag_indices(2*ndim)
+            subcov[diag_inds] = np.concatenate([subalphas[:, 0, :], subalphas[:, 1, :]], axis=1)
+            tf_centers = (subcenters[:, np.newaxis, :] @ tf.transpose(0, 2, 1) ).reshape(-1, 2*ndim)
+            tf_cov = tf@subcov@tf.transpose(0, 2, 1)
+            # print(tf_cov[0])
+            # print("...", tf_centers[:, 0])
+            tf_alphas = tf_cov[diag_inds] / 4 # account for sqrt of 2 I omitted
+            # print(tf_centers[:, :ndim])
             pairwise_contrib = self.quad_nd(
-                tf_centers[:, :sdim],
-                tf_alphas[:, :sdim],
+                tf_centers[:, :ndim],
+                tf_alphas[:, :ndim],
                 f,
-                degree=quadrature_degree
+                degree=18,
+                normalize=True
             ) * (
-                    np.sqrt(np.pi) ** sdim /
-                        np.prod(np.sqrt(tf_alphas[:, sdim:]), axis=-1)
-            ) #TODO: do I need to multiply by determinant????
-            potential_contrib += pairwise_contrib
+                np.prod(np.sqrt(np.pi / tf_alphas[:, ndim:]), axis=-1)
+            ) / 2
+
+            # now we scale by dgb prefactors
+            prefactor_scaling = np.power(
+                np.prod(subalphas.reshape(-1, 2*ndim), axis=-1),
+                1/2
+            ) * (1/np.pi)**ndim
+            # print(prefactor_scaling)
+            # print(
+            #     np.prod(subalphas.reshape(-1, 2*ndim), axis=-1)
+            # )
+
+            potential_contrib += prefactor_scaling * pairwise_contrib
+            # print(potential_contrib)
+            # raise Exception(potential_contrib)
+
+            # tf_inv = tf_inv * tf_dets[:, np.newaxis, np.newaxis]
             if expansion_degree is not None:
                 # need to map index_pair (which correspond to 4 or 6 inds) to the
                 # correct list of inds in full space
                 idx_pair_full_inds = sum(
-                    (tuple(range(sdim*x, sdim*(x+1))) for x in index_pair),
+                    (tuple(range(ndim*x, ndim*(x+1))) for x in index_pair),
                     ()
                 )
-                deriv_contrib = f(tf_centers[:, :sdim], deriv_order=expansion_degree)
-                for i,d in deriv_contrib:
+                tf_derivs_contribs = f(tf_centers[:, :ndim], deriv_order=expansion_degree)
+                for i,d in enumerate(tf_derivs_contribs):
                     if i == 0:
                         derivative_contribs[0] += d
                     else:
-                        subd_contrib = np.zeros((npts,) + (ndim,) * i)
-                        subd_inds = (slice(None, None, None),) + (slice(None, sdim, None),)*i
+                        subd_contrib = np.zeros((npts,) + (2*ndim,) * i)
+                        subd_inds = (slice(None, None, None),) + (slice(None, ndim, None),) * i # contrib[:, :ndim, :ndim, etc]
                         subd_contrib[subd_inds] = d
+                        # print(subd_contrib.shape, tf_inv.shape)
                         for j in range(i):
-                            subd_contrib = np.tensordot(subd_contrib, tf, axes=[j+1, 0])
-                        dc_inds = (slice(None, None, None),) + (idx_pair_full_inds,)*i
+                            # print(subd_contrib.shape[j+1], tf_inv.shape[1])
+                            subd_contrib = nput.vec_tensordot(subd_contrib, tf, shared=1, axes=[1, 1])
+                        dc_inds = (slice(None, None, None),) + np.ix_(*[idx_pair_full_inds,]*i)
+                        # print(dc_inds)
+                        # print(derivative_contribs[i].shape, derivative_contribs[i][dc_inds].shape)
+                        # print(subd_contrib.shape)
                         derivative_contribs[i][dc_inds] += subd_contrib
+                # raise Exception(...)
             else:
-                derivative_contribs[0] += f(tf_centers[:, :sdim])
+                derivative_contribs[0] += f(tf_centers[:, :ndim])
+
+        ## factor out prefactors from integrals
+        # normalization = 1 / (np.sqrt(np.pi)) ** ndim
+        # pairwise_contrib *= normalization
+        # "1.19662817"
+        # print("--->", pairwise_contrib[0], np.linalg.det(tf))
+        # raise Exception(potential_contrib[:2])
 
         return potential_contrib, derivative_contribs
 
@@ -1852,23 +1985,6 @@ class DGB:
 
             return fun_vals, fun_derivs
 
-    class PairwiseMorsePotential:
-        def __init__(self, re, alpha, de):
-            self.pot = ... #TODO: load from data source
-
-
-
-    # def wrap_pairwise_distance_function(self, ...):
-    #     """
-    #     Want to wrap have a way to wrap a function (with derivatives) that only
-    #     depends on the norm of a transformed set of those coordinates (which will be the distance between two atoms)
-    #     and have it return both the function value and, if requested, the derivatives evaluated at
-    #     those points
-    #
-    #     :return:
-    #     """
-    #     ...
-
     def evaluate_multiplicative_operator_base(self,
                                               function,
                                               handler=None,
@@ -1879,6 +1995,8 @@ class DGB:
                                               ):
         if expansion_degree is None:
             expansion_degree = self.expansion_degree
+        if pairwise_functions is None:
+            pairwise_functions = self.pairwise_potential_functions
 
         if handler is None:
             if isinstance(function, dict):
@@ -1926,6 +2044,10 @@ class DGB:
             quadrature_degree=quadrature_degree,
             pairwise_functions=pairwise_functions
         )
+
+        with np.printoptions(linewidth=1e8):
+            print(pot_mat)
+
         if self._scaling_S is None:
             _ = self.S
         S = self._scaling_S
@@ -1935,13 +2057,15 @@ class DGB:
 
     def get_V(self, potential_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None):
         self.logger.log_print("calculating potential matrix")
-        return self.evaluate_multiplicative_operator(
+        pot = self.evaluate_multiplicative_operator(
             self.potential_function,
             handler=potential_handler,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
             quadrature_degree=quadrature_degree
         )
+
+        return pot
 
     def get_orthogonal_transform(self, min_singular_value=None, subspace_size=None):
         if min_singular_value is None:

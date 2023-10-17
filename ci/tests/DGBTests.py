@@ -2549,7 +2549,10 @@ class DGBTests(TestCase):
                         ):
             return _morse(r, re=re, alpha=alpha, De=De, deriv_order=deriv_order)
 
-        raise Exception([x*219475 for x in morse_basic(re - .1, deriv_order=1)])
+        # raise Exception(
+        #     morse_basic(1.1, deriv_order=2)[2],
+        #     pot_derivs[2](np.array([[1.1]]))
+        # )
 
         pairwise_potential_functions = {
             (0, 1):morse_basic
@@ -2570,14 +2573,24 @@ class DGBTests(TestCase):
             + [AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 3
         )
 
-        r_vals = (coords.reshape(-1, 6)[:, 3] - coords.reshape(-1, 6)[:, 0])**2
+        r_vals = np.abs(coords.reshape(-1, 6)[:, 3] - coords.reshape(-1, 6)[:, 0])
         red_mass = 1/(1/mass_vec[0] + 1/mass_vec[3])
+        # ham_1D = DGB(
+        #     r_vals.view(np.ndarray),
+        #     r_pot_func,
+        #     alphas=50,
+        #     masses=[red_mass],
+        #     expansion_degree=2,
+        #     min_singular_value=1e-8,
+        #     logger=True
+        # )
+
         ham_1D = DGB(
             r_vals.view(np.ndarray),
             r_pot_func,
-            alphas=100,
+            alphas=10,
             masses=[red_mass],
-            expansion_degree=2,
+            quadrature_degree=3,
             min_singular_value=1e-8,
             logger=True
         )
@@ -2589,19 +2602,25 @@ class DGBTests(TestCase):
             # subspace_size=ssize,
             mode='classic'
         )
-        # raise Exception(
+        # print(
+        #     "1D Freqs:",
         #     wfns_1D.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
         # )
+        # raise Exception(...)
 
+        print(coords[1])
         ham = DGB(
             coords.view(np.ndarray),
             sub_cart_pot_func,
-            alphas=[[1600, 3, 3, 100, 3, 3]]*len(coords),
+            # alphas=[[1600, 1, 1, 100, 1, 1]]*len(coords),
+            alphas=[[16*100, 1, 1, 100, 1, 1]]*len(coords),
             # alphas={'method': 'virial'},
             # [
             #     [15, 3, 3, 15, 3, 3]
             #     ]*len(coords),#{'method': 'min_dist', 'scaling': 1/5},
-            expansion_degree=2,
+            # pairwise_potential_functions=pairwise_potential_functions,
+            # expansion_degree=2,
+            quadrature_degree=8,
             masses=mass_vec,
             min_singular_value=1e-8,
             logger=True,
