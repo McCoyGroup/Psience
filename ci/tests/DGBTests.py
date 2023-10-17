@@ -2386,6 +2386,7 @@ class DGBTests(TestCase):
         )
         mol = Molecule(
             base_water.atoms[:2],
+            # ['O', 'O'],
             base_water.coords[:2],
             internals=[[0, -1, -1, -1], [1, 0, -1, -1]]
         ).get_embedded_molecule(load_properties=False)
@@ -2569,8 +2570,8 @@ class DGBTests(TestCase):
         # raise Exception(coords)
 
         mass_vec = np.array(
-            [AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 3
-            + [AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 3
+            [mol.masses[0] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 3
+            + [mol.masses[1] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 3
         )
 
         r_vals = np.abs(coords.reshape(-1, 6)[:, 3] - coords.reshape(-1, 6)[:, 0])
@@ -2588,7 +2589,7 @@ class DGBTests(TestCase):
         ham_1D = DGB(
             r_vals.view(np.ndarray),
             r_pot_func,
-            alphas=10,
+            alphas=100,
             masses=[red_mass],
             quadrature_degree=3,
             min_singular_value=1e-8,
@@ -2613,7 +2614,7 @@ class DGBTests(TestCase):
             coords.view(np.ndarray),
             sub_cart_pot_func,
             # alphas=[[1600, 1, 1, 100, 1, 1]]*len(coords),
-            alphas=[[16*100, 1, 1, 100, 1, 1]]*len(coords),
+            alphas=[[500, 1, 1, 500, 1, 1]]*len(coords),
             # alphas={'method': 'virial'},
             # [
             #     [15, 3, 3, 15, 3, 3]
