@@ -557,6 +557,7 @@ class PerturbationTheorySolver:
                 Et = E0
             bad_vec = np.concatenate([Et, e_vec_full[zero_checks]])
             if len(zero_checks) > 10:
+                #TODO: add better message to specify which members of degenerate subspace
                 raise ValueError(
                     "degeneracies encountered: states {} and {} other states are degenerate (average energy: {} stddev: {})".format(
                         degenerate_subspace,
@@ -565,6 +566,7 @@ class PerturbationTheorySolver:
                         np.std(bad_vec)
                     ))
             else:
+                #TODO: add better message
                 raise ValueError(
                     "degeneracies encountered: states {} and {} are degenerate (average energy: {} stddev: {})".format(
                         self.flat_total_space.take_subspace(degenerate_subspace).excitations,

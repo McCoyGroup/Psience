@@ -25,6 +25,9 @@ from Psience.AIMD import AIMDSimulator
 import numpy as np
 
 class DGBTests(TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        np.set_printoptions(linewidth=int(1e8))
 
     @validationTest
     def test_Harmonic(self):
@@ -2436,7 +2439,6 @@ class DGBTests(TestCase):
         cart_pot_func = model.potential
         cart_dipole_func = model.dipole
 
-
         pot_derivs = model.v(order=4, evaluate='constants', lambdify=True)
         def r_pot_func(rs, deriv_order=None):
             if deriv_order is None:
@@ -2539,7 +2541,7 @@ class DGBTests(TestCase):
         a = np.sqrt(2 * anh / muv)
         re = model.vals[model.r(0, 1)]
 
-        # raise Exception(model.pot)
+        # raise Exception(model.pot, re, De, a)
         # 1.8253409520594046 0.2030389515643527 0.000665515760313665
         def morse_basic(r,
                         re=re,
@@ -2586,28 +2588,47 @@ class DGBTests(TestCase):
         #     logger=True
         # )
 
-        ham_1D = DGB(
-            r_vals.view(np.ndarray),
+        ham_1D = DGB.construct(
+            r_vals.view(np.ndarray).reshape(-1, 1),
             r_pot_func,
             alphas=100,
             masses=[red_mass],
+            # expansion_degree=2,
             quadrature_degree=3,
-            min_singular_value=1e-8,
+            # min_singular_value=1e-8,
             logger=True
         )
+        print(red_mass)
+        print("-"*50)
+        print(ham_1D.S)
+        print("-"*50)
+        print(ham_1D.T)
+        print("-"*50)
+        print(ham_1D.V)
+        # raise Exception(...)
 
         wfns_1D = ham_1D.get_wavefunctions(
             nodeless_ground_state=True,
             stable_epsilon=2e-4,
-            # min_singular_value=2e-4,
+            # min_singular_value=3,
             # subspace_size=ssize,
             mode='classic'
         )
-        # print(
-        #     "1D Freqs:",
-        #     wfns_1D.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
-        # )
-        # raise Exception(...)
+        print(wfns_1D.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
+        print(
+            "1D Freqs:",
+            wfns_1D.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
+        )
+        raise Exception(...)
+
+        DGB.construct(
+            coords,
+            sub_cart_pot_func,
+            masses=mass_vec,
+            modes='normal',
+            transformations='reaction_path',
+            alphas='virial'
+        )
 
         print(coords[1])
         ham = DGB(

@@ -15,6 +15,8 @@ from .Transformations import MolecularTransformation
 from .Vibrations import MolecularVibrations, MolecularNormalModes
 
 __all__ = [
+    "StructuralProperties",
+    "BondingProperties",
     "MolecularProperties",
     "MolecularPropertyError",
     "OpenBabelMolManager",

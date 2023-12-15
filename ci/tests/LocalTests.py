@@ -28,10 +28,10 @@ class LocalTests(TestCase):
     def setUp(self) -> None:
         np.set_printoptions(linewidth=1e8)
 
-    @validationTest
+    @debugTest
     def test_Water(self):
         mol = Molecule.from_file(
-            TestManager.test_data('water_freq.fchk'),
+            TestManager.test_data('HOD_freq.fchk'),
             internals=[
                 [0, -1, -1, -1],
                 [1,  0, -1, -1],
@@ -114,9 +114,166 @@ class LocalTests(TestCase):
             self.assertLess(its, 250)
 
         else:
-            ortho = BlockLocalFGOrthogonalizer.from_molecule(mol)
+            ortho = BlockLocalFGOrthogonalizer.from_molecule(mol, frequency_scaled=True)
 
             f, g, u, ui = ortho.run()
+
+            import scipy
+            g12 = scipy.linalg.fractional_matrix_power(ortho.g, 1/2)
+            gi12 = scipy.linalg.fractional_matrix_power(ortho.g, -1/2)
+            # freq2, L = scipy.linalg.eigh(ortho.f, ortho.g, type=3)
+            # raise Exception(...)
+            # print(ui)
+            # gfg = g12 @ ortho.f @ g12
+            gvals, gvecs = np.linalg.eigh(ortho.g)
+            gvals = gvals[(2, 1, 0),]
+            gvecs = gvecs[:, (2, 1, 0)]
+
+            # print(g12)
+            # print(gvecs@np.diag(np.power(gvals, 1/2))@gvecs.T)
+            # raise Exception(...)
+
+            fvals, fvecs = np.linalg.eigh(ortho.f)
+            fvecs = fvecs[:, (2, 1, 0)]
+            fvals = fvals[(2, 1, 0),]
+
+            freq2, Q = np.linalg.eigh(g12 @ ortho.f @ g12)
+            freq2 = freq2[(2, 1, 0),]
+            Q = Q[:, (2, 1, 0)]
+
+            F = np.diag(1 / np.power(freq2, 1/4))
+            FF = np.diag(1 / np.power(freq2, 1/8))
+            Fi = np.diag(np.power(freq2, 1/4))
+            L = g12 @ Q @ F
+            l12 = np.diag(np.power(gvals, 1/2))
+            print("="*50)
+            LU, LS, LV = np.linalg.svd(g12 @ Q)
+            print(np.power(gvals, 1/2))
+            print(l12@F)
+            # print(
+            #     np.linalg.svd(l12@np.diag([1, -1, 1])@F)[1]
+            # )
+            print('-'*50)
+
+            print(ui)
+
+            print('-'*50)
+
+            U, S, V = np.linalg.svd(L)
+            print(S)
+            print(
+                np.linalg.svd(l12@gvecs.T@Q@F)[1]
+            )
+            print('-' * 50)
+            print(U)
+            print(V)
+            print(U.T @ V)
+            print(gvecs.T @ U)
+            print('-' * 50)
+            print(LV)
+            print(gvecs)
+            print(fvecs)
+            raise Exception(...)
+            # LU, LS, LV = np.linalg.svd(np.diag(gvals) @ LV @)
+            print('-'*50)
+            print(U)
+            print(gvecs)
+            print(fvecs)
+            print('-'*50)
+            print(ui)
+            print(U @ np.diag(S) @ U.T)
+            raise Exception(...)
+            # print(LU)
+            # print("-"*50)
+            # print(gvecs)
+            # print(LS, np.sqrt(gvals))
+            print("="*50)
+            # print(LV)
+            # print("-"*50)
+            # print(gvecs.T @ Q)
+            # print("-"*50)
+            print(ui)
+            print("-"*50)
+            print(g12)
+            # print("-"*50)
+            # print(gvecs @ F@np.diag(np.power(gvals, 1/2)) @ gvecs.T)
+            print("-"*50)
+            print(Q)
+            print("-"*50)
+            print(gvecs)
+            print("-"*50)
+            print(np.linalg.eigh(ui)[0])
+            print(np.linalg.eigh(ui)[1])
+            print("-"*50)
+            print(gvals / fvals)
+
+            raise Exception(...)
+            L = g12 @ Q @ F
+            Li = Fi @ Q.T @ gi12
+            print("-"*50)
+            print(L.T @ ortho.f @ L)
+            print("-"*50)
+            print(Li @ ortho.g @ Li.T)
+            print("="*50)
+            print(ortho.rotation)
+            print("-"*50)
+            print(Q)
+            print("-"*50)
+            print(Q.T @ ortho.rotation)
+            print("-"*50)
+            V = gvecs.T @ Q
+            print("-"*50)
+            print(V.T @ np.diag(np.power(gvals, 1/2)) @ V)
+            print("-"*50)
+            print(ui)
+            # print(freq3, freq2)
+            raise Exception(...)
+            print(Qgfg.T @ ortho.f @ Qgfg + Qgfg.T @ ortho.g @ Qgfg)
+
+            F = np.diag([7, 5, 3])
+            print(np.linalg.svd(ortho.f @ F)[1])
+            print(np.linalg.svd(ortho.f)[1])
+
+            raise Exception(...)
+
+
+
+            # print(L @ np.diag(1/np.power(freq2, 1/4)))
+            # print(L / np.power(freq2, 1/4)[np.newaxis, :])
+            F = np.diag(1 / np.power(freq2, 1/4))
+            rU, S, rV = np.linalg.svd(L)
+            print(...)
+            gvals, gvecs = np.linalg.eigh(ortho.g)
+            gvals = gvals[(2, 1, 0),]
+            gvecs = gvecs[:, (2, 1, 0)]
+            fvals, fvecs = np.linalg.eigh(ortho.f)
+            fvecs = fvecs[:, (2, 1, 0)]
+            fvals = fvals[(2, 1, 0),]
+
+            fvals, fvecs = np.linalg.eigh(ortho.f)
+
+            # print(rU)
+            print(rV)
+            print(Qgfg)
+
+            raise Exception(...)
+            # R1 = rU @ rV
+
+            # rU3, S3, rV3 = np.linalg.svd(np.diag(S) @ rV @ F)
+            # print(S3)
+            # print(F @ np.diag(S))
+
+            # print(R1)
+            LF = L @ F
+            rU2, S2, rV2 = np.linalg.svd(LF)
+            # print(rU)
+            # print(rU2)
+            print(np.diag(S) @ rV @ F)
+            raise Exception(...)
+            freq12 = np.diag(np.power(freq2, 1/8))
+            print(g12)
+            print(ui)
+            raise Exception(...)
 
             s, l = np.linalg.eigh(f)
             print(s)
@@ -516,7 +673,7 @@ class LocalTests(TestCase):
                 format_mat('A', u, label='P_' + sys, digits=3)
             )
 
-    @debugTest
+    @validationTest
     def test_Dimer(self):
         COM = -3
         A = -2
@@ -758,16 +915,16 @@ class LocalTests(TestCase):
             ics_2 = ics[good_coords][sel]
 
             TeX.Writer.real_digits = 3
-            raise Exception(
-                TeX.Array(
-                np.array(
-                    [
-                        np.concatenate([ics_1, ics_2]),
-                        np.concatenate([ics_1, ics_2])
-                        ]
-                ).T
-            ).format_tex()
-            )
+            # raise Exception(
+            #     TeX.Array(
+            #     np.array(
+            #         [
+            #             np.concatenate([ics_1, ics_2]),
+            #             np.concatenate([ics_1, ics_2])
+            #             ]
+            #     ).T
+            # ).format_tex()
+            # )
 
             pd = dimer.potential_derivatives
             dimer.potential_derivatives = [
@@ -794,6 +951,22 @@ class LocalTests(TestCase):
             #     format_mat('P', u, label='P_' + sys, digits=3)
             # )
 
+            print(
+                np.sqrt(
+                    scipy.linalg.eigvalsh(ortho.f, ortho.g, type=3)
+                ) * UnitsData.convert("Hartrees", "Wavenumbers")
+            )
+            print(
+                np.sqrt(
+                    scipy.linalg.eigvalsh(ortho.f[:5, :][:, :5], ortho.g[:5, :][:, :5], type=3)
+                ) * UnitsData.convert("Hartrees", "Wavenumbers")
+            )
+            print(np.linalg.eigvalsh(f[:5, :][:, :5]) * UnitsData.convert("Hartrees", "Wavenumbers"))
+            print(
+                np.sqrt(
+                    scipy.linalg.eigvalsh(ortho.f[5:, :][:, 5:], ortho.g[5:, :][:, 5:], type=3)
+                ) * UnitsData.convert("Hartrees", "Wavenumbers")
+            )
             print(np.linalg.eigvalsh(f[5:, :][:, 5:]) * UnitsData.convert("Hartrees", "Wavenumbers"))
 
             """
@@ -825,6 +998,15 @@ class LocalTests(TestCase):
             [w, 0],
             [0, w]
         ])
+
+        """
+        \textbf{F} = \left(\begin{tabular}{rrrrr}
+3892.4 & -29.4 &   -0.0 &   -0.0 &  -59.9 \\
+       & 176.2 &  -20.3 &  -20.3 &   78.0 \\
+       &       & 3869.7 &  -65.3 &   -5.6 \\
+       &       &        & 3869.7 &   -5.6 \\
+       &       &        &        & 3735.3
+       """
 
         ortho = BlockLocalFGOrthogonalizer(f, g)
         f, g, u, ui = ortho.run()
