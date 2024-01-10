@@ -634,7 +634,8 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
 
         if pairwise_functions is not None:
             pot_contribs, deriv_corrs = pairwise_functions.evaluate_pairwise_contrib(
-                overlap_data
+                overlap_data,
+                expansion_degree=None if expansion_degree < 0 else expansion_degree
             )
         else:
             pot_contribs = None
@@ -643,59 +644,66 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
         if not isinstance(logger, Logger):
             logger = Logger.lookup(logger)
 
-        deriv_order = expansion_degree # renamed for consistency
-        if expansion_type == 'taylor':
-            logger.log_print("expanding as a Taylor series about the minumum energy geometry...")
-            assert self.ref is None #TODO: centers need a displacement
-            zero = np.zeros((1, centers.shape[-1])) if self.ref is None else np.array([self.ref])
-            derivs = function(zero, deriv_order=deriv_order)
-            if isinstance(derivs, np.ndarray): # didn't get the full list so we do the less efficient route
-                derivs = (
-                        [function(zero)] +
-                        [function(zero, deriv_order=d) for d in range(1, deriv_order + 1)]
-                )
-            derivs = [
-                np.broadcast_to(
-                    d[np.newaxis],
-                    alphas.shape + d.squeeze().shape
-                )
-                for d in derivs
-            ]
-        else:
-            alphas = overlap_data['alphas']
-            centers = overlap_data['centers']
-            deriv_order = deriv_order - (deriv_order % 2) # odd orders don't contribute so why evaluate the derivatives...
-            logger.log_print("expanding about {N} points...", N=len(alphas))
-            # if self.mass_weighted:
-            #     derivs = self.mass_weighted_eval(function, centers, self.masses, deriv_order=deriv_order)
-            # else:
-            derivs = function(centers, deriv_order=deriv_order)
-            if isinstance(derivs, np.ndarray):  # didn't get the full list so we do the less efficient route'
-                derivs = [function(centers)] + [
-                    function(centers, deriv_order=d) for d in range(1, deriv_order+1)
+        if expansion_degree > -1:
+
+            deriv_order = expansion_degree # renamed for consistency
+            if expansion_type == 'taylor':
+                raise NotImplementedError('need to fix up taylor expansion')
+                logger.log_print("expanding as a Taylor series about the minumum energy geometry...")
+                assert self.ref is None #TODO: centers need a displacement
+                zero = np.zeros((1, centers.shape[-1])) if self.ref is None else np.array([self.ref])
+                derivs = function(zero, deriv_order=deriv_order)
+                if isinstance(derivs, np.ndarray): # didn't get the full list so we do the less efficient route
+                    derivs = (
+                            [function(zero)] +
+                            [function(zero, deriv_order=d) for d in range(1, deriv_order + 1)]
+                    )
+                derivs = [
+                    np.broadcast_to(
+                        d[np.newaxis],
+                        alphas.shape + d.squeeze().shape
+                    )
+                    for d in derivs
                 ]
-
-        if deriv_corrs is not None:
-            _ = []
-            for i,(d1,d2) in enumerate(zip(derivs, deriv_corrs)):
-                # if i == 0 or self.inds is None:
-                _.append(d1 - d2)
+            else:
+                alphas = overlap_data['alphas']
+                centers = overlap_data['centers']
+                deriv_order = deriv_order - (deriv_order % 2) # odd orders don't contribute so why evaluate the derivatives...
+                logger.log_print("expanding about {N} points...", N=len(alphas))
+                # if self.mass_weighted:
+                #     derivs = self.mass_weighted_eval(function, centers, self.masses, deriv_order=deriv_order)
                 # else:
-                #     d1 = d1.copy()
-                #     idx = (slice(None, None, None),)+ np.ix_(*[self.inds,] * i)
-                #     d1[idx] -= d2
-                #     _.append(d1)
-            derivs = _
+                derivs = function(centers, deriv_order=deriv_order)
+                if isinstance(derivs, np.ndarray):  # didn't get the full list so we do the less efficient route'
+                    derivs = [function(centers)] + [
+                        function(centers, deriv_order=d) for d in range(1, deriv_order+1)
+                    ]
 
-        npts = len(overlap_data['init_centers'])
-        pot = cls.tensor_expansion_integrate(
-            npts,
-            derivs,
-            overlap_data,
-            reweight=True,
-            expansion_type=expansion_type,
-            logger=logger
-        )
+            if deriv_corrs is not None:
+                _ = []
+                for i,(d1,d2) in enumerate(zip(derivs, deriv_corrs)):
+                    # if i == 0 or self.inds is None:
+                    _.append(d1 - d2)
+                    # else:
+                    #     d1 = d1.copy()
+                    #     idx = (slice(None, None, None),)+ np.ix_(*[self.inds,] * i)
+                    #     d1[idx] -= d2
+                    #     _.append(d1)
+                derivs = _
+
+            npts = len(overlap_data['init_centers'])
+            pot = cls.tensor_expansion_integrate(
+                npts,
+                derivs,
+                overlap_data,
+                reweight=True,
+                expansion_type=expansion_type,
+                logger=logger
+            )
+
+        else:
+            npts = len(overlap_data['init_centers'])
+            pot = np.zeros((npts, npts))
 
         # if prefactors is not None:
         #     row_inds, col_inds = np.triu_indices(npts)
@@ -779,8 +787,10 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
         )
 
 class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
-    def __init__(self, pairwise_potential_functions):
+    def __init__(self, coords, pairwise_potential_functions, quadrature_degree=3):
+        self.coords = coords
         self.pairwise_potential_functions = pairwise_potential_functions
+        self.quadrature_degree = quadrature_degree
 
     @classmethod
     def get_bond_length_deltas(cls, natoms, ndim, i, j):
@@ -797,13 +807,13 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
         _, s, w = np.linalg.svd(coordinate_projection_data)  # w is the important transformation
         # we get the dimension for every specified transformation (doesn't always need to be the same)
         if not np.allclose(np.abs(s), s):
-            s_sorts = np.argsort(np.abs(s), axis=-1)
+            s_sorts = np.argsort(-np.abs(s), axis=-1)
             s = np.abs(s[s_sorts])
             w = w.transpose(0, 2, 1)[s_sorts].transpose(0, 2, 1) # ugly but it'll get the job done...
         dims = np.sum(np.abs(s) > 1e-14, axis=1)
         udims, upos = np.unique(dims, return_index=True)
         if len(udims) == 1:
-            return w[:, -udims[0]:]
+            return w[:, :, :udims[0]]
         else:
             raise NotImplementedError("bond length transforms with different dimensions not yet supported...")
 
@@ -830,14 +840,14 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
             if d.shape[1] == 1:
                 d = d.reshape((d.shape[0], d.shape[2]))
 
-            if deriv_order is None:
+            if deriv_order is None or deriv_order == 0:
                 r = np.linalg.norm(d, axis=-1)  # we ensure no scaling of difference coords
                 r_derivs = None
             else:
                 r_derivs = nput.vec_norm_derivs(d, order=deriv_order)
                 r, r_derivs = r_derivs[0], r_derivs[1:]
             fdat = pairwise_function(r, deriv_order=deriv_order)
-            if r_derivs is not None:
+            if r_derivs is not None and len(r_derivs) > 0:
                 # first we get df/d_delta by transforming df/dr.dr/d_delta
                 f_vals = fdat[0]
                 r_derivs = [r[..., np.newaxis] for r in r_derivs]
@@ -862,9 +872,12 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
 
     def evaluate_pairwise_contrib(self,
                                   overlap_data,
-                                  quadrature_degree=3,
+                                  quadrature_degree=None,
                                   expansion_degree=2
                                   ):
+
+        if quadrature_degree is None:
+            quadrature_degree = self.quadrature_degree
 
         centers = overlap_data['centers']
         alphas = overlap_data['alphas']
@@ -890,9 +903,10 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
             else:
                 raise NotImplementedError("currently only pairwise distances potentials are supported")
 
-            tfs = self.get_bond_length_change_transformation(overlap_data, i, j)
-            f = self.wrap_distance_function(i, j, overlap_data, tfs, pairwise_func)
-            tf_cov = np.linalg.inv(tfs @ covs @ tfs.transpose((0, 2, 1)))
+            tfsT = self.get_bond_length_change_transformation(overlap_data, i, j)
+            tfs = tfsT.transpose((0, 2, 1))
+            f = self.wrap_distance_function(i, j, overlap_data, tfsT, pairwise_func)
+            tf_cov = np.linalg.inv(tfs @ covs @ tfsT)
 
             # raise Exception(tfs.shape, centers.shape)
 
@@ -902,18 +916,44 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
             tf_alphas, tf_vecs = np.linalg.eigh(tf_cov)
             tf_alphas = tf_alphas / 2 # baked into the covariences...
             ndim = tf_alphas.shape[1]
-            tf_rats = np.prod(alphas[:, :ndim] / tf_alphas, axis=1) * np.prod(alphas[:, ndim:], axis=1)
-            scaling = np.sqrt(tf_rats / np.pi**ndim) # accounting for prefactor
 
-            # TODO: need to add rotation in generalΩ
+            # we have, in principle, scaling = sqrt(pi^(d - k) |A| / |A_r| )
+            #           but in this |A| = prod(alphas*2)
+            #                       |A_r| = prod(tf_alphas*2)
+            # tf_rats = np.prod(alphas[:, :ndim] / tf_alphas, axis=1) * np.prod(alphas[:, ndim:], axis=1)
+            # scaling = np.sqrt( tf_rats * (2*np.pi)**(alphas.shape[1] - ndim) ) # accounting for prefactor
 
+            # TODO: need to add rotation along final coordinate axes
+
+            # 0.0075812
+            # raise Exception(tf_centers[:3], tf_alphas[:3])
+            # def morse_fun(d):
+            #     return 0.203039 * (1 - np.exp(-1.15018*(np.abs(d)-1.8))) ** 2
+            # raise Exception(alphas, tf_alphas)
             pairwise_contrib = self.quad_nd(
                 tf_centers,
                 tf_alphas,
                 f,
-                degree=32,
-                normalize=True
-            ) * scaling * np.prod(np.sqrt(alphas), axis=-1) # baked into the base overlap def.n
+                degree=quadrature_degree,
+                normalize=False
+            ) / np.sqrt(np.pi**ndim)
+
+            # in general, the overlap contribution would be accounted for by
+
+            #quad_nd(full_centers, full_alphas, full_func, normalize=True) * np.sqrt(full_alphas)
+
+
+            # pairwise_contrib = pairwise_contrib * np.sqrt()
+
+
+            # vals = cls.quad_nd(centers, alphas, f, degree=degree, normalize=False)
+            # pots[rows, cols] = vals
+            # pots[cols, rows] = vals
+            #
+            # normalization = 1 / (np.sqrt(np.pi)) ** centers.shape[-1] # part of the prefactor...
+            # pots *= normalization
+
+            # raise Exception(pairwise_contrib[:3]) # alphas[:2, :ndim], alphas[:2, ndim:], tf_alphas[:2])
 
             potential_contrib += pairwise_contrib
 
@@ -947,22 +987,25 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
         return potential_contrib, derivative_contribs
 
 class DGBCartesianPairwiseEvaluator(DGBPairwisePotentialEvaluator):
-    def __init__(self, coords:'DGBCartesians', pairwise_functions):
-        self.coords = coords
-        super().__init__(pairwise_functions)
+
+    def __init__(self, coords:'DGBCartesians', pairwise_functions, **opts):
+        super().__init__(coords, pairwise_functions, **opts)
+
+    def get_coordinate_bond_length_projection(self, i, j):
+        natoms, ndim = self.coords.cart_shape[1:]
+        base_mat = self.get_bond_length_deltas(natoms, ndim, i, j)
+        d0 = np.zeros(ndim)
+        return d0, base_mat
 
 class DGBWatsonPairwiseEvaluator(DGBPairwisePotentialEvaluator):
-    def __init__(self, coords:'DGBWatsonModes', pairwise_functions):
-        self.coords = coords
-        super().__init__(pairwise_functions)
+    def __init__(self, coords:'DGBWatsonModes', pairwise_functions, **opts):
+        super().__init__(coords, pairwise_functions, **opts)
 
     def get_coordinate_bond_length_projection(self, i, j):
         natoms = self.coords.natoms
         modes = self.coords.modes.matrix
         ndim = modes.shape[0] // natoms # this will almost always be 3
         base_mat = self.get_bond_length_deltas(natoms, ndim, i, j)
-        #TODO: force coords to be overlap_data so we can extract the transformations
-        #      for future use
         tf_base = base_mat @ modes
         # raise Exception(base_mat.shape, self.coords.modes.origin.shape)
         d0 = np.dot(base_mat, self.coords.modes.origin.reshape(-1))
@@ -982,9 +1025,21 @@ class DGBCoords(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def kinetic_energy_evaluator(self) -> 'DGBKineticEnergyEvaluator':
         ...
+
+    @property
     @abc.abstractmethod
-    def pairwise_potential_evaluator(self, potential_functions) -> 'DGBPairwisePotentialEvaluator':
+    def pairwise_potential_evaluator_type(self) -> 'type[DGBPairwisePotentialEvaluator]':
         ...
+    def pairwise_potential_evaluator(self, potential_functions) -> 'DGBPairwisePotentialEvaluator':
+        if not isinstance(potential_functions, dict):
+            raise ValueError("don't know what to do with pairwise functions {}".format(potential_functions))
+        if 'functions' in potential_functions:
+            opts = potential_functions.copy()
+            potential_functions = potential_functions['functions']
+            del opts['functions']
+        else:
+            opts = {}
+        return self.pairwise_potential_evaluator_type(self, potential_functions, **opts)
     @abc.abstractmethod
     def __getitem__(self, item) -> 'DGBCoords':
         ...
@@ -1005,12 +1060,16 @@ class DGBCartesians(DGBCoords):
     def centers(self):
         return self.coords.reshape((self.coords.shape[0], self.coords.shape[1]*self.coords.shape[2]))
     @property
+    def cart_shape(self):
+        return self.coords.shape
+    @property
     def kinetic_energy_evaluator(self):
         return DGBCartesianEvaluator(
-            np.broadcast_to(self.masses, self.centers.shape[1:]).flatten()
+            np.broadcast_to(self.masses[:, np.newaxis], self.coords.shape[1:]).flatten()
         )
-    def pairwise_potential_evaluator(self, potential_functions):
-        return DGBCartesianPairwiseEvaluator(self, potential_functions)
+    @property
+    def pairwise_potential_evaluator_type(self):
+        return DGBCartesianPairwiseEvaluator
     @classmethod
     def resolve_masses(cls, coords, masses=None, atoms=None):
         if masses is None:
@@ -1034,27 +1093,26 @@ class DGBCartesians(DGBCoords):
         masses = cls.resolve_masses(centers, masses=masses, atoms=atoms)
         return cls(centers, masses)
 
-    def __getitem__(self, item):
-
-        c = self.centers[item]
+    def __getitem__(self, item) -> 'DGBCartesians':
+        c = self.coords[item]
         if not isinstance(c, np.ndarray) or c.ndim != 3:
             raise ValueError("bad slice {}".format(item))
 
         if len(item) == 1:
             return type(self)(
-                self.centers[item],
+                self.coords[item],
                 self.masses
             )
         elif len(item) > 1:
             return type(self)(
-                self.centers[item],
+                self.coords[item],
                 self.masses[item[1]]
             )
         else:
             raise ValueError("zero-length slice?")
 
     def gmatrix(self, coords:np.ndarray) -> np.ndarray:
-        mass_spec = np.broadcast_to(self.masses[:, np.newaxis], (len(self.masses), self.centers.shape[2])).flatten()
+        mass_spec = np.broadcast_to(self.masses[:, np.newaxis], (len(self.masses), self.coords.shape[2])).flatten()
         mass_spec = np.diag(1 / mass_spec)
         return np.broadcast_to(mass_spec[np.newaxis], (coords.shape[0],) + mass_spec.shape)
 class DGBInternals(DGBCoords):
@@ -1073,8 +1131,9 @@ class DGBWatsonModes(DGBCoords):
     @property
     def kinetic_energy_evaluator(self):
         return DGBWatsonEvaluator(self.modes, self.ci_func)
-    def pairwise_potential_evaluator(self, potential_functions):
-        return DGBWatsonPairwiseEvaluator(self, potential_functions)
+    @property
+    def pairwise_potential_evaluator_type(self):
+        return DGBWatsonPairwiseEvaluator
     @staticmethod
     def zeta_momi(watson_coords, modes, masses):
         origin = modes.origin
@@ -1309,15 +1368,15 @@ class DGBGaussians:
         return self.take_gaussian_selection(optimized_positions)
 
     def take_gaussian_selection(self, full_good_pos):
-        centers = self.coords[full_good_pos]
-        alphas = self.alphas[full_good_pos]
+        centers = self.coords[full_good_pos,]
+        alphas = self.alphas[full_good_pos,]
         if self.transformations is not None:
-            transformations = [t[full_good_pos] for t in self.transformations]
+            transformations = [t[full_good_pos,] for t in self.transformations]
         else:
             transformations = None
 
         if self._poly_coeffs is not None:
-            _poly_coeffs = [t[full_good_pos] for t in self._poly_coeffs]
+            _poly_coeffs = [t[full_good_pos,] for t in self._poly_coeffs]
         else:
             _poly_coeffs = None
 
@@ -1371,6 +1430,7 @@ class DGBGaussians:
                 orthog_vecs.append(new / np.sqrt(norm))
             else:
                 mask[i] = False
+
         return np.where(mask)[0]
 
     def _optimize_svd(self, min_singular_value=1e-4, num_svd_vectors=None, svd_contrib_cutoff=1e-3):
@@ -1411,6 +1471,31 @@ class DGBGaussians:
         return embedded_function
 
     @classmethod
+    def _embedded_cartesian_function(cls, func, subsel, natoms, ndim):
+        @functools.wraps(func)
+        def embedded_function(subcart_coords, deriv_order=None):
+            subcart_coords = np.reshape(subcart_coords, (subcart_coords.shape[0], natoms, -1))
+            full_shape = (subcart_coords.shape[0], natoms, ndim)
+            if subsel is None:
+                carts = subcart_coords.reshape(full_shape)
+            else:
+                carts = np.zeros(full_shape)
+                carts[..., subsel] = subcart_coords
+            vals = func(carts, deriv_order=deriv_order)
+            if subsel is not None and deriv_order is not None:
+                padding_offsets = np.arange(full_shape[1]) * full_shape[2]
+                flat_sel = (padding_offsets[:, np.newaxis] + np.asanyarray(subsel)[np.newaxis, :]).flatten()
+                _ = []
+                for n, d in enumerate(vals):
+                    for j in range(n):
+                        d = np.take(d, flat_sel, axis=j+1)
+                    _.append(d)
+                vals = _
+            return vals
+
+        return embedded_function
+
+    @classmethod
     def construct(cls,
                   coords,
                   alphas,
@@ -1420,6 +1505,7 @@ class DGBGaussians:
                   atoms=None,
                   modes=None,
                   internals=None,
+                  cartesians=None,
                   gmat_function=None,
                   poly_coeffs=None,
                   logger=None
@@ -1496,6 +1582,16 @@ class DGBGaussians:
                 raise NotImplementedError("internal coordinate mapping not supported yet...")
             else:
                 coords = DGBCartesians.from_cartesians(coords, masses=masses, atoms=atoms)
+                natoms = coords.cart_shape[1]
+                ndim = coords.cart_shape[2]
+                if cartesians is not None:
+                    coords = coords[:, :, cartesians]
+                potential_function = cls._embedded_cartesian_function(  # a function that takes in subselection of carts
+                    potential_function,
+                    cartesians,
+                    natoms,
+                    ndim
+                )
 
         if transformations is not None:
             if isinstance(transformations, str):
@@ -1515,10 +1611,18 @@ class DGBGaussians:
             alphas = cls.dispatch_get_alphas(
                 alphas,
                 coords,
+                masses=masses,
                 gmat_function=coords.gmatrix if gmat_function is None else gmat_function,
                 potential_function=potential_function,
                 transformations=transformations
             )
+
+        shp = coords.shape
+        if isinstance(alphas, (int, float, np.integer, np.floating)):
+            alphas = np.full(shp, alphas)
+        else:
+            alphas = np.asanyarray(alphas)
+            alphas = np.broadcast_to(alphas, shp)
 
         return cls(coords, alphas, transformations,
                    poly_coeffs=poly_coeffs, logger=logger
@@ -1666,6 +1770,16 @@ class DGBGaussians:
                     ['scaling']
                 )
             )
+        elif method == 'masses':
+            return self.get_mass_alphas(
+                centers,
+                **self._filter_alpha_method_keys(
+                    'masses',
+                    opts,
+                    ['masses'],
+                    ['scaling']
+                )
+            )
         # elif method == 'reaction_path':
         #     return self.get_virial_alphas(
         #         centers,
@@ -1677,17 +1791,27 @@ class DGBGaussians:
         #         )
         #     )
         elif method == 'min_dist':
-            return self.get_alphas(
+            return self.get_min_distance_alphas(
                 centers,
                 **self._filter_alpha_method_keys(
                     'min_dist',
                     opts,
                     ['masses'],
-                    []
+                    ['scaling']
                 )
             )
         else:
             raise ValueError("unknown method for getting alphas {}".format(alphas['method']))
+
+    @classmethod
+    def get_mass_alphas(cls, centers, *, masses, scaling=10, use_mean=False):
+        h_mass =  AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+        a = scaling * np.asanyarray(masses) / h_mass
+        nats = len(masses)
+        ndim = centers.shape[-1] // nats
+        a = np.broadcast_to(a[:, np.newaxis], (nats, ndim)).flatten()
+        a = np.broadcast_to(a[np.newaxis], centers.shape)
+        return a
 
     @classmethod
     def get_min_distance_alphas(cls, masses, centers, scaling=1/4, use_mean=False):
@@ -1767,7 +1891,7 @@ class DGBGaussians:
         #     np.diagonal(hess, axis1=1, axis2=2)
         # )
 
-        alphas = scaling * np.sqrt(np.abs(np.diagonal(gmats, axis1=1, axis2=2) * np.diagonal(hess, axis1=1, axis2=2)))
+        alphas = scaling * np.sqrt(np.abs(np.diagonal(hess, axis1=1, axis2=2) / np.diagonal(gmats, axis1=1, axis2=2)))
 
         return alphas
 

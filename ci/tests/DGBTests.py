@@ -1769,7 +1769,6 @@ class DGBTests(TestCase):
                         displaced_coords=None,
                         seed=0
                         ):
-        np.random.seed(seed)
 
         if initial_displacements is not None:
             init_pos = mol.get_displaced_coordinates(
@@ -1837,51 +1836,6 @@ class DGBTests(TestCase):
 
         ics = mol.internal_coordinates
         re1 = ics[1, 0]; re2 = ics[2, 0]; ae = ics[2, 1]
-        #
-        # r = AnalyticModel.r
-        # a = AnalyticModel.a
-        # cos = AnalyticModel.cos
-        # sin = AnalyticModel.sin
-        # morse = AnalyticModel.morse
-        # harmonic = AnalyticModel.harmonic
-        # sym = AnalyticModel.sym
-        # m = AnalyticModel.m
-        # model = AnalyticModel(
-        #     [
-        #         r(1, 2),
-        #         r(2, 3),
-        #         a(1, 2, 3),
-        #     ],
-        #     morse(1, 2, w="w", wx="wx")
-        #     + morse(2, 3, w="w", wx="wx")
-        #     + harmonic(1, 2, 3),
-        #     dipole=[
-        #         ( r(2, 3) * sin(a(1, 2, 3)) -
-        #             r(1, 2) * sin(a(1, 2, 3)) )  / 5.5,
-        #         1/2 * (
-        #                 r(2, 3) * cos(a(1, 2, 3))
-        #                 + r(1, 2) * cos(a(1, 2, 3))
-        #         ) / 5.5,
-        #         0
-        #     ],
-        #     values={
-        #         sym("w", 1, 2): 3869.47 * UnitsData.convert("Wavenumbers", "Hartrees"),
-        #         sym("wx", 1, 2): 84 * UnitsData.convert("Wavenumbers", "Hartrees"),
-        #         sym("re", 1, 2): re1,
-        #         sym("w", 2, 3): 3869.47 * UnitsData.convert("Wavenumbers", "Hartrees"),
-        #         sym("wx", 2, 3): 84 * UnitsData.convert("Wavenumbers", "Hartrees"),
-        #         sym("re", 2, 3): re2,
-        #         sym("k", 1, 2, 3): 1600**2/150 * UnitsData.convert("Wavenumbers", "Hartrees"),
-        #         sym("qe", 1, 2, 3): ae,
-        #
-        #         r(1, 2):re1,
-        #         r(2, 3):re2,
-        #         a(1, 2, 3):ae,
-        #         m(2): AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass"),
-        #         m(1): AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass"),
-        #         m(3): AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
-        #     }
-        # )
 
         de = (3869.47 * w2h) ** 2 / (4 * 84 * w2h)
 
@@ -2545,6 +2499,7 @@ class DGBTests(TestCase):
                                            timestep=5,
                                            initial_energies=[[10000*self.w2h], [-10000*self.w2h]]
                                            )
+        coords = np.round(coords, 16)
 
         """
         TS = 5, 10000 KE
@@ -2569,13 +2524,14 @@ class DGBTests(TestCase):
             r_vals = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates[:, 1, 0]
             # raise Exception(np.min(r_vals), np.max(r_vals))
             pe_list = cart_pot_func(coords) * UnitsData.hartrees_to_wavenumbers
-            pe_plot = plt.Plot(r_vals, pe_list)
+            r_sort = np.argsort(r_vals)
+            pe_plot = plt.Plot(r_vals[r_sort], pe_list[r_sort])
             plt.ScatterPlot(r_vals, pe_list, figure=pe_plot).show()
             raise Exception(...)
 
         sort_points = True
         if sort_points:
-            r_vals = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates[:, 1, 0]
+            # r_vals = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates[:, 1, 0]
             # raise Exception(np.min(r_vals), np.max(r_vals))
             pe_list = cart_pot_func(coords) * UnitsData.hartrees_to_wavenumbers
             coords = coords[np.argsort(pe_list)]
@@ -2613,18 +2569,18 @@ class DGBTests(TestCase):
 
         r_crd = r_vals.view(np.ndarray).reshape(-1, 1)
         # raise Exception(np.sqrt(np.abs(red_mass*r_pot_func(r_crd, deriv_order=2)[2].reshape(-1, 1))))
-        ham_1D = DGB.construct(
-            r_crd,
-            r_pot_func,
-            alphas=np.sqrt(np.abs(red_mass*r_pot_func(r_crd, deriv_order=2)[2].reshape(-1, 1))),#'virial',
-            # alphas=100,
-            masses=[red_mass]
-            , expansion_degree=6
-            # , quadrature_degree=4
-            # quadrature_degree=3,
-            # min_singular_value=1e-8,
-            , logger=True
-        )
+        # ham_1D = DGB.construct(
+        #     r_crd,
+        #     r_pot_func,
+        #     alphas=np.sqrt(np.abs(red_mass*r_pot_func(r_crd, deriv_order=2)[2].reshape(-1, 1))),#'virial',
+        #     # alphas=100,
+        #     masses=[red_mass]
+        #     , expansion_degree=6
+        #     # , quadrature_degree=4
+        #     # quadrature_degree=3,
+        #     # min_singular_value=1e-8,
+        #     , logger=True
+        # )
         
         # print(red_mass)
         # print("-"*50)
@@ -2650,18 +2606,80 @@ class DGBTests(TestCase):
         # )
         # raise Exception(...)
 
-        nm_dgb = DGB.construct(
-            coords,
+        # nm_dgb = DGB.construct(
+        #     coords,
+        #     cart_pot_func,
+        #     masses=mass_vec,
+        #     modes='normal'
+        #     # , transformations='reaction_path',
+        #     , optimize_centers=True
+        #     , alphas='virial'
+        #     # , quadrature_degree=3
+        #     , expansion_degree=2
+        #     , pairwise_potential_functions=pairwise_potential_functions
+        #     , logger=True
+        #     # , alphas=[.05]
+        # )
+        #
+        # print("-" * 50)
+        # print(len(nm_dgb.S))
+        # print("-" * 50)
+        # print(nm_dgb.S[:5, :5])
+        # print("-" * 50)
+        # print(nm_dgb.T[:5, :5])
+        # print("-" * 50)
+        # print(nm_dgb.V[:5, :5])
+        #
+        # wfns_nm = nm_dgb.get_wavefunctions(
+        #     # nodeless_ground_state=True,
+        #     # stable_epsilon=2e-4,
+        #     # min_singular_value=3,
+        #     # subspace_size=ssize,
+        #     mode='similarity'
+        # )
+        # print(wfns_nm.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
+        # print(
+        #     "1D Freqs:",
+        #     wfns_nm.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
+        # )
+
+        cart_dgb = DGB.construct(
+            np.round(coords, 8), # this ends up really mattering to keep optimize_centers stable
             cart_pot_func,
-            masses=mass_vec,
-            modes='normal'
+            masses=mass_vec
+            , cartesians=[0]
             # , transformations='reaction_path',
-            , optimize_centers=True
-            , alphas='virial'
-            , expansion_degree=2
-            , pairwise_potential_functions=pairwise_potential_functions
+            , optimize_centers=1e-7
+            # , alphas=[[160, 10]]
+            , alphas='masses'
+            # , alphas={'method':'virial', 'scaling':1}
+            # , quadrature_degree=9
+            , expansion_degree=2 # order 2 is less precise annoyingly...
+            , pairwise_potential_functions={
+                'functions':pairwise_potential_functions,
+                'quadrature_degree':9
+            }
             , logger=True
             # , alphas=[.05]
+        )
+
+        print("-" * 50)
+        print(len(cart_dgb.gaussians.coords.centers))
+        print("-" * 50)
+        print(cart_dgb.S[:5, :5])
+        print("-" * 50)
+        print(cart_dgb.T[:5, :5])
+
+        # raise Exception(...)
+
+        print("-" * 50)
+        print(cart_dgb.V[:5, :5])
+
+        wfns_cart = cart_dgb.get_wavefunctions()
+        print(wfns_cart.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
+        print(
+            "1D Freqs:",
+            wfns_cart.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
         )
 
         # crd = nm_dgb.gaussians.coords.centers.flatten()
@@ -2673,28 +2691,6 @@ class DGBTests(TestCase):
         #     (slope**2) * nm_dgb.pot.potential_function(nm_dgb.gaussians.coords.centers[:5], deriv_order=2)[2],
         #     r_pot_func(r_vals.reshape(-1, 1)[:5], deriv_order=2)[2]
         # )
-
-        print("-" * 50)
-        print(len(nm_dgb.S))
-        print("-" * 50)
-        print(nm_dgb.S[:5, :5])
-        print("-" * 50)
-        print(nm_dgb.T[:5, :5])
-        print("-" * 50)
-        print(nm_dgb.V[:5, :5])
-
-        wfns_nm = nm_dgb.get_wavefunctions(
-            # nodeless_ground_state=True,
-            # stable_epsilon=2e-4,
-            # min_singular_value=3,
-            # subspace_size=ssize,
-            mode='similarity'
-        )
-        print(wfns_nm.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
-        print(
-            "1D Freqs:",
-            wfns_nm.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
-        )
 
         # for i in range(2):
         #     wfns_nm[i].plot().show()

@@ -115,6 +115,9 @@ class DGBEigensolver:
         det_chunks = np.split(np.arange(len(dets)), np.where(np.abs(np.diff(dets)) > .01)[0] + 1)
         good_runs = [c for c in det_chunks if len(c) > 5 and np.mean(dets[c]) > .95]
 
+        if len(good_runs) == 0 or len(good_runs[-1]) == 0:
+            raise ValueError("couldn't find stable eigenspace")
+
         return good_runs[-1][-1]
 
         # raise Exception(good_runs)

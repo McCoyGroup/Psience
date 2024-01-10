@@ -84,6 +84,7 @@ class DGB:
                   transformations=None,
                   internals=None,
                   modes=None,
+                  cartesians=None,
                   logger=False,
                   optimize_centers=False,
                   quadrature_degree=4,
@@ -103,6 +104,7 @@ class DGB:
             masses=masses,
             atoms=atoms,
             internals=internals,
+            cartesians=cartesians,
             modes=modes,
             transformations=transformations,
             # projection_indices=projection_indices,
@@ -138,6 +140,7 @@ class DGB:
                             masses=None,
                             atoms=None,
                             internals=None,
+                            cartesians=None,
                             modes=None,
                             transformations=None,
                             # projection_indices=projection_indices,
@@ -153,6 +156,7 @@ class DGB:
             masses=masses,
             atoms=atoms,
             internals=internals,
+            cartesians=cartesians,
             modes=modes,
             transformations=transformations,
             # projection_indices=projection_indices,
@@ -408,7 +412,7 @@ class DGB:
                     subspace_size=None,
                     min_singular_value=None,
                     eps=5e-4,
-                    mode='classic',
+                    mode='similarity',
                     nodeless_ground_state=True
                     ):
 
