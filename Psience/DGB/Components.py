@@ -1156,12 +1156,13 @@ class DGBWatsonModes(DGBCoords):
     def __getitem__(self, item):
         # raise NotImplementedError("need to figure out how to handle coriolis?")
         c = self.coords[item]
-        if not isinstance(c, np.ndarray) or c.ndim != 3:
+        if not isinstance(c, np.ndarray) or c.ndim != self.coords.ndim:
             raise ValueError("bad slice {}".format(item))
         return type(self)(
             c,
             self.modes,
-            coriolis_inertia_function=self.ci_func
+            coriolis_inertia_function=self.ci_func,
+            natoms=self.natoms
         )
     def gmatrix(self, coords:np.ndarray) -> np.ndarray:
         base_spec = np.eye(coords.shape[1])
@@ -1286,18 +1287,28 @@ class DGBGaussians:
         # raise Exception(base_polys[0].coeffs)
         return base_polys
 
-    def optimize(self, min_singular_value=None, num_svd_vectors=None, svd_contrib_cutoff=1e-3):
-        if min_singular_value is None and num_svd_vectors is None:
-            raise ValueError("either a minimum singular value or number of eigenvectors needs to be passes")
-        sig, evecs = np.linalg.eigh(self.get_S())
-        if num_svd_vectors:
-            good_loc = slice(max(len(sig) - num_svd_vectors, 0), len(sig))
-        else:
-            # self.logger.log_print("most important center threshold: {t}", t=min_singular_value)
-            good_loc = np.where(sig > min_singular_value)[0]
-        # raise Exception(np.min(np.abs(U)))
-        full_good_pos = np.unique(np.where(np.abs(evecs[:, good_loc]) > svd_contrib_cutoff)[0])
+    def optimize(self, optimizer_options, **opts):
+        if optimizer_options is True:
+            optimizer_options = 'gram-schmidt'
+        if isinstance(optimizer_options, (int, float, np.integer, np.floating)):
+            optimizer_options = {'method':'gram-schmidt', 'overlap_cutoff':optimizer_options}
+        if isinstance(optimizer_options, str):
+            optimizer_options = {'method':optimizer_options}
 
+        # dispatch
+        method = optimizer_options['method'].lower()
+        opts = dict(optimizer_options, **opts)
+        del opts['method']
+        if method == 'svd':
+            optimized_positions = self._optimize_svd(**opts)
+        elif method == 'gram-schmidt':
+            optimized_positions = self._optimize_gs(**opts)
+        else:
+            raise ValueError("don't know what to do with optimizer method '{}'".format(method))
+
+        return self.take_gaussian_selection(optimized_positions)
+
+    def take_gaussian_selection(self, full_good_pos):
         centers = self.coords[full_good_pos]
         alphas = self.alphas[full_good_pos]
         if self.transformations is not None:
@@ -1311,32 +1322,71 @@ class DGBGaussians:
             _poly_coeffs = None
 
         return type(self)(
-            centers,
-            alphas,
-            transformations,
-            poly_coeffs=_poly_coeffs
+            centers, alphas, transformations,
+            poly_coeffs=_poly_coeffs, logger=self.logger
         )
 
-    def optimize_centers(self,
-                         centers, alphas,
-                         max_condition_number=1e16,
-                         initial_custering=.005,
-                         cluster_step_size=.005,
-                         max_steps=50
-                         ):
-        raise NotImplementedError("ugh...")
-        c, a = centers, alphas
-        cr = initial_custering
-        centers, alphas = self.initialize_gaussians(c, a, cr)
-        _, S, T = self.get_ST(centers, alphas)
-        n = 0
-        while np.linalg.cond(S) > max_condition_number and n < max_steps:
-            cr += cluster_step_size
-            n += 1
-            centers, alphas = self.initialize_gaussians(c, a, cr)
-            S, T = self.get_ST(centers, alphas)
+    def _calc_gs_norm(self, new, S, old):
+        # calculates a very particular form of norm where (for speed purposes)
+        #   1. new is the new _unnormalized_ orthogonal vector
+        #   2. old is the row of the overlap matrix pulled to orthogonalize
+        #   3. S is the subblock of the overlap matrix corresponding to everything up to the newest element
+        #
+        # This means we get to calculate a basic norm corresponding to the previous block by using everything
+        # up to the final element of new and then we add on a correction knowing that the missing piece of S
+        # is encoded in old
 
-        return cr, centers, alphas, S, T
+        vec = new[:-1]
+        rows, cols = np.triu_indices(len(vec), k=1)
+        off_diag = 2 * np.dot(S[rows, cols], vec[rows] * vec[cols])
+        diag = np.dot(vec, vec) # taking advantage of the fact that the diagonal of S is 1
+        base_norm = diag + off_diag
+
+        # correction from old itself, knowing that the final element of new is 1
+        correction_norm = 1 + 2 * np.dot(old[:-1], vec)
+
+        return base_norm + correction_norm
+    def _calc_gs_next(self, vec, ortho):
+        new = np.zeros(len(vec))
+        new[-1] = 1
+        for prev in ortho:
+            n = len(prev)
+            new[:n] -= np.dot(vec[:n], prev) * prev
+        return new
+
+    gs_optimization_overlap_cutoff=1e-3
+    def _optimize_gs(self, overlap_cutoff=None):
+        if overlap_cutoff is None:
+            overlap_cutoff = self.gs_optimization_overlap_cutoff
+        S = self.S
+        mask = np.full(len(S), False, dtype=bool)
+        mask[0] = True
+        orthog_vecs = [np.array([1.])]
+        for i in range(1, len(S)):
+            mask[i] = True
+            vec = S[i, :i+1][mask[:i+1]]
+            new = self._calc_gs_next(vec, orthog_vecs)
+            norm = self._calc_gs_norm(new, S[np.ix_(mask[:i], mask[:i])], vec)
+            if norm > overlap_cutoff:
+                orthog_vecs.append(new / np.sqrt(norm))
+            else:
+                mask[i] = False
+        return np.where(mask)[0]
+
+    def _optimize_svd(self, min_singular_value=1e-4, num_svd_vectors=None, svd_contrib_cutoff=1e-3):
+
+        if min_singular_value is None and num_svd_vectors is None:
+            raise ValueError("either a minimum singular value or number of eigenvectors needs to be passes")
+        sig, evecs = np.linalg.eigh(self.get_S())
+        if num_svd_vectors:
+            good_loc = slice(max(len(sig) - num_svd_vectors, 0), len(sig))
+        else:
+            # self.logger.log_print("most important center threshold: {t}", t=min_singular_value)
+            good_loc = np.where(sig > min_singular_value)[0]
+        # raise Exception(np.min(np.abs(U)))
+        full_good_pos = np.unique(np.where(np.abs(evecs[:, good_loc]) > svd_contrib_cutoff)[0])
+
+        return full_good_pos
 
     @classmethod
     def _embedded_function(cls, func, modes, natoms=None):

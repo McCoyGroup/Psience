@@ -86,10 +86,6 @@ class DGB:
                   modes=None,
                   logger=False,
                   optimize_centers=False,
-                  clustering_radius=-1,
-                  min_singular_value=1e-4,
-                  num_svd_vectors=None,
-                  svd_contrib_cutoff=1e-3,
                   quadrature_degree=4,
                   expansion_degree=None,
                   expansion_type='multicenter',
@@ -114,12 +110,7 @@ class DGB:
             logger=logger
         )
         if optimize_centers:
-            coords = coords.optimize(
-                clustering_radius=clustering_radius,
-                min_singular_value=min_singular_value,
-                num_svd_vectors=num_svd_vectors,
-                svd_contrib_cutoff=svd_contrib_cutoff
-            )
+            coords = coords.optimize(optimize_centers)
 
         potential = cls.construct_potential(
             potential_function,
