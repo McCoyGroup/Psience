@@ -1705,6 +1705,104 @@ class DGBTests(TestCase):
         # print(ham_3.S)
         raise Exception(ham_3.T)
 
+    w2h = UnitsData.convert("Wavenumbers", "Hartrees")
+    @classmethod
+    def buildWaterModel(cls,
+                        w=3869.47 * w2h,
+                        wx=84 * w2h,
+                        w2=3869.47 * w2h,
+                        wx2=84 * w2h,
+                        ka=1600 ** 2 / 150 * w2h,
+                        dipole=None
+                        ):
+        base_water = Molecule.from_file(
+            TestManager.test_data('water_freq.fchk')
+        )
+        mol = Molecule(
+            base_water.atoms[:2],
+            # ['O', 'O'],
+            base_water.coords[:2],
+            internals=[[0, -1, -1, -1], [1, 0, -1, -1]]
+        ).get_embedded_molecule(load_properties=False)
+
+        r1 = 0
+        r2 = 1
+        a12 = 2
+        potential_params={}
+        if wx is not None:
+            potential_params[r1]={'morse':{'w':w, 'wx':wx}}
+        elif w is None:
+            raise ValueError(...)
+        else:
+            potential_params[r1]={'harmonic':{'k':w}}
+        if wx2 is not None:
+            potential_params[r2]={'morse':{'w':w2, 'wx':wx2}}
+        elif w2 is not None:
+            potential_params[r2]={'harmonic':{'k':w2}}
+        if ka is not None:
+            potential_params[a12]={'harmonic':{'k':ka}}
+        if dipole is not None:
+            if isinstance(dipole, str) and dipole == 'auto':
+                dipole = [
+                    {
+                        (r1, a12): ({'linear': {'eq': 0, 'scaling': 1 / 5.5}}, {'sin': {'eq': 0}}),
+                        (r2, a12): ({'linear': {'eq': 0, 'scaling': -1 / 5.5}}, {'sin': {'eq': 0}})
+                    },
+                    {
+                        (r1, a12): ({'linear': {'eq': 0, 'scaling': 1 / (2 * 5.5)}}, {'cos': {'eq': 0}}),
+                        (r2, a12): ({'linear': {'eq': 0, 'scaling': 1 / (2 * 5.5)}}, {'cos': {'eq': 0}})
+                    },
+                    0
+                ]
+        return mol, mol.get_model(
+            potential_params,
+            dipole=dipole
+        )
+    @classmethod
+    def buildTrajectory(cls,
+                        mol,
+                        cart_pot_func,
+                        steps,
+                        timestep=.5,
+                        initial_energies=None,
+                        initial_displacements=None,
+                        displaced_coords=None,
+                        seed=0
+                        ):
+        np.random.seed(seed)
+
+        if initial_displacements is not None:
+            init_pos = mol.get_displaced_coordinates(
+                initial_displacements,
+                which=displaced_coords,
+                internals='reembed'
+            )
+
+            sim = AIMDSimulator(
+                mol.masses,
+                init_pos,
+                lambda c: -cart_pot_func(c, deriv_order=1)[1].reshape(c.shape),
+                timestep=timestep,
+                track_kinetic_energy=True
+            )
+        else:
+            mol.potential_derivatives = cart_pot_func(mol.coords, deriv_order=2)[1:]
+            nms = mol.normal_modes.modes.basis
+            sim = AIMDSimulator(
+                mol.atomic_masses,
+                [mol.coords] * len(initial_energies),
+                lambda c: -cart_pot_func(c, deriv_order=1)[1].reshape(c.shape),
+                velocities=AIMDSimulator.mode_energies_to_velocities(nms.inverse.T, mol.atomic_masses, initial_energies, inverse=nms.matrix.T),
+                timestep=timestep,
+                track_kinetic_energy=True
+            )
+
+        sim.propagate(steps)
+        coords = np.array(sim.trajectory).reshape((-1,) + mol.coords.shape)
+        coords = mol.embed_coords(coords)
+
+        return coords, sim
+
     @validationTest
     def test_ModelPotentialAIMD(self):
 
@@ -1977,36 +2075,7 @@ class DGBTests(TestCase):
             #             # [ .55, .55, np.deg2rad(60)],
             #             [ .8, -.2, np.deg2rad(-7)]
             #         ]
-            initial_displacements = None
-
-            initial_energies = np.array([
-                ie_vec
-            ]) / UnitsData.hartrees_to_wavenumbers
-            if initial_displacements is not None:
-                init_pos = mol.get_displaced_coordinates(
-                    initial_displacements,
-                    which=[[1, 0], [2, 0], [2, 1]],
-                    internals='reembed'
-                )
-
-                sim = AIMDSimulator(
-                    mol.masses,
-                    init_pos,
-                    lambda c: -cart_pot_func(c, deriv_order=1)[1].reshape(c.shape),
-                    timestep=1,
-                    track_kinetic_energy=True
-                )
-            else:
-                mol.potential_derivatives = cart_pot_func(mol.coords, deriv_order=2)[1:]
-                modes = mol.normal_modes.modes.basis.matrix
-                sim = AIMDSimulator(
-                    mol.atomic_masses,
-                    [mol.coords] * len(initial_energies),
-                    lambda c: -cart_pot_func(c, deriv_order=1)[1].reshape(c.shape),
-                    velocities=AIMDSimulator.mode_energies_to_velocities(modes, mol.atomic_masses, initial_energies),
-                    timestep=60,
-                    track_kinetic_energy=True
-                )
+            raise NotImplementedError()
 
             sim.propagate(traj_steps)
             coords = np.array(sim.trajectory).reshape((-1, 3, 3))
@@ -2382,69 +2451,41 @@ class DGBTests(TestCase):
         # raise Exception(hmm)
 
     @debugTest
-    def test_ModelPotentialAIMD(self):
+    def test_ModelPotentialAIMD1D(self):
 
-        base_water = Molecule.from_file(
-            TestManager.test_data('water_freq.fchk')
-        )
-        mol = Molecule(
-            base_water.atoms[:2],
-            # ['O', 'O'],
-            base_water.coords[:2],
-            internals=[[0, -1, -1, -1], [1, 0, -1, -1]]
-        ).get_embedded_molecule(load_properties=False)
-
-        r1 = 0
-        w2h = UnitsData.convert("Wavenumbers", "Hartrees")
-        freq = 3869.47 * w2h
-        anh = 84 * w2h
-        model = mol.get_model(
-            {
-                r1: {'morse': {'w': freq, 'wx': anh}},
-                # r2: {'morse': {'w': 3869.47 * w2h, 'wx': 84 * w2h}},
-                # a12: {'harmonic': {'k': 1600 ** 2 / 150 * w2h}}
-            }
-            # dipole=[
-            #     {
-            #         (r1, a12): ({'linear': {'eq': 0, 'scaling': 1 / 5.5}}, {'sin': {'eq': 0}}),
-            #         (r2, a12): ({'linear': {'eq': 0, 'scaling': -1 / 5.5}}, {'sin': {'eq': 0}})
-            #     },
-            #     {
-            #         (r1, a12): ({'linear': {'eq': 0, 'scaling': 1 / (2 * 5.5)}}, {'cos': {'eq': 0}}),
-            #         (r2, a12): ({'linear': {'eq': 0, 'scaling': 1 / (2 * 5.5)}}, {'cos': {'eq': 0}})
-            #     },
-            #     0
-            # ]
-        )
-
-        # model.run_VPT(order=2, states=5)
-        """
-            ========================================= States Energies ==========================================
-            State    Harmonic   Anharmonic     Harmonic   Anharmonic
-                       ZPE          ZPE    Frequency    Frequency
-            0   1934.73500   1913.73500            -            - 
-            1            -            -   3869.47000   3701.47000 
-            2            -            -   7738.94000   7234.94000 
-            3            -            -  11608.41000  10600.41000 
-            4            -            -  15477.88000  13797.88000 
-            5            -            -  19347.35000  16827.35000 
-            ====================================================================================================
-        """
+        mol, model = self.buildWaterModel(w2=None,wx2=None,ka=None)
 
         check_freqs = False
         if check_freqs:
             freqs = model.normal_modes()[0]
             raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
 
+        check_anh = False
+        if check_anh:
+            model.run_VPT(order=2, states=5)
+            """
+                ========================================= States Energies ==========================================
+                State    Harmonic   Anharmonic     Harmonic   Anharmonic
+                           ZPE          ZPE    Frequency    Frequency
+                0   1934.73500   1913.73500            -            - 
+                1            -            -   3869.47000   3701.47000 
+                2            -            -   7738.94000   7234.94000 
+                3            -            -  11608.41000  10600.41000 
+                4            -            -  15477.88000  13797.88000 
+                5            -            -  19347.35000  16827.35000 
+                ====================================================================================================
+            """
+            raise Exception(...)
+
         cart_pot_func = model.potential
         cart_dipole_func = model.dipole
 
-        pot_derivs = model.v(order=4, evaluate='constants', lambdify=True)
+        pot_derivs = model.v(order=8, evaluate='constants', lambdify=True)
         def r_pot_func(rs, deriv_order=None):
             if deriv_order is None:
                 return pot_derivs[0](rs)
-            elif deriv_order > 4:
-                raise ValueError("only imp'd up to 2nd order")
+            elif deriv_order > 8:
+                raise ValueError("only imp'd up to 6th order")
             else:
                 return [p(rs) for p in pot_derivs[:deriv_order+1]]
 
@@ -2477,32 +2518,6 @@ class DGBTests(TestCase):
             coords = coords.reshape(-1, 2, 3)
             return cart_dipole_func(coords, deriv_order=deriv_order)
 
-        # np.random.seed(0)
-        # initial_displacements = [2]
-        # ts = .4
-        # init_pos = mol.get_displaced_coordinates(
-        #     initial_displacements,
-        #     which=[[1, 0]],
-        #     internals='reembed'
-        # )
-
-        # sim = AIMDSimulator(
-        #     mol.masses,
-        #     init_pos,
-        #     lambda c: -cart_pot_func(c, deriv_order=1)[1].reshape(c.shape),
-        #     timestep=ts,
-        #     track_kinetic_energy=True
-        # )
-        #
-        # sim.propagate(25)
-        # coords = np.array(sim.trajectory).reshape((-1, ) + mol.coords.shape)
-        # coords = mol.embed_coords(coords)
-
-        # raise Exception(
-        #     np.linalg.norm(coords.reshape(-1, 6)[:, (1, 2, 4, 5)].flatten()),
-        #     np.linalg.norm(coords.reshape(-1, 6)[:, (0, 3)].flatten())
-        # )
-
         # plot_points = False
         # if plot_points:
         #     ke_list = np.array(sim.kinetic_energies).flatten()
@@ -2518,31 +2533,54 @@ class DGBTests(TestCase):
         #     plt.ScatterPlot(r_vals, pe_list, figure=ke_plot)
         #     plt.Plot(r_vals, pe_list + ke_list, figure=ke_plot).show()
 
-        coords = mol.get_displaced_coordinates(
-            np.linspace(-.65, .65, 50).reshape(-1, 1),
-            which=[[1, 0]],
-            internals='reembed'
-        )
+
+        # coords = mol.get_displaced_coordinates(
+        #     np.linspace(-.65, .65, 51).reshape(-1, 1),
+        #     which=[[1, 0]],
+        #     internals='reembed'
+        # )
+
+        coords, sim = self.buildTrajectory(mol, cart_pot_func,
+                                           25,
+                                           timestep=5,
+                                           initial_energies=[[10000*self.w2h], [-10000*self.w2h]]
+                                           )
+
+        """
+        TS = 5, 10000 KE
+        25:
+        Energies: [ 1913.73487519  5615.20480647  9148.67494111 12514.14640237 15711.62241258]
+        1D Freqs: [ 3701.46993128  7234.94006592 10600.41152718 13797.88753739 16827.3755888 ]
+        50:
+        Energies: [ 1913.73487989  5615.20487993  9148.67555268 12514.14981935 15711.63643239]
+        1D Freqs: [ 3701.47000004  7234.94067279 10600.41493946 13797.9015525  16827.4240311 ]
+        
+        TS = 1, 10000 KE
+        25:
+        Energies: [ 1913.76077586  5616.47422902  9162.75780088 12701.98968031 16420.3295596 ]
+        1D Freqs: [ 3702.71345316  7248.99702502 10788.22890445 14506.56878375 19188.42196799]
+        50:
+        Energies: [ 1913.73489262  5615.20504874  9148.67934699 12514.20896499 15714.09594936]
+        1D Freqs: [ 3701.47015612  7234.94445437 10600.47407237 13800.36105674 16859.6813473 ]
+"""
 
         plot_points = False
         if plot_points:
             r_vals = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates[:, 1, 0]
-            pe_list = cart_pot_func(coords)
+            # raise Exception(np.min(r_vals), np.max(r_vals))
+            pe_list = cart_pot_func(coords) * UnitsData.hartrees_to_wavenumbers
             pe_plot = plt.Plot(r_vals, pe_list)
             plt.ScatterPlot(r_vals, pe_list, figure=pe_plot).show()
-
-
-        # def morse_basic(carts_1, carts_2, deriv_order=0):
-        #     ...
+            raise Exception(...)
 
         from McUtils.Data import PotentialData
+        freq = 3869.47 * self.w2h
+        anh = 84 * self.w2h
         De = (freq ** 2) / (4 * anh)
         muv = (1/model.vals[model.m(0)] + 1/model.vals[model.m(1)])
         a = np.sqrt(2 * anh / muv)
         re = model.vals[model.r(0, 1)]
 
-        # raise Exception(model.pot, re, De, a)
-        # 1.8253409520594046 0.2030389515643527 0.000665515760313665
         def morse_basic(r,
                         re=re,
                         alpha=a,
@@ -2552,83 +2590,149 @@ class DGBTests(TestCase):
                         ):
             return _morse(r, re=re, alpha=alpha, De=De, deriv_order=deriv_order)
 
-        # raise Exception(
-        #     morse_basic(1.1, deriv_order=2)[2],
-        #     pot_derivs[2](np.array([[1.1]]))
-        # )
-
         pairwise_potential_functions = {
             (0, 1):morse_basic
         }
 
-        # raise Exception(
-        #     np.array(sim.kinetic_energies)
-        # )
-        #
-        # raise Exception(
-        #     Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates[:, 1, 0]
-        # )
-        #
-        # raise Exception(coords)
-
         mass_vec = np.array(
-            [mol.masses[0] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 3
-            + [mol.masses[1] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 3
+            [
+                mol.masses[0] * UnitsData.convert("AtomicMassUnits", "ElectronMass"),
+                mol.masses[1] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
+            ]
         )
 
         r_vals = np.abs(coords.reshape(-1, 6)[:, 3] - coords.reshape(-1, 6)[:, 0])
-        red_mass = 1/(1/mass_vec[0] + 1/mass_vec[3])
-        # ham_1D = DGB(
-        #     r_vals.view(np.ndarray),
-        #     r_pot_func,
-        #     alphas=50,
-        #     masses=[red_mass],
-        #     expansion_degree=2,
-        #     min_singular_value=1e-8,
-        #     logger=True
-        # )
+        red_mass = 1/(1/mass_vec[0] + 1/mass_vec[1])
 
+        r_crd = r_vals.view(np.ndarray).reshape(-1, 1)
+        # raise Exception(np.sqrt(np.abs(red_mass*r_pot_func(r_crd, deriv_order=2)[2].reshape(-1, 1))))
         ham_1D = DGB.construct(
-            r_vals.view(np.ndarray).reshape(-1, 1),
+            r_crd,
             r_pot_func,
-            alphas=100,
-            masses=[red_mass],
-            # expansion_degree=2,
-            quadrature_degree=3,
+            alphas=np.sqrt(np.abs(red_mass*r_pot_func(r_crd, deriv_order=2)[2].reshape(-1, 1))),#'virial',
+            # alphas=100,
+            masses=[red_mass]
+            , expansion_degree=6
+            # , quadrature_degree=4
+            # quadrature_degree=3,
             # min_singular_value=1e-8,
-            logger=True
+            , logger=True
         )
-        print(red_mass)
-        print("-"*50)
-        print(ham_1D.S)
-        print("-"*50)
-        print(ham_1D.T)
-        print("-"*50)
-        print(ham_1D.V)
+        
+        # print(red_mass)
+        # print("-"*50)
+        # print(ham_1D.S)
+        # print("-"*50)
+        # print(ham_1D.T[:10, :10])
+        # print("-"*50)
+        # print(ham_1D.V[:10, :10])
         # raise Exception(...)
 
-        wfns_1D = ham_1D.get_wavefunctions(
-            nodeless_ground_state=True,
-            stable_epsilon=2e-4,
+        # wfns_1D = ham_1D.get_wavefunctions(
+        #     nodeless_ground_state=True,
+        #     # stable_epsilon=2e-4,
+        #     mode='similarity'
+        #     # min_singular_value=3,
+        #     # subspace_size=ssize,
+        #     # mode='classic'
+        # )
+        # print(wfns_1D.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
+        # print(
+        #     "1D Freqs:",
+        #     wfns_1D.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
+        # )
+        # raise Exception(...)
+
+
+        print(coords[:5])
+        """
+        CoordinateSet(Cartesian3D, [[[-1.08195758e-01  2.07652369e-47 -4.93557470e-18]
+  [ 1.71714519e+00 -3.29559379e-46  7.83311521e-17]]
+
+ [[-1.08195758e-01  2.07652369e-47 -4.93557470e-18]
+  [ 1.71714519e+00 -3.29559379e-46  7.83311521e-17]]
+
+ [[-1.10347821e-01  1.60181591e-31 -5.03374553e-18]
+  [ 1.75129999e+00 -2.32017677e-30  7.98891944e-17]]
+
+ [[-1.06043695e-01 -4.78082222e-33 -4.83740388e-18]
+  [ 1.68299040e+00  2.54757897e-31  7.67731099e-17]]
+
+ [[-1.12484174e-01  5.51615671e-31 -5.13119974e-18]
+  [ 1.78520547e+00 -7.77052935e-30  8.14358634e-17]]])"""
+        nm_dgb = DGB.construct(
+            coords,
+            cart_pot_func,
+            masses=mass_vec,
+            modes='normal'
+            # , transformations='reaction_path',
+            , alphas='virial'
+            , expansion_degree=2
+            , pairwise_potential_functions=pairwise_potential_functions
+            , logger=True
+            # , alphas=[.05]
+        )
+
+        """
+[[0.00220383 0.00220383 0.00232411 0.00217714 0.00254456]
+ [0.00220383 0.00220383 0.00232411 0.00217714 0.00254456]
+ [0.00232411 0.00232411 0.00271355 0.00204722 0.00320954]
+ [0.00217714 0.00217714 0.00204722 0.00240777 0.00203538]
+ [0.00254456 0.00254456 0.00320954 0.00203538 0.00401599]]
+ """
+        """
+[[0.00197171 0.00197171 0.00216105 0.00201873 0.00260764]
+ [0.00197171 0.00197171 0.00216105 0.00201873 0.00260764]
+ [0.00216105 0.00216105 0.00275003 0.00183267 0.00360821]
+ [0.00201873 0.00201873 0.00183267 0.00245417 0.00192658]
+ [0.00260764 0.00260764 0.00360821 0.00192658 0.00493004]]
+ 
+[[0.0088153  0.0088153  0.0085308  0.00804336 0.00713393]
+ [0.0088153  0.0088153  0.0085308  0.00804336 0.00713393]
+ [0.0085308  0.0085308  0.00937729 0.00680711 0.00903967]
+ [0.00804336 0.00804336 0.00680711 0.00827252 0.00473591]
+ [0.00713393 0.00713393 0.00903967 0.00473591 0.0099548 ]]
+[[0.0088153  0.0088153  0.0085308  0.00804336 0.00713393]
+ [0.0088153  0.0088153  0.0085308  0.00804336 0.00713393]
+ [0.0085308  0.0085308  0.00937729 0.00680711 0.00903967]
+ [0.00804336 0.00804336 0.00680711 0.00827252 0.00473591]
+ [0.00713393 0.00713393 0.00903967 0.00473591 0.0099548 ]]
+ """
+
+        # crd = nm_dgb.gaussians.coords.centers.flatten()
+        # # plt.Plot(r_vals, crd.flatten()).show()
+        # r_sort = np.argsort(r_vals)
+        # slope = (np.diff(crd[r_sort]) / np.diff(r_vals[r_sort]))[0]
+
+        # raise ValueError(
+        #     (slope**2) * nm_dgb.pot.potential_function(nm_dgb.gaussians.coords.centers[:5], deriv_order=2)[2],
+        #     r_pot_func(r_vals.reshape(-1, 1)[:5], deriv_order=2)[2]
+        # )
+
+        print("-" * 50)
+        print(nm_dgb.S[:5, :5])
+        print("-" * 50)
+        print(nm_dgb.T[:5, :5])
+        print("-" * 50)
+        print(nm_dgb.V[:5, :5])
+
+        wfns_nm = nm_dgb.get_wavefunctions(
+            # nodeless_ground_state=True,
+            # stable_epsilon=2e-4,
             # min_singular_value=3,
             # subspace_size=ssize,
-            mode='classic'
+            mode='similarity'
         )
-        print(wfns_1D.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
+        print(wfns_nm.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
         print(
             "1D Freqs:",
-            wfns_1D.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
+            wfns_nm.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
         )
-        raise Exception(...)
 
-        DGB.construct(
-            coords,
-            sub_cart_pot_func,
-            masses=mass_vec,
-            modes='normal',
-            transformations='reaction_path',
-            alphas='virial'
-        )
+        # for i in range(2):
+        #     wfns_nm[i].plot().show()
+
+        raise Exception(...)
 
         print(coords[1])
         ham = DGB(

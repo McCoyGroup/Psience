@@ -116,9 +116,11 @@ class LocalTests(TestCase):
         else:
             ortho = BlockLocalFGOrthogonalizer.from_molecule(mol, frequency_scaled=True)
 
+
             f, g, u, ui = ortho.run()
 
             import scipy
+
             g12 = scipy.linalg.fractional_matrix_power(ortho.g, 1/2)
             gi12 = scipy.linalg.fractional_matrix_power(ortho.g, -1/2)
             # freq2, L = scipy.linalg.eigh(ortho.f, ortho.g, type=3)

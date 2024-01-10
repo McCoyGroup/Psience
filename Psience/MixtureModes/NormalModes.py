@@ -1,5 +1,7 @@
 
 import numpy as np, scipy.linalg as slag
+import scipy.linalg
+
 from McUtils.Data import AtomData, UnitsData
 
 from .MixtureModes import MixtureModes
@@ -35,31 +37,46 @@ class NormalModes(MixtureModes):
             mass_spec = np.broadcast_to(mass_spec[:, np.newaxis], (len(mass_spec), 3)).flatten()
             mass_spec = np.diag(1 / mass_spec)
 
-        # temporary hack
         freq2, modes = slag.eigh(f_matrix, mass_spec, type=3)
+        # raise Exception(freq2)
+        # raise Exception(V @ V.T)
         if remove_transrot:
+            gi12 = slag.fractional_matrix_power(mass_spec, -1 / 2)
+            g12 = slag.fractional_matrix_power(mass_spec, 1 / 2)
+            V = gi12 @ modes
+            # modes = g12 @ V
+            # therefore, inv = V.T @ gi12
+            # and modes[:, nz] = g12 @ V[:, nz]; inv[nz, :] = (V.T)[nz, :] @ gi12 (this is only the _left_ inverse)
             nonzero = np.abs(freq2) > 1e-9  # less than 10 wavenumbers...
-            if len(nonzero) < len(modes):
-                if np.linalg.det(modes) != 1 or not np.allclose(modes.T @ modes, np.eyelen(modes)):
-                    # we're working in a non-invertible subspace...
-                    raise ValueError("non-invertible subspace of normal modes found, inverse can't be evaluated")
-                else:
-                    inv = modes.T
-            else:
-                inv = np.linalg.inv(modes)
+            # if len(nonzero) < len(modes):
+            #     if np.linalg.det(modes) != 1 or not np.allclose(modes.T @ modes, np.eyelen(modes)):
+            #         # we're working in a non-invertible subspace...
+            #         raise ValueError("non-invertible subspace of normal modes found, inverse can't be evaluated")
+            #     else:
+            #         inv = modes.T
+            # else:
+            #     inv = np.linalg.inv(modes)
+            # nonzero = np.array([0, 3, 4, 5])
             freq2 = freq2[nonzero]
             modes = modes[:, nonzero]
+            inv = V.T[nonzero, :] @ gi12
         else:
             if np.linalg.det(modes) == 1 and np.allclose(modes.T @ modes, np.eyelen(modes)):
                 inv = modes.T
             else:
                 inv = np.linalg.inv(modes)
 
+        # modes, inv = inv.T, modes.T
+
         freqs = np.sign(freq2) * np.sqrt(np.abs(freq2))
         if dimensionless:
             weighting = np.sqrt(np.abs(freqs))
             modes = modes / weighting[np.newaxis, :]
             inv = inv * weighting[:, np.newaxis]
+
+        sorting = np.argsort(freqs)
+        modes = modes[:, sorting]
+        inv = inv[sorting, :]
 
         return freqs, modes, inv
     @classmethod

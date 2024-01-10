@@ -6,6 +6,7 @@ from McUtils.Scaffolding import Logger
 
 from . Components import *
 from .Wavefunctions import DGBWavefunctions
+from .Solvers import DGBEigensolver
 
 __all__ = [
     "DGB"
@@ -98,7 +99,7 @@ class DGB:
                   ):
         logger = Logger.lookup(logger)
 
-        coords = cls.construct_gaussians(
+        coords, potential_function = cls.construct_gaussians(
             centers,
             alphas,
             potential_function,
@@ -122,6 +123,7 @@ class DGB:
 
         potential = cls.construct_potential(
             potential_function,
+            coords,
             quadrature_degree=quadrature_degree,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
@@ -183,6 +185,7 @@ class DGB:
     @classmethod
     def construct_potential(cls,
                             potential_function,
+                            coords,
                             quadrature_degree=None,
                             expansion_degree=None,
                             expansion_type=None,
@@ -196,7 +199,11 @@ class DGB:
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
             # reference_structure=reference_structure,
-            pairwise_functions=pairwise_potential_functions,
+            pairwise_functions=(
+                None
+                    if pairwise_potential_functions is None else
+                coords.coords.pairwise_potential_evaluator(pairwise_potential_functions)
+            ),
             logger=logger
         )
 
@@ -403,53 +410,12 @@ class DGB:
 
         return pot
 
-    def get_orthogonal_transform(self, min_singular_value=None, subspace_size=None):
-        if min_singular_value is None:
-            min_singular_value = self.min_singular_value
-
-        S = self.S
-        sig, evecs = np.linalg.eigh(S)
-
-        # we'll ignore anything too large?
-        # and anything negative?
-        # mostly to remove the troubles from rotations and translations...
-        base_loc = np.where(np.logical_and(sig > 0, np.abs(sig) < 1e30))
-        sig = sig[base_loc]
-
-        # sort = np.argsort(np.abs(sig))
-        # sig = sig[sort]
-        # evecs = evecs[:, sort]
-
-        if subspace_size is not None:
-            good_loc = slice(max(0, len(sig) - subspace_size), len(sig))
-        elif min_singular_value is not None:
-            good_loc = np.where(sig > min_singular_value)[0]
-        else:
-            good_loc = np.arange(len(S))
-        d = np.diag(1 / np.sqrt(sig[good_loc]))
-
-        gl = base_loc[0][good_loc]
-        L = evecs[:, gl]
-        Q = L @ d @ L.T
-
-        # sorting = np.concatenate([good_loc, bad_loc[0]])
-        # Lsort = evecs[:, sorting]
-        Qinv = L @ np.diag(np.sqrt(sig[good_loc])) @ L.T
-
-        if L.shape[0] == L.shape[1]: # no contraction
-            return Q, Qinv, None
-
-        Qe, QL = np.linalg.eigh(Q)
-        qsub = np.where(Qe > 1e-8)[0]
-        Qq = QL[:, qsub]
-        qrest = np.where(Qe <= 1e-8)[0]
-        qsort = np.concatenate([qsub, qrest])
-        Qqinv = QL[:, qsort].T  # transforms back to the Q basis
-
-        return Q, Qinv, (Qq, Qqinv)
-
     default_min_singular_value=1e-4
-    def diagonalize(self, print_debug_info=False, subspace_size=None, min_singular_value=None,
+    def diagonalize(self,
+                    *,
+                    print_debug_info=False,
+                    subspace_size=None,
+                    min_singular_value=None,
                     eps=5e-4,
                     mode='classic',
                     nodeless_ground_state=True
@@ -471,191 +437,21 @@ class DGB:
             min_singular_value = 1e-4
         # mode = 'fix-heiberger'
         if mode == "classic":
-            Q, Qinv, proj = self.get_orthogonal_transform(min_singular_value=min_singular_value, subspace_size=subspace_size)
-            if proj is None:
-                # print(Q.shape, H.shape, self.S.shape, self.centers.shape)
-                eigs, evecs = sp.linalg.eigh(H, self.S)
-                Qq = np.eye(len(Q))
-            else:
-                Qq, Qqinv = proj
-                H = Qq.T @ Q @ H @ Q.T @ Qq # in our projected orthonormal basis
-                eigs, evecs = np.linalg.eigh(H)
-                evecs = np.concatenate(
-                    [
-                        evecs,
-                        np.zeros((Qqinv.shape[1] - Qq.shape[1], len(evecs)))
-                    ],
-                    axis=0
-                )
-                evecs = Q.T @ Qqinv.T @ evecs
-            if nodeless_ground_state:
-                # fast enough if we have not that many points...
-                gswfn = DGBWavefunctions(eigs, evecs, hamiltonian=self)[0]
-                gs = gswfn.evaluate(self.gaussians.coords.centers)
-                abs_gs = np.abs(gs)
-                signs = np.sign(gs[abs_gs > np.max(abs_gs) * 1e-1])
-                diffs = np.abs(np.diff(signs))
-                # print(gs[np.argsort(np.abs(gs))][-5:], Qq.shape[1] - 1)
-                if np.sum(diffs) > 0: # had a sign flip
-                    eigs, evecs = self.diagonalize(
-                        mode='classic',
-                        subspace_size=Qq.shape[1] - 1,
-                        nodeless_ground_state=Qq.shape[1] > 1 # gotta bottom out some time...
-                    )
+            eigs, evecs = DGBEigensolver.classic_eigensolver(
+                H, self.S, self,
+                min_singular_value=min_singular_value,
+                subspace_size=subspace_size,
+                nodeless_ground_state=nodeless_ground_state
+            )
 
-        elif mode == 'stable': # Implementation of the Fix-Heiberger algorithm
-            # raise NotImplementedError("I think my Fix-Heiberger is broken?"
-            #                           "And also potentially not even the right algorithm for this problem"
-            #                           "Like I potentially _want_ a large epsilon since I want to get the best"
-            #                           "possible energies, but Fix-Heiberger will call that unstable I think")
+        elif mode == 'fix-heiberger': # Implementation of the Fix-Heiberger algorithm
+            eigs, evecs = DGBEigensolver.fix_heiberger(H, self.S, self, eps=eps)
 
-            S = self.S
-            d, Q = np.linalg.eigh(S)
-            d = np.flip(d)
-            Q = np.flip(Q, axis=1)
+        elif mode == 'similarity':
+            eigs, evecs = DGBEigensolver.similarity_mapped_solver(H, self.S, self)
 
-            N = len(d)
-            cutoff = np.max(d) * eps
-            g1 = np.where(d >= cutoff)
-            if len(g1) == 0:
-                raise ValueError("totally zero S matrix")
-            n1 = len(g1[0])
-            n2 = N - n1
-
-            if n2 == 0:
-                print("Falling back on classic method...")
-                return self.diagonalize(mode='classic')
-
-            # D = np.diag(d[g1])
-            # F = np.diag(d[g2])
-            # B0 = np.diag(np.concatenate([
-            #     d[g1],
-            #     np.zeros(n2)
-            # ]))
-            R = np.diag(np.concatenate([
-                1 / np.sqrt(d[g1]),
-                np.ones(n2)
-            ]))
-            # with np.printoptions(linewidth=1e8):
-            #     raise Exception(R@B0@R)
-            A1 = R.T@Q.T@H@Q@R
-
-            A22 = A1[n1:, n1:]
-            d2, Q22 = np.linalg.eigh(A22)
-            d2 = np.flip(d2)
-            Q22 = np.flip(Q22, axis=1)
-
-            cut2 = np.max(d2) * eps
-            g3 = np.where(d2 >= cut2)[0]
-            n3 = len(g3)
-            if n3 == 0:
-                # print("Early exiting after first iteration")
-                if n1 <= n2:
-                    raise ValueError("singular problem (case 2)")
-                A12 = A1[:n1, n1:]
-                Q12, R13 = np.linalg.qr(A12, mode='complete')
-                if np.linalg.matrix_rank(A12) < n2:  # singular
-                    raise ValueError("singular problem (case 3)")
-
-                # print("N3 = 0???")
-
-                Q2 = np.eye(N)
-                Q2[:n1, :n1] = Q12
-                A2 = Q2.T @ A1 @ Q2.T
-
-                A12 = A2[:n2, n2:n1]
-                A13 = A2[n1:, :n2]
-                A22 = A2[n2:n1, n2:n1]
-
-                eigs, U2 = np.linalg.eigh(A22)
-                U1 = np.zeros((n2, n1 - n2))
-                U3 = -np.linalg.inv(A13)@A12@U2
-
-                U = np.concatenate(
-                    [
-                        U1, U2, U3
-                    ],
-                    axis=0
-                )
-
-                evecs = Q @ R @ Q2 @ U
-
-            else:
-
-                g4 = np.where(d2 < cut2)[0]
-                n4 = len(g4)
-                Q2 = np.eye(N)
-                Q2[n1:, n1:] = Q22
-                A2 = Q2.T@A1@Q2
-                # B2 = Q2.T@B1@Q2
-
-                if n4 == 0:
-                    # print("Early, well conditioned after first iteration")
-                    # print("N4 = 0??? {d2}".format(d2=d2))
-                    A11 = A2[:n1, :n1]
-                    A12 = A2[:n1, n1:]
-                    Dinv = np.diag(1 / d2)
-
-                    eigs, U1 = np.linalg.eigh(A11 - A12@Dinv@A12.T)
-                    U2 = -Dinv@A12.T@U1
-
-                    U = np.concatenate(
-                        [
-                            U1, U2
-                        ],
-                        axis=0
-                    )
-
-                    evecs = Q @ R @ Q2 @ U
-                else: # second iteration of this partitioning...
-                    if n1 <= n4:
-                        raise ValueError("singular problem (case 5)")
-
-                    A2[-n4:, -n4:] = np.zeros((n4, n4)) #
-                    # B2 = B1
-
-                    A13 = A2[:n1, n1+n3:]
-                    Q33, R14 = np.linalg.qr(A13, mode='complete')
-                    if np.linalg.matrix_rank(A13) < n4: # singular
-                        raise ValueError("singular problem (case 6)")
-                    # A14 = R14[:n4]
-
-                    Q3 = np.eye(N)
-                    Q3[:n1, :n1] = Q33
-                    A3 = Q3.T@A2@Q3
-
-                    # B3 = B1
-
-                    n5 = n1 - n4
-                    A11 = A3[:n4, :n4]
-                    A12 = A3[:n4, n4:n1]
-                    A13 = A3[:n4, n1:n1+n3]
-                    A14 = A3[:n4, -n4:]
-
-                    A22 = A3[n4:n1, n4:n1]
-                    A23 = A3[n4:n1, n1:n1+n3]
-                    # A24 = A3[n4:n5, -n4:]
-                    #
-                    # raise Exception(A24)
-
-                    Dinv = np.diag(1 / d2[g3])
-
-                    U1 = np.zeros((n4, n5))
-                    eigs, U2 = np.linalg.eigh(
-                        A22 - A23@Dinv@A23.T
-                    )
-                    U3 = -Dinv@A23.T@U2
-                    U4 = -np.linalg.inv(A14)@(A12@U2 + A13@U3)
-
-                    U = np.concatenate(
-                        [
-                            U1, U2, U3, U4
-                        ],
-                        axis=0
-                    )
-
-                    evecs = Q @ R @ Q2 @ Q3 @ U
-
+        elif callable(mode):
+            eigs, evecs = mode(H, self.S, )
         else:
             raise ValueError("unknown solver {}".format(mode))
 
@@ -663,6 +459,8 @@ class DGB:
 
 
         return eigs, evecs
+
+
 
     def get_wavefunctions(self, print_debug_info=False, min_singular_value=None, subspace_size=None, nodeless_ground_state=None,
                           mode=None, stable_epsilon=None

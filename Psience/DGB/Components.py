@@ -1,5 +1,6 @@
 
 import abc
+import math
 
 import numpy as np, scipy as sp, itertools, functools
 
@@ -200,16 +201,17 @@ class DGBEvaluator:
                     contrib *= base_contrib
 
                 dcont = d[(slice(None, None, None),) + idx] if len(idx) > 0 else d
-                facterms = np.unique([x for x in itertools.permutations(idx)], axis=0)
-                nfac = len(facterms) # this is like a binomial coeff or something but my sick brain won't work right now...
-                scaling = 2**(len(idx)/2) * np.prod([np.math.factorial(count_map.get(k, 0)) for k in range(ndim)])
-                for _ in range(fdim):
-                    scaling = np.expand_dims(scaling, -1)
 
                 if reweight:
-                    contrib *= nfac * dcont / scaling
+                    # compute multinomial coefficient for weighting purposes
+                    _, counts = np.unique(idx, return_counts=True)
+                    multicoeff = 1
+                    for x in counts: multicoeff*=math.factorial(x)
+                    multicoeff = multicoeff / math.factorial(len(idx))
+                    scaling = multicoeff / math.factorial(nd)
+                    contrib *= dcont * scaling
                 else:
-                    contrib *= nfac * dcont
+                    contrib *= dcont
 
                 pot[row_inds, col_inds] += contrib
 
@@ -395,10 +397,14 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
         init_sigs = overlap_data['init_covariances']
         init_cents = overlap_data['init_centers']
 
+        nz_pos = np.where(prefactors != 0)
+        if len(nz_pos) == 0 or len(nz_pos[0]) == 0:
+            # short circuit
+            return np.zeros((init_cents.shape[0], init_cents.shape[0]))
+
         # ndim = centers.shape[-1]
         poly = cls._induced_polys(terms, init_sigs[cols], init_cents[cols])
         pcs = poly.coeffs
-        nz_pos = np.where(prefactors != 0)
         # force prefactors to be broadcastable
         scaled_coeffs = np.expand_dims(
             prefactors[nz_pos],
@@ -407,7 +413,6 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
         poly = DensePolynomial(scaled_coeffs, stack_dim=1)
         # print(poly.coeffs[0])
         poly = poly.shift((-centers)[nz_pos[0]])
-        # print(poly.coeffs[0])
         # raise Exception(centers[0], alphas[0], init_sigs[0])
         tcoeffs = poly.coefficient_tensors
         (keys, subsel), sorting = nput.group_by(np.arange(len(nz_pos[0])), nz_pos[0])
@@ -565,19 +570,23 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         self.ci_func = coriolis_inertia_function
 
     @classmethod
-    def _embed_watson_modes(cls, watson_data, centers):
+    def _embed_watson_modes(cls, watson_data, centers): # for putting cartesians in the watson frame?
         origin = watson_data['origin'].reshape(-1)
         tf = watson_data['matrix']
         new_cent_vecs = (centers-origin[np.newaxis]).reshape(centers.shape[0], -1, centers.shape[1])@tf.T[np.newaxis]
         return new_cent_vecs.reshape(-1, new_cent_vecs.shape[-1]) # basically a squeeze
 
-    # def evaluate_ke(cls, overlap_data):
-    #     raise NotImplementedError(...)
-    #     prefactors = np.broadcast_to(
-    #         np.diagonal(1 / masses)[np.newaxis],
-    #         (overlap_data['centers'].shape[0], len(masses), len(masses))
-    #     )
-    #     return cls._evaluate_polynomial_ke(overlap_data, ['p', 'p'], prefactors) / 2
+    def evaluate_ke(self, overlap_data):
+        coriolis = self.ci_func(overlap_data['centers'])
+        watson = self._evaluate_polynomial_ke(overlap_data, ['q','p', 'q', 'p'], coriolis)
+
+        n = coriolis.shape[-1]
+        prefactors = np.broadcast_to(
+            np.eye(n),
+            (overlap_data['centers'].shape[0], n, n)
+        )
+        base = self._evaluate_polynomial_ke(overlap_data, ['p', 'p'], prefactors)
+        return watson + base
 
 class DGBPotentialEnergyEvaluator(DGBEvaluator):
     """
@@ -591,7 +600,6 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
                  expansion_type=None,
                  quadrature_degree=None,
                  pairwise_functions=None,
-                 pairwise_function_options=None,
                  logger=None
                  ):
         self.potential_function = potential_function
@@ -599,10 +607,7 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
         self.expansion_degree = expansion_degree
         self.expansion_type = expansion_type
         self.quadrature_degree = quadrature_degree
-        self.pairwise_handler = None if pairwise_functions is None else DGBPairwisePotentialEvaluator(
-            pairwise_functions,
-            **({} if pairwise_function_options is None else pairwise_function_options)
-        )
+        self.pairwise_handler = pairwise_functions
 
         self.logger = Logger.lookup(logger)
 
@@ -628,8 +633,9 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
                             ):
 
         if pairwise_functions is not None:
-            raise NotImplementedError("not done delegating")
-            pot_contribs, deriv_corrs = ...
+            pot_contribs, deriv_corrs = pairwise_functions.evaluate_pairwise_contrib(
+                overlap_data
+            )
         else:
             pot_contribs = None
             deriv_corrs = None
@@ -686,6 +692,7 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             npts,
             derivs,
             overlap_data,
+            reweight=True,
             expansion_type=expansion_type,
             logger=logger
         )
@@ -771,189 +778,161 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             logger=self.logger
         )
 
-class DGBPairwisePotentialEvaluator(DGBEvaluator):
-
-    def __init__(self,
-                 pairwise_potential_functions,
-                 coord_shape,
-                 quadrature_degree=4,
-                 expansion_degree=4
-                 ):
+class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
+    def __init__(self, pairwise_potential_functions):
         self.pairwise_potential_functions = pairwise_potential_functions
-        self.coord_shape = coord_shape
-    @staticmethod
-    def _wrap_pairwise(func):
-        def eval(coords, deriv_order=None):
-            if deriv_order is None:
-                r = np.linalg.norm(coords, axis=-1) # we ensure no scaling of difference coords
-                r_derivs = None
-            else:
-                r_derivs = nput.vec_norm_derivs(coords, order=deriv_order)
-                r, r_derivs = r_derivs[0], r_derivs[1:]
-            fdat = func(r, deriv_order=deriv_order)
-            if r_derivs is not None:
-                f_vals = fdat[0]
-                r_derivs = [r[..., np.newaxis] for r in r_derivs]
-                f_derivs = [fdat[i].reshape(f_vals.shape + (1,)*i) for i in range(1, deriv_order+1)]
-                f_derivs = list(TensorDerivativeConverter(r_derivs, f_derivs).convert())
-                fdat = [f_vals] + f_derivs
-            return fdat
-
-        return eval
 
     @classmethod
-    def integrate_pairwise_potential_contrib(cls,
-                                             functions,
-                                             centers,
-                                             alphas,
-                                             coord_shape=None,
-                                             quadrature_degree=4,
-                                             expansion_degree=4
-                                             ):
+    def get_bond_length_deltas(cls, natoms, ndim, i, j):
+        mat = np.zeros((ndim, natoms, ndim))
+        for k in range(ndim):
+            mat[k][i][k] = 1
+            mat[k][j][k] = -1
+        return mat.reshape((ndim, natoms * ndim))
 
-        if coord_shape is not None and len(coord_shape) == 1:
-            raise ValueError("can't determine if coords are planar or not")
-
-        if coord_shape is None:
-            raise NotImplementedError("coord shape inference not implemented for pairwise potentials")
+    @abc.abstractmethod
+    def get_coordinate_bond_length_projection(self, i, j) -> 'tuple[np.ndarray, np.ndarray]':
+        ...
+    def get_coordinate_change_transformation(self, coordinate_projection_data) -> np.ndarray:
+        _, s, w = np.linalg.svd(coordinate_projection_data)  # w is the important transformation
+        # we get the dimension for every specified transformation (doesn't always need to be the same)
+        if not np.allclose(np.abs(s), s):
+            s_sorts = np.argsort(np.abs(s), axis=-1)
+            s = np.abs(s[s_sorts])
+            w = w.transpose(0, 2, 1)[s_sorts].transpose(0, 2, 1) # ugly but it'll get the job done...
+        dims = np.sum(np.abs(s) > 1e-14, axis=1)
+        udims, upos = np.unique(dims, return_index=True)
+        if len(udims) == 1:
+            return w[:, -udims[0]:]
         else:
-            ndim = coord_shape[1]
+            raise NotImplementedError("bond length transforms with different dimensions not yet supported...")
+
+    def get_bond_length_change_transformation(self, overlap_data, i, j) -> np.ndarray:
+        d0, base_proj = self.get_coordinate_bond_length_projection(i, j)
+        proj_data = base_proj[np.newaxis] @ overlap_data['rotations'] # not sure if we need a .T or not...
+        return self.get_coordinate_change_transformation(proj_data)
+
+    def wrap_distance_function(self, i, j, overlap_data, transformations, pairwise_function):
+        d0, proj = self.get_coordinate_bond_length_projection(i, j) # dim x ncoord
+        proj = proj[np.newaxis]
+        tf_proj = proj @ transformations # N x dim x subdim
+        @functools.wraps(pairwise_function)
+        def eval_pairwise(coords, *, deriv_order=None, d0=d0, tf_proj=tf_proj):
+            # coords is expressed in terms of some sort of transformed version
+            # of the normal modes (or Cartesians) that were supplied to the program
+            # and we know exactly how these change the deltas that feed into the bond
+            # length using tf_proj from above, this means we can get the displacements of the deltas
+            # for free and ... add these onto the initial deltas???
+            coords = coords.reshape(tf_proj.shape[0], -1, coords.shape[-1]) # N x k x subdim
+            proj_d = tf_proj[:, np.newaxis, :, :] @ coords[:, :, :, np.newaxis] # N x k x dim x 1
+            d = d0[np.newaxis, np.newaxis, :] + proj_d.reshape(proj_d.shape[:3])
+
+            if d.shape[1] == 1:
+                d = d.reshape((d.shape[0], d.shape[2]))
+
+            if deriv_order is None:
+                r = np.linalg.norm(d, axis=-1)  # we ensure no scaling of difference coords
+                r_derivs = None
+            else:
+                r_derivs = nput.vec_norm_derivs(d, order=deriv_order)
+                r, r_derivs = r_derivs[0], r_derivs[1:]
+            fdat = pairwise_function(r, deriv_order=deriv_order)
+            if r_derivs is not None:
+                # first we get df/d_delta by transforming df/dr.dr/d_delta
+                f_vals = fdat[0]
+                r_derivs = [r[..., np.newaxis] for r in r_derivs]
+                f_derivs = [fdat[i].reshape(f_vals.shape + (1,) * i) for i in range(1, deriv_order + 1)]
+                f_derivs = list(TensorDerivativeConverter(r_derivs, f_derivs).convert())
+                # then we get df/dq by transforming with the linear transformation d_del/dq
+                q_derivs = []
+                for d in f_derivs:
+                    for j in range(d.ndim-1):
+                        d = nput.vec_tensordot(d, tf_proj, shared=1, axes=[1, 1])
+                    q_derivs.append(d)
+                fdat = [f_vals] + q_derivs
+            return fdat
+
+        return eval_pairwise
+
+    # def get_angle_change_transformation(self, coords, i, j, k):
+    #     ...
+
+    # def wrap_angle_function(self, coord, i, j, k, transformations, pairwise_function):
+    #     ...
+
+    def evaluate_pairwise_contrib(self,
+                                  overlap_data,
+                                  quadrature_degree=3,
+                                  expansion_degree=2
+                                  ):
+
+        centers = overlap_data['centers']
+        alphas = overlap_data['alphas']
+        covs = overlap_data['inverse']
 
         npts = centers.shape[0]
         fdim = centers.shape[1]
-        centers = centers.reshape(npts, -1, ndim)
-        alphas = alphas.reshape(npts, -1, ndim)
 
         potential_contrib = 0
         if expansion_degree is not None:
             derivative_contribs = [
-                np.zeros((npts,) + (fdim,)*i)
+                np.zeros((npts,) + (fdim,) * i)
                     if i > 0 else
                 np.zeros((npts,))
-                for i in range(expansion_degree+1)
+                for i in range(expansion_degree + 1)
             ]
         else:
             derivative_contribs = [np.zeros((npts,))]
-        for index_pair, pairwise_func in functions.items():
-            f = cls._wrap_pairwise(pairwise_func)
-            subcenters = centers[:, index_pair, :].reshape(npts, 2*ndim)
-            subalphas = alphas[:, index_pair, :].reshape(npts, 2, ndim)
 
-            # if ndim == 1:
-            #     tf = np.array([
-            #         [1, -1],
-            #         [1,  1]
-            #     ]) # / np.sqrt(2)
-            #     tf = np.broadcast_to(tf[np.newaxis], (npts, 2, 2)).copy()
-            #     tf[:, 1, 1] = subalphas[:, 0, 0] / subalphas[:, 1, 0]
-            # elif ndim == 2:
-            #     tf = np.array([
-            #         [1, 0, -1,  0],
-            #         [0, 1,  0, -1],
-            #         [1, 0,  1,  0],
-            #         [0, 1,  0,  1]
-            #     ]) #/ np.sqrt(2)
-            #     tf = np.broadcast_to(tf[np.newaxis], (npts, 4, 4)).copy()
-            #     tf[:, 2, 2] = subalphas[:, 0, 0] / subalphas[:, 1, 0]
-            #     tf[:, 3, 3] = subalphas[:, 0, 1] / subalphas[:, 1, 1]
-            # elif ndim == 3:
-            #     tf = np.array([
-            #         [1, 0, 0, -1,  0,  0],
-            #         [0, 1, 0,  0, -1,  0],
-            #         [0, 0, 1,  0,  0, -1],
-            #         [1, 0, 0,  1,  0,  0],
-            #         [0, 1, 0,  0,  1,  0],
-            #         [0, 0, 1,  0,  0,  1]
-            #     ]) #/ np.sqrt(2)
-            #     tf = np.broadcast_to(tf[np.newaxis], (npts, 6, 6)).copy()
-            #     tf[:, 3, 3] = subalphas[:, 0, 0] / subalphas[:, 1, 0]
-            #     tf[:, 4, 4] = subalphas[:, 0, 1] / subalphas[:, 1, 1]
-            #     tf[:, 5, 5] = subalphas[:, 0, 2] / subalphas[:, 1, 2]
-            # else: # implements the above transformations for arbitary dims
+        for index_pair, pairwise_func in self.pairwise_potential_functions.items():
+            if len(index_pair) == 2:
+                i,j = index_pair
+            else:
+                raise NotImplementedError("currently only pairwise distances potentials are supported")
 
-            tf = np.eye(2*ndim)
-            off_diag_rows = np.arange(ndim)
-            off_diag_cols = ndim + off_diag_rows
-            tf[off_diag_rows, off_diag_cols] = -1
-            tf[off_diag_cols, off_diag_rows] =  1
-            tf = np.broadcast_to(tf[np.newaxis], (npts, 2*ndim, 2*ndim)).copy()
-            for i in range(ndim):
-                j = ndim + i
-                tf[:, j, j] = subalphas[:, 0, i] / subalphas[:, 1, i]
+            tfs = self.get_bond_length_change_transformation(overlap_data, i, j)
+            f = self.wrap_distance_function(i, j, overlap_data, tfs, pairwise_func)
+            tf_cov = np.linalg.inv(tfs @ covs @ tfs.transpose((0, 2, 1)))
 
-            # tf_inv = np.eye(2*ndim)
-            # tf_inv = np.broadcast_to(tf_inv[np.newaxis], (npts, 2 * ndim, 2 * ndim)).copy()
-            # for i in range(ndim):
-            #     j = ndim + i
-            #     a = 1 + subalphas[:, 0, i] / subalphas[:, 1, i]
-            #     tf_inv[:, i, i] = (a - 1) / a
-            #     tf_inv[:, j, j] =  1 / a
-            #     tf_inv[:, i, j] =  1 / a
-            #     tf_inv[:, j, i] = -1 / a
-            # tf_dets = np.linalg.det(tf)
-            # print(tf[0])
-            # print(tf_inv[0])
-            # print(tf_dets)
+            # raise Exception(tfs.shape, centers.shape)
 
-            subcov = np.zeros((subalphas.shape[0], 2*ndim, 2*ndim))
-            # fill diagonals across subcov
-            diag_inds = (slice(None, None, None),) + np.diag_indices(2*ndim)
-            subcov[diag_inds] = np.concatenate([subalphas[:, 0, :], subalphas[:, 1, :]], axis=1)
-            tf_centers = (subcenters[:, np.newaxis, :] @ tf.transpose(0, 2, 1) ).reshape(-1, 2*ndim)
-            tf_cov = tf@subcov@tf.transpose(0, 2, 1)
-            # print(tf_cov[0])
-            # print("...", tf_centers[:, 0])
-            tf_alphas = tf_cov[diag_inds] / 4 # account for sqrt of 2 I omitted
-            # print(tf_centers[:, :ndim])
-            pairwise_contrib = cls.quad_nd(
-                tf_centers[:, :ndim],
-                tf_alphas[:, :ndim],
+            tf_centers = tfs @ centers[:, :, np.newaxis]
+            tf_centers = tf_centers.reshape(tf_centers.shape[:2])
+
+            tf_alphas, tf_vecs = np.linalg.eigh(tf_cov)
+            tf_alphas = tf_alphas / 2 # baked into the covariences...
+            ndim = tf_alphas.shape[1]
+            tf_rats = np.prod(alphas[:, :ndim] / tf_alphas, axis=1) * np.prod(alphas[:, ndim:], axis=1)
+            scaling = np.sqrt(tf_rats / np.pi**ndim) # accounting for prefactor
+
+            # TODO: need to add rotation in generalΩ
+
+            pairwise_contrib = self.quad_nd(
+                tf_centers,
+                tf_alphas,
                 f,
-                degree=18,
+                degree=32,
                 normalize=True
-            ) * (
-                np.prod(np.sqrt(np.pi / tf_alphas[:, ndim:]), axis=-1)
-            ) / 2
+            ) * scaling * np.prod(np.sqrt(alphas), axis=-1) # baked into the base overlap def.n
 
-            # now we scale by dgb prefactors
-            prefactor_scaling = np.power(
-                np.prod(subalphas.reshape(-1, 2*ndim), axis=-1),
-                1/2
-            ) * (1/np.pi)**ndim
-            # print(prefactor_scaling)
-            # print(
-            #     np.prod(subalphas.reshape(-1, 2*ndim), axis=-1)
-            # )
+            potential_contrib += pairwise_contrib
 
-            potential_contrib += prefactor_scaling * pairwise_contrib
-            # print(potential_contrib)
-            # raise Exception(potential_contrib)
-
-            # tf_inv = tf_inv * tf_dets[:, np.newaxis, np.newaxis]
             if expansion_degree is not None:
-                # need to map index_pair (which correspond to 4 or 6 inds) to the
-                # correct list of inds in full space
-                idx_pair_full_inds = sum(
-                    (tuple(range(ndim*x, ndim*(x+1))) for x in index_pair),
-                    ()
-                )
-                tf_derivs_contribs = f(tf_centers[:, :ndim], deriv_order=expansion_degree)
-                for i,d in enumerate(tf_derivs_contribs):
+                # we make use of the inverse of the transformation that takes us from
+                # the space of total coordinates (normal modes or Cartesians) to the space
+                # of coordinates (deltas) that lead to a change in the coordinate of interest
+                # we'll note that our wrapped function is expected to implement the appropriate
+                # conversion from derivatives with respect to r to derivatives with respect to
+                # the deltas
+
+                tf_derivs_contribs = f(tf_centers, deriv_order=expansion_degree)
+                for i, d in enumerate(tf_derivs_contribs):
                     if i == 0:
                         derivative_contribs[0] += d
                     else:
-                        subd_contrib = np.zeros((npts,) + (2*ndim,) * i)
-                        subd_inds = (slice(None, None, None),) + (slice(None, ndim, None),) * i # contrib[:, :ndim, :ndim, etc]
-                        subd_contrib[subd_inds] = d
-                        # print(subd_contrib.shape, tf_inv.shape)
                         for j in range(i):
-                            # print(subd_contrib.shape[j+1], tf_inv.shape[1])
-                            subd_contrib = nput.vec_tensordot(subd_contrib, tf, shared=1, axes=[1, 1])
-                        dc_inds = (slice(None, None, None),) + np.ix_(*[idx_pair_full_inds,]*i)
-                        # print(dc_inds)
-                        # print(derivative_contribs[i].shape, derivative_contribs[i][dc_inds].shape)
-                        # print(subd_contrib.shape)
-                        derivative_contribs[i][dc_inds] += subd_contrib
+                            d = nput.vec_tensordot(d, tfs, shared=1, axes=[1, 1])
+                        derivative_contribs[i] += d
                 # raise Exception(...)
             else:
                 derivative_contribs[0] += f(tf_centers[:, :ndim])
@@ -966,6 +945,28 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator):
         # raise Exception(potential_contrib[:2])
 
         return potential_contrib, derivative_contribs
+
+class DGBCartesianPairwiseEvaluator(DGBPairwisePotentialEvaluator):
+    def __init__(self, coords:'DGBCartesians', pairwise_functions):
+        self.coords = coords
+        super().__init__(pairwise_functions)
+
+class DGBWatsonPairwiseEvaluator(DGBPairwisePotentialEvaluator):
+    def __init__(self, coords:'DGBWatsonModes', pairwise_functions):
+        self.coords = coords
+        super().__init__(pairwise_functions)
+
+    def get_coordinate_bond_length_projection(self, i, j):
+        natoms = self.coords.natoms
+        modes = self.coords.modes.matrix
+        ndim = modes.shape[0] // natoms # this will almost always be 3
+        base_mat = self.get_bond_length_deltas(natoms, ndim, i, j)
+        #TODO: force coords to be overlap_data so we can extract the transformations
+        #      for future use
+        tf_base = base_mat @ modes
+        # raise Exception(base_mat.shape, self.coords.modes.origin.shape)
+        d0 = np.dot(base_mat, self.coords.modes.origin.reshape(-1))
+        return d0, tf_base
 
 class DGBCoords(metaclass=abc.ABCMeta):
 
@@ -982,7 +983,13 @@ class DGBCoords(metaclass=abc.ABCMeta):
     def kinetic_energy_evaluator(self) -> 'DGBKineticEnergyEvaluator':
         ...
     @abc.abstractmethod
+    def pairwise_potential_evaluator(self, potential_functions) -> 'DGBPairwisePotentialEvaluator':
+        ...
+    @abc.abstractmethod
     def __getitem__(self, item) -> 'DGBCoords':
+        ...
+    @abc.abstractmethod
+    def gmatrix(self, coords:np.ndarray) -> np.ndarray:
         ...
 class DGBCartesians(DGBCoords):
     def __init__(self, coords, masses):
@@ -1002,6 +1009,8 @@ class DGBCartesians(DGBCoords):
         return DGBCartesianEvaluator(
             np.broadcast_to(self.masses, self.centers.shape[1:]).flatten()
         )
+    def pairwise_potential_evaluator(self, potential_functions):
+        return DGBCartesianPairwiseEvaluator(self, potential_functions)
     @classmethod
     def resolve_masses(cls, coords, masses=None, atoms=None):
         if masses is None:
@@ -1043,12 +1052,18 @@ class DGBCartesians(DGBCoords):
             )
         else:
             raise ValueError("zero-length slice?")
+
+    def gmatrix(self, coords:np.ndarray) -> np.ndarray:
+        mass_spec = np.broadcast_to(self.masses[:, np.newaxis], (len(self.masses), self.centers.shape[2])).flatten()
+        mass_spec = np.diag(1 / mass_spec)
+        return np.broadcast_to(mass_spec[np.newaxis], (coords.shape[0],) + mass_spec.shape)
 class DGBInternals(DGBCoords):
     def __init__(self, coords, gmat_function=None, vprime_function=None):
         raise NotImplementedError('internals coming soon?')
 class DGBWatsonModes(DGBCoords):
-    def __init__(self, coords, modes, coriolis_inertia_function=None):
+    def __init__(self, coords, modes, coriolis_inertia_function=None, natoms=None):
         self.coords = coords
+        self.natoms = natoms
         self.modes = modes
         self.ci_func = coriolis_inertia_function
 
@@ -1058,39 +1073,67 @@ class DGBWatsonModes(DGBCoords):
     @property
     def kinetic_energy_evaluator(self):
         return DGBWatsonEvaluator(self.modes, self.ci_func)
+    def pairwise_potential_evaluator(self, potential_functions):
+        return DGBWatsonPairwiseEvaluator(self, potential_functions)
+    @staticmethod
+    def zeta_momi(watson_coords, modes, masses):
+        origin = modes.origin
+        carts = (watson_coords[:, np.newaxis, :] @ modes.inverse[np.newaxis]).reshape(
+            watson_coords.shape[:1] + origin.shape)
+        carts = carts + origin
+        carts = carts.reshape((carts.shape[0], len(masses), -1))
+        if carts.shape[-1] < 3:
+            # pad with zeros
+            carts = np.concatenate(
+                [
+                    carts,
+                    np.zeros(carts.shape[:2] + (3 - carts.shape[-1],))
+                ],
+                axis=-1
+            )
+
+        B_e, eigs = StructuralProperties.get_prop_moments_of_inertia(carts, masses)
+        J = modes.inverse
+        J = J.reshape((J.shape[0],) + origin.shape)
+        J = np.tensordot(eigs, J, axes=[1, 2])  # expressed in local frames
+        X = J.shape[1]
+        N = J.shape[2]
+
+        rows, cols = np.triu_indices(N, k=1)
+        zeta = np.zeros((J.shape[0], X, N, N))
+        if N > 1:  # no contrib otherwise
+            for a in range(X):
+                zeta_vals = np.sum(
+                    J[:, (a + 1) % X, rows, :] * J[:, (a + 2) % X, cols, :]
+                    - J[:, (a + 1) % X, cols, :] * J[:, (a + 2) % X, rows, :],
+                    axis=4
+                )
+                zeta[:, a, rows, cols] = zeta_vals
+                zeta[:, a, cols, rows] = -zeta_vals
+
+        # # coriolis terms are given by zeta = sum(JeJ^T, n)
+        # # which is also just zeta[x][r, s] = sum(J[r][n, y]*J[s][n, z] - J[r][n, z]*J[s][n, y], n)
+        # ce = -nput.levi_cevita3
+        # zeta = sum(
+        #     np.tensordot(
+        #         np.tensordot(ce, J[n], axes=[0, 1]),
+        #         J[n],
+        #         axes=[1, 1]
+        #     )
+        #     for n in range(J.shape[0])
+        # )
+
+        return zeta, B_e
 
     @classmethod
     def default_coriolis_intertia_function(cls, modes, masses):
-        def coriolis_inertia_function(watson_coords):
-            carts = watson_coords[:, np.newaxis, :] @ modes.inverse.transpose()[np.newaxis]
-            carts = carts.reshape((carts.shape[0], len(masses), -1))
-            if carts.shape[-1] < 3:
-                # pad with zeros
-                carts = np.concatenate(
-                    [
-                        carts,
-                        np.zeros(carts.shape[:2] + (3 - carts.shape[-1],))
-                    ],
-                    axis=-1
-                )
-
-            B_e, eigs = StructuralProperties.get_prop_moments_of_inertia(carts, masses)
-            J = modes.matrix.reshape()
-            J = np.tensordot(J, eigs, axes=[2, 0])
-
-            # coriolis terms are given by zeta = sum(JeJ^T, n)
-            # which is also just zeta[x][r, s] = sum(J[r][n, y]*J[s][n, z] - J[r][n, z]*J[s][n, y], n)
-            ce = -nput.levi_cevita3
-            zeta = sum(
-                np.tensordot(
-                    np.tensordot(ce, J[n], axes=[0, 1]),
-                    J[n],
-                    axes=[1, 1]
-                )
-                for n in range(J.shape[0])
+        def coriolis_inertia_function(watson_coords, *, modes=modes, masses=masses):
+            zeta, B_e = cls.zeta_momi(watson_coords, modes, masses)
+            return sum(
+                B_e[:, a, np.newaxis, np.newaxis, np.newaxis, np.newaxis]
+                 * zeta[:, a, :, :, np. newaxis, np.newaxis]*zeta[:, a, np. newaxis, np.newaxis, :, :]
+                for a in range(B_e.shape[1])
             )
-
-            return zeta, B_e
 
         return coriolis_inertia_function
 
@@ -1102,10 +1145,27 @@ class DGBWatsonModes(DGBCoords):
                         coriolis_inertia_function=None
                         ):
         flat_carts = (coords - modes.origin[np.newaxis]).reshape((len(coords), -1))
-        coords = flat_carts[:, np.newaxis, :] @ modes.matrix[np.newaxis]
+        coords = (flat_carts[:, np.newaxis, :] @ modes.inverse.T[np.newaxis]).reshape(
+            flat_carts.shape[0],
+            modes.inverse.shape[0]
+        )
         if coriolis_inertia_function is None:
             coriolis_inertia_function = cls.default_coriolis_intertia_function(modes, masses)
-        return cls(coords, modes, coriolis_inertia_function=coriolis_inertia_function)
+        return cls(coords, modes, coriolis_inertia_function=coriolis_inertia_function, natoms=len(masses))
+
+    def __getitem__(self, item):
+        # raise NotImplementedError("need to figure out how to handle coriolis?")
+        c = self.coords[item]
+        if not isinstance(c, np.ndarray) or c.ndim != 3:
+            raise ValueError("bad slice {}".format(item))
+        return type(self)(
+            c,
+            self.modes,
+            coriolis_inertia_function=self.ci_func
+        )
+    def gmatrix(self, coords:np.ndarray) -> np.ndarray:
+        base_spec = np.eye(coords.shape[1])
+        return np.broadcast_to(base_spec[np.newaxis], (coords.shape[0],) + base_spec.shape)
 
 class DGBCovarianceTransformations:
 
@@ -1278,38 +1338,13 @@ class DGBGaussians:
 
         return cr, centers, alphas, S, T
 
-    def decluster_gaussians(self, centers, alphas, clustering_radius):
-        raise NotImplementedError("need to ensure this works right")
-        centers = np.asanyarray(centers)
-        if centers.ndim == 1:
-            centers = centers[:, np.newaxis]
-
-        mask = None
-        if clustering_radius is not None and clustering_radius >= 0:
-            centers, _, _, mask = RBFDInterpolator.decluster_data(centers, np.empty(len(centers)), [], clustering_radius, return_mask=True)
-
-        rots = None
-        if alphas is None:
-            alphas = self.get_alphas(self.masses, centers)#, clustering_radius)
-        elif isinstance(alphas, (str, dict)):
-            alphas, rots, opts = self.dispatch_get_alphas(alphas, centers)
-            for k,v in opts.items():
-                setattr(self, k, v)
-
-        if isinstance(alphas, (int, float, np.integer, np.floating)):
-            alphas = np.full(centers.shape, alphas)
-        else:
-            alphas = np.asanyarray(alphas)
-            if mask is not None:
-                alphas = alphas[mask]
-
-        return centers, alphas, rots
-
     @classmethod
     def _embedded_function(cls, func, modes, natoms=None):
         @functools.wraps(func)
         def embedded_function(mode_coords, deriv_order=None):
-            carts = mode_coords[:, np.newaxis, :] @ modes.inverse.transpose()[np.newaxis] + modes.origin[np.newaxis]
+            origin = modes.origin
+            carts = (mode_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(mode_coords.shape[:1] + origin.shape)
+            carts = carts + origin
             if natoms is not None:
                 carts = carts.reshape((carts.shape[0], natoms, -1))
 
@@ -1318,10 +1353,12 @@ class DGBGaussians:
                 _ = []
                 for n,d in enumerate(vals):
                     for j in range(n):
-                        d = np.tensordot(d, modes.matrix, axes=[1, 1])
+                        d = np.tensordot(d, modes.matrix, axes=[1, 0])
                     _.append(d)
                 vals = _
             return vals
+
+        return embedded_function
 
     @classmethod
     def construct(cls,
@@ -1350,16 +1387,20 @@ class DGBGaussians:
                             gmat_function=gmat_function
                         )
 
+                        # pf_old = potential_function
+
                         potential_function = cls._embedded_function( # a function that takes in normal mode coordinates
                             potential_function,
                             modes,
-                            natoms=coords.shape[-1] if coords.ndim == 3 else None
+                            natoms=coords.shape[1] if coords.ndim == 3 else None
                         )
 
                     else:
                         raise ValueError("unknown mode spec {}".format(modes))
 
                 if coords.ndim == 3: # Cartesian-like
+                    # coords_old = coords
+
                     coords = DGBWatsonModes.from_cartesians(
                         coords,
                         modes,
@@ -1369,11 +1410,37 @@ class DGBGaussians:
                             atoms=atoms
                         )
                     )
+
+                    # origin = modes.origin
+                    # # raise Exception((coords.coords[:, np.newaxis, :] @ modes.inverse[np.newaxis]))
+                    # carts = (coords.coords[:, np.newaxis, :] @ modes.inverse[np.newaxis]).reshape(coords.coords.shape[:1] + origin.shape)
+                    # carts = carts + origin[np.newaxis] # ...potential shouldn't depend on origin...right?
+                    # carts = carts.reshape((carts.shape[0], 2, -1))
+                    # print(coords_old)
+                    # print(carts)
+                    #
+                    # flat_carts = (carts - modes.origin[np.newaxis]).reshape((len(coords_old), -1))
+                    # new_coords = (flat_carts[:, np.newaxis, :] @ modes.matrix[np.newaxis]).reshape(
+                    #     carts.shape[0],
+                    #     modes.matrix.shape[1]
+                    # )
+                    # raise Exception(modes.matrix@modes.inverse)
+                    # raise Exception(np.linalg.norm(modes.matrix, axis=0), np.linalg.norm(modes.inverse, axis=1))
+                    # raise Exception(
+                    #     np.diff(np.linalg.norm(coords_old[:, 0] - coords_old[:, 1], axis=1)) /
+                    #         np.diff(np.linalg.norm(carts[:, 0] - carts[:, 1], axis=1))
+                    # )
+                    # raise Exception(pf_old(coords_old) - potential_function(coords.coords))
                 else:
-                    coords = DGBWatsonModes(
-                        modes.matrix(coords),
-                        modes=modes
-                    )
+                    if internals is not None:
+                        raise NotImplementedError("internal modes not implemented")
+                    else:
+                        raise NotImplementedError("transformation not fully implemented")
+                        # Is this right???
+                        coords = DGBWatsonModes(
+                            modes.matrix @ coords,
+                            modes=modes
+                        )
 
             elif internals is not None:
                 raise NotImplementedError("internal coordinate mapping not supported yet...")
@@ -1398,13 +1465,14 @@ class DGBGaussians:
             alphas = cls.dispatch_get_alphas(
                 alphas,
                 coords,
+                gmat_function=coords.gmatrix if gmat_function is None else gmat_function,
                 potential_function=potential_function,
                 transformations=transformations
             )
 
         return cls(coords, alphas, transformations,
                    poly_coeffs=poly_coeffs, logger=logger
-                   )
+                   ), potential_function
     @classmethod
     def get_normal_modes(cls,
                          coords,
@@ -1432,8 +1500,9 @@ class DGBGaussians:
             hess = hess[sorting,]
             grad_norms = np.linalg.norm(grad, axis=-1)
             stationary_structures = np.where(grad_norms < stationary_point_norm)
-            if len(stationary_structures) == 0:
+            if len(stationary_structures) == 0 or len(stationary_structures[0]) == 0:
                 raise ValueError("no stationary state found?")
+            stationary_structures = stationary_structures[0]
             reference_structure = coords[stationary_structures[0]]
             f_matrix = hess[stationary_structures[0]]
         else:
@@ -1454,6 +1523,7 @@ class DGBGaussians:
             basis = CartesianCoordinates1D
         else:
             raise ValueError("higher than 3D Cartesians?")
+
         return NormalModes.from_fg(
             basis,
             f_matrix,
@@ -1529,10 +1599,11 @@ class DGBGaussians:
         for k in optional_keys:
             if k in opts: new_opts[k] = opts[k]
         return new_opts
-    def dispatch_get_alphas(self, alphas, centers):
+    @classmethod
+    def dispatch_get_alphas(self, alphas, centers, **extra_opts):
         if isinstance(alphas, str):
             alphas = {'method':alphas}
-        opts = alphas.copy()
+        opts = dict(extra_opts, **alphas)
         del opts['method']
         method = alphas['method']
         if method == 'virial':
@@ -1541,26 +1612,28 @@ class DGBGaussians:
                 **self._filter_alpha_method_keys(
                     'virial',
                     opts,
-                    ['potential_function'],
+                    ['potential_function', 'gmat_function', 'transformations'],
                     ['scaling']
                 )
             )
-        elif method == 'reaction_path':
-            return self.get_virial_alphas(
-                centers,
-                **self._filter_alpha_method_keys(
-                    'virial',
-                    opts,
-                    ['potential_function', 'masses']
-                )
-            )
+        # elif method == 'reaction_path':
+        #     return self.get_virial_alphas(
+        #         centers,
+        #         **self._filter_alpha_method_keys(
+        #             'virial',
+        #             opts,
+        #             ['potential_function', 'masses'],
+        #             []
+        #         )
+        #     )
         elif method == 'min_dist':
             return self.get_alphas(
                 centers,
                 **self._filter_alpha_method_keys(
                     'min_dist',
                     opts,
-                    ['masses']
+                    ['masses'],
+                    []
                 )
             )
         else:
@@ -1589,6 +1662,7 @@ class DGBGaussians:
     @classmethod
     def get_virial_alphas(cls,
                           coords,
+                          *,
                           potential_function,
                           gmat_function,
                           transformations,
@@ -1598,6 +1672,9 @@ class DGBGaussians:
         # applying the linear transformations given in "transformations" to the supplied coords
 
         #TODO: avoid recomputing this for like the 15th time
+        if isinstance(coords, DGBCoords):
+            # raise Exception(coords, coords.centers.shape)
+            coords = coords.centers
         f_data = potential_function(coords, deriv_order=2)
         if isinstance(f_data, np.ndarray) and f_data.ndim == 3:
             hess = f_data
@@ -1610,29 +1687,35 @@ class DGBGaussians:
 
         #TODO: support the identity transformation
         # our transformations are expected to be _linear_
-        hess = nput.vec_tensordot(
-            nput.vec_tensordot(
-                hess,
+        if transformations is not None:
+            hess = nput.vec_tensordot(
+                nput.vec_tensordot(
+                    hess,
+                    transformations,
+                    axes=[1, 2],
+                    shared=1
+                ),
                 transformations,
                 axes=[1, 2],
                 shared=1
-            ),
-            transformations,
-            axes=[1, 2],
-            shared=1
-        )
+            )
 
-        gmats = nput.vec_tensordot(
-            nput.vec_tensordot(
-                gmats,
+            gmats = nput.vec_tensordot(
+                nput.vec_tensordot(
+                    gmats,
+                    transformations,
+                    axes=[1, 2],
+                    shared=1
+                ),
                 transformations,
                 axes=[1, 2],
                 shared=1
-            ),
-            transformations,
-            axes=[1, 2],
-            shared=1
-        )
+            )
+
+        # raise Exception(
+        #     np.diagonal(gmats, axis1=1, axis2=2),
+        #     np.diagonal(hess, axis1=1, axis2=2)
+        # )
 
         alphas = scaling * np.sqrt(np.abs(np.diagonal(gmats, axis1=1, axis2=2) * np.diagonal(hess, axis1=1, axis2=2)))
 

@@ -1943,7 +1943,7 @@ class NormalModesManager(PropertyManager):
         else:
             fcs = self.mol.potential_surface.force_constants
             vibs = MolecularVibrations(self.mol,
-                                       MolecularNormalModes.from_force_constants(self.mol, fcs, self.mol.atoms, **kwargs)
+                                       MolecularNormalModes.from_force_constants(self.mol, fcs, atoms=self.mol.atoms, **kwargs)
                                        )
 
         return vibs

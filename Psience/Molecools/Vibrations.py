@@ -14,7 +14,7 @@ __all__ = [
     "MolecularNormalModes",
 ]
 
-__reload_hook__ = [".MoleculeInterface", ".Transformations"]
+__reload_hook__ = [".MoleculeInterface", ".Transformations", '..MixtureModes']
 
 class MolecularVibrations:
 
@@ -515,11 +515,13 @@ class MolecularNormalModes(CoordinateSystem):
     def from_force_constants(cls,
                              molecule,
                              fcs,
+                             *,
                              atoms=None,
                              masses=None,
                              mass_units="AtomicMassUnits",
                              inverse_mass_matrix=False,
                              remove_transrot=True,
+                             dimensionless=False,
                              normalize=False,
                              **opts
                              ):
@@ -548,53 +550,21 @@ class MolecularNormalModes(CoordinateSystem):
         :rtype: MolecularNormalModes
         """
 
-        # this needs some major clean up to be less of a
-        # garbage fire
-
-        if atoms is None and masses is None:
-            masses = molecule.masses
-            mass_units = "AtomicMassUnits" # TODO: Danger, Will Robinson! This will likely need to be un-hard-coded in the future...
+        from ..MixtureModes import NormalModes
 
         if atoms is not None and masses is None:
-            masses = np.array([AtomData[a, "Mass"] if isinstance(a, str) else a for a in atoms])
+            masses = atoms
 
-        if mass_units != "AtomicUnitOfMass" and mass_units != "ElectronMass":
-            mass_conv = UnitsData.convert(mass_units, "AtomicUnitOfMass"),
-        else:
-            mass_conv = 1
+        freqs, modes, inv = NormalModes.get_normal_modes(
+            fcs,
+            masses,
+            # mass_units="AtomicMassUnits",
+            remove_transrot=remove_transrot,
+            dimensionless=dimensionless
+        )
 
-        if masses is not None:
-            masses = np.asarray(masses)
-            masses = masses*mass_conv
-            if masses.ndim == 1:
-                masses = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
-                masses = np.diag(masses)
-                inverse_mass_matrix = True
-        else:
-            masses = np.eye(len(fcs))
+        return cls(molecule, modes, inverse=inv, freqs=freqs, **opts)
 
-        # temporary hack
-        t = (1 if inverse_mass_matrix else 2)
-        freqs, modes = slag.eigh(fcs, masses, type=t)
-        if t == 2:
-            modes = modes * np.sqrt(freqs)[np.newaxis, :]
-            inv = np.linalg.inv(modes)
-        else:
-            inv = (modes.T / np.sqrt(freqs)[:, np.newaxis])
-            modes = np.linalg.inv(inv)
-        # if normalize:
-        #     normalization = np.broadcast_to(1/np.linalg.norm(modes, axis=0), modes.shape)
-        #     modes = modes * normalization
-
-        freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
-        sorting = np.argsort(freqs)
-        if remove_transrot:
-            sorting = sorting[6:]
-
-        freqs = freqs[sorting]
-        modes = modes[:, sorting]
-
-        return cls(molecule, modes, inverse=inv, freqs = freqs, **opts)
 
     def __getitem__(self, item):
         """
