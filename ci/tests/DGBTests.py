@@ -1706,14 +1706,33 @@ class DGBTests(TestCase):
         raise Exception(ham_3.T)
 
     w2h = UnitsData.convert("Wavenumbers", "Hartrees")
+    @staticmethod
+    def multiply_model_functions(
+            func1: 'dict[int|tuple, dict|tuple]',
+            func2: 'dict[int|tuple, dict|tuple]'
+    ):
+        new_func = {}
+        for k, f1 in func1.items():
+            for k2, f2 in func2.items():
+                if isinstance(k, int):
+                    k = (k,)
+                    f1 = (f1,)
+                if isinstance(k2, int):
+                    k2 = (k2,)
+                    f2 = (f2,)
+                new_func[k + k2] = f1 + f2
+        return new_func
     @classmethod
-    def buildWaterModel(cls,
+    def buildWaterModel(cls,*,
                         w=3869.47 * w2h,
                         wx=84 * w2h,
                         w2=3869.47 * w2h,
                         wx2=84 * w2h,
                         ka=1600 ** 2 / 150 * w2h,
-                        dipole=None
+                        dudr1=None, dudr2=None, duda=None,
+                        dipole=None,
+                        dipole_magnitude=None,
+                        dipole_direction='auto'
                         ):
         base_water = Molecule.from_file(
             TestManager.test_data('water_freq.fchk')
@@ -1741,19 +1760,43 @@ class DGBTests(TestCase):
             potential_params[r2]={'harmonic':{'k':w2}}
         if ka is not None:
             potential_params[a12]={'harmonic':{'k':ka}}
+
         if dipole is not None:
             if isinstance(dipole, str) and dipole == 'auto':
-                dipole = [
+                dipole_magnitude = 'auto'
+        elif dudr1 is not None or dudr2 is not None or duda is not None:
+            dipole_magnitude = {}
+            if dudr1 is not None:
+                dipole_magnitude[r1] = {'linear': {'eq': 0, 'scaling': dudr1}}
+            if dudr2 is not None:
+                dipole_magnitude[r2] = {'linear': {'eq': 0, 'scaling': dudr2}}
+            if duda is not None:
+                dipole_magnitude[a12] = {'linear': {'eq': 0, 'scaling': duda}}
+        if dipole_magnitude is not None:
+            if isinstance(dipole_magnitude, str) and dipole_magnitude == 'auto':
+                dipole_magnitude = {
+                    r1: {'linear': {'eq': 0, 'scaling': 1 / 5.5}},
+                    r2: {'linear': {'eq': 0, 'scaling': 1 / 5.5}}
+                }
+            if isinstance(dipole_direction, str) and dipole_direction == 'auto':
+                dipole_direction = [
                     {
-                        (r1, a12): ({'linear': {'eq': 0, 'scaling': 1 / 5.5}}, {'sin': {'eq': 0}}),
-                        (r2, a12): ({'linear': {'eq': 0, 'scaling': -1 / 5.5}}, {'sin': {'eq': 0}})
+                        a12:{'sin': {'eq': 0}}
                     },
                     {
-                        (r1, a12): ({'linear': {'eq': 0, 'scaling': 1 / (2 * 5.5)}}, {'cos': {'eq': 0}}),
-                        (r2, a12): ({'linear': {'eq': 0, 'scaling': 1 / (2 * 5.5)}}, {'cos': {'eq': 0}})
+                        a12: {'cos': {'eq': 0}}
                     },
                     0
                 ]
+            dipole = [
+                0
+                    if isinstance(d, int) and d == 0 else
+                dipole_magnitude
+                    if isinstance(d, int) and d == 1 else
+                cls.multiply_model_functions(dipole_magnitude, d)
+                for d in dipole_direction
+            ]
+
         return mol, mol.get_model(
             potential_params,
             dipole=dipole
@@ -2404,73 +2447,126 @@ class DGBTests(TestCase):
         # plt.Plot(r1s[sort], hmm[sort]).show()
         # raise Exception(hmm)
 
+    @staticmethod
+    def buildRunDGB(
+            coords,
+            pot,
+            dipole,
+            *,
+            logger=True,
+            plot_wavefunctions=True,
+            plot_spectrum=True,
+            **opts
+    ):
+
+        dgb = DGB.construct(
+            np.round(coords, 8),  # this ends up really mattering to keep optimize_centers stable
+            pot,
+            logger=logger,
+            **opts
+        )
+
+        logger = dgb.logger
+        with logger.block(tag="Running DGB"):
+            logger.log_print("num coords: {c}", c=len(dgb.gaussians.coords.centers))
+            with logger.block(tag="S"):
+                logger.log_print(logger.prep_array(dgb.S[:5, :5]))
+            with logger.block(tag="T"):
+                logger.log_print(logger.prep_array(dgb.T[:5, :5]))
+            with logger.block(tag="V"):
+                logger.log_print(logger.prep_array(dgb.V[:5, :5]))
+
+            wfns_cart = dgb.get_wavefunctions()
+            with logger.block(tag="Energies"):
+                logger.log_print(
+                    logger.prep_array(wfns_cart.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
+                )
+            with logger.block(tag="Frequencies"):
+                logger.log_print(
+                    logger.prep_array(wfns_cart.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
+                )
+
+            if plot_wavefunctions:
+                for i in range(4):
+                    wfns_cart[i].plot().show()
+
+            spec = wfns_cart[:4].get_spectrum(
+                wfns_cart.gaussians.coords.embed_function(dipole)
+            )
+            with logger.block(tag="Intensities"):
+                logger.log_print(
+                    logger.prep_array(spec.intensities)
+                )
+            if plot_spectrum:
+                spec.plot().show()
+
     @debugTest
     def test_ModelPotentialAIMD1D(self):
 
-        mol, model = self.buildWaterModel(w2=None,wx2=None,ka=None)
+        mol, model = self.buildWaterModel(
+            w2=None,wx2=None,ka=None,
+            dudr1=1/2,
+            dipole_direction=[1, 0, 0]
+        )
 
         check_freqs = False
         if check_freqs:
             freqs = model.normal_modes()[0]
             raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
 
-        check_anh = False
+        check_anh = True
         if check_anh:
             model.run_VPT(order=2, states=5)
             """
-                ========================================= States Energies ==========================================
-                State    Harmonic   Anharmonic     Harmonic   Anharmonic
-                           ZPE          ZPE    Frequency    Frequency
-                0   1934.73500   1913.73500            -            - 
-                1            -            -   3869.47000   3701.47000 
-                2            -            -   7738.94000   7234.94000 
-                3            -            -  11608.41000  10600.41000 
-                4            -            -  15477.88000  13797.88000 
-                5            -            -  19347.35000  16827.35000 
-                ====================================================================================================
+            ============================================= IR Data ==============================================
+            Initial State: 0 
+                           Harmonic                  Anharmonic
+            State   Frequency    Intensity       Frequency    Intensity
+              1    3869.47000    257.06585      3701.47000    251.27204
+              2    7738.94000      0.00000      7234.94000      5.21706
+              3   11608.41000      0.00000     10600.41000      0.22125
+              4   15477.88000      0.00000     13797.88000      0.00000
+              5   19347.35000      0.00000     16827.35000      0.00000
+            ====================================================================================================
             """
             raise Exception(...)
 
         cart_pot_func = model.potential
-        cart_dipole_func = model.dipole
+        cart_dipole_func = lambda coords,deriv_order=None: (
+            model.dipole(coords)
+                if deriv_order is None else
+            [np.moveaxis(d, -1, 1) for d in model.dipole(coords, deriv_order=deriv_order)]
+        )
 
         pot_derivs = model.v(order=8, evaluate='constants', lambdify=True)
         def r_pot_func(rs, deriv_order=None):
+            rs = rs.reshape(-1, 1)
             if deriv_order is None:
                 return pot_derivs[0](rs)
             elif deriv_order > 8:
-                raise ValueError("only imp'd up to 6th order")
+                raise ValueError("only imp'd up to 8th order")
             else:
                 return [p(rs) for p in pot_derivs[:deriv_order+1]]
-
-        def sub_cart_pot_func(coords, deriv_order=None):
-            if coords.shape[-1] == 2:
-                coords = np.concatenate([
-                    coords.reshape(-1, 2, 1),
-                    np.zeros(coords.shape[:2] + (2,))
-                ],
-                    axis=-1
-                )
-            coords = coords.reshape(-1, 2, 3)
-            return cart_pot_func(coords, deriv_order=deriv_order)
-
-            # coords = np.concatenate([coords, np.zeros((len(coords), 3, 1))], axis=-1)
-            #
-            # terms = cart_pot_func(coords, deriv_order=deriv_order)
-            # if deriv_order is not None:
-            #     new = []
-            #     for n,d in enumerate(terms):
-            #         for j in range(n):
-            #             d = np.take(d, (0, 1, 3, 4, 6, 7), axis=j+1)
-            #         d = d.reshape(base_shape + d.shape[1:])
-            #         new.append(d)
-            # else:
-            #     new = terms.reshape(base_shape)
-            # return new
-
-        def sub_cart_dipole_func(coords, deriv_order=None):
-            coords = coords.reshape(-1, 2, 3)
-            return cart_dipole_func(coords, deriv_order=deriv_order)
+        mu_derivs = model.mu(order=8, evaluate='constants', lambdify=True)
+        def r_dipole_func(rs, deriv_order=None):
+            rs = rs.reshape(-1, 1)
+            if deriv_order is None:
+                u = np.moveaxis(
+                        np.array([m[0](rs) for m in mu_derivs]),
+                        0, 1
+                    )
+                return u
+            elif deriv_order > 8:
+                raise ValueError("only imp'd up to 8th order")
+            else:
+                u = [
+                    np.moveaxis(
+                        np.array([m[i](rs) for m in mu_derivs]),
+                        0, 1
+                    )
+                    for i in range(deriv_order+1)
+                ]
+                return u
 
         # plot_points = False
         # if plot_points:
@@ -2495,11 +2591,11 @@ class DGBTests(TestCase):
         # )
 
         coords, sim = self.buildTrajectory(mol, cart_pot_func,
-                                           25,
+                                           50,
                                            timestep=5,
-                                           initial_energies=[[10000*self.w2h], [-10000*self.w2h]]
+                                           initial_energies=[[15000*self.w2h], [-15000*self.w2h]]
                                            )
-        coords = np.round(coords, 16)
+
 
         """
         TS = 5, 10000 KE
@@ -2567,89 +2663,133 @@ class DGBTests(TestCase):
         r_vals = np.abs(coords.reshape(-1, 6)[:, 3] - coords.reshape(-1, 6)[:, 0])
         red_mass = 1/(1/mass_vec[0] + 1/mass_vec[1])
 
-        r_crd = r_vals.view(np.ndarray).reshape(-1, 1)
-        # raise Exception(np.sqrt(np.abs(red_mass*r_pot_func(r_crd, deriv_order=2)[2].reshape(-1, 1))))
-        # ham_1D = DGB.construct(
-        #     r_crd,
-        #     r_pot_func,
-        #     alphas=np.sqrt(np.abs(red_mass*r_pot_func(r_crd, deriv_order=2)[2].reshape(-1, 1))),#'virial',
-        #     # alphas=100,
-        #     masses=[red_mass]
-        #     , expansion_degree=6
-        #     # , quadrature_degree=4
-        #     # quadrature_degree=3,
-        #     # min_singular_value=1e-8,
-        #     , logger=True
-        # )
-        
-        # print(red_mass)
-        # print("-"*50)
-        # print(ham_1D.S)
-        # print("-"*50)
-        # print(ham_1D.T[:10, :10])
-        # print("-"*50)
-        # print(ham_1D.V[:10, :10])
-        # raise Exception(...)
+        r_crd = r_vals.view(np.ndarray).reshape(-1, 1, 1)
+        self.buildRunDGB(
+            r_crd,
+            r_pot_func,
+            r_dipole_func,
+            alphas='virial'
+            # np.sqrt(np.abs(red_mass*r_pot_func(r_crd, deriv_order=2)[2].reshape(-1, 1)))
+            # alphas=100,
+            , optimize_centers=True
+            , masses=[red_mass]
+            , expansion_degree=2
+            # , quadrature_degree=4
+            # quadrature_degree=3,
+            # min_singular_value=1e-8,
+            , plot_wavefunctions=True
+            , plot_spectrum=False
+        )
+        """
+        >>------------------------- Running DGB -------------------------
+:: num coords: 16
+::> S
+  > [[1.         0.9925669  0.97109643 0.87837011 0.84262766]
+  >  [0.9925669  1.         0.93587884 0.9276011  0.77948889]
+  >  [0.97109643 0.93587884 1.         0.7553171  0.94236045]
+  >  [0.87837011 0.9276011  0.7553171  1.         0.55475199]
+  >  [0.84262766 0.77948889 0.94236045 0.55475199 1.        ]]
+<::
+::> T
+  > [[ 0.0088153   0.0087815   0.00775012  0.00618133  0.00442927]
+  >  [ 0.0087815   0.00915033  0.00701388  0.00762487  0.00319938]
+  >  [ 0.00775012  0.00701388  0.00815306  0.00304996  0.00636977]
+  >  [ 0.00618133  0.00762487  0.00304996  0.01022226 -0.00076633]
+  >  [ 0.00442927  0.00319938  0.00636977 -0.00076633  0.00721211]]
+<::
+::> V
+  > evauating integrals with 2-degree expansions
+  > expanding about 136 points...
+  > adding up all derivative contributions...
+  > [[0.00220383 0.00226341 0.00218052 0.00267003 0.00224616]
+  >  [0.00226341 0.00241846 0.00205612 0.00312139 0.00189822]
+  >  [0.00218052 0.00205612 0.002543   0.00194964 0.0031494 ]
+  >  [0.00267003 0.00312139 0.00194964 0.00489011 0.00126777]
+  >  [0.00224616 0.00189822 0.0031494  0.00126777 0.00471625]]
+<::
+:: solving with min_singular_value=0.0001
+:: solving with subspace size 15
+::> Energies
+  > [ 1903.77688585  5604.13185152  9135.56244159 11562.10564082 12497.8951657 ]
+<::
+::> Frequencies
+  > [ 3700.35496567  7231.78555574  9658.32875497 10594.11827985 13784.63473029]
+<::
+:: evauating integrals with 2-degree expansions
+:: expanding about 136 points...
+:: adding up all derivative contributions...
+::> Intensities
+  > [2.51317857e+02 5.53642925e+00 1.41867406e-01]
+<::
+"""
 
-        # wfns_1D = ham_1D.get_wavefunctions(
-        #     nodeless_ground_state=True,
-        #     # stable_epsilon=2e-4,
-        #     mode='similarity'
-        #     # min_singular_value=3,
-        #     # subspace_size=ssize,
-        #     # mode='classic'
-        # )
-        # print(wfns_1D.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
-        # print(
-        #     "1D Freqs:",
-        #     wfns_1D.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
-        # )
-        # raise Exception(...)
+        self.buildRunDGB(
+            coords,
+            cart_pot_func,
+            cart_dipole_func,
+            masses=mass_vec,
+            modes='normal'
+            # , transformations='reaction_path',
+            , optimize_centers=True
+            , alphas='virial'
+            # , quadrature_degree=3
+            , expansion_degree=2
+            , pairwise_potential_functions=pairwise_potential_functions
+            , plot_wavefunctions=False
+            , plot_spectrum=False
+        )
+        """
+        >>------------------------- Running DGB -------------------------
+:: num coords: 16
+::> S
+  > [[1.         0.9925669  0.97109642 0.87837011 0.84262766]
+  >  [0.9925669  1.         0.93587882 0.9276011  0.77948889]
+  >  [0.97109642 0.93587882 1.         0.75531707 0.94236046]
+  >  [0.87837011 0.9276011  0.75531707 1.         0.55475199]
+  >  [0.84262766 0.77948889 0.94236046 0.55475199 1.        ]]
+<::
+::> T
+  > [[ 0.0088153   0.0087815   0.00775012  0.00618133  0.00442927]
+  >  [ 0.0087815   0.00915033  0.00701387  0.00762487  0.00319938]
+  >  [ 0.00775012  0.00701387  0.00815306  0.00304996  0.00636977]
+  >  [ 0.00618133  0.00762487  0.00304996  0.01022226 -0.00076633]
+  >  [ 0.00442927  0.00319938  0.00636977 -0.00076633  0.00721211]]
+<::
+::> V
+  > evauating integrals with 2-degree expansions
+  > expanding about 136 points...
+  > adding up all derivative contributions...
+  > [[0.00224589 0.00230473 0.00222236 0.00270563 0.00228409]
+  >  [0.00230473 0.00245964 0.00209605 0.00315856 0.00193301]
+  >  [0.00222236 0.00209605 0.00258708 0.00198109 0.00319271]
+  >  [0.00270563 0.00315856 0.00198109 0.00492896 0.00129199]
+  >  [0.00228409 0.00193301 0.00319271 0.00129199 0.00476405]]
+<::
+:: solving with min_singular_value=0.0001
+:: solving with subspace size 15
+::> Energies
+  > [ 1913.69991002  5615.15838793  9148.63078537 12514.18923649 15711.99693727]
+<::
+::> Frequencies
+  > [ 3701.45847791  7234.93087535 10600.48932646 13798.29702724 16828.69542188]
+<::
+:: evauating integrals with 2-degree expansions
+:: expanding about 136 points...
+:: adding up all derivative contributions...
+::> Intensities
+  > [251.23202594   5.56303597   0.25175567]
+<::
+>>--------------------------------------------------<<
+"""
 
-        # nm_dgb = DGB.construct(
-        #     coords,
-        #     cart_pot_func,
-        #     masses=mass_vec,
-        #     modes='normal'
-        #     # , transformations='reaction_path',
-        #     , optimize_centers=True
-        #     , alphas='virial'
-        #     # , quadrature_degree=3
-        #     , expansion_degree=2
-        #     , pairwise_potential_functions=pairwise_potential_functions
-        #     , logger=True
-        #     # , alphas=[.05]
-        # )
-        #
-        # print("-" * 50)
-        # print(len(nm_dgb.S))
-        # print("-" * 50)
-        # print(nm_dgb.S[:5, :5])
-        # print("-" * 50)
-        # print(nm_dgb.T[:5, :5])
-        # print("-" * 50)
-        # print(nm_dgb.V[:5, :5])
-        #
-        # wfns_nm = nm_dgb.get_wavefunctions(
-        #     # nodeless_ground_state=True,
-        #     # stable_epsilon=2e-4,
-        #     # min_singular_value=3,
-        #     # subspace_size=ssize,
-        #     mode='similarity'
-        # )
-        # print(wfns_nm.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
-        # print(
-        #     "1D Freqs:",
-        #     wfns_nm.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
-        # )
-
-        cart_dgb = DGB.construct(
+        self.buildRunDGB(
             np.round(coords, 8), # this ends up really mattering to keep optimize_centers stable
             cart_pot_func,
+            cart_dipole_func,
             masses=mass_vec
             , cartesians=[0]
             # , transformations='reaction_path',
-            , optimize_centers=1e-7
+            , optimize_centers=True
             # , alphas=[[160, 10]]
             , alphas='masses'
             # , alphas={'method':'virial', 'scaling':1}
@@ -2659,28 +2799,52 @@ class DGBTests(TestCase):
                 'functions':pairwise_potential_functions,
                 'quadrature_degree':9
             }
-            , logger=True
+            , plot_wavefunctions=False
             # , alphas=[.05]
         )
 
-        print("-" * 50)
-        print(len(cart_dgb.gaussians.coords.centers))
-        print("-" * 50)
-        print(cart_dgb.S[:5, :5])
-        print("-" * 50)
-        print(cart_dgb.T[:5, :5])
-
-        # raise Exception(...)
-
-        print("-" * 50)
-        print(cart_dgb.V[:5, :5])
-
-        wfns_cart = cart_dgb.get_wavefunctions()
-        print(wfns_cart.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
-        print(
-            "1D Freqs:",
-            wfns_cart.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
-        )
+        """
+>>------------------------- Running DGB -------------------------
+:: num coords: 85
+::> S
+  > [[1.         0.99776758 0.99757665 0.99074271 0.9796392 ]
+  >  [0.99776758 1.         0.9907248  0.97955825 0.99079762]
+  >  [0.99757665 0.9907248  1.         0.99777641 0.96355397]
+  >  [0.99074271 0.97955825 0.99777641 1.         0.94408894]
+  >  [0.9796392  0.99079762 0.96355397 0.94408894 1.        ]]
+<::
+::> T
+  > [[0.00544321 0.00541892 0.00541684 0.00534266 0.00522269]
+  >  [0.00541892 0.00544321 0.00534247 0.00522181 0.00534326]
+  >  [0.00541684 0.00534247 0.00544321 0.00541901 0.0050501 ]
+  >  [0.00534266 0.00522181 0.00541901 0.00544321 0.00484321]
+  >  [0.00522269 0.00534326 0.0050501  0.00484321 0.00544321]]
+<::
+::> V
+  > evauating integrals with 2-degree expansions
+  > expanding about 3655 points...
+  > adding up all derivative contributions...
+  > [[0.00758899 0.00788831 0.00731749 0.00709651 0.00860499]
+  >  [0.00788831 0.00829758 0.00750701 0.00718572 0.00924987]
+  >  [0.00731749 0.00750701 0.00715677 0.00703804 0.00799182]
+  >  [0.00709651 0.00718572 0.00703804 0.00701469 0.0074619 ]
+  >  [0.00860499 0.00924987 0.00799182 0.0074619  0.01071821]]
+<::
+:: solving with min_singular_value=0.0001
+:: solving with subspace size 13
+::> Energies
+  > [ 2511.15650725  6213.70399517  9750.28681508 13138.44162533 16437.52203889]
+<::
+::> Frequencies
+  > [ 3702.54748792  7239.13030783 10627.28511808 13926.36553164 17110.59884166]
+<::
+:: evauating integrals with 2-degree expansions
+:: expanding about 3655 points...
+:: adding up all derivative contributions...
+::> Intensities
+  > [251.31774692   5.6350833    0.26484567]
+<::
+"""
 
         # crd = nm_dgb.gaussians.coords.centers.flatten()
         # # plt.Plot(r_vals, crd.flatten()).show()
@@ -2694,47 +2858,6 @@ class DGBTests(TestCase):
 
         # for i in range(2):
         #     wfns_nm[i].plot().show()
-
-        raise Exception(...)
-
-        print(coords[1])
-        ham = DGB(
-            coords.view(np.ndarray),
-            sub_cart_pot_func,
-            # alphas=[[1600, 1, 1, 100, 1, 1]]*len(coords),
-            alphas=[[500, 1, 1, 500, 1, 1]]*len(coords),
-            # alphas={'method': 'virial'},
-            # [
-            #     [15, 3, 3, 15, 3, 3]
-            #     ]*len(coords),#{'method': 'min_dist', 'scaling': 1/5},
-            # pairwise_potential_functions=pairwise_potential_functions,
-            # expansion_degree=2,
-            quadrature_degree=8,
-            masses=mass_vec,
-            min_singular_value=1e-8,
-            logger=True,
-            projection_indices=[0, 3]
-        )
-
-        wfns = ham.get_wavefunctions(
-            nodeless_ground_state=True,
-            stable_epsilon=2e-4,
-            # min_singular_value=2e-4,
-            # subspace_size=ssize,
-            mode='classic'
-        )
-
-        raise Exception(np.array([
-            wfns_1D.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers"),
-            wfns.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers")
-        ]).T)
-
-        # hmm, grads = cart_pot_derivs(coords, deriv_order=1)
-        # ics = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates
-        # r1s = ics[..., 2, 1]
-        # sort = np.argsort(r1s)
-        # plt.Plot(r1s[sort], hmm[sort]).show()
-        # raise Exception(hmm)
 
     @validationTest
     def test_Expansion(self):

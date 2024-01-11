@@ -210,6 +210,7 @@ class DGBWavefunctions(Wavefunctions):
                                 quadrature_degree=None,
                                 expansion_type=None,
                                 ):
+        self.hamiltonian
         return self.hamiltonian.evaluate_multiplicative_operator(
             op,
             expansion_degree=expansion_degree,

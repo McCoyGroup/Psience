@@ -4422,7 +4422,7 @@ class BraKetSpace:
     def concatenate(self, other):
         return type(self)(
             self.bras.concatenate(other.bras),
-            self.kets.concatenate(other.bras),
+            self.kets.concatenate(other.kets)
         )
 
 # # We might need this in the future, but it feels premature to set it up just yet...

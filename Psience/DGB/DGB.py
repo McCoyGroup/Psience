@@ -338,72 +338,32 @@ class DGB:
 
         return core_polys, kinetic_polys
 
-    @staticmethod
-    def mass_weighted_eval(function, coords, masses, deriv_order=None, **opts):
-        raise NotImplementedError("deprecated")
-        # expects just x and y coordinates for the atoms
-        mass_vec = np.asanyarray(masses)
-
-        coords = coords / np.sqrt(mass_vec[np.newaxis])
-        coords = coords.reshape(-1, 3, 2)
-        derivs = function(coords, deriv_order=deriv_order, **opts)
-        new_d = []
-        for n, do in enumerate(derivs):
-            if n > 0:
-                mv = np.sqrt(mass_vec)[np.newaxis]
-                weight = mv
-                for j in range(n - 1):
-                    mv = np.expand_dims(mv, 0)
-                    weight = np.expand_dims(weight, -1) * mv
-                # with np.printoptions(linewidth=1e8):
-                #     print(weight[0])
-                new_d.append(do / weight)
-            else:
-                new_d.append(do)
-        derivs = new_d
-        return derivs
-
     def evaluate_multiplicative_operator(self,
                                          function,
-                                         handler=None,
                                          expansion_degree=None,
                                          expansion_type=None,
-                                         quadrature_degree=None,
-                                         pairwise_functions=None # integrate out pairwise contribution
+                                         quadrature_degree=None
+                                         # pairwise_functions=None # integrate out pairwise contribution
                                          ):
-        raise NotImplementedError("phasing this out")
 
-        pot_mat = self.evaluate_multiplicative_operator_base(
+        pot_mat = self.pot.evaluate_op(
             function,
-            handler=handler,
-            expansion_degree=expansion_degree,
-            expansion_type=expansion_type,
-            quadrature_degree=quadrature_degree,
-            pairwise_functions=pairwise_functions
-        )
-
-        # with np.printoptions(linewidth=1e8):
-        #     print(pot_mat)
-
-        if self._scaling_S is None:
-            _ = self.S
-        S = self._scaling_S
-        for _ in range(pot_mat.ndim - 2):
-            S = np.expand_dims(S, -1)
-        return S * pot_mat
-
-    def get_V(self, potential_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None):
-        raise NotImplementedError("deprecated")
-        self.logger.log_print("calculating potential matrix")
-        pot = self.evaluate_multiplicative_operator(
-            self.potential_function,
-            handler=potential_handler,
+            self.gaussians.overlap_data,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
             quadrature_degree=quadrature_degree
         )
 
-        return pot
+        # with np.printoptions(linewidth=1e8):
+        #     print(pot_mat)
+
+        # if self._scaling_S is None:
+        #     _ = self.S
+        # S = self._scaling_S
+        S = self.S
+        for _ in range(pot_mat.ndim - 2):
+            S = np.expand_dims(S, -1)
+        return S * pot_mat
 
     default_min_singular_value=1e-4
     def diagonalize(self,
@@ -454,8 +414,6 @@ class DGB:
 
 
         return eigs, evecs
-
-
 
     def get_wavefunctions(self, print_debug_info=False, min_singular_value=None, subspace_size=None, nodeless_ground_state=None,
                           mode=None, stable_epsilon=None

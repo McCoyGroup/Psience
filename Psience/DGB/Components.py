@@ -151,14 +151,17 @@ class DGBEvaluator:
         alphas = overlap_data['alphas']
 
         # if self.
+        fdim = derivs[0].ndim - 1 # to simplify dipole functions
+        fshape = derivs[0].shape[1:]
+
         new_derivs = []
         # rotations = rotations[:, :, :, np.newaxis] # to test shapes
         for n,d in enumerate(derivs):
-            # print("???", d.shape)
+            # print("???", d.shape, rotations.shape)
             for _ in range(n):
                 d = nput.vec_tensordot(
                     d, rotations,
-                    axes=[1, 1],
+                    axes=[fdim+1, 1],
                     shared=1
                 )
             new_derivs.append(d)
@@ -170,8 +173,6 @@ class DGBEvaluator:
         row_inds = overlap_data['row_inds']
         col_inds = overlap_data['col_inds']
 
-        fdim = derivs[0].ndim - 1
-        fshape = derivs[0].shape[1:]
         pot = np.zeros((npts, npts) + fshape)
         caches = [{} for _ in range(ndim)]
         for nd,d in enumerate(derivs): # add up all independent integral contribs...
@@ -200,7 +201,7 @@ class DGBEvaluator:
                         base_contrib = np.broadcast_to(base_contrib,  alphas.shape[:-1] + fshape)
                     contrib *= base_contrib
 
-                dcont = d[(slice(None, None, None),) + idx] if len(idx) > 0 else d
+                dcont = d[(slice(None, None, None),)*(fdim+1) + idx] if len(idx) > 0 else d
 
                 if reweight:
                     # compute multinomial coefficient for weighting purposes
@@ -786,6 +787,27 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             logger=self.logger
         )
 
+    def evaluate_op(self,
+                    operator,
+                    overlap_data,
+                    integral_handler=None,
+                    expansion_degree=None,
+                    expansion_type=None,
+                    quadrature_degree=None,
+                    # pairwise_functions=None,
+                    logger=None
+                    ):
+        return self.evaluate_multiplicative(
+            operator,
+            overlap_data,
+            integral_handler=self.handler if integral_handler is None else integral_handler,
+            quadrature_degree=self.quadrature_degree if quadrature_degree is None else quadrature_degree,
+            expansion_degree=self.expansion_degree if expansion_degree is None else expansion_degree,
+            expansion_type=self.expansion_type if expansion_type is None else expansion_type,
+            # pairwise_functions=pairwise_functions
+            logger=self.logger if logger is None else logger
+        )
+
 class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
     def __init__(self, coords, pairwise_potential_functions, quadrature_degree=3):
         self.coords = coords
@@ -1046,8 +1068,82 @@ class DGBCoords(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def gmatrix(self, coords:np.ndarray) -> np.ndarray:
         ...
+
+    @classmethod
+    def embedded_mode_function(cls, func, modes, natoms=None):
+        @functools.wraps(func)
+        def embedded_function(mode_coords, deriv_order=None):
+            origin = modes.origin
+            carts = (mode_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(
+                mode_coords.shape[:1] + origin.shape)
+            carts = carts + origin
+            if natoms is not None:
+                carts = carts.reshape((carts.shape[0], natoms, -1))
+
+            vals = func(carts, deriv_order=deriv_order)
+            if deriv_order is not None:
+                fshape = vals[0].ndim
+                _ = []
+                for n, d in enumerate(vals):
+                    for j in range(n):
+                        d = np.tensordot(d, modes.matrix, axes=[fshape, 0])
+                    _.append(d)
+                vals = _
+            return vals
+
+        return embedded_function
+
+    @classmethod
+    def embedded_cartesian_function(cls, func, atom_sel, xyz_sel, natoms, ndim):
+        @functools.wraps(func)
+        def embedded_function(subcart_coords, deriv_order=None):
+            subcart_coords = np.reshape(
+                subcart_coords,
+                (
+                    subcart_coords.shape[0],
+                    len(atom_sel) if atom_sel is not None else natoms,
+                    len(xyz_sel) if xyz_sel is not None else ndim
+                )
+            )
+            full_shape = (subcart_coords.shape[0], natoms, ndim)
+            if atom_sel is None and xyz_sel is None:
+                carts = subcart_coords.reshape(full_shape)
+            else:
+                carts = np.zeros(full_shape)
+                if atom_sel is None:
+                    carts[..., xyz_sel] = subcart_coords
+                elif xyz_sel is None:
+                    carts[..., atom_sel, :] = subcart_coords
+                else:
+                    carts[..., np.ix_(atom_sel, xyz_sel)] = subcart_coords
+            vals = func(carts, deriv_order=deriv_order)
+            if (atom_sel is not None or xyz_sel is not None) and deriv_order is not None:
+                full_sel = np.arange(natoms * ndim).reshape(natoms, ndim)
+                if atom_sel is None:
+                    full_sel = full_sel[:, xyz_sel]
+                elif xyz_sel is None:
+                    full_sel = full_sel[atom_sel, :]
+                else:
+                    full_sel = full_sel[np.ix_(atom_sel, xyz_sel)]
+                flat_sel = full_sel.flatten()
+
+                fshape = vals[0].ndim
+                _ = []
+                for n, d in enumerate(vals):
+                    for j in range(n):
+                        d = np.take(d, flat_sel, axis=j + fshape)
+                    _.append(d)
+                vals = _
+            return vals
+
+        return embedded_function
+
+    @abc.abstractmethod
+    def embed_function(self, fn) -> 'Callable':
+        ...
+
 class DGBCartesians(DGBCoords):
-    def __init__(self, coords, masses):
+    def __init__(self, coords, masses, *, natoms=None, atom_sel=None, ndim=None, xyz_sel=None):
         coords = np.asanyarray(coords)
         masses = np.asanyarray(masses)
         if masses.ndim > 1:
@@ -1056,6 +1152,10 @@ class DGBCartesians(DGBCoords):
 
         self.coords = coords
         self.masses = masses
+        self.natoms = len(masses) if natoms is None else natoms# the original numebr of atoms
+        self.ndim = self.coords.shape[-1] if ndim is None else ndim
+        self.atom_sel = atom_sel
+        self.xyz_sel = xyz_sel
     @property
     def centers(self):
         return self.coords.reshape((self.coords.shape[0], self.coords.shape[1]*self.coords.shape[2]))
@@ -1093,23 +1193,71 @@ class DGBCartesians(DGBCoords):
         masses = cls.resolve_masses(centers, masses=masses, atoms=atoms)
         return cls(centers, masses)
 
+    def infer_shape_sel(self, selector):
+        n, na, nd = self.coords.shape
+        test = np.arange(na*nd).reshape((1, na, nd))
+        inferrable = np.broadcast_to(test, self.coords.shape)[selector][0]
+
+        test_atoms = test[0, :, 0]
+        sub_atoms = inferrable[:, 0]
+        # we map the atoms back to their positions in the original list
+        atom_sel = np.searchsorted(test_atoms, sub_atoms)
+        if len(atom_sel) == na and np.all(atom_sel == np.arange(na)):
+            atom_sel = None
+
+        test_xyz = test[0, 0]
+        sub_xyz = inferrable[0]
+        xyz_sel = np.searchsorted(test_xyz, sub_xyz)
+        if len(xyz_sel) == nd and np.all(xyz_sel == np.arange(nd)):
+            xyz_sel = None
+
+        return atom_sel, xyz_sel
+    @staticmethod
+    def _merge_sel(new_sel, old_sel):
+        if old_sel is not None:
+            new_sel = np.asanyarray(old_sel)[new_sel,]
+        return new_sel
     def __getitem__(self, item) -> 'DGBCartesians':
         c = self.coords[item]
         if not isinstance(c, np.ndarray) or c.ndim != 3:
             raise ValueError("bad slice {}".format(item))
 
-        if len(item) == 1:
+        if c.ndim < 3:
+            raise ValueError("zero-length slice?")
+
+        if c.shape[1:] == self.coords.shape[1:]:
             return type(self)(
-                self.coords[item],
-                self.masses
-            )
-        elif len(item) > 1:
-            return type(self)(
-                self.coords[item],
-                self.masses[item[1]]
+                c,
+                self.masses,
+                atom_sel=self.atom_sel,
+                xyz_sel=self.xyz_sel,
+                natoms=self.natoms,
+                ndim=self.ndim
             )
         else:
-            raise ValueError("zero-length slice?")
+            atom_sel, xyz_sel = self.infer_shape_sel(item)
+            return type(self)(
+                c,
+                self.masses if atom_sel is None else self.masses[atom_sel,],
+                atom_sel=self._merge_sel(atom_sel, self.atom_sel),
+                xyz_sel=self._merge_sel(xyz_sel, self.xyz_sel),
+                natoms=self.natoms,
+                ndim=self.ndim
+            )
+    def embed_function(self, function):
+        """
+        Embeds assuming we got a function in Cartesians _before_ any selections happened
+
+        :param function:
+        :return:
+        """
+        return self.embedded_cartesian_function(
+            function,
+            self.atom_sel,
+            self.xyz_sel,
+            self.natoms,
+            self.ndim
+        )
 
     def gmatrix(self, coords:np.ndarray) -> np.ndarray:
         mass_spec = np.broadcast_to(self.masses[:, np.newaxis], (len(self.masses), self.coords.shape[2])).flatten()
@@ -1226,6 +1374,13 @@ class DGBWatsonModes(DGBCoords):
     def gmatrix(self, coords:np.ndarray) -> np.ndarray:
         base_spec = np.eye(coords.shape[1])
         return np.broadcast_to(base_spec[np.newaxis], (coords.shape[0],) + base_spec.shape)
+
+    def embed_function(self, fn):
+        return self.embedded_mode_function(  # a function that takes in normal mode coordinates
+            fn,
+            self.modes,
+            natoms=self.natoms
+        )
 
 class DGBCovarianceTransformations:
 
@@ -1449,53 +1604,6 @@ class DGBGaussians:
         return full_good_pos
 
     @classmethod
-    def _embedded_function(cls, func, modes, natoms=None):
-        @functools.wraps(func)
-        def embedded_function(mode_coords, deriv_order=None):
-            origin = modes.origin
-            carts = (mode_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(mode_coords.shape[:1] + origin.shape)
-            carts = carts + origin
-            if natoms is not None:
-                carts = carts.reshape((carts.shape[0], natoms, -1))
-
-            vals = func(carts, deriv_order=deriv_order)
-            if deriv_order is not None:
-                _ = []
-                for n,d in enumerate(vals):
-                    for j in range(n):
-                        d = np.tensordot(d, modes.matrix, axes=[1, 0])
-                    _.append(d)
-                vals = _
-            return vals
-
-        return embedded_function
-
-    @classmethod
-    def _embedded_cartesian_function(cls, func, subsel, natoms, ndim):
-        @functools.wraps(func)
-        def embedded_function(subcart_coords, deriv_order=None):
-            subcart_coords = np.reshape(subcart_coords, (subcart_coords.shape[0], natoms, -1))
-            full_shape = (subcart_coords.shape[0], natoms, ndim)
-            if subsel is None:
-                carts = subcart_coords.reshape(full_shape)
-            else:
-                carts = np.zeros(full_shape)
-                carts[..., subsel] = subcart_coords
-            vals = func(carts, deriv_order=deriv_order)
-            if subsel is not None and deriv_order is not None:
-                padding_offsets = np.arange(full_shape[1]) * full_shape[2]
-                flat_sel = (padding_offsets[:, np.newaxis] + np.asanyarray(subsel)[np.newaxis, :]).flatten()
-                _ = []
-                for n, d in enumerate(vals):
-                    for j in range(n):
-                        d = np.take(d, flat_sel, axis=j+1)
-                    _.append(d)
-                vals = _
-            return vals
-
-        return embedded_function
-
-    @classmethod
     def construct(cls,
                   coords,
                   alphas,
@@ -1525,7 +1633,7 @@ class DGBGaussians:
 
                         # pf_old = potential_function
 
-                        potential_function = cls._embedded_function( # a function that takes in normal mode coordinates
+                        potential_function = DGBWatsonModes.embedded_mode_function( # a function that takes in normal mode coordinates
                             potential_function,
                             modes,
                             natoms=coords.shape[1] if coords.ndim == 3 else None
@@ -1582,16 +1690,9 @@ class DGBGaussians:
                 raise NotImplementedError("internal coordinate mapping not supported yet...")
             else:
                 coords = DGBCartesians.from_cartesians(coords, masses=masses, atoms=atoms)
-                natoms = coords.cart_shape[1]
-                ndim = coords.cart_shape[2]
                 if cartesians is not None:
                     coords = coords[:, :, cartesians]
-                potential_function = cls._embedded_cartesian_function(  # a function that takes in subselection of carts
-                    potential_function,
-                    cartesians,
-                    natoms,
-                    ndim
-                )
+                potential_function = coords.embed_function(potential_function)
 
         if transformations is not None:
             if isinstance(transformations, str):
@@ -1858,6 +1959,8 @@ class DGBGaussians:
             pot, grad, hess = f_data
 
         gmats = gmat_function(coords)
+
+        # raise Exception(gmats.shape, hess.shape)
 
         #TODO: support the identity transformation
         # our transformations are expected to be _linear_

@@ -446,7 +446,7 @@ class VPT2Tests(TestCase):
         # raise Exception(op.poly_sum())
 
 
-    @validationTest
+    @debugTest
     def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
@@ -1272,7 +1272,7 @@ State             Frequency    Intensity       Frequency    Intensity
   0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.47084
   """
 
-    @debugTest
+    @validationTest
     def test_HOONOFasterDegen(self):
 
         file_name = "HOONO_freq.fchk"
