@@ -205,11 +205,14 @@ class Wavefunctions:
     wavefunction_class = Wavefunction
     def __init__(self,
                  energies=None, wavefunctions=None,
-                 indices=None, wavefunction_class=None, **opts):
+                 indices=None, wavefunction_class=None,
+                 dipole_function=None,
+                 **opts):
         self.wavefunctions = wavefunctions
         self.energies = energies
         self.wavefunction_class = self.wavefunction_class if wavefunction_class is None else wavefunction_class
         self.indices = indices
+        self.dipole_function = dipole_function
         self.opts = opts
 
     def get_wavefunctions(self, which):
@@ -222,6 +225,7 @@ class Wavefunctions:
                 wavefunctions=self.wavefunctions[:, which],
                 wavefunction_class=self.wavefunction_class,
                 indices=inds[which],
+                dipole_function=self.dipole_function,
                 **self.opts
             )
         else:
@@ -246,10 +250,15 @@ class Wavefunctions:
         return np.concatenate([self.energies[:start_at], self.energies[1+start_at:]]) - self.energies[start_at]
 
     def get_spectrum(self,
-                     dipole_function,
+                     dipole_function=None,
+                     *,
                      start_at=0,
                      **options
                      ):
+        if dipole_function is None: # it's just so convenient to have this on the object...
+            dipole_function = self.dipole_function
+        if dipole_function is None:
+            raise ValueError("a dipole function is required to get a spectrum (none stored in wavefunctions)")
         freqs = self.frequencies(start_at=start_at)
         transition_moments = self.expectation(dipole_function,
                                               **options,

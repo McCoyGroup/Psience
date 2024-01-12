@@ -1,8 +1,9 @@
 
 import numpy as np, scipy as sp
 
+from McUtils.Data import UnitsData
 from McUtils.Zachary import DensePolynomial
-from McUtils.Scaffolding import Logger
+from McUtils.Scaffolding import Logger, NullLogger
 
 from . Components import *
 from .Wavefunctions import DGBWavefunctions
@@ -21,13 +22,14 @@ class DGB:
     """
 
     @classmethod
-    def run(cls,
+    def run_simple(cls,
             centers,
             potential_function,
+            *,
             masses=None,
-            mass_weighted=False,
+            # mass_weighted=False,
             atoms=None,
-            projection_indices=None,
+            # projection_indices=None,
             modes=None,
             transformations=None,
             alphas=None,
@@ -40,15 +42,16 @@ class DGB:
             quadrature_degree=None,
             expansion_degree=None,
             expansion_type=None,
-            reference_structure=None,
-            pairwise_potential_functions=None # we can integrate this cleanly, not sure about anything else
+            # reference_structure=None,
+            pairwise_potential_functions=None, # we can integrate this cleanly, not sure about anything else
+            dipole_function=None
             ):
         opts = dict(
             masses=masses,
-            mass_weighted=mass_weighted,
+            # mass_weighted=mass_weighted,
             atoms=atoms,
             alphas=alphas,
-            projection_indices=projection_indices,
+            # projection_indices=projection_indices,
             modes=modes,
             transformations=transformations,
             logger=logger,
@@ -60,15 +63,47 @@ class DGB:
             quadrature_degree=quadrature_degree,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
-            reference_structure=reference_structure,
-            pairwise_potential_functions=pairwise_potential_functions
+            # reference_structure=reference_structure,
+            pairwise_potential_functions=pairwise_potential_functions,
+            dipole_function=dipole_function
         )
         opts = {k:v for k,v in opts.items() if v is not None}
-        logger = Logger.lookup(logger)
-        with logger.block(tag="Running distributed Gaussian basis calculation"):
-            opts['logger'] = logger
-            ham = cls.construct(centers, potential_function, **opts)
-            return ham.get_wavefunctions()
+        ham = cls.construct(centers, potential_function, **opts)
+        return ham.run()
+
+    def run(self, quiet=False):
+        """
+        The default case...
+
+        :return:
+        """
+
+        old_logger = self.logger
+        try:
+            if quiet:
+                logger = NullLogger()
+            else:
+                logger = old_logger
+            with logger.block(tag="Running distributed Gaussian basis calculation"):
+                wfns = self.get_wavefunctions()
+                if not quiet and isinstance(logger, NullLogger):
+                    logger = Logger.lookup(True)
+                logger.log_print('ZPE: {zpe}', zpe=wfns.energies[0] * UnitsData.hartrees_to_wavenumbers)
+                freqs = wfns.frequencies()
+                if len(freqs) > 10:
+                    freqs = freqs[:10]
+                logger.log_print('Frequencies: {freqs}', freqs=freqs * UnitsData.hartrees_to_wavenumbers)
+                if wfns.dipole_function is not None:
+                    spec = wfns.get_spectrum()
+                else:
+                    spec = None
+                ints = spec.intensities
+                if len(ints) > 10:
+                    ints = ints[:10]
+                logger.log_print('Intensities: {ints}', ints=ints)
+        finally:
+            self.logger = old_logger
+        return wfns, spec
 
     @classmethod
     def construct(cls,
@@ -80,19 +115,20 @@ class DGB:
                   atoms=None,
                   alphas=None,
                   # coord_shape=None,
-                  projection_indices=None,
+                  # projection_indices=None,
                   transformations=None,
                   internals=None,
                   modes=None,
                   cartesians=None,
                   logger=False,
                   optimize_centers=False,
-                  quadrature_degree=4,
+                  quadrature_degree=3,
                   expansion_degree=None,
                   expansion_type='multicenter',
-                  reference_structure=None,
+                  # reference_structure=None,
                   poly_coeffs=None,
-                  pairwise_potential_functions=None
+                  pairwise_potential_functions=None,
+                  dipole_function=None
                   ):
         logger = Logger.lookup(logger)
 
@@ -128,7 +164,8 @@ class DGB:
         return cls(
             coords,
             potential,
-            logger=logger
+            logger=logger,
+            wavefunction_options={'dipole_function':dipole_function}
         )
 
     @classmethod
@@ -205,10 +242,12 @@ class DGB:
     def __init__(self,
                  gaussians:DGBGaussians,
                  potential:DGBPotentialEnergyEvaluator,
-                 logger=None
+                 logger=None,
+                 wavefunction_options=None
                  ):
         self.gaussians = gaussians
         self.pot = potential
+        self.wfn_opts = wavefunction_options
         self._V = None
         self.logger = Logger.lookup(logger)
 
@@ -221,6 +260,7 @@ class DGB:
     @property
     def V(self):
         if self._V is None:
+            self.logger.log_print("evaluating potential energy...")
             self._V = self.S * self.pot.evaluate_pe(self.gaussians.overlap_data)
         return self._V
 
@@ -376,22 +416,22 @@ class DGB:
                     nodeless_ground_state=True
                     ):
 
-        if min_singular_value is None:
-            min_singular_value = self.default_min_singular_value
-        if min_singular_value is not None:
-            self.logger.log_print("solving with min_singular_value={ms}", ms=min_singular_value)
-
         H = self.T + self.V
-        if print_debug_info:
-            print('Condition Number:', np.linalg.cond(self.S))
-            with np.printoptions(linewidth=1e8, threshold=1e8):
-                print("Potential Matrix:")
-                print(self.V)
 
-        if min_singular_value is None:
-            min_singular_value = 1e-4
+        # if print_debug_info:
+        #     print('Condition Number:', np.linalg.cond(self.S))
+        #     with np.printoptions(linewidth=1e8, threshold=1e8):
+        #         print("Potential Matrix:")
+        #         print(self.V)
+
         # mode = 'fix-heiberger'
         if mode == "classic":
+            if min_singular_value is None:
+                min_singular_value = self.default_min_singular_value
+            # if min_singular_value is None:
+            #     min_singular_value = 1e-4
+            if min_singular_value is not None:
+                self.logger.log_print("solving with min_singular_value={ms}", ms=min_singular_value)
             eigs, evecs = DGBEigensolver.classic_eigensolver(
                 H, self.S, self,
                 min_singular_value=min_singular_value,
@@ -415,8 +455,14 @@ class DGB:
 
         return eigs, evecs
 
-    def get_wavefunctions(self, print_debug_info=False, min_singular_value=None, subspace_size=None, nodeless_ground_state=None,
-                          mode=None, stable_epsilon=None
+    def get_wavefunctions(self,
+                          print_debug_info=False,
+                          min_singular_value=None,
+                          subspace_size=None,
+                          nodeless_ground_state=None,
+                          mode=None,
+                          stable_epsilon=None,
+                          **wfn_opts
                           ):
         # print("======="*25)
         ops = dict(
@@ -429,4 +475,6 @@ class DGB:
         )
         ops = {k:v for k,v in ops.items() if v is not None}
         eigs, evecs = self.diagonalize(**ops)
-        return DGBWavefunctions(eigs, evecs, hamiltonian=self)
+        if self.wfn_opts is not None:
+            wfn_opts = dict(wfn_opts, **self.wfn_opts)
+        return DGBWavefunctions(eigs, evecs, hamiltonian=self, **wfn_opts)

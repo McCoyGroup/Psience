@@ -94,6 +94,8 @@ class DGBEigensolver:
                 )
         return eigs, evecs
 
+    eigensimilarity_cutoff = .85
+    eigensimilarity_chunk_size = 3
     @classmethod
     def get_eigensimilarity_subspace_size(cls, H, S):
         eigs, Qs = np.linalg.eigh(S)
@@ -108,12 +110,17 @@ class DGBEigensolver:
 
         # import McUtils.Plots as plt
         # smat = plt.MatrixPlot(similarity_matrix)
-        # sdets = plt.Plot(list(range(1, len(eigs) + 1)), dets)
+        # sdets = plt.Plot(list(range(1, len(eigs) + 1)), dets).show()
         # splot_dets = plt.Plot(range(1, len(eigs)), np.diff(dets)).show()
         # raise Exception(...)
 
-        det_chunks = np.split(np.arange(len(dets)), np.where(np.abs(np.diff(dets)) > .01)[0] + 1)
-        good_runs = [c for c in det_chunks if len(c) > 5 and np.mean(dets[c]) > .95]
+        det_chunks = np.split(np.arange(len(dets)), np.where(np.abs(np.diff(dets)) > .05)[0] + 1)
+        good_runs = [
+            c for c in det_chunks
+                if len(c) > cls.eigensimilarity_chunk_size
+                    and
+                np.mean(dets[c]) > cls.eigensimilarity_cutoff
+        ]
 
         if len(good_runs) == 0 or len(good_runs[-1]) == 0:
             raise ValueError("couldn't find stable eigenspace")

@@ -1107,6 +1107,15 @@ class Molecule(AbstractMolecule):
             raise ValueError("need internal coordinates to calculate the G-matrix")
         return self.prop('g_matrix')
 
+    @property
+    def coriolis_constants(self):
+        """
+        Returns the molecular g-matrix for the system
+        :return:
+        :rtype:
+        """
+        return self.prop('coriolis_constants')
+
     def bond_length(self, i, j):
         """
         Returns the bond length of the coordinates

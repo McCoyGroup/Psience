@@ -557,6 +557,41 @@ class StructuralProperties:
         # dot together
         return nput.vec_tensordot(jacobian, jacobian, axes=[-2, -2]).squeeze()
 
+    @classmethod
+    def get_prop_coriolis_constants(cls,
+                                    carts,
+                                    modes,
+                                    masses
+                                    ):
+
+        base_shape = carts.shape[:-2]
+        carts = carts.reshape((-1,) + carts.shape[-2:])
+
+        B_e, eigs = cls.get_prop_moments_of_inertia(carts, masses)
+        J = modes
+        J = J.reshape((J.shape[0],) + carts.shape[-2:])
+        J = np.tensordot(eigs, J, axes=[1, 2])  # expressed in local frames
+        X = J.shape[1]
+        N = J.shape[2]
+
+        rows, cols = np.triu_indices(N, k=1)
+        zeta = np.zeros((J.shape[0], X, N, N))
+        if N > 1:  # no contrib otherwise
+            for a in range(X):
+                zeta_vals = np.sum(
+                    J[:, (a + 1) % X, rows, :] * J[:, (a + 2) % X, cols, :]
+                    - J[:, (a + 1) % X, cols, :] * J[:, (a + 2) % X, rows, :],
+                    axis=2
+                )
+                zeta[:, a, rows, cols] = zeta_vals
+                zeta[:, a, cols, rows] = -zeta_vals
+
+        zeta = zeta.reshape(base_shape + zeta.shape[1:])
+        B_e = B_e.reshape(base_shape + B_e.shape[1:])
+        eigs = eigs.reshape(base_shape + eigs.shape[1:])
+
+        return zeta, (B_e, eigs)
+
 class BondingProperties:
     """
     The set of properties that depend only on bonding
@@ -886,6 +921,14 @@ class MolecularProperties:
         ref = mol.coords
         coords = CoordinateSet(coords)
         return StructuralProperties.get_eckart_embedded_coords(masses, ref, coords, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
+
+    @classmethod
+    def coriolis_constants(cls, mol):
+        return StructuralProperties.get_prop_coriolis_constants(
+            mol.coords,
+            mol.normal_modes.modes.basis.matrix.T,
+            mol.atomic_masses
+        )[0]
 
     @classmethod
     def translation_rotation_eigenvectors(cls, mol, sel=None):

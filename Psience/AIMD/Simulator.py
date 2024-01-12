@@ -16,6 +16,7 @@ class AIMDSimulator:
                  atoms,
                  coordinates,
                  force_function,
+                 atomic_structures=None,
                  internals=None,
                  velocities=0,
                  track_kinetic_energy=False,
@@ -23,13 +24,20 @@ class AIMDSimulator:
                  sampling_rate=1
                  ):
         self.masses = np.array([
-            AtomData[a, "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
+                AtomData[a, "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
             if isinstance(a, str) else a for a in atoms
         ])
         coords = np.asanyarray(coordinates)
         if coords.ndim == 1:
             coords = coords[np.newaxis]
-        self._atomic_structs = coords.shape[-1] == 3 and coords.shape[-1]
+
+        if atomic_structures is None:
+            atomic_structures = (
+                coords.shape[-1] == 3
+                    and
+                coords.shape[-2] == len(self.masses)
+            )
+        self._atomic_structs = atomic_structures
         if self._atomic_structs:
             if coords.ndim == 2: coords = coords[np.newaxis]
             self._mass = np.expand_dims(self.masses, -1)
@@ -272,7 +280,32 @@ class AIMDSimulator:
 
         return interpolator_class(traj, *vals, **interpolator_options)
 
-
+    def extract_trajectory(self, flatten=True, embed=True):
+        ref_struct = None
+        if isinstance(embed, (np.ndarray, list, tuple)):
+            ref_struct = np.asanyarray(embed)
+            embed = True
+        base_coords = np.array(self.trajectory)
+        if flatten:
+            base_coords = base_coords.reshape((-1,)+base_coords.shape[-2:])
+        if embed:
+            if ref_struct is None:
+                if not flatten:
+                    ref_crds = base_coords.reshape((-1,)+base_coords.shape[-2:])
+                else:
+                    ref_crds = base_coords
+                if self.kinetic_energies is not None:
+                    # assuming symplectic integration...
+                    kes = np.array(self.kinetic_energies).flatten()
+                    max_pos = np.argmax(kes)
+                    ref_struct = base_coords[max_pos]
+                else:
+                    ref_struct = ref_crds[0]
+            mol = Molecule(["H"]*len(self.masses), ref_struct, masses=self.masses)
+            coords = mol.embed_coords(base_coords)
+        else:
+            coords = base_coords
+        return coords
 
 class PairwisePotential:
     def __init__(self, fun, deriv=None):

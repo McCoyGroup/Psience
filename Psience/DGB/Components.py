@@ -221,7 +221,7 @@ class DGBEvaluator:
         return pot
 
     @staticmethod
-    def quad_nd(centers, alphas, function, flatten=False, degree=3, normalize=True):
+    def quad_nd(centers, alphas, function, flatten=False, degree=3, chunk_size=int(1e6), normalize=True):
         """
         N-dimensional quadrature
 
@@ -245,12 +245,28 @@ class DGBEvaluator:
         indices = np.moveaxis(np.array(
                 np.meshgrid(*([np.arange(0, degree, dtype=int)] * ndim))
             ), 0, -1).reshape(-1, ndim)
+        disps = disps[indices]
 
         w = np.prod(weights[indices], axis=-1)
-        d = disps[indices][np.newaxis] / np.sqrt(alphas)[:, np.newaxis]
-        c = centers[:, np.newaxis, :] + d
-        fv = function(c.reshape(-1, ndim)).reshape(c.shape[:2])
-        val = np.sum(w[np.newaxis, :] * fv, axis=1)
+        n_disps = alphas.shape[0] * disps.shape[0] # how many structures total
+        num_segments = n_disps // chunk_size + 1
+        disp_chunks = np.array_split(disps, num_segments)
+        w_chunks = np.array_split(w, num_segments)
+
+        val = None
+        squa = np.sqrt(alphas)
+        for d_chunk, w_chunk in zip(disp_chunks, w_chunks):
+            d = d_chunk[np.newaxis] / squa[:, np.newaxis]
+            c = centers[:, np.newaxis, :] + d
+            fv = function(c.reshape(-1, ndim))
+            fshape = fv.shape[1:]
+            fv = fv.reshape(c.shape[:2] + fshape)
+            w_chunk = np.expand_dims(w_chunk, [0] + [-x for x in range(1, len(fshape)+1)])
+            chunk_val = np.sum(w_chunk * fv, axis=1)
+            if val is None:
+                val = chunk_val
+            else:
+                val += chunk_val
 
         if normalize:
             normalization = 1 / np.prod(np.sqrt(alphas), axis=-1)
@@ -332,10 +348,10 @@ class DGBEvaluator:
         centers = np.reshape(overlap_data['rotations'] @ unrot_centers[:, :, np.newaxis], unrot_centers.shape)
 
         npts = overlap_data['init_centers'].shape[0]
-        pots = np.zeros((npts, npts))
         rows, cols = np.triu_indices(npts)
 
         vals = cls.quad_nd(centers, alphas, f, degree=degree, normalize=False)
+        pots = np.zeros((npts, npts) + vals.shape[1:])
         pots[rows, cols] = vals
         pots[cols, rows] = vals
 
@@ -404,8 +420,10 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
             return np.zeros((init_cents.shape[0], init_cents.shape[0]))
 
         # ndim = centers.shape[-1]
-        poly = cls._induced_polys(terms, init_sigs[cols], init_cents[cols])
+        poly = cls._induced_polys(terms, init_sigs[cols], init_cents[cols], centers)
         pcs = poly.coeffs
+        if not isinstance(pcs, np.ndarray):
+            pcs.asarray()
         # force prefactors to be broadcastable
         scaled_coeffs = np.expand_dims(
             prefactors[nz_pos],
@@ -413,7 +431,7 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
         ) * pcs[nz_pos]
         poly = DensePolynomial(scaled_coeffs, stack_dim=1)
         # print(poly.coeffs[0])
-        poly = poly.shift((-centers)[nz_pos[0]])
+        # poly = poly.shift(-centers[nz_pos[0]]).make_sparse_backed()
         # raise Exception(centers[0], alphas[0], init_sigs[0])
         tcoeffs = poly.coefficient_tensors
         (keys, subsel), sorting = nput.group_by(np.arange(len(nz_pos[0])), nz_pos[0])
@@ -474,23 +492,52 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
     #     return new
 
     @classmethod
-    def _induced_polys(cls, terms, sigs, centers):
+    def _induced_polys(cls, terms, sigs, initial_centers, final_centers):
+        centering_shift = initial_centers - final_centers
+
         sig_polys = DensePolynomial.from_tensors(
             [np.zeros(sigs.shape[0]), np.zeros(sigs.shape[:2]), -sigs/2]
-        ).shift(centers)
+        ).shift(centering_shift)#.make_sparse_backed(1e-10)
         sig_grad = sig_polys.grad() # for applying p
-        monomial = DensePolynomial.from_tensors( # for applying q
-            [np.zeros(sig_polys.coordinate_dim), np.eye(sig_polys.coordinate_dim)]
-        ) # stack_dim = 1
+
+        if 'q' in terms:
+            monomial = DensePolynomial.from_tensors( # for applying q
+                [np.zeros(sig_polys.coordinate_dim), np.eye(sig_polys.coordinate_dim)]
+            )
+            mcs = monomial.coeffs
+            if not isinstance(mcs, np.ndarray):
+                mcs = mcs.asarray()
+            monomial = DensePolynomial(
+                np.broadcast_to(mcs[np.newaxis], (sigs.shape[0],) + mcs.shape),
+                stack_dim=2
+            )
+            monomial = monomial.shift(-final_centers[:, np.newaxis, :])#.make_sparse_backed(1e-10)
+
+        else:
+            monomial = None
+
         poly = DensePolynomial(
             np.ones((len(sigs),) + (1,) * sig_polys.coordinate_dim),
             stack_dim=1
-        ) # stack_dim = 1
+        )#.make_sparse_backed(1e-10) # stack_dim = 1
         for t in terms:
             # _ = []
+            # from Peeves.Timer import Timer
+            # with Timer(tag=f"term {t}"):
             if t == 'q':
-                mon_coeffs = np.expand_dims(monomial.coeffs, list(range(poly.stack_dim)))
-                poly_coeffs = np.expand_dims(poly.coeffs, poly.stack_dim)
+
+                mon_coeffs = monomial.coeffs
+                if isinstance(mon_coeffs, np.ndarray):
+                    mon_coeffs = np.expand_dims(mon_coeffs, list(range(1, poly.stack_dim)))
+                else:
+                    mon_coeffs = mon_coeffs.expand_dims(list(range(1, poly.stack_dim)))
+
+                poly_coeffs= poly.coeffs
+                if isinstance(poly_coeffs, np.ndarray):
+                    poly_coeffs = np.expand_dims(poly_coeffs, poly.stack_dim)
+                else:
+                    poly_coeffs = poly_coeffs.expand_dims(poly.stack_dim)
+
                 poly = DensePolynomial(
                     poly_coeffs,
                     stack_dim=poly.stack_dim + 1
@@ -509,13 +556,26 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
                 #             coeffs
                 #         )
                 #     _.append(new)
+
+                # print(poly.coeffs)
             elif t == 'p':
                 # first term is just taking derivs of coeffs
                 # basic idea is each time we hit a p we have
                 # d/dq_i(K * e^(sigma*q*q)) = (d/dq_i(K) + K * ??? )e^(sigma*q*q)
                 poly_1 = poly.grad()
-                sigg_coeffs = np.expand_dims(sig_grad.coeffs, list(range(1, poly.stack_dim)))
-                poly_coeffs = np.expand_dims(poly.coeffs, poly.stack_dim)
+
+                sigg_coeffs = sig_grad.coeffs
+                if isinstance(sigg_coeffs, np.ndarray):
+                    sigg_coeffs = np.expand_dims(sigg_coeffs, list(range(1, poly.stack_dim)))
+                else:
+                    sigg_coeffs = sigg_coeffs.expand_dims(list(range(1, poly.stack_dim)))
+
+                poly_coeffs = poly.coeffs
+                if isinstance(poly_coeffs, np.ndarray):
+                    poly_coeffs = np.expand_dims(poly_coeffs, poly.stack_dim)
+                else:
+                    poly_coeffs = poly_coeffs.expand_dims(poly.stack_dim)
+
                 pad_coeffs = DensePolynomial(
                     poly_coeffs,
                     stack_dim=poly.stack_dim + 1
@@ -527,14 +587,16 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
                 # raise Exception(pad_coeffs, pad_grad)
                 poly_2 = pad_coeffs * pad_grad
                 poly = poly_1 + poly_2
-                # for i in range(ndim):
-                #     if coeffs is None:
-                #         new = sig_polys.deriv(i)
-                #     else: # coeffs is a NumPy array of objects
-                #         new = np.apply_along_axis(
-                #             lambda poly_slice:cls._apply_p(poly_slice, sig_polys, i), -1, coeffs
-                #         )
-                #     _.append(new)
+                # cfs = poly.coeffs
+                    # raise Exception(cfs.shape)
+            # for i in range(ndim):
+            #     if coeffs is None:
+            #         new = sig_polys.deriv(i)
+            #     else: # coeffs is a NumPy array of objects
+            #         new = np.apply_along_axis(
+            #             lambda poly_slice:cls._apply_p(poly_slice, sig_polys, i), -1, coeffs
+            #         )
+            #     _.append(new)
             else:
                 raise ValueError("don't understand term {t}".format(t=t))
 
@@ -550,6 +612,64 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
     def evaluate_ke(self, overlap_data):
         ...
 
+    @classmethod
+    def evaluate_diagonal_rotated_momentum_contrib(self, overlap_data, masses):
+        # polynomial eval is too slow, need to fix in general but this is faster in the meantime
+        init_covs = overlap_data['init_covariances']
+        invs = overlap_data['inverse']
+        si_cov = overlap_data['sum_inverse']
+        init_cents = overlap_data['init_centers']
+
+        rows, cols = np.triu_indices(len(init_covs))
+        diag_inds = np.diag_indices_from(si_cov[0])
+        disps = init_cents[cols] - init_cents[rows]
+        shift_mat = (init_covs[rows] @ invs @ init_covs[cols])
+        shift_contrib = (shift_mat @ disps[:, :, np.newaxis])**2
+        shift_contrib = shift_contrib.reshape(shift_contrib.shape[:2])
+        diag_inds = (slice(None),) + diag_inds
+        diag_contrib = si_cov[diag_inds]
+
+        # aa = overlap_data['init_alphas']
+        # raise Exception(
+        #     shift_mat[1], si_cov[1],
+        #     2*(aa[0]*aa[1]/(aa[0] + aa[1]))
+        # )
+
+        base_contrib = diag_contrib - shift_contrib
+
+        full_contrib = 1/2 * np.dot(base_contrib, 1/masses)
+
+        ke = np.zeros((len(init_covs), len(init_covs)))
+        ke[rows, cols] = full_contrib
+        ke[cols, rows] = full_contrib
+
+        return ke
+
+    @classmethod
+    def evaluate_classic_momentum_contrib(cls, overlap_data, masses):
+        # we assume covariances are 1
+
+        centers = overlap_data['init_centers'].view(np.ndarray)
+        alphas = overlap_data['init_alphas']
+
+        aouter = alphas[:, np.newaxis] * alphas[np.newaxis, :]
+        aplus = alphas[:, np.newaxis] + alphas[np.newaxis, :]
+        arat = aouter / aplus
+        disps = centers[:, np.newaxis, :] - centers[np.newaxis, :, :]
+
+        C = arat * np.power(disps, 2)
+
+        # S_dim = (np.sqrt(2) * np.power(aouter, 1 / 4) / B) * np.exp(-C)
+
+        # Really this is -1/2 (2*arat) ((2*arat)(disps^2) - 1) / m
+        # but we factor out the initial -1/2
+        T_dim = arat * (1 - 2*C) / masses[np.newaxis, np.newaxis, :]
+
+        # S = np.prod(S_dim, axis=-1)
+        T = np.sum(T_dim, axis=-1)
+
+        return T
+
 class DGBCartesianEvaluator(DGBKineticEnergyEvaluator):
 
     def __init__(self, masses):
@@ -557,6 +677,22 @@ class DGBCartesianEvaluator(DGBKineticEnergyEvaluator):
 
     def evaluate_ke(self, overlap_data):
         masses = self.masses
+
+        """
+        [357.41451351 343.01569053 303.52678279 248.33184886 188.6011872  133.58986444]
+        [357.41451351 345.70911849 313.10549681 266.12068585 212.94433354 161.03916799]
+        """
+
+        # return self.evaluate_classic_momentum_contrib(
+        #     overlap_data,
+        #     masses
+        # )
+
+        return self.evaluate_diagonal_rotated_momentum_contrib(
+            overlap_data,
+            masses
+        )
+
         prefactors = np.broadcast_to(
             np.diag(1 / (masses))[np.newaxis],
             (overlap_data['centers'].shape[0], len(masses), len(masses))
@@ -578,6 +714,19 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         return new_cent_vecs.reshape(-1, new_cent_vecs.shape[-1]) # basically a squeeze
 
     def evaluate_ke(self, overlap_data):
+
+        # #[0.00881508 0.00808985 0.00661593 0.00479724 0.00300391 0.00148472]
+        # return self.evaluate_classic_momentum_contrib(
+        #     overlap_data,
+        #     np.ones(overlap_data['init_alphas'].shape[-1])
+        # )
+
+        return self.evaluate_diagonal_rotated_momentum_contrib(
+            overlap_data,
+            np.ones(overlap_data['init_alphas'].shape[-1])
+        )
+
+
         coriolis = self.ci_func(overlap_data['centers'])
         watson = self._evaluate_polynomial_ke(overlap_data, ['q','p', 'q', 'p'], coriolis)
 
@@ -587,7 +736,9 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
             (overlap_data['centers'].shape[0], n, n)
         )
         base = self._evaluate_polynomial_ke(overlap_data, ['p', 'p'], prefactors)
-        return watson + base
+        ke = base + watson
+
+        return ke
 
 class DGBPotentialEnergyEvaluator(DGBEvaluator):
     """
@@ -1065,6 +1216,11 @@ class DGBCoords(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def __getitem__(self, item) -> 'DGBCoords':
         ...
+    def take_indices(self, subinds) -> 'DGBCoords':
+        return self[:, subinds] # default
+    def drop_indices(self, subinds) -> 'DGBCoords':
+        remaining = np.setdiff1d(np.arange(self.centers.shape[-1]), subinds)
+        return self.take_indices(remaining) # default
     @abc.abstractmethod
     def gmatrix(self, coords:np.ndarray) -> np.ndarray:
         ...
@@ -1205,9 +1361,9 @@ class DGBCartesians(DGBCoords):
         if len(atom_sel) == na and np.all(atom_sel == np.arange(na)):
             atom_sel = None
 
-        test_xyz = test[0, 0]
-        sub_xyz = inferrable[0]
-        xyz_sel = np.searchsorted(test_xyz, sub_xyz)
+        test_xyz = test[0, 0] % nd
+        sub_xyz = inferrable[0] % nd
+        xyz_sel, _ = nput.find(test_xyz, sub_xyz)
         if len(xyz_sel) == nd and np.all(xyz_sel == np.arange(nd)):
             xyz_sel = None
 
@@ -1244,6 +1400,11 @@ class DGBCartesians(DGBCoords):
                 natoms=self.natoms,
                 ndim=self.ndim
             )
+    def take_indices(self, subinds):
+        subinds = np.asanyarray(subinds)
+        atom_inds = np.unique(subinds // self.coords.shape[2])
+        xyz_inds = np.unique(subinds % self.coords.shape[2])
+        return self[:, atom_inds, :][:, :, xyz_inds]
     def embed_function(self, function):
         """
         Embeds assuming we got a function in Cartesians _before_ any selections happened
@@ -1299,36 +1460,7 @@ class DGBWatsonModes(DGBCoords):
                 axis=-1
             )
 
-        B_e, eigs = StructuralProperties.get_prop_moments_of_inertia(carts, masses)
-        J = modes.inverse
-        J = J.reshape((J.shape[0],) + origin.shape)
-        J = np.tensordot(eigs, J, axes=[1, 2])  # expressed in local frames
-        X = J.shape[1]
-        N = J.shape[2]
-
-        rows, cols = np.triu_indices(N, k=1)
-        zeta = np.zeros((J.shape[0], X, N, N))
-        if N > 1:  # no contrib otherwise
-            for a in range(X):
-                zeta_vals = np.sum(
-                    J[:, (a + 1) % X, rows, :] * J[:, (a + 2) % X, cols, :]
-                    - J[:, (a + 1) % X, cols, :] * J[:, (a + 2) % X, rows, :],
-                    axis=4
-                )
-                zeta[:, a, rows, cols] = zeta_vals
-                zeta[:, a, cols, rows] = -zeta_vals
-
-        # # coriolis terms are given by zeta = sum(JeJ^T, n)
-        # # which is also just zeta[x][r, s] = sum(J[r][n, y]*J[s][n, z] - J[r][n, z]*J[s][n, y], n)
-        # ce = -nput.levi_cevita3
-        # zeta = sum(
-        #     np.tensordot(
-        #         np.tensordot(ce, J[n], axes=[0, 1]),
-        #         J[n],
-        #         axes=[1, 1]
-        #     )
-        #     for n in range(J.shape[0])
-        # )
+        zeta, (B_e, eigs) = StructuralProperties.get_prop_coriolis_constants(carts, modes.matrix.T, masses)
 
         return zeta, B_e
 
@@ -1420,7 +1552,7 @@ class DGBGaussians:
     A class to set up the actual N-dimensional Gaussians used in a DGB
     """
 
-    def __init__(self, coords, alphas, transformations, poly_coeffs=None, logger=None):
+    def __init__(self, coords, alphas, transformations=None, *, poly_coeffs=None, logger=None):
         self._S = None
         self._T = None
 
@@ -1460,6 +1592,7 @@ class DGBGaussians:
     def get_T(self):
         if self._poly_coeffs is not None:
             raise NotImplementedError("need to reintroduce polynomial support")
+        self.logger.log_print("evaluating kinetic energy...")
         return self.coords.kinetic_energy_evaluator.evaluate_ke(self.overlap_data)
 
     def get_base_polynomials(self):
@@ -1709,6 +1842,11 @@ class DGBGaussians:
                     raise ValueError("unknown transformation spec {}".format(modes))
 
         if isinstance(alphas, (str, dict)):
+            if isinstance(alphas, str) and alphas == 'auto':
+                if modes is not None:
+                    alphas = 'virial'
+                else:
+                    alphas = 'masses'
             alphas = cls.dispatch_get_alphas(
                 alphas,
                 coords,
@@ -1941,7 +2079,7 @@ class DGBGaussians:
                           potential_function,
                           gmat_function,
                           transformations,
-                          scaling=1
+                          scaling=1/2
                           ):
         # we're just computing local frequencies along the coordinates defined by
         # applying the linear transformations given in "transformations" to the supplied coords
@@ -2075,3 +2213,31 @@ class DGBGaussians:
     @T.setter
     def T(self, tmat):
         self._T = tmat
+
+    def marginalize_out(self, indices):
+
+        subcoords = self.coords.drop_indices(indices)
+        scaling = np.power(2 * np.pi, len(indices) / 4) / np.power(np.prod(self.alphas[:, indices], axis=-1), 1/4)
+
+        ndim = self.alphas.shape[-1]
+        remaining = np.setdiff1d(np.arange(ndim), indices)
+
+        if self.transformations is not None:
+
+            full_covs = DGBEvaluator.get_inverse_covariances(
+                1 / (4*self.alphas), # hacky but the inverse is expected to have 2a on the diagonal
+                self.transformations
+            )
+            subcovs = full_covs[:, np.ix_(remaining, remaining)]
+            inv_alphas, tfs = np.linalg.eigh(subcovs)
+            alphas = 1 / (2*inv_alphas) # we have 1/2a
+
+        else:
+            alphas = self.alphas[:, remaining]
+            tfs = None
+
+        return scaling, type(self)(
+            subcoords,
+            alphas=alphas,
+            transformations=tfs
+        )

@@ -410,7 +410,8 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 with self.logger.block(tag="building {}".format(h)):
                     start = time.time()
                     sub = h.get_representation_matrix(m_pairs, tb
-                                                      , zero_element_warning=False # expect zeros in M(3)?
+                                                      # TODO: clearly there's some kind of issue in M(3)?
+                                                      , zero_element_warning=False # expect zeros in M(3)...?
                                                       # , remove_duplicates=False
                                                       )
                     end = time.time()

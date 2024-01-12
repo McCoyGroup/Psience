@@ -7,6 +7,7 @@ import scipy.linalg
 
 import McUtils.Zachary
 from Peeves.TestUtils import *
+from Peeves import BlockProfiler
 from unittest import TestCase
 
 from McUtils.Data import UnitsData, PotentialData, AtomData
@@ -1724,6 +1725,7 @@ class DGBTests(TestCase):
         return new_func
     @classmethod
     def buildWaterModel(cls,*,
+                        oh_model=False,
                         w=3869.47 * w2h,
                         wx=84 * w2h,
                         w2=3869.47 * w2h,
@@ -1735,14 +1737,26 @@ class DGBTests(TestCase):
                         dipole_direction='auto'
                         ):
         base_water = Molecule.from_file(
-            TestManager.test_data('water_freq.fchk')
+            TestManager.test_data('water_freq.fchk'),
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0, 1, -1],
+            ]
         )
-        mol = Molecule(
-            base_water.atoms[:2],
-            # ['O', 'O'],
-            base_water.coords[:2],
-            internals=[[0, -1, -1, -1], [1, 0, -1, -1]]
-        ).get_embedded_molecule(load_properties=False)
+
+        if oh_model:
+            w2 = None
+            wx2 = None
+            ka = None
+            mol = Molecule(
+                base_water.atoms[:2],
+                # ['O', 'O'],
+                base_water.coords[:2],
+                internals=[[0, -1, -1, -1], [1, 0, -1, -1]]
+            ).get_embedded_molecule(load_properties=False)
+        else:
+            mol = base_water.get_embedded_molecule(load_properties=False)
 
         r1 = 0
         r2 = 1
@@ -1761,41 +1775,69 @@ class DGBTests(TestCase):
         if ka is not None:
             potential_params[a12]={'harmonic':{'k':ka}}
 
-        if dipole is not None:
-            if isinstance(dipole, str) and dipole == 'auto':
-                dipole_magnitude = 'auto'
-        elif dudr1 is not None or dudr2 is not None or duda is not None:
-            dipole_magnitude = {}
-            if dudr1 is not None:
-                dipole_magnitude[r1] = {'linear': {'eq': 0, 'scaling': dudr1}}
-            if dudr2 is not None:
-                dipole_magnitude[r2] = {'linear': {'eq': 0, 'scaling': dudr2}}
-            if duda is not None:
-                dipole_magnitude[a12] = {'linear': {'eq': 0, 'scaling': duda}}
-        if dipole_magnitude is not None:
-            if isinstance(dipole_magnitude, str) and dipole_magnitude == 'auto':
-                dipole_magnitude = {
-                    r1: {'linear': {'eq': 0, 'scaling': 1 / 5.5}},
-                    r2: {'linear': {'eq': 0, 'scaling': 1 / 5.5}}
-                }
-            if isinstance(dipole_direction, str) and dipole_direction == 'auto':
-                dipole_direction = [
+        if dipole is None and dudr1 is not None or dudr2 is not None or duda is not None:
+            if oh_model:
+                dipole = [
+                    {r1: {'linear': {'eq': 0, 'scaling': dudr1}}},
+                    0,
+                    0
+                ]
+            else:
+                dipole = [
                     {
-                        a12:{'sin': {'eq': 0}}
+                        (r1, a12): ({'linear': {'eq': 0, 'scaling': dudr1}}, {'sin': {'eq': 0}}),
+                        (r2, a12): ({'linear': {'eq': 0, 'scaling': dudr2}}, {'sin': {'eq': 0, 'scaling':-1}})
                     },
                     {
-                        a12: {'cos': {'eq': 0}}
+                        (r1, a12): ({'linear': {'eq': 0, 'scaling': dudr1}}, {'cos': {'eq': 0, 'scaling':1/2}}),
+                        (r2, a12): ({'linear': {'eq': 0, 'scaling': dudr2}}, {'cos': {'eq': 0, 'scaling':1/2}})
                     },
                     0
                 ]
-            dipole = [
-                0
-                    if isinstance(d, int) and d == 0 else
-                dipole_magnitude
-                    if isinstance(d, int) and d == 1 else
-                cls.multiply_model_functions(dipole_magnitude, d)
-                for d in dipole_direction
-            ]
+
+        # if dipole is not None:
+        #     if isinstance(dipole, str) and dipole == 'auto':
+        #         dipole_magnitude = 'auto'
+        # elif dudr1 is not None or dudr2 is not None or duda is not None:
+        #
+        #     dipole_magnitude = {}
+        #     if dudr1 is not None:
+        #         dipole_magnitude[r1] = {'linear': {'eq': 0, 'scaling': dudr1}}
+        #     if dudr2 is not None:
+        #         dipole_magnitude[r2] = {'linear': {'eq': 0, 'scaling': dudr2}}
+        #     if duda is not None:
+        #         dipole_magnitude[a12] = {'linear': {'eq': 0, 'scaling': duda}}
+        # if dipole_magnitude is not None:
+        #     if isinstance(dipole_magnitude, str) and dipole_magnitude == 'auto':
+        #         dipole_magnitude = {
+        #             r1: {'linear': {'eq': 0, 'scaling': 1 / 5.5}},
+        #             r2: {'linear': {'eq': 0, 'scaling': 1 / 5.5}}
+        #         }
+        #     if isinstance(dipole_direction, str) and dipole_direction == 'auto':
+        #         if oh_model:
+        #             dipole_direction = [
+        #                 1,
+        #                 0,
+        #                 0
+        #             ]
+        #         else:
+        #             dipole_direction = [
+        #                 {
+        #                     a12:{'sin': {'eq': 0}}
+        #                 },
+        #                 {
+        #                     a12: {'cos': {'eq': 0}}
+        #                 },
+        #                 0
+        #             ]
+        #     dipole = [
+        #         0
+        #             if isinstance(d, int) and d == 0 else
+        #         dipole_magnitude
+        #             if isinstance(d, int) and d == 1 else
+        #         cls.multiply_model_functions(dipole_magnitude, d)
+        #         for d in dipole_direction
+        #     ]
 
         return mol, mol.get_model(
             potential_params,
@@ -1840,6 +1882,7 @@ class DGBTests(TestCase):
             )
 
         sim.propagate(steps)
+        raise Exception(np.array(sim.trajectory).shape)
         coords = np.array(sim.trajectory).reshape((-1,) + mol.coords.shape)
         coords = mol.embed_coords(coords)
 
@@ -2500,13 +2543,16 @@ class DGBTests(TestCase):
             if plot_spectrum:
                 spec.plot().show()
 
-    @debugTest
+    @classmethod
+    def setupCartesianModelDGB(cls):
+        ...
+
+    @validationTest
     def test_ModelPotentialAIMD1D(self):
 
         mol, model = self.buildWaterModel(
-            w2=None,wx2=None,ka=None,
-            dudr1=1/2,
-            dipole_direction=[1, 0, 0]
+            oh_model=True,
+            dudr1=1/2
         )
 
         check_freqs = False
@@ -2514,7 +2560,7 @@ class DGBTests(TestCase):
             freqs = model.normal_modes()[0]
             raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
 
-        check_anh = True
+        check_anh = False
         if check_anh:
             model.run_VPT(order=2, states=5)
             """
@@ -2858,6 +2904,90 @@ class DGBTests(TestCase):
 
         # for i in range(2):
         #     wfns_nm[i].plot().show()
+
+    @debugTest
+    def test_ModelPotentialAIMD2D(self):
+        mol, model = self.buildWaterModel(
+            # w2=None, wx2=None,
+            ka=None,
+            dudr1=1 / 5.5,
+            dudr2=1 / 5.5
+            # dipole_direction=[1, 0, 0]
+        )
+
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(
+        #     mol.coriolis_constants
+        # )
+
+        check_freqs = False
+        if check_freqs:
+            freqs = model.normal_modes()[0]
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        check_anh = False
+        if check_anh:
+            model.run_VPT(order=2, states=2, logger=True)
+            """
+            ZPE: 3869.37229   3766.81161 
+            ============================================= IR Data ==============================================
+            Initial State: 0 0 
+                             Harmonic                  Anharmonic
+            State     Frequency    Intensity       Frequency    Intensity
+              0 1    3896.87027     64.98650      3726.75080     63.56784
+              1 0    3841.87432      0.26781      3675.99562      0.24283
+              0 2    7793.74054      0.00000      7366.65687      0.00263
+              2 0    7683.74863      0.00000      7269.38728      0.00948
+              1 1    7738.74459      0.00000      7236.19694      1.32008
+            ====================================================================================================
+            """
+            raise Exception(...)
+
+
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(mol.coords, mol.normal_modes.modes)
+
+        sim = model.setup_AIMD(
+            initial_energies=[
+                [15000 * self.w2h, 15000 * self.w2h],
+                [-15000 * self.w2h, 15000 * self.w2h],
+                # [-15000 * self.w2h, -15000 * self.w2h],
+                # [15000 * self.w2h, -15000 * self.w2h],
+                # [10000 * self.w2h, 0],
+                # [0, 10000 * self.w2h],
+                # [-10000 * self.w2h, 0],
+                # [0, -10000 * self.w2h]
+            ],
+            timestep=10
+        )
+        sim.propagate(55)
+        coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+
+
+        cartesians=True
+        with BlockProfiler(inactive=True):
+            dgb = model.setup_DGB(
+                np.round(coords, 8),
+                optimize_centers=1e-8,
+                modes=None if cartesians else 'normal',
+                cartesians=[0, 1] if cartesians else None
+            )
+
+            print(len(dgb.gaussians.coords.centers))
+            print(dgb.S[:5, :5])
+            print(dgb.T[:5, :5])
+            print(dgb.V[:5, :5])
+
+            wfns, spec = dgb.run()
+            # spec[:5].plot().show()
+            for i in range(4):
+                if cartesians:
+                    wfns[i].plot_cartesians(
+                        contour_levels=16,
+                        domain=[[-2, 2], [-2, 2]]
+                    ).show()
+                else:
+                    wfns[i].plot().show()
 
     @validationTest
     def test_Expansion(self):

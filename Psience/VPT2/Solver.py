@@ -1900,6 +1900,7 @@ class PerturbationTheorySolver:
             corrs[0, n_ind] = 1
             H = self.representations if perturbations is None else perturbations
 
+
             dot = self._safe_dot
             takeDiag = lambda h, n_ind: h[n_ind, n_ind] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
             take = lambda h, el: h[el] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.
