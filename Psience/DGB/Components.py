@@ -78,6 +78,7 @@ class DGBEvaluator:
         new_alphas = new_alphas / 2
         sum_sigs = sigs[rows] @ new_inv @ sigs[cols]
 
+        # TODO: turn this into a proper object...
         overlap_data = {
             'centers': new_centers,
             'alphas': new_alphas,
@@ -713,6 +714,83 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         new_cent_vecs = (centers-origin[np.newaxis]).reshape(centers.shape[0], -1, centers.shape[1])@tf.T[np.newaxis]
         return new_cent_vecs.reshape(-1, new_cent_vecs.shape[-1]) # basically a squeeze
 
+    @staticmethod
+    def annoying_coriolis_term(
+            n, u, m, v,
+
+            Sc,
+            #Xc, Sp,
+            Dx,
+            # Gi, Gj,
+            # DS,
+
+            ScXc, DxSp, GjGi,
+            DSX
+    ):
+
+        return (
+            ScXc[:, n, m]*DxSp[:, u, v]
+            - (GjGi[:, n, v, m, u] + GjGi[:, n, v, m, u])
+            - np.reshape(
+                Sc[:, :, n][:, np.newaxis, :] @ (DSX[:, :, v, u] + DSX[:, :, u, v])[:, :, np.newaxis] , (-1)
+                ) * Dx[:, m]
+        )
+    @classmethod
+    def evaluate_coriolis_contrib(cls, coriolis_tensors, overlap_data):
+
+        Sc = overlap_data['inverse']
+        Sp = overlap_data['sum_inverse']
+        SI = overlap_data['init_covariances']
+        X0 = overlap_data['init_centers']
+        Xc = overlap_data['centers']
+
+        rows = overlap_data['row_inds']
+        cols = overlap_data['col_inds']
+        SIi = SI[rows]
+        SIj = SI[cols]
+        Xi = X0[rows]
+        Xj = X0[cols]
+
+        Gi = Sc @ SIi
+        Gj = Sc @ SIj
+
+        DS = SIi - SIj
+        Dx = np.reshape(Sp @ (Xi - Xj)[:, :, np.newaxis], Xi.shape)
+
+        ScXc = Sc + Xc[:, :, np.newaxis] * Xc[:, np.newaxis, :]
+        DxSp = Dx[:, :, np.newaxis] * Dx[:, np.newaxis, :] - Sp
+        GjGi = Gj[:, :, :, np. newaxis, np. newaxis] * Gi[:, np. newaxis, np. newaxis, :, :]
+        DSX = DS[:, :, :, np.newaxis] * Xc[:, np.newaxis, np.newaxis, :]
+
+        ndim = Xc.shape[-1]
+
+        term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_coriolis_term(
+            n, u, m, v,
+
+            Sc, Dx,
+            ScXc, DxSp, GjGi,
+            DSX
+        )
+
+        contrib = np.zeros(Sc.shape[0])
+        inds = itertools.combinations_with_replacement(range(ndim), r=4)
+        for n,u,m,v in inds:
+            # upper triangle so we need to do all the combos
+            contrib += (
+                term(n, u, m, v)
+                + term(n, u, v, m)
+                + term(u, n, v, m)
+                + term(u, n, m, v)
+            )
+
+        npts = X0.shape[0]
+        ke = np.zeros((npts, npts))
+        ke[rows, cols] = contrib
+        ke[cols, rows] = contrib
+
+        return ke
+
+
     def evaluate_ke(self, overlap_data):
 
         # #[0.00881508 0.00808985 0.00661593 0.00479724 0.00300391 0.00148472]
@@ -721,24 +799,28 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         #     np.ones(overlap_data['init_alphas'].shape[-1])
         # )
 
-        return self.evaluate_diagonal_rotated_momentum_contrib(
+        base = self.evaluate_diagonal_rotated_momentum_contrib(
             overlap_data,
             np.ones(overlap_data['init_alphas'].shape[-1])
         )
 
-
         coriolis = self.ci_func(overlap_data['centers'])
-        watson = self._evaluate_polynomial_ke(overlap_data, ['q','p', 'q', 'p'], coriolis)
+        watson = self.evaluate_coriolis_contrib(coriolis, overlap_data)
 
-        n = coriolis.shape[-1]
-        prefactors = np.broadcast_to(
-            np.eye(n),
-            (overlap_data['centers'].shape[0], n, n)
-        )
-        base = self._evaluate_polynomial_ke(overlap_data, ['p', 'p'], prefactors)
-        ke = base + watson
+        return base + watson
 
-        return ke
+        # coriolis = self.ci_func(overlap_data['centers'])
+        # watson = self._evaluate_polynomial_ke(overlap_data, ['q','p', 'q', 'p'], coriolis)
+        #
+        # n = coriolis.shape[-1]
+        # prefactors = np.broadcast_to(
+        #     np.eye(n),
+        #     (overlap_data['centers'].shape[0], n, n)
+        # )
+        # base = self._evaluate_polynomial_ke(overlap_data, ['p', 'p'], prefactors)
+        # ke = base + watson
+        #
+        # return ke
 
 class DGBPotentialEnergyEvaluator(DGBEvaluator):
     """

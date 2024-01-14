@@ -2917,7 +2917,7 @@ class DGBTests(TestCase):
 
         # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
         # raise Exception(
-        #     mol.coriolis_constants
+        #     mol.coriolis_constants.shape
         # )
 
         check_freqs = False
@@ -2958,13 +2958,23 @@ class DGBTests(TestCase):
                 # [-10000 * self.w2h, 0],
                 # [0, -10000 * self.w2h]
             ],
-            timestep=10
+            timestep=5
         )
-        sim.propagate(55)
+        sim.propagate(155)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
 
         cartesians=True
+        """
+        In normal modes:
+        
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: solving with subspace size 101
+        :: ZPE: 3827.228939216366
+        :: Frequencies: [ 3676.01153913  3726.87414237  7224.01627225  7236.62308184  7429.51373048 10599.26058545 10607.18122362 10903.18463044 11038.34099881 13802.91267454]
+        :: evauating integrals with 3-order quadrature
+        :: Intensities: [2.56816018e-01 6.35642463e+01 1.24331875e-02 1.41043612e+00 3.81079976e-03 5.90581119e-02 2.75277562e-03 1.01446344e-04 7.97143141e-04 4.08988724e-03]
+        """
         with BlockProfiler(inactive=True):
             dgb = model.setup_DGB(
                 np.round(coords, 8),
