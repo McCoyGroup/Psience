@@ -2905,20 +2905,162 @@ class DGBTests(TestCase):
         # for i in range(2):
         #     wfns_nm[i].plot().show()
 
-    @debugTest
+    @classmethod
+    def runModel(cls):
+        dgb = model.setup_DGB(
+            np.round(coords, 8),
+            optimize_centers=1e-7,
+            # optimize_centers=False,
+            modes=None if cartesians else 'normal',
+            cartesians=[0, 1] if cartesians else None
+        )
+        ...
+
+    @classmethod
+    def plot_dgb_potential(cls,
+                           dgb, mol, potential,
+                           domain=None, domain_padding=1,
+                           potential_cutoff=10000,
+                           plot_cartesians=None
+                           ):
+        def cutoff_pot(points, cutoff=potential_cutoff / UnitsData.hartrees_to_wavenumbers):
+            values = potential(points)
+            values[values > cutoff] = cutoff
+            return values
+
+        if plot_cartesians is None:
+            plot_cartesians = isinstance(dgb.gaussians.coords, DGBCartesians)
+        if plot_cartesians:
+            figure = mol.plot_molecule_function(
+                cutoff_pot,
+                axes=[0, 1],
+                # cmap='RdBu',
+                domain=domain,
+                domain_padding=domain_padding,
+                plot_atoms=True
+            )
+        else:
+            if domain is None:
+                from McUtils.Zachary import Mesh
+                domain = Mesh(dgb.gaussians.coords.centers).bounding_box
+            points = DGBWavefunction.prep_plot_grid(
+                domain,
+                domain_padding=domain_padding
+            )
+            figure = plt.TriContourPlot(
+                *np.moveaxis(points, -1, 0),
+                cutoff_pot(points)
+            )
+
+        return figure
+
+    default_num_plot_wfns = 4
+    @classmethod
+    def runDGB(cls,
+               dgb: DGB,
+               mol,
+               plot_potential=True,
+               plot_wavefunctions=True,
+               plot_spectrum=False,
+               domain=None,
+               domain_padding=1,
+               potential_cutoff=10000,
+               **plot_options
+               ):
+
+        print(len(dgb.gaussians.coords.centers))
+        print(dgb.S[:5, :5])
+        print(dgb.T[:5, :5])
+        print(dgb.V[:5, :5])
+
+        wfns, spec = dgb.run()
+
+        if plot_spectrum:
+            spec[:5].plot().show()
+
+        figure = None
+        if isinstance(plot_wavefunctions, str) and plot_wavefunctions=='cartesians':
+            plot_wavefunctions = {'cartesians':None}
+        cartesian_plot_axes = None
+        if isinstance(plot_wavefunctions, dict):
+            if 'cartesians' in plot_wavefunctions:
+                cartesian_plot_axes=plot_wavefunctions['cartesians']
+                plot_wavefunctions = True
+                wfns = wfns.as_cartesian_wavefunction()
+                dgb = wfns.hamiltonian
+            else:
+                raise ValueError(plot_wavefunctions)
+        if plot_wavefunctions is True:
+            plot_wavefunctions = cls.default_num_plot_wfns
+        if isinstance(plot_wavefunctions, int):
+
+            pot = dgb.pot.potential_function
+            for i in range(plot_wavefunctions):
+
+                if plot_potential:
+                    figure = cls.plot_dgb_potential(
+                        dgb, mol, pot,
+                        domain=domain, domain_padding=domain_padding,
+                        potential_cutoff=potential_cutoff
+                    )
+
+                if isinstance(dgb.gaussians.coords, DGBCartesians):
+                    wfns[i].plot_cartesians(
+                        cartesian_plot_axes,
+                        contour_levels=16,
+                        cmap='RdBu',
+                        figure=figure,
+                        plot_centers={'color':'red'},
+                        domain=domain,
+                        domain_padding=.5,
+                        **plot_options
+                    ).show()
+                else:
+                    wfns[i].plot(
+                        contour_levels=32,
+                        cmap='RdBu',
+                        plotter=plt.TriContourLinesPlot,
+                        plot_centers={'color':'red'},
+                        domain=domain,
+                        domain_padding=domain_padding,
+                        figure=figure,
+                        **plot_options
+                    ).show()
+
+    @classmethod
+    def setupMorseFunction(cls, model, w=None, wx=None):
+        from McUtils.Data import PotentialData
+        if w is None:
+            w = 3869.47 * cls.w2h
+        freq = w
+        if wx is None:
+            wx = 84 * cls.w2h
+        anh = wx
+        De = (freq ** 2) / (4 * anh)
+        muv = (1 / model.vals[model.m(0)] + 1 / model.vals[model.m(1)])
+        a = np.sqrt(2 * anh / muv)
+        re = model.vals[model.r(0, 1)]
+
+        def morse_basic(r,
+                        re=re,
+                        alpha=a,
+                        De=De,
+                        deriv_order=None,
+                        _morse=PotentialData["MorsePotential"]
+                        ):
+            return _morse(r, re=re, alpha=alpha, De=De, deriv_order=deriv_order)
+
+        return morse_basic
+
+    @validationTest
     def test_ModelPotentialAIMD2D(self):
         mol, model = self.buildWaterModel(
             # w2=None, wx2=None,
             ka=None,
-            dudr1=1 / 5.5,
-            dudr2=1 / 5.5
+            dudr1=1/5.5,
+            dudr2=1/5.5
             # dipole_direction=[1, 0, 0]
         )
-
-        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
-        # raise Exception(
-        #     mol.coriolis_constants.shape
-        # )
 
         check_freqs = False
         if check_freqs:
@@ -2927,7 +3069,7 @@ class DGBTests(TestCase):
 
         check_anh = False
         if check_anh:
-            model.run_VPT(order=2, states=2, logger=True)
+            model.run_VPT(order=2, states=2, degeneracy_specs='auto')
             """
             ZPE: 3869.37229   3766.81161 
             ============================================= IR Data ==============================================
@@ -2936,8 +3078,8 @@ class DGBTests(TestCase):
             State     Frequency    Intensity       Frequency    Intensity
               0 1    3896.87027     64.98650      3726.75080     63.56784
               1 0    3841.87432      0.26781      3675.99562      0.24283
-              0 2    7793.74054      0.00000      7366.65687      0.00263
-              2 0    7683.74863      0.00000      7269.38728      0.00948
+              0 2    7793.74054      0.00000      7415.73134      0.00002
+              2 0    7683.74863      0.00000      7220.31281      0.01197
               1 1    7738.74459      0.00000      7236.19694      1.32008
             ====================================================================================================
             """
@@ -2949,8 +3091,14 @@ class DGBTests(TestCase):
 
         sim = model.setup_AIMD(
             initial_energies=[
-                [15000 * self.w2h, 15000 * self.w2h],
-                [-15000 * self.w2h, 15000 * self.w2h],
+                [5000 * self.w2h, 5000 * self.w2h],
+                [-5000 * self.w2h, 5000 * self.w2h],
+                [-5000 * self.w2h, -5000 * self.w2h],
+                [5000 * self.w2h, -5000 * self.w2h],
+                # [2000 * self.w2h, 0],
+                # [0, 2000 * self.w2h],
+                # [-2000 * self.w2h, 0],
+                # [0, -2000 * self.w2h],
                 # [-15000 * self.w2h, -15000 * self.w2h],
                 # [15000 * self.w2h, -15000 * self.w2h],
                 # [10000 * self.w2h, 0],
@@ -2958,13 +3106,11 @@ class DGBTests(TestCase):
                 # [-10000 * self.w2h, 0],
                 # [0, -10000 * self.w2h]
             ],
-            timestep=5
+            timestep=10
         )
-        sim.propagate(155)
+        sim.propagate(20)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
-
-        cartesians=True
         """
         In normal modes:
         
@@ -2975,29 +3121,449 @@ class DGBTests(TestCase):
         :: evauating integrals with 3-order quadrature
         :: Intensities: [2.56816018e-01 6.35642463e+01 1.24331875e-02 1.41043612e+00 3.81079976e-03 5.90581119e-02 2.75277562e-03 1.01446344e-04 7.97143141e-04 4.08988724e-03]
         """
+        """
+        
+        In Carts, 55 steps, ts=5
+        :: Frequencies: [ 1939.3888942   3699.93055922  3859.74233969  7189.02865425  7714.8445865   8802.80971572 10563.99747325 11037.84927957 12296.636057   13821.72667492]
+        
+        Carts, 55 steps, ts=10
+        :: solving with subspace size 73
+        :: ZPE: 7532.453122711061
+        :: Frequencies: [ 1633.3102395   3698.64503592  3735.7664761   6304.89816379  7226.15355447  7383.459363    8004.79155075 10000.8898692  10551.20589953 10782.57343599]
+        :: evauating integrals with 3-order quadrature
+        :: Intensities: [4.28700118e+01 2.14297296e+01 4.17647493e+01 4.29356664e-01 1.16937902e+00 4.16702226e-02 7.01762939e-02 6.89581212e-01 8.27064938e-02 5.41807145e-02]
+        
+        In Carts, 100 steps, ts=5
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: solving with subspace size 87
+        :: ZPE: 7331.990506623899
+        :: Frequencies: [1430.72412218 3404.32580979 3897.02665756 3994.95055602 5230.74776836 5429.57579877 7381.29884675 7519.66506158 7729.09597527 8860.26071561]
+        :: evauating integrals with 3-order quadrature
+        :: Intensities: [6.40897590e+01 1.95058105e+00 5.99623811e+01 1.36131150e-01 6.36942154e-02 5.84163730e-02 1.38666640e+00 2.51149005e-01 2.32211506e-02 3.86841086e-01]
+        :: solving with subspace size 100
+        
+        In Carts, 100 steps, ts=10
+        :: ZPE: 7336.39781522725
+        :: Frequencies: [1427.11593939 3432.04732043 3895.09603057 3988.38214228 5241.97642121 5425.90501825 7377.80665742 7517.49093219 7729.31988235 8825.24999752]
+        :: evauating integrals with 3-order quadrature
+        
+        In Carts, 70 steps, ts=10
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: solving with subspace size 98
+        :: ZPE: 7326.681016996741
+        :: Frequencies: [1435.77856578 3333.33096333 3902.88546196 3942.87611828 5194.64332689 5434.52361585 7387.41161128 7524.55152645 7804.25835344 9126.99447282]
+        :: evauating integrals with 3-order quadrature
+        
+        60 steps
+        :: Frequencies: [ 1377.229406    3705.72143869  3736.81168228  5406.54716053  5826.84014487  7216.78498699  7351.68663541  7837.6505418  10083.36649672 10533.55288463]
+        
+        45 steps
+        :: Frequencies: [ 2436.03928042  3698.64362896  3801.00627889  7279.35117131  7366.08174359  8460.97882021 10609.05213299 10885.29699289 11065.10559912 13626.16262504]
+        :: evauating integrals with 3-order quadrature
+        :: Intensities: [5.75910859e+01 9.41654664e+00 5.39770953e+01 1.46457650e+00 2.78237815e-01 3.35306772e-01 1.82468117e-02 7.36152065e-03 4.68411121e-01 1.77380041e-01]
+        
+        In Carts, 35 steps, ts=10
+        :: solving with subspace size 52
+        :: ZPE: 7555.731254592927
+        :: Frequencies: [ 2412.42538311  3705.23321428  3868.5403588   7278.84245026  7754.44607092  8814.90386733 10694.32194733 11094.04067495 13665.23226306 14053.70858405]
+        :: evauating integrals with 3-order quadrature
+        :: Intensities: [5.71728397e+01 1.81684789e+00 6.26042566e+01 1.38078789e+00 3.11705536e-01 1.02895881e+00 3.59623454e-02 8.24640665e-02 2.61386129e-01 3.82063099e-01]
+        
+        100, ts=2
+        :: solving with subspace size 44
+        :: ZPE: 7554.981056772567
+        :: Frequencies: [ 1939.07379488  3699.92202569  3859.7668093   7189.28624134  7716.11651689  8803.46788279 10548.88965322 11023.78820586 12301.43309882 13824.2339489 ]
+        :: evauating integrals with 3-order quadrature
+        :: Intensities: [4.70441202e+01 8.07002546e-01 6.29357209e+01 1.21332288e+00 2.65240178e-01 1.12569607e+00 5.96999211e-02 8.30627352e-02 3.39068096e-01 2.17957292e-03]
+        
+        100, ts=2, overlap criterion=1e-4
+        :: solving with subspace size 33
+        :: ZPE: 7555.468290475696
+        :: Frequencies: [ 3695.75971544  3870.22019617  6358.79849165  7309.53324768  7775.72946854  8936.78003823 10799.49587579 11177.47615028 13663.40562586 14451.36370231]
+        :: evauating integrals with 3-order quadrature
+        :: Intensities: [  0.35136204  63.18547029 102.22284205  12.06116715   2.42554562   2.29343868   0.50048585   0.34520303   2.50926292   0.87726397]
+        """
+
+        cartesians=False
         with BlockProfiler(inactive=True):
+
             dgb = model.setup_DGB(
                 np.round(coords, 8),
-                optimize_centers=1e-8,
+                optimize_centers=1e-6,
+                # optimize_centers=False,
                 modes=None if cartesians else 'normal',
-                cartesians=[0, 1] if cartesians else None
+                cartesians=[0, 1] if cartesians else None,
+                expansion_degree=2,
+                # pairwise_potential_functions={
+                #     (0, 1):self.setupMorseFunction(model),
+                #     (0, 2):self.setupMorseFunction(model),
+                # }
             )
 
-            print(len(dgb.gaussians.coords.centers))
-            print(dgb.S[:5, :5])
-            print(dgb.T[:5, :5])
-            print(dgb.V[:5, :5])
+            """With PPF
+            :: solving with subspace size 45
+            :: ZPE: 3841.4826749468443
+            :: Frequencies: [ 3675.02112202  3729.63620102  7229.85378398  7236.23218089  7456.89264976 10598.8566352  10615.96482705 10943.09809432 11191.43047547 13808.16470424]
+            :: evauating integrals with 2-degree expansions
+            :: expanding about 1596 points...
+            :: adding up all derivative contributions...
+            :: Intensities: [2.56728500e-01 6.35425388e+01 8.02406454e-03 1.43061410e+00 4.60466363e-03 6.54455300e-02 6.54384505e-04 7.42781967e-05 5.89499126e-03 5.31134260e-03]
+            
+            Without
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 45
+            :: ZPE: 3751.173261233092
+            :: Frequencies: [ 3676.84628937  3723.71917168  7228.86423764  7232.967462    7441.65595244 10592.95585085 10608.78544528 10933.45444733 11154.89630171 13799.18895636]
+            :: evauating integrals with 2-degree expansions
+            :: expanding about 1596 points...
+            :: adding up all derivative contributions...
+            :: Intensities: [2.57620927e-01 6.32698503e+01 8.87958873e-03 1.45502425e+00 4.32335437e-03 6.75462456e-02 6.75232273e-04 5.14558465e-05 9.97234189e-03 4.92214135e-03]
+            >>--------------------------------------------------<<
+"""
 
-            wfns, spec = dgb.run()
-            # spec[:5].plot().show()
-            for i in range(4):
-                if cartesians:
-                    wfns[i].plot_cartesians(
-                        contour_levels=16,
-                        domain=[[-2, 2], [-2, 2]]
-                    ).show()
-                else:
-                    wfns[i].plot().show()
+            self.runDGB(dgb, mol,
+                        vmin=-.05,
+                        vmax=.05,
+                        domain=[[-20, 20], [-20, 20]]
+                        )
+
+            # def cutoff_pot(points, cutoff=10000 / UnitsData.hartrees_to_wavenumbers):
+            #     values = model.potential(points)
+            #     values[values > cutoff] = cutoff
+            #     return values
+            # base = mol.plot_molecule_function(
+            #     cutoff_pot,
+            #     axes=[0, 1],
+            #     # cmap='RdBu',
+            #     plot_atoms=True,
+            #     atom_colors=[None, 'aliceblue', 'aliceblue'],
+            #     domain=[[-2, 2], [-2, 2]]
+            # )
+
+            # coords = dgb.gaussians.optimize(1e-6).coords.coords
+            # plt.ScatterPlot(
+            #     coords[:, 0, 0],
+            #     coords[:, 0, 1],
+            #     figure=base
+            # )
+            # plt.ScatterPlot(
+            #     coords[:, 1, 0],
+            #     coords[:, 1, 1],
+            #     figure=base
+            # )
+            # plt.ScatterPlot(
+            #     coords[:, 2, 0],
+            #     coords[:, 2, 1],
+            #     figure=base
+            # ).show()
+            # raise Exception(...)
+
+            # cents = dgb.gaussians.coords.centers
+            # centers_plot = plt.ScatterPlot(
+            #     cents[:, 0],
+            #     cents[:, 1],
+            #     plot_range=[[-10, 10], [-10, 10]]
+            # )
+            #
+            # new_cents = dgb.gaussians.optimize(1e-7).coords.centers
+            # plt.ScatterPlot(
+            #     new_cents[:, 0],
+            #     new_cents[:, 1],
+            #     plot_range=[[-10, 10], [-10, 10]],
+            #     figure=centers_plot,
+            #     color='red'
+            # ).show()
+            #
+            # raise Exception(...)
+
+            # print(len(dgb.gaussians.coords.centers))
+            # print(dgb.S[:5, :5])
+            # print(dgb.T[:5, :5])
+            # print(dgb.V[:5, :5])
+            #
+            # wfns, spec = dgb.run()
+            #
+            # plot_spectrum = False
+            # if plot_spectrum:
+            #     spec[:5].plot().show()
+            #
+            # figure = None
+            # plot_potential=cartesians
+            # if plot_potential:
+            #     def cutoff_pot(points, cutoff=10000 / UnitsData.hartrees_to_wavenumbers):
+            #         values = model.potential(points)
+            #         values[values > cutoff] = cutoff
+            #         return values
+            #
+            #     figure = mol.plot_molecule_function(
+            #         cutoff_pot,
+            #         axes=[0, 1],
+            #         # cmap='RdBu',
+            #         plot_atoms=True,
+            #         atom_colors=[None, 'aliceblue', 'aliceblue'],
+            #         domain=[[-2, 2], [-2, 2]]
+            #     )
+            #
+            # plot_wavefunctions=4
+            # if plot_wavefunctions is True:
+            #     plot_wavefunctions=4
+            # if isinstance(plot_wavefunctions, int):
+            #     for i in range(plot_wavefunctions):
+            #         if cartesians:
+            #             wfns[i].plot_cartesians(
+            #                 contour_levels=16,
+            #                 domain=[[-2, 2], [-2, 2]],
+            #                 cmap='RdBu',
+            #                 figure=figure,
+            #                 plot_centers=True
+            #             ).show()
+            #         else:
+            #             wfns[i].plot(
+            #                 plot_centers=True,
+            #                 domain=[[-10, 10], [-10, 10]],
+            #                 figure=figure
+            #             ).show()
+
+            # mol.plot_molecule_function(
+            #     model.dipole,
+            #     axes=[0, 1],
+            #     plot_atoms=True,
+            #     # mask_function=lambda vals, pts, dists:dists>.4,
+            #     # mask_value=0,
+            #     vmin=-.2, vmax=.2,
+            #     cmap='RdBu',
+            #     atom_colors=[None, 'aliceblue', 'aliceblue']
+            #     # domain=[[-5, 5], [-5, 5]]
+            # ).show()
+            #
+            # raise Exception(...)
+            #
+            # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+            # raise Exception(
+            #     mol.coriolis_constants.shape
+            # )
+
+    @debugTest
+    def test_ModelPotentialAIMD3D(self):
+        mol, model = self.buildWaterModel(
+            # w2=None, wx2=None,
+            # ka=None,
+            dudr1=1 / 5.5,
+            dudr2=1 / 5.5
+            # dipole_direction=[1, 0, 0]
+        )
+
+        check_freqs = False
+        if check_freqs:
+            freqs = model.normal_modes()[0]
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        check_anh = False
+        if check_anh:
+            model.run_VPT(order=2, states=2, degeneracy_specs='auto')
+            """
+            ============================================= IR Data ==============================================
+            Initial State: 0 0 0 
+                               Harmonic                  Anharmonic
+            State       Frequency    Intensity       Frequency    Intensity
+              0 0 1    3896.87027     64.98650      3719.85792     62.04864
+              0 1 0    3843.25802      0.17386      3676.15023      0.13738
+              1 0 0    1621.19795     64.86521      1603.43665     64.14564
+              0 0 2    7793.74054      0.00000      7405.54186      0.00156
+              0 2 0    7686.51604      0.00000      7216.33517      0.00897
+              2 0 0    3242.39590      0.00000      3197.00911      0.07403
+              0 1 1    7740.12829      0.00000      7229.92439      1.31011
+              1 0 1    5518.06822      0.00000      5308.87370      0.09319
+              1 1 0    5464.45597      0.00000      5278.21352      0.07390
+            ====================================================================================================
+            """
+            raise Exception(...)
+
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(mol.coords, mol.normal_modes.modes)
+
+        sim = model.setup_AIMD(
+            initial_energies=[
+                [0, 5000 * self.w2h, 5000 * self.w2h],
+                [0, -5000 * self.w2h, 5000 * self.w2h],
+                [0, -5000 * self.w2h, -5000 * self.w2h],
+                [0, 5000 * self.w2h, -5000 * self.w2h],
+                # [2000 * self.w2h, 0],
+                # [0, 2000 * self.w2h],
+                # [-2000 * self.w2h, 0],
+                # [0, -2000 * self.w2h],
+                # [-15000 * self.w2h, -15000 * self.w2h],
+                # [15000 * self.w2h, -15000 * self.w2h],
+                # [10000 * self.w2h, 0],
+                # [0, 10000 * self.w2h],
+                # [-10000 * self.w2h, 0],
+                # [0, -10000 * self.w2h]
+            ],
+            timestep=10
+        )
+        sim.propagate(50)
+        coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+
+        cartesians = False
+        with BlockProfiler(inactive=True):
+
+            dgb = model.setup_DGB(
+                np.round(coords, 8),
+                optimize_centers=1e-6,
+                # optimize_centers=False,
+                modes=None if cartesians else 'normal',
+                cartesians=[0, 1] if cartesians else None,
+                quadrature_degree=6,
+                # expansion_degree=2,
+                # pairwise_potential_functions={
+                #     (0, 1):self.setupMorseFunction(model),
+                #     (0, 2):self.setupMorseFunction(model),
+                # }
+            )
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 224
+            :: ZPE: 4622.199166136244
+            :: Frequencies: [1590.60704265 3171.85515583 3678.87729838 3707.83504528 4745.52958973 5259.92818554 5272.35194946 6315.79411831 6801.77443261 6862.84792337]
+            :: evauating integrals with 3-order quadrature
+            :: Intensities: [6.40203108e+01 7.53784512e-02 1.35233490e-01 6.16950160e+01 3.14134768e-02 9.35815225e-02 5.55542538e-02 1.77557794e-05 1.85695669e-03 6.31489226e-04]
+            >>--------------------------------------------------<<
+            """
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 151
+            :: ZPE: 4622.85822285934
+            :: Frequencies: [1592.39496028 3191.83412308 3681.89487244 3709.84366424 4827.94420302 5265.84019841 5305.29944137 6522.61235547 6823.44759253 6994.37707946]
+            :: evauating integrals with 3-order quadrature
+            :: Intensities: [6.42799291e+01 6.16622416e-02 1.46033088e-01 6.16881225e+01 4.27742124e-02 9.90969650e-02 7.14538299e-02 2.30093354e-03 2.67394884e-03 1.51386399e-04]
+            >>--------------------------------------------------<<
+            """
+
+            type(self).default_num_plot_wfns = 4
+            self.runDGB(dgb, mol,
+                        # vmin=-.05,
+                        # vmax=.05,
+                        # domain=[[-2, 2], [-2, 2]],
+                        plot_wavefunctions={'cartesians':[0, 1]}
+                        )
+
+            # def cutoff_pot(points, cutoff=10000 / UnitsData.hartrees_to_wavenumbers):
+            #     values = model.potential(points)
+            #     values[values > cutoff] = cutoff
+            #     return values
+            # base = mol.plot_molecule_function(
+            #     cutoff_pot,
+            #     axes=[0, 1],
+            #     # cmap='RdBu',
+            #     plot_atoms=True,
+            #     atom_colors=[None, 'aliceblue', 'aliceblue'],
+            #     domain=[[-2, 2], [-2, 2]]
+            # )
+
+            # coords = dgb.gaussians.optimize(1e-6).coords.coords
+            # plt.ScatterPlot(
+            #     coords[:, 0, 0],
+            #     coords[:, 0, 1],
+            #     figure=base
+            # )
+            # plt.ScatterPlot(
+            #     coords[:, 1, 0],
+            #     coords[:, 1, 1],
+            #     figure=base
+            # )
+            # plt.ScatterPlot(
+            #     coords[:, 2, 0],
+            #     coords[:, 2, 1],
+            #     figure=base
+            # ).show()
+            # raise Exception(...)
+
+            # cents = dgb.gaussians.coords.centers
+            # centers_plot = plt.ScatterPlot(
+            #     cents[:, 0],
+            #     cents[:, 1],
+            #     plot_range=[[-10, 10], [-10, 10]]
+            # )
+            #
+            # new_cents = dgb.gaussians.optimize(1e-7).coords.centers
+            # plt.ScatterPlot(
+            #     new_cents[:, 0],
+            #     new_cents[:, 1],
+            #     plot_range=[[-10, 10], [-10, 10]],
+            #     figure=centers_plot,
+            #     color='red'
+            # ).show()
+            #
+            # raise Exception(...)
+
+            # print(len(dgb.gaussians.coords.centers))
+            # print(dgb.S[:5, :5])
+            # print(dgb.T[:5, :5])
+            # print(dgb.V[:5, :5])
+            #
+            # wfns, spec = dgb.run()
+            #
+            # plot_spectrum = False
+            # if plot_spectrum:
+            #     spec[:5].plot().show()
+            #
+            # figure = None
+            # plot_potential=cartesians
+            # if plot_potential:
+            #     def cutoff_pot(points, cutoff=10000 / UnitsData.hartrees_to_wavenumbers):
+            #         values = model.potential(points)
+            #         values[values > cutoff] = cutoff
+            #         return values
+            #
+            #     figure = mol.plot_molecule_function(
+            #         cutoff_pot,
+            #         axes=[0, 1],
+            #         # cmap='RdBu',
+            #         plot_atoms=True,
+            #         atom_colors=[None, 'aliceblue', 'aliceblue'],
+            #         domain=[[-2, 2], [-2, 2]]
+            #     )
+            #
+            # plot_wavefunctions=4
+            # if plot_wavefunctions is True:
+            #     plot_wavefunctions=4
+            # if isinstance(plot_wavefunctions, int):
+            #     for i in range(plot_wavefunctions):
+            #         if cartesians:
+            #             wfns[i].plot_cartesians(
+            #                 contour_levels=16,
+            #                 domain=[[-2, 2], [-2, 2]],
+            #                 cmap='RdBu',
+            #                 figure=figure,
+            #                 plot_centers=True
+            #             ).show()
+            #         else:
+            #             wfns[i].plot(
+            #                 plot_centers=True,
+            #                 domain=[[-10, 10], [-10, 10]],
+            #                 figure=figure
+            #             ).show()
+
+            # mol.plot_molecule_function(
+            #     model.dipole,
+            #     axes=[0, 1],
+            #     plot_atoms=True,
+            #     # mask_function=lambda vals, pts, dists:dists>.4,
+            #     # mask_value=0,
+            #     vmin=-.2, vmax=.2,
+            #     cmap='RdBu',
+            #     atom_colors=[None, 'aliceblue', 'aliceblue']
+            #     # domain=[[-5, 5], [-5, 5]]
+            # ).show()
+            #
+            # raise Exception(...)
+            #
+            # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+            # raise Exception(
+            #     mol.coriolis_constants.shape
+            # )
 
     @validationTest
     def test_Expansion(self):

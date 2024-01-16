@@ -8,9 +8,11 @@ from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
 
 from Psience.Wavefun import Wavefunction, Wavefunctions
-from .Components import DGBGaussians, DGBCartesians
+from .Components import DGBGaussians, DGBCartesians, DGBWatsonModes
 
 __all__ = ["DGBWavefunctions", "DGBWavefunction"]
+
+__reload_hook__ = ['.Components']
 
 class DGBWavefunction(Wavefunction):
     def __init__(self, energy, data, gaussians:DGBGaussians = None, **opts):
@@ -34,31 +36,65 @@ class DGBWavefunction(Wavefunction):
             domain = Mesh(centers).bounding_box
 
         fig = super().plot(figure=figure, domain=domain, **opts)
+        if isinstance(plot_centers, dict):
+            plot_centers_opts = plot_centers.copy()
+            plot_centers = True
+        else:
+            plot_centers_opts = {}
+        if 'figure' not in plot_centers_opts:
+            plot_centers_opts['figure'] = fig
         if plot_centers:
             if self.ndim == 1:
                 plt.ScatterPlot(
                     centers[:, 0],
                     np.zeros(len(centers)),
-                    figure=fig
+                    **plot_centers_opts
                 )
             elif self.ndim == 2:
                 plt.ScatterPlot(
                     centers[:, 0],
                     centers[:, 1],
-                    figure=fig
+                    **plot_centers_opts
                 )
             else:
                 raise ValueError("can't plot centers for more than 2D data...?")
         return fig
 
+    def to_cartesian_wavefunction(self):
+        """
+        Projects the wavefunction back to Cartesians
+        :return:
+        """
+        if isinstance(self.gaussians.coords, DGBCartesians):
+            return self
+
+        new_gauss = self.gaussians.as_cartesians()
+        return type(self)(
+            self.energy,
+            self.data,
+            new_gauss,
+            **self.opts
+        )
+
     def plot_cartesians(self,
                         xyz_sel=None,
+                        *,
                         atom_sel=None,
                         figure=None,
                         plot_centers=False,
                         atom_styles=None,
                         **plot_styles
                         ):
+
+        if isinstance(self.gaussians.coords, DGBWatsonModes):
+            return self.to_cartesian_wavefunction().plot_cartesians(
+                xyz_sel=xyz_sel,
+                atom_sel=atom_sel,
+                figure=figure,
+                plot_centers=plot_centers,
+                atom_styles=atom_styles,
+                **plot_styles
+            )
         if not isinstance(self.gaussians.coords, DGBCartesians):
             raise ValueError("can't plot projections onto Cartesian coordinates for coords of type {}".format(
                 type(self.gaussians.coords).__name__
@@ -76,12 +112,17 @@ class DGBWavefunction(Wavefunction):
         if atom_styles is None:
             atom_styles = [{} for _ in atom_sel]
 
+        if xyz_sel is not None:
+            xyz_remv = np.setdiff1d(np.arange(nxyz), xyz_sel)
+        else:
+            xyz_remv = None
         for i,atom in enumerate(atom_sel):
             rem = np.setdiff1d(all_ats, [atom])
-            if xyz_sel is None:
-                subspec = full_spec[rem, :].flatten()
-            else:
-                subspec = full_spec[np.ix_(rem, xyz_sel)].flatten()
+            subspec = full_spec[rem, :].flatten()
+            if xyz_sel is not None:
+                subspec = np.sort(
+                    np.concatenate([subspec, full_spec[atom][xyz_remv]])
+                )
 
             proj = self.marginalize_out(subspec)  # what we're projecting _out_
 
@@ -119,8 +160,9 @@ class DGBWavefunction(Wavefunction):
         c_disps = points[np.newaxis, :, :] - centers[:, np.newaxis, :]
         tfs = self.gaussians.transformations
         if tfs is not None:
+            tfs, inv = tfs
             tfs = np.broadcast_to(tfs[:, np.newaxis, :, :], (len(tfs), len(points)) + tfs.shape[1:])
-            c_disps = tfs @ c_disps[:, :, :, np.newaxis]
+            c_disps = tfs.transpose((0, 1, 3, 2)) @ c_disps[:, :, :, np.newaxis]
             c_disps = c_disps.reshape(c_disps.shape[:-1])
         alphas = self.gaussians.alphas[:, np.newaxis]
         # if self.inds is not None:
@@ -128,16 +170,18 @@ class DGBWavefunction(Wavefunction):
         #     alphas = alphas[..., self.inds]
         normas = (2 * alphas / np.pi) ** (1/4)
         exp_evals = np.exp(-alphas * c_disps**2)
+        # print(c_disps[:2, :2], normas.shape)
 
         vals = np.dot(
             self.data,
             np.prod(normas * exp_evals, axis=-1)
         )
+        # print(exp_evals[:3, :2], self.data.shape)
         if reshape is not None:
             vals = vals.reshape(reshape)
         return vals
 
-    def marginalize_out(self, dofs):
+    def marginalize_out(self, dofs, rescale=True) -> 'DGBWavefunction':
         """
         Computes the projection of the current wavefunction onto a set of degrees
         of freedom, returning a projected wave function object
@@ -160,6 +204,30 @@ class DGBWavefunctions(Wavefunctions):
         super().__init__(energies=energies, wavefunctions=wavefunctions, hamiltonian=hamiltonian, **opts) # add all opts
         self._hamiltonian = hamiltonian
         self.gaussians = self.hamiltonian.gaussians
+    def as_cartesian_wavefunction(self):
+        """
+        Projects the wavefunction back to Cartesians
+        :return:
+        """
+        if isinstance(self.gaussians.coords, DGBCartesians):
+            return self
+        new_ham = self.hamiltonian.as_cartesian_dgb()
+        new = type(self)(
+            self.energies,
+            self.wavefunctions,
+            hamiltonian=new_ham
+        )
+
+        return new
+
+        # raise Exception(
+        #     self[0].evaluate(
+        #         self.gaussians.coords.centers[:5]
+        #     ),
+        #     new[0].evaluate(
+        #         new.gaussians.coords.centers[:5]
+        #     )
+        # )
 
     @property
     def hamiltonian(self):

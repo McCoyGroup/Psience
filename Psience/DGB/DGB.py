@@ -250,6 +250,24 @@ class DGB:
         self.wfn_opts = wavefunction_options
         self._V = None
         self.logger = Logger.lookup(logger)
+    def as_cartesian_dgb(self):
+        if isinstance(self.gaussians.coords, DGBCartesians):
+            return self
+
+        new_gauss = self.gaussians.as_cartesians()
+        if isinstance(self.pot.potential_function, DGBCoords.DGBEmbeddedFunction):
+            import copy
+            new_pot = copy.copy(self.pot)
+            new_pot.potential_function = new_gauss.coords.embed_function(self.pot.potential_function.og_fn)
+        else:
+            new_pot = self.pot # this probably won't work...?
+
+        return type(self)(
+            new_gauss,
+            new_pot,
+            logger=self.logger,
+            wavefunction_options=self.wfn_opts
+        )
 
     @property
     def S(self):

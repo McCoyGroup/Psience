@@ -36,7 +36,9 @@ class DGBEvaluator:
     @classmethod
     def get_inverse_covariances(cls, alphas, transformations):
         """
-        Transforms the alphas into proper inverse covariance matrices
+        Transforms the alphas into proper inverse covariance matrices.
+        Chosen so that in the case that the transformations, Q, diagonalize S we can write
+            QT S Q = A
 
         :return:
         :rtype:
@@ -807,7 +809,9 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         coriolis = self.ci_func(overlap_data['centers'])
         watson = self.evaluate_coriolis_contrib(coriolis, overlap_data)
 
-        return base + watson
+        ke = base + watson
+
+        return ke
 
         # coriolis = self.ci_func(overlap_data['centers'])
         # watson = self._evaluate_polynomial_ke(overlap_data, ['q','p', 'q', 'p'], coriolis)
@@ -844,7 +848,6 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
         self.pairwise_handler = pairwise_functions
 
         self.logger = Logger.lookup(logger)
-
 
     def analytic_integrate(self):
         raise NotImplementedError("flooped up")
@@ -1088,6 +1091,7 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
             # and we know exactly how these change the deltas that feed into the bond
             # length using tf_proj from above, this means we can get the displacements of the deltas
             # for free and ... add these onto the initial deltas???
+            base_shape = coords.shape[:-1]
             coords = coords.reshape(tf_proj.shape[0], -1, coords.shape[-1]) # N x k x subdim
             proj_d = tf_proj[:, np.newaxis, :, :] @ coords[:, :, :, np.newaxis] # N x k x dim x 1
             d = d0[np.newaxis, np.newaxis, :] + proj_d.reshape(proj_d.shape[:3])
@@ -1115,6 +1119,12 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
                         d = nput.vec_tensordot(d, tf_proj, shared=1, axes=[1, 1])
                     q_derivs.append(d)
                 fdat = [f_vals] + q_derivs
+
+            if deriv_order is not None:
+                # print(base_shape, [f.shape for f in fdat])
+                fdat = [f.reshape(base_shape + f.shape[r.ndim:]) for f in fdat]
+            else:
+                fdat = fdat.reshape(base_shape + fdat.shape[r.ndim:])
             return fdat
 
         return eval_pairwise
@@ -1313,7 +1323,8 @@ class DGBCoords(metaclass=abc.ABCMeta):
         def embedded_function(mode_coords, deriv_order=None):
             origin = modes.origin
             carts = (mode_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(
-                mode_coords.shape[:1] + origin.shape)
+                mode_coords.shape[:1] + origin.shape
+            )
             carts = carts + origin
             if natoms is not None:
                 carts = carts.reshape((carts.shape[0], natoms, -1))
@@ -1376,9 +1387,21 @@ class DGBCoords(metaclass=abc.ABCMeta):
 
         return embedded_function
 
+    class DGBEmbeddedFunction:
+        def __init__(self, embedded_function, original_function, coords):
+            self.og_fn = original_function
+            self.base_coords = coords
+            self.embed_fn = embedded_function
+        def __call__(self, coords, deriv_order=None):
+            return self.embed_fn(coords, deriv_order=deriv_order)
     @abc.abstractmethod
-    def embed_function(self, fn) -> 'Callable':
+    def embed_function(self, fn) -> 'DGBEmbeddedFunction':
         ...
+
+    def as_cartesians(self) -> 'tuple[DGBCartesians, tuple[np.ndarray, np.ndarray]]':
+        raise NotImplementedError("{} can't be converted to Cartesians".format(
+            type(self).__name__
+        ))
 
 class DGBCartesians(DGBCoords):
     def __init__(self, coords, masses, *, natoms=None, atom_sel=None, ndim=None, xyz_sel=None):
@@ -1494,12 +1517,16 @@ class DGBCartesians(DGBCoords):
         :param function:
         :return:
         """
-        return self.embedded_cartesian_function(
+        return self.DGBEmbeddedFunction(
+            self.embedded_cartesian_function(
+                function,
+                self.atom_sel,
+                self.xyz_sel,
+                self.natoms,
+                self.ndim
+            ),
             function,
-            self.atom_sel,
-            self.xyz_sel,
-            self.natoms,
-            self.ndim
+            self
         )
 
     def gmatrix(self, coords:np.ndarray) -> np.ndarray:
@@ -1510,7 +1537,10 @@ class DGBInternals(DGBCoords):
     def __init__(self, coords, gmat_function=None, vprime_function=None):
         raise NotImplementedError('internals coming soon?')
 class DGBWatsonModes(DGBCoords):
-    def __init__(self, coords, modes, coriolis_inertia_function=None, natoms=None):
+    def __init__(self, coords, modes,
+                 coriolis_inertia_function=None,
+                 natoms=None
+                 ):
         self.coords = coords
         self.natoms = natoms
         self.modes = modes
@@ -1572,7 +1602,30 @@ class DGBWatsonModes(DGBCoords):
         )
         if coriolis_inertia_function is None:
             coriolis_inertia_function = cls.default_coriolis_intertia_function(modes, masses)
-        return cls(coords, modes, coriolis_inertia_function=coriolis_inertia_function, natoms=len(masses))
+        return cls(coords,
+                   modes,
+                   coriolis_inertia_function=coriolis_inertia_function,
+                   natoms=len(masses)
+                   )
+    def as_cartesians(self, masses=None) -> 'tuple[DGBCartesians, tuple[np.ndarray, np.ndarray]]':
+        mode_coords = self.coords
+        modes = self.modes
+
+        origin = modes.origin
+        carts = (mode_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(
+            mode_coords.shape[:1] + origin.shape
+        )
+        carts = carts + origin
+
+        natoms = self.natoms
+        if natoms is None:
+            raise ValueError("need `natoms` to be able to convert back to Cartesians")
+        carts = carts.reshape((carts.shape[0], natoms, -1))
+
+        if masses is None:
+            masses = [-1] * natoms # so things break
+
+        return DGBCartesians(carts, masses), (modes.matrix, modes.inverse)
 
     def __getitem__(self, item):
         # raise NotImplementedError("need to figure out how to handle coriolis?")
@@ -1590,10 +1643,14 @@ class DGBWatsonModes(DGBCoords):
         return np.broadcast_to(base_spec[np.newaxis], (coords.shape[0],) + base_spec.shape)
 
     def embed_function(self, fn):
-        return self.embedded_mode_function(  # a function that takes in normal mode coordinates
+        return self.DGBEmbeddedFunction(
+            self.embedded_mode_function(  # a function that takes in normal mode coordinates
+                fn,
+                self.modes,
+                natoms=self.natoms
+            ),
             fn,
-            self.modes,
-            natoms=self.natoms
+            self
         )
 
 class DGBCovarianceTransformations:
@@ -1784,22 +1841,29 @@ class DGBGaussians:
         return new
 
     gs_optimization_overlap_cutoff=1e-3
-    def _optimize_gs(self, overlap_cutoff=None):
+    def _optimize_gs(self, *, S=None, overlap_cutoff=None, norm_truncation_cutoff=1e-6):
         if overlap_cutoff is None:
             overlap_cutoff = self.gs_optimization_overlap_cutoff
-        S = self.S
+        if S is None:
+            S=self.S
         mask = np.full(len(S), False, dtype=bool)
         mask[0] = True
         orthog_vecs = [np.array([1.])]
+        norms = [] # debug
         for i in range(1, len(S)):
             mask[i] = True
             vec = S[i, :i+1][mask[:i+1]]
             new = self._calc_gs_next(vec, orthog_vecs)
             norm = self._calc_gs_norm(new, S[np.ix_(mask[:i], mask[:i])], vec)
+            norms.append(norm)
             if norm > overlap_cutoff:
+                if norm < norm_truncation_cutoff:
+                    norm = norm_truncation_cutoff
                 orthog_vecs.append(new / np.sqrt(norm))
             else:
                 mask[i] = False
+
+        # raise Exception(norms)
 
         return np.where(mask)[0]
 
@@ -1846,14 +1910,6 @@ class DGBGaussians:
                             gmat_function=gmat_function
                         )
 
-                        # pf_old = potential_function
-
-                        potential_function = DGBWatsonModes.embedded_mode_function( # a function that takes in normal mode coordinates
-                            potential_function,
-                            modes,
-                            natoms=coords.shape[1] if coords.ndim == 3 else None
-                        )
-
                     else:
                         raise ValueError("unknown mode spec {}".format(modes))
 
@@ -1869,6 +1925,14 @@ class DGBGaussians:
                             atoms=atoms
                         )
                     )
+
+                    potential_function = coords.embed_function(potential_function)
+                    # DGBWatsonModes.embedded_mode_function(
+                    #     # a function that takes in normal mode coordinates
+                    #     potential_function,
+                    #     modes,
+                    #     natoms=coords.shape[1] if coords.ndim == 3 else None
+                    # )
 
                     # origin = modes.origin
                     # # raise Exception((coords.coords[:, np.newaxis, :] @ modes.inverse[np.newaxis]))
@@ -2267,17 +2331,32 @@ class DGBGaussians:
                 raise ValueError("inverse must be supplied for non-unitary transforms")
             invs = tfs.transpose((0, 2, 1))
             tfs = (tfs, invs)
-        if (
-                len(tfs) != 2 or
-                not all(
-                    isinstance(x, np.ndarray) and x.shape == (npts, ndim, ndim)
-                    for x in tfs
-                )
-        ):
-            raise ValueError("transforms must have shape {s}".format(
-                s=(npts, ndim, ndim)
+        if len(tfs) != 2:
+            raise ValueError("need both transformations and inverses")
+
+        tfs, invs = tfs
+        if tfs.shape[0] != npts:
+            if tfs.shape[0] == 1:
+                tfs = np.broadcast_to(tfs, (npts,) + tfs.shape[1:])
+            else:
+                raise ValueError("wrong number of transformations supplied")
+        if invs.shape[0] != npts:
+            if invs.shape[0] == 1:
+                invs = np.broadcast_to(invs, (npts,) + invs.shape[1:])
+            else:
+                raise ValueError("wrong number of inverses supplied")
+        if tfs.shape[2] != ndim:
+            raise ValueError("transformations have wrong dimension got {}[2], expected {}".format(
+                tfs.shape,
+                ndim
             ))
-        return tfs
+        if invs.shape[1] != ndim:
+            raise ValueError("inverses have wrong dimension got {}[1], expected {}".format(
+                invs.shape,
+                ndim
+            ))
+
+        return (tfs, invs)
 
     @property
     def S(self):
@@ -2299,22 +2378,31 @@ class DGBGaussians:
     def marginalize_out(self, indices):
 
         subcoords = self.coords.drop_indices(indices)
-        scaling = np.power(2 * np.pi, len(indices) / 4) / np.power(np.prod(self.alphas[:, indices], axis=-1), 1/4)
 
-        ndim = self.alphas.shape[-1]
+        ndim = self.coords.shape[-1]
         remaining = np.setdiff1d(np.arange(ndim), indices)
 
         if self.transformations is not None:
-
             full_covs = DGBEvaluator.get_inverse_covariances(
                 1 / (4*self.alphas), # hacky but the inverse is expected to have 2a on the diagonal
                 self.transformations
             )
-            subcovs = full_covs[:, np.ix_(remaining, remaining)]
-            inv_alphas, tfs = np.linalg.eigh(subcovs)
-            alphas = 1 / (2*inv_alphas) # we have 1/2a
+            full_sel = np.arange(self.alphas.shape[0])
 
+            dropcovs = full_covs[np.ix_(full_sel, indices, indices)]
+            dropdets = np.linalg.det(dropcovs)
+            zp = np.abs(dropdets) < 1e-3 #TODO: fix this in case someone is in the numerically unstable limit...
+            dropdets[zp] = 1
+            scaling = 1 / dropdets
+            scaling[zp] = 1e3
+            scaling *= np.power(np.pi, len(indices) / 4)
+
+            subcovs = full_covs[np.ix_(full_sel, remaining, remaining)]
+            inv_alphas, tfs = np.linalg.eigh(subcovs)
+            tfs = (tfs, tfs.transpose(0, 2, 1))
+            alphas = 1 / (2*inv_alphas) # we have 1/2a
         else:
+            scaling = np.power(2 * np.pi, len(indices) / 4) / np.power(np.prod(self.alphas[:, indices], axis=-1), 1 / 4)
             alphas = self.alphas[:, remaining]
             tfs = None
 
@@ -2322,4 +2410,30 @@ class DGBGaussians:
             subcoords,
             alphas=alphas,
             transformations=tfs
+        )
+
+    def as_cartesians(self):
+        if isinstance(self.coords, DGBCartesians):
+            return self
+
+        carts, (transformation, inverse) = self.coords.as_cartesians() # tfs is ncarts x nmodes
+        if self.transformations is not None:
+            tf, inv = self.transformations
+            tfs = transformation[np.newaxis] @ tf
+            invs = inv @ inverse[np.newaxis]
+        else:
+            tfs = np.broadcast_to(transformation[np.newaxis], (carts.shape[0],) + transformation.shape)
+            invs = np.broadcast_to(inverse[np.newaxis], (carts.shape[0],) + inverse.shape)
+        transformations = (tfs, invs)
+
+        # num_extra = carts.shape[1] - self.alphas.shape[1]
+        # alphas = np.concatenate(
+        #     [self.alphas, np.zeros((carts.shape[0], num_extra))],
+        #     axis=1
+        # )
+        alphas = self.alphas
+        return type(self)(
+            carts,
+            alphas,
+            transformations=transformations
         )
