@@ -45,9 +45,9 @@ class MixtureModes(CoordinateSystem):
         :rtype:
         """
 
-        if isinstance(item, int):
+        if isinstance(item, (int, np.integer)):
             item = (item,)
-        elif not isinstance(item[0], int):
+        elif not isinstance(item[0], (int, np.integer)):
             item = tuple(item[0])
 
         sub_modes = self.matrix[:, item]

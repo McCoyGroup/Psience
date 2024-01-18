@@ -71,7 +71,11 @@ class DGB:
         ham = cls.construct(centers, potential_function, **opts)
         return ham.run()
 
-    def run(self, quiet=False):
+    def run(self,
+            quiet=False,
+            calculate_spectrum=True,
+            **wavefunction_options
+            ):
         """
         The default case...
 
@@ -85,7 +89,7 @@ class DGB:
             else:
                 logger = old_logger
             with logger.block(tag="Running distributed Gaussian basis calculation"):
-                wfns = self.get_wavefunctions()
+                wfns = self.get_wavefunctions(**wavefunction_options)
                 if not quiet and isinstance(logger, NullLogger):
                     logger = Logger.lookup(True)
                 logger.log_print('ZPE: {zpe}', zpe=wfns.energies[0] * UnitsData.hartrees_to_wavenumbers)
@@ -93,14 +97,14 @@ class DGB:
                 if len(freqs) > 10:
                     freqs = freqs[:10]
                 logger.log_print('Frequencies: {freqs}', freqs=freqs * UnitsData.hartrees_to_wavenumbers)
-                if wfns.dipole_function is not None:
+                if calculate_spectrum and wfns.dipole_function is not None:
                     spec = wfns.get_spectrum()
+                    ints = spec.intensities
+                    if len(ints) > 10:
+                        ints = ints[:10]
+                    logger.log_print('Intensities: {ints}', ints=ints)
                 else:
                     spec = None
-                ints = spec.intensities
-                if len(ints) > 10:
-                    ints = ints[:10]
-                logger.log_print('Intensities: {ints}', ints=ints)
         finally:
             self.logger = old_logger
         return wfns, spec
@@ -119,6 +123,7 @@ class DGB:
                   transformations=None,
                   internals=None,
                   modes=None,
+                  coordinate_selection=None,
                   cartesians=None,
                   logger=False,
                   optimize_centers=False,
@@ -140,6 +145,7 @@ class DGB:
             masses=masses,
             atoms=atoms,
             internals=internals,
+            coordinate_selection=coordinate_selection,
             cartesians=cartesians,
             modes=modes,
             transformations=transformations,
@@ -177,6 +183,7 @@ class DGB:
                             masses=None,
                             atoms=None,
                             internals=None,
+                            coordinate_selection=None,
                             cartesians=None,
                             modes=None,
                             transformations=None,
@@ -193,6 +200,7 @@ class DGB:
             masses=masses,
             atoms=atoms,
             internals=internals,
+            coordinate_selection=coordinate_selection,
             cartesians=cartesians,
             modes=modes,
             transformations=transformations,
@@ -423,31 +431,40 @@ class DGB:
             S = np.expand_dims(S, -1)
         return S * pot_mat
 
-    default_min_singular_value=1e-4
+    default_solver_mode = 'similarity'
     def diagonalize(self,
                     *,
-                    print_debug_info=False,
+                    mode=None,
+                    similarity_cutoff=None,
+                    similarity_chunk_size=None,
+                    similar_det_cutoff=None,
                     subspace_size=None,
                     min_singular_value=None,
-                    eps=5e-4,
-                    mode='similarity',
-                    nodeless_ground_state=True
+                    nodeless_ground_state=True,
+                    stable_eigenvalue_epsilon=None
                     ):
+
+        if mode is None:
+            if any(x is not None for x in [
+                subspace_size,
+                min_singular_value
+            ]):
+                mode = 'classic'
+            elif stable_eigenvalue_epsilon is not None:
+                mode = 'fix-heiberger'
+            elif any(x is not None for x in [
+                similarity_cutoff,
+                similarity_chunk_size,
+                similar_det_cutoff
+            ]):
+                mode = 'similarity'
+            else:
+                mode = self.default_solver_mode
+
 
         H = self.T + self.V
 
-        # if print_debug_info:
-        #     print('Condition Number:', np.linalg.cond(self.S))
-        #     with np.printoptions(linewidth=1e8, threshold=1e8):
-        #         print("Potential Matrix:")
-        #         print(self.V)
-
-        # mode = 'fix-heiberger'
         if mode == "classic":
-            if min_singular_value is None:
-                min_singular_value = self.default_min_singular_value
-            # if min_singular_value is None:
-            #     min_singular_value = 1e-4
             if min_singular_value is not None:
                 self.logger.log_print("solving with min_singular_value={ms}", ms=min_singular_value)
             eigs, evecs = DGBEigensolver.classic_eigensolver(
@@ -458,10 +475,14 @@ class DGB:
             )
 
         elif mode == 'fix-heiberger': # Implementation of the Fix-Heiberger algorithm
-            eigs, evecs = DGBEigensolver.fix_heiberger(H, self.S, self, eps=eps)
+            eigs, evecs = DGBEigensolver.fix_heiberger(H, self.S, self, eps=stable_eigenvalue_epsilon)
 
         elif mode == 'similarity':
-            eigs, evecs = DGBEigensolver.similarity_mapped_solver(H, self.S, self)
+            eigs, evecs = DGBEigensolver.similarity_mapped_solver(H, self.S, self,
+                                                                  similarity_cutoff=similarity_cutoff,
+                                                                  similarity_chunk_size=similarity_chunk_size,
+                                                                  similar_det_cutoff=similar_det_cutoff
+                                                                  )
 
         elif callable(mode):
             eigs, evecs = mode(H, self.S, )
@@ -474,22 +495,26 @@ class DGB:
         return eigs, evecs
 
     def get_wavefunctions(self,
-                          print_debug_info=False,
-                          min_singular_value=None,
-                          subspace_size=None,
-                          nodeless_ground_state=None,
                           mode=None,
-                          stable_epsilon=None,
+                          similarity_cutoff=None,
+                          similarity_chunk_size=None,
+                          similar_det_cutoff=None,
+                          subspace_size=None,
+                          min_singular_value=None,
+                          nodeless_ground_state=None,
+                          stable_eigenvalue_epsilon=None,
                           **wfn_opts
                           ):
         # print("======="*25)
         ops = dict(
-            print_debug_info=print_debug_info,
+            mode=mode,
+            similarity_cutoff=similarity_cutoff,
+            similarity_chunk_size=similarity_chunk_size,
+            similar_det_cutoff=similar_det_cutoff,
+            subspace_size=subspace_size,
             min_singular_value=min_singular_value,
             nodeless_ground_state=nodeless_ground_state,
-            subspace_size=subspace_size,
-            mode=mode,
-            eps=stable_epsilon
+            stable_eigenvalue_epsilon=stable_eigenvalue_epsilon
         )
         ops = {k:v for k,v in ops.items() if v is not None}
         eigs, evecs = self.diagonalize(**ops)

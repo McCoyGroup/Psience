@@ -25,7 +25,7 @@ class DGBEigensolver:
         elif min_singular_value is not None:
             good_loc = np.where(sig > min_singular_value)[0]
         else:
-            good_loc = np.arange(len(S))
+            good_loc = np.arange(len(sig))
         d = np.diag(1 / np.sqrt(sig[good_loc]))
 
         gl = base_loc[0][good_loc]
@@ -53,7 +53,7 @@ class DGBEigensolver:
                             hamiltonian,
                             min_singular_value=None,
                             subspace_size=None,
-                            nodeless_ground_state=True
+                            nodeless_ground_state=False
                             ):
         Q, Qinv, proj = self.get_orthogonal_transform(
             S,
@@ -68,8 +68,8 @@ class DGBEigensolver:
         else:
             Qq, Qqinv = proj
             hamiltonian.logger.log_print('solving with subspace size {}'.format(Qq.shape[1]))
-            H = Qq.T @ Q @ H @ Q.T @ Qq  # in our projected orthonormal basis
-            eigs, evecs = np.linalg.eigh(H)
+            Hq = Qq.T @ Q @ H @ Q.T @ Qq  # in our projected orthonormal basis
+            eigs, evecs = np.linalg.eigh(Hq)
             evecs = np.concatenate(
                 [
                     evecs,
@@ -87,17 +87,34 @@ class DGBEigensolver:
             diffs = np.abs(np.diff(signs))
             # print(gs[np.argsort(np.abs(gs))][-5:], Qq.shape[1] - 1)
             if np.sum(diffs) > 0:  # had a sign flip
+                if subspace_size is not None:
+                    subspace_size = min(subspace_size, Qq.shape[1])
+                else:
+                    subspace_size = Qq.shape[1]
                 eigs, evecs = self.classic_eigensolver(
                     H, S, hamiltonian,
-                    subspace_size=Qq.shape[1] - 1,
-                    nodeless_ground_state=Qq.shape[1] > 1  # gotta bottom out some time...
+                    subspace_size=subspace_size - 1,
+                    nodeless_ground_state=subspace_size > 1  # gotta bottom out some time...
                 )
         return eigs, evecs
 
     eigensimilarity_cutoff = .85
     eigensimilarity_chunk_size = 3
+    similar_determinant_cutoff = 0.05
     @classmethod
-    def get_eigensimilarity_subspace_size(cls, H, S):
+    def get_eigensimilarity_subspace_size(cls, H, S,
+                                          similarity_cutoff=None,
+                                          similarity_chunk_size=None,
+                                          similar_det_cutoff=None
+                                          ):
+
+        if similarity_cutoff is None:
+            similarity_cutoff = cls.eigensimilarity_cutoff
+        if similarity_chunk_size is None:
+            similarity_chunk_size = cls.eigensimilarity_chunk_size
+        if similar_det_cutoff is None:
+            similar_det_cutoff = cls.similar_determinant_cutoff
+
         eigs, Qs = np.linalg.eigh(S)
         eigh, Qh = np.linalg.eigh(H)
 
@@ -114,12 +131,12 @@ class DGBEigensolver:
         # splot_dets = plt.Plot(range(1, len(eigs)), np.diff(dets)).show()
         # raise Exception(...)
 
-        det_chunks = np.split(np.arange(len(dets)), np.where(np.abs(np.diff(dets)) > .05)[0] + 1)
+        det_chunks = np.split(np.arange(len(dets)), np.where(np.abs(np.diff(dets)) > similar_det_cutoff)[0] + 1)
         good_runs = [
             c for c in det_chunks
-                if len(c) > cls.eigensimilarity_chunk_size
+                if len(c) > similarity_chunk_size
                     and
-                np.mean(dets[c]) > cls.eigensimilarity_cutoff
+                np.mean(dets[c]) > similarity_cutoff
         ]
 
         if len(good_runs) == 0 or len(good_runs[-1]) == 0:
@@ -132,10 +149,21 @@ class DGBEigensolver:
 
 
     @classmethod
-    def similarity_mapped_solver(self, H, S, hamiltonian):
-        subspace_size = self.get_eigensimilarity_subspace_size(H, S)
-
-        return self.classic_eigensolver(H, S, hamiltonian=hamiltonian, subspace_size=subspace_size)
+    def similarity_mapped_solver(self, H, S, hamiltonian,
+                                 similarity_cutoff=None,
+                                 similarity_chunk_size=None,
+                                 similar_det_cutoff=None
+                                 ):
+        subspace_size = self.get_eigensimilarity_subspace_size(H, S,
+                                                               similarity_cutoff=similarity_cutoff,
+                                                               similarity_chunk_size=similarity_chunk_size,
+                                                               similar_det_cutoff=similar_det_cutoff
+                                                               )
+        return self.classic_eigensolver(H, S,
+                                        hamiltonian=hamiltonian,
+                                        subspace_size=subspace_size,
+                                        nodeless_ground_state=False
+                                        )
 
     @classmethod
     def fix_heiberger(self, H, S, hamiltonian, eps=1e-5):

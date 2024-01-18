@@ -226,8 +226,9 @@ class PerturbationTheoryHamiltonian:
             if sel is None:
                 return V
             else:
-                for i in range(V.ndim):
-                    V = np.take(V, self.mode_selection, axis=i)
+                if isinstance(V, np.ndarray):
+                    for i in range(V.ndim):
+                        V = np.take(V, self.mode_selection, axis=i)
                 return V
         def adjust_base_term(self, V):
             return V

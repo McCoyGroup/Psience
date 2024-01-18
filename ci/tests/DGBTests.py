@@ -2965,6 +2965,10 @@ class DGBTests(TestCase):
                domain=None,
                domain_padding=1,
                potential_cutoff=10000,
+               mode=None,
+               similarity_cutoff=None,
+               similarity_chunk_size=None,
+               similar_det_cutoff=None,
                **plot_options
                ):
 
@@ -2973,59 +2977,97 @@ class DGBTests(TestCase):
         print(dgb.T[:5, :5])
         print(dgb.V[:5, :5])
 
-        wfns, spec = dgb.run()
+        try:
+            wfns, spec = dgb.run(
+                calculate_spectrum=plot_spectrum,
+                mode=mode,
+                similarity_cutoff=similarity_cutoff,
+                similarity_chunk_size=similarity_chunk_size,
+                similar_det_cutoff=similar_det_cutoff
+            )
+        except Exception as e:
 
-        if plot_spectrum:
-            spec[:5].plot().show()
+            if plot_wavefunctions is not False:
+                print(e)
 
-        figure = None
-        if isinstance(plot_wavefunctions, str) and plot_wavefunctions=='cartesians':
-            plot_wavefunctions = {'cartesians':None}
-        cartesian_plot_axes = None
-        if isinstance(plot_wavefunctions, dict):
-            if 'cartesians' in plot_wavefunctions:
-                cartesian_plot_axes=plot_wavefunctions['cartesians']
-                plot_wavefunctions = True
-                wfns = wfns.as_cartesian_wavefunction()
-                dgb = wfns.hamiltonian
-            else:
-                raise ValueError(plot_wavefunctions)
-        if plot_wavefunctions is True:
-            plot_wavefunctions = cls.default_num_plot_wfns
-        if isinstance(plot_wavefunctions, int):
+                if isinstance(plot_wavefunctions, str) and plot_wavefunctions=='cartesians':
+                    plot_wavefunctions = {'cartesians':None}
+                cartesian_plot_axes = None
+                if isinstance(plot_wavefunctions, dict):
+                    if 'cartesians' in plot_wavefunctions:
+                        cartesian_plot_axes=plot_wavefunctions['cartesians']
+                        dgb = dgb.as_cartesian_dgb()
+                    else:
+                        raise ValueError(plot_wavefunctions)
 
-            pot = dgb.pot.potential_function
-            for i in range(plot_wavefunctions):
+                pot = dgb.pot.potential_function
+                figure = cls.plot_dgb_potential(
+                    dgb, mol, pot,
+                    domain=domain, domain_padding=domain_padding,
+                    potential_cutoff=potential_cutoff
+                )
 
-                if plot_potential:
-                    figure = cls.plot_dgb_potential(
-                        dgb, mol, pot,
-                        domain=domain, domain_padding=domain_padding,
-                        potential_cutoff=potential_cutoff
-                    )
+                dgb.gaussians.plot_centers(
+                    figure,
+                    xyz_sel=cartesian_plot_axes
+                )
 
-                if isinstance(dgb.gaussians.coords, DGBCartesians):
-                    wfns[i].plot_cartesians(
-                        cartesian_plot_axes,
-                        contour_levels=16,
-                        cmap='RdBu',
-                        figure=figure,
-                        plot_centers={'color':'red'},
-                        domain=domain,
-                        domain_padding=.5,
-                        **plot_options
-                    ).show()
+                figure.show()
+
+            raise e
+        else:
+
+            if plot_spectrum:
+                spec[:5].plot().show()
+
+            figure = None
+            if isinstance(plot_wavefunctions, str) and plot_wavefunctions=='cartesians':
+                plot_wavefunctions = {'cartesians':None}
+            cartesian_plot_axes = None
+            if isinstance(plot_wavefunctions, dict):
+                if 'cartesians' in plot_wavefunctions:
+                    cartesian_plot_axes=plot_wavefunctions['cartesians']
+                    plot_wavefunctions = True
+                    wfns = wfns.as_cartesian_wavefunction()
+                    dgb = wfns.hamiltonian
                 else:
-                    wfns[i].plot(
-                        contour_levels=32,
-                        cmap='RdBu',
-                        plotter=plt.TriContourLinesPlot,
-                        plot_centers={'color':'red'},
-                        domain=domain,
-                        domain_padding=domain_padding,
-                        figure=figure,
-                        **plot_options
-                    ).show()
+                    raise ValueError(plot_wavefunctions)
+            if plot_wavefunctions is True:
+                plot_wavefunctions = cls.default_num_plot_wfns
+            if isinstance(plot_wavefunctions, int):
+
+                pot = dgb.pot.potential_function
+                for i in range(plot_wavefunctions):
+
+                    if plot_potential:
+                        figure = cls.plot_dgb_potential(
+                            dgb, mol, pot,
+                            domain=domain, domain_padding=domain_padding,
+                            potential_cutoff=potential_cutoff
+                        )
+
+                    if isinstance(dgb.gaussians.coords, DGBCartesians):
+                        wfns[i].plot_cartesians(
+                            cartesian_plot_axes,
+                            contour_levels=16,
+                            cmap='RdBu',
+                            figure=figure,
+                            plot_centers={'color':'red'},
+                            domain=domain,
+                            domain_padding=.5,
+                            **plot_options
+                        ).show()
+                    else:
+                        wfns[i].plot(
+                            contour_levels=32,
+                            cmap='RdBu',
+                            plotter=plt.TriContourLinesPlot,
+                            plot_centers={'color':'red'},
+                            domain=domain,
+                            domain_padding=domain_padding,
+                            figure=figure,
+                            **plot_options
+                        ).show()
 
     @classmethod
     def setupMorseFunction(cls, model, w=None, wx=None):
@@ -3108,7 +3150,7 @@ class DGBTests(TestCase):
             ],
             timestep=10
         )
-        sim.propagate(20)
+        sim.propagate(5)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
         """
@@ -3189,16 +3231,35 @@ class DGBTests(TestCase):
 
             dgb = model.setup_DGB(
                 np.round(coords, 8),
-                optimize_centers=1e-6,
+                optimize_centers=1e-8,
                 # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
+                # quadrature_degree=3,
                 expansion_degree=2,
-                # pairwise_potential_functions={
-                #     (0, 1):self.setupMorseFunction(model),
-                #     (0, 2):self.setupMorseFunction(model),
-                # }
+                pairwise_potential_functions={
+                    (0, 1):self.setupMorseFunction(model),
+                    (0, 2):self.setupMorseFunction(model),
+                }
             )
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 20
+            :: ZPE: 3781.082739812134
+            :: Frequencies: [ 3764.44242202  3780.16124925  7293.08485934  7410.86956917 10745.34634858 10763.18031136 13946.96584743 14027.81288441 17082.58958407 17169.09291512]
+            >>--------------------------------------------------<<
+            """
+
+            """
+            :: Frequencies: [ 3675.67859289  3728.1031644   7220.86665227  7237.3542714   7419.82070657 10595.85111444 10598.93290971 10896.9917394  11017.71173165 13798.28724499]
+"""
+
+            """
+            :: solving with subspace size 33
+            :: ZPE: 3793.0886555058923
+            :: Frequencies: [ 3675.73239715  3734.95463105  7232.54865998  7250.05353005  7495.98577501 10620.94739729 10624.18621614 11030.71092945 11336.21159011 13847.20197056]
+            """
 
             """With PPF
             :: solving with subspace size 45
@@ -3224,124 +3285,143 @@ class DGBTests(TestCase):
             self.runDGB(dgb, mol,
                         vmin=-.05,
                         vmax=.05,
-                        domain=[[-20, 20], [-20, 20]]
+                        domain=[[-20, 20], [-20, 20]],
+                        plot_wavefunctions=False
+                        # mode='classic'
                         )
 
-            # def cutoff_pot(points, cutoff=10000 / UnitsData.hartrees_to_wavenumbers):
-            #     values = model.potential(points)
-            #     values[values > cutoff] = cutoff
-            #     return values
-            # base = mol.plot_molecule_function(
-            #     cutoff_pot,
-            #     axes=[0, 1],
-            #     # cmap='RdBu',
-            #     plot_atoms=True,
-            #     atom_colors=[None, 'aliceblue', 'aliceblue'],
-            #     domain=[[-2, 2], [-2, 2]]
-            # )
+            """
+            :: solving with subspace size 74
+(301, 74)
+:: ZPE: 3792.2909407628968
+:: Frequencies: [ 3675.67519926  3728.04432428  7220.71371151  7237.21266607  7417.83839273 10595.72920586 10597.47640089 10896.69653986 10993.50986009 13796.28412269]
+"""
+            """
+            :: solving with subspace size 40
+            :: solving with subspace size 39
+            :: solving with subspace size 38
+            :: solving with subspace size 37
+            :: solving with subspace size 36
+            :: solving with subspace size 35
+            :: ZPE: 3793.964913145213
+            :: ZPE: 3794.012794330589
+            :: Frequencies: [ 3708.73341154  3734.86080835  7286.17436413  7316.65491963  8516.61271718 10666.28023563 10748.50595293 12733.0280663  13896.96264286 13996.93743477]
+            :: Frequencies: [ 3705.77682674  3734.88703588  7280.76971625  7313.35796559  8455.29315203 10663.6914612  10725.06347301 12648.70126107 13738.17040782 13897.90723632]
+            """
 
-            # coords = dgb.gaussians.optimize(1e-6).coords.coords
-            # plt.ScatterPlot(
-            #     coords[:, 0, 0],
-            #     coords[:, 0, 1],
-            #     figure=base
-            # )
-            # plt.ScatterPlot(
-            #     coords[:, 1, 0],
-            #     coords[:, 1, 1],
-            #     figure=base
-            # )
-            # plt.ScatterPlot(
-            #     coords[:, 2, 0],
-            #     coords[:, 2, 1],
-            #     figure=base
-            # ).show()
-            # raise Exception(...)
+    @validationTest
+    def test_ModelPotentialAIMD2D_sym_bend(self):
+        mol, model = self.buildWaterModel(
+            # w2=None, wx2=None,
+            # ka=None,
+            dudr1=1 / 5.5,
+            dudr2=1 / 5.5
+            # dipole_direction=[1, 0, 0]
+        )
 
-            # cents = dgb.gaussians.coords.centers
-            # centers_plot = plt.ScatterPlot(
-            #     cents[:, 0],
-            #     cents[:, 1],
-            #     plot_range=[[-10, 10], [-10, 10]]
-            # )
-            #
-            # new_cents = dgb.gaussians.optimize(1e-7).coords.centers
-            # plt.ScatterPlot(
-            #     new_cents[:, 0],
-            #     new_cents[:, 1],
-            #     plot_range=[[-10, 10], [-10, 10]],
-            #     figure=centers_plot,
-            #     color='red'
-            # ).show()
-            #
-            # raise Exception(...)
+        check_freqs = False
+        if check_freqs:
+            freqs = model.normal_modes()[0]
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
 
-            # print(len(dgb.gaussians.coords.centers))
-            # print(dgb.S[:5, :5])
-            # print(dgb.T[:5, :5])
-            # print(dgb.V[:5, :5])
-            #
-            # wfns, spec = dgb.run()
-            #
-            # plot_spectrum = False
-            # if plot_spectrum:
-            #     spec[:5].plot().show()
-            #
-            # figure = None
-            # plot_potential=cartesians
-            # if plot_potential:
-            #     def cutoff_pot(points, cutoff=10000 / UnitsData.hartrees_to_wavenumbers):
-            #         values = model.potential(points)
-            #         values[values > cutoff] = cutoff
-            #         return values
-            #
-            #     figure = mol.plot_molecule_function(
-            #         cutoff_pot,
-            #         axes=[0, 1],
-            #         # cmap='RdBu',
-            #         plot_atoms=True,
-            #         atom_colors=[None, 'aliceblue', 'aliceblue'],
-            #         domain=[[-2, 2], [-2, 2]]
-            #     )
-            #
-            # plot_wavefunctions=4
-            # if plot_wavefunctions is True:
-            #     plot_wavefunctions=4
-            # if isinstance(plot_wavefunctions, int):
-            #     for i in range(plot_wavefunctions):
-            #         if cartesians:
-            #             wfns[i].plot_cartesians(
-            #                 contour_levels=16,
-            #                 domain=[[-2, 2], [-2, 2]],
-            #                 cmap='RdBu',
-            #                 figure=figure,
-            #                 plot_centers=True
-            #             ).show()
-            #         else:
-            #             wfns[i].plot(
-            #                 plot_centers=True,
-            #                 domain=[[-10, 10], [-10, 10]],
-            #                 figure=figure
-            #             ).show()
+        check_anh = False
+        if check_anh:
+            model.run_VPT(order=2, states=2,
+                          logger=True,
+                          mode_selection=[0],
+                          degeneracy_specs='auto'
+                          )
+            """
+            > State    Harmonic   Anharmonic     Harmonic   Anharmonic
+                         ZPE          ZPE    Frequency    Frequency
+            0 0   2732.22799   2656.66754            -            - 
+            0 1            -            -   3843.25802   3760.42618 
+            1 0            -            -   1621.19795   1608.98591 
+            0 2            -            -   7686.51604   7438.96418 
+            2 0            -            -   3242.39590   3207.43724 
+            1 1            -            -   5464.45597   5368.24375
+            """
+            raise Exception(...)
 
-            # mol.plot_molecule_function(
-            #     model.dipole,
-            #     axes=[0, 1],
-            #     plot_atoms=True,
-            #     # mask_function=lambda vals, pts, dists:dists>.4,
-            #     # mask_value=0,
-            #     vmin=-.2, vmax=.2,
-            #     cmap='RdBu',
-            #     atom_colors=[None, 'aliceblue', 'aliceblue']
-            #     # domain=[[-5, 5], [-5, 5]]
-            # ).show()
-            #
-            # raise Exception(...)
-            #
-            # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
-            # raise Exception(
-            #     mol.coriolis_constants.shape
-            # )
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(mol.coords, mol.normal_modes.modes)
+
+        sim = model.setup_AIMD(
+            initial_energies=np.array([
+                [5000, 7000, 0],
+                [5000, -7000, 0],
+                [-5000, 7000, 0],
+                [-5000, -7000, 0],
+                # [5000, 0, 7000],
+                # [5000, 0, -7000],
+                # [-5000, 0, 7000],
+                # [-5000, 0, -7000],
+                # [2000 * self.w2h, 0],
+                # [0, 2000 * self.w2h],
+                # [-2000 * self.w2h, 0],
+                # [0, -2000 * self.w2h],
+                # [-15000 * self.w2h, -15000 * self.w2h],
+                # [15000 * self.w2h, -15000 * self.w2h],
+                # [10000 * self.w2h, 0],
+                # [0, 10000 * self.w2h],
+                # [-10000 * self.w2h, 0],
+                # [0, -10000 * self.w2h]
+            ]) * self.w2h * .6,
+            timestep=15
+        )
+        sim.propagate(25)
+        coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+
+        cartesians = False
+        with BlockProfiler(inactive=True):
+
+            dgb = model.setup_DGB(
+                np.round(coords, 8),
+                optimize_centers=1e-6,
+                # optimize_centers=False,
+                modes=None if cartesians else 'normal',
+                coordinate_selection=[0, 1],
+                cartesians=[0, 1] if cartesians else None,
+                # quadrature_degree=3,
+                expansion_degree=2,
+                # pairwise_potential_functions={
+                #     (0, 1):self.setupMorseFunction(model),
+                #     (0, 2):self.setupMorseFunction(model)
+                # }
+            )
+
+
+            """   
+            With Quad
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 58
+            :: ZPE: 2665.6069779880036
+            :: Frequencies: [1608.49531299 3207.00175911 3760.4494808  4795.42751905 5368.63162422 6382.41680842 6974.3954701  7442.50599982 7963.37554881 8596.58017647]
+            >>--------------------------------------------------<<
+            Without PPF
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 48
+            :: ZPE: 2662.2066836743475
+            :: Frequencies: [1608.79009118 3205.20733975 3753.24022201 4618.98702262 4798.93963596 5370.90878283 6389.45983026 6990.67524802 7438.15809096 8073.02852093]
+            >>--------------------------------------------------<<
+            With PPF
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 49
+            :: ZPE: 2667.2411724861367
+            :: Frequencies: [1608.36613953 3207.67172337 3761.47812863 4798.06900587 5371.76199962 6383.85193216 6978.04577871 7443.66050022 8033.8198696  8648.9380281 ]
+            >>--------------------------------------------------<<
+            """
+
+            # type(self).default_num_plot_wfns = 5
+            type(self).default_num_plot_wfns = 1
+            self.runDGB(dgb, mol,
+                        similarity_chunk_size=5,
+                        # vmin=-.05,
+                        # vmax=.05,
+                        # domain=[[-2, 2], [-2, 2]],
+                        # plot_wavefunctions=False,
+                        plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True
+                        )
 
     @debugTest
     def test_ModelPotentialAIMD3D(self):
@@ -3360,11 +3440,15 @@ class DGBTests(TestCase):
 
         check_anh = False
         if check_anh:
-            model.run_VPT(order=2, states=2, degeneracy_specs='auto')
+            model.run_VPT(order=2, states=2,
+                          logger=True,
+                          degeneracy_specs='auto'
+                          )
             """
+            ZPE:       4680.66312                   4570.46683
             ============================================= IR Data ==============================================
             Initial State: 0 0 0 
-                               Harmonic                  Anharmonic
+                   Harmonic                  Anharmonic
             State       Frequency    Intensity       Frequency    Intensity
               0 0 1    3896.87027     64.98650      3719.85792     62.04864
               0 1 0    3843.25802      0.17386      3676.15023      0.13738
@@ -3375,19 +3459,98 @@ class DGBTests(TestCase):
               0 1 1    7740.12829      0.00000      7229.92439      1.31011
               1 0 1    5518.06822      0.00000      5308.87370      0.09319
               1 1 0    5464.45597      0.00000      5278.21352      0.07390
+              0 0 3   11690.61081      0.00000     10968.41696      0.00035
+              0 3 0   11529.77407      0.00000     10889.96902      0.00002
+              3 0 0    4863.59385      0.00000      4780.71739      0.02966
+              0 1 2   11636.99856      0.00000     10585.28249      0.00057
+              1 0 2    9414.93849      0.00000      8988.15541      0.00045
+              0 2 1   11583.38631      0.00000     10587.48831      0.05388
+              2 0 1    7139.26617      0.00000      6888.02529      0.00327
+              1 2 0    9307.71399      0.00000      8809.00645      0.00197
+              2 1 0    7085.65392      0.00000      6870.41262      0.00035
+              1 1 1    9361.32624      0.00000      8817.56680      0.00646
             ====================================================================================================
             """
             raise Exception(...)
+
+        check_dvr = False
+        if check_dvr:
+            raise ValueError("you don't want to rerun this")
+            dvr = model.setup_DVR(
+                domain=[[1, 4], [1, 4], [np.deg2rad(60), np.deg2rad(160)]],
+                divs=[800, 800, 800], po_divs=[25, 25, 25],
+                potential_optimize=True,
+                logger=True
+            )
+            po_data = dvr.run()
+            """
+            :: PotentialOptimizedDVR([WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None)], pot=SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2))
+            :: g: [[SympyExpr(0.0005786177281533848), SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3])], [SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(0.0005786177281533848), SympyExpr(0.0)], [SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3]), SympyExpr(0.0), SympyExpr(0.000578617728153385/r[2,3]**2 - 6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]) + 0.000578617728153385/r[1,2]**2)]]
+            :: mass: [None, None, None]
+            :: g_deriv: [SympyExpr(0.0), SympyExpr(0.0), SympyExpr(6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]))]
+            :: domain: [[1, 4], [1, 4], [1.0471975511965976, 2.792526803190927]]
+            :: divs: [800, 800, 800]
+            :: potential_function: SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2)
+            ::> constructing grid
+            <::
+            ::> constructing potential matrix
+              > evaluating potential function over grid
+            <::
+            ::> constructing kinetic matrix
+              > evaluating kinetic coupling
+            <::
+            ::> building Hamiltonian
+            <::
+            ::> evaluating wavefunctions
+              ::> diagonalizing Hamiltonian
+                > dimension=(8000, 8000)
+                > density=9.750%
+                > mode=None
+              <::
+            <::
+            >>--------------------------------------------------<<
+            ERROR
+
+            ======================================================================
+            ERROR: test_ModelPotentialAIMD (tests.DGBTests.DGBTests)
+            ----------------------------------------------------------------------
+            Traceback (most recent call last):
+              File "/Users/Mark/Documents/UW/Research/Development/Peeves/Peeves/TestUtils.py", line 501, in Debug
+                return fn(*args, **kwargs)
+              File "/Users/Mark/Documents/UW/Research/Development/Psience/ci/tests/DGBTests.py", line 1040, in test_ModelPotentialAIMD
+                raise Exception(po_data.wavefunctions.frequencies()*UnitsData.hartrees_to_wavenumbers)
+            Exception: (
+                6234.520135705428, 
+                array([ 
+                    1603.52651473,  3197.92783543,  
+                    3677.14362091,  3719.74235567,  
+                    4791.35107014,  5281.20835861,  5308.52076799,  
+                    6402.00507514,  6876.02718339,  6885.85546794,  
+                    7220.93261924,  7232.7182684 ,  7405.52232462,  
+                    8049.27247436,  8459.98906896,  8479.50398517,  
+                    8821.70119285,  8825.8627132 ,  8988.5644022 ,  
+                    9731.71367219, 10046.96812294, 10127.39430738, 
+                    10403.06169691, 10407.06227839
+                    ]))
+             """
+            raise Exception(
+                po_data.wavefunctions.energies[1] * UnitsData.hartrees_to_wavenumbers,
+                po_data.wavefunctions.frequencies() * UnitsData.hartrees_to_wavenumbers
+            )
 
         # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
         # raise Exception(mol.coords, mol.normal_modes.modes)
 
         sim = model.setup_AIMD(
-            initial_energies=[
-                [0, 5000 * self.w2h, 5000 * self.w2h],
-                [0, -5000 * self.w2h, 5000 * self.w2h],
-                [0, -5000 * self.w2h, -5000 * self.w2h],
-                [0, 5000 * self.w2h, -5000 * self.w2h],
+            initial_energies=np.array([
+                [ 5000,  7000,     0 ],
+                [ 5000, -7000,     0 ],
+                [-5000,  7000,     0 ],
+                [-5000, -7000,     0 ],
+                [ 5000,     0,   7000 ],
+                [ 5000,     0,  -7000 ],
+                [-5000,     0,   7000 ],
+                [-5000,     0,  -7000 ],
                 # [2000 * self.w2h, 0],
                 # [0, 2000 * self.w2h],
                 # [-2000 * self.w2h, 0],
@@ -3398,11 +3561,31 @@ class DGBTests(TestCase):
                 # [0, 10000 * self.w2h],
                 # [-10000 * self.w2h, 0],
                 # [0, -10000 * self.w2h]
-            ],
-            timestep=10
+            ]) * self.w2h * .6,
+            timestep=5
         )
-        sim.propagate(50)
+        sim.propagate(55)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+
+        """
+        Normal
+        :: solving with subspace size 100
+        :: ZPE: 4622.827374642189
+        :: Frequencies: [1592.98842318 3187.51067499 3683.5717401  3710.21005314 4793.03025812 5267.83943469 5295.10938209 6605.25174785 6838.03573715 7013.17093466]
+        :: evauating integrals with 3-order quadrature
+        :: Intensities: [6.42325949e+01 7.22688264e-02 1.41927636e-01 6.16947524e+01 5.21691269e-02 9.73523176e-02 5.62461023e-02 4.94777305e-04 3.24686242e-03 2.13024323e-04]
+        
+        Cart
+        :: solving with subspace size 100
+        :: ZPE: 7916.658907636596
+        :: Frequencies: [1590.11734842 3171.8868053  3679.51473717 3770.25841141 4763.97197814 5234.66671784 5369.53899233 6368.48510159 6808.28790377 7019.8920343 ]
+        """
+
+        """
+        :: solving with subspace size 362
+        :: ZPE: 4622.151471437737
+        :: Frequencies: [1590.5035818  3170.2461846  3677.33109476 3707.56151697 4740.00435086 5259.31931627 5268.32624787 6300.40485011 6798.94882365 6846.70614653]
+        """
 
         cartesians = False
         with BlockProfiler(inactive=True):
@@ -3413,157 +3596,45 @@ class DGBTests(TestCase):
                 # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
-                quadrature_degree=6,
-                # expansion_degree=2,
-                # pairwise_potential_functions={
-                #     (0, 1):self.setupMorseFunction(model),
-                #     (0, 2):self.setupMorseFunction(model),
-                # }
+                # quadrature_degree=3,
+                expansion_degree=2,
+                pairwise_potential_functions={
+                    (0, 1):self.setupMorseFunction(model),
+                    (0, 2):self.setupMorseFunction(model)
+                }
             )
 
             """
+            With Quad
             >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 224
-            :: ZPE: 4622.199166136244
-            :: Frequencies: [1590.60704265 3171.85515583 3678.87729838 3707.83504528 4745.52958973 5259.92818554 5272.35194946 6315.79411831 6801.77443261 6862.84792337]
-            :: evauating integrals with 3-order quadrature
-            :: Intensities: [6.40203108e+01 7.53784512e-02 1.35233490e-01 6.16950160e+01 3.14134768e-02 9.35815225e-02 5.55542538e-02 1.77557794e-05 1.85695669e-03 6.31489226e-04]
+            :: solving with subspace size 154
+            :: ZPE: 4573.230158328804
+            :: Frequencies: [1588.64768586 3167.07657005 3679.50144453 3717.62869601 4736.82684937 5271.40451129 5273.81247512 6300.68974983 6854.37713208 6866.55926857]
+            >>--------------------------------------------------<<
+            With PPF
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 47
+            :: ZPE: 4573.673832476982
+            :: Frequencies: [1599.2575801  3206.2591078  3698.45668271 3741.08837597 4830.32507642 5319.56013734 5390.51062719 6741.5898552  7071.92429821 7136.71098205]
+            >>--------------------------------------------------<<
+            Without PPF
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 130
+            :: ZPE: 4532.431583366782
+            :: Frequencies: [1589.78179672 3166.12383827 3680.10680125 3713.00711712 4375.92743048 4741.90750994 5272.49083561 5274.57991176 6314.59727429 6858.09225606]
             >>--------------------------------------------------<<
             """
 
-            """
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 151
-            :: ZPE: 4622.85822285934
-            :: Frequencies: [1592.39496028 3191.83412308 3681.89487244 3709.84366424 4827.94420302 5265.84019841 5305.29944137 6522.61235547 6823.44759253 6994.37707946]
-            :: evauating integrals with 3-order quadrature
-            :: Intensities: [6.42799291e+01 6.16622416e-02 1.46033088e-01 6.16881225e+01 4.27742124e-02 9.90969650e-02 7.14538299e-02 2.30093354e-03 2.67394884e-03 1.51386399e-04]
-            >>--------------------------------------------------<<
-            """
-
-            type(self).default_num_plot_wfns = 4
+            # type(self).default_num_plot_wfns = 5
+            type(self).default_num_plot_wfns = 1
             self.runDGB(dgb, mol,
+                        # similarity_chunk_size=5,
                         # vmin=-.05,
                         # vmax=.05,
                         # domain=[[-2, 2], [-2, 2]],
-                        plot_wavefunctions={'cartesians':[0, 1]}
+                        # plot_wavefunctions=False,
+                        plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
                         )
-
-            # def cutoff_pot(points, cutoff=10000 / UnitsData.hartrees_to_wavenumbers):
-            #     values = model.potential(points)
-            #     values[values > cutoff] = cutoff
-            #     return values
-            # base = mol.plot_molecule_function(
-            #     cutoff_pot,
-            #     axes=[0, 1],
-            #     # cmap='RdBu',
-            #     plot_atoms=True,
-            #     atom_colors=[None, 'aliceblue', 'aliceblue'],
-            #     domain=[[-2, 2], [-2, 2]]
-            # )
-
-            # coords = dgb.gaussians.optimize(1e-6).coords.coords
-            # plt.ScatterPlot(
-            #     coords[:, 0, 0],
-            #     coords[:, 0, 1],
-            #     figure=base
-            # )
-            # plt.ScatterPlot(
-            #     coords[:, 1, 0],
-            #     coords[:, 1, 1],
-            #     figure=base
-            # )
-            # plt.ScatterPlot(
-            #     coords[:, 2, 0],
-            #     coords[:, 2, 1],
-            #     figure=base
-            # ).show()
-            # raise Exception(...)
-
-            # cents = dgb.gaussians.coords.centers
-            # centers_plot = plt.ScatterPlot(
-            #     cents[:, 0],
-            #     cents[:, 1],
-            #     plot_range=[[-10, 10], [-10, 10]]
-            # )
-            #
-            # new_cents = dgb.gaussians.optimize(1e-7).coords.centers
-            # plt.ScatterPlot(
-            #     new_cents[:, 0],
-            #     new_cents[:, 1],
-            #     plot_range=[[-10, 10], [-10, 10]],
-            #     figure=centers_plot,
-            #     color='red'
-            # ).show()
-            #
-            # raise Exception(...)
-
-            # print(len(dgb.gaussians.coords.centers))
-            # print(dgb.S[:5, :5])
-            # print(dgb.T[:5, :5])
-            # print(dgb.V[:5, :5])
-            #
-            # wfns, spec = dgb.run()
-            #
-            # plot_spectrum = False
-            # if plot_spectrum:
-            #     spec[:5].plot().show()
-            #
-            # figure = None
-            # plot_potential=cartesians
-            # if plot_potential:
-            #     def cutoff_pot(points, cutoff=10000 / UnitsData.hartrees_to_wavenumbers):
-            #         values = model.potential(points)
-            #         values[values > cutoff] = cutoff
-            #         return values
-            #
-            #     figure = mol.plot_molecule_function(
-            #         cutoff_pot,
-            #         axes=[0, 1],
-            #         # cmap='RdBu',
-            #         plot_atoms=True,
-            #         atom_colors=[None, 'aliceblue', 'aliceblue'],
-            #         domain=[[-2, 2], [-2, 2]]
-            #     )
-            #
-            # plot_wavefunctions=4
-            # if plot_wavefunctions is True:
-            #     plot_wavefunctions=4
-            # if isinstance(plot_wavefunctions, int):
-            #     for i in range(plot_wavefunctions):
-            #         if cartesians:
-            #             wfns[i].plot_cartesians(
-            #                 contour_levels=16,
-            #                 domain=[[-2, 2], [-2, 2]],
-            #                 cmap='RdBu',
-            #                 figure=figure,
-            #                 plot_centers=True
-            #             ).show()
-            #         else:
-            #             wfns[i].plot(
-            #                 plot_centers=True,
-            #                 domain=[[-10, 10], [-10, 10]],
-            #                 figure=figure
-            #             ).show()
-
-            # mol.plot_molecule_function(
-            #     model.dipole,
-            #     axes=[0, 1],
-            #     plot_atoms=True,
-            #     # mask_function=lambda vals, pts, dists:dists>.4,
-            #     # mask_value=0,
-            #     vmin=-.2, vmax=.2,
-            #     cmap='RdBu',
-            #     atom_colors=[None, 'aliceblue', 'aliceblue']
-            #     # domain=[[-5, 5], [-5, 5]]
-            # ).show()
-            #
-            # raise Exception(...)
-            #
-            # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
-            # raise Exception(
-            #     mol.coriolis_constants.shape
-            # )
 
     @validationTest
     def test_Expansion(self):
