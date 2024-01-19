@@ -1726,6 +1726,7 @@ class DGBTests(TestCase):
     @classmethod
     def buildWaterModel(cls,*,
                         oh_model=False,
+                        atoms=None,
                         w=3869.47 * w2h,
                         wx=84 * w2h,
                         w2=3869.47 * w2h,
@@ -1754,6 +1755,17 @@ class DGBTests(TestCase):
                 # ['O', 'O'],
                 base_water.coords[:2],
                 internals=[[0, -1, -1, -1], [1, 0, -1, -1]]
+            ).get_embedded_molecule(load_properties=False)
+        elif atoms is not None:
+            mol = Molecule(
+                atoms,
+                # ['O', 'O'],
+                base_water.coords,
+                internals=[
+                    [0, -1, -1, -1],
+                    [1,  0, -1, -1],
+                    [2,  0,  1, -1],
+                ]
             ).get_embedded_molecule(load_properties=False)
         else:
             mol = base_water.get_embedded_molecule(load_properties=False)
@@ -2966,6 +2978,8 @@ class DGBTests(TestCase):
                domain_padding=1,
                potential_cutoff=10000,
                mode=None,
+               nodeless_ground_state=None,
+               subspace_size=None,
                similarity_cutoff=None,
                similarity_chunk_size=None,
                similar_det_cutoff=None,
@@ -2981,6 +2995,8 @@ class DGBTests(TestCase):
             wfns, spec = dgb.run(
                 calculate_spectrum=plot_spectrum,
                 mode=mode,
+                nodeless_ground_state=nodeless_ground_state,
+                subspace_size=subspace_size,
                 similarity_cutoff=similarity_cutoff,
                 similarity_chunk_size=similarity_chunk_size,
                 similar_det_cutoff=similar_det_cutoff
@@ -3423,7 +3439,7 @@ class DGBTests(TestCase):
                         plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True
                         )
 
-    @debugTest
+    @validationTest
     def test_ModelPotentialAIMD3D(self):
         mol, model = self.buildWaterModel(
             # w2=None, wx2=None,
@@ -3601,12 +3617,12 @@ class DGBTests(TestCase):
                 # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
-                quadrature_degree=3,
-                # expansion_degree=2,
-                # pairwise_potential_functions={
-                #     (0, 1):self.setupMorseFunction(model),
-                #     (0, 2):self.setupMorseFunction(model)
-                # }
+                # quadrature_degree=3,
+                expansion_degree=2,
+                pairwise_potential_functions={
+                    (0, 1):self.setupMorseFunction(model),
+                    (0, 2):self.setupMorseFunction(model)
+                }
             )
 
             """
@@ -3650,6 +3666,187 @@ class DGBTests(TestCase):
                         # plot_wavefunctions=False,
                         plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
                         )
+
+    @debugTest
+    def test_ModelPotentialAIMD3DHOD(self):
+        mol, model = self.buildWaterModel(
+            # w2=None, wx2=None,
+            # ka=None,
+            w2=3869.47 * self.w2h / np.sqrt(2),
+            wx2=84 * self.w2h / np.sqrt(2),
+            atoms=['O', 'H', 'D'],
+            dudr1=1 / 5.5,
+            dudr2=1 / 5.5
+            # dipole_direction=[1, 0, 0]
+        )
+
+        check_freqs = False
+        if check_freqs:
+            freqs = model.normal_modes()[0]
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        check_anh = False
+        if check_anh:
+            model.run_VPT(order=2, states=3,
+                          logger=True,
+                          degeneracy_specs='auto'
+                          )
+            """
+            ZPE:       4013.07238                   3923.87672
+            ============================================= IR Data ==============================================
+            Initial State: 0 0 0 
+                               Harmonic                  Anharmonic
+            State       Frequency    Intensity       Frequency    Intensity
+              0 0 1    3870.81584     33.92454      3695.37083     32.29979
+              0 1 0    2737.23347     16.11050      2608.55203     14.12031
+              1 0 0    1418.09545     49.64519      1402.64554     49.13414
+              0 0 2    7741.63168      0.00000      7222.94025      0.65500
+              0 2 0    5474.46694      0.00000      5106.15439      0.34140
+              2 0 0    2836.19091      0.00000      2805.76221      1.55285
+              0 1 1    6608.04931      0.00000      6301.78208      0.00245
+              1 0 1    5288.91129      0.00000      5084.86993      0.06913
+              1 1 0    4155.32893      0.00000      4001.03724      0.08449
+              2 1 0    5573.42438      0.00000      5369.60935      0.04358
+              3 0 0    4254.28636      0.00000      4200.81468      0.00838
+            ====================================================================================================
+            """
+            raise Exception(...)
+
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(mol.coords, mol.normal_modes.modes)
+
+        sim = model.setup_AIMD(
+            initial_energies=np.array([
+                [5000, 7000, 0],
+                [5000, -7000, 0],
+                [-5000, 7000, 0],
+                [-5000, -7000, 0],
+                [5000, 0, 7000],
+                [5000, 0, -7000],
+                [-5000, 0, 7000],
+                [-5000, 0, -7000],
+                # [2000 * self.w2h, 0],
+                # [0, 2000 * self.w2h],
+                # [-2000 * self.w2h, 0],
+                # [0, -2000 * self.w2h],
+                # [-15000 * self.w2h, -15000 * self.w2h],
+                # [15000 * self.w2h, -15000 * self.w2h],
+                # [10000 * self.w2h, 0],
+                # [0, 10000 * self.w2h],
+                # [-10000 * self.w2h, 0],
+                # [0, -10000 * self.w2h]
+            ]) * self.w2h * .8,
+            timestep=20
+        )
+        sim.propagate(15)
+        coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+
+        cartesians = False
+        with BlockProfiler(inactive=True):
+
+            dgb = model.setup_DGB(
+                np.round(coords, 8),
+                # optimize_centers=False,
+                optimize_centers={
+                    'method': 'gram-schmidt',
+                    'overlap_cutoff': 1e-14,
+                    'allow_pivoting': True
+                },
+                # optimize_centers=False,
+                modes=None if cartesians else 'normal',
+                cartesians=[0, 1] if cartesians else None,
+                quadrature_degree=3,
+                # expansion_degree=2,
+                # pairwise_potential_functions={
+                #     (0, 1): self.setupMorseFunction(model),
+                #     (0, 2): self.setupMorseFunction(model)
+                # }
+            )
+
+            # type(self).default_num_plot_wfns = 5
+            type(self).default_num_plot_wfns = 5
+            self.runDGB(dgb, mol,
+                        # similarity_chunk_size=5,
+                        # vmin=-.05,
+                        # vmax=.05,
+                        # domain=[[-2, 2], [-2, 2]],
+                        # plot_wavefunctions=False,
+                        # mode='classic',
+                        # subspace_size=15,
+                        plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True
+                        )
+    @classmethod
+    def getMBPolModel(cls):
+        loader = ModuleLoader(TestManager.current_manager().test_data_dir)
+        mbpol = loader.load("LegacyMBPol").MBPol
+
+        b2a = UnitsData.convert("BohrRadius", "Angstroms")
+
+        def potential(coords, deriv_order=0, chunk_size=int(5e5)):
+
+            coords = coords.reshape(-1, 9)
+
+            chunks = [[] for _ in range(deriv_order + 1)]
+            num_chunks = int(len(coords) / chunk_size) + 1
+
+            for coords in np.array_split(coords, num_chunks):
+                # interp.logger.log_print("evaluating energies")
+                energies = mbpol.get_pot(coords=coords.reshape(-1, 3, 3) * b2a, nwaters=1,
+                                         threading_vars=['energy', 'coords'], threading_mode='omp')
+                if deriv_order > 0:
+                    derivs = []
+                    grads = lambda c: mbpol.get_pot_grad(
+                        nwaters=1, coords=c.reshape(-1, 3, 3) * b2a, threading_vars=['energy', 'grad', 'coords'],
+                        threading_mode='omp'
+                    )['grad'].reshape(c.shape) * b2a
+                    # interp.logger.log_print("evaluating forces")
+                    derivs.append(grads(coords))
+                    if deriv_order > 1:
+                        # interp.logger.log_print("evaluating Hessians")
+                        hess_fun = FiniteDifferenceDerivative(
+                            grads,
+                            function_shape=(9, 9)
+                        )
+
+                        # chunks = []
+                        # num_chunks = int(len(coords)/1000)
+                        # for a in np.array_split(coords, num_chunks):
+                        #     chunks.append(hess_fun.derivatives(a).compute_derivatives(1))
+                        # hess = np.concatenate(chunks, axis=0)
+                        new_derivs = hess_fun.derivatives(coords).derivative_tensor(list(range(1, deriv_order)))
+                        # print([d.shape for d in new_derivs])
+                        derivs.extend(
+                            np.moveaxis(d, -2, 0)
+                            for i, d in enumerate(new_derivs)
+                        )
+                    # interp.logger.log_print("done")
+                    for i, d in enumerate([energies] + derivs):
+                        chunks[i].append(d)
+                else:
+                    chunks[0].append(energies)
+
+            for i, c in enumerate(chunks):
+                chunks[i] = np.concatenate(c, axis=0)
+
+            return chunks
+
+        ref = np.array([
+            [0.00000000e+00, 6.56215885e-02, 0.00000000e+00],
+            [7.57391014e-01, -5.20731105e-01, 0.00000000e+00],
+            [-7.57391014e-01, -5.20731105e-01, 0.00000000e+00]
+        ]) * UnitsData.convert("Angstroms", "BohrRadius")
+
+        ref_mol = Molecule(
+            ["O", "H", "H"],
+            ref
+        ).get_embedded_molecule(load_properties=False)
+
+        return potential, ref_mol
+    @validationTest
+    def test_WaterAIMD(self):
+        pot, mol = self.getMBPolModel()
+
+
 
     @validationTest
     def test_Expansion(self):

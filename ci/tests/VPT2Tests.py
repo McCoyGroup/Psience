@@ -480,6 +480,16 @@ class VPT2Tests(TestCase):
         # )
 
     @validationTest
+    def test_HOHVPTRunner(self):
+
+        file_name = "HOD_freq.fchk"
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3
+        )
+
+    @validationTest
     def test_HOHVPTSubstates(self):
 
         file_name = "HOH_freq.fchk"

@@ -726,7 +726,6 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
             ScXc, DxSp, GjGi,
             DSX
     ):
-
         return (
             ScXc[:, n, m]*DxSp[:, u, v]
             - (GjGi[:, n, v, m, u] + GjGi[:, n, v, m, u])
@@ -772,15 +771,17 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         )
 
         contrib = np.zeros(Sc.shape[0])
-        inds = itertools.combinations_with_replacement(range(ndim), r=4)
+        # inds = itertools.combinations_with_replacement(range(ndim), r=4)
+        inds = itertools.product(*[range(ndim)]*4)
         for n,u,m,v in inds:
-            # upper triangle so we need to do all the combos
-            contrib += (
-                term(n, u, m, v)
-                + term(n, u, v, m)
-                + term(u, n, v, m)
-                + term(u, n, m, v)
-            )
+            if n != u and m != v:
+                # upper triangle so we need to do all the combos
+                contrib += (
+                    term(n, u, m, v)
+                    # + term(n, u, v, m)
+                    # + term(u, n, v, m)
+                    # + term(u, n, m, v)
+                )
 
         npts = X0.shape[0]
         ke = np.zeros((npts, npts))
@@ -804,14 +805,16 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         )
 
         B_e, coriolis = self.ci_func(overlap_data['centers'])
-        coriolis = -self.evaluate_coriolis_contrib(coriolis, overlap_data)
+        coriolis = self.evaluate_coriolis_contrib(coriolis, overlap_data)
 
         watson = np.zeros(base.shape)
         rows, cols = np.triu_indices_from(base)
         watson[rows, cols] = -B_e
         watson[cols, rows] = -B_e
 
-        ke = base + coriolis + watson
+        # print(watson * 219475)
+
+        ke = base + watson + coriolis
 
         return ke
 
@@ -1377,25 +1380,28 @@ class DGBCoords(metaclass=abc.ABCMeta):
     def embedded_cartesian_function(cls, func, atom_sel, xyz_sel, natoms, ndim):
         @functools.wraps(func)
         def embedded_function(subcart_coords, deriv_order=None):
-            subcart_coords = np.reshape(
-                subcart_coords,
-                (
-                    subcart_coords.shape[0],
-                    len(atom_sel) if atom_sel is not None else natoms,
-                    len(xyz_sel) if xyz_sel is not None else ndim
-                )
-            )
             full_shape = (subcart_coords.shape[0], natoms, ndim)
-            if atom_sel is None and xyz_sel is None:
-                carts = subcart_coords.reshape(full_shape)
+            if subcart_coords.shape == full_shape:
+                carts = subcart_coords
             else:
-                carts = np.zeros(full_shape)
-                if atom_sel is None:
-                    carts[..., xyz_sel] = subcart_coords
-                elif xyz_sel is None:
-                    carts[..., atom_sel, :] = subcart_coords
+                subcart_coords = np.reshape(
+                    subcart_coords,
+                    (
+                        subcart_coords.shape[0],
+                        len(atom_sel) if atom_sel is not None else natoms,
+                        len(xyz_sel) if xyz_sel is not None else ndim
+                    )
+                )
+                if atom_sel is None and xyz_sel is None:
+                    carts = subcart_coords.reshape(full_shape)
                 else:
-                    carts[..., np.ix_(atom_sel, xyz_sel)] = subcart_coords
+                    carts = np.zeros(full_shape)
+                    if atom_sel is None:
+                        carts[..., xyz_sel] = subcart_coords
+                    elif xyz_sel is None:
+                        carts[..., atom_sel, :] = subcart_coords
+                    else:
+                        carts[..., np.ix_(atom_sel, xyz_sel)] = subcart_coords
             vals = func(carts, deriv_order=deriv_order)
             if (atom_sel is not None or xyz_sel is not None) and deriv_order is not None:
                 full_sel = np.arange(natoms * ndim).reshape(natoms, ndim)
@@ -1595,6 +1601,7 @@ class DGBWatsonModes(DGBCoords):
         carts = (watson_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(watson_coords.shape[:1] + origin.shape)
         carts = carts + origin[np.newaxis]
         carts = carts.reshape((carts.shape[0], len(masses), -1))
+
         if carts.shape[-1] < 3:
             # pad with zeros
             carts = np.concatenate(
@@ -1605,8 +1612,9 @@ class DGBWatsonModes(DGBCoords):
                 axis=-1
             )
 
+        # scaled_modes = modes.matrix.T / np.sqrt(modes.freqs[:, np.newaxis]) # used in the VPT version?
         zeta, (B_e, eigs) = StructuralProperties.get_prop_coriolis_constants(carts,
-                                                                             modes.inverse,
+                                                                             modes.matrix.T,
                                                                              masses
                                                                              )
 
@@ -1618,6 +1626,9 @@ class DGBWatsonModes(DGBCoords):
             if deriv_order is not None:
                 raise NotImplementedError("don't have support for Coriolis derivatives in DGB")
             zeta, mom_i = cls.zeta_momi(watson_coords, modes, masses)
+            # freqs = modes.freqs
+            # freq_term = np.sqrt(freqs[np.newaxis, :] / freqs[:, np.newaxis])
+            # zeta = zeta * freq_term[np.newaxis, np.newaxis]
             B_e = 1 / (2 * mom_i)  # * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
             return np.sum(B_e, axis=-1), sum(
                 B_e[:, a, np.newaxis, np.newaxis, np.newaxis, np.newaxis]
@@ -1996,24 +2007,6 @@ class DGBGaussians:
             # all_news = cls._calc_gs_next_block(all_vecs, [S[:j+1] for j in range(i)])  # subtract off newest change
             all_news = cls._calc_gs_next_block_single(all_vecs, all_ovs, S[i-1, :i])  # subtract off newest change
             all_norms = cls._calc_gs_norm_block(all_news, S_og, S_og[:i, i:].T)
-
-            # if i == 3:
-            #     pivot_pos = np.argmax(all_norms)  # find the position with the largest remaining norm
-            #     print(S[:i, :i])
-            #     raise Exception(...)
-
-            # if np.min(all_norms) < 0 and np.abs(np.min(all_norms)) > 1e-6:
-            #     raise Exception(...)
-            # if i == 3:
-            #     raise Exception(
-            #         all_news[25],
-            #         all_norms[25],
-            #         np.sum(
-            #             S_og[:i, :i] *
-            #                 all_news[25][:-1, np.newaxis] * all_news[25][np.newaxis, :-1]
-            #         ),
-            #         2 * np.dot(S_og[:i, i+25], all_news[25][:-1]) + 1
-            #     )
 
             good_pos = np.where(all_norms > overlap_cutoff)
             if len(good_pos) == 0 or len(good_pos[0]) == 0:
