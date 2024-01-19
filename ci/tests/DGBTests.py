@@ -2972,7 +2972,7 @@ class DGBTests(TestCase):
                **plot_options
                ):
 
-        print(len(dgb.gaussians.coords.centers))
+        print("--->", len(dgb.gaussians.coords.centers))
         print(dgb.S[:5, :5])
         print(dgb.T[:5, :5])
         print(dgb.V[:5, :5])
@@ -3561,10 +3561,10 @@ class DGBTests(TestCase):
                 # [0, 10000 * self.w2h],
                 # [-10000 * self.w2h, 0],
                 # [0, -10000 * self.w2h]
-            ]) * self.w2h * .6,
-            timestep=5
+            ]) * self.w2h * .8,
+            timestep=20
         )
-        sim.propagate(55)
+        sim.propagate(35)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
         """
@@ -3592,17 +3592,32 @@ class DGBTests(TestCase):
 
             dgb = model.setup_DGB(
                 np.round(coords, 8),
-                optimize_centers=1e-6,
+                # optimize_centers=False,
+                optimize_centers={
+                    'method':'gram-schmidt',
+                    'overlap_cutoff':1e-14,
+                    'allow_pivoting':True
+                },
                 # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
-                # quadrature_degree=3,
-                expansion_degree=2,
-                pairwise_potential_functions={
-                    (0, 1):self.setupMorseFunction(model),
-                    (0, 2):self.setupMorseFunction(model)
-                }
+                quadrature_degree=3,
+                # expansion_degree=2,
+                # pairwise_potential_functions={
+                #     (0, 1):self.setupMorseFunction(model),
+                #     (0, 2):self.setupMorseFunction(model)
+                # }
             )
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 47
+            :: ZPE: 4535.481643651455
+            :: Frequencies: [1615.64813937 3321.57434357 3709.2586991  3764.27308878 5048.23963758 6245.69306909 6395.58664141 6912.16013494 7251.79882944 8025.91636546]
+            >>--------------------------------------------------<<
+            """
+
+            print(coords.shape[0], dgb.gaussians.coords.centers.shape[0])
 
             """
             With Quad

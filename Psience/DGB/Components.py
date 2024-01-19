@@ -1869,7 +1869,8 @@ class DGBGaussians:
             poly_coeffs=_poly_coeffs, logger=self.logger
         )
 
-    def _calc_gs_norm(self, new, S, old):
+    @staticmethod
+    def _calc_gs_norm(new, S, old):
         # calculates a very particular form of norm where (for speed purposes)
         #   1. new is the new _unnormalized_ orthogonal vector
         #   2. old is the row of the overlap matrix pulled to orthogonalize
@@ -1889,7 +1890,8 @@ class DGBGaussians:
         correction_norm = 1 + 2 * np.dot(old[:-1], vec)
 
         return base_norm + correction_norm
-    def _calc_gs_next(self, vec, ortho):
+    @staticmethod
+    def _calc_gs_next(vec, ortho):
         new = np.zeros(len(vec))
         new[-1] = 1
         for prev in ortho:
@@ -1897,21 +1899,57 @@ class DGBGaussians:
             new[:n] -= np.dot(vec[:n], prev) * prev
         return new
 
-    gs_optimization_overlap_cutoff=1e-3
-    def _optimize_gs(self, *, S=None, overlap_cutoff=None, norm_truncation_cutoff=1e-6):
-        if overlap_cutoff is None:
-            overlap_cutoff = self.gs_optimization_overlap_cutoff
-        if S is None:
-            S=self.S
+    @staticmethod
+    def _calc_gs_norm_block(new, S, old):
+        # generalizes the row-by-row form to calculate the norms for every vector at once so
+        # we can figure out which ones to keep
+
+        # This provides the contribution from (k-1)x(k-1)
+        # of older terms
+        vec = new[:, :-1]
+        rows, cols = np.triu_indices(vec.shape[-1], k=1)
+        off_diag = 2 * np.matmul(
+            S[rows, cols][np.newaxis, np.newaxis, :],
+            (vec[:, rows] * vec[:, cols])[:, :, np.newaxis]
+        ).reshape(-1)
+        diag = np.matmul(
+            vec[:, np.newaxis, :],
+            vec[:, :, np.newaxis]
+        ).reshape(-1) # taking advantage of the fact that the diagonal of S is 1
+        base_norm = diag + off_diag
+
+        # correction from old itself, being a column of the overlap matrix, knowing that the final element of new is 1
+        correction_norm = 1 + 2 * np.matmul(
+            old[:, np.newaxis, :], vec[:, :, np.newaxis]
+        ).reshape(-1)
+
+        return base_norm + correction_norm
+    @staticmethod
+    def _calc_gs_next_block(vecs, ortho):
+        new = np.zeros(vecs.shape)
+        new[:, -1] = 1
+        for prev in ortho:
+            n = len(ortho)
+            new[:, :n] -= np.dot(vecs[:, :n], prev[:n])[:, np.newaxis] * prev[np.newaxis, :n]
+        return new
+    @staticmethod
+    def _calc_gs_next_block_single(cur, overlaps, prev):
+        cur = cur.copy()
+        cur[:, -1] = 1
+        n = len(prev)
+        cur[:, :n] -= np.dot(overlaps[:, :n], prev[:n])[:, np.newaxis] * prev[np.newaxis, :n]
+        return cur
+    @classmethod
+    def _optimize_gs_iter(cls, S, overlap_cutoff, norm_truncation_cutoff):
+        orthog_vecs = [np.array([1.])]
+        norms = []  # debug
         mask = np.full(len(S), False, dtype=bool)
         mask[0] = True
-        orthog_vecs = [np.array([1.])]
-        norms = [] # debug
         for i in range(1, len(S)):
             mask[i] = True
-            vec = S[i, :i+1][mask[:i+1]]
-            new = self._calc_gs_next(vec, orthog_vecs)
-            norm = self._calc_gs_norm(new, S[np.ix_(mask[:i], mask[:i])], vec)
+            vec = S[i, :i + 1][mask[:i + 1]]
+            new = cls._calc_gs_next(vec, orthog_vecs)
+            norm = cls._calc_gs_norm(new, S[np.ix_(mask[:i], mask[:i])], vec)
             norms.append(norm)
             if norm > overlap_cutoff:
                 if norm < norm_truncation_cutoff:
@@ -1920,9 +1958,117 @@ class DGBGaussians:
             else:
                 mask[i] = False
 
-        # raise Exception(norms)
-
         return np.where(mask)[0]
+
+    @staticmethod
+    def _pivot_vector(vec, i, pivot):
+        new_pivot = vec[i + pivot]
+        vec[i + 1:i + 1 + pivot] = vec[i:i + pivot]
+        vec[i] = new_pivot
+        return vec
+    @classmethod
+    def _pivot_matrix(cls, mat, i, pivot):
+        pivot_row = cls._pivot_vector(mat[i + pivot, :].copy(), i, pivot)
+        pivot_col = cls._pivot_vector(mat[:, i + pivot].copy(), i, pivot)
+        pivot_pos = i + pivot
+
+        # Unnecessarily complicated, maybe more efficient...
+        mat[i + 1:pivot_pos + 1, :] = mat[i:pivot_pos, :]
+        mat[:, i + 1:pivot_pos + 1] = mat[:, i:pivot_pos]
+        mat[i, :] = pivot_row
+        mat[:, i] = pivot_col
+        mat[i, i+1:pivot_pos+1] = pivot_col[i+1:pivot_pos+1]
+        mat[i+1:pivot_pos+1, i] = pivot_row[i+1:pivot_pos+1]
+
+        return mat
+
+    @classmethod
+    def _optimize_gs_block(cls, S, overlap_cutoff):
+        pivots = np.arange(len(S))
+        S_og = S
+        S = S.copy()  # we'll use the upper triangle for norms and the lower triangle for storing vecs
+        cols, rows = np.triu_indices_from(S, k=1)
+        S[rows, cols] = 0
+        for i in range(1, len(S)):
+
+            all_vecs = S[i:, :i + 1]
+            all_ovs = S[:i + 1, i:].T
+            # all_news = cls._calc_gs_next_block(all_vecs, [S[:j+1] for j in range(i)])  # subtract off newest change
+            all_news = cls._calc_gs_next_block_single(all_vecs, all_ovs, S[i-1, :i])  # subtract off newest change
+            all_norms = cls._calc_gs_norm_block(all_news, S_og, S_og[:i, i:].T)
+
+            # if i == 3:
+            #     pivot_pos = np.argmax(all_norms)  # find the position with the largest remaining norm
+            #     print(S[:i, :i])
+            #     raise Exception(...)
+
+            # if np.min(all_norms) < 0 and np.abs(np.min(all_norms)) > 1e-6:
+            #     raise Exception(...)
+            # if i == 3:
+            #     raise Exception(
+            #         all_news[25],
+            #         all_norms[25],
+            #         np.sum(
+            #             S_og[:i, :i] *
+            #                 all_news[25][:-1, np.newaxis] * all_news[25][np.newaxis, :-1]
+            #         ),
+            #         2 * np.dot(S_og[:i, i+25], all_news[25][:-1]) + 1
+            #     )
+
+            good_pos = np.where(all_norms > overlap_cutoff)
+            if len(good_pos) == 0 or len(good_pos[0]) == 0:
+                # we know everything else can be eliminated
+                pivots = pivots[:i]
+                break
+            else:
+                # we contract S to reflect all of the things we've dropped
+                kept = good_pos[0]
+                pivots = np.concatenate([pivots[:i], pivots[i + kept]])
+                if len(kept) == 1:
+                    break
+
+                full_spec = np.concatenate([np.arange(i), i + kept])
+                S = S[np.ix_(full_spec, full_spec)]
+                S_og = S_og[np.ix_(full_spec, full_spec)]
+                all_news = all_news[kept,]
+                all_norms = all_norms[kept,]
+
+            S[i:, :i] = all_news[:, :i]  # update without normalizing for now
+            pivot_pos = np.argmax(all_norms)  # find the position with the largest remaining norm
+            new_vec = all_news[pivot_pos] / np.sqrt(all_norms[pivot_pos])  # normalize just this vector
+            # print(all_norms[pivot_pos])
+
+            # Rearrange the pivots now that we have the new ordering
+            pivots = cls._pivot_vector(pivots, i, pivot_pos)
+
+            # rearrange S to reflect this new ordering
+            S = cls._pivot_matrix(S, i, pivot_pos)
+            S_og = cls._pivot_matrix(S_og, i, pivot_pos)
+
+            # now insert the normalized vector
+            S[i, :i+1] = new_vec
+            # print(S[:i+1, :i+1])
+            # print(S_og[:i+1, :i+1])
+            # if i > 1:
+            #     raise Exception(...)
+
+        return pivots
+
+    gs_optimization_overlap_cutoff=1e-3
+    def _optimize_gs(self, *, S=None,
+                     overlap_cutoff=None,
+                     norm_truncation_cutoff=0,
+                     allow_pivoting=True
+                     ):
+        if overlap_cutoff is None:
+            overlap_cutoff = self.gs_optimization_overlap_cutoff
+        if S is None:
+            S=self.S
+
+        if allow_pivoting:
+            return self._optimize_gs_block(S, overlap_cutoff)
+        else:
+            return self._optimize_gs_iter(S, overlap_cutoff, norm_truncation_cutoff)
 
     def _optimize_svd(self, min_singular_value=1e-4, num_svd_vectors=None, svd_contrib_cutoff=1e-3):
 
