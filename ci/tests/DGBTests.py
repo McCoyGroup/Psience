@@ -3685,12 +3685,37 @@ class DGBTests(TestCase):
             freqs = model.normal_modes()[0]
             raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
 
+        # from Psience.VPT2 import VPTRunner
+        #
+        # runner, _ = VPTRunner.construct(
+        #     [mol.atoms, mol.coords],
+        #     potential_derivatives=model.potential(mol.coords, deriv_order=4)[1:],
+        #     order=2, states=3,
+        #     logger=True,
+        #     degeneracy_specs='auto'
+        # )
+        # raise Exception(
+        #     runner.hamiltonian.modes.basis.matrix,
+        #     runner.hamiltonian.coriolis_terms.base_terms.modes
+        # )
         check_anh = False
         if check_anh:
-            model.run_VPT(order=2, states=3,
-                          logger=True,
-                          degeneracy_specs='auto'
-                          )
+            from Psience.VPT2 import VPTRunner
+
+            VPTRunner.run_simple(
+                [mol.atoms, mol.coords],
+                potential_derivatives=model.potential(mol.coords, deriv_order=4)[1:],
+                order=2, states=3,
+                logger=True,
+                degeneracy_specs='auto',
+                calculate_intensities=False,
+                include_coriolis_coupling=False
+            )
+
+            # model.run_VPT(order=2, states=3,
+            #               logger=True,
+            #               degeneracy_specs='auto'
+            #               )
             """
             ZPE:       4013.07238                   3923.87672
             ============================================= IR Data ==============================================
@@ -3736,9 +3761,9 @@ class DGBTests(TestCase):
                 # [-10000 * self.w2h, 0],
                 # [0, -10000 * self.w2h]
             ]) * self.w2h * .8,
-            timestep=20
+            timestep=10
         )
-        sim.propagate(15)
+        sim.propagate(25)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
         cartesians = False
@@ -3752,6 +3777,7 @@ class DGBTests(TestCase):
                     'overlap_cutoff': 1e-14,
                     'allow_pivoting': True
                 },
+                # alphas=[1, 2, 3],
                 # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
@@ -3763,7 +3789,9 @@ class DGBTests(TestCase):
                 # }
             )
 
-            # type(self).default_num_plot_wfns = 5
+            # print(dgb.gaussians.coords.centers[:3])
+            # print(dgb.gaussians.alphas[:3])
+
             type(self).default_num_plot_wfns = 5
             self.runDGB(dgb, mol,
                         # similarity_chunk_size=5,

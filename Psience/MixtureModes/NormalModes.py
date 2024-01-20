@@ -22,7 +22,8 @@ class NormalModes(MixtureModes):
                          mass_spec,
                          # mass_units="AtomicMassUnits",
                          remove_transrot=True,
-                         dimensionless=False
+                         dimensionless=False,
+                         mode='default'
                          ):
 
         f_matrix = np.asanyarray(f_matrix)
@@ -66,13 +67,25 @@ class NormalModes(MixtureModes):
             else:
                 inv = np.linalg.inv(modes)
 
-        # modes, inv = inv.T, modes.T
-
         freqs = np.sign(freq2) * np.sqrt(np.abs(freq2))
-        if dimensionless:
+        if mode == 'reasonable':
+            modes, inv = inv.T, modes.T
+            if dimensionless:
+                gi12 = slag.fractional_matrix_power(mass_spec, -1 / 2)
+                g12 = slag.fractional_matrix_power(mass_spec, 1 / 2)
+                inv = inv @ gi12
+                modes = g12 @ modes
+                weighting = np.sqrt(np.abs(freqs))
+                modes = modes / weighting[np.newaxis, :]
+                inv = inv * weighting[:, np.newaxis]
+        elif dimensionless:
+            gi12 = slag.fractional_matrix_power(mass_spec, -1 / 2)
+            g12 = slag.fractional_matrix_power(mass_spec, 1 / 2)
+            inv = inv @ g12
+            modes = gi12 @ modes
             weighting = np.sqrt(np.abs(freqs))
-            modes = modes / weighting[np.newaxis, :]
-            inv = inv * weighting[:, np.newaxis]
+            modes = modes * weighting[np.newaxis, :]
+            inv = inv / weighting[:, np.newaxis]
 
         sorting = np.argsort(freqs)
         modes = modes[:, sorting]

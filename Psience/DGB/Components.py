@@ -726,9 +726,16 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
             ScXc, DxSp, GjGi,
             DSX
     ):
+        # print(
+        #     (ScXc[:, n, m] * DxSp[:, u, v])[:3] * np.array([1.00000000e+00, 1.12589018e-01, 1.28419714e-01]),
+        #     (- (GjGi[:, n, v, m, u] + GjGi[:, n, v, m, u]))[:3] / 2 * np.array([1.00000000e+00, 1.12589018e-01, 1.28419714e-01]),
+        #     (- np.reshape(
+        #         Sc[:, :, n][:, np.newaxis, :] @ (DSX[:, :, v, u] + DSX[:, :, u, v])[:, :, np.newaxis], (-1)
+        #     ) * Dx[:, m])[:3] * np.array([1.00000000e+00, 1.12589018e-01, 1.28419714e-01]),
+        # )
         return (
             ScXc[:, n, m]*DxSp[:, u, v]
-            - (GjGi[:, n, v, m, u] + GjGi[:, n, v, m, u])
+            - (GjGi[:, n, v, m, u] + GjGi[:, n, v, m, u]) / 2
             - np.reshape(
                 Sc[:, :, n][:, np.newaxis, :] @ (DSX[:, :, v, u] + DSX[:, :, u, v])[:, :, np.newaxis] , (-1)
                 ) * Dx[:, m]
@@ -775,13 +782,28 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         inds = itertools.product(*[range(ndim)]*4)
         for n,u,m,v in inds:
             if n != u and m != v:
+                # print("="*20, (n, u, m, v), "="*20)
+                t = term(n, u, m, v)
+                # if t[1] != 0:
+                #     print("{{{n}, {u}, {m}, {v}}}->{t}".format(
+                #         n=n+1,
+                #         u=u+1,
+                #         v=v+1,
+                #         m=m+1,
+                #         t=t[1] * 1.12589018e-01
+                #     ))
                 # upper triangle so we need to do all the combos
                 contrib += (
-                    term(n, u, m, v)
+                    t
                     # + term(n, u, v, m)
                     # + term(u, n, v, m)
                     # + term(u, n, m, v)
                 )
+
+
+        # raise Exception(
+        #     contrib[:3] * np.array([1.00000000e+00, 1.12589018e-01, 1.28419714e-01])
+        # )
 
         npts = X0.shape[0]
         ke = np.zeros((npts, npts))
@@ -805,7 +827,9 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         )
 
         B_e, coriolis = self.ci_func(overlap_data['centers'])
-        coriolis = self.evaluate_coriolis_contrib(coriolis, overlap_data)
+        # coriolis[coriolis != 0] = np.sign(coriolis[coriolis != 0])
+        coriolis = -self.evaluate_coriolis_contrib(coriolis, overlap_data)
+        # raise Exception(coriolis[0, :3])
 
         watson = np.zeros(base.shape)
         rows, cols = np.triu_indices_from(base)
@@ -1621,7 +1645,7 @@ class DGBWatsonModes(DGBCoords):
         return zeta, B_e
 
     @classmethod
-    def default_coriolis_intertia_function(cls, modes, masses):
+    def default_coriolis_inertia_function(cls, modes, masses):
         def coriolis_inertia_function(watson_coords, *, modes=modes, masses=masses, deriv_order=None):
             if deriv_order is not None:
                 raise NotImplementedError("don't have support for Coriolis derivatives in DGB")
@@ -1651,7 +1675,7 @@ class DGBWatsonModes(DGBCoords):
             modes.inverse.shape[0]
         )
         if coriolis_inertia_function is None:
-            coriolis_inertia_function = cls.default_coriolis_intertia_function(modes, masses)
+            coriolis_inertia_function = cls.default_coriolis_inertia_function(modes, masses)
         return cls(coords,
                    modes,
                    coriolis_inertia_function=coriolis_inertia_function,
@@ -2240,7 +2264,8 @@ class DGBGaussians:
             basis,
             f_matrix,
             mass_spec,
-            origin=reference_structure
+            origin=reference_structure,
+            dimensionless=False
         )
 
     @classmethod

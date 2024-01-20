@@ -567,12 +567,23 @@ class StructuralProperties:
         base_shape = carts.shape[:-2]
         carts = carts.reshape((-1,) + carts.shape[-2:])
 
-        B_e, eigs = cls.get_prop_moments_of_inertia(carts, masses)
-        J = modes
-        J = J.reshape((J.shape[0],) + carts.shape[-2:])
-        J = np.tensordot(eigs, J, axes=[1, 2])  # expressed in local frames
+        mom_i, eigs = cls.get_prop_moments_of_inertia(carts, masses)
+        J = modes.reshape((modes.shape[0],) + carts.shape[-2:]) * np.sqrt(masses)[np.newaxis, :, np.newaxis]
+        J = np.tensordot(eigs, J, axes=[1, 2])  # expressed in local frames, ncoords x ncarts x nmodes x natoms
         X = J.shape[1]
         N = J.shape[2]
+        #
+        # ce = -nput.levi_cevita3
+        # zeta_old = sum(
+        #     nput.vec_tensordot(
+        #         np.tensordot(J[..., n], ce, axes=[1, 0]), # ncoords x nmodes x ncarts x ncarts
+        #         J[..., n],
+        #         shared=1,
+        #         axes=[3, 1]
+        #     )
+        #     for n in range(J.shape[-1])
+        # )
+        # zeta_old = np.moveaxis(zeta_old, 2, 1)
 
         rows, cols = np.triu_indices(N, k=1)
         zeta = np.zeros((J.shape[0], X, N, N))
@@ -587,10 +598,10 @@ class StructuralProperties:
                 zeta[:, a, cols, rows] = -zeta_vals
 
         zeta = zeta.reshape(base_shape + zeta.shape[1:])
-        B_e = B_e.reshape(base_shape + B_e.shape[1:])
+        mom_i = mom_i.reshape(base_shape + mom_i.shape[1:])
         eigs = eigs.reshape(base_shape + eigs.shape[1:])
 
-        return zeta, (B_e, eigs)
+        return zeta, (mom_i, eigs)
 
 class BondingProperties:
     """
