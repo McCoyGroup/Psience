@@ -3086,8 +3086,7 @@ class DGBTests(TestCase):
                         ).show()
 
     @classmethod
-    def setupMorseFunction(cls, model, w=None, wx=None):
-        from McUtils.Data import PotentialData
+    def getMorseParameters(cls, w=None, wx=None, m1=None, m2=None, re=None):
         if w is None:
             w = 3869.47 * cls.w2h
         freq = w
@@ -3095,9 +3094,28 @@ class DGBTests(TestCase):
             wx = 84 * cls.w2h
         anh = wx
         De = (freq ** 2) / (4 * anh)
-        muv = (1 / model.vals[model.m(0)] + 1 / model.vals[model.m(1)])
+        if m1 is None:
+            m1 = AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitsOfMass")
+        if m2 is None:
+            m2 = AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitsOfMass")
+        muv = (1 / m1 + 1 / m2)
         a = np.sqrt(2 * anh / muv)
-        re = model.vals[model.r(0, 1)]
+
+        if re is None:
+            re = 1.82534
+
+        return (De, a, re)
+
+    @classmethod
+    def setupMorseFunction(cls, model, i, j, w=None, wx=None):
+
+        from McUtils.Data import PotentialData
+
+        m1 = model.vals[model.m(i)]
+        m2 = model.vals[model.m(j)]
+        re = model.vals[model.r(i, j)]
+
+        De, a, re = cls.getMorseParameters(w=w, wx=wx, m1=m1, m2=m2, re=re)
 
         def morse_basic(r,
                         re=re,
@@ -3254,8 +3272,8 @@ class DGBTests(TestCase):
                 # quadrature_degree=3,
                 expansion_degree=2,
                 pairwise_potential_functions={
-                    (0, 1):self.setupMorseFunction(model),
-                    (0, 2):self.setupMorseFunction(model),
+                    (0, 1):self.setupMorseFunction(model, 0, 1),
+                    (0, 2):self.setupMorseFunction(model, 0, 2)
                 }
             )
 
@@ -3324,6 +3342,94 @@ class DGBTests(TestCase):
             :: Frequencies: [ 3708.73341154  3734.86080835  7286.17436413  7316.65491963  8516.61271718 10666.28023563 10748.50595293 12733.0280663  13896.96264286 13996.93743477]
             :: Frequencies: [ 3705.77682674  3734.88703588  7280.76971625  7313.35796559  8455.29315203 10663.6914612  10725.06347301 12648.70126107 13738.17040782 13897.90723632]
             """
+
+    @debugTest
+    def test_ModelPotentialAIMD2D_HOD(self):
+        mol, model = self.buildWaterModel(
+            # w2=None, wx2=None,
+            ka=None,
+            atoms=['O', 'H', 'D'],
+            w2=3869.47 * self.w2h / np.sqrt(2),
+            wx2=84 * self.w2h / np.sqrt(2),
+            dudr1=1 / 5.5,
+            dudr2=1 / 5.5
+            # dipole_direction=[1, 0, 0]
+        )
+
+        check_freqs = False
+        if check_freqs:
+            freqs = model.normal_modes()[0]
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        check_anh = False
+        if check_anh:
+            model.run_VPT(order=2, states=2, degeneracy_specs='auto', logger=True)
+            """
+            ZPE:     3302.64651                   3220.08468
+                             Harmonic                  Anharmonic
+            State     Frequency    Intensity       Frequency    Intensity
+              0 1    3870.20673     34.00202      3702.08096     33.19339
+              1 0    2735.08628     16.06164      2616.40747     15.75924
+              0 2    7740.41347      0.00000      7236.30645      0.65964
+              2 0    5470.17256      0.00000      5114.40644      0.37370
+              1 1    6605.29301      0.00000      6317.94784      0.00436
+            """
+            raise Exception(...)
+
+        # raise Exception(model.v(0, evaluate='constants'))
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(mol.coords, mol.normal_modes.modes)
+
+        sim = model.setup_AIMD(
+            initial_energies=[
+                [5000 * self.w2h, 5000 * self.w2h],
+                [-5000 * self.w2h, 5000 * self.w2h],
+                [-5000 * self.w2h, -5000 * self.w2h],
+                [5000 * self.w2h, -5000 * self.w2h],
+                # [2000 * self.w2h, 0],
+                # [0, 2000 * self.w2h],
+                # [-2000 * self.w2h, 0],
+                # [0, -2000 * self.w2h],
+                # [-15000 * self.w2h, -15000 * self.w2h],
+                # [15000 * self.w2h, -15000 * self.w2h],
+                # [10000 * self.w2h, 0],
+                # [0, 10000 * self.w2h],
+                # [-10000 * self.w2h, 0],
+                # [0, -10000 * self.w2h]
+            ],
+            timestep=15
+        )
+        sim.propagate(25)
+        coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+
+        cartesians = False
+        with BlockProfiler(inactive=True):
+
+            dgb = model.setup_DGB(
+                np.round(coords, 8),
+                optimize_centers=1e-8,
+                # optimize_centers=False,
+                modes=None if cartesians else 'normal',
+                cartesians=[0, 1] if cartesians else None,
+                # quadrature_degree=3,
+                expansion_degree=2,
+                pairwise_potential_functions={
+                    (0, 1): self.setupMorseFunction(model, 0, 1),
+                    (0, 2): self.setupMorseFunction(model, 0, 2,
+                                                    w=3869.47 * self.w2h / np.sqrt(2),
+                                                    wx=84 * self.w2h / np.sqrt(2),
+                                                    )
+                }
+            )
+
+            self.runDGB(dgb, mol,
+                        # vmin=-.05,
+                        # vmax=.05,
+                        # domain=[[-20, 20], [-20, 20]],
+                        plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True,
+                        plot_spectrum=False
+                        # mode='classic'
+                        )
 
     @validationTest
     def test_ModelPotentialAIMD2D_sym_bend(self):
@@ -3620,8 +3726,8 @@ class DGBTests(TestCase):
                 # quadrature_degree=3,
                 expansion_degree=2,
                 pairwise_potential_functions={
-                    (0, 1):self.setupMorseFunction(model),
-                    (0, 2):self.setupMorseFunction(model)
+                    (0, 1):self.setupMorseFunction(model, 0, 1),
+                    (0, 2):self.setupMorseFunction(model, 0, 2)
                 }
             )
 
@@ -3667,7 +3773,7 @@ class DGBTests(TestCase):
                         plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
                         )
 
-    @debugTest
+    @validationTest
     def test_ModelPotentialAIMD3DHOD(self):
         mol, model = self.buildWaterModel(
             # w2=None, wx2=None,
@@ -3763,7 +3869,7 @@ class DGBTests(TestCase):
             ]) * self.w2h * .8,
             timestep=10
         )
-        sim.propagate(25)
+        sim.propagate(3)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
         cartesians = False
@@ -3782,17 +3888,20 @@ class DGBTests(TestCase):
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
                 quadrature_degree=3,
-                # expansion_degree=2,
-                # pairwise_potential_functions={
-                #     (0, 1): self.setupMorseFunction(model),
-                #     (0, 2): self.setupMorseFunction(model)
-                # }
+                expansion_degree=2,
+                pairwise_potential_functions={
+                    (0, 1): self.setupMorseFunction(model, 0, 1),
+                    (0, 2): self.setupMorseFunction(model, 0, 2,
+                                                    w=3869.47 * self.w2h / np.sqrt(2),
+                                                    wx=84 * self.w2h / np.sqrt(2),
+                                                    )
+                }
             )
 
             # print(dgb.gaussians.coords.centers[:3])
             # print(dgb.gaussians.alphas[:3])
 
-            type(self).default_num_plot_wfns = 5
+            type(self).default_num_plot_wfns = 1
             self.runDGB(dgb, mol,
                         # similarity_chunk_size=5,
                         # vmin=-.05,

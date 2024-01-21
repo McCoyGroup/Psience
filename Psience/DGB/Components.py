@@ -2573,7 +2573,13 @@ class DGBGaussians:
     def T(self, tmat):
         self._T = tmat
 
-    def marginalize_out(self, indices):
+    bad_alpha_limit = 1e-15
+    bad_scaling_limit = 1e-3
+    def marginalize_out(self, indices, *, bad_alpha_limit=None, bad_scaling_limit=None):
+        if bad_scaling_limit is None:
+            bad_scaling_limit = self.bad_scaling_limit
+        if bad_alpha_limit is None:
+            bad_alpha_limit = self.bad_alpha_limit
 
         subcoords = self.coords.drop_indices(indices)
 
@@ -2589,14 +2595,16 @@ class DGBGaussians:
 
             dropcovs = full_covs[np.ix_(full_sel, indices, indices)]
             dropdets = np.linalg.det(dropcovs)
-            zp = np.abs(dropdets) < 1e-3 #TODO: fix this in case someone is in the numerically unstable limit...
+            zp = np.abs(dropdets) < bad_scaling_limit #TODO: fix this in case someone is in the numerically unstable limit...
             dropdets[zp] = 1
             scaling = 1 / dropdets
-            scaling[zp] = 1e3
+            scaling[zp] = bad_scaling_limit
             scaling *= np.power(np.pi, len(indices) / 4)
 
             subcovs = full_covs[np.ix_(full_sel, remaining, remaining)]
             inv_alphas, tfs = np.linalg.eigh(subcovs)
+            inv_alphas[inv_alphas < bad_alpha_limit] = bad_alpha_limit
+
             tfs = (tfs, tfs.transpose(0, 2, 1))
             alphas = 1 / (2*inv_alphas) # we have 1/2a
         else:

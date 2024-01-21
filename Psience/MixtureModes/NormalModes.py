@@ -23,6 +23,7 @@ class NormalModes(MixtureModes):
                          # mass_units="AtomicMassUnits",
                          remove_transrot=True,
                          dimensionless=False,
+                         mass_weighted=None,
                          mode='default'
                          ):
 
@@ -35,12 +36,11 @@ class NormalModes(MixtureModes):
         mass_spec = np.asanyarray(mass_spec)
 
         if mass_spec.ndim == 1:
+            if mass_weighted is None: mass_weighted = dimensionless # generally do the right thing for Cartesians
             mass_spec = np.broadcast_to(mass_spec[:, np.newaxis], (len(mass_spec), 3)).flatten()
             mass_spec = np.diag(1 / mass_spec)
 
         freq2, modes = slag.eigh(f_matrix, mass_spec, type=3)
-        # raise Exception(freq2)
-        # raise Exception(V @ V.T)
         if remove_transrot:
             gi12 = slag.fractional_matrix_power(mass_spec, -1 / 2)
             g12 = slag.fractional_matrix_power(mass_spec, 1 / 2)
@@ -70,22 +70,25 @@ class NormalModes(MixtureModes):
         freqs = np.sign(freq2) * np.sqrt(np.abs(freq2))
         if mode == 'reasonable':
             modes, inv = inv.T, modes.T
-            if dimensionless:
+            if mass_weighted:
                 gi12 = slag.fractional_matrix_power(mass_spec, -1 / 2)
                 g12 = slag.fractional_matrix_power(mass_spec, 1 / 2)
                 inv = inv @ gi12
                 modes = g12 @ modes
+            if dimensionless:
+                weighting = np.sqrt(np.abs(freqs))
+                modes = modes * weighting[np.newaxis, :]
+                inv = inv / weighting[:, np.newaxis]
+        else:
+            if mass_weighted:
+                gi12 = slag.fractional_matrix_power(mass_spec, -1 / 2)
+                g12 = slag.fractional_matrix_power(mass_spec, 1 / 2)
+                inv = inv @ g12
+                modes = gi12 @ modes
+            if dimensionless:
                 weighting = np.sqrt(np.abs(freqs))
                 modes = modes / weighting[np.newaxis, :]
                 inv = inv * weighting[:, np.newaxis]
-        elif dimensionless:
-            gi12 = slag.fractional_matrix_power(mass_spec, -1 / 2)
-            g12 = slag.fractional_matrix_power(mass_spec, 1 / 2)
-            inv = inv @ g12
-            modes = gi12 @ modes
-            weighting = np.sqrt(np.abs(freqs))
-            modes = modes * weighting[np.newaxis, :]
-            inv = inv / weighting[:, np.newaxis]
 
         sorting = np.argsort(freqs)
         modes = modes[:, sorting]
