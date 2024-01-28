@@ -178,7 +178,7 @@ class DGB:
     def construct_gaussians(cls,
                             centers,
                             alphas,
-                            potential_function,
+                            potential_spec,
                             gmat_function=None,
                             masses=None,
                             atoms=None,
@@ -192,10 +192,20 @@ class DGB:
                             logger=None
                             ):
         # here to be overridden
+        if (
+                (isinstance(potential_spec, dict) and 'values' in potential_spec)
+                or (not callable(potential_spec) and all(isinstance(p, np.ndarray) for p in potential_spec))
+        ):
+            potential_function = None
+            potential_expansion = potential_spec
+        else:
+            potential_function = potential_spec
+            potential_expansion = None
         return DGBGaussians.construct(
             centers,
             alphas,
-            potential_function,
+            potential_function=potential_function,
+            potential_expansion=potential_expansion,
             gmat_function=gmat_function,
             masses=masses,
             atoms=atoms,
@@ -257,6 +267,8 @@ class DGB:
         self.pot = potential
         self.wfn_opts = wavefunction_options
         self._V = None
+        self._T = None
+        self._S = None
         self.logger = Logger.lookup(logger)
     def as_cartesian_dgb(self):
         if isinstance(self.gaussians.coords, DGBCartesians):
@@ -279,16 +291,26 @@ class DGB:
 
     @property
     def S(self):
-        return self.gaussians.S
+        if self._S is None:
+            self._S = self.gaussians.S
+        return self._S
     @property
     def T(self):
-        return self.S * self.gaussians.T
+        if self._T is None:
+            self._T = self.S * self.gaussians.T
+        return self._T
+    @T.setter
+    def T(self, T):
+        self._T = T
     @property
     def V(self):
         if self._V is None:
             self.logger.log_print("evaluating potential energy...")
             self._V = self.S * self.pot.evaluate_pe(self.gaussians.overlap_data)
         return self._V
+    @V.setter
+    def V(self, V):
+        self._V = V
 
     def get_kinetic_polynomials(self):
         raise NotImplementedError("deprecated")
@@ -431,7 +453,7 @@ class DGB:
             S = np.expand_dims(S, -1)
         return S * pot_mat
 
-    default_solver_mode = 'singular_B'
+    default_solver_mode = 'cholesky'
     def diagonalize(self,
                     *,
                     mode=None,
@@ -453,7 +475,11 @@ class DGB:
                 min_singular_value
             ]):
                 mode = 'classic'
-            elif low_rank_epsilon is not None:
+            elif any(x is not None for x in [
+                low_rank_energy_cutoff,
+                low_rank_overlap_cutoff,
+                low_rank_shift,
+            ]):
                 mode = 'low-rank'
             elif stable_eigenvalue_epsilon is not None:
                 mode = 'fix-heiberger'
@@ -495,6 +521,9 @@ class DGB:
                                                          low_rank_overlap_cutoff=low_rank_overlap_cutoff,
                                                          low_rank_shift=low_rank_shift
                                                          )
+
+        elif mode == 'cholesky':
+            eigs, evecs = DGBEigensolver.cholesky_solver(H, self.S, self)
 
         elif callable(mode):
             eigs, evecs = mode(H, self.S, )

@@ -420,7 +420,7 @@ class StructuralProperties:
         :rtype:
         """
 
-        multiconf = coords.multiconfig
+        smol = coords.ndim == 2
         if sel is not None:
             coords = coords[..., sel, :]
             masses = masses[sel]
@@ -442,7 +442,7 @@ class StructuralProperties:
             # and then shift so the COM doesn't change
             crd = crd + ref_com[np.newaxis, np.newaxis, :]
 
-        if not multiconf:
+        if smol:
             crd = crd[0]
 
         return crd

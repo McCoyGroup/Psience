@@ -1574,16 +1574,6 @@ class DGBTests(TestCase):
         # for i in range(2):
         #     wfns_nm[i].plot().show()
 
-    @classmethod
-    def runModel(cls):
-        dgb = model.setup_DGB(
-            np.round(coords, 8),
-            optimize_centers=1e-7,
-            # optimize_centers=False,
-            modes=None if cartesians else 'normal',
-            cartesians=[0, 1] if cartesians else None
-        )
-        ...
 
     @classmethod
     def plot_dgb_potential(cls,
@@ -2582,7 +2572,7 @@ class DGBTests(TestCase):
                         plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True
                         )
     @classmethod
-    def getMBPolModel(cls):
+    def getMBPolModel(cls, atoms=None):
         loader = ModuleLoader(TestManager.current_manager().test_data_dir)
         mbpol = loader.load("LegacyMBPol").MBPol
 
@@ -2649,8 +2639,10 @@ class DGBTests(TestCase):
             [-7.57391014e-01, -5.20731105e-01, 0.00000000e+00]
         ]) * UnitsData.convert("Angstroms", "BohrRadius")
 
+        if atoms is None:
+            atoms = ["O", "H", "H"]
         ref_mol = Molecule(
-            ["O", "H", "H"],
+            atoms,
             ref
         ).get_embedded_molecule(load_properties=False)
 
@@ -2700,46 +2692,71 @@ class DGBTests(TestCase):
         plot_dir = None
         save_plots = False
         for steps in [50]:#[10, 25, 50, 100, 150]:
-            sim = mol.setup_AIMD(
-                pot,
-                initial_energies=np.array([
-                    [bend, symm, 0],
-                    [bend, -symm, 0],
-                    [-bend, symm, 0],
-                    [-bend, -symm, 0],
-                    [bend, 0, asym],
-                    [bend, 0, -asym],
-                    [-bend, 0, asym],
-                    [-bend, 0, -asym],
-                    # [2000 * self.w2h, 0],
-                    # [0, 2000 * self.w2h],
-                    # [-2000 * self.w2h, 0],
-                    # [0, -2000 * self.w2h],
-                    # [-15000 * self.w2h, -15000 * self.w2h],
-                    # [15000 * self.w2h, -15000 * self.w2h],
-                    # [10000 * self.w2h, 0],
-                    # [0, 10000 * self.w2h],
-                    # [-10000 * self.w2h, 0],
-                    # [0, -10000 * self.w2h]
-                ]) * .5,
-                timestep=25
-            )
-            sim.propagate(steps)
-            coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+            base_dir = os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/water_new/')
+            os.makedirs(base_dir, exist_ok=True)
+            timestep = 2
+            with Checkpointer.from_file(os.path.join(base_dir, f'traj_{steps}_{timestep}.hdf5')) as chk:
+                try:
+                    coords = chk['coords']
+                except Exception as e:
+                    print(e)
+
+                    sim = mol.setup_AIMD(
+                        pot,
+                        initial_energies=np.array([
+                            [ bend,  symm, 0],
+                            [ bend, -symm, 0],
+                            [-bend,  symm, 0],
+                            [-bend, -symm, 0],
+                            [ bend, 0,  asym],
+                            [ bend, 0, -asym],
+                            [-bend, 0,  asym],
+                            [-bend, 0, -asym],
+                            # [2000 * self.w2h, 0],
+                            # [0, 2000 * self.w2h],
+                            # [-2000 * self.w2h, 0],
+                            # [0, -2000 * self.w2h],
+                            # [-15000 * self.w2h, -15000 * self.w2h],
+                            # [15000 * self.w2h, -15000 * self.w2h],
+                            # [10000 * self.w2h, 0],
+                            # [0, 10000 * self.w2h],
+                            # [-10000 * self.w2h, 0],
+                            # [0, -10000 * self.w2h]
+                        ]) * .5,
+                        timestep=timestep
+                    )
+                    sim.propagate(steps)
+                    coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+                    chk['coords'] = coords
+
             for method in ['harm']:#, 'harm', 'rot']:
+                run_dir = os.path.join(base_dir, f'method_{method}/steps_{steps}/')
+
+                os.makedirs(run_dir, exist_ok=True)
                 if save_plots:
-                    plot_dir=os.path.expanduser(f'~/Documents/Postdoc/AIMD-Spec/water_new/method_{method}/steps_{steps}/')
+                    plot_dir=run_dir
                     os.makedirs(plot_dir, exist_ok=True)
                 print("="*25, "Method:", method, "Steps:", steps, "="*25)
 
                 # a = np.pi / 12
                 cartesians = False
+                use_interpolation = False
+                if use_interpolation:
+                    with Checkpointer.from_file(os.path.join(base_dir, f'traj_500.hdf5')) as chk:
+                        traj = chk['coords']
+                        pot_vals = pot(traj, deriv_order=2)
+                        interp_data = {'centers':traj, 'values':pot_vals}
+                else:
+                    interp_data = None
+
                 with BlockProfiler(inactive=True):
                     print("="*25, steps, "="*25)
                     crd = np.round(coords[7:], 8)
+                    gs_cutoff=14
+
                     dgb = DGB.construct(
                         crd,
-                        pot,
+                        pot if not use_interpolation else interp_data,
                         masses=mol.atomic_masses,
                         # alphas=[.05, .1],
                         alphas='auto',
@@ -2759,7 +2776,7 @@ class DGBTests(TestCase):
                         # optimize_centers=False,
                         optimize_centers={
                             'method': 'gram-schmidt',
-                            'overlap_cutoff': 1e-14,
+                            'overlap_cutoff': 10**(-gs_cutoff),
                             'allow_pivoting': True
                         },
                         # coordinate_selection=[0, 1],
@@ -2767,8 +2784,8 @@ class DGBTests(TestCase):
                         # optimize_centers=False,
                         modes=None if cartesians else 'normal',
                         cartesians=[0, 1] if cartesians else None,
-                        quadrature_degree=5,
-                        # expansion_degree=2 if method != 'quad' else None,
+                        # quadrature_degree=3,
+                        expansion_degree=2 if method != 'quad' else None,
                         # pairwise_potential_functions={
                         #     (0, 1): self.setupMorseFunction(
                         #         mol.atomic_masses[0],
@@ -2783,6 +2800,35 @@ class DGBTests(TestCase):
                         # },
                         logger=True
                     )
+
+                    # raise Exception(
+                    #     dgb.pot.potential_function(
+                    #         dgb.gaussians.overlap_data['centers'][:5],
+                    #         deriv_order=2
+                    #     )[2]
+                    # )
+                    # """
+                    # [[[ 5.64558569e-05  6.26507975e-11 -1.33432331e-12]
+                    #   [-1.06109804e-10  3.04968945e-04 -9.00495237e-14]
+                    #   [-1.33432393e-12 -9.00478612e-14  3.22980960e-04]]
+                    #
+                    #  [[ 5.31592959e-05 -1.35948463e-06 -1.57609307e-12]
+                    #   [-1.35967785e-06  3.47500725e-04 -1.00800853e-13]
+                    #   [-1.57607412e-12 -1.00800864e-13  3.66656816e-04]]
+                    #
+                    #  [[ 5.59605116e-05  2.79258383e-06 -1.27520948e-12]
+                    #   [ 2.79240218e-06  2.92413370e-04 -1.02132479e-13]
+                    #   [-1.27522433e-12 -1.02129478e-13  3.12447038e-04]]
+                    #
+                    #  [[ 5.69312571e-05 -3.13341783e-06 -1.39561777e-12]
+                    #   [-3.13357116e-06  3.17851631e-04 -6.87883894e-14]
+                    #   [-1.39560738e-12 -6.87874586e-14  3.33555383e-04]]
+                    #
+                    #  [[ 5.86985909e-05  9.55907229e-07 -1.14551306e-12]
+                    #   [ 9.55757280e-07  2.71269951e-04 -8.13558422e-14]
+                    #   [-1.14547939e-12 -8.13551457e-14  2.88415760e-04]]]
+                    #   """
+                    # [1.27548866e-07 6.92484124e-04 2.33596267e-04 3.25870333e-04 5.50227506e-04]
 
                     plot_gaussians = False
                     if plot_gaussians:
@@ -2834,10 +2880,11 @@ class DGBTests(TestCase):
                                 # domain=[[-2, 2], [-2, 2]],
                                 # plot_wavefunctions=False,
                                 # mode='classic',
-                                mode='low-rank',
+                                # mode='low-rank',
+                                mode='similarity',
                                 # subspace_size=15,
                                 # min_singular_value=1e-8,
-                                plot_wavefunctions=False,#{'cartesians': [0, 1]} if not cartesians else True,
+                                plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True,
                                 plot_spectrum=False
                                 )
 

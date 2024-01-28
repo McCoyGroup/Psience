@@ -4,7 +4,7 @@ import math
 
 import numpy as np, scipy as sp, itertools, functools
 
-from McUtils.Zachary import RBFDInterpolator, DensePolynomial, TensorDerivativeConverter
+from McUtils.Zachary import InverseDistanceWeightedInterpolator, DensePolynomial, TensorDerivativeConverter
 from McUtils.Coordinerds import CartesianCoordinates1D, CartesianCoordinates2D, CartesianCoordinates3D
 from McUtils.Scaffolding import Logger
 from McUtils.Data import AtomData, UnitsData
@@ -1077,6 +1077,20 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             logger=self.logger if logger is None else logger
         )
 
+class DGBInterpolator:
+
+    def __init__(self, centers, potential_derivatives, **opts):
+        self.centers = centers
+        self.derivs = potential_derivatives
+        self.opts = opts
+        self.interp = InverseDistanceWeightedInterpolator(
+            self.centers,
+            *self.derivs,
+            **opts
+        )
+    def __call__(self, points, deriv_order=None, **kwargs):
+        return self.interp(points.reshape(points.shape[0], -1), deriv_order=deriv_order, **kwargs)
+
 class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
     def __init__(self, coords, pairwise_potential_functions, quadrature_degree=3):
         self.coords = coords
@@ -1296,7 +1310,7 @@ class DGBWatsonPairwiseEvaluator(DGBPairwisePotentialEvaluator):
         super().__init__(coords, pairwise_functions, **opts)
 
     def get_coordinate_bond_length_projection(self, i, j):
-        natoms = self.coords.natoms
+        natoms = len(self.coords.masses)
         modes = self.coords.modes.matrix
         # invs = self.coords.modes.inverse
         ndim = modes.shape[0] // natoms # this will almost always be 3
@@ -1354,32 +1368,28 @@ class DGBCoords(metaclass=abc.ABCMeta):
         ...
 
     @classmethod
-    def embedded_mode_function(cls, func, modes, natoms=None):
-        @functools.wraps(func)
-        def embedded_function(mode_coords, deriv_order=None):
-            origin = modes.origin
-            carts = (mode_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(
-                mode_coords.shape[:1] + origin.shape
-            )
-            carts = carts + origin
-            if natoms is not None:
-                carts = carts.reshape((carts.shape[0], natoms, -1))
-
-            vals = func(carts, deriv_order=deriv_order)
-            if deriv_order is not None:
-                fshape = vals[0].ndim
-                _ = []
-                for n, d in enumerate(vals):
-                    for j in range(n):
-                        d = np.tensordot(d, modes.matrix, axes=[fshape, 0])
-                    _.append(d)
-                vals = _
-            return vals
-
-        return embedded_function
+    def embedded_mode_function(cls, func, modes, masses=None):
+        if isinstance(func, DGBInterpolator):
+            centers = func.centers
+            pot_vals = func.derivs
+            opts = func.opts
+            centers = DGBWatsonModes.embed_coords(centers, modes)
+            pot_vals = DGBWatsonModes.embed_derivs(pot_vals, modes)
+            return DGBInterpolator(centers, pot_vals, **opts)
+        else:
+            @functools.wraps(func)
+            def embedded_function(mode_coords, deriv_order=None):
+                carts = DGBWatsonModes.unembed_coords(mode_coords, modes, masses)
+                vals = func(carts, deriv_order=deriv_order)
+                if deriv_order is not None:
+                    vals = DGBWatsonModes.embed_derivs(vals, modes)
+                return vals
+            return embedded_function
 
     @classmethod
     def embedded_subcoordinate_function(cls, func, sel, ndim):
+        if isinstance(func, DGBInterpolator):
+            raise NotImplementedError("reembedding of interpolator not supported")
         @functools.wraps(func)
         def embedded_function(subcoords, deriv_order=None):
             full_shape = (subcoords.shape[0], ndim)
@@ -1403,49 +1413,75 @@ class DGBCoords(metaclass=abc.ABCMeta):
 
     @classmethod
     def embedded_cartesian_function(cls, func, atom_sel, xyz_sel, natoms, ndim):
-        @functools.wraps(func)
-        def embedded_function(subcart_coords, deriv_order=None):
-            full_shape = (subcart_coords.shape[0], natoms, ndim)
-            if subcart_coords.shape == full_shape:
-                carts = subcart_coords
+        if (atom_sel is not None or xyz_sel is not None):
+            full_sel = np.arange(natoms * ndim).reshape(natoms, ndim)
+            if atom_sel is None:
+                full_sel = full_sel[:, xyz_sel]
+            elif xyz_sel is None:
+                full_sel = full_sel[atom_sel, :]
             else:
-                subcart_coords = np.reshape(
-                    subcart_coords,
-                    (
-                        subcart_coords.shape[0],
-                        len(atom_sel) if atom_sel is not None else natoms,
-                        len(xyz_sel) if xyz_sel is not None else ndim
-                    )
-                )
-                if atom_sel is None and xyz_sel is None:
-                    carts = subcart_coords.reshape(full_shape)
-                else:
-                    carts = np.zeros(full_shape)
-                    if atom_sel is None:
-                        carts[..., xyz_sel] = subcart_coords
-                    elif xyz_sel is None:
-                        carts[..., atom_sel, :] = subcart_coords
-                    else:
-                        carts[..., np.ix_(atom_sel, xyz_sel)] = subcart_coords
-            vals = func(carts, deriv_order=deriv_order)
-            if (atom_sel is not None or xyz_sel is not None) and deriv_order is not None:
-                full_sel = np.arange(natoms * ndim).reshape(natoms, ndim)
-                if atom_sel is None:
-                    full_sel = full_sel[:, xyz_sel]
-                elif xyz_sel is None:
-                    full_sel = full_sel[atom_sel, :]
-                else:
-                    full_sel = full_sel[np.ix_(atom_sel, xyz_sel)]
-                flat_sel = full_sel.flatten()
+                full_sel = full_sel[np.ix_(atom_sel, xyz_sel)]
+            flat_sel = full_sel.flatten()
+        else:
+            flat_sel = None
 
-                fshape = vals[0].ndim
-                _ = []
-                for n, d in enumerate(vals):
-                    for j in range(n):
-                        d = np.take(d, flat_sel, axis=j + fshape)
-                    _.append(d)
-                vals = _
-            return vals
+        if flat_sel is None:
+            return func
+
+        if isinstance(func, DGBInterpolator):
+            centers = func.centers
+            centers = centers.reshape((centers.shape[0], natoms, ndim))
+            if atom_sel is None:
+                centers = centers[..., xyz_sel]
+            elif xyz_sel is None:
+                centers = centers[..., atom_sel, :]
+            else:
+                centers = centers[..., np.ix_(atom_sel, xyz_sel)]
+            pot_vals = func.derivs
+            fshape = pot_vals[0].ndim
+            _ = []
+            for n, d in enumerate(pot_vals):
+                for j in range(n):
+                    d = np.take(d, flat_sel, axis=j + fshape)
+                _.append(d)
+            pot_vals = _
+            opts = func.opts
+            return DGBInterpolator(centers, pot_vals, **opts)
+        else:
+            @functools.wraps(func)
+            def embedded_function(subcart_coords, deriv_order=None, flat_sel=flat_sel):
+                full_shape = (subcart_coords.shape[0], natoms, ndim)
+                if subcart_coords.shape == full_shape:
+                    carts = subcart_coords
+                else:
+                    subcart_coords = np.reshape(
+                        subcart_coords,
+                        (
+                            subcart_coords.shape[0],
+                            len(atom_sel) if atom_sel is not None else natoms,
+                            len(xyz_sel) if xyz_sel is not None else ndim
+                        )
+                    )
+                    if atom_sel is None and xyz_sel is None:
+                        carts = subcart_coords.reshape(full_shape)
+                    else:
+                        carts = np.zeros(full_shape)
+                        if atom_sel is None:
+                            carts[..., xyz_sel] = subcart_coords
+                        elif xyz_sel is None:
+                            carts[..., atom_sel, :] = subcart_coords
+                        else:
+                            carts[..., np.ix_(atom_sel, xyz_sel)] = subcart_coords
+                vals = func(carts, deriv_order=deriv_order)
+                if deriv_order is not None:
+                    fshape = vals[0].ndim
+                    _ = []
+                    for n, d in enumerate(vals):
+                        for j in range(n):
+                            d = np.take(d, flat_sel, axis=j + fshape)
+                        _.append(d)
+                    vals = _
+                return vals
 
         return embedded_function
 
@@ -1602,11 +1638,11 @@ class DGBWatsonModes(DGBCoords):
     def __init__(self, coords, modes,
                  *,
                  coriolis_inertia_function=None,
-                 natoms=None,
+                 masses=None,
                  subselection=None
                  ):
         self.coords = coords
-        self.natoms = natoms
+        self.masses = masses
         self.modes = modes
         self.subsel = subselection
         self.ci_func = coriolis_inertia_function
@@ -1622,11 +1658,8 @@ class DGBWatsonModes(DGBCoords):
         return DGBWatsonPairwiseEvaluator
     @staticmethod
     def zeta_momi(watson_coords, modes, masses):
-        origin = modes.origin
-        carts = (watson_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(watson_coords.shape[:1] + origin.shape)
-        carts = carts + origin[np.newaxis]
-        carts = carts.reshape((carts.shape[0], len(masses), -1))
 
+        carts = DGBWatsonModes.unembed_coords(watson_coords, modes, masses=masses)
         if carts.shape[-1] < 3:
             # pad with zeros
             carts = np.concatenate(
@@ -1664,41 +1697,61 @@ class DGBWatsonModes(DGBCoords):
         return coriolis_inertia_function
 
     @classmethod
+    def embed_coords(cls, carts, modes):
+        flat_carts = (carts - modes.origin[np.newaxis]).reshape((len(carts), -1))
+        return (flat_carts[:, np.newaxis, :] @ modes.inverse.T[np.newaxis]).reshape(
+            flat_carts.shape[0],
+            modes.matrix.shape[1]
+        )
+    @classmethod
+    def unembed_coords(cls, mode_coords, modes, masses=None):
+        origin = modes.origin
+        carts = (mode_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(
+            mode_coords.shape[:1] + origin.shape
+        )
+        carts = carts + origin
+        if masses is not None:
+            carts = carts.reshape((carts.shape[0], len(masses), -1))
+            carts = StructuralProperties.get_eckart_embedded_coords(
+                masses,
+                origin,
+                carts
+            )
+        return carts
+    @classmethod
+    def embed_derivs(cls, derivs, modes):
+        fshape = derivs[0].ndim
+        _ = []
+        for n, d in enumerate(derivs):
+            for j in range(n):
+                d = np.tensordot(d, modes.matrix, axes=[fshape, 0])
+            _.append(d)
+        return _
+    @classmethod
     def from_cartesians(cls,
                         coords,
                         modes,
                         masses=None,
                         coriolis_inertia_function=None
                         ):
-        flat_carts = (coords - modes.origin[np.newaxis]).reshape((len(coords), -1))
-        coords = (flat_carts[:, np.newaxis, :] @ modes.inverse.T[np.newaxis]).reshape(
-            flat_carts.shape[0],
-            modes.inverse.shape[0]
-        )
+        coords = cls.embed_coords(coords, modes)
         if coriolis_inertia_function is None:
             coriolis_inertia_function = cls.default_coriolis_inertia_function(modes, masses)
         return cls(coords,
                    modes,
                    coriolis_inertia_function=coriolis_inertia_function,
-                   natoms=len(masses)
+                   masses=masses
                    )
     def as_cartesians(self, masses=None) -> 'tuple[DGBCartesians, tuple[np.ndarray, np.ndarray]]':
         mode_coords = self.coords
         modes = self.modes
-
-        origin = modes.origin
-        carts = (mode_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(
-            mode_coords.shape[:1] + origin.shape
-        )
-        carts = carts + origin
-
-        natoms = self.natoms
-        if natoms is None:
-            raise ValueError("need `natoms` to be able to convert back to Cartesians")
-        carts = carts.reshape((carts.shape[0], natoms, -1))
-
         if masses is None:
-            masses = [-1] * natoms # so things break
+            masses = self.masses
+
+        carts = self.unembed_coords(mode_coords, modes, self.masses)
+        if masses is None:
+            raise ValueError("need `masses` to be able to convert back to Cartesians")
+        carts = carts.reshape((carts.shape[0], len(masses), -1))
 
         return DGBCartesians(carts, masses), (modes.matrix, modes.inverse)
 
@@ -1729,7 +1782,7 @@ class DGBWatsonModes(DGBCoords):
             c,
             modes,
             coriolis_inertia_function=ci_func,
-            natoms=self.natoms,
+            masses=self.masses,
             subselection=subsel
         )
     def gmatrix(self, coords:np.ndarray) -> np.ndarray:
@@ -1741,7 +1794,7 @@ class DGBWatsonModes(DGBCoords):
             self.embedded_mode_function(  # a function that takes in normal mode coordinates
                 fn,
                 self.modes,
-                natoms=self.natoms
+                masses=self.masses
             ),
             fn,
             self
@@ -2107,6 +2160,8 @@ class DGBGaussians:
     def construct(cls,
                   coords,
                   alphas,
+                  *,
+                  potential_expansion=None,
                   potential_function=None,
                   transformations=None,
                   masses=None,
@@ -2119,6 +2174,25 @@ class DGBGaussians:
                   poly_coeffs=None,
                   logger=None
                   ):
+        if potential_expansion is not None:
+            if potential_function is not None:
+                raise ValueError("can't have both `potential_function` and `potential_expansion`")
+            if isinstance(potential_expansion, dict):
+                expansion_opts = potential_expansion.copy()
+                del expansion_opts['values']
+                potential_expansion = potential_expansion['values']
+                interp_coords = expansion_opts.get('centers', coords)
+                if 'centers' in expansion_opts:
+                    del expansion_opts['centers']
+            else:
+                interp_coords = coords
+                expansion_opts = {}
+            potential_function = DGBInterpolator(
+                interp_coords,
+                potential_expansion,
+                **expansion_opts
+            )
+
         if not isinstance(coords, DGBCoords):
             if modes is not None:
                 if isinstance(modes, str):
