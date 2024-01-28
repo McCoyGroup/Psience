@@ -8,37 +8,21 @@ from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
 
 from Psience.Wavefun import Wavefunction, Wavefunctions
+from .Components import DGBGaussians, DGBCartesians, DGBWatsonModes
 
 __all__ = ["DGBWavefunctions", "DGBWavefunction"]
 
+__reload_hook__ = ['.Components']
+
 class DGBWavefunction(Wavefunction):
-    def __init__(self, energy, data, centers=None, alphas=None, inds=None, transformations=None,
-                 mass_weighted=None, masses=None,
-                 **opts):
+    def __init__(self, energy, data, gaussians:DGBGaussians = None, **opts):
         super().__init__(energy, data, **opts)
-        if centers is None:
-            centers = self.parent.centers
-        self.centers = centers
-        if alphas is None:
-            alphas = self.parent.alphas
-        self.alphas = alphas
-        if transformations is None and self.parent is not None:
-            transformations = self.parent.transformations
-        self.transformations = transformations
-        if inds is None and self.parent is not None:
-            inds = self.parent.hamiltonian.inds
-        self.inds = inds
-        if mass_weighted is None and self.parent is not None:
-            mass_weighted = self.parent.mass_weighted
-        self.mass_weighted = mass_weighted
-        if self.mass_weighted:
-            if masses is None:
-                masses = self.parent.masses
-            masses = np.asanyarray(masses)
-        self.masses = masses
+        if gaussians is None:
+            gaussians = self.parent.gaussians
+        self.gaussians = gaussians
 
     def get_dimension(self):
-        return self.centers.shape[-1]
+        return self.gaussians.coords.shape[-1]
 
     def plot(self,
              figure=None,
@@ -47,28 +31,117 @@ class DGBWavefunction(Wavefunction):
              **opts
              ):
 
+        centers = self.gaussians.coords.centers
         if domain is None:
-            domain = Mesh(self.centers).bounding_box
+            domain = Mesh(centers).bounding_box
 
         fig = super().plot(figure=figure, domain=domain, **opts)
+        if isinstance(plot_centers, dict):
+            plot_centers_opts = plot_centers.copy()
+            plot_centers = True
+        else:
+            plot_centers_opts = {}
+        if 'figure' not in plot_centers_opts:
+            plot_centers_opts['figure'] = fig
         if plot_centers:
             if self.ndim == 1:
                 plt.ScatterPlot(
-                    self.centers[:, 0],
-                    np.zeros(len(self.centers)),
-                    figure=fig
+                    centers[:, 0],
+                    np.zeros(len(centers)),
+                    **plot_centers_opts
                 )
             elif self.ndim == 2:
                 plt.ScatterPlot(
-                    self.centers[:, 0],
-                    self.centers[:, 1],
-                    figure=fig
+                    centers[:, 0],
+                    centers[:, 1],
+                    **plot_centers_opts
                 )
             else:
                 raise ValueError("can't plot centers for more than 2D data...?")
         return fig
 
+    def to_cartesian_wavefunction(self):
+        """
+        Projects the wavefunction back to Cartesians
+        :return:
+        """
+        if isinstance(self.gaussians.coords, DGBCartesians):
+            return self
+
+        new_gauss = self.gaussians.as_cartesians()
+        return type(self)(
+            self.energy,
+            self.data,
+            new_gauss,
+            **self.opts
+        )
+
+    def plot_cartesians(self,
+                        xyz_sel=None,
+                        *,
+                        atom_sel=None,
+                        figure=None,
+                        plot_centers=False,
+                        atom_styles=None,
+                        **plot_styles
+                        ):
+
+        if isinstance(self.gaussians.coords, DGBWatsonModes):
+            return self.to_cartesian_wavefunction().plot_cartesians(
+                xyz_sel=xyz_sel,
+                atom_sel=atom_sel,
+                figure=figure,
+                plot_centers=plot_centers,
+                atom_styles=atom_styles,
+                **plot_styles
+            )
+        if not isinstance(self.gaussians.coords, DGBCartesians):
+            raise ValueError("can't plot projections onto Cartesian coordinates for coords of type {}".format(
+                type(self.gaussians.coords).__name__
+            ))
+
+        _, natoms, nxyz = self.gaussians.coords.cart_shape
+
+        full_spec = np.arange(natoms*nxyz).reshape((natoms, nxyz))
+        if (xyz_sel is None and nxyz > 2) or (xyz_sel is not None and len(xyz_sel) > 2):
+            raise ValueError("can't plot 3D Gaussians")
+        all_ats = np.arange(natoms)
+        if atom_sel is None:
+            atom_sel = all_ats
+
+        if atom_styles is None:
+            atom_styles = [{} for _ in atom_sel]
+
+        if xyz_sel is not None:
+            xyz_remv = np.setdiff1d(np.arange(nxyz), xyz_sel)
+        else:
+            xyz_remv = None
+        for i,atom in enumerate(atom_sel):
+            rem = np.setdiff1d(all_ats, [atom])
+            subspec = full_spec[rem, :].flatten()
+            if xyz_sel is not None:
+                subspec = np.sort(
+                    np.concatenate([subspec, full_spec[atom][xyz_remv]])
+                )
+
+            proj = self.marginalize_out(subspec)  # what we're projecting _out_
+
+            ps = dict(plot_styles, **atom_styles[i])
+
+            figure = proj.plot(
+                figure=figure,
+                plot_centers=plot_centers,
+                plotter=plt.TriContourLinesPlot if proj.ndim == 2 else None,
+                # levels=np.linspace(-max_val, max_val, 16),
+                # domain=[[-2, 2], [-2, .2]],
+                # cmap='RdBu'
+                **ps
+            )
+
+        return figure
+
     def evaluate(self, points):
+        # raise NotImplementedError(...)
         points = np.asanyarray(points)
         reshape = None
         if points.ndim == 1:
@@ -77,35 +150,38 @@ class DGBWavefunction(Wavefunction):
             reshape = points.shape[:-1]
             points.reshape(-1, points.shape[-1])
 
-        centers = self.centers
-        if self.mass_weighted:
-            points = points * np.sqrt(self.masses[np.newaxis])
-            centers = centers * np.sqrt(self.masses[np.newaxis])
+        centers = self.gaussians.coords.centers
+        # if self.mass_weighted:
+        #     points = points * np.sqrt(self.masses[np.newaxis])
+        #     centers = centers * np.sqrt(self.masses[np.newaxis])
 
 
         # actual basis evaluation
         c_disps = points[np.newaxis, :, :] - centers[:, np.newaxis, :]
-        if self.transformations is not None:
-            inv, tfs = self.transformations # not sure if I need to transpose this or not...
-            tfs = np.broadcast_to(tfs[:, np.newaxis, :, :], (len(self.centers), len(points)) + tfs.shape[1:])
-            c_disps = tfs @ c_disps[:, :, :, np.newaxis]
+        tfs = self.gaussians.transformations
+        if tfs is not None:
+            tfs, inv = tfs
+            tfs = np.broadcast_to(tfs[:, np.newaxis, :, :], (len(tfs), len(points)) + tfs.shape[1:])
+            c_disps = tfs.transpose((0, 1, 3, 2)) @ c_disps[:, :, :, np.newaxis]
             c_disps = c_disps.reshape(c_disps.shape[:-1])
-        alphas = self.alphas[:, np.newaxis]
-        if self.inds is not None:
-            c_disps = c_disps[..., self.inds]
-            alphas = alphas[..., self.inds]
+        alphas = self.gaussians.alphas[:, np.newaxis]
+        # if self.inds is not None:
+        #     c_disps = c_disps[..., self.inds]
+        #     alphas = alphas[..., self.inds]
         normas = (2 * alphas / np.pi) ** (1/4)
         exp_evals = np.exp(-alphas * c_disps**2)
+        # print(c_disps[:2, :2], normas.shape)
 
         vals = np.dot(
             self.data,
             np.prod(normas * exp_evals, axis=-1)
         )
+        # print(exp_evals[:3, :2], self.data.shape)
         if reshape is not None:
             vals = vals.reshape(reshape)
         return vals
 
-    def marginalize_out(self, dofs):
+    def marginalize_out(self, dofs, rescale=True) -> 'DGBWavefunction':
         """
         Computes the projection of the current wavefunction onto a set of degrees
         of freedom, returning a projected wave function object
@@ -114,106 +190,77 @@ class DGBWavefunction(Wavefunction):
         :rtype: Wavefunction
         """
 
-        if isinstance(dofs, (int, np.integer)):
-            dofs = [dofs]
+        scaling, subgaussians = self.gaussians.marginalize_out(dofs)
 
-        # assert self.alphas.ndim == 1
-
-        proj_dofs = dofs if self.inds is None else np.intersect1d(dofs, self.inds)
-
-        remaining = np.setdiff1d(np.arange(self.centers.shape[-1]), dofs)
-        centers = self.centers[:, remaining]
-
-        masses = self.masses[remaining] if isinstance(self.masses, np.ndarray) else self.masses
-
-        if self.transformations is None:
-            scaling = np.power(2 * np.pi, len(dofs)/4) / np.power(np.prod(self.alphas[:, proj_dofs], axis=-1), 1/4)
-            alphas = self.alphas[:, remaining]
-
-            return type(self)(
-                self.energy,
-                self.data * scaling,
-                centers=centers,
-                alphas=alphas,
-                transformations=self.transformations,
-                mass_weighted=self.mass_weighted,
-                masses=masses
-            )
-        else:
-            alphas = self.alphas
-            tfs, inv = self.transformations
-            if self.inds is not None:
-                alphas = alphas[:, self.inds]
-                tfs = tfs[:, :, self.inds]
-                inv = inv[:, self.inds, :]
-            n = alphas.shape[-1]
-            npts = len(alphas)
-            diag_covs = np.zeros((npts, n, n))
-            diag_inds = (slice(None, None, None),) + np.diag_indices(n)
-            diag_covs[diag_inds] = 1 / (2 * alphas)
-
-
-            scaling = np.power(2 * np.pi, len(dofs)/4) / np.power(np.prod(self.alphas[:, proj_dofs], axis=-1), 1/4)
-
-            tfs = tfs[:, remaining, :]
-            inv = inv[:, :, remaining]
-            covs = tfs @ diag_covs @ inv
-            # covs = covs[:, remaining[np.newaxis, :], remaining[:, np.newaxis]]
-
-            # raise Exception(covs[0])
-            # covs[np.abs(covs) < 1e-12] = 0  # numerical garbage can be an issue...
-
-            if np.allclose(covs, covs.transpose(0, 2, 1)):
-                two_a_inv, tfs = np.linalg.eigh(covs)  # eigenvalues of inverse tensor...
-                inv = tfs.transpose(0, 2, 1)
-            else:
-                two_a_inv, tfs = np.linalg.eig(covs)  # eigenvalues of inverse tensor...
-
-                comp_part = np.imag(two_a_inv)
-                if np.sum(comp_part) > 0:
-                    raise ValueError(
-                        "complex alphas obtained... ({})".format(np.sum(comp_part))
-                    )
-
-                two_a_inv = np.real(two_a_inv)
-                tfs = np.real(tfs)
-                inv_sort = np.argsort(np.abs(two_a_inv), axis=-1)
-                idx = np.arange(two_a_inv.shape[0])[:, np.newaxis]
-                two_a_inv = two_a_inv[idx, inv_sort]
-
-                idx = np.arange(two_a_inv.shape[0])[:, np.newaxis, np.newaxis]
-                cdx = np.arange(two_a_inv.shape[1])[np.newaxis, :, np.newaxis]
-                inv_sort = inv_sort[:, np.newaxis, :]
-
-                tfs = tfs[idx, cdx, inv_sort]
-                inv = np.linalg.inv(tfs)
-
-
-            return type(self)(
-                self.energy,
-                self.data * scaling,
-                centers=centers,
-                alphas=1/(2*two_a_inv),
-                transformations=(tfs, inv),
-                mass_weighted=self.mass_weighted,
-                masses=masses
+        return type(self)(
+            self.energy,
+            self.data * scaling,
+            subgaussians
             )
 
 class DGBWavefunctions(Wavefunctions):
     wavefunction_class = DGBWavefunction
-    def __init__(self, energies=None, wavefunctions=None, hamiltonian=None, **opts):
+    def __init__(self, energies=None, wavefunctions=None, hamiltonian=None,  **opts):
         super().__init__(energies=energies, wavefunctions=wavefunctions, hamiltonian=hamiltonian, **opts) # add all opts
-        self.hamiltonian = hamiltonian
-        self.centers = self.hamiltonian.centers
-        self.alphas = self.hamiltonian.alphas
-        self.transformations = self.hamiltonian.transformations
-        self.mass_weighted = self.hamiltonian.mass_weighted
-        self.masses = self.hamiltonian.masses
+        self._hamiltonian = hamiltonian
+        self.gaussians = self.hamiltonian.gaussians
+    def as_cartesian_wavefunction(self):
+        """
+        Projects the wavefunction back to Cartesians
+        :return:
+        """
+        if isinstance(self.gaussians.coords, DGBCartesians):
+            return self
+        new_ham = self.hamiltonian.as_cartesian_dgb()
+        new = type(self)(
+            self.energies,
+            self.wavefunctions,
+            hamiltonian=new_ham
+        )
+
+        return new
+
+        # raise Exception(
+        #     self[0].evaluate(
+        #         self.gaussians.coords.centers[:5]
+        #     ),
+        #     new[0].evaluate(
+        #         new.gaussians.coords.centers[:5]
+        #     )
+        # )
+
+    @property
+    def hamiltonian(self):
+        # if self._hamiltonian is None:
+        #     from .DGB import DGB
+        #     self._hamiltonian = DGB(
+        #         self.centers,
+        #         potential_function=None,
+        #         alphas=self.alphas,
+        #         transformations=self.transformations,
+        #         min_singular_value=None,
+        #         num_svd_vectors=None,
+        #         clustering_radius=None
+        #     )
+        return self._hamiltonian
+    def operator_representation(self,
+                                op,
+                                expansion_degree=None,
+                                quadrature_degree=None,
+                                expansion_type=None,
+                                ):
+        return self.hamiltonian.evaluate_multiplicative_operator(
+            op,
+            expansion_degree=expansion_degree,
+            expansion_type=expansion_type,
+            quadrature_degree=quadrature_degree
+        )
 
     def expectation(self, op,
                     expansion_degree=None,
                     quadrature_degree=None,
                     expansion_type=None,
+                    embed=True,
                     other=None
                     ):
         """Computes the expectation value of operator op over the wavefunction other and self
@@ -229,32 +276,21 @@ class DGBWavefunctions(Wavefunctions):
         if other is None:
             other = self
 
-        if self.hamiltonian is None:
-            from .DGB import DGB
-            self.hamiltonian = DGB(
-                self.centers,
-                potential_function=None,
-                alphas=self.alphas,
-                transformations=self.transformations,
-                min_singular_value=None,
-                num_svd_vectors=None,
-                clustering_radius=None,
-                expansion_type=expansion_type,
-                expansion_degree=expansion_degree,
-                quadrature_degree=quadrature_degree
-            )
-
         if other.hamiltonian is not self.hamiltonian:
             raise ValueError("mismatch in DGBs between {} and {}".format(
                 self, other
             ))
 
-        op_mat = self.hamiltonian.evaluate_multiplicative_operator(
+        if embed:
+            op = self.gaussians.coords.embed_function(op)
+
+        op_mat = self.operator_representation(
             op,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
             quadrature_degree=quadrature_degree
         )
+
         w1 = self.wavefunctions.T
         w2 = other.wavefunctions
         if op_mat.ndim > 2: # lots of shape fuckery to get broacasting right
@@ -267,6 +303,30 @@ class DGBWavefunctions(Wavefunctions):
             res = w1 @ op_mat @ w2
 
         return res
+
+    def localize(self,
+                 criterion,
+                 which=None
+                 ):
+        """
+        Find a transformation that maximally localizes the wavefunctions in the Boys' sense
+        by minimizing <r^2> - <r>^2 over unitary transformations
+
+        :param criterion:
+        :param which:
+        :return:
+        """
+        raise NotImplementedError('woof...')
+
+        ndim = self.centers.shape[0]
+        def r2_func(centers, deriv_order=2):
+            c2 = centers**2
+
+        r2 = self.operator_representation(
+
+        )
+        r = self.hamiltonian.S
+
 
     def __repr__(self):
         return "{}(num={}, DVR={})".format(

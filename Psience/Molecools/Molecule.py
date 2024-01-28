@@ -9,8 +9,9 @@ import os, numpy as np
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D, CompositeCoordinateSystem
 from McUtils.Parallelizers import Parallelizer
-from McUtils.Zachary import TensorDerivativeConverter
+from McUtils.Zachary import TensorDerivativeConverter, Mesh
 import McUtils.Numputils as nput
+import McUtils.Plots as plt
 
 from .MoleculeInterface import *
 from .CoordinateSystems import (
@@ -927,7 +928,127 @@ class Molecule(AbstractMolecule):
         return self.get_displaced_coordinates(displacement_mesh, shift=shift,
                                               internals=internals, which=which, sel=sel, axes=axes)
 
-    def get_nearest_displacement_coordinates(self, points, sel=None, axes=None, weighting_function=None):
+    def plot_molecule_function(self,
+                               function,
+                               *,
+                               axes,
+                               sel=None,
+                               domain=None,
+                               domain_padding=1,
+                               plot_points=100,
+                               weighting_function=None,
+                               mask_function=None,
+                               mask_value=0,
+                               plot_atoms=False,
+                               atom_colors=None,
+                               atom_radii=None,
+                               plotter=None,
+                               epilog=None,
+                               **plot_options
+                               ):
+
+        if self.coords.ndim > 2:
+            raise NotImplementedError("function plotting only supported for one structure at a time")
+
+        axes = np.asanyarray(axes)
+        if axes.ndim == 0:
+            axes = np.array([axes[:]])
+        if len(axes) > 2:
+            raise ValueError("can only plot up to 2 axes at a time")
+
+        if domain is None:
+            if isinstance(domain_padding, (int, float, np.integer, np.floating)):
+                domain_padding = [-domain_padding, domain_padding]
+            domain_padding = np.asanyarray(domain_padding)
+            if domain_padding.ndim == 1:
+                domain_padding = domain_padding[np.newaxis, :]
+            domain = Mesh(self.coords[:, axes]).bounding_box + domain_padding
+
+        if isinstance(plot_points, (int, np.integer)):
+            plot_points = [plot_points] * len(domain)
+
+        grids = []
+        for dom, pts in zip(domain, plot_points):
+            grids.append(np.linspace(*dom, pts))
+        grids = np.array(np.meshgrid(*grids, indexing='xy'))
+        grid_points = np.moveaxis(grids, 0, -1).reshape(-1, len(domain))  # vector of points
+
+        eval_points, dists = self.get_nearest_displacement_coordinates(
+            grid_points,
+            axes=axes,
+            sel=sel,
+            weighting_function=weighting_function,
+            return_distances=True
+        )
+
+        values = function(eval_points)
+        if mask_function is not None:
+            mask = mask_function(values, eval_points, dists)
+            values[mask] = mask_value
+
+        if plotter is None:
+            if len(grids) == 1:
+                plotter = plt.Plot
+            else:
+                plotter = plt.TriContourPlot
+
+        if plot_atoms:
+            if epilog is None:
+                epilog = []
+            ref = self.coords[:, axes]
+            atoms = self._ats
+            if sel is not None:
+                ref = ref[sel, :]
+                atoms = [atoms[i] for i in sel]
+            if atom_colors is None:
+                atom_colors = [None] * len(atoms)
+            atom_colors = [at['IconColor'] if c is None else c for c,at in zip(atom_colors, atoms)]
+            if atom_radii is None:
+                atom_radii = [None] * len(atoms)
+            atom_radii = [at['IconRadius'] if c is None else c for c,at in zip(atom_radii, atoms)]
+            epilog = list(epilog) + [
+                plt.Disk(
+                    crd,
+                    r,
+                    color=c
+                )
+                for crd,r,c in zip(ref, atom_radii, atom_colors)
+            ]
+
+        if values.ndim > 1 and isinstance(plotter, type) and issubclass(plotter, (plt.Plot, plt.Plot2D)):
+            values = np.moveaxis(values, 0, -1)[..., np.newaxis]
+            def plotter(subvals,
+                        _baseclass=plotter,
+                        _subgrids=tuple(np.moveaxis(grid_points, -1, 0)),
+                        method=None,
+                        **opts
+                        ):
+                return _baseclass(
+                    *_subgrids,
+                    subvals.reshape(-1),
+                    **opts
+                )
+            return plt.TensorPlot(values, plot_class=plotter, epilog=epilog, **plot_options)
+        else:
+            return plotter(*np.moveaxis(grid_points, -1, 0), values, epilog=epilog, **plot_options)
+
+    def get_nearest_displacement_coordinates(self,
+                                             points,
+                                             sel=None, axes=None, weighting_function=None,
+                                             return_distances=False
+                                             ):
+        """
+        Displaces the _nearest_ atom (in a mass-weighted sense) to the given point
+        This allows for the development of functions / potentials that are in the small-displacement limit
+        where everything _except_ the nearest atom to the given Cartesian position is at its equilibrium value
+
+        :param points:
+        :param sel:
+        :param axes:
+        :param weighting_function:
+        :return:
+        """
+
         pts = np.asanyarray(points)
         smol = pts.ndim == 1
         if smol: pts = pts[np.newaxis]
@@ -957,10 +1078,12 @@ class Molecule(AbstractMolecule):
         coords[np.arange(len(nearest))[:, np.newaxis], atom_idx[:, np.newaxis], axes[np.newaxis, :]] = pts
 
         coords = coords.reshape(base_shape + coords.shape[-2:])
-        if smol:
-            coords = coords[0]
+        if smol: coords = coords[0]
 
-        return coords
+        if return_distances:
+            return coords, dists[np.arange(len(nearest)), nearest]
+        else:
+            return coords
 
     def get_nearest_scan_coordinates(self, domains, sel=None, axes=None):
         displacement_mesh = np.moveaxis(
@@ -1096,6 +1219,48 @@ class Molecule(AbstractMolecule):
             values=vals
         )
 
+    def setup_AIMD(self,
+                   potential_function,
+                   timestep=.5,
+                   initial_energies=None,
+                   initial_displacements=None,
+                   displaced_coords=None,
+                   track_kinetic_energy=False
+                   ):
+        from ..AIMD import AIMDSimulator
+
+        if initial_displacements is not None:
+            init_pos = self.get_displaced_coordinates(
+                initial_displacements,
+                which=displaced_coords,
+                internals='reembed'
+            )
+            sim = AIMDSimulator(
+                self.masses,
+                init_pos,
+                lambda c: -potential_function(c, deriv_order=1)[1].reshape(c.shape),
+                timestep=timestep,
+                track_kinetic_energy=track_kinetic_energy
+            )
+        else:
+            self.potential_derivatives = potential_function(self.coords, deriv_order=2)[1:]
+            nms = self.normal_modes.modes.basis
+            sim = AIMDSimulator(
+                self.atomic_masses,
+                [self.coords] * len(initial_energies),
+                lambda c: -potential_function(c, deriv_order=1)[1].reshape(c.shape),
+                velocities=AIMDSimulator.mode_energies_to_velocities(
+                    nms.inverse.T,
+                    self.atomic_masses,
+                    initial_energies,
+                    inverse=nms.matrix.T
+                ),
+                timestep=timestep,
+                track_kinetic_energy=track_kinetic_energy
+            )
+
+        return sim
+
     @property
     def g_matrix(self):
         """
@@ -1106,6 +1271,15 @@ class Molecule(AbstractMolecule):
         if self.internal_coordinates is None:
             raise ValueError("need internal coordinates to calculate the G-matrix")
         return self.prop('g_matrix')
+
+    @property
+    def coriolis_constants(self):
+        """
+        Returns the molecular g-matrix for the system
+        :return:
+        :rtype:
+        """
+        return self.prop('coriolis_constants')
 
     def bond_length(self, i, j):
         """

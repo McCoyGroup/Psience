@@ -445,25 +445,48 @@ class VPT2Tests(TestCase):
 
         # raise Exception(op.poly_sum())
 
-
-    @validationTest
+    @debugTest
     def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
         from Psience.BasisReps import HarmonicOscillatorMatrixGenerator
         HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'rho'
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     3,
+        #     memory_constrained=True,
+        #     logger=True
+        # )
+        # HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'poly'
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
-            3,
-            memory_constrained=True,
-            logger=True
+            3
         )
-        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'poly'
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     3,
+        #     memory_constrained=True,
+        #     include_pseudopotential=False,
+        #     internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]],
+        #     logger=True
+        # )
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     3,
+        #     memory_constrained=True,
+        #     include_pseudopotential=False,
+        #     include_coriolis_coupling=False,
+        #     logger=True
+        # )
+
+    @validationTest
+    def test_HOHVPTRunner(self):
+
+        file_name = "HOD_freq.fchk"
+
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
-            3,
-            memory_constrained=True,
-            logger=True
+            3
         )
 
     @validationTest
@@ -1272,7 +1295,7 @@ State             Frequency    Intensity       Frequency    Intensity
   0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.47084
   """
 
-    @debugTest
+    @validationTest
     def test_HOONOFasterDegen(self):
 
         file_name = "HOONO_freq.fchk"

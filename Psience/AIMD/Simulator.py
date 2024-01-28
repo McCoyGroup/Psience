@@ -16,6 +16,7 @@ class AIMDSimulator:
                  atoms,
                  coordinates,
                  force_function,
+                 atomic_structures=None,
                  internals=None,
                  velocities=0,
                  track_kinetic_energy=False,
@@ -23,13 +24,20 @@ class AIMDSimulator:
                  sampling_rate=1
                  ):
         self.masses = np.array([
-            AtomData[a, "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
+                AtomData[a, "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
             if isinstance(a, str) else a for a in atoms
         ])
         coords = np.asanyarray(coordinates)
         if coords.ndim == 1:
             coords = coords[np.newaxis]
-        self._atomic_structs = coords.shape[-1] == 3 and coords.shape[-1]
+
+        if atomic_structures is None:
+            atomic_structures = (
+                coords.shape[-1] == 3
+                    and
+                coords.shape[-2] == len(self.masses)
+            )
+        self._atomic_structs = atomic_structures
         if self._atomic_structs:
             if coords.ndim == 2: coords = coords[np.newaxis]
             self._mass = np.expand_dims(self.masses, -1)
@@ -95,122 +103,32 @@ class AIMDSimulator:
         )
 
     @classmethod
-    def mode_energies_to_velocities(cls, modes, masses, energy_splits):
-
-        """
-
-        axes = modes.basis.matrix.T.reshape(3, 3, 3) * np.sqrt(
-            mol.masses[np.newaxis, :, np.newaxis] * UnitsData.amu_to_me
-        )
-        # raise Exception(np.linalg.norm(axes.reshape(3, 9), axis=1))
-        # axes = axes / np.linalg.norm(axes.reshape(3, 9), axis=1)[:, np.newaxis, np.newaxis]
-        L = axes.reshape(3, 9)
-        tripmass = np.broadcast_to(mol.masses[:, np.newaxis], (3, 3)).flatten()
-        g = L @ np.diag(tripmass) @ L.T
-
-        e_part = np.array(initial_energies)
-
-        case = 2
-
-        gv, Q = np.linalg.eigh(g)
-        sorting = np.argsort(np.argmax(Q ** 2, axis=0))
-        gv = gv[sorting]  # maximum similarity to OG vectors
-        Q = Q[:, sorting]
-        if case == 1:
-            v_part = np.sqrt(2 * e_part * 1 / np.diagonal(g)[np.newaxis])
-            vels = np.sum(
-                axes[np.newaxis] * v_part[:, :, np.newaxis, np.newaxis],
-                axis=1
-            )
-
-            u = np.dot(L, vels.reshape(9))
-            off_g = g.copy()
-            np.fill_diagonal(off_g, 0)
-            deficit = np.dot(u, np.dot(off_g, u)) / 2
-
-            e_part -= deficit * (e_part / np.sum(e_part))
-
-
-            v_part = np.sqrt(2 * e_part * 1 / np.diagonal(g)[np.newaxis])
-            vels = np.sum(
-                axes[np.newaxis] * v_part[:, :, np.newaxis, np.newaxis],
-                axis=1
-            )
-            u = np.dot(L, vels.reshape(9))
-
-            raise Exception(
-                np.dot(u, np.dot(g, u)) * UnitsData.hartrees_to_wavenumbers
-            )
-
-            # deficit =
-        elif case == 2:
-            axes = (Q.T @ axes.reshape(3, 9)).reshape(3, 3, 3)
-
-            v_part = np.sqrt(2 * e_part * 1 / gv[np.newaxis])
-            vels = np.sum(
-                axes[np.newaxis] *
-                    v_part[:, :, np.newaxis, np.newaxis],
-                axis=1
-            )
-        else:
-            raise ValueError(f"bad case {case}")
-:param modes:
-:type modes:
-:param masses:
-:type masses:
-:param energy_splits:
-:type energy_splits:
-:return:
-:rtype:
-"""
-
-        # axes = modes.T.reshape(3, 3, 3) * np.sqrt(
-        #     mol.masses[np.newaxis, :, np.newaxis] * UnitsData.amu_to_me
-        # )
-        # # raise Exception(np.linalg.norm(axes.reshape(3, 9), axis=1))
-        # # axes = axes / np.linalg.norm(axes.reshape(3, 9), axis=1)[:, np.newaxis, np.newaxis]
-        # L = axes.reshape(3, 9)
-        # tripmass = np.broadcast_to(mol.masses[:, np.newaxis], (3, 3)).flatten()
-        # g = L @ np.diag(tripmass) @ L.T
-        #
-        # e_part = np.asanyarray(energy_splits)
-        #
-        # gv, Q = np.linalg.eigh(g)
-        # sorting = np.argsort(np.argmax(Q ** 2, axis=0))
-        # gv = gv[sorting]  # maximum similarity to OG vectors
-        # Q = Q[:, sorting]
-        #
-        # axes = (Q.T @ axes.reshape(3, 9)).reshape(3, 3, 3)
-        #
-        # v_part = np.sqrt(2 * e_part * 1 / gv[np.newaxis])
-        # vels = np.sum(
-        #     axes[np.newaxis] *
-        #         v_part[:, :, np.newaxis, np.newaxis],
-        #     axis=1
-        # )
+    def mode_energies_to_velocities(cls, modes, masses, energy_splits, inverse=None):
 
         masses = np.asanyarray(masses)
         e_part = np.asanyarray(energy_splits)
         smol = e_part.ndim == 1
         if smol: e_part = e_part[np.newaxis]
 
-        if not np.allclose(np.linalg.norm(modes, axis=0), np.ones(modes.shape[1])):  # i.e. came out of a generalized eigenvalue run
-            modes = modes.reshape(-1, 3, modes.shape[1]) * np.sqrt(masses[:, np.newaxis, np.newaxis])
-            modes = modes.reshape(-1, modes.shape[-1])
+        # if not np.allclose(np.linalg.norm(modes, axis=0), np.ones(modes.shape[1])):  # i.e. came out of a generalized eigenvalue run
+        #     modes = modes.reshape(-1, 3, modes.shape[1]) * np.sqrt(masses[:, np.newaxis, np.newaxis])
+        #     modes = modes.reshape(-1, modes.shape[-1])
 
-        if not np.allclose(np.linalg.norm(modes, axis=0), np.ones(modes.shape[1])):
-            raise ValueError("modes aren't normalized -> non-unitary transformation")
+        if inverse is None:
+            if not np.allclose(np.linalg.norm(modes, axis=0), np.ones(modes.shape[1])):
+                raise ValueError("modes aren't normalized -> non-unitary transformation")
+            inverse = modes.T
 
         tripmass = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
-        g = modes.T @ np.diag(tripmass) @ modes
+        g = inverse @ np.diag(tripmass) @ modes
 
         gv, Q = np.linalg.eigh(g)
         sorting = np.argsort(np.argmax(Q ** 2, axis=0))
         gv = gv[sorting]  # maximum similarity to OG vectors
         Q = Q[:, sorting]
 
-        axes = (Q.T @ modes.T).reshape(modes.shape[1], -1, 3)
-        v_part = np.sqrt(2 * e_part / gv[np.newaxis])
+        axes = (Q.T @ inverse).reshape(modes.shape[1], -1, 3)
+        v_part = np.sign(e_part) * np.sqrt(2 * np.abs(e_part)) # / gv[np.newaxis])
         vels = np.sum(
             axes[np.newaxis] *
                 v_part[:, :, np.newaxis, np.newaxis],
@@ -362,7 +280,32 @@ class AIMDSimulator:
 
         return interpolator_class(traj, *vals, **interpolator_options)
 
-
+    def extract_trajectory(self, flatten=True, embed=True):
+        ref_struct = None
+        if isinstance(embed, (np.ndarray, list, tuple)):
+            ref_struct = np.asanyarray(embed)
+            embed = True
+        base_coords = np.array(self.trajectory)
+        if flatten:
+            base_coords = base_coords.reshape((-1,)+base_coords.shape[-2:])
+        if embed:
+            if ref_struct is None:
+                if not flatten:
+                    ref_crds = base_coords.reshape((-1,)+base_coords.shape[-2:])
+                else:
+                    ref_crds = base_coords
+                if self.kinetic_energies is not None:
+                    # assuming symplectic integration...
+                    kes = np.array(self.kinetic_energies).flatten()
+                    max_pos = np.argmax(kes)
+                    ref_struct = base_coords[max_pos]
+                else:
+                    ref_struct = ref_crds[0]
+            mol = Molecule(["H"]*len(self.masses), ref_struct, masses=self.masses)
+            coords = mol.embed_coords(base_coords)
+        else:
+            coords = base_coords
+        return coords
 
 class PairwisePotential:
     def __init__(self, fun, deriv=None):

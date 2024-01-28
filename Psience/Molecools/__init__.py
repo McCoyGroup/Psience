@@ -12,5 +12,7 @@ from .Vibrations import __all__ as exposed
 __all__ += exposed
 from .Molecule import __all__ as exposed
 __all__ += exposed
+from .Properties import *; from .Properties import __all__ as exposed
+__all__ += exposed
 from .CoordinateSystems import __all__ as exposed
 __all__ += exposed

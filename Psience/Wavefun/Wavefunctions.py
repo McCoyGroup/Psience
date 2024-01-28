@@ -34,8 +34,34 @@ class Wavefunction:
     def ndim(self):
         return self.get_dimension()
 
+    @classmethod
+    def prep_plot_grid(cls,
+                       domain,
+                       plot_points=100,
+                       domain_padding=None
+                       ):
+        if isinstance(domain[0], (int, np.integer, float, np.floating)):
+            domain = [domain]
+        if isinstance(plot_points, (int, np.integer)):
+            plot_points = [plot_points] * len(domain)
+
+        if domain_padding is not None:
+            if isinstance(domain_padding, (int, float, np.integer, np.floating)):
+                domain_padding = [-domain_padding, domain_padding]
+            domain_padding = np.asanyarray(domain_padding)
+            if domain_padding.ndim == 1:
+                domain_padding = domain_padding[np.newaxis, :]
+            domain = np.asanyarray(domain) + domain_padding
+
+        grids = []
+        for dom, pts in zip(domain, plot_points):
+            grids.append(np.linspace(*dom, pts))
+        grid = np.moveaxis(np.array(np.meshgrid(*grids, indexing='xy')), 0, -1).reshape(-1, len(domain))  # vector of points
+
+        return grid
+
     def plot(self,
-             figure=None, domain=None, grid=None, values=None, plot_points=100,
+             figure=None, domain=None, *, domain_padding=None, grid=None, values=None, plot_points=100,
              index=0, scaling=1, shift=0, plotter=None, plot_density=False,
              zero_tol=1e-8, contour_levels=None,
              **opts
@@ -63,15 +89,7 @@ class Wavefunction:
             raise ValueError("can't plot a wave function without a specified domain")
 
         if grid is None:
-            if isinstance(domain[0], (int, np.integer, float, np.floating)):
-                domain = [domain]
-            if isinstance(plot_points, (int, np.integer)):
-                plot_points = [plot_points] * len(domain)
-
-            grids = []
-            for dom, pts in zip(domain, plot_points):
-                grids.append(np.linspace(*dom, pts))
-            grid = np.moveaxis(np.array(np.meshgrid(*grids)), 0, -1).reshape(-1, len(domain)) # vector of points
+            grid = self.prep_plot_grid(domain=domain, domain_padding=domain_padding, plot_points=plot_points)
 
         grid = np.asanyarray(grid)
         if grid.ndim == 1:
@@ -99,8 +117,10 @@ class Wavefunction:
         values = values * scaling + shift
 
         if contour_levels is not None and 'levels' not in opts:
-            max_val = np.max(np.abs(values))
-            opts['levels'] = np.linspace(-max_val, max_val, contour_levels)
+            if np.std(values) > 1e-8:
+                max_val = np.max(np.abs(values))
+                levels = np.linspace(-max_val, max_val, contour_levels)
+                opts['levels'] = levels
 
         if plotter is None:
             if dim == 1:
@@ -108,7 +128,7 @@ class Wavefunction:
             else:
                 plotter = TriContourPlot
 
-        return plotter(*grid.T, values, figure=figure, **opts)
+        return plotter(*np.moveaxis(grid, -1, 0), values, figure=figure, **opts)
 
     def projection_plot(self,
                         coords,
@@ -118,6 +138,8 @@ class Wavefunction:
         """
         A convenience function to plot multiple projections
         on the same set of axes
+
+        Deprecated in favor of `plot_cartesians` for its primary use case (`DGBWavefunctions`)
 
         :param coords:
         :type coords:
@@ -205,11 +227,14 @@ class Wavefunctions:
     wavefunction_class = Wavefunction
     def __init__(self,
                  energies=None, wavefunctions=None,
-                 indices=None, wavefunction_class=None, **opts):
+                 indices=None, wavefunction_class=None,
+                 dipole_function=None,
+                 **opts):
         self.wavefunctions = wavefunctions
         self.energies = energies
         self.wavefunction_class = self.wavefunction_class if wavefunction_class is None else wavefunction_class
         self.indices = indices
+        self.dipole_function = dipole_function
         self.opts = opts
 
     def get_wavefunctions(self, which):
@@ -222,6 +247,7 @@ class Wavefunctions:
                 wavefunctions=self.wavefunctions[:, which],
                 wavefunction_class=self.wavefunction_class,
                 indices=inds[which],
+                dipole_function=self.dipole_function,
                 **self.opts
             )
         else:
@@ -246,10 +272,15 @@ class Wavefunctions:
         return np.concatenate([self.energies[:start_at], self.energies[1+start_at:]]) - self.energies[start_at]
 
     def get_spectrum(self,
-                     dipole_function,
+                     dipole_function=None,
+                     *,
                      start_at=0,
                      **options
                      ):
+        if dipole_function is None: # it's just so convenient to have this on the object...
+            dipole_function = self.dipole_function
+        if dipole_function is None:
+            raise ValueError("a dipole function is required to get a spectrum (none stored in wavefunctions)")
         freqs = self.frequencies(start_at=start_at)
         transition_moments = self.expectation(dipole_function,
                                               **options,

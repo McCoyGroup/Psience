@@ -557,6 +557,7 @@ class PerturbationTheorySolver:
                 Et = E0
             bad_vec = np.concatenate([Et, e_vec_full[zero_checks]])
             if len(zero_checks) > 10:
+                #TODO: add better message to specify which members of degenerate subspace
                 raise ValueError(
                     "degeneracies encountered: states {} and {} other states are degenerate (average energy: {} stddev: {})".format(
                         degenerate_subspace,
@@ -565,6 +566,7 @@ class PerturbationTheorySolver:
                         np.std(bad_vec)
                     ))
             else:
+                #TODO: add better message
                 raise ValueError(
                     "degeneracies encountered: states {} and {} are degenerate (average energy: {} stddev: {})".format(
                         self.flat_total_space.take_subspace(degenerate_subspace).excitations,
@@ -1897,6 +1899,7 @@ class PerturbationTheorySolver:
             overlaps[0] = 1
             corrs[0, n_ind] = 1
             H = self.representations if perturbations is None else perturbations
+
 
             dot = self._safe_dot
             takeDiag = lambda h, n_ind: h[n_ind, n_ind] if not isinstance(h, (int, np.integer, float, np.floating)) else 0.

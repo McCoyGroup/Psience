@@ -11,7 +11,7 @@ __all__ = [
 
 class BlockLocalFGOrthogonalizer:
 
-    def __init__(self, f, g, dimensionless=False, sel=None):
+    def __init__(self, f, g, dimensionless=False, sel=None, frequency_scaled=True):
         f = np.asanyarray(f)
         g = np.asanyarray(g)
         if sel is not None:
@@ -36,23 +36,26 @@ class BlockLocalFGOrthogonalizer:
 
         freq2, modes = slag.eigh(f, g, type=3)
         freqs = np.sqrt(freq2)
-        modes = modes / np.sqrt(freqs)[np.newaxis, :]
+        if frequency_scaled:
+            modes = modes / np.sqrt(freqs)[np.newaxis, :]
         rU, a, rM = np.linalg.svd(modes)
         R = (rU @ rM)
 
         # with np.printoptions(linewidth=1e8, suppress=True):
         #     print(np.round(r, 8))
 
+        self.modes = modes
         self.rotation = R
         self.scaling = modes @ R.T # wow...
 
     @classmethod
-    def from_molecule(cls, mol: Molecule, dimensionless=True, sel=None):
+    def from_molecule(cls, mol: Molecule, dimensionless=True, sel=None, frequency_scaled=True):
         return cls(
             mol.get_internal_potential_derivatives(2)[1],
             mol.g_matrix,
             dimensionless=dimensionless,
-            sel=sel
+            sel=sel,
+            frequency_scaled=frequency_scaled
         )
 
     def run(self):

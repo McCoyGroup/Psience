@@ -396,23 +396,32 @@ class AnalyticModel:
         return {k:self.vals[k] for k in self.vals.keys() - set(self.internal_coordinates)}
 
     def normal_modes(self, dimensionless=True):
+        from ..MixtureModes import NormalModes
+
         v = self.v(evaluate=True)[-1]
         g = self.g(evaluate=True)[-1]
-        freqs2, mode_inv = scipy.linalg.eigh(v, g, type=2) # modes come out as a (internals, normal_mode) array
-        freqs = np.sqrt(freqs2)
 
-        # normalization = np.broadcast_to(1 / np.linalg.norm(modes, axis=0), modes.shape)
-        # mode_inv = mode_inv  # now as (normal_mode, internals) with frequency dimension removed
-        modes = np.linalg.inv(mode_inv)
-        if dimensionless:
-            mode_inv = mode_inv * np.sqrt(freqs[np.newaxis, :])
-            modes = modes / np.sqrt(freqs[:, np.newaxis])
-        else:
-            modes = modes / np.linalg.norm(modes, axis=1)[:, np.newaxis]
-            mode_inv = mode_inv / np.linalg.norm(mode_inv, axis=0)[np.newaxis, :]
+        freqs, modes, mode_inv = NormalModes.get_normal_modes(v, g, dimensionless=dimensionless)
+        # modes = modes.T
+        # mode_inv = mode_inv.T
+        # freqs, modes,
+        #
+        # freqs2, mode_inv = scipy.linalg.eigh(v, g, type=2) # modes come out as a (internals, normal_mode) array
+        # freqs = np.sqrt(freqs2)
+        #
+        # # normalization = np.broadcast_to(1 / np.linalg.norm(modes, axis=0), modes.shape)
+        # # mode_inv = mode_inv  # now as (normal_mode, internals) with frequency dimension removed
+        # modes = np.linalg.inv(mode_inv)
+        # if dimensionless:
+        #     mode_inv = mode_inv * np.sqrt(freqs[np.newaxis, :])
+        #     modes = modes / np.sqrt(freqs[:, np.newaxis])
+        # else:
+        #     modes = modes / np.linalg.norm(modes, axis=1)[:, np.newaxis]
+        #     mode_inv = mode_inv / np.linalg.norm(mode_inv, axis=0)[np.newaxis, :]
 
-
-        # coords = [AnalyticModelBase.dot(v, self.coords) for v in modes]
+        #
+        #
+        # # coords = [AnalyticModelBase.dot(v, self.coords) for v in modes]
 
         return freqs, modes, mode_inv
 
@@ -437,6 +446,9 @@ class AnalyticModel:
                            include_pseudopotential=None,
                            evaluate=True
                            ):
+        if self.rotation is None:
+            self, _ = self.to_normal_modes()
+
         if expansion_order is None:
             expansion_order = {}
         if 'potential' in expansion_order:
@@ -545,7 +557,7 @@ class AnalyticModel:
             self.lam = core
             self.ndim = ndim
         def _broadcast_tree(self, shape, expr_list):
-            if not isinstance(expr_list, (np.ndarray,) + AnalyticModelBase.numeric_types):
+            if not isinstance(expr_list, (np.ndarray,) + AnalyticModelBase.get_numeric_types()):
                 return [self._broadcast_tree(shape, l) for l in expr_list]
             elif isinstance(expr_list, np.ndarray):
                 return expr_list
@@ -556,7 +568,7 @@ class AnalyticModel:
             vals = core(*grid)
             # broadcast appropriately
             if not isinstance(vals, np.ndarray):
-                if isinstance(vals, AnalyticModelBase.numeric_types):
+                if isinstance(vals, AnalyticModelBase.get_numeric_types()):
                     vals = np.full(grid.shape[1:], vals)
                 else:
                     vals = np.array(self._broadcast_tree(grid.shape[1:], vals))
@@ -578,7 +590,7 @@ class AnalyticModel:
             grid = np.asanyarray(grid)
             if grid.ndim == 1:
                 vals = core(*grid)
-                if not isinstance(vals, AnalyticModelBase.numeric_types):
+                if not isinstance(vals, AnalyticModelBase.get_numeric_types()):
                     vals = np.array(vals)
                 return vals
 
@@ -626,7 +638,7 @@ class AnalyticModel:
     def wrap_function(self, expr, transform_coordinates=True, mode=None):
         coord_vec = self.coords
         ndim = len(coord_vec)
-        if isinstance(expr, AnalyticModelBase.numeric_types):
+        if isinstance(expr, AnalyticModelBase.get_numeric_types()):
             if isinstance(expr, np.ndarray):
                 val = expr
             else:
@@ -787,6 +799,7 @@ class AnalyticModel:
             for i in range(order):
                 jac = AnalyticModelBase.take_derivs(jac, crd)
         elif evaluate and self.inverse is not None:
+
                 jac = AnalyticModelBase.dot(self.inverse, self.evaluate(jac, mode=evaluate))
         if evaluate:
             jac = self.evaluate(jac, mode=evaluate)
@@ -814,14 +827,14 @@ class AnalyticModel:
     def g(self, order=0, evaluate=False, lambdify=False):
         # Gmatrix elements will basically involve taking some
         # kind of direct product of coordinate reps
-        J = self.jacobian_inverse(evaluate=evaluate)
+        J_t = self.jacobian_inverse(evaluate=evaluate)
         if self._g is None:
             G = self._base_gmat()
-            J_t = J.transpose()
+            J = J_t.transpose()
             self._g = AnalyticModelBase.dot(AnalyticModelBase.dot(J_t, G), J)
         all_gs = [self._g]
         if order > 0:
-            J_inv = self.jacobian(evaluate=evaluate)
+            J_inv = self.jacobian(evaluate=evaluate).transpose()
             for i in range(order):
                 all_gs.append(AnalyticModelBase.take_derivs(all_gs[-1], self.internal_coordinates))
         if evaluate:
@@ -840,7 +853,7 @@ class AnalyticModel:
         v = self.pot
         all_vs = [v]
         if order > 0:
-            J_inv = self.jacobian(evaluate=evaluate)
+            J_inv = self.jacobian(evaluate=evaluate).transpose()
         for i in range(order):
             all_vs.append(AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates))
         if evaluate:
@@ -865,10 +878,10 @@ class AnalyticModel:
         return [[AnalyticKineticEnergyConstructor.vp(a[1], b[1], coord_types=[a[0], b[0]], target_symbols=targets) for b in symlist] for a in symlist]
         # return [[AnalyticKineticEnergyConstructor.vp(a[1], b[1], coord_types=[a[0], b[0]]) for b in symlist] for a in symlist]
     def vp(self, order=0, evaluate=False, lambdify=False):
-        J_t = self.jacobian()
+        J = self.jacobian()
         if self._u is None:
             U = self._base_u()
-            J = AnalyticModelBase.transpose(J_t)
+            J_t = AnalyticModelBase.transpose(J)
             self._u = 8*AnalyticModelBase.contract(AnalyticModelBase.dot(AnalyticModelBase.dot(J_t, U), J), (0, 1))
         u = self._u
         all_vs = [u]
@@ -894,7 +907,7 @@ class AnalyticModel:
         for v in self.dip:
             all_vs = [v]
             if order > 0:
-                J_inv = self.jacobian(evaluate=evaluate)
+                J_inv = self.jacobian(evaluate=evaluate).transpose()
             for i in range(order):
                 all_vs.append(AnalyticModelBase.take_derivs(all_vs[-1], self.internal_coordinates))
             if evaluate:
@@ -1012,6 +1025,86 @@ class MolecularModel(AnalyticModel):
     @property
     def dipole(self):
         return MolecularModelDipoleFunction(self, self.mol)
+
+    def setup_AIMD(
+            self,
+            timestep=.5,
+            initial_energies=None,
+            initial_displacements=None,
+            displaced_coords=None,
+            track_kinetic_energy=False
+    ):
+
+        mol = self.mol
+        pot_func = self.potential
+
+        return mol.setup_AIMD(
+            pot_func,
+            timestep=timestep,
+            initial_energies=initial_energies,
+            initial_displacements=initial_displacements,
+            displaced_coords=displaced_coords,
+            track_kinetic_energy=track_kinetic_energy
+        )
+
+    def setup_DGB(
+            self,
+            centers,
+            *,
+            masses=None,
+            modes='normal',
+            transformations=None,
+            alphas='auto',
+            cartesians=None,
+            potential_function=None,
+            dipole_function=None,
+            optimize_centers=None,
+            quadrature_degree=None,
+            expansion_degree=None,
+            pairwise_potential_functions=None,
+            internals=False,
+            logger=True,
+            **opts
+    ):
+
+        from ..DGB import DGB
+
+        if internals is True:
+            raise NotImplementedError("internal coordinate DGB support coming soon? hopefully?")
+
+        defaults = dict(
+            alphas=alphas,
+            modes=modes,
+            transformations=transformations,
+            cartesians=cartesians,
+            logger=logger,
+            optimize_centers=optimize_centers,
+            quadrature_degree=quadrature_degree,
+            expansion_degree=expansion_degree,
+            pairwise_potential_functions=pairwise_potential_functions
+        )
+        defaults = {k: v for k, v in defaults.items() if v is not None}
+        opts = dict(defaults, **opts)
+
+        if masses is None:
+            masses = self.mol.atomic_masses
+
+        if potential_function is None:
+            potential_function = self.potential
+        if dipole_function is None:
+            dipole_function = lambda coords, deriv_order=None: (
+                self.dipole(coords)
+                if deriv_order is None else
+                [np.moveaxis(d, -1, 1) for d in self.dipole(coords, deriv_order=deriv_order)]
+        )
+
+        return DGB.construct(
+            centers,
+            potential_function,
+            masses=masses,
+            dipole_function=dipole_function,
+            **opts
+        )
 
 class MolecularModelFunction:
 
