@@ -1219,6 +1219,48 @@ class Molecule(AbstractMolecule):
             values=vals
         )
 
+    def setup_AIMD(self,
+                   potential_function,
+                   timestep=.5,
+                   initial_energies=None,
+                   initial_displacements=None,
+                   displaced_coords=None,
+                   track_kinetic_energy=False
+                   ):
+        from ..AIMD import AIMDSimulator
+
+        if initial_displacements is not None:
+            init_pos = self.get_displaced_coordinates(
+                initial_displacements,
+                which=displaced_coords,
+                internals='reembed'
+            )
+            sim = AIMDSimulator(
+                self.masses,
+                init_pos,
+                lambda c: -potential_function(c, deriv_order=1)[1].reshape(c.shape),
+                timestep=timestep,
+                track_kinetic_energy=track_kinetic_energy
+            )
+        else:
+            self.potential_derivatives = potential_function(self.coords, deriv_order=2)[1:]
+            nms = self.normal_modes.modes.basis
+            sim = AIMDSimulator(
+                self.atomic_masses,
+                [self.coords] * len(initial_energies),
+                lambda c: -potential_function(c, deriv_order=1)[1].reshape(c.shape),
+                velocities=AIMDSimulator.mode_energies_to_velocities(
+                    nms.inverse.T,
+                    self.atomic_masses,
+                    initial_energies,
+                    inverse=nms.matrix.T
+                ),
+                timestep=timestep,
+                track_kinetic_energy=track_kinetic_energy
+            )
+
+        return sim
+
     @property
     def g_matrix(self):
         """

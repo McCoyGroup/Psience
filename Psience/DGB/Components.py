@@ -160,7 +160,6 @@ class DGBEvaluator:
         new_derivs = []
         # rotations = rotations[:, :, :, np.newaxis] # to test shapes
         for n,d in enumerate(derivs):
-            # print("???", d.shape, rotations.shape)
             for _ in range(n):
                 d = nput.vec_tensordot(
                     d, rotations,
@@ -369,29 +368,39 @@ class DGBEvaluator:
         rotas = rot_data["alphas"]
 
         ndim = centers.shape[-1]
-        dets = np.prod(rotas, axis=-1)
         # we prefactor out the 2**ndim
-        rdets = np.prod(alphas[row_inds], axis=-1)
-        cdets = np.prod(alphas[col_inds], axis=-1)  # literally a product of passed in alphas
 
-        L = rot_data['inverse_rotations']  #TODO: make this make more sense...
-        Lt = rot_data['rotations']
+        det_rat = np.prod(
+            np.sort(alphas[row_inds]/rotas, axis=1)
+            * np.flip(np.sort(alphas[col_inds]/rotas, axis=1), axis=1),
+            axis=1
+        )
+
+        thing1 = np.prod(alphas[row_inds]/rotas, axis=1)
+        n = len(alphas)
+        rat_mat = np.zeros((n, n))
+        rat_mat[row_inds, col_inds] = thing1
+
         disps = centers[row_inds] - centers[col_inds]
         C = disps[:, np.newaxis, :] @ rot_data['sum_inverse'] @ disps[:, :, np.newaxis]
         C = C.reshape(disps.shape[0])
 
-        return alphas, rotas, L, Lt, row_inds, col_inds, ndim, rdets, cdets, dets, C
+        return row_inds, col_inds, ndim, det_rat, C
 
     @classmethod
     def _rot_base_S(cls, overlap_data):
 
-        S = np.eye(len(overlap_data['init_centers']))
-        alphas, rotas, L, Lt, row_inds, col_inds, ndim, rdets, cdets, dets, C = \
-            cls._rot_base_S_components(overlap_data)
+        n = len(overlap_data['init_centers'])
+        S = np.eye(n)
+        row_inds, col_inds, ndim, det_rat, C = cls._rot_base_S_components(overlap_data)
 
-        S[row_inds, col_inds] = S[col_inds, row_inds] = (
-                2 ** (ndim / 2) * ((rdets * cdets) / (dets ** 2)) ** (1 / 4) * np.exp(-C / 2)
-        )
+        scaled_rats = ( 2**(ndim/2) ) * ( (det_rat) ** (1 / 4) )
+        exp_terms = np.exp(-C / 2)
+        full_terms = scaled_rats * exp_terms
+
+        S[row_inds, col_inds] = full_terms
+        S[col_inds, row_inds] = S[row_inds, col_inds]
+
         return S
 
     @classmethod
@@ -616,15 +625,15 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
     def evaluate_diagonal_rotated_momentum_contrib(self, overlap_data, masses):
         # polynomial eval is too slow, need to fix in general but this is faster in the meantime
         init_covs = overlap_data['init_covariances']
-        invs = overlap_data['inverse']
+        # invs = overlap_data['inverse']
         si_cov = overlap_data['sum_inverse']
         init_cents = overlap_data['init_centers']
 
         rows, cols = np.triu_indices(len(init_covs))
         diag_inds = np.diag_indices_from(si_cov[0])
         disps = init_cents[cols] - init_cents[rows]
-        shift_mat = (init_covs[rows] @ invs @ init_covs[cols])
-        shift_contrib = (shift_mat @ disps[:, :, np.newaxis])**2
+        # shift_mat = (init_covs[rows] @ invs @ init_covs[cols])
+        shift_contrib = (si_cov @ disps[:, :, np.newaxis])**2
         shift_contrib = shift_contrib.reshape(shift_contrib.shape[:2])
         diag_inds = (slice(None),) + diag_inds
         diag_contrib = si_cov[diag_inds]
@@ -829,12 +838,13 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         B_e, coriolis = self.ci_func(overlap_data['centers'])
         # coriolis[coriolis != 0] = np.sign(coriolis[coriolis != 0])
         coriolis = -self.evaluate_coriolis_contrib(coriolis, overlap_data)
+        B_e = -1/4 * B_e
         # raise Exception(coriolis[0, :3])
 
         watson = np.zeros(base.shape)
         rows, cols = np.triu_indices_from(base)
-        watson[rows, cols] = -B_e
-        watson[cols, rows] = -B_e
+        watson[rows, cols] = B_e
+        watson[cols, rows] = B_e
 
         # print(watson * 219475)
 
@@ -948,17 +958,8 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             if deriv_corrs is not None:
                 _ = []
                 for i,(d1,d2) in enumerate(zip(derivs, deriv_corrs)):
-                    # if i == 0 or self.inds is None:
                     _.append(d1 - d2)
-                    # else:
-                    #     d1 = d1.copy()
-                    #     idx = (slice(None, None, None),)+ np.ix_(*[self.inds,] * i)
-                    #     d1[idx] -= d2
-                    #     _.append(d1)
                 derivs = _
-            #     raise Exception(derivs[2][:5])
-            # else:
-            #     raise Exception(derivs[2][:5])
 
             npts = len(overlap_data['init_centers'])
             pot = cls.tensor_expansion_integrate(
@@ -2158,6 +2159,8 @@ class DGBGaussians:
                             modes=modes
                         )
 
+                gmat_function = coords.gmatrix
+
             elif internals is not None:
                 raise NotImplementedError("internal coordinate mapping not supported yet...")
             else:
@@ -2171,18 +2174,36 @@ class DGBGaussians:
             potential_function = coords.embed_function(potential_function)
 
         if transformations is not None:
+            if gmat_function is None:
+                gmat_function = coords.gmatrix
+            if isinstance(transformations, dict):
+                tf_opts = dict({'gmat_function':gmat_function}, **transformations)
+                transformations = tf_opts['method']
+                del tf_opts['method']
+            else:
+                tf_opts = {'gmat_function':gmat_function}
             if isinstance(transformations, str):
-                if transformations == 'reaction_path':
+                if transformations == 'rpath':
                     transformations = cls.get_reaction_path_transformations(
-                        coords,
+                        coords.coords,
                         potential_function,
-                        masses=masses,
-                        atoms=atoms,
-                        internals=internals,
-                        gmat_function=gmat_function
+                        # masses=masses,
+                        # atoms=atoms,
+                        # internals=internals,
+                        **tf_opts#gmat_function=gmat_function
+                    )
+                elif transformations == 'diag':
+                    transformations = cls.get_hessian_diagonalizing_transformations(
+                        coords.coords,
+                        potential_function,
+                        # masses=masses,
+                        # atoms=atoms,
+                        # internals=internals,
+                        **tf_opts
                     )
                 else:
                     raise ValueError("unknown transformation spec {}".format(modes))
+            transformations = cls.canonicalize_transforms(coords.centers, transformations)
 
         if isinstance(alphas, (str, dict)):
             if isinstance(alphas, str) and alphas == 'auto':
@@ -2274,7 +2295,8 @@ class DGBGaussians:
             coords,
             potential_function,
             gmat_function,
-            stationary_point_norm=1e-6
+            stationary_point_norm=1e-4,
+            sort_alphas=True
     ):
         f_data = potential_function(coords, deriv_order=2)
         if isinstance(f_data, np.ndarray) and f_data.ndim == 3:
@@ -2284,43 +2306,92 @@ class DGBGaussians:
         else:
             pot, grad, hess = f_data
 
+        hess_og = hess
         gmats = gmat_function(coords)
+        # g12 = sp.linalg.fractional_matrix_power(gmats, 1 / 2)
+        # gi12 = sp.linalg.fractional_matrix_power(gmats, -1 / 2)
+
         gvals, gvecs = np.linalg.eigh(gmats)
         if np.any((gvals <= 0).flatten()):
             raise ValueError("bad G-matrix?")
         g12_diags = np.zeros(gvecs.shape)
         diag_ings = (slice(None),) + np.diag_indices_from(gvecs[0])
-        g12_diags[diag_ings] = np.sqrt(g12_diags)
-        g12 = gvecs @ g12_diags @ gvecs.T
+        g12_diags[diag_ings] = np.sqrt(gvals)
+        g12 = gvecs @ g12_diags @ gvecs.transpose(0, 2, 1)
 
-        grad = grad @ g12  # mass-weight
+        grad = np.reshape(grad[:, np.newaxis, :] @ g12, grad.shape) # mass-weight
         hess = g12 @ hess @ g12
 
-
         grad_norms = np.linalg.norm(grad, axis=-1)
-        # stationary_structures = np.where(grad_norms < stationary_point_norm)
-        #
-        # if len(stationary_structures) == 0:
-        #     stationary_structures = np.array([], dtype=int)
-        # else:
-        #     stationary_structures = stationary_structures[0]
-        # non_stationary = np.setdiff1d(np.arange(len(grad_norms)), stationary_structures)
-
         non_stationary = np.where(grad_norms >= stationary_point_norm)
 
         # in this case I'm _only_ projecting out the gradient for whatever that's worth...
         # which...probably has some rotation/translation component which
         # is why I don't get clean zero eigenvectors...
-        rp_mode = grad[non_stationary,] / grad_norms[non_stationary,][:, np.newaxis]
-        proj = nput.vec_outer(rp_mode, rp_mode, axes=[1, 1])
-        hess[non_stationary,] -= proj@hess[non_stationary,]@proj
+        rp_mode = -grad[non_stationary] / grad_norms[non_stationary][:, np.newaxis]
+        proj = np.eye(rp_mode.shape[-1])[np.newaxis] - nput.vec_outer(rp_mode, rp_mode, axes=[1, 1])
+        hess[non_stationary] = proj@hess[non_stationary]@proj
 
-        freqs, g12_tfs = np.eigh(hess) # replace zero tf with mass-weighted rp_mode
+        freqs, g12_tfs = np.linalg.eigh(hess) # replace zero tf with mass-weighted rp_mode
+        # raise Exception(np.sqrt(np.abs(freqs[7:15])) * 219475)
+
+        # g12_diags[diag_ings] = 1 / np.sqrt(gvals)
+        # g12_inv = gvecs @ g12_diags @ gvecs.transpose(0, 2, 1)
+
         tfs = g12 @ g12_tfs
+        tfs[non_stationary, :, 0] = rp_mode
 
-        g12_diags[diag_ings] = 1 / np.sqrt(g12_diags)
-        g12_inv = gvecs @ g12_diags @ gvecs.T
-        inv = g12_tfs.T @ g12_inv
+        # now we calculate the unweighted hessian diagonals to sort by
+        if sort_alphas:
+            tf_hess = tfs.transpose(0, 2, 1) @ hess_og @ tfs
+            diags = np.argsort(np.abs(np.diagonal(tf_hess, axis1=1, axis2=2)), axis=1)
+
+            tfs = tfs[
+                np.arange(tfs.shape[0])[:, np.newaxis, np.newaxis],
+                np.arange(tfs.shape[1])[np.newaxis, :, np.newaxis],
+                diags[:, np.newaxis, :]
+            ]
+
+        inv = np.linalg.inv(tfs) #g12_tfs.transpose(0, 2, 1) @ g12_inv
+
+        return tfs, inv
+
+    @classmethod
+    def get_hessian_diagonalizing_transformations(
+            cls,
+            coords,
+            potential_function,
+            gmat_function
+    ):
+        f_data = potential_function(coords, deriv_order=2)
+        if isinstance(f_data, np.ndarray) and f_data.ndim == 3:
+            hess = f_data
+            grad = potential_function(coords, deriv_order=1)
+            pot = potential_function(coords, deriv_order=1)
+        else:
+            pot, grad, hess = f_data
+
+        hess_og = hess
+        gmats = gmat_function(coords)
+        # g12 = sp.linalg.fractional_matrix_power(gmats, 1 / 2)
+        # gi12 = sp.linalg.fractional_matrix_power(gmats, -1 / 2)
+
+        gvals, gvecs = np.linalg.eigh(gmats)
+        if np.any((gvals <= 0).flatten()):
+            raise ValueError("bad G-matrix?")
+        g12_diags = np.zeros(gvecs.shape)
+        diag_ings = (slice(None),) + np.diag_indices_from(gvecs[0])
+        g12_diags[diag_ings] = np.sqrt(gvals)
+        g12 = gvecs @ g12_diags @ gvecs.transpose(0, 2, 1)
+
+        hess = g12 @ hess @ g12
+
+        _, g12_tfs = np.linalg.eigh(hess)
+
+        tfs = g12 @ g12_tfs
+        g12_diags[diag_ings] = 1 / np.sqrt(gvals)
+        g12_inv = gvecs @ g12_diags @ gvecs.transpose(0, 2, 1)
+        inv = g12_tfs.transpose(0, 2, 1) @ g12_inv
 
         return tfs, inv
 
@@ -2443,10 +2514,8 @@ class DGBGaussians:
         gmats = gmat_function(coords)
 
         # raise Exception(gmats.shape, hess.shape)
-
-        #TODO: support the identity transformation
-        # our transformations are expected to be _linear_
         if transformations is not None:
+            inv, transformations = transformations
             hess = nput.vec_tensordot(
                 nput.vec_tensordot(
                     hess,
@@ -2471,12 +2540,16 @@ class DGBGaussians:
                 shared=1
             )
 
-        # raise Exception(
-        #     np.diagonal(gmats, axis1=1, axis2=2),
-        #     np.diagonal(hess, axis1=1, axis2=2)
-        # )
-
         alphas = scaling * np.sqrt(np.abs(np.diagonal(hess, axis1=1, axis2=2) / np.diagonal(gmats, axis1=1, axis2=2)))
+        # print(hess)
+        # print(
+        #     np.sqrt(np.abs(np.diagonal(hess, axis1=1, axis2=2) / np.diagonal(gmats, axis1=1, axis2=2))) * 219475
+        # )
+        # print(
+        #     np.sum(np.diagonal(hess, axis1=1, axis2=2) * 219475, axis=1)
+        # )
+        #[ 9426.1752331  10317.82470038  9108.73436512  9714.64698828  8579.37664985  9764.6991486   9764.69922505  9197.73091615  9197.73093045 11040.69284146  8823.36978916  9911.15518915  7911.13613538 10086.93927288 10086.93926775  9071.32381428  9071.32391714 11374.03054902  8618.17129632  9967.37235458  7484.76311907 10195.248758   10195.24883265  8970.84073996  8970.84093599 11209.80670989  8524.28409883  9866.77241186  7325.03365781  9995.46064476  9995.46077198  8839.0596967   8839.05989418 10599.3940994   8556.00072571  9632.81612374  7438.73297697  9579.709646    9579.709779    8683.59676335  8683.59680886]
+        #[ 9426.1752331  10317.97352922  9342.83704949 10024.66092923  8579.25827834  9748.71327209  9748.71335084  9210.28053516  9210.28054868 11040.48757709  9044.73381151 10280.23127104  7910.82531061 10003.62991937 10003.62993513  9078.13129445  9078.1314092  11373.51783935  8846.43367466 10397.23539095  7484.34647915 10082.52862084 10082.52870943  8972.7922302   8972.79246371 11210.08657008  8784.25964707 10318.11304479  7324.5703684   9957.98059176  9957.98072257  8823.24924889  8823.24949849 10602.16863697  8879.27410661  9971.67663237  7438.26430876  9726.22755942  9726.22773469  8638.84650038  8638.84655498]
 
         return alphas
 
@@ -2518,9 +2591,9 @@ class DGBGaussians:
     def transformations(self, tf):
         self._transforms = self.canonicalize_transforms(self.alphas, tf)
     @classmethod
-    def canonicalize_transforms(self, alphas, tfs):
-        npts = alphas.shape[0]
-        ndim = alphas.shape[1]
+    def canonicalize_transforms(self, coords, tfs):
+        npts = coords.shape[0]
+        ndim = coords.shape[1]
         if tfs is None:
             return tfs
         if isinstance(tfs, np.ndarray):

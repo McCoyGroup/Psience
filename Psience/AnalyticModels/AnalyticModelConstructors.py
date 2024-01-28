@@ -1034,41 +1034,18 @@ class MolecularModel(AnalyticModel):
             displaced_coords=None,
             track_kinetic_energy=False
     ):
-        from ..AIMD import AIMDSimulator
 
         mol = self.mol
         pot_func = self.potential
-        if initial_displacements is not None:
-            init_pos = mol.get_displaced_coordinates(
-                initial_displacements,
-                which=displaced_coords,
-                internals='reembed'
-            )
-            sim = AIMDSimulator(
-                mol.masses,
-                init_pos,
-                lambda c: -pot_func(c, deriv_order=1)[1].reshape(c.shape),
-                timestep=timestep,
-                track_kinetic_energy=track_kinetic_energy
-            )
-        else:
-            mol.potential_derivatives = pot_func(mol.coords, deriv_order=2)[1:]
-            nms = mol.normal_modes.modes.basis
-            sim = AIMDSimulator(
-                mol.atomic_masses,
-                [mol.coords] * len(initial_energies),
-                lambda c: -pot_func(c, deriv_order=1)[1].reshape(c.shape),
-                velocities=AIMDSimulator.mode_energies_to_velocities(
-                    nms.inverse.T,
-                    mol.atomic_masses,
-                    initial_energies,
-                    inverse=nms.matrix.T
-                ),
-                timestep=timestep,
-                track_kinetic_energy=track_kinetic_energy
-            )
 
-        return sim
+        return mol.setup_AIMD(
+            pot_func,
+            timestep=timestep,
+            initial_energies=initial_energies,
+            initial_displacements=initial_displacements,
+            displaced_coords=displaced_coords,
+            track_kinetic_energy=track_kinetic_energy
+        )
 
     def setup_DGB(
             self,

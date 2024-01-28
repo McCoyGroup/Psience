@@ -431,7 +431,7 @@ class DGB:
             S = np.expand_dims(S, -1)
         return S * pot_mat
 
-    default_solver_mode = 'similarity'
+    default_solver_mode = 'singular_B'
     def diagonalize(self,
                     *,
                     mode=None,
@@ -441,6 +441,9 @@ class DGB:
                     subspace_size=None,
                     min_singular_value=None,
                     nodeless_ground_state=True,
+                    low_rank_energy_cutoff=None,
+                    low_rank_overlap_cutoff=None,
+                    low_rank_shift=None,
                     stable_eigenvalue_epsilon=None
                     ):
 
@@ -450,6 +453,8 @@ class DGB:
                 min_singular_value
             ]):
                 mode = 'classic'
+            elif low_rank_epsilon is not None:
+                mode = 'low-rank'
             elif stable_eigenvalue_epsilon is not None:
                 mode = 'fix-heiberger'
             elif any(x is not None for x in [
@@ -483,6 +488,13 @@ class DGB:
                                                                   similarity_chunk_size=similarity_chunk_size,
                                                                   similar_det_cutoff=similar_det_cutoff
                                                                   )
+
+        elif mode == 'low-rank':
+            eigs, evecs = DGBEigensolver.low_rank_solver(H, self.S, self,
+                                                         low_rank_energy_cutoff=low_rank_energy_cutoff,
+                                                         low_rank_overlap_cutoff=low_rank_overlap_cutoff,
+                                                         low_rank_shift=low_rank_shift
+                                                         )
 
         elif callable(mode):
             eigs, evecs = mode(H, self.S, )

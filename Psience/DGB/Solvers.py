@@ -166,6 +166,56 @@ class DGBEigensolver:
                                         )
 
     @classmethod
+    def low_rank_solver(cls, H, S, hamiltonian,
+                        low_rank_energy_cutoff=None,
+                        low_rank_overlap_cutoff=None,
+                        low_rank_shift=None
+                        ):
+        from McUtils.Data import UnitsData
+
+        if low_rank_energy_cutoff is None:
+            low_rank_energy_cutoff = 1 / UnitsData.hartrees_to_wavenumbers #np.finfo(H.dtype).eps
+        if low_rank_overlap_cutoff is None:
+            low_rank_overlap_cutoff = np.finfo(S.dtype).eps
+        if low_rank_shift is None:
+            low_rank_shift = .5
+
+        eigs, Qs = np.linalg.eigh(S)
+        eigh, Qh = np.linalg.eigh(H + S*low_rank_shift)
+        pos_H = np.abs(eigh) > low_rank_energy_cutoff
+        pos_S = eigs > low_rank_overlap_cutoff
+        if np.min(eigh[pos_H]) < 0:
+            if low_rank_shift > 1e6:
+                raise Exception('low_rank_solver not converging, try alternate method')
+            return cls.low_rank_solver(H, S, hamiltonian,
+                                       low_rank_energy_cutoff=low_rank_energy_cutoff,
+                                       low_rank_shift=2*(low_rank_shift - np.min(eigh[pos_H])),
+                                       low_rank_overlap_cutoff=low_rank_overlap_cutoff
+                                       )
+
+        hamiltonian.logger.log_print(
+            'solving with {} H values and {} overlap functions'.format(
+                np.sum(pos_H),
+                np.sum(pos_S)
+            )
+        )
+
+        Qh = Qh[:, pos_H]
+        eigh = eigh[pos_H]
+        Qs = Qs[:, pos_S]
+        eigs = eigs[pos_S]
+
+        A = Qs.T @ Qh
+        B = np.diag(1/np.sqrt(eigs)) @ A @ np.diag(np.sqrt(eigh))
+        Q, sqrt_engs, _ = np.linalg.svd(B)
+        eng_sort = np.argsort(sqrt_engs)
+        engs = sqrt_engs[eng_sort]**2 - low_rank_shift
+        Q = Q[eng_sort].T
+        Q = Qs @ np.diag(1 / np.sqrt(eigs)) @ Q
+
+        return engs, Q
+
+    @classmethod
     def fix_heiberger(self, H, S, hamiltonian, eps=1e-5):
         # raise NotImplementedError("I think my Fix-Heiberger is broken?"
         #                           "And also potentially not even the right algorithm for this problem"
