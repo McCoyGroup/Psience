@@ -165,61 +165,101 @@ class DGBEigensolver:
 
 
     @classmethod
-    def similarity_mapped_solver(self, H, S, hamiltonian,
+    def similarity_mapped_solver(self, H, S,
+                                 hamiltonian,
                                  similarity_cutoff=None,
                                  similarity_chunk_size=None,
                                  similar_det_cutoff=None
                                  ):
 
+
         subspace_size = self.get_eigensimilarity_subspace_size(H, S,
-                                                               similarity_cutoff=similarity_cutoff,
-                                                               similarity_chunk_size=similarity_chunk_size,
-                                                               similar_det_cutoff=similar_det_cutoff
-                                                               )
+                                               similarity_cutoff=similarity_cutoff,
+                                               similarity_chunk_size=similarity_chunk_size,
+                                               similar_det_cutoff=similar_det_cutoff
+                                               )
+
         hamiltonian.logger.log_print(
-            'diagonalizing in the space of {} S functions'.format(subspace_size)
+            'diagonalizing in the space of {} S functions'.format(np.sum(subspace_size))
         )
 
         eigh, Qh = np.linalg.eigh(H)
-        nz_pos = eigh > 1e-12
-        eigh = eigh[nz_pos]
-        Qh = Qh[:, nz_pos]
-        # eigh = eigh[-subspace_size:]
-        # Qh = Qh[:, -subspace_size:]
 
         eigs, Qs = np.linalg.eigh(S)
-        # nz_pos = eigs > 1e-12
-        # Qs = Qs[:, nz_pos]
-        # eigs = eigs[nz_pos]
         Qs = Qs[:, -subspace_size:]
         eigs = eigs[-subspace_size:]
 
-        """
-        :: diagonalizing in the space of 88 S functions
-        :: ZPE: 4627.143284279224
-        :: Frequencies: [1659.46343811 3401.32797519 3688.6687488  3752.84405667 5154.42477107 5424.62470881 5526.56164122 6968.88503612 7173.38910014 7254.43404221]
-        """
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 70 S functions
-        :: ZPE: 4620.189695885498
-        :: Frequencies: [1595.59517799 3162.04373499 3661.70258787 3751.92085628 4664.24007898 5254.96635378 5352.68042066 6159.10576567 6822.90084523 6927.82408459]
-        >>--------------------------------------------------<<
-        """
+        A = Qs.T @ Qh
+
+        D = np.diag(1 / np.sqrt(eigs))
+        C = D @ A @ np.diag(eigh) @ A.T @ D
+
+        engs, Q = np.linalg.eigh(C)
+        # if shift is not None:
+        #     engs = engs - shift
+        #
+        # nz_pos = np.abs(engs) > 1e-12
+        # engs = engs[nz_pos]
+        # Q = Q[:, nz_pos]
+
+        return engs, Qs @ D @ Q
+
+
+    default_shift = 2
+    @classmethod
+    def shift_similarity_solver(self, H, S,
+                                 hamiltonian,
+                                 similarity_cutoff=None,
+                                 similarity_chunk_size=None,
+                                 similar_det_cutoff=None,
+                                 similarity_shift=None
+                                 ):
+        if similarity_shift is None:
+            similarity_shift = self.default_shift
+
+        eigs, Qs = np.linalg.eigh(S)
+        match_pos = np.full(len(S), True)
+        subspace_size = len(S)
+        shift = 0
+        for shift in range(similarity_shift+1):
+            shift_H = H + S * shift
+            subspace_size = min(
+                subspace_size,
+                self.get_eigensimilarity_subspace_size(
+                    shift_H, S,
+                    similarity_cutoff=similarity_cutoff,
+                    similarity_chunk_size=similarity_chunk_size,
+                    similar_det_cutoff=similar_det_cutoff
+                )
+            )
+            eigh, Qh = np.linalg.eigh(shift_H)
+            A = Qs.T @ Qh
+            match_pos = np.logical_and(match_pos, np.abs(np.diag(A)) > .9)
+
+        eigh, Qh = np.linalg.eigh(H + S * similarity_shift)
+        match_pos[:-subspace_size] = False
+
+        hamiltonian.logger.log_print(
+            'diagonalizing in the space of {} common eigenfunctions'.format(np.sum(match_pos))
+        )
+
+        eigh = eigh[match_pos]
+        Qh = Qh[:, match_pos]
+        Qs = Qs[:, match_pos]
+        eigs = eigs[match_pos]
 
         A = Qs.T @ Qh
         D = np.diag(1 / np.sqrt(eigs))
         C = D @ A @ np.diag(eigh) @ A.T @ D
 
         engs, Q = np.linalg.eigh(C)
+        engs = engs - similarity_shift
 
         nz_pos = np.abs(engs) > 1e-12
         engs = engs[nz_pos]
         Q = Q[:, nz_pos]
 
         return engs, Qs @ D @ Q
-
-
     @classmethod
     def low_rank_solver(cls, H, S, hamiltonian,
                         low_rank_energy_cutoff=None,

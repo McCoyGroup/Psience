@@ -2711,7 +2711,7 @@ class DGBTests(TestCase):
             os.makedirs(base_dir, exist_ok=True)
             timestep = 15
             energy_scaling = .5
-            use_interpolation = False
+            use_interpolation = True
             plot_interpolation_error = False
             expansion_degree = 2
             """
@@ -2948,12 +2948,20 @@ class DGBTests(TestCase):
                                 # mode='classic',
                                 # mode='low-rank',
                                 mode='similarity',
+                                # mode='shift',
                                 # subspace_size=15,
                                 # min_singular_value=1e-8,
                                 # plot_wavefunctions=False,
                                 plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True,
                                 plot_spectrum=False
                                 )
+                    """
+                    >>------------------------- Running distributed Gaussian basis calculation -------------------------
+                    :: diagonalizing in the space of 32 S functions
+                    :: ZPE: 4633.1867835839475
+                    :: Frequencies: [1789.11218424 3330.51867228 3693.06895437 3862.31786553 5234.69871183 5926.27380646 6192.74317367 6574.24209997 7316.04560456 7513.18998006]
+                    >>--------------------------------------------------<<
+                    """
 
     @validationTest
     def test_Expansion(self):

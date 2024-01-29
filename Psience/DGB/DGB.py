@@ -469,6 +469,7 @@ class DGB:
                     similarity_cutoff=None,
                     similarity_chunk_size=None,
                     similar_det_cutoff=None,
+                    similarity_shift=None,
                     subspace_size=None,
                     min_singular_value=None,
                     nodeless_ground_state=True,
@@ -487,11 +488,13 @@ class DGB:
             elif any(x is not None for x in [
                 low_rank_energy_cutoff,
                 low_rank_overlap_cutoff,
-                low_rank_shift,
+                low_rank_shift
             ]):
                 mode = 'low-rank'
             elif stable_eigenvalue_epsilon is not None:
                 mode = 'fix-heiberger'
+            elif similarity_shift is not None:
+                mode = 'shift'
             elif any(x is not None for x in [
                 similarity_cutoff,
                 similarity_chunk_size,
@@ -523,6 +526,13 @@ class DGB:
                                                                   similarity_chunk_size=similarity_chunk_size,
                                                                   similar_det_cutoff=similar_det_cutoff
                                                                   )
+        elif mode == 'shift':
+            eigs, evecs = DGBEigensolver.shift_similarity_solver(H, self.S, self,
+                                                                 similarity_cutoff=similarity_cutoff,
+                                                                 similarity_chunk_size=similarity_chunk_size,
+                                                                 similar_det_cutoff=similar_det_cutoff,
+                                                                 similarity_shift=similarity_shift
+                                                                 )
 
         elif mode == 'low-rank':
             eigs, evecs = DGBEigensolver.low_rank_solver(H, self.S, self,
