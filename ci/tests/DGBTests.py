@@ -433,12 +433,12 @@ class DGBTests(TestCase):
         potential_params={}
         if wx is not None:
             potential_params[r1]={'morse':{'w':w, 'wx':wx}}
-        elif w is None:
-            raise ValueError(...)
-        else:
+        elif w is not None:
             potential_params[r1]={'harmonic':{'k':w}}
         if wx2 is not None:
             potential_params[r2]={'morse':{'w':w2, 'wx':wx2}}
+        elif w2 is not None:
+            potential_params[r2]={'harmonic':{'k':w2}}
         elif w2 is not None:
             potential_params[r2]={'harmonic':{'k':w2}}
         if ka is not None:
@@ -1634,6 +1634,45 @@ class DGBTests(TestCase):
 
         return figure
 
+    @classmethod
+    def plot_gaussians(cls, dgb, mol, nmax=10, start_at=0, sel=None):
+        n = len(dgb.gaussians.coords.centers)
+        wfns = DGBWavefunctions(
+            np.zeros(n),
+            np.eye(n),
+            dgb
+        )
+        if sel is not None:
+            subdgb_coords = dgb.gaussians.coords[:, sel]
+            subpot = subdgb_coords.embed_function(dgb.pot.potential_function.og_fn)
+        else:
+            subdgb_coords = dgb.gaussians.coords  # [:, [0, 1]]
+            subpot = dgb.pot.potential_function  # subdgb_coords.embed_function(dgb.pot.potential_function.og_fn)
+        for i in range(start_at, min(n, nmax)):
+            figure = cls.plot_dgb_potential(
+                subdgb_coords, mol, subpot
+            )
+            wf = wfns[i]
+            if sel is not None:
+                wf = wf.project(sel)
+            plot = wf.plot(
+                plotter=plt.TriContourLinesPlot,
+                domain_padding=2,
+                cmap='RdBu',
+                figure=figure,
+                plot_centers={'color': 'red'}
+            )
+            plot.show()
+
+        # wfns = wfns.as_cartesian_wavefunction()
+        # wfns[12].plot_cartesians(
+        #     [0, 1],
+        #     contour_levels=16,
+        #     # cmap='RdBu',
+        #     plot_centers={'color': 'red'},
+        #     domain_padding=.5,
+        # ).show()
+
     default_num_plot_wfns = 4
     @classmethod
     def runDGB(cls,
@@ -2133,30 +2172,21 @@ class DGBTests(TestCase):
         # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
         # raise Exception(mol.coords, mol.normal_modes.modes)
 
+        bend, symm, asymm = model.normal_modes()[0]
         sim = model.setup_AIMD(
             initial_energies=np.array([
-                [5000, 7000, 0],
-                [5000, -7000, 0],
-                [-5000, 7000, 0],
-                [-5000, -7000, 0],
-                # [5000, 0, 7000],
-                # [5000, 0, -7000],
-                # [-5000, 0, 7000],
-                # [-5000, 0, -7000],
-                # [2000 * self.w2h, 0],
-                # [0, 2000 * self.w2h],
-                # [-2000 * self.w2h, 0],
-                # [0, -2000 * self.w2h],
-                # [-15000 * self.w2h, -15000 * self.w2h],
-                # [15000 * self.w2h, -15000 * self.w2h],
-                # [10000 * self.w2h, 0],
-                # [0, 10000 * self.w2h],
-                # [-10000 * self.w2h, 0],
-                # [0, -10000 * self.w2h]
-            ]) * self.w2h * .6,
+                [ bend,  symm, 0],
+                [ bend, -symm, 0],
+                [-bend,  symm, 0],
+                [-bend, -symm, 0],
+                [ bend, 0,  asymm],
+                [ bend, 0, -asymm],
+                [-bend, 0,  asymm],
+                [-bend, 0, -asymm]
+            ]),
             timestep=15
         )
-        sim.propagate(25)
+        sim.propagate(5)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
         cartesians = False
@@ -2169,40 +2199,86 @@ class DGBTests(TestCase):
                 modes=None if cartesians else 'normal',
                 coordinate_selection=[0, 1],
                 cartesians=[0, 1] if cartesians else None,
-                # quadrature_degree=3,
-                expansion_degree=2,
+                quadrature_degree=3,
+                # expansion_degree=2,
                 # pairwise_potential_functions={
-                #     (0, 1):self.setupMorseFunction(model),
-                #     (0, 2):self.setupMorseFunction(model)
+                #     (0, 1): self.setupMorseFunction(model, 0, 1),
+                #     (0, 2): self.setupMorseFunction(model, 0, 2)
                 # }
             )
 
+            # submol, submodel_stretch = self.buildWaterModel(
+            #     # w2=None, wx2=None,
+            #     ka=None
+            # )
+            # submol, submodel_bend = self.buildWaterModel(
+            #     w=0, wx=None,
+            #     w2=0, wx2=None,
+            #     # ka=None,
+            # )
 
-            """   
-            With Quad
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 58
-            :: ZPE: 2665.6069779880036
-            :: Frequencies: [1608.49531299 3207.00175911 3760.4494808  4795.42751905 5368.63162422 6382.41680842 6974.3954701  7442.50599982 7963.37554881 8596.58017647]
-            >>--------------------------------------------------<<
-            Without PPF
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 48
-            :: ZPE: 2662.2066836743475
-            :: Frequencies: [1608.79009118 3205.20733975 3753.24022201 4618.98702262 4798.93963596 5370.90878283 6389.45983026 6990.67524802 7438.15809096 8073.02852093]
-            >>--------------------------------------------------<<
-            With PPF
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 49
-            :: ZPE: 2667.2411724861367
-            :: Frequencies: [1608.36613953 3207.67172337 3761.47812863 4798.06900587 5371.76199962 6383.85193216 6978.04577871 7443.66050022 8033.8198696  8648.9380281 ]
-            >>--------------------------------------------------<<
+            # print(
+            #     dgb.evaluate_multiplicative_operator(
+            #         submodel_bend.potential,
+            #         quadrature_degree=4
+            #     )[:5, :5]
+            # )
+            # print(
+            #     dgb.evaluate_multiplicative_operator(
+            #         submodel_bend.potential,
+            #         expansion_degree=2
+            #     )[:5, :5]
+            # )
+            #     dgb.evaluate_multiplicative_operator(
+            #         submodel_stretch.potential,
+            #         expansion_degree=2,
+            #         pairwise_functions={
+            #             (0, 1): self.setupMorseFunction(model, 0, 1),
+            #             (0, 2): self.setupMorseFunction(model, 0, 2)
+            #         }
+            #     )[:5, :5]
+
+            # print(
+            #     dgb.evaluate_multiplicative_operator(
+            #         submodel_stretch.potential,
+            #         quadrature_degree=3
+            #     )[:5, :5] -
+            #     dgb.evaluate_multiplicative_operator(
+            #         submodel_stretch.potential,
+            #         expansion_degree=2,
+            #         pairwise_functions={
+            #             (0, 1): self.setupMorseFunction(model, 0, 1),
+            #             (0, 2): self.setupMorseFunction(model, 0, 2)
+            #         }
+            #     )[:5, :5]
+            # )
+            raise Exception(...)
+
+            """
+>>------------------------- Running distributed Gaussian basis calculation -------------------------
+:: diagonalizing in the space of 27 S functions
+:: ZPE: 2703.0532865370874
+:: Frequencies: [ 1611.61510053  3215.4525035   3761.65133913  4822.94422724  5383.49202567  6528.60083868  7121.5055917   7461.58631351  8451.7611391   8802.65305029  9126.15952187 10068.00946755 10655.33557818 11035.91654539 11686.79214732 12368.50320681 12618.40116626 13452.85838251 13927.47046538 14512.77618706]
+>>--------------------------------------------------<<
+[[0.00623843 0.00730029 0.00521558 0.00503987 0.00518823]
+ [0.00730029 0.03210892 0.00082444 0.0032473  0.01149502]
+ [0.00521558 0.00082444 0.02563066 0.00815058 0.00171581]
+ [0.00503987 0.0032473  0.00815058 0.01458135 0.00088887]
+ [0.00518823 0.01149502 0.00171581 0.00088887 0.01424601]]
+ 
+            evauating integrals with 3-order quadrature
+[[0.00624626 0.00731284 0.00521744 0.00504326 0.00519344]
+ [0.00731284 0.03218069 0.00082591 0.00325166 0.0115091 ]
+ [0.00521744 0.00082591 0.0256305  0.00815148 0.00171665]
+ [0.00504326 0.00325166 0.00815148 0.01458469 0.00088981]
+ [0.00519344 0.0115091  0.00171665 0.00088981 0.01425408]]
+ 
+            
             """
 
             # type(self).default_num_plot_wfns = 5
             type(self).default_num_plot_wfns = 1
             self.runDGB(dgb, mol,
-                        similarity_chunk_size=5,
                         # vmin=-.05,
                         # vmax=.05,
                         # domain=[[-2, 2], [-2, 2]],
@@ -2345,26 +2421,10 @@ class DGBTests(TestCase):
                 [ bend,     0,  -asymm ],
                 [-bend,     0,   asymm ],
                 [-bend,     0,  -asymm ],
-                # [2000 * self.w2h, 0],
-                # [0, 2000 * self.w2h],
-                # [-2000 * self.w2h, 0],
-                # [0, -2000 * self.w2h],
-                # [-15000 * self.w2h, -15000 * self.w2h],
-                # [15000 * self.w2h, -15000 * self.w2h],
-                # [10000 * self.w2h, 0],
-                # [0, 10000 * self.w2h],
-                # [-10000 * self.w2h, 0],
-                # [0, -10000 * self.w2h]
-            ]),
-            timestep=15
+            ]) * 1,
+            timestep=25
         )
-        """
-        [1605.27547112 3210.58498718 3687.20984666 3750.87383729 4825.00225884 5316.9611108  5344.99936661 6511.87484075 6993.83144916 7051.98397061 7297.68439455 7425.72867464 7487.23041291 8118.60784588 8613.38360024 8852.75834549 8940.63294328 9080.05330755 9225.41160753 9913.73496595]
-:: ZPE: 4611.468966193237
-:: Frequencies: [ 1605.94658377  3206.37245333  3685.34258094  3732.26513467  4806.92345926  5321.33024665  5344.44902313  6591.49732037  7049.81907333  7072.8573488   7279.98660134  7322.80308786  7439.51070313  8162.05518684  8645.00114331  8806.57747787  9056.42649328  9165.55764871  9218.4399869  10111.698453  ]
-::
-"""
-        sim.propagate(5)
+        sim.propagate(50)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
         cartesians = False
@@ -2377,13 +2437,32 @@ class DGBTests(TestCase):
                 # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
-                quadrature_degree=3,
-                expansion_degree=2,
-                pairwise_potential_functions={
+                quadrature_degree=3
+                , expansion_degree=2
+                , pairwise_potential_functions={
                     (0, 1):self.setupMorseFunction(model, 0, 1),
                     (0, 2):self.setupMorseFunction(model, 0, 2)
                 }
+                # , transformations='rpath'
             )
+            """
+:: Frequencies: [ 1606.04398643  3203.03310159  3685.34862258  3738.74287391  4793.90719966  5294.51465371  5441.83319743  6368.74936907  6897.96314659  7005.01819851  7249.80830155  7360.16047311  7431.34755425  7985.07506675  8551.6928765   8903.54696483  9020.59130755  9103.48138105  9602.78898059 10232.82135916]
+:: Frequencies: [ 1608.41313673  3239.61401526  3710.02372634  3758.81347846  4854.21099631  5370.00286357  5381.08466907  6495.23455671  7004.90881596  7173.2915287   7327.63673783  7520.26710471  7532.69156963  8277.64820314  8707.42817128  9060.40462666  9165.04086982  9261.42666211 10315.91471871 10565.95901923]
+:: Frequencies: [ 1604.61062111  3204.26914032  3685.10826096  3751.14192179  4796.73718288  5295.2878468   5418.7770799   6376.63994899  6903.69592161  7007.69018312  7270.21279143  7485.78951942  7493.77818095  7971.45014026  8543.23054522  8907.55244911  8948.42228237  9097.5793915   9617.90689249 10231.09936479]
+
+"""
+
+            plot_gaussians = False
+            if plot_gaussians:
+                self.plot_gaussians(dgb, mol, 10, sel=[0, 1])
+                raise Exception(...)
+
+            # print(dgb.gaussians.alphas[:3])
+            # print(dgb.gaussians.coords.centers[:3])
+            # print(dgb.gaussians.transformations[0][:3])
+            # print(dgb.S[0, :3])
+            # print(dgb.T[0, :3])
+            # raise Exception(...)
 
             # type(self).default_num_plot_wfns = 5
             type(self).default_num_plot_wfns = 5
@@ -2395,6 +2474,7 @@ class DGBTests(TestCase):
                         # plot_wavefunctions=False,
                         plot_centers=False,
                         plot_spectrum=False,
+                        # plot_wavefunctions=False,
                         plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
                         )
 
@@ -2867,31 +2947,11 @@ class DGBTests(TestCase):
 
                     plot_gaussians = False
                     if plot_gaussians:
-                        n = len(dgb.gaussians.coords.centers)
-                        wfns = DGBWavefunctions(
-                            np.zeros(n),
-                            np.eye(n),
-                            dgb
-                        )
-
-                        subdgb_coords = dgb.gaussians.coords#[:, [0, 1]]
-                        subpot = dgb.pot.potential_function#subdgb_coords.embed_function(dgb.pot.potential_function.og_fn)
-                        for i in range(n):
-                            figure = self.plot_dgb_potential(
-                                subdgb_coords, mol, subpot
-                            )
-
-                            plot = wfns[i].plot(
-                                plotter=plt.TriContourLinesPlot,
-                                domain_padding=2,
-                                cmap='RdBu',
-                                figure = figure,
-                                plot_centers={'color': 'red'}
-                            )
-                            if plot_dir is not None:
-                                plot.savefig(os.path.join(plot_dir, f'basis_func_{i}.png'))
-                            else:
-                                plot.show()
+                        self.plot_gaussians(dgb, mol, 10)
+                        # if plot_dir is not None:
+                        #     plot.savefig(os.path.join(plot_dir, f'basis_func_{i}.png'))
+                        # else:
+                        #     plot.show()
 
                         # wfns = wfns.as_cartesian_wavefunction()
                         # wfns[12].plot_cartesians(

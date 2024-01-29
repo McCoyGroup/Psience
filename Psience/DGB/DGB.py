@@ -74,6 +74,7 @@ class DGB:
     def run(self,
             quiet=False,
             calculate_spectrum=True,
+            dipole_degree=0,
             num_print=20,
             **wavefunction_options
             ):
@@ -99,7 +100,9 @@ class DGB:
                     freqs = freqs[:num_print]
                 logger.log_print('Frequencies: {freqs}', freqs=freqs * UnitsData.hartrees_to_wavenumbers)
                 if calculate_spectrum and wfns.dipole_function is not None:
-                    spec = wfns.get_spectrum()
+                    spec = wfns.get_spectrum(
+                        expansion_degree=dipole_degree
+                    )
                     ints = spec.intensities
                     if len(ints) > num_print:
                         ints = ints[:num_print]
@@ -438,26 +441,27 @@ class DGB:
 
     def evaluate_multiplicative_operator(self,
                                          function,
+                                         embed=True,
                                          expansion_degree=None,
                                          expansion_type=None,
-                                         quadrature_degree=None
-                                         # pairwise_functions=None # integrate out pairwise contribution
+                                         quadrature_degree=None,
+                                         pairwise_functions=None # integrate out pairwise contribution
                                          ):
+
+        if embed:
+            function = self.gaussians.coords.embed_function(function)
+            if pairwise_functions is not None:
+                pairwise_functions = self.gaussians.coords.pairwise_potential_evaluator(pairwise_functions)
 
         pot_mat = self.pot.evaluate_op(
             function,
             self.gaussians.overlap_data,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
-            quadrature_degree=quadrature_degree
+            quadrature_degree=quadrature_degree,
+            pairwise_functions=pairwise_functions
         )
 
-        # with np.printoptions(linewidth=1e8):
-        #     print(pot_mat)
-
-        # if self._scaling_S is None:
-        #     _ = self.S
-        # S = self._scaling_S
         S = self.S
         for _ in range(pot_mat.ndim - 2):
             S = np.expand_dims(S, -1)

@@ -348,8 +348,8 @@ class DGBEvaluator:
             function,
             overlap_data['alphas'],
             overlap_data['centers'],
-            overlap_data['rotations'],
             overlap_data['inverse_rotations'],
+            overlap_data['rotations'],
             degree=degree,
             normalize=False
         )
@@ -850,8 +850,6 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         watson[rows, cols] = B_e
         watson[cols, rows] = B_e
 
-        # print(watson * 219475)
-
         ke = base + watson + coriolis
 
         return ke
@@ -1067,17 +1065,18 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
                     expansion_degree=None,
                     expansion_type=None,
                     quadrature_degree=None,
-                    # pairwise_functions=None,
+                    pairwise_functions=None,
                     logger=None
                     ):
+        no_type_passed = expansion_degree is None and quadrature_degree is None
         return self.evaluate_multiplicative(
             operator,
             overlap_data,
             integral_handler=self.handler if integral_handler is None else integral_handler,
-            quadrature_degree=self.quadrature_degree if quadrature_degree is None else quadrature_degree,
-            expansion_degree=self.expansion_degree if expansion_degree is None else expansion_degree,
+            quadrature_degree=self.quadrature_degree if no_type_passed else quadrature_degree,
+            expansion_degree=self.expansion_degree if no_type_passed else expansion_degree,
             expansion_type=self.expansion_type if expansion_type is None else expansion_type,
-            # pairwise_functions=pairwise_functions
+            pairwise_functions=pairwise_functions,
             logger=self.logger if logger is None else logger
         )
 
@@ -1200,7 +1199,10 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
 
     def get_bond_length_change_transformation(self, overlap_data, i, j) -> np.ndarray:
         d0, base_proj = self.get_coordinate_bond_length_projection(i, j)
-        proj_data = base_proj[np.newaxis] @ overlap_data['rotations'] # not sure if we need a .T or not...
+        proj_data = np.broadcast_to(
+            base_proj[np.newaxis],
+            (len(overlap_data['rotations']),) + base_proj.shape
+        ) #@ overlap_data['rotations'].transpose(0, 2, 1) # not sure if we need a .T or not...
         return self.get_coordinate_change_transformation(proj_data)
 
     def wrap_distance_function(self, i, j, overlap_data, transformations, pairwise_function):
@@ -1299,17 +1301,11 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
             tf_cov = np.linalg.inv(tfs @ covs @ tfsT)
 
             tf_alphas, tf_vecs = np.linalg.eigh(tf_cov)
-            tf_alphas = tf_alphas / 2 # baked into the covariences...
+            tf_alphas = tf_alphas / 2 # baked into the covariances...
             ndim = tf_alphas.shape[1]
 
             tf_centers = tfs @ centers[:, :, np.newaxis]
             tf_centers = tf_centers.reshape(tf_centers.shape[:2])
-
-            # # we have, in principle, scaling = sqrt(pi^(d - k) |A| / |A_r| )
-            # #           but in this |A| = prod(alphas*2)
-            # #                       |A_r| = prod(tf_alphas*2)
-            # tf_rats = np.prod(alphas[:, :ndim] / tf_alphas, axis=1) * np.prod(alphas[:, ndim:], axis=1)
-            # # scaling = np.sqrt( tf_rats * (2*np.pi)**(alphas.shape[1] - ndim) ) # accounting for prefactor
 
             pairwise_contrib = self.rotated_gaussian_quadrature(
                 f,
@@ -1320,16 +1316,6 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
                 degree=quadrature_degree,
                 normalize=False
             )
-
-            # pairwise_contrib = self.quad_nd(
-            #     tf_centers,
-            #     tf_alphas,
-            #     f,
-            #     degree=quadrature_degree,
-            #     normalize=False
-            # ) / np.sqrt(np.pi**ndim)
-            #
-            # print(pairwise_contrib[:3])
 
             potential_contrib += pairwise_contrib
 
@@ -1377,17 +1363,9 @@ class DGBWatsonPairwiseEvaluator(DGBPairwisePotentialEvaluator):
     def get_coordinate_bond_length_projection(self, i, j):
         natoms = len(self.coords.masses)
         modes = self.coords.modes.matrix
-        # invs = self.coords.modes.inverse
         ndim = modes.shape[0] // natoms # this will almost always be 3
         base_mat = self.get_bond_length_deltas(natoms, ndim, i, j)
         tf_base = base_mat @ modes
-        # print("="*50)
-        # print(base_mat)
-        # print([modes, self.coords.modes.origin])
-        # print(tf_base)
-        # print("-"*50)
-        # inverse_base = base_mat.T / 2
-        # tf_inv = invs @ inverse_base
         d0 = np.dot(base_mat, self.coords.modes.origin.reshape(-1))
         return d0, tf_base
 
@@ -2502,6 +2480,7 @@ class DGBGaussians:
 
         inv = np.linalg.inv(tfs) #g12_tfs.transpose(0, 2, 1) @ g12_inv
 
+        # return inv.transpose(0, 2, 1), tfs.transpose(0, 2, 1)
         return tfs, inv
 
     @classmethod
@@ -2541,7 +2520,8 @@ class DGBGaussians:
         g12_inv = gvecs @ g12_diags @ gvecs.transpose(0, 2, 1)
         inv = g12_tfs.transpose(0, 2, 1) @ g12_inv
 
-        return tfs, inv
+        # return tfs, inv
+        return inv.transpose(0, 2, 1), tfs.transpose(0, 2, 1)
 
     @staticmethod
     def _filter_alpha_method_keys(method, opts, necessary_keys, optional_keys):
