@@ -2706,12 +2706,12 @@ class DGBTests(TestCase):
 
         plot_dir = None
         save_plots = False
-        for steps in [25]:#[10, 25, 50, 100, 150]:
+        for steps in [50]:#[10, 25, 50, 100, 150]:
             base_dir = os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/water_new/')
             os.makedirs(base_dir, exist_ok=True)
             timestep = 15
             energy_scaling = .5
-            use_interpolation = True
+            use_interpolation = False
             plot_interpolation_error = False
             expansion_degree = 2
             """
@@ -2721,12 +2721,12 @@ class DGBTests(TestCase):
             :: Frequencies: [1593.86729935 3153.6031855  3660.4136428  3749.92628717 4676.219029   5242.7159497  5332.60575091 6145.67489704 6791.17513342 6903.2729926 ]
             >>--------------------------------------------------<<
             >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 11
-            :: ZPE: 4636.449043117227
-            :: Frequencies: [ 1591.43611607  3136.82117841  3708.06547867  3873.64731985  4814.08609681  5756.89866931  7162.10513832  7659.79286697  8601.97176244 10060.71043372]
+            :: solving with subspace size 30
+            :: ZPE: 4617.157406598748
+            :: Frequencies: [1630.41508096 3208.43124442 3682.96460732 3705.40503891 4883.56394947 5406.96973482 5547.66212896 6697.58943762 7070.89605363 7170.57550516]
             >>--------------------------------------------------<<
             """
-            interp_traj_file='traj_10000_50_2_12.hdf5'
+            interp_traj_file='traj_50000_10_1_12.hdf5'
             initial_energies = [
                             [ bend,  symm,  asym],
                             [ bend,  symm, -asym],
@@ -2734,12 +2734,12 @@ class DGBTests(TestCase):
                             [ bend, -symm, -asym],
                             [ bend, -symm,     0],
                             [ bend,  symm,     0],
-                            [ bend,     0,     0],
-                            [-bend,     0,     0],
-                            [    0,  symm,     0],
-                            [    0, -symm,     0],
-                            [    0,     0,  asym],
-                            [    0,     0, -asym]
+                            [    0,  symm*2,     0],
+                            [    0, -symm*2,     0],
+                            [ bend, -asym,     0],
+                            [ bend,  asym,     0],
+                            [    0,     0,  asym*2],
+                            [    0,     0, -asym*2]
                         ]
             ninit = len(initial_energies)
             with Checkpointer.from_file(os.path.join(base_dir, f'traj_{steps}_{timestep}_{energy_scaling}_{ninit}.hdf5')) as chk:
