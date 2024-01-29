@@ -3,8 +3,9 @@ import abc
 import math
 
 import numpy as np, scipy as sp, itertools, functools
+import scipy.interpolate
 
-from McUtils.Zachary import InverseDistanceWeightedInterpolator, DensePolynomial, TensorDerivativeConverter
+from McUtils.Zachary import InverseDistanceWeightedInterpolator, RBFDInterpolator, DensePolynomial, TensorDerivativeConverter
 from McUtils.Coordinerds import CartesianCoordinates1D, CartesianCoordinates2D, CartesianCoordinates3D
 from McUtils.Scaffolding import Logger
 from McUtils.Data import AtomData, UnitsData
@@ -20,6 +21,9 @@ __all__ = [
     "DGBWatsonEvaluator",
     "DGBPotentialEnergyEvaluator",
     "DGBPairwisePotentialEvaluator",
+    "DGBGenericInterpolator",
+    "DGBWatsonInterpolator",
+    "DGBCartesianWatsonInterpolator",
     "DGBCoords",
     "DGBCartesians",
     "DGBInternals",
@@ -1077,19 +1081,80 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             logger=self.logger if logger is None else logger
         )
 
-class DGBInterpolator:
-
-    def __init__(self, centers, potential_derivatives, **opts):
+class DGBInterpolator(metaclass=abc.ABCMeta):
+    def __init__(self, centers, potential_derivatives, neighborhood_size=15, **opts):
         self.centers = centers
         self.derivs = potential_derivatives
-        self.opts = opts
+        self.opts = dict(opts, neighborhood_size=neighborhood_size)
+    @abc.abstractmethod
+    def __call__(self, points, deriv_order=None, **kwargs) -> 'np.ndarray | list[np.ndarray]':
+        ...
+class DGBGenericInterpolator(DGBInterpolator):
+
+    def __init__(self, centers, potential_derivatives, **opts):
+        super().__init__(centers, potential_derivatives, **opts)
         self.interp = InverseDistanceWeightedInterpolator(
             self.centers,
             *self.derivs,
+            **self.opts
+        )
+    def __call__(self, points, deriv_order=None, **kwargs):
+        just_vals = deriv_order is None
+        if deriv_order is None: deriv_order = 0
+        hess_interp = self.interp(points.reshape(points.shape[0], -1), deriv_order=deriv_order, **kwargs)
+        if just_vals:
+            return hess_interp[0]
+        else:
+            return hess_interp
+
+class DGBWatsonInterpolator(DGBInterpolator):
+    def __init__(self, centers, potential_derivatives, modes, **opts):
+        super().__init__(centers, potential_derivatives, **opts)
+        self.modes = modes
+        self.adjusted_derivs = self.take_remainder_potential(centers, potential_derivatives, modes)
+        self.interp = InverseDistanceWeightedInterpolator(
+                self.centers,
+                *self.adjusted_derivs,
+                **self.opts
+            )
+    def take_remainder_potential(self, centers, potential_derivatives, modes):
+        freqs = modes.freqs
+        harmonic_contribs = np.dot(centers**2, freqs**2) / 2
+        harmonic_deriv = np.diag(freqs**2)
+        remainder_vals = potential_derivatives[0] - harmonic_contribs
+        remainder_hess = potential_derivatives[2] - harmonic_deriv[np.newaxis, :, :]
+        return [remainder_vals, potential_derivatives[1], remainder_hess] + potential_derivatives[3:]
+    def __call__(self, points, deriv_order=None, **kwargs):
+        just_vals = deriv_order is None
+        if deriv_order is None: deriv_order = 0
+        interped_vals = self.interp(points.reshape(points.shape[0], -1), deriv_order=deriv_order, **kwargs)
+        if isinstance(interped_vals, np.ndarray):
+            interped_vals = [interped_vals]
+        freqs = self.modes.freqs
+        harmonic_contribs = np.dot(points**2, freqs**2) / 2
+        harmonic_deriv = np.diag(freqs ** 2)
+        base_vals = interped_vals[0] + harmonic_contribs
+        if just_vals:
+            return base_vals
+        interped_vals[0] = base_vals
+        if deriv_order > 1:
+            interped_vals[2] = interped_vals[2] + harmonic_deriv[np.newaxis, :, :]
+        return interped_vals
+class DGBCartesianWatsonInterpolator(DGBWatsonInterpolator):
+    def __init__(self, centers, potential_derivatives, modes, **opts):
+        super().__init__(
+            DGBWatsonModes.embed_coords(centers, modes),
+            DGBWatsonModes.embed_derivs(potential_derivatives, modes),
+            modes,
             **opts
         )
     def __call__(self, points, deriv_order=None, **kwargs):
-        return self.interp(points.reshape(points.shape[0], -1), deriv_order=deriv_order, **kwargs)
+        if deriv_order is not None and deriv_order > 0:
+            raise NotImplementedError("currently just for potential plotting...")
+        return super().__call__(
+            DGBWatsonModes.embed_coords(points, self.modes),
+            deriv_order=deriv_order
+        )
 
 class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
     def __init__(self, coords, pairwise_potential_functions, quadrature_degree=3):
@@ -1375,7 +1440,7 @@ class DGBCoords(metaclass=abc.ABCMeta):
             opts = func.opts
             centers = DGBWatsonModes.embed_coords(centers, modes)
             pot_vals = DGBWatsonModes.embed_derivs(pot_vals, modes)
-            return DGBInterpolator(centers, pot_vals, **opts)
+            return DGBWatsonInterpolator(centers, pot_vals, modes, **opts)
         else:
             @functools.wraps(func)
             def embedded_function(mode_coords, deriv_order=None):
@@ -1431,13 +1496,15 @@ class DGBCoords(metaclass=abc.ABCMeta):
         if isinstance(func, DGBInterpolator):
             centers = func.centers
             centers = centers.reshape((centers.shape[0], natoms, ndim))
+            pot_vals = func.derivs
+            opts = func.opts
+
             if atom_sel is None:
                 centers = centers[..., xyz_sel]
             elif xyz_sel is None:
                 centers = centers[..., atom_sel, :]
             else:
                 centers = centers[..., np.ix_(atom_sel, xyz_sel)]
-            pot_vals = func.derivs
             fshape = pot_vals[0].ndim
             _ = []
             for n, d in enumerate(pot_vals):
@@ -1445,9 +1512,13 @@ class DGBCoords(metaclass=abc.ABCMeta):
                     d = np.take(d, flat_sel, axis=j + fshape)
                 _.append(d)
             pot_vals = _
-            opts = func.opts
-            return DGBInterpolator(centers, pot_vals, **opts)
+            if isinstance(func, DGBWatsonInterpolator):
+                return DGBCartesianWatsonInterpolator(centers, pot_vals, func.modes, **opts)
+            else:
+                return DGBInterpolator(centers, pot_vals, **opts)
         else:
+            if flat_sel is None:
+                return func
             @functools.wraps(func)
             def embedded_function(subcart_coords, deriv_order=None, flat_sel=flat_sel):
                 full_shape = (subcart_coords.shape[0], natoms, ndim)
@@ -1710,13 +1781,13 @@ class DGBWatsonModes(DGBCoords):
             mode_coords.shape[:1] + origin.shape
         )
         carts = carts + origin
-        if masses is not None:
-            carts = carts.reshape((carts.shape[0], len(masses), -1))
-            carts = StructuralProperties.get_eckart_embedded_coords(
-                masses,
-                origin,
-                carts
-            )
+        # if masses is not None:
+        #     carts = carts.reshape((carts.shape[0], len(masses), -1))
+        #     carts = StructuralProperties.get_eckart_embedded_coords(
+        #         masses,
+        #         origin,
+        #         carts
+        #     )
         return carts
     @classmethod
     def embed_derivs(cls, derivs, modes):
@@ -2187,7 +2258,7 @@ class DGBGaussians:
             else:
                 interp_coords = coords
                 expansion_opts = {}
-            potential_function = DGBInterpolator(
+            potential_function = DGBGenericInterpolator(
                 interp_coords,
                 potential_expansion,
                 **expansion_opts

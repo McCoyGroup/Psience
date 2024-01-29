@@ -278,7 +278,16 @@ class DGB:
         if isinstance(self.pot.potential_function, DGBCoords.DGBEmbeddedFunction):
             import copy
             new_pot = copy.copy(self.pot)
-            new_pot.potential_function = new_gauss.coords.embed_function(self.pot.potential_function.og_fn)
+            og_fn = self.pot.potential_function.og_fn
+            embed_fn = self.pot.potential_function.embed_fn
+            if isinstance(embed_fn, DGBWatsonInterpolator) and isinstance(og_fn, DGBGenericInterpolator):
+                og_fn = DGBCartesianWatsonInterpolator(
+                    og_fn.centers,
+                    og_fn.derivs,
+                    embed_fn.modes,
+                    **og_fn.opts
+                )
+            new_pot.potential_function = new_gauss.coords.embed_function(og_fn)
         else:
             new_pot = self.pot # this probably won't work...?
 

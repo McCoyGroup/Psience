@@ -2657,6 +2657,21 @@ class DGBTests(TestCase):
             freqs = mol.normal_modes.modes.freqs
             raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
 
+        # mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
+        # mol.internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        # grid = np.linspace(-.5, .5, 15)
+        # modes = mol.normal_modes.modes.basis
+        # disps = grid[:, np.newaxis, np.newaxis] * modes.matrix[:, 0].reshape(mol.coords.shape)[np.newaxis]
+        # coords = mol.coords[np.newaxis] + disps
+        # woof = (coords - modes.origin[np.newaxis]).reshape(len(coords), -1)  @ modes.inverse.T
+        # raise Exception(woof)
+        # import McUtils.Plots as plt
+        # plt.Plot(
+        #     np.array(pot(coords)[0]) - np.array(pot(mol.coords)[0]),
+        #     (mol.normal_modes.modes.freqs[0]**2)*(grid**2) / 2
+        # ).show()
+        # raise Exception(...)
+
         check_anh = False
         if check_anh:
             from Psience.VPT2 import VPTRunner
@@ -2691,43 +2706,63 @@ class DGBTests(TestCase):
 
         plot_dir = None
         save_plots = False
-        for steps in [50]:#[10, 25, 50, 100, 150]:
+        for steps in [25]:#[10, 25, 50, 100, 150]:
             base_dir = os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/water_new/')
             os.makedirs(base_dir, exist_ok=True)
-            timestep = 2
-            with Checkpointer.from_file(os.path.join(base_dir, f'traj_{steps}_{timestep}.hdf5')) as chk:
+            timestep = 15
+            energy_scaling = .5
+            use_interpolation = True
+            plot_interpolation_error = False
+            expansion_degree = 2
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 117
+            :: ZPE: 4620.045103319934
+            :: Frequencies: [1593.86729935 3153.6031855  3660.4136428  3749.92628717 4676.219029   5242.7159497  5332.60575091 6145.67489704 6791.17513342 6903.2729926 ]
+            >>--------------------------------------------------<<
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: solving with subspace size 11
+            :: ZPE: 4636.449043117227
+            :: Frequencies: [ 1591.43611607  3136.82117841  3708.06547867  3873.64731985  4814.08609681  5756.89866931  7162.10513832  7659.79286697  8601.97176244 10060.71043372]
+            >>--------------------------------------------------<<
+            """
+            interp_traj_file='traj_10000_50_2_12.hdf5'
+            initial_energies = [
+                            [ bend,  symm,  asym],
+                            [ bend,  symm, -asym],
+                            [ bend, -symm,  asym],
+                            [ bend, -symm, -asym],
+                            [ bend, -symm,     0],
+                            [ bend,  symm,     0],
+                            [ bend,     0,     0],
+                            [-bend,     0,     0],
+                            [    0,  symm,     0],
+                            [    0, -symm,     0],
+                            [    0,     0,  asym],
+                            [    0,     0, -asym]
+                        ]
+            ninit = len(initial_energies)
+            with Checkpointer.from_file(os.path.join(base_dir, f'traj_{steps}_{timestep}_{energy_scaling}_{ninit}.hdf5')) as chk:
                 try:
+                    if steps < 500:
+                        raise Exception('super fast')
                     coords = chk['coords']
                 except Exception as e:
                     print(e)
 
                     sim = mol.setup_AIMD(
                         pot,
-                        initial_energies=np.array([
-                            [ bend,  symm, 0],
-                            [ bend, -symm, 0],
-                            [-bend,  symm, 0],
-                            [-bend, -symm, 0],
-                            [ bend, 0,  asym],
-                            [ bend, 0, -asym],
-                            [-bend, 0,  asym],
-                            [-bend, 0, -asym],
-                            # [2000 * self.w2h, 0],
-                            # [0, 2000 * self.w2h],
-                            # [-2000 * self.w2h, 0],
-                            # [0, -2000 * self.w2h],
-                            # [-15000 * self.w2h, -15000 * self.w2h],
-                            # [15000 * self.w2h, -15000 * self.w2h],
-                            # [10000 * self.w2h, 0],
-                            # [0, 10000 * self.w2h],
-                            # [-10000 * self.w2h, 0],
-                            # [0, -10000 * self.w2h]
-                        ]) * .5,
-                        timestep=timestep
+                        initial_energies=np.array(initial_energies) * energy_scaling,
+                        timestep=timestep#DON'T MESS WITH THIS
                     )
                     sim.propagate(steps)
                     coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
                     chk['coords'] = coords
+
+            if steps > 200:
+                import McUtils.Plots as plt
+                plt.Plot(np.arange(10), np.arange(10)).show()
+                raise Exception(...)
 
             for method in ['harm']:#, 'harm', 'rot']:
                 run_dir = os.path.join(base_dir, f'method_{method}/steps_{steps}/')
@@ -2740,10 +2775,12 @@ class DGBTests(TestCase):
 
                 # a = np.pi / 12
                 cartesians = False
-                use_interpolation = False
                 if use_interpolation:
-                    with Checkpointer.from_file(os.path.join(base_dir, f'traj_500.hdf5')) as chk:
-                        traj = chk['coords']
+                    with Checkpointer.from_file(os.path.join(base_dir, interp_traj_file)) as chk:
+                        traj = np.concatenate([
+                            chk['coords'],
+                            coords
+                        ])
                         pot_vals = pot(traj, deriv_order=2)
                         interp_data = {'centers':traj, 'values':pot_vals}
                 else:
@@ -2751,7 +2788,7 @@ class DGBTests(TestCase):
 
                 with BlockProfiler(inactive=True):
                     print("="*25, steps, "="*25)
-                    crd = np.round(coords[7:], 8)
+                    crd = np.round(coords[len(initial_energies)-1:], 8)
                     gs_cutoff=14
 
                     dgb = DGB.construct(
@@ -2759,7 +2796,7 @@ class DGBTests(TestCase):
                         pot if not use_interpolation else interp_data,
                         masses=mol.atomic_masses,
                         # alphas=[.05, .1],
-                        alphas='auto',
+                        alphas={'method':'virial', 'scaling':1/2},
                         # transformations=np.array(
                         #         [
                         #             np.eye(2)
@@ -2785,50 +2822,82 @@ class DGBTests(TestCase):
                         modes=None if cartesians else 'normal',
                         cartesians=[0, 1] if cartesians else None,
                         # quadrature_degree=3,
-                        expansion_degree=2 if method != 'quad' else None,
-                        # pairwise_potential_functions={
-                        #     (0, 1): self.setupMorseFunction(
-                        #         mol.atomic_masses[0],
-                        #         mol.atomic_masses[1],
-                        #         np.linalg.norm(mol.coords[0] - mol.coords[1])
-                        #         ),
-                        #     (0, 2): self.setupMorseFunction(
-                        #         mol.atomic_masses[0],
-                        #         mol.atomic_masses[2],
-                        #         np.linalg.norm(mol.coords[0] - mol.coords[2])
-                        #     )
-                        # },
+                        expansion_degree=expansion_degree if method != 'quad' else None,
+                        pairwise_potential_functions={
+                            (0, 1): self.setupMorseFunction(
+                                mol.atomic_masses[0],
+                                mol.atomic_masses[1],
+                                np.linalg.norm(mol.coords[0] - mol.coords[1])
+                                ),
+                            (0, 2): self.setupMorseFunction(
+                                mol.atomic_masses[0],
+                                mol.atomic_masses[2],
+                                np.linalg.norm(mol.coords[0] - mol.coords[2])
+                            )
+                        },
                         logger=True
                     )
-
+                    # ugh = dgb.as_cartesian_dgb()
                     # raise Exception(
-                    #     dgb.pot.potential_function(
-                    #         dgb.gaussians.overlap_data['centers'][:5],
-                    #         deriv_order=2
-                    #     )[2]
+                    #     dgb.pot.potential_function.og_fn,
+                    #     dgb.pot.potential_function.embed_fn,
+                    #     ugh.pot.potential_function.og_fn,
+                    #     ugh.pot.potential_function.embed_fn
                     # )
-                    # """
-                    # [[[ 5.64558569e-05  6.26507975e-11 -1.33432331e-12]
-                    #   [-1.06109804e-10  3.04968945e-04 -9.00495237e-14]
-                    #   [-1.33432393e-12 -9.00478612e-14  3.22980960e-04]]
-                    #
-                    #  [[ 5.31592959e-05 -1.35948463e-06 -1.57609307e-12]
-                    #   [-1.35967785e-06  3.47500725e-04 -1.00800853e-13]
-                    #   [-1.57607412e-12 -1.00800864e-13  3.66656816e-04]]
-                    #
-                    #  [[ 5.59605116e-05  2.79258383e-06 -1.27520948e-12]
-                    #   [ 2.79240218e-06  2.92413370e-04 -1.02132479e-13]
-                    #   [-1.27522433e-12 -1.02129478e-13  3.12447038e-04]]
-                    #
-                    #  [[ 5.69312571e-05 -3.13341783e-06 -1.39561777e-12]
-                    #   [-3.13357116e-06  3.17851631e-04 -6.87883894e-14]
-                    #   [-1.39560738e-12 -6.87874586e-14  3.33555383e-04]]
-                    #
-                    #  [[ 5.86985909e-05  9.55907229e-07 -1.14551306e-12]
-                    #   [ 9.55757280e-07  2.71269951e-04 -8.13558422e-14]
-                    #   [-1.14547939e-12 -8.13551457e-14  2.88415760e-04]]]
-                    #   """
-                    # [1.27548866e-07 6.92484124e-04 2.33596267e-04 3.25870333e-04 5.50227506e-04]
+
+                    if use_interpolation and plot_interpolation_error:
+                        import McUtils.Plots as plt
+                        sel = slice(None)#slice(15,30)
+
+                        embpot = dgb.gaussians.coords.embed_function(pot)
+                        # realpots = embpot(dgb.gaussians.coords.centers, deriv_order=2)[2] * 219475
+                        # interpots = dgb.pot.potential_function(dgb.gaussians.coords.centers, deriv_order=2)[2] * 219475
+                        # raise Exception(
+                        #     realpots[:5] - interpots[:5],
+                        #     realpots[:5]
+                        # )
+                        # realpots = embpot(dgb.gaussians.coords.centers) * 219475
+                        # interpots = dgb.pot.potential_function(dgb.gaussians.coords.centers) * 219475
+                        # raise Exception(
+                        #     realpots - interpots,
+                        #     realpots
+                        # )
+                        realpots = embpot(dgb.gaussians.overlap_data['centers'][sel]) * 219475
+                        interpots = dgb.pot.potential_function(dgb.gaussians.overlap_data['centers'][sel]) * 219475
+                        ords = np.argsort(realpots)
+                        # [
+                        #     np.sort(np.random.choice(np.arange(len(realpots)), 200))
+                        # ]
+                        devs = interpots[ords] - realpots[ords]
+                        max_dev_pos = np.flip(np.argsort(np.abs(devs)))[:5]
+                        rows, cols = np.triu_indices_from(dgb.S)
+                        utris = dgb.S[rows, cols]
+                        print("Maximum Interpolation Error:")
+                        for l,r,c, tt, ii, ov in zip(
+                                dgb.gaussians.coords.centers[rows[sel][ords[max_dev_pos]]],
+                                dgb.gaussians.coords.centers[cols[sel][ords[max_dev_pos]]],
+                                dgb.gaussians.overlap_data['centers'][sel][ords[max_dev_pos]],
+                                realpots[ords[max_dev_pos]],
+                                interpots[ords[max_dev_pos]],
+                                utris[sel][ords[max_dev_pos]]
+                        ):
+                            print(f"Centers: {c} ({ov}) <- {l} {r}")
+                            print(f"  Error: {ii-tt} <- {tt} {ii}")
+                        # raise Exception(
+                        #     dgb.gaussians.overlap_data['centers'][ords[max_dev_pos]],
+                        #     utris[ords[max_dev_pos]],
+                        #     dgb.gaussians.coords.centers[rows[ords[max_dev_pos]]],
+                        #     dgb.gaussians.coords.centers[cols[ords[max_dev_pos]]],
+                        # )
+                        woof = plt.ScatterPlot(
+                            realpots[ords],
+                            devs / realpots[ords]
+                        )
+                        plt.ScatterPlot(
+                            realpots[ords],
+                            devs
+                        ).show()
+                        raise Exception(...)
 
                     plot_gaussians = False
                     if plot_gaussians:
@@ -2869,10 +2938,7 @@ class DGBTests(TestCase):
 
                         raise Exception(...)
 
-                    # print(dgb.gaussians.coords.centers[:3])
-                    # print(dgb.gaussians.alphas[:3])
-
-                    type(self).default_num_plot_wfns = 3
+                    type(self).default_num_plot_wfns = 5
                     self.runDGB(dgb, mol,
                                 # similarity_chunk_size=5,
                                 # vmin=-.05,
@@ -2884,6 +2950,7 @@ class DGBTests(TestCase):
                                 mode='similarity',
                                 # subspace_size=15,
                                 # min_singular_value=1e-8,
+                                # plot_wavefunctions=False,
                                 plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True,
                                 plot_spectrum=False
                                 )
