@@ -98,7 +98,7 @@ class DGBEigensolver:
                 )
         return eigs, evecs
 
-    eigensimilarity_cutoff = .5
+    eigensimilarity_cutoff = None
     eigensimilarity_chunk_size = 3
     similar_determinant_cutoff = 0.05
     @classmethod
@@ -112,8 +112,6 @@ class DGBEigensolver:
             similarity_cutoff = cls.eigensimilarity_cutoff
         if similarity_chunk_size is None:
             similarity_chunk_size = cls.eigensimilarity_chunk_size
-        if similar_det_cutoff is None:
-            similar_det_cutoff = cls.similar_determinant_cutoff
 
         eigs, Qs = np.linalg.eigh(S)
         eigh, Qh = np.linalg.eigh(H)
@@ -131,6 +129,8 @@ class DGBEigensolver:
         avgs = np.cumsum(dets[:-1])
         avgs[w:] = avgs[w:] - avgs[:-w]
         blocks = avgs[w-1:] / w
+        if similarity_cutoff is None:
+            similarity_cutoff = np.floor(np.max(blocks)*100/5)*5 / 100 # next lowest .5
         block_pos = np.where(blocks > similarity_cutoff)
         if len(block_pos) == 0 or len(block_pos[0]) == 0:
             raise ValueError(

@@ -74,6 +74,7 @@ class DGB:
     def run(self,
             quiet=False,
             calculate_spectrum=True,
+            num_print=20,
             **wavefunction_options
             ):
         """
@@ -94,14 +95,14 @@ class DGB:
                     logger = Logger.lookup(True)
                 logger.log_print('ZPE: {zpe}', zpe=wfns.energies[0] * UnitsData.hartrees_to_wavenumbers)
                 freqs = wfns.frequencies()
-                if len(freqs) > 10:
-                    freqs = freqs[:10]
+                if len(freqs) > num_print:
+                    freqs = freqs[:num_print]
                 logger.log_print('Frequencies: {freqs}', freqs=freqs * UnitsData.hartrees_to_wavenumbers)
                 if calculate_spectrum and wfns.dipole_function is not None:
                     spec = wfns.get_spectrum()
                     ints = spec.intensities
-                    if len(ints) > 10:
-                        ints = ints[:10]
+                    if len(ints) > num_print:
+                        ints = ints[:num_print]
                     logger.log_print('Intensities: {ints}', ints=ints)
                 else:
                     spec = None
@@ -462,7 +463,7 @@ class DGB:
             S = np.expand_dims(S, -1)
         return S * pot_mat
 
-    default_solver_mode = 'cholesky'
+    default_solver_mode = 'similarity'
     def diagonalize(self,
                     *,
                     mode=None,

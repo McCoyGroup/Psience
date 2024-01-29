@@ -1217,7 +1217,7 @@ class DGBTests(TestCase):
         ...
 
     @validationTest
-    def test_ModelPotentialAIMD1D(self):
+    def test_ModelPotentialAIMD1DOG(self):
 
         mol, model = self.buildWaterModel(
             oh_model=True,
@@ -1579,8 +1579,12 @@ class DGBTests(TestCase):
     def plot_dgb_potential(cls,
                            dgb, mol, potential,
                            domain=None, domain_padding=1,
-                           potential_cutoff=10000,
-                           plot_cartesians=None
+                           potential_cutoff=17000,
+                           plot_cartesians=None,
+                           plot_atoms=True,
+                           cmap=None,
+                           levels=20,
+                           **plot_styles
                            ):
         def cutoff_pot(points, cutoff=potential_cutoff / UnitsData.hartrees_to_wavenumbers):
             values = potential(points)
@@ -1598,10 +1602,12 @@ class DGBTests(TestCase):
             figure = mol.plot_molecule_function(
                 cutoff_pot,
                 axes=[0, 1],
-                # cmap='RdBu',
                 domain=domain,
                 domain_padding=domain_padding,
-                plot_atoms=True
+                cmap=cmap,
+                levels=levels,
+                plot_atoms=plot_atoms,
+                **plot_styles
             )
         else:
             if domain is None:
@@ -1609,12 +1615,22 @@ class DGBTests(TestCase):
                 domain = Mesh(coords.centers).bounding_box
             points = DGBWavefunction.prep_plot_grid(
                 domain,
-                domain_padding=domain_padding
+                domain_padding=domain_padding,
             )
-            figure = plt.TriContourPlot(
-                *np.moveaxis(points, -1, 0),
-                cutoff_pot(points)
-            )
+            if points.shape[-1] == 1:
+                figure = plt.Plot(
+                    *np.moveaxis(points, -1, 0),
+                    potential(points),
+                    **plot_styles
+                )
+            else:
+                figure = plt.TriContourPlot(
+                    *np.moveaxis(points, -1, 0),
+                    cutoff_pot(points),
+                    cmap=cmap,
+                    levels=levels,
+                    **plot_styles
+                )
 
         return figure
 
@@ -1623,12 +1639,14 @@ class DGBTests(TestCase):
     def runDGB(cls,
                dgb: DGB,
                mol,
+               plot_centers=True,
+               plot_atoms=True,
                plot_potential=True,
                plot_wavefunctions=True,
                plot_spectrum=False,
                domain=None,
                domain_padding=1,
-               potential_cutoff=10000,
+               potential_cutoff=15000,
                mode=None,
                nodeless_ground_state=None,
                min_singular_value=None,
@@ -1660,7 +1678,7 @@ class DGBTests(TestCase):
             if plot_wavefunctions is not False:
                 print(e)
 
-                if isinstance(plot_wavefunctions, str) and plot_wavefunctions=='cartesians':
+                if isinstance(plot_wavefunctions, str) and plot_wavefunctions == 'cartesians':
                     plot_wavefunctions = {'cartesians':None}
                 cartesian_plot_axes = None
                 if isinstance(plot_wavefunctions, dict):
@@ -1674,7 +1692,7 @@ class DGBTests(TestCase):
                 figure = cls.plot_dgb_potential(
                     dgb, mol, pot,
                     domain=domain, domain_padding=domain_padding,
-                    potential_cutoff=potential_cutoff
+                    potential_cutoff=potential_cutoff,
                 )
 
                 dgb.gaussians.plot_centers(
@@ -1712,8 +1730,10 @@ class DGBTests(TestCase):
                     if plot_potential:
                         figure = cls.plot_dgb_potential(
                             dgb, mol, pot,
+                            cmap='ocean',
                             domain=domain, domain_padding=domain_padding,
-                            potential_cutoff=potential_cutoff
+                            potential_cutoff=potential_cutoff,
+                            plot_atoms=plot_atoms
                         )
 
                     if isinstance(dgb.gaussians.coords, DGBCartesians):
@@ -1722,22 +1742,33 @@ class DGBTests(TestCase):
                             contour_levels=16,
                             cmap='RdBu',
                             figure=figure,
-                            plot_centers={'color':'red'},
+                            plot_centers={'color':'red'} if plot_centers else False,
                             domain=domain,
                             domain_padding=.5,
                             **plot_options
                         ).show()
                     else:
-                        wfns[i].plot(
-                            contour_levels=32,
-                            cmap='RdBu',
-                            plotter=plt.TriContourLinesPlot,
-                            plot_centers={'color':'red'},
-                            domain=domain,
-                            domain_padding=domain_padding,
-                            figure=figure,
-                            **plot_options
-                        ).show()
+                        if wfns.gaussians.alphas.shape[-1] > 1:
+                            wfns[i].plot(
+                                contour_levels=32,
+                                cmap='RdBu',
+                                plotter=plt.TriContourLinesPlot ,
+                                plot_centers={'color':'red'} if plot_centers else False,
+                                domain=domain,
+                                domain_padding=domain_padding,
+                                figure=figure,
+                                **plot_options
+                            ).show()
+                        else:
+                            wfns[i].plot(
+                                plot_centers={'color': 'red'} if plot_centers else False,
+                                domain=domain,
+                                domain_padding=domain_padding,
+                                figure=figure,
+                                scaling=-.1,
+                                shift=wfns.energies[i],
+                                **plot_options
+                            ).show()
 
     @classmethod
     def getMorseParameters(cls, w=None, wx=None, m1=None, m2=None, re=None):
@@ -1788,6 +1819,76 @@ class DGBTests(TestCase):
         return morse_basic
 
     @validationTest
+    def test_ModelPotentialAIMD1D(self):
+        mol, model = self.buildWaterModel(
+            w2=None, wx2=None,
+            ka=None,
+            oh_model=True,
+            dudr1=1 / 5.5,
+            dudr2=None#1 / 5.5
+            # dipole_direction=[1, 0, 0]
+        )
+
+        check_freqs = False
+        if check_freqs:
+            freqs = model.normal_modes()[0]
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        check_anh = False
+        if check_anh:
+            model.run_VPT(order=2, states=5, degeneracy_specs='auto', logger=True)
+            """
+            ZPE: 1934.73500   1913.73500
+            ============================================= IR Data ==============================================
+            Initial State: 0 
+                           Harmonic                  Anharmonic
+            State   Frequency    Intensity       Frequency    Intensity
+              1    3869.47000     33.99218      3701.47000     33.22606
+              2    7738.94000      0.00000      7234.94000      0.68986
+              3   11608.41000      0.00000     10600.41000      0.02926
+              4   15477.88000      0.00000     13797.88000      0.00000
+              5   19347.35000      0.00000     16827.35000      0.00000
+            ====================================================================================================
+            """
+            raise Exception(...)
+
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(mol.coords, mol.normal_modes.modes)
+
+        sim = model.setup_AIMD(
+            initial_energies=[
+                [5000 * self.w2h],
+                [-5000 * self.w2h]
+            ],
+            timestep=10
+        )
+        sim.propagate(10)
+        coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+
+        cartesians = False
+        with BlockProfiler(inactive=True):
+
+            dgb = model.setup_DGB(
+                np.round(coords, 8),
+                optimize_centers=1e-8,
+                # optimize_centers=False,
+                modes=None if cartesians else 'normal',
+                cartesians=[0, 1] if cartesians else None,
+                # quadrature_degree=3,
+                expansion_degree=2,
+                pairwise_potential_functions={
+                    (0, 1): self.setupMorseFunction(model, 0, 1)
+                    # (0, 2): self.setupMorseFunction(model, 0, 2)
+                }
+            )
+
+            self.runDGB(dgb, mol,
+                        domain_padding=10,
+                        plot_spectrum=True,
+                        plot_wavefunctions=False#{'cartesians':[0, 1]} if not cartesians else True
+                        )
+
+    @validationTest
     def test_ModelPotentialAIMD2D(self):
         mol, model = self.buildWaterModel(
             # w2=None, wx2=None,
@@ -1804,32 +1905,69 @@ class DGBTests(TestCase):
 
         check_anh = False
         if check_anh:
-            model.run_VPT(order=2, states=2, degeneracy_specs='auto')
+            from Psience.VPT2 import VPTRunner
+
+            VPTRunner.run_simple(
+                [mol.atoms, mol.coords],
+                potential_derivatives=model.potential(mol.coords, deriv_order=4)[1:],
+                dipole_derivatives=model.dipole(mol.coords, deriv_order=3),
+                order=2, states=3,
+                logger=True,
+                degeneracy_specs='auto',
+                calculate_intensities=True
+            )
+
+            # model.run_VPT(order=2, states=2, degeneracy_specs='auto', logger=True)
             """
-            ZPE: 3869.37229   3766.81161 
-            ============================================= IR Data ==============================================
-            Initial State: 0 0 
-                             Harmonic                  Anharmonic
+            ZPE: 3869.37229   3814.75070 
             State     Frequency    Intensity       Frequency    Intensity
-              0 1    3896.87027     64.98650      3726.75080     63.56784
-              1 0    3841.87432      0.26781      3675.99562      0.24283
-              0 2    7793.74054      0.00000      7415.73134      0.00002
-              2 0    7683.74863      0.00000      7220.31281      0.01197
-              1 1    7738.74459      0.00000      7236.19694      1.32008
-            ====================================================================================================
+              0 1    3896.87028     64.98650      3726.72077     63.58462
+              1 0    3841.87433      0.26781      3675.96177      0.25708
+              0 2    7793.74057      0.00000      7415.60644      0.00317
+              2 0    7683.74866      0.00000      7220.11984      0.00861
+              1 1    7738.74461      0.00000      7236.25926      1.32009
+              0 3   11690.61085      0.00000     10986.10686      0.00048
+              3 0   11525.62299      0.00000     10895.67849      0.00008
+              1 2   11635.61490      0.00000     10593.72292      0.00056
+              2 1   11580.61894      0.00000     10596.33867      0.05435
             """
             raise Exception(...)
 
-
+        check_dvr = False
+        if check_dvr:
+            raise Exception("do the proper 2D thing...")
+            print("Running DVR...")
+            dvr = model.setup_DVR(
+                domain=[[1, 4], [1, 4], [np.deg2rad(60), np.deg2rad(160)]],
+                divs=[800, 800, 800], po_divs=[25, 25, 25],
+                potential_optimize=True,
+                logger=True
+            )
+            po_data = dvr.run()
+            """
+            :: PotentialOptimizedDVR([WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None)], pot=SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2))
+            :: g: [[SympyExpr(0.0005786177281533848), SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3])], [SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(0.0005786177281533848), SympyExpr(0.0)], [SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3]), SympyExpr(0.0), SympyExpr(0.000578617728153385/r[2,3]**2 - 6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]) + 0.000578617728153385/r[1,2]**2)]]
+            :: mass: [None, None, None]
+            :: g_deriv: [SympyExpr(0.0), SympyExpr(0.0), SympyExpr(6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]))]
+            :: domain: [[1, 4], [1, 4], [1.0471975511965976, 2.792526803190927]]
+            :: divs: [800, 800, 800]
+            :: potential_function: SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2)
+            ::> constructing grid
+             """
+            raise Exception(
+                po_data.wavefunctions.energies[1] * UnitsData.hartrees_to_wavenumbers,
+                po_data.wavefunctions.frequencies() * UnitsData.hartrees_to_wavenumbers
+            )
         # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
         # raise Exception(mol.coords, mol.normal_modes.modes)
 
+        symm, asymm = model.normal_modes()[0]
         sim = model.setup_AIMD(
             initial_energies=[
-                [5000 * self.w2h, 5000 * self.w2h],
-                [-5000 * self.w2h, 5000 * self.w2h],
-                [-5000 * self.w2h, -5000 * self.w2h],
-                [5000 * self.w2h, -5000 * self.w2h],
+                [ symm,  asymm],
+                [-symm,  asymm],
+                [-symm, -asymm],
+                [ symm, -asymm],
                 # [2000 * self.w2h, 0],
                 # [0, 2000 * self.w2h],
                 # [-2000 * self.w2h, 0],
@@ -1841,90 +1979,17 @@ class DGBTests(TestCase):
                 # [-10000 * self.w2h, 0],
                 # [0, -10000 * self.w2h]
             ],
-            timestep=10
+            timestep=25
         )
-        sim.propagate(5)
+        sim.propagate(35)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
-
-        """
-        In normal modes:
-        
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: solving with subspace size 101
-        :: ZPE: 3827.228939216366
-        :: Frequencies: [ 3676.01153913  3726.87414237  7224.01627225  7236.62308184  7429.51373048 10599.26058545 10607.18122362 10903.18463044 11038.34099881 13802.91267454]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [2.56816018e-01 6.35642463e+01 1.24331875e-02 1.41043612e+00 3.81079976e-03 5.90581119e-02 2.75277562e-03 1.01446344e-04 7.97143141e-04 4.08988724e-03]
-        """
-        """
-        
-        In Carts, 55 steps, ts=5
-        :: Frequencies: [ 1939.3888942   3699.93055922  3859.74233969  7189.02865425  7714.8445865   8802.80971572 10563.99747325 11037.84927957 12296.636057   13821.72667492]
-        
-        Carts, 55 steps, ts=10
-        :: solving with subspace size 73
-        :: ZPE: 7532.453122711061
-        :: Frequencies: [ 1633.3102395   3698.64503592  3735.7664761   6304.89816379  7226.15355447  7383.459363    8004.79155075 10000.8898692  10551.20589953 10782.57343599]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [4.28700118e+01 2.14297296e+01 4.17647493e+01 4.29356664e-01 1.16937902e+00 4.16702226e-02 7.01762939e-02 6.89581212e-01 8.27064938e-02 5.41807145e-02]
-        
-        In Carts, 100 steps, ts=5
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: solving with subspace size 87
-        :: ZPE: 7331.990506623899
-        :: Frequencies: [1430.72412218 3404.32580979 3897.02665756 3994.95055602 5230.74776836 5429.57579877 7381.29884675 7519.66506158 7729.09597527 8860.26071561]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [6.40897590e+01 1.95058105e+00 5.99623811e+01 1.36131150e-01 6.36942154e-02 5.84163730e-02 1.38666640e+00 2.51149005e-01 2.32211506e-02 3.86841086e-01]
-        :: solving with subspace size 100
-        
-        In Carts, 100 steps, ts=10
-        :: ZPE: 7336.39781522725
-        :: Frequencies: [1427.11593939 3432.04732043 3895.09603057 3988.38214228 5241.97642121 5425.90501825 7377.80665742 7517.49093219 7729.31988235 8825.24999752]
-        :: evauating integrals with 3-order quadrature
-        
-        In Carts, 70 steps, ts=10
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: solving with subspace size 98
-        :: ZPE: 7326.681016996741
-        :: Frequencies: [1435.77856578 3333.33096333 3902.88546196 3942.87611828 5194.64332689 5434.52361585 7387.41161128 7524.55152645 7804.25835344 9126.99447282]
-        :: evauating integrals with 3-order quadrature
-        
-        60 steps
-        :: Frequencies: [ 1377.229406    3705.72143869  3736.81168228  5406.54716053  5826.84014487  7216.78498699  7351.68663541  7837.6505418  10083.36649672 10533.55288463]
-        
-        45 steps
-        :: Frequencies: [ 2436.03928042  3698.64362896  3801.00627889  7279.35117131  7366.08174359  8460.97882021 10609.05213299 10885.29699289 11065.10559912 13626.16262504]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [5.75910859e+01 9.41654664e+00 5.39770953e+01 1.46457650e+00 2.78237815e-01 3.35306772e-01 1.82468117e-02 7.36152065e-03 4.68411121e-01 1.77380041e-01]
-        
-        In Carts, 35 steps, ts=10
-        :: solving with subspace size 52
-        :: ZPE: 7555.731254592927
-        :: Frequencies: [ 2412.42538311  3705.23321428  3868.5403588   7278.84245026  7754.44607092  8814.90386733 10694.32194733 11094.04067495 13665.23226306 14053.70858405]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [5.71728397e+01 1.81684789e+00 6.26042566e+01 1.38078789e+00 3.11705536e-01 1.02895881e+00 3.59623454e-02 8.24640665e-02 2.61386129e-01 3.82063099e-01]
-        
-        100, ts=2
-        :: solving with subspace size 44
-        :: ZPE: 7554.981056772567
-        :: Frequencies: [ 1939.07379488  3699.92202569  3859.7668093   7189.28624134  7716.11651689  8803.46788279 10548.88965322 11023.78820586 12301.43309882 13824.2339489 ]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [4.70441202e+01 8.07002546e-01 6.29357209e+01 1.21332288e+00 2.65240178e-01 1.12569607e+00 5.96999211e-02 8.30627352e-02 3.39068096e-01 2.17957292e-03]
-        
-        100, ts=2, overlap criterion=1e-4
-        :: solving with subspace size 33
-        :: ZPE: 7555.468290475696
-        :: Frequencies: [ 3695.75971544  3870.22019617  6358.79849165  7309.53324768  7775.72946854  8936.78003823 10799.49587579 11177.47615028 13663.40562586 14451.36370231]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [  0.35136204  63.18547029 102.22284205  12.06116715   2.42554562   2.29343868   0.50048585   0.34520303   2.50926292   0.87726397]
-        """
 
         cartesians=False
         with BlockProfiler(inactive=True):
 
             dgb = model.setup_DGB(
-                np.round(coords, 8),
-                optimize_centers=1e-8,
+                coords,
+                optimize_centers=1e-14,
                 # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
@@ -1936,71 +2001,12 @@ class DGBTests(TestCase):
                 }
             )
 
-            """
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 20
-            :: ZPE: 3781.082739812134
-            :: Frequencies: [ 3764.44242202  3780.16124925  7293.08485934  7410.86956917 10745.34634858 10763.18031136 13946.96584743 14027.81288441 17082.58958407 17169.09291512]
-            >>--------------------------------------------------<<
-            """
-
-            """
-            :: Frequencies: [ 3675.67859289  3728.1031644   7220.86665227  7237.3542714   7419.82070657 10595.85111444 10598.93290971 10896.9917394  11017.71173165 13798.28724499]
-"""
-
-            """
-            :: solving with subspace size 33
-            :: ZPE: 3793.0886555058923
-            :: Frequencies: [ 3675.73239715  3734.95463105  7232.54865998  7250.05353005  7495.98577501 10620.94739729 10624.18621614 11030.71092945 11336.21159011 13847.20197056]
-            """
-
-            """With PPF
-            :: solving with subspace size 45
-            :: ZPE: 3841.4826749468443
-            :: Frequencies: [ 3675.02112202  3729.63620102  7229.85378398  7236.23218089  7456.89264976 10598.8566352  10615.96482705 10943.09809432 11191.43047547 13808.16470424]
-            :: evauating integrals with 2-degree expansions
-            :: expanding about 1596 points...
-            :: adding up all derivative contributions...
-            :: Intensities: [2.56728500e-01 6.35425388e+01 8.02406454e-03 1.43061410e+00 4.60466363e-03 6.54455300e-02 6.54384505e-04 7.42781967e-05 5.89499126e-03 5.31134260e-03]
-            
-            Without
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 45
-            :: ZPE: 3751.173261233092
-            :: Frequencies: [ 3676.84628937  3723.71917168  7228.86423764  7232.967462    7441.65595244 10592.95585085 10608.78544528 10933.45444733 11154.89630171 13799.18895636]
-            :: evauating integrals with 2-degree expansions
-            :: expanding about 1596 points...
-            :: adding up all derivative contributions...
-            :: Intensities: [2.57620927e-01 6.32698503e+01 8.87958873e-03 1.45502425e+00 4.32335437e-03 6.75462456e-02 6.75232273e-04 5.14558465e-05 9.97234189e-03 4.92214135e-03]
-            >>--------------------------------------------------<<
-"""
-
             self.runDGB(dgb, mol,
-                        vmin=-.05,
-                        vmax=.05,
-                        domain=[[-20, 20], [-20, 20]],
+                        similarity_cutoff=.95,
+                        plot_spectrum=True,
                         plot_wavefunctions=False
                         # mode='classic'
                         )
-
-            """
-            :: solving with subspace size 74
-(301, 74)
-:: ZPE: 3792.2909407628968
-:: Frequencies: [ 3675.67519926  3728.04432428  7220.71371151  7237.21266607  7417.83839273 10595.72920586 10597.47640089 10896.69653986 10993.50986009 13796.28412269]
-"""
-            """
-            :: solving with subspace size 40
-            :: solving with subspace size 39
-            :: solving with subspace size 38
-            :: solving with subspace size 37
-            :: solving with subspace size 36
-            :: solving with subspace size 35
-            :: ZPE: 3793.964913145213
-            :: ZPE: 3794.012794330589
-            :: Frequencies: [ 3708.73341154  3734.86080835  7286.17436413  7316.65491963  8516.61271718 10666.28023563 10748.50595293 12733.0280663  13896.96264286 13996.93743477]
-            :: Frequencies: [ 3705.77682674  3734.88703588  7280.76971625  7313.35796559  8455.29315203 10663.6914612  10725.06347301 12648.70126107 13738.17040782 13897.90723632]
-            """
 
     @validationTest
     def test_ModelPotentialAIMD2D_HOD(self):
@@ -2204,7 +2210,7 @@ class DGBTests(TestCase):
                         plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True
                         )
 
-    @validationTest
+    @debugTest
     def test_ModelPotentialAIMD3D(self):
         mol, model = self.buildWaterModel(
             # w2=None, wx2=None,
@@ -2221,37 +2227,43 @@ class DGBTests(TestCase):
 
         check_anh = False
         if check_anh:
-            model.run_VPT(order=2, states=2,
-                          logger=True,
-                          degeneracy_specs='auto'
-                          )
+            from Psience.VPT2 import VPTRunner
+
+            VPTRunner.run_simple(
+                [mol.atoms, mol.coords],
+                potential_derivatives=model.potential(mol.coords, deriv_order=4)[1:],
+                dipole_derivatives=model.dipole(mol.coords, deriv_order=3),
+                order=2, states=3,
+                logger=True,
+                degeneracy_specs='auto',
+                calculate_intensities=True,
+                include_coriolis_coupling=True
+            )
+
             """
-            ZPE:       4680.66312                   4570.46683
-            ============================================= IR Data ==============================================
-            Initial State: 0 0 0 
-                   Harmonic                  Anharmonic
+              0 0 0    4680.66314                   4611.38521
+                              Harmonic                  Anharmonic
             State       Frequency    Intensity       Frequency    Intensity
-              0 0 1    3896.87027     64.98650      3719.85792     62.04864
-              0 1 0    3843.25802      0.17386      3676.15023      0.13738
-              1 0 0    1621.19795     64.86521      1603.43665     64.14564
-              0 0 2    7793.74054      0.00000      7405.54186      0.00156
-              0 2 0    7686.51604      0.00000      7216.33517      0.00897
-              2 0 0    3242.39590      0.00000      3197.00911      0.07403
-              0 1 1    7740.12829      0.00000      7229.92439      1.31011
-              1 0 1    5518.06822      0.00000      5308.87370      0.09319
-              1 1 0    5464.45597      0.00000      5278.21352      0.07390
-              0 0 3   11690.61081      0.00000     10968.41696      0.00035
-              0 3 0   11529.77407      0.00000     10889.96902      0.00002
-              3 0 0    4863.59385      0.00000      4780.71739      0.02966
-              0 1 2   11636.99856      0.00000     10585.28249      0.00057
-              1 0 2    9414.93849      0.00000      8988.15541      0.00045
-              0 2 1   11583.38631      0.00000     10587.48831      0.05388
-              2 0 1    7139.26617      0.00000      6888.02529      0.00327
-              1 2 0    9307.71399      0.00000      8809.00645      0.00197
-              2 1 0    7085.65392      0.00000      6870.41262      0.00035
-              1 1 1    9361.32624      0.00000      8817.56680      0.00646
-            ====================================================================================================
-            """
+              0 0 1    3896.87028     64.98650      3719.85792     62.04864
+              0 1 0    3843.25804      0.17386      3676.15022      0.13738
+              1 0 0    1621.19796     64.86522      1603.43661     64.14564
+              0 0 2    7793.74057      0.00000      7405.54785      0.00156
+              0 2 0    7686.51607      0.00000      7216.32913      0.00897
+              2 0 0    3242.39591      0.00000      3197.00895      0.07403
+              0 1 1    7740.12832      0.00000      7229.92435      1.31011
+              1 0 1    5518.06824      0.00000      5308.87368      0.09319
+              1 1 0    5464.45599      0.00000      5278.21350      0.07390
+              0 0 3   11690.61085      0.00000     10968.42588      0.00035
+              0 3 0   11529.77411      0.00000     10889.98015      0.00002
+              3 0 0    4863.59387      0.00000      4780.71702      0.02966
+              0 1 2   11636.99860      0.00000     10585.27120      0.00057
+              1 0 2    9414.93853      0.00000      8988.16177      0.00045
+              0 2 1   11583.38636      0.00000     10587.47926      0.05388
+              2 0 1    7139.26620      0.00000      6888.02518      0.00327
+              1 2 0    9307.71403      0.00000      8809.00009      0.00197
+              2 1 0    7085.65395      0.00000      6870.41251      0.00035
+              1 1 1    9361.32628      0.00000      8817.56679      0.00646
+              """
             raise Exception(...)
 
         check_dvr = False
@@ -2322,16 +2334,17 @@ class DGBTests(TestCase):
         # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
         # raise Exception(mol.coords, mol.normal_modes.modes)
 
+        bend, symm, asymm = model.normal_modes()[0]
         sim = model.setup_AIMD(
             initial_energies=np.array([
-                [ 5000,  7000,     0 ],
-                [ 5000, -7000,     0 ],
-                [-5000,  7000,     0 ],
-                [-5000, -7000,     0 ],
-                [ 5000,     0,   7000 ],
-                [ 5000,     0,  -7000 ],
-                [-5000,     0,   7000 ],
-                [-5000,     0,  -7000 ],
+                [ bend,  symm,       0 ],
+                [ bend, -symm,       0 ],
+                [-bend,  symm,       0 ],
+                [-bend, -symm,       0 ],
+                [ bend,     0,   asymm ],
+                [ bend,     0,  -asymm ],
+                [-bend,     0,   asymm ],
+                [-bend,     0,  -asymm ],
                 # [2000 * self.w2h, 0],
                 # [0, 2000 * self.w2h],
                 # [-2000 * self.w2h, 0],
@@ -2342,47 +2355,29 @@ class DGBTests(TestCase):
                 # [0, 10000 * self.w2h],
                 # [-10000 * self.w2h, 0],
                 # [0, -10000 * self.w2h]
-            ]) * self.w2h * .8,
-            timestep=20
+            ]),
+            timestep=15
         )
-        sim.propagate(35)
+        """
+        [1605.27547112 3210.58498718 3687.20984666 3750.87383729 4825.00225884 5316.9611108  5344.99936661 6511.87484075 6993.83144916 7051.98397061 7297.68439455 7425.72867464 7487.23041291 8118.60784588 8613.38360024 8852.75834549 8940.63294328 9080.05330755 9225.41160753 9913.73496595]
+:: ZPE: 4611.468966193237
+:: Frequencies: [ 1605.94658377  3206.37245333  3685.34258094  3732.26513467  4806.92345926  5321.33024665  5344.44902313  6591.49732037  7049.81907333  7072.8573488   7279.98660134  7322.80308786  7439.51070313  8162.05518684  8645.00114331  8806.57747787  9056.42649328  9165.55764871  9218.4399869  10111.698453  ]
+::
+"""
+        sim.propagate(5)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
-
-        """
-        Normal
-        :: solving with subspace size 100
-        :: ZPE: 4622.827374642189
-        :: Frequencies: [1592.98842318 3187.51067499 3683.5717401  3710.21005314 4793.03025812 5267.83943469 5295.10938209 6605.25174785 6838.03573715 7013.17093466]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [6.42325949e+01 7.22688264e-02 1.41927636e-01 6.16947524e+01 5.21691269e-02 9.73523176e-02 5.62461023e-02 4.94777305e-04 3.24686242e-03 2.13024323e-04]
-        
-        Cart
-        :: solving with subspace size 100
-        :: ZPE: 7916.658907636596
-        :: Frequencies: [1590.11734842 3171.8868053  3679.51473717 3770.25841141 4763.97197814 5234.66671784 5369.53899233 6368.48510159 6808.28790377 7019.8920343 ]
-        """
-
-        """
-        :: solving with subspace size 362
-        :: ZPE: 4622.151471437737
-        :: Frequencies: [1590.5035818  3170.2461846  3677.33109476 3707.56151697 4740.00435086 5259.31931627 5268.32624787 6300.40485011 6798.94882365 6846.70614653]
-        """
 
         cartesians = False
         with BlockProfiler(inactive=True):
 
             dgb = model.setup_DGB(
-                np.round(coords, 8),
+                coords,
                 # optimize_centers=False,
-                optimize_centers={
-                    'method':'gram-schmidt',
-                    'overlap_cutoff':1e-14,
-                    'allow_pivoting':True
-                },
+                optimize_centers=1e-14,
                 # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
-                # quadrature_degree=3,
+                quadrature_degree=3,
                 expansion_degree=2,
                 pairwise_potential_functions={
                     (0, 1):self.setupMorseFunction(model, 0, 1),
@@ -2390,45 +2385,16 @@ class DGBTests(TestCase):
                 }
             )
 
-            """
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 47
-            :: ZPE: 4535.481643651455
-            :: Frequencies: [1615.64813937 3321.57434357 3709.2586991  3764.27308878 5048.23963758 6245.69306909 6395.58664141 6912.16013494 7251.79882944 8025.91636546]
-            >>--------------------------------------------------<<
-            """
-
-            print(coords.shape[0], dgb.gaussians.coords.centers.shape[0])
-
-            """
-            With Quad
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 154
-            :: ZPE: 4573.230158328804
-            :: Frequencies: [1588.64768586 3167.07657005 3679.50144453 3717.62869601 4736.82684937 5271.40451129 5273.81247512 6300.68974983 6854.37713208 6866.55926857]
-            >>--------------------------------------------------<<
-            With PPF
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 47
-            :: ZPE: 4573.673832476982
-            :: Frequencies: [1599.2575801  3206.2591078  3698.45668271 3741.08837597 4830.32507642 5319.56013734 5390.51062719 6741.5898552  7071.92429821 7136.71098205]
-            >>--------------------------------------------------<<
-            Without PPF
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 130
-            :: ZPE: 4532.431583366782
-            :: Frequencies: [1589.78179672 3166.12383827 3680.10680125 3713.00711712 4375.92743048 4741.90750994 5272.49083561 5274.57991176 6314.59727429 6858.09225606]
-            >>--------------------------------------------------<<
-            """
-
             # type(self).default_num_plot_wfns = 5
-            type(self).default_num_plot_wfns = 1
+            type(self).default_num_plot_wfns = 5
             self.runDGB(dgb, mol,
                         # similarity_chunk_size=5,
                         # vmin=-.05,
                         # vmax=.05,
                         # domain=[[-2, 2], [-2, 2]],
                         # plot_wavefunctions=False,
+                        plot_centers=False,
+                        plot_spectrum=False,
                         plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
                         )
 
@@ -2560,7 +2526,7 @@ class DGBTests(TestCase):
             # print(dgb.gaussians.coords.centers[:3])
             # print(dgb.gaussians.alphas[:3])
 
-            type(self).default_num_plot_wfns = 1
+            type(self).default_num_plot_wfns = 5
             self.runDGB(dgb, mol,
                         # similarity_chunk_size=5,
                         # vmin=-.05,
@@ -2647,7 +2613,7 @@ class DGBTests(TestCase):
         ).get_embedded_molecule(load_properties=False)
 
         return potential, ref_mol
-    @debugTest
+    @validationTest
     def test_WaterAIMD(self):
         pot, mol = self.getMBPolModel()
 
@@ -2706,7 +2672,7 @@ class DGBTests(TestCase):
 
         plot_dir = None
         save_plots = False
-        for steps in [50]:#[10, 25, 50, 100, 150]:
+        for steps in [100]:#[10, 25, 50, 100, 150]:
             base_dir = os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/water_new/')
             os.makedirs(base_dir, exist_ok=True)
             timestep = 15

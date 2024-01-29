@@ -1758,7 +1758,10 @@ class DGBWatsonModes(DGBCoords):
             # freqs = modes.freqs
             # freq_term = np.sqrt(freqs[np.newaxis, :] / freqs[:, np.newaxis])
             # zeta = zeta * freq_term[np.newaxis, np.newaxis]
+            bad_moms = np.where(mom_i <= 0)[0]
+            mom_i[bad_moms] = 1
             B_e = 1 / (2 * mom_i)  # * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
+            B_e[bad_moms] = 0
             return np.sum(B_e, axis=-1), sum(
                 B_e[:, a, np.newaxis, np.newaxis, np.newaxis, np.newaxis]
                  * zeta[:, a, :, :, np. newaxis, np.newaxis]*zeta[:, a, np. newaxis, np.newaxis, :, :]
