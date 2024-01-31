@@ -1081,10 +1081,29 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
         )
 
 class DGBInterpolator(metaclass=abc.ABCMeta):
-    def __init__(self, centers, potential_derivatives, neighborhood_size=15, **opts):
+    default_neighborhood_size=5
+    default_declustering_alpha=0
+    default_declustering_overlap=.1
+    def __init__(self, centers, potential_derivatives,
+                 declustering_alpha=None,
+                 declustering_overlap=None,
+                 neighborhood_size=None, **opts):
         self.centers = centers
         self.derivs = potential_derivatives
-        self.opts = dict(opts, neighborhood_size=neighborhood_size)
+        if neighborhood_size is None:
+            neighborhood_size = self.default_neighborhood_size
+        neighborhood_size = min(neighborhood_size, len(centers))
+        if declustering_alpha is None:
+            declustering_alpha = self.default_declustering_alpha
+        if declustering_overlap is None:
+            declustering_overlap = self.default_declustering_overlap
+        self.declustering_opts = dict(
+            declustering_overlap=declustering_overlap,
+            declustering_alpha=declustering_alpha
+        )
+        self.opts = dict(opts,
+                         neighborhood_size=neighborhood_size
+                         )
     @abc.abstractmethod
     def __call__(self, points, deriv_order=None, **kwargs) -> 'np.ndarray | list[np.ndarray]':
         ...
@@ -1106,7 +1125,7 @@ class DGBGenericInterpolator(DGBInterpolator):
         else:
             return hess_interp
 
-class DGBWatsonInterpolator(DGBInterpolator):
+class DGBWatsonInterpolatorSingleRef(DGBInterpolator):
     def __init__(self, centers, potential_derivatives, modes, **opts):
         super().__init__(centers, potential_derivatives, **opts)
         self.modes = modes
@@ -1132,13 +1151,130 @@ class DGBWatsonInterpolator(DGBInterpolator):
         freqs = self.modes.freqs
         harmonic_contribs = np.dot(points**2, freqs**2) / 2
         harmonic_deriv = np.diag(freqs ** 2)
-        base_vals = interped_vals[0] + harmonic_contribs
+        base_vals = harmonic_contribs + interped_vals[0]
         if just_vals:
             return base_vals
         interped_vals[0] = base_vals
         if deriv_order > 1:
-            interped_vals[2] = interped_vals[2] + harmonic_deriv[np.newaxis, :, :]
+            interped_vals[2] = harmonic_deriv[np.newaxis, :, :] + interped_vals[2]
+            # interped_vals[2] = np.broadcast_to(harmonic_deriv[np.newaxis, :, :], interped_vals[2].shape)
         return interped_vals
+
+
+class DGBWatsonTaylorInterpolator(DGBInterpolator):
+    def __init__(self, centers, potential_derivatives, modes,
+                 power=4,
+                 include_harmonic_basis=False, # provably does nothing for now...
+                 **opts):
+        super().__init__(centers, potential_derivatives, power=power, **opts)
+        self.modes = modes
+        alpha = self.declustering_opts['declustering_alpha']
+        if alpha > 0:
+            overlap_data = DGBEvaluator.get_overlap_gaussians(
+                    self.centers,
+                    np.full(self.centers.shape, alpha),
+                    None
+                )
+            S = DGBEvaluator.evaluate_overlap(overlap_data)
+            inds = DGBGaussians._optimize_gs_block(S, self.declustering_opts['declustering_overlap'])
+        else:
+            inds = slice(None)
+        if include_harmonic_basis:
+            self.adjusted_derivs = self.take_remainder_potential(centers, potential_derivatives, modes)
+        else:
+            self.adjusted_derivs = self.derivs
+        self.include_harmonic_basis = include_harmonic_basis
+        self.declustering_inds = inds
+        self.decluster_centers = self.centers[inds]
+        self.decluster_derivs = [d[inds] for d in self.adjusted_derivs]
+        self.kd = sp.spatial.KDTree(self.decluster_centers)
+        self.power = power
+    def take_remainder_potential(self, centers, potential_derivatives, modes):
+        freqs = modes.freqs
+        diag = freqs ** 2
+        harmonic_contribs = np.dot(centers**2, diag) / 2
+        harmonic_grad = diag[np.newaxis, :] * centers
+        harmonic_deriv = np.diag(diag)
+        remainder_vals = potential_derivatives[0] - harmonic_contribs
+        remainder_grad = potential_derivatives[1] - harmonic_grad
+        remainder_hess = potential_derivatives[2] - harmonic_deriv[np.newaxis, :, :]
+        return [remainder_vals, remainder_grad, remainder_hess] + potential_derivatives[3:]
+    def taylor_interp(self, points, dists, neighbors, derivs, power=2, deriv_order=None):
+        disps = points[:, np.newaxis, :] - neighbors
+
+        idw_weights = InverseDistanceWeightedInterpolator.get_idw_weights(points, dists,
+                                                                          zero_tol=1e-6,
+                                                                          power=power
+                                                                          )
+
+        vals = derivs[0]
+        for n,d in enumerate(derivs[1:]):
+            for _ in range(n+1):
+                d = nput.vec_tensordot(d, disps, shared=2, axes=[2, 2]) # one axis vanishes every time
+            vals += d / np.math.factorial(n+1)
+
+        vals = nput.vec_tensordot(
+            vals,
+            idw_weights,
+            shared=1,
+            axes=[1, 1]
+        )
+        if deriv_order is not None:
+            base_derivs = derivs[1:deriv_order+1]
+            # derivs = []
+            # scaling = 1
+            # for i,d in enumerate(base_derivs):
+            #     scaling *= -(power + i)
+            #     scaled_dists = scaling * np.power(dists, -(power + i + 1))
+            #     # we also need to transform by dr/dx but I'm not doing that for now..
+            #     scaled_dists = np.expand_dims(scaled_dists, [-k for k in range(1, i+2)])
+            #     derivs.append(d * scaled_dists)
+            derivs = [nput.vec_tensordot(idw_weights, d, shared=1, axes=[1, 1]) for d in base_derivs]
+            # now we need to handle the inverse distance derivatives...
+            if deriv_order > 2:
+                raise NotImplementedError("distances are annoying")
+            vals = [vals] + derivs
+
+        return vals
+
+    def __call__(self, points, deriv_order=None, *, neighborhood_size=None, power=None, **kwargs):
+        if neighborhood_size is None: neighborhood_size = self.opts['neighborhood_size']
+        if power is None: power = self.power
+
+        dists, inds = self.kd.query(points, k=neighborhood_size)
+
+        interp_data = self.taylor_interp(
+            points,
+            dists,
+            self.decluster_centers[inds],
+            [d[inds] for d in self.decluster_derivs],
+            power=power,
+            deriv_order=deriv_order
+        )
+
+        if self.include_harmonic_basis:
+            freqs = self.modes.freqs
+            diag = freqs ** 2
+            harmonic_contribs = np.dot(points ** 2, diag) / 2
+            if deriv_order is not None:
+                interp_data[0] = interp_data[0] + harmonic_contribs
+                if deriv_order > 0:
+                    harmonic_grad = diag[np.newaxis, :] * points
+                    interp_data[1] = interp_data[1] + harmonic_grad
+                if deriv_order > 1:
+                    harmonic_hess = np.diag(diag)[np.newaxis, :, :]
+                    interp_data[2] = interp_data[2] + harmonic_hess
+            else:
+                interp_data = interp_data + harmonic_contribs
+
+        return interp_data
+
+
+
+
+DGBWatsonInterpolator = DGBWatsonTaylorInterpolator
+
+
 class DGBCartesianWatsonInterpolator(DGBWatsonInterpolator):
     def __init__(self, centers, potential_derivatives, modes, **opts):
         super().__init__(
@@ -1971,7 +2107,7 @@ class DGBGaussians:
         # raise Exception(base_polys[0].coeffs)
         return base_polys
 
-    def optimize(self, optimizer_options, **opts):
+    def optimize(self, optimizer_options, potential_function=None, **opts):
         if optimizer_options is True:
             optimizer_options = 'gram-schmidt'
         if isinstance(optimizer_options, (int, float, np.integer, np.floating)):
@@ -1987,6 +2123,8 @@ class DGBGaussians:
             optimized_positions = self._optimize_svd(**opts)
         elif method == 'gram-schmidt':
             optimized_positions = self._optimize_gs(**opts)
+        elif method == 'energy-cutoff':
+            optimized_positions = self._prune_energy(potential_function, **opts)
         else:
             raise ValueError("don't know what to do with optimizer method '{}'".format(method))
 
@@ -2207,6 +2345,11 @@ class DGBGaussians:
         full_good_pos = np.unique(np.where(np.abs(evecs[:, good_loc]) > svd_contrib_cutoff)[0])
 
         return full_good_pos
+
+    def _prune_energy(self, pot, *, cutoff, potential_values=None):
+        if potential_values is None:
+            potential_values = pot(self.coords.centers)
+        return np.where(potential_values < cutoff)[0]
 
     @classmethod
     def construct(cls,

@@ -1,5 +1,5 @@
 
-import numpy as np, scipy as sp
+import numpy as np, scipy as sp, collections
 
 from .Wavefunctions import DGBWavefunctions
 
@@ -118,17 +118,39 @@ class DGBEigensolver:
 
         similarity_matrix = Qs.T @ Qh
 
-        dets = np.array([
-            abs(np.linalg.det(similarity_matrix[-n:, -n:]))
-            for n in range(1, len(eigs) + 1)
-        ])
-
         # compute moving average of abs of blocks of dets
-        # note that each block correponds to the value w//2 ahead of it
-        w = similarity_chunk_size
-        avgs = np.cumsum(dets[:-1])
-        avgs[w:] = avgs[w:] - avgs[:-w]
-        blocks = avgs[w-1:] / w
+        prev_dets = collections.deque(maxlen=similarity_chunk_size)
+        cur_sum = 0
+        strike_det_cutoff = 0.05
+        strikes = 0
+        max_strikes = 10
+        blocks = np.zeros(len(eigs))
+        for n in range(1, len(eigs) + 1):
+            subdet = abs(np.linalg.det(similarity_matrix[-n:, -n:]))
+            if len(prev_dets) == similarity_chunk_size:
+                oldest = prev_dets[0]
+                cur_sum -= oldest
+            prev_dets.append(subdet)
+            cur_sum += subdet
+            avg = cur_sum / len(prev_dets)
+            blocks[n-1] = avg
+            if avg < strike_det_cutoff:
+                strikes += 1
+                if strikes > max_strikes:
+                    break
+            else:
+                strikes = 0
+
+        # dets = np.array([
+        #     abs(np.linalg.det(similarity_matrix[-n:, -n:]))
+        #     for n in range(1, len(eigs) + 1)
+        # ])
+        #
+        # w = similarity_chunk_size
+        # avgs = np.cumsum(dets[:-1])
+        # avgs[w:] = avgs[w:] - avgs[:-w]
+        # blocks = avgs[w - 1:] / w
+
         if similarity_cutoff is None:
             similarity_cutoff = np.floor(np.max(blocks)*100/5)*5 / 100 # next lowest .5
         block_pos = np.where(blocks > similarity_cutoff)
@@ -140,7 +162,7 @@ class DGBEigensolver:
                 )
             )
 
-        return int(block_pos[0][-1] + np.ceil(w/2))
+        return int(block_pos[0][-1] + 1) #+ np.ceil(w/2))
 
 
         # det_chunks = np.split(np.arange(len(dets)), np.where(np.abs(np.diff(dets)) > similar_det_cutoff)[0] + 1)

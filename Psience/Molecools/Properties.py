@@ -2,6 +2,7 @@
 A collection of methods used in computing molecule properties
 """
 import numpy as np, scipy.sparse as sp, itertools as ip, os, abc
+from collections import namedtuple
 
 import McUtils.Numputils as nput
 from McUtils.Coordinerds import CoordinateSet
@@ -332,6 +333,8 @@ class StructuralProperties:
 
         return rot, (og_ref, ref_com, ref_axes), (og_coords, com, pax_axes)
 
+    EmbeddingData = namedtuple("PrincipleAxisData", ['coords', 'com', 'axes'])
+    EckartData = namedtuple('EckartData', ['rotations', 'reference_data', 'coord_data'])
     @classmethod
     def get_eckart_embedding_data(cls, masses, ref, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
         """
@@ -347,7 +350,10 @@ class StructuralProperties:
         :rtype:
         """
 
-        return cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
+        rot, ref_data, embedded_data = cls.get_eckart_rotations(
+            masses, ref, coords, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance
+        )
+        return cls.EckartData(rot, cls.EmbeddingData(*ref_data), cls.EmbeddingData(*embedded_data))
 
     @classmethod
     def get_prop_eckart_transformation(cls, masses, ref, coords,
@@ -1553,9 +1559,17 @@ class DipoleSurfaceManager(PropertyManager):
             conv = amu_conv # (sqrt_freqs * np.sqrt(amu_conv))
             num_secs = num_secs * conv
 
+        proper_derivs = tuple(
+            d for d in [mom, grad, seconds, thirds]
+            if d is not None
+        )
+        proper_numerical_derivs = tuple(
+            d for d in [mom, num_grad, num_secs]
+            if d is not None
+        )
         return {
-            "analytic": (mom, grad, seconds, thirds),
-            "numerical": (mom, num_grad, num_secs)
+            "analytic": proper_derivs,
+            "numerical": proper_numerical_derivs
         }
 
     def load_dipole_derivatives(self, file=None):
@@ -2013,6 +2027,8 @@ class NormalModesManager(PropertyManager):
         if d1_analytic is None:
             return None
         else:
+            if len(d1_analytic) < 2:
+                return None
             d1_analytic = d1_analytic[1]
             if d1_analytic is None:
                 return None
@@ -2020,6 +2036,8 @@ class NormalModesManager(PropertyManager):
         if d1_numerical is None:
             return None
         else:
+            if len(d1_numerical) < 2:
+                return None
             d1_numerical = d1_numerical[1]
             if d1_numerical is None:
                 return None

@@ -1094,7 +1094,7 @@ class MolecularModel(AnalyticModel):
         if dipole_function is None:
             dipole_function = lambda coords, deriv_order=None: (
                 self.dipole(coords)
-                if deriv_order is None else
+                    if deriv_order is None else
                 [np.moveaxis(d, -1, 1) for d in self.dipole(coords, deriv_order=deriv_order)]
         )
 

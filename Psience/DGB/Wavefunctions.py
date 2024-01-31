@@ -245,12 +245,14 @@ class DGBWavefunctions(Wavefunctions):
         return self._hamiltonian
     def operator_representation(self,
                                 op,
+                                embed=True,
                                 expansion_degree=None,
                                 quadrature_degree=None,
                                 expansion_type=None,
                                 ):
         return self.hamiltonian.evaluate_multiplicative_operator(
             op,
+            embed=embed,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
             quadrature_degree=quadrature_degree
@@ -281,11 +283,9 @@ class DGBWavefunctions(Wavefunctions):
                 self, other
             ))
 
-        if embed:
-            op = self.gaussians.coords.embed_function(op)
-
         op_mat = self.operator_representation(
             op,
+            embed=embed,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
             quadrature_degree=quadrature_degree

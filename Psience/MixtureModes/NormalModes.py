@@ -16,6 +16,7 @@ __reload_hook__ = [".MixtureModes"]
 class NormalModes(MixtureModes):
     name="NormalModes"
 
+    default_zero_freq_cutoff = 4.5e-5 # 10 wavenumbers...
     @classmethod
     def get_normal_modes(cls,
                          f_matrix,
@@ -24,6 +25,7 @@ class NormalModes(MixtureModes):
                          remove_transrot=True,
                          dimensionless=False,
                          mass_weighted=None,
+                         zero_freq_cutoff=None,
                          mode='default'
                          ):
 
@@ -39,7 +41,6 @@ class NormalModes(MixtureModes):
             if mass_weighted is None: mass_weighted = dimensionless # generally do the right thing for Cartesians
             mass_spec = np.broadcast_to(mass_spec[:, np.newaxis], (len(mass_spec), 3)).flatten()
             mass_spec = np.diag(1 / mass_spec)
-
         freq2, modes = slag.eigh(f_matrix, mass_spec, type=3)
         if remove_transrot:
             gi12 = slag.fractional_matrix_power(mass_spec, -1 / 2)
@@ -48,7 +49,9 @@ class NormalModes(MixtureModes):
             # modes = g12 @ V
             # therefore, inv = V.T @ gi12
             # and modes[:, nz] = g12 @ V[:, nz]; inv[nz, :] = (V.T)[nz, :] @ gi12 (this is only the _left_ inverse)
-            nonzero = np.abs(freq2) > 1e-9  # less than 10 wavenumbers...
+            if zero_freq_cutoff is None:
+                zero_freq_cutoff = cls.default_zero_freq_cutoff
+            nonzero = np.abs(freq2) > zero_freq_cutoff
             # if len(nonzero) < len(modes):
             #     if np.linalg.det(modes) != 1 or not np.allclose(modes.T @ modes, np.eyelen(modes)):
             #         # we're working in a non-invertible subspace...

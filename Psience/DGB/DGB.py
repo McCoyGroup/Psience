@@ -158,7 +158,10 @@ class DGB:
             logger=logger
         )
         if optimize_centers:
-            coords = coords.optimize(optimize_centers)
+            if not isinstance(optimize_centers, (list, tuple)):
+                optimize_centers = [optimize_centers]
+            for optimizer in optimize_centers:
+                coords = coords.optimize(optimizer, potential_function=potential_function)
 
         potential = cls.construct_potential(
             potential_function,
