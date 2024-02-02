@@ -1081,7 +1081,7 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
         )
 
 class DGBInterpolator(metaclass=abc.ABCMeta):
-    default_neighborhood_size=5
+    default_neighborhood_size=15
     default_declustering_alpha=0
     default_declustering_overlap=.1
     def __init__(self, centers, potential_derivatives,
@@ -1160,12 +1160,13 @@ class DGBWatsonInterpolatorSingleRef(DGBInterpolator):
             # interped_vals[2] = np.broadcast_to(harmonic_deriv[np.newaxis, :, :], interped_vals[2].shape)
         return interped_vals
 
-
 class DGBWatsonTaylorInterpolator(DGBInterpolator):
     def __init__(self, centers, potential_derivatives, modes,
-                 power=4,
+                 power=2,
                  include_harmonic_basis=False, # provably does nothing for now...
-                 **opts):
+                 harmonic_distance_cutoff=None, # just to make plots look better...
+                 **opts
+                 ):
         super().__init__(centers, potential_derivatives, power=power, **opts)
         self.modes = modes
         alpha = self.declustering_opts['declustering_alpha']
@@ -1184,6 +1185,140 @@ class DGBWatsonTaylorInterpolator(DGBInterpolator):
         else:
             self.adjusted_derivs = self.derivs
         self.include_harmonic_basis = include_harmonic_basis
+        self.harmonic_distance_cutoff = harmonic_distance_cutoff
+        self.declustering_inds = inds
+        self.decluster_centers = self.centers[inds]
+        self.decluster_derivs = [d[inds] for d in self.adjusted_derivs]
+        self.kd = sp.spatial.KDTree(self.decluster_centers)
+        self.power = power
+    def take_remainder_potential(self, centers, potential_derivatives, modes):
+        freqs = modes.freqs
+        diag = freqs ** 2
+        harmonic_contribs = np.dot(centers**2, diag) / 2
+        harmonic_grad = diag[np.newaxis, :] * centers
+        harmonic_deriv = np.diag(diag)
+        remainder_vals = potential_derivatives[0] - harmonic_contribs
+        remainder_grad = potential_derivatives[1] - harmonic_grad
+        remainder_hess = potential_derivatives[2] - harmonic_deriv[np.newaxis, :, :]
+        return [remainder_vals, remainder_grad, remainder_hess] + potential_derivatives[3:]
+    def taylor_interp(self, points, dists, neighbors, derivs, power=2, deriv_order=None):
+        disps = points[:, np.newaxis, :] - neighbors
+
+        idw_weights = InverseDistanceWeightedInterpolator.get_idw_weights(points, dists,
+                                                                          disps=disps,
+                                                                          zero_tol=1e-6,
+                                                                          deriv_order=None,
+                                                                          power=power
+                                                                          )
+
+        # if deriv_order is not None:
+        #     idw_derivs = idw_weights
+        #     idw_weights = idw_weights[0]
+        # else:
+        #     idw_derivs = None
+
+        vals = derivs[0]
+        for n,d in enumerate(derivs[1:]):
+            for _ in range(n+1):
+                d = nput.vec_tensordot(d, disps, shared=2, axes=[2, 2]) # one axis vanishes every time
+            vals += d / np.math.factorial(n+1)
+
+        vals = nput.vec_tensordot(
+            vals,
+            idw_weights,
+            shared=1,
+            axes=[1, 1]
+        )
+        if deriv_order is not None:
+            base_derivs = [np.moveaxis(b, 1, -1) for b in derivs[:deriv_order+1]]
+            derivs = [nput.vec_tensordot(idw_weights, d, shared=1, axes=[1, -1]) for d in base_derivs[1:]]
+            vals = [vals] + derivs
+            # vals = [vals] + nput.tensordot_deriv(idw_derivs, base_derivs, deriv_order, shared=1, axes=[1, 1])
+
+        return vals
+
+    def __call__(self, points, deriv_order=None, *, neighborhood_size=None, power=None, **kwargs):
+        if neighborhood_size is None: neighborhood_size = self.opts['neighborhood_size']
+        if power is None: power = self.power
+
+        dists, inds = self.kd.query(points, k=neighborhood_size)
+
+        interp_data = self.taylor_interp(
+            points,
+            dists,
+            self.decluster_centers[inds],
+            [d[inds] for d in self.decluster_derivs],
+            power=power,
+            deriv_order=deriv_order
+        )
+
+        if self.include_harmonic_basis:
+            freqs = self.modes.freqs
+            diag = freqs ** 2
+            harmonic_contribs = np.dot(points ** 2, diag) / 2
+            if deriv_order is not None:
+                interp_data[0] = interp_data[0] + harmonic_contribs
+                if deriv_order > 0:
+                    harmonic_grad = diag[np.newaxis, :] * points
+                    interp_data[1] = interp_data[1] + harmonic_grad
+                if deriv_order > 1:
+                    harmonic_hess = np.diag(diag)[np.newaxis, :, :]
+                    interp_data[2] = interp_data[2] + harmonic_hess
+            else:
+                interp_data = interp_data + harmonic_contribs
+
+        if self.harmonic_distance_cutoff is not None:
+            min_dists = np.min(dists, axis=1)
+            bad_spots = np.where(min_dists > self.harmonic_distance_cutoff)
+            if len(bad_spots) > 0 and len(bad_spots[0]) > 0:
+                bad_spots = bad_spots[0]
+                bad_points = points[bad_spots]
+
+                diag = self.modes.freqs ** 2
+                harmonic_contribs = np.dot(bad_points ** 2, diag) / 2
+
+                if deriv_order is not None:
+                    interp_data[0][bad_spots] = harmonic_contribs
+                    if deriv_order > 0:
+                        harmonic_grad = diag[np.newaxis, :] * bad_points
+                        interp_data[1][bad_spots] = harmonic_grad
+                    if deriv_order > 1:
+                        harmonic_hess = np.diag(diag)[np.newaxis, :, :]
+                        interp_data[2][bad_spots] = np.broadcast_to(
+                            harmonic_hess,
+                            (len(bad_spots),) + harmonic_hess.shape[1:]
+                        )
+                else:
+                    interp_data[bad_spots] = harmonic_contribs
+
+        return interp_data
+
+class DGBWatsonLeastSquaresInterpolator(DGBInterpolator):
+    def __init__(self, centers, potential_derivatives, modes,
+                 power=2,
+                 include_harmonic_basis=False, # provably does nothing for now...
+                 harmonic_distance_cutoff=None, # just to make plots look better...
+                 **opts
+                 ):
+        super().__init__(centers, potential_derivatives, power=power, **opts)
+        self.modes = modes
+        alpha = self.declustering_opts['declustering_alpha']
+        if alpha > 0:
+            overlap_data = DGBEvaluator.get_overlap_gaussians(
+                    self.centers,
+                    np.full(self.centers.shape, alpha),
+                    None
+                )
+            S = DGBEvaluator.evaluate_overlap(overlap_data)
+            inds = DGBGaussians._optimize_gs_block(S, self.declustering_opts['declustering_overlap'])
+        else:
+            inds = slice(None)
+        if include_harmonic_basis:
+            self.adjusted_derivs = self.take_remainder_potential(centers, potential_derivatives, modes)
+        else:
+            self.adjusted_derivs = self.derivs
+        self.include_harmonic_basis = include_harmonic_basis
+        self.harmonic_distance_cutoff = harmonic_distance_cutoff
         self.declustering_inds = inds
         self.decluster_centers = self.centers[inds]
         self.decluster_derivs = [d[inds] for d in self.adjusted_derivs]
@@ -1221,14 +1356,6 @@ class DGBWatsonTaylorInterpolator(DGBInterpolator):
         )
         if deriv_order is not None:
             base_derivs = derivs[1:deriv_order+1]
-            # derivs = []
-            # scaling = 1
-            # for i,d in enumerate(base_derivs):
-            #     scaling *= -(power + i)
-            #     scaled_dists = scaling * np.power(dists, -(power + i + 1))
-            #     # we also need to transform by dr/dx but I'm not doing that for now..
-            #     scaled_dists = np.expand_dims(scaled_dists, [-k for k in range(1, i+2)])
-            #     derivs.append(d * scaled_dists)
             derivs = [nput.vec_tensordot(idw_weights, d, shared=1, axes=[1, 1]) for d in base_derivs]
             # now we need to handle the inverse distance derivatives...
             if deriv_order > 2:
@@ -1267,9 +1394,31 @@ class DGBWatsonTaylorInterpolator(DGBInterpolator):
             else:
                 interp_data = interp_data + harmonic_contribs
 
+        if self.harmonic_distance_cutoff is not None:
+            min_dists = np.min(dists, axis=1)
+            bad_spots = np.where(min_dists > self.harmonic_distance_cutoff)
+            if len(bad_spots) > 0 and len(bad_spots[0]) > 0:
+                bad_spots = bad_spots[0]
+                bad_points = points[bad_spots]
+
+                diag = self.modes.freqs ** 2
+                harmonic_contribs = np.dot(bad_points ** 2, diag) / 2
+
+                if deriv_order is not None:
+                    interp_data[0][bad_spots] = harmonic_contribs
+                    if deriv_order > 0:
+                        harmonic_grad = diag[np.newaxis, :] * bad_points
+                        interp_data[1][bad_spots] = harmonic_grad
+                    if deriv_order > 1:
+                        harmonic_hess = np.diag(diag)[np.newaxis, :, :]
+                        interp_data[2][bad_spots] = np.broadcast_to(
+                            harmonic_hess,
+                            (len(bad_spots),) + harmonic_hess.shape[1:]
+                        )
+                else:
+                    interp_data[bad_spots] = harmonic_contribs
+
         return interp_data
-
-
 
 
 DGBWatsonInterpolator = DGBWatsonTaylorInterpolator
@@ -2178,8 +2327,41 @@ class DGBGaussians:
             new[:n] -= np.dot(vec[:n], prev) * prev
         return new
 
+    _fast_outer = None
+    @classmethod
+    def _gs_off_diag_norms(cls, S, rows, cols, vec): # this is the slow step...
+        if cls._fast_outer is None:
+            # from McUtils.Misc import jit
+            # @jit(nopython=True, cache=True, warn=True)
+            def fast_mul(vec:np.ndarray, rows:np.ndarray, cols:np.ndarray):
+                return (vec[:, rows] * vec[:, cols])
+            cls._fast_outer = fast_mul
+
+        return 2 * np.matmul(
+            S[rows, cols][np.newaxis, np.newaxis, :],
+            cls._fast_outer(vec, rows, cols)[:, :, np.newaxis]
+        ).reshape(-1)
     @staticmethod
-    def _calc_gs_norm_block(new, S, old):
+    def _gs_diag_norms(vec):
+        return np.matmul(
+            vec[:, np.newaxis, :],
+            vec[:, :, np.newaxis]
+        ).reshape(-1)  # taking advantage of the fact that the diagonal of S is 1
+    @staticmethod
+    def _gs_extra_norm(old, vec):
+        # correction from old itself, being a column of the overlap matrix, knowing that the final element of new is 1
+        return 1 + 2 * np.matmul(
+            old[:, np.newaxis, :], vec[:, :, np.newaxis]
+        ).reshape(-1)
+    # @staticmethod
+    # def _gs_direct_norm(S, vec):
+    #     print(S.shape, vec.shape)
+    #     ugh = S[:len(vec), :len(vec)]
+    #     Sv = np.matmul(ugh, vec).reshape(vec.shape)
+    #     return np.matmul(Sv[:, np.newaxis, :], vec[:, :, np.newaxis]).reshape(-1)
+
+    @classmethod
+    def _calc_gs_norm_block(cls, new, S, old):
         # generalizes the row-by-row form to calculate the norms for every vector at once so
         # we can figure out which ones to keep
 
@@ -2187,22 +2369,14 @@ class DGBGaussians:
         # of older terms
         vec = new[:, :-1]
         rows, cols = np.triu_indices(vec.shape[-1], k=1)
-        off_diag = 2 * np.matmul(
-            S[rows, cols][np.newaxis, np.newaxis, :],
-            (vec[:, rows] * vec[:, cols])[:, :, np.newaxis]
-        ).reshape(-1)
-        diag = np.matmul(
-            vec[:, np.newaxis, :],
-            vec[:, :, np.newaxis]
-        ).reshape(-1) # taking advantage of the fact that the diagonal of S is 1
-        base_norm = diag + off_diag
 
-        # correction from old itself, being a column of the overlap matrix, knowing that the final element of new is 1
-        correction_norm = 1 + 2 * np.matmul(
-            old[:, np.newaxis, :], vec[:, :, np.newaxis]
-        ).reshape(-1)
+        off_diag = cls._gs_off_diag_norms(S, rows, cols, vec)
+        diag = cls._gs_diag_norms(vec)
+        # base_norm = cls._gs_direct_norm(S, vec)
 
-        return base_norm + correction_norm
+        correction_norm = cls._gs_extra_norm(old, vec)
+
+        return diag + off_diag + correction_norm
     @staticmethod
     def _calc_gs_next_block(vecs, ortho):
         new = np.zeros(vecs.shape)
@@ -2216,8 +2390,9 @@ class DGBGaussians:
         cur = cur.copy()
         cur[:, -1] = 1
         n = len(prev)
-        cur[:, :n] -= np.dot(overlaps[:, :n], prev[:n])[:, np.newaxis] * prev[np.newaxis, :n]
-        return cur
+        changes = np.dot(overlaps[:, :n], prev[:n])[:, np.newaxis] * prev[np.newaxis, :n]
+        cur[:, :n] -= changes
+        return changes, cur
     @classmethod
     def _optimize_gs_iter(cls, S, overlap_cutoff, norm_truncation_cutoff):
         orthog_vecs = [np.array([1.])]
@@ -2262,21 +2437,36 @@ class DGBGaussians:
         return mat
 
     @classmethod
-    def _optimize_gs_block(cls, S, overlap_cutoff):
+    def _optimize_gs_block(cls, S, overlap_cutoff, max_overlap_component,
+                           # recalculate_cutoff_factor=0,
+                           # chunk_size=5
+                           ):
         pivots = np.arange(len(S))
-        S_og = S
+        # S_og = S
         S = S.copy()  # we'll use the upper triangle for norms and the lower triangle for storing vecs
         cols, rows = np.triu_indices_from(S, k=1)
-        S[rows, cols] = 0
+        S[rows, cols] = 0 # remove lower triangle to redefine later
+        if max_overlap_component < 1: # a fast pre-filter
+            bad_pos = np.where(S[cols, rows] > max_overlap_component)
+            if len(bad_pos[0]) > 0:
+                # we contract S to reflect all of the things we've dropped
+                kept = np.setdiff1d(np.arange(len(S)), rows[bad_pos[0]])
+                pivots = pivots[kept]
+                full_spec = kept
+                S = S[np.ix_(full_spec, full_spec)]
+                print("dropped:", len(np.unique(rows[bad_pos[0]])))
+        # all_norms = None
         for i in range(1, len(S)):
 
             all_vecs = S[i:, :i + 1]
             all_ovs = S[:i + 1, i:].T
             # all_news = cls._calc_gs_next_block(all_vecs, [S[:j+1] for j in range(i)])  # subtract off newest change
-            all_news = cls._calc_gs_next_block_single(all_vecs, all_ovs, S[i-1, :i])  # subtract off newest change
-            all_norms = cls._calc_gs_norm_block(all_news, S_og, S_og[:i, i:].T)
+            changes, all_news = cls._calc_gs_next_block_single(all_vecs, all_ovs, S[i-1, :i])  # subtract off newest change
+            all_norms = cls._calc_gs_norm_block(all_news, S, S[:i, i:].T)
 
+            # rem = len(pivots) - i
             good_pos = np.where(all_norms > overlap_cutoff)
+            # print("-->", len(good_pos[0]))
             if len(good_pos) == 0 or len(good_pos[0]) == 0:
                 # we know everything else can be eliminated
                 pivots = pivots[:i]
@@ -2290,7 +2480,7 @@ class DGBGaussians:
 
                 full_spec = np.concatenate([np.arange(i), i + kept])
                 S = S[np.ix_(full_spec, full_spec)]
-                S_og = S_og[np.ix_(full_spec, full_spec)]
+                # S_og = S_og[np.ix_(full_spec, full_spec)]
                 all_news = all_news[kept,]
                 all_norms = all_norms[kept,]
 
@@ -2301,10 +2491,11 @@ class DGBGaussians:
 
             # Rearrange the pivots now that we have the new ordering
             pivots = cls._pivot_vector(pivots, i, pivot_pos)
+            # all_norms = cls._pivot_vector(all_norms, i, pivot_pos)
 
             # rearrange S to reflect this new ordering
             S = cls._pivot_matrix(S, i, pivot_pos)
-            S_og = cls._pivot_matrix(S_og, i, pivot_pos)
+            # S_og = cls._pivot_matrix(S_og, i, pivot_pos)
 
             # now insert the normalized vector
             S[i, :i+1] = new_vec
@@ -2312,24 +2503,24 @@ class DGBGaussians:
             # print(S_og[:i+1, :i+1])
             # if i > 1:
             #     raise Exception(...)
-
         return pivots
 
     gs_optimization_overlap_cutoff=1e-3
     def _optimize_gs(self, *, S=None,
-                     overlap_cutoff=None,
+                     norm_cutoff=None,
                      norm_truncation_cutoff=0,
+                     max_overlap_cutoff=1,
                      allow_pivoting=True
                      ):
-        if overlap_cutoff is None:
-            overlap_cutoff = self.gs_optimization_overlap_cutoff
+        if norm_cutoff is None:
+            norm_cutoff = self.gs_optimization_overlap_cutoff
         if S is None:
             S=self.S
 
         if allow_pivoting:
-            return self._optimize_gs_block(S, overlap_cutoff)
+            return self._optimize_gs_block(S, norm_cutoff, max_overlap_cutoff)
         else:
-            return self._optimize_gs_iter(S, overlap_cutoff, norm_truncation_cutoff)
+            return self._optimize_gs_iter(S, norm_cutoff, norm_truncation_cutoff)
 
     def _optimize_svd(self, min_singular_value=1e-4, num_svd_vectors=None, svd_contrib_cutoff=1e-3):
 
