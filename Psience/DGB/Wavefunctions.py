@@ -8,7 +8,8 @@ from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
 
 from Psience.Wavefun import Wavefunction, Wavefunctions
-from .Components import DGBGaussians, DGBCartesians, DGBWatsonModes
+from .Gaussians import DGBGaussians
+from .Coordinates import DGBCartesians, DGBWatsonModes
 
 __all__ = ["DGBWavefunctions", "DGBWavefunction"]
 

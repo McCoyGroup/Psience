@@ -1,8 +1,6 @@
 
 import numpy as np, scipy as sp, collections
 
-from .Wavefunctions import DGBWavefunctions
-
 class DGBEigensolver:
 
     @classmethod
@@ -79,6 +77,7 @@ class DGBEigensolver:
             )
             evecs = Q.T @ Qqinv.T @ evecs
         if nodeless_ground_state:
+            from .Wavefunctions import DGBWavefunctions
             # fast enough if we have not that many points...
             gswfn = DGBWavefunctions(eigs, evecs, hamiltonian=hamiltonian)[0]
             gs = gswfn.evaluate(hamiltonian.gaussians.coords.centers)

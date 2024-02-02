@@ -5,7 +5,10 @@ from McUtils.Data import UnitsData
 from McUtils.Zachary import DensePolynomial
 from McUtils.Scaffolding import Logger, NullLogger
 
-from . Components import *
+from .Gaussians import *
+from .Evaluators import *
+from .Coordinates import *
+from .Interpolation import *
 from .Wavefunctions import DGBWavefunctions
 from .Solvers import DGBEigensolver
 

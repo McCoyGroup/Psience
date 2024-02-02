@@ -2129,10 +2129,10 @@ class DGBTests(TestCase):
         bend, symm, asym = mol.normal_modes.modes.freqs
 
         base_dir = os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/')
-        for steps in [500]:#[10, 25, 50, 100, 150]:
+        for steps in [50]:#[10, 25, 50, 100, 150]:
             os.makedirs(base_dir, exist_ok=True)
             timestep = 15
-            ntraj = 200
+            ntraj = 5
             """
             :: diagonalizing in the space of 10 S functions
 :: ZPE: 4606.062336862118
@@ -2183,7 +2183,7 @@ class DGBTests(TestCase):
             :: Frequencies: [1611.75539366 3322.14103165 3750.51599371 3848.49340383 5428.62343904 6000.33748505 7584.24890693]
             """
             # pruning_energy = None
-            use_interpolation = True
+            use_interpolation = False
             plot_interpolation_error = False
 
             """
