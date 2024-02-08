@@ -1642,7 +1642,7 @@ class DGBTests(TestCase):
                         plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True
                         )
 
-    @validationTest
+    @debugTest
     def test_ModelPotentialAIMD3D(self):
         mol, model = self.buildWaterModel(
             # w2=None, wx2=None,
@@ -1778,27 +1778,67 @@ class DGBTests(TestCase):
                 [-bend,     0,   asymm ],
                 [-bend,     0,  -asymm ],
             ]) * 1,
-            timestep=25
+            timestep=10
         )
-        sim.propagate(50)
+
+        sim.propagate(500)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
+        pruning_energy = 700 / UnitsData.hartrees_to_wavenumbers
+        """
+        :: ZPE: 4597.865441316436
+        :: Frequencies: [1637.6712136  3349.38364799 3590.01285936 3857.62266998 5107.98352405 5644.27631775 6498.18260803 7014.27478321 7799.08239008]
+        
+        :: Frequencies: [1562.41093717 3417.28316685 3516.60154385 3847.63814055 5383.8738814  5589.93416336 7761.42924146]
+        """
+
+        """
+        :: ZPE: 4571.052734849301
+        :: Frequencies: [1604.12231989 3198.71878067 3677.31291629 3718.65204757 4784.74017931 5285.5956116  5315.66022305 6359.40692181 6881.25087141 6907.46034492 7227.52667649 7256.22417871 7409.6306825  7930.82731876 8479.74032541 8565.30819461 8843.19785438 8896.60257429 9005.52004136 9485.08015837]
+        """
+
         cartesians = False
+        use_interpolation = True
+        if use_interpolation:
+            potential_data = {'centers':coords, 'values':model.potential(coords, deriv_order=2)}
+        else:
+            potential_data = None
         with BlockProfiler(inactive=True):
+
+            """
+            :: ZPE: 4597.450569703509
+            :: Frequencies: [ 1532.0238538   3303.70601926  3886.06002078  3964.43747624  4728.98993909  5346.90145145  5693.6426873   6405.30581875  7154.85197981  7398.30642509  8923.81178447  9713.71335386 10610.13098991 11231.01060612]
+            :: ZPE: 4592.909813102955
+            :: Frequencies: [ 1638.0134135   3340.09636088  3581.51512274  3825.31857303  5495.38492396  5602.10440597  5937.30478358  6935.0265671   7342.87842492  7409.26799591  7525.80528395  7636.42783572  8023.87015034  8660.93003546  9119.65216576  9505.35854727  9725.2442756  10216.54968368 10446.88673994 10589.9953759 ]
+            """
+
+            """
+            :: ZPE: 4611.094983585687
+            :: Frequencies: [1603.44863295 3198.13903952 3679.81865526 3725.47652423 4781.54053    5286.23312573 5321.31083824 6355.83780495 6882.2687276  6957.89008281 7235.86055485 7302.76906113 7416.36229189 7920.22057333 8467.07742527 8570.37531735 8836.64381987 8881.92981176 9006.90005472 9495.1200398 ]
+            
+            :: ZPE: 4571.150876676482
+            :: Frequencies: [1604.93242976 3201.2762706  3679.48073856 3723.99293599 4788.08329001 5286.6499235  5319.70366332 6366.13763555 6890.23518753 6959.79446469 7233.18188159 7302.72415051 7413.80482603 7978.23252103 8491.44159641 8579.49532908 8837.49145321 8877.54093539 9004.81997599 9603.16119709]
+            """
 
             dgb = model.setup_DGB(
                 coords,
+                potential_function=potential_data,
                 # optimize_centers=False,
-                optimize_centers=1e-14,
-                # optimize_centers=False,
+                optimize_centers=[
+                    {
+                        'method': 'energy-cutoff',
+                        'cutoff': pruning_energy
+                    } if pruning_energy is not None else None,
+                    1e-14
+                ],
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
                 quadrature_degree=3
                 , expansion_degree=2
-                , pairwise_potential_functions={
-                    (0, 1):self.setupMorseFunction(model, 0, 1),
-                    (0, 2):self.setupMorseFunction(model, 0, 2)
-                }
+                # , pairwise_potential_functions={
+                #     (0, 1):self.setupMorseFunction(model, 0, 1),
+                #     (0, 2):self.setupMorseFunction(model, 0, 2)
+                # }
                 , transformations='diag'
             )
             """
@@ -1826,6 +1866,7 @@ class DGBTests(TestCase):
             # type(self).default_num_plot_wfns = 5
             type(self).default_num_plot_wfns = 5
             self.runDGB(dgb, mol,
+                        similarity_cutoff=.9,
                         # similarity_chunk_size=5,
                         # vmin=-.05,
                         # vmax=.05,
@@ -1833,8 +1874,8 @@ class DGBTests(TestCase):
                         # plot_wavefunctions=False,
                         plot_centers=False,
                         plot_spectrum=True,
-                        # plot_wavefunctions=False,
-                        plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
+                        plot_wavefunctions=False,
+                        # plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
                         )
 
     @validationTest
@@ -1976,6 +2017,22 @@ class DGBTests(TestCase):
                         # subspace_size=15,
                         plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True
                         )
+
+    @classmethod
+    def declusterPoints(cls, points, radius):
+        pivots = np.arange(len(points))
+        dec_pts = points.reshape(points.shape[0], -1)
+        for i in range(len(points)):
+            cur_pos = pivots[i]
+            dists = np.linalg.norm(
+                dec_pts[cur_pos][np.newaxis, :] - dec_pts[pivots[i+1:], :],
+                axis=1
+            )
+            good_pos = np.where(dists > radius)
+            if len(good_pos) == 0 or len(good_pos[0]) == 0:
+                break
+            pivots = np.concatenate([pivots[:i+1], pivots[i+1:][good_pos]])
+        return points[pivots]
     @classmethod
     def getMBPolModel(cls, atoms=None, ref=None, embed=True):
         loader = ModuleLoader(TestManager.current_manager().test_data_dir)
@@ -2056,7 +2113,7 @@ class DGBTests(TestCase):
             ref_mol = ref_mol.get_embedded_molecule(load_properties=False)
 
         return potential, ref_mol
-    @debugTest
+    @validationTest
     def test_WaterAIMD(self):
         pot, mol = self.getMBPolModel()
 
@@ -2129,27 +2186,63 @@ class DGBTests(TestCase):
         bend, symm, asym = mol.normal_modes.modes.freqs
 
         base_dir = os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/')
-        for steps in [50]:#[10, 25, 50, 100, 150]:
+        for steps in [350]:#[10, 25, 50, 100, 150]:
             os.makedirs(base_dir, exist_ok=True)
             timestep = 15
-            ntraj = 5
+            ntraj = 100
+
             """
+            :: Frequencies: [1609.06919262 3282.90976091 3734.21080928 3789.53125267 5217.51875909 5401.89397243 7351.09858836 7664.26359183 8103.99949129]
+            :: ZPE: 4606.627554128196
+            :: Frequencies: [1601.42455194 3329.71690697 3687.62029012 3785.2827193  5239.72140546 5431.43502422 7273.36075106 7609.79139782 7681.97615474]
+            """
+
+            energy_scaling = .8
+            seed = 12213123
+
+            """
+            .85
+            :: ZPE: 4607.609834535458
+            :: Frequencies: [1609.10806831 3257.37674326 3705.80664569 3779.55606179 5117.94616833 5488.9311554  7103.13117146 7268.51482036 8044.95640667]
+
+            .82
+            :: ZPE: 4607.036888835445
+            :: Frequencies: [1611.31520179 3261.72984012 3699.50759743 3787.45568697 5234.54910614 5618.72712325 6996.01648381 7615.2027507  7846.41192519]
+
+            .8 100 steps
+            :: ZPE: 4606.797169141409
+            :: Frequencies: [1610.04169705 3243.34276193 3680.44334095 3781.76488968 5176.71828876 5479.26952197 7119.8232309  7493.5383026  7869.5964258 ]
+            .8 250 steps
+            :: ZPE: 4607.034725666095
+            :: Frequencies: [1609.8186903  3194.26823979 3687.10412523 3788.71573366 5347.51200037 5397.84981027 7399.42924148 7688.38478761 7838.3082727 ]
+            .8 350 steps
+            :: ZPE: 4606.105237460464
+            :: Frequencies: [1607.11057198 3232.15750914 3658.20979239 3788.33747347 5328.52801832 5447.25199542 7395.72409063 7689.17981469 7782.46375781]
+
+            .75 100 steps
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
             :: diagonalizing in the space of 10 S functions
-:: ZPE: 4606.062336862118
-:: Frequencies: [1604.49347082 3272.18059291 3640.71512259 3783.8932659  5285.67836791 5467.84411618 7011.35068764 7450.62610373 7645.55885735]
+            :: ZPE: 4607.485396532124
+            :: Frequencies: [1610.32104831 3297.30449688 3763.90888546 3782.91764011 5241.06813866 5517.12368506 7274.69419998 7642.96341081 7942.17360151]
+            >>--------------------------------------------------<<
 
+            
+            .65
+            :: ZPE: 4607.533920799935
+            :: Frequencies: [1613.81508892 3258.70547351 3694.75250725 3788.44189092 5312.020972   5636.01652342 7396.61172428 7650.71623142 7812.36439688]
             """
-
-            """
-            :: diagonalizing in the space of 10 S functions
-:: ZPE: 4606.627554128196
-:: Frequencies: [1601.42455194 3329.71690697 3687.62029012 3785.2827193  5239.72140546 5431.43502422 7273.36075106 7609.79139782 7681.97615474]
-"""
-
-            energy_scaling = .75
 
             max_overlap_cutoff = 1 - 1e-4
-            gs_cutoff = 12
+            gs_cutoff = 14
+            declustering_radius = None# 1e-4
+            """
+            
+            :: ZPE: 4607.232047211292
+            :: Frequencies: [1607.99305477 3318.41403467 3658.14077806 3782.89189884 5218.17932006 5441.71112339 7350.3120221  7572.49259418 7808.84060981]
+            >
+            
+            :: Frequencies: [1607.99305455 3318.41403421 3658.14077756 3782.89189832 5218.17931934 5441.71112264 7350.31202109 7572.49259314 7808.84060874]
+            """
             sim_cutoff = .9
             pruning_energy = 500
             """ 100 traj, 500 steps, intep, 500 pruning, .75 energy scaling, ts 15
@@ -2183,7 +2276,7 @@ class DGBTests(TestCase):
             :: Frequencies: [1611.75539366 3322.14103165 3750.51599371 3848.49340383 5428.62343904 6000.33748505 7584.24890693]
             """
             # pruning_energy = None
-            use_interpolation = False
+            use_interpolation = True
             plot_interpolation_error = False
 
             """
@@ -2216,24 +2309,41 @@ class DGBTests(TestCase):
             # transformation_method = 'rpath' #4597.724422233999, 1613.48466441 3197.30480264 3559.70550684 3858.89799206
             # transformation_method = None #1698.2354715  3295.17558598 3667.70526921 3929.12204053
 
-
+            run_profiler = True
             plot_gaussians = False
-            plot_wfns = False
+            plot_wfns = not run_profiler
             # plot_wfns = {'modes':[2, 1]}
-            plot_wfns = {'cartesians':[0, 1], 'num':15}
+            # plot_wfns = {'cartesians':[0, 1], 'num':15}
 
             plot_dir = os.path.join(base_dir, 'Figures', 'mbpol')
             if not plot_wfns:
                 plot_dir = None
             if plot_dir is not None:
+                all_params = (
+                    timestep,
+                    ntraj,
+                    energy_scaling,
+
+                    seed,
+
+                    max_overlap_cutoff ,
+                    gs_cutoff,
+                    declustering_radius,
+                    sim_cutoff,
+                    pruning_energy,
+                    None if not use_pairwise_potentials else morse_wx,
+                    None if not use_pairwise_potentials else morse_w
+                    )
+                param_hash = str(hash(all_params))[:25]
                 plot_dir = os.path.join(plot_dir,
-                                        '{}_E{}_s{}_nt{}_ts{}_sim{}'.format(
+                                        '{}_E{}_s{}_nt{}_ts{}_sim{}_h{}'.format(
                                             'interp' if use_interpolation else 'exact',
                                             pruning_energy,
                                             steps,
                                             ntraj,
                                             timestep,
-                                            int(sim_cutoff * 100)
+                                            int(sim_cutoff * 100),
+                                            param_hash
                                         )
                                         )
 
@@ -2272,7 +2382,7 @@ class DGBTests(TestCase):
             #                 # [ 0.7, 0.7, 0.0],
             #                 # [-0.7, 0.7, 0.0],
             #             ]) * np.array([bend, symm, asym])[np.newaxis, :]
-            np.random.seed(12213123)
+            np.random.seed(seed)
             dirs = np.random.normal(0, 1, size=(ntraj, 3))
             dirs = dirs / np.linalg.norm(dirs, axis=1)[:, np.newaxis]
             dirs = np.concatenate([
@@ -2323,8 +2433,11 @@ class DGBTests(TestCase):
             else:
                 interp_data = None
 
-            with BlockProfiler(inactive=True):
+            with BlockProfiler(inactive=not run_profiler):
                 crd = np.round(coords[len(initial_energies)-1:], 8)
+                if declustering_radius is not None:
+                    crd = self.declusterPoints(crd, declustering_radius)
+                print("input points:", len(crd))
 
                 dgb = DGB.construct(
                     crd,
@@ -2339,6 +2452,10 @@ class DGBTests(TestCase):
                                 'method': 'energy-cutoff',
                                 'cutoff': pruning_energy
                             } if pruning_energy is not None else None,
+                            {
+                                'method': 'decluster',
+                                'cluster_radius': declustering_radius
+                            } if declustering_radius is not None else None,
                             {
                                 'method': 'gram-schmidt',
                                 'norm_cutoff': 10 ** (-gs_cutoff),

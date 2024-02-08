@@ -1,11 +1,11 @@
 
-import abc
-import math
+import abc, math, gc
 
 import numpy as np, itertools, functools
 
 from McUtils.Zachary import DensePolynomial, TensorDerivativeConverter
 from McUtils.Scaffolding import Logger
+from McUtils.Parallelizers import Parallelizer
 import McUtils.Numputils as nput
 
 __all__ = [
@@ -49,44 +49,79 @@ class DGBEvaluator:
         return covs
 
     @classmethod
-    def get_overlap_gaussians(cls, centers, alphas, transformations):
-        # a bit inefficient if all tfs are identity, but generality is good
-        rows, cols = np.triu_indices(len(alphas))
+    def get_overlap_gaussians(cls,
+                              centers, alphas, transformations,
+                              chunk_size=None,#int(1e6),
+                              rows_cols=None,
+                              logger=None,
+                              parallelizer=None
+                              ):
+        parallelizer = Parallelizer.lookup(parallelizer)
+        logger = Logger.lookup(logger)
 
+        if rows_cols is None:
+            rows, cols = np.triu_indices(len(alphas))
+        else:
+            rows, cols = rows_cols
+
+
+        # a bit inefficient if all tfs are identity, but generality is good
         sigs = cls.get_inverse_covariances(alphas, transformations)
         new_sigs = sigs[rows] + sigs[cols]
 
-        new_alphas, new_rots = np.linalg.eigh(new_sigs)  # eigenvalues of inverse tensor...
-        new_rots_inv = new_rots.transpose(0, 2, 1)
 
-        # I _could_ construct the inverse from the alphas and rotations
-        # but I think it makes more sense to use a potentially more stable
-        # inverse here...
-        new_inv = np.linalg.inv(new_sigs)
+        if chunk_size is not None:
+            num_segments = new_sigs.shape[0] // chunk_size + 1
+            chunks = np.array_split(new_sigs, num_segments)
+            row_chunks = np.array_split(rows, num_segments)
+            col_chunks = np.array_split(cols, num_segments)
+        else:
+            chunks = [new_sigs]
+            row_chunks = [rows]
+            col_chunks = [cols]
 
-        new_centers = new_inv @ (
-                sigs[rows] @ centers[rows][:, :, np.newaxis]
-                + sigs[cols] @ centers[cols][:, :, np.newaxis]
-        )
-        new_centers = new_centers.reshape(centers[cols].shape)
-        new_alphas = new_alphas / 2
-        sum_sigs = sigs[rows] @ new_inv @ sigs[cols]
+        logger.log_print("getting {nT} overlap Gaussians over {nC} chunks", nT=len(rows), nC=len(chunks))
+        chunk_data = []
+        for news, r, c in zip(chunks, row_chunks, col_chunks):
+            new_alphas, new_rots = np.linalg.eigh(news)  # eigenvalues of inverse tensor...
+            new_rots_inv = new_rots.transpose(0, 2, 1)
 
-        # TODO: turn this into a proper object...
+            # I _could_ construct the inverse from the alphas and rotations
+            # but I think it makes more sense to use a potentially more stable
+            # inverse here...also it is apparently no slower...
+            new_inv = np.linalg.inv(news)
+            # new_inv = new_rots @ nput.vec_tensordiag(1 / new_alphas) @ new_rots.transpose(0, 2, 1)
+
+            new_centers = new_inv @ (
+                    sigs[r] @ centers[r][:, :, np.newaxis]
+                    + sigs[c] @ centers[c][:, :, np.newaxis]
+            )
+            new_centers = new_centers.reshape(centers[c].shape)
+            new_alphas = new_alphas / 2
+            sum_sigs = sigs[r] @ new_inv @ sigs[c]
+
+            # TODO: turn this into a proper object...
+            chunk_data.append( {
+                'centers': new_centers,
+                'alphas': new_alphas,
+                'covariances': new_sigs,
+                'inverse':new_inv,
+                'sum_inverse': sum_sigs,
+                'rotations': new_rots,
+                'inverse_rotations': new_rots_inv
+            } )
+
         overlap_data = {
-            'centers': new_centers,
-            'alphas': new_alphas,
-            'covariances': new_sigs,
-            'inverse':new_inv,
-            'sum_inverse': sum_sigs,
+            k:np.concatenate([d[k] for d in chunk_data])
+            for k in chunk_data[0].keys()
+        }
+        overlap_data.update({
             'row_inds': rows,
             'col_inds': cols,
-            'rotations': new_rots,
-            'inverse_rotations': new_rots_inv,
-            'init_centers':centers,
-            'init_alphas':alphas,
-            'init_covariances':sigs
-        }
+            'init_centers': centers,
+            'init_alphas': alphas,
+            'init_covariances': sigs
+        })
 
         return overlap_data
 
@@ -380,8 +415,9 @@ class DGBEvaluator:
         return row_inds, col_inds, ndim, det_rat, C
 
     @classmethod
-    def _rot_base_S(cls, overlap_data):
+    def _rot_base_S(cls, overlap_data, logger=None):
 
+        logger.log_print('evluatng {nT} overlaps', nT=len(overlap_data['row_inds']))
         n = len(overlap_data['init_centers'])
         S = np.eye(n)
         row_inds, col_inds, ndim, det_rat, C = cls._rot_base_S_components(overlap_data)
@@ -396,8 +432,8 @@ class DGBEvaluator:
         return S
 
     @classmethod
-    def evaluate_overlap(cls, overlap_data):
-        return cls._rot_base_S(overlap_data) # maybe I should make this return the overlap params instead?
+    def evaluate_overlap(cls, overlap_data, logger=None):
+        return cls._rot_base_S(overlap_data, logger=logger)
 
 class DGBKineticEnergyEvaluator(DGBEvaluator):
     """
@@ -610,7 +646,7 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
         return poly
 
     @abc.abstractmethod
-    def evaluate_ke(self, overlap_data):
+    def evaluate_ke(self, overlap_data, logger=None):
         ...
 
     @classmethod
@@ -676,9 +712,11 @@ class DGBCartesianEvaluator(DGBKineticEnergyEvaluator):
     def __init__(self, masses):
         self.masses = masses
 
-    def evaluate_ke(self, overlap_data):
-        masses = self.masses
+    def evaluate_ke(self, overlap_data, logger=None):
+        logger = Logger.lookup(logger)
+        logger.log_print("evaluating Cartesian kinetic energy contribution")
 
+        masses = self.masses
         return self.evaluate_diagonal_rotated_momentum_contrib(
             overlap_data,
             masses
@@ -804,7 +842,7 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         return ke
 
 
-    def evaluate_ke(self, overlap_data):
+    def evaluate_ke(self, overlap_data, logger=None):
 
         # #[0.00881508 0.00808985 0.00661593 0.00479724 0.00300391 0.00148472]
         # return self.evaluate_classic_momentum_contrib(
@@ -812,17 +850,21 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         #     np.ones(overlap_data['init_alphas'].shape[-1])
         # )
 
+        logger = Logger.lookup(logger)
+        logger.log_print("evaluating Watson diagonal momentum contribution")
         base = self.evaluate_diagonal_rotated_momentum_contrib(
             overlap_data,
             np.ones(overlap_data['init_alphas'].shape[-1])
         )
 
+        logger.log_print("evaluating coriolis contribution")
         B_e, coriolis = self.ci_func(overlap_data['centers'])
         # coriolis[coriolis != 0] = np.sign(coriolis[coriolis != 0])
         coriolis = -self.evaluate_coriolis_contrib(coriolis, overlap_data)
         B_e = -1/4 * B_e
         # raise Exception(coriolis[0, :3])
 
+        logger.log_print("evaluating Watson term contribution")
         watson = np.zeros(base.shape)
         rows, cols = np.triu_indices_from(base)
         watson[rows, cols] = B_e
@@ -1024,7 +1066,10 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
 
         return pot_mat
 
-    def evaluate_pe(self, overlap_data):
+    def evaluate_pe(self, overlap_data, logger=None):
+        if logger is None:
+            logger = self.logger
+        logger.log_print("evaluating potential energy contribution")
         return self.evaluate_multiplicative(
             self.potential_function,
             overlap_data,
@@ -1033,7 +1078,7 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             expansion_degree=self.expansion_degree,
             expansion_type=self.expansion_type,
             pairwise_functions=self.pairwise_handler,
-            logger=self.logger
+            logger=logger
         )
 
     def evaluate_op(self,

@@ -4,6 +4,7 @@ import numpy as np, scipy as sp
 from McUtils.Data import UnitsData
 from McUtils.Zachary import DensePolynomial
 from McUtils.Scaffolding import Logger, NullLogger
+from McUtils.Parallelizers import Parallelizer
 
 from .Gaussians import *
 from .Evaluators import *
@@ -133,6 +134,7 @@ class DGB:
                   coordinate_selection=None,
                   cartesians=None,
                   logger=False,
+                  parallelizer=None,
                   optimize_centers=False,
                   quadrature_degree=3,
                   expansion_degree=None,
@@ -143,6 +145,7 @@ class DGB:
                   dipole_function=None
                   ):
         logger = Logger.lookup(logger)
+        parallelizer = Parallelizer.lookup(parallelizer)
 
         coords, potential_function = cls.construct_gaussians(
             centers,
@@ -158,7 +161,8 @@ class DGB:
             transformations=transformations,
             # projection_indices=projection_indices,
             poly_coeffs=poly_coeffs,
-            logger=logger
+            logger=logger,
+            parallelizer=parallelizer
         )
         if optimize_centers:
             if not isinstance(optimize_centers, (list, tuple)):
@@ -181,6 +185,7 @@ class DGB:
             coords,
             potential,
             logger=logger,
+            parallelizer=parallelizer,
             wavefunction_options={'dipole_function':dipole_function}
         )
 
@@ -199,7 +204,8 @@ class DGB:
                             transformations=None,
                             # projection_indices=projection_indices,
                             poly_coeffs=None,
-                            logger=None
+                            logger=None,
+                            parallelizer=None
                             ):
         # here to be overridden
         if (
@@ -226,7 +232,8 @@ class DGB:
             transformations=transformations,
             # projection_indices=projection_indices,
             poly_coeffs=poly_coeffs,
-            logger=logger
+            logger=logger,
+            parallelizer=parallelizer
         )
 
         # self._S, self._T, self._V = None, None, None
@@ -251,7 +258,8 @@ class DGB:
                             expansion_type=None,
                             # reference_structure=None,
                             pairwise_potential_functions=None,
-                            logger=None
+                            logger=None,
+                            parallelizer=None
                             ):
         return DGBPotentialEnergyEvaluator(
             potential_function,
@@ -271,6 +279,7 @@ class DGB:
                  gaussians:DGBGaussians,
                  potential:DGBPotentialEnergyEvaluator,
                  logger=None,
+                 parallelizer=None,
                  wavefunction_options=None
                  ):
         self.gaussians = gaussians
@@ -280,6 +289,7 @@ class DGB:
         self._T = None
         self._S = None
         self.logger = Logger.lookup(logger)
+        self.parallelizer = Parallelizer.lookup(parallelizer)
     def as_cartesian_dgb(self):
         if isinstance(self.gaussians.coords, DGBCartesians):
             return self
@@ -324,126 +334,12 @@ class DGB:
     @property
     def V(self):
         if self._V is None:
-            self.logger.log_print("evaluating potential energy...")
-            self._V = self.S * self.pot.evaluate_pe(self.gaussians.overlap_data)
+            with self.logger.block(tag="Evaluating potential energy matrix"):
+                self._V = self.S * self.pot.evaluate_pe(self.gaussians.overlap_data)
         return self._V
     @V.setter
     def V(self, V):
         self._V = V
-
-    def get_kinetic_polynomials(self):
-        raise NotImplementedError("deprecated")
-        # TODO: implement _multipolynomial_ support so that we can handle
-        #       this in a simpler form
-
-        ndim = self.centers.shape[-1]
-        if self.transformations is None and self.inds is not None:
-            ndim = len(self.inds)
-
-        core_polys = self.get_base_polynomials()
-        core_derivs = [ # these will be indexed by columns
-            [poly.deriv(i) if isinstance(poly, DensePolynomial) else 0 for i in range(ndim)]
-            for poly in core_polys
-        ]
-        core_d2s = [
-            [p.deriv(i) if isinstance(p, DensePolynomial) else 0 for i, p in enumerate(poly_list)]
-            for poly_list in core_derivs
-        ]
-
-        if self.transformations is None:
-            centers = self.centers
-            alphas = self.alphas
-            if self.inds is not None:
-                ndim = len(self.inds)
-                centers = centers[:, self.inds]
-                alphas = alphas[:, self.inds]
-            exp_polys = [ # these will be indexed by columns as well
-                DensePolynomial.from_tensors([0, np.zeros(ndim), np.diag(2*a)], shift=-pt, rescale=False)
-                for pt,a in zip(centers, alphas)
-            ]
-        else:
-            sigs = self.get_inverse_covariances()
-            centers = self.centers
-            if self.inds is not None:
-                Lt, L = self.transformations
-                Lt = Lt[:, :, self.inds]
-                L = L[:, self.inds, :]
-                centers = Lt@( L @ centers[:, :, np.newaxis] )
-                centers = centers.reshape(self.centers.shape)
-
-            raise Exception(sigs[2], centers[2])
-
-            exp_polys = [
-                DensePolynomial.from_tensors([0, np.zeros(ndim), sig], shift=-pt)
-                for pt,sig in zip(
-                    centers,
-                    sigs
-                )
-            ]
-        def _d(p, i):
-            if isinstance(p, DensePolynomial):
-                d = p.deriv(i)
-                if isinstance(d, DensePolynomial):
-                    d = d.clip()
-            else:
-                d = p
-            return d
-        exp_derivs = [
-            [-1/2*_d(poly, i) for i in range(ndim)]
-            for poly in exp_polys
-        ]
- #        raise Exception(exp_derivs[0][1].coeffs)
- #        """
- #        [[[-0.24875972 -1.62256994]
- #  [-1.91803054 -0.        ]]
- #
- # [[ 3.58730135 -0.        ]
- #  [-0.         -0.        ]]]
- #  """
-        exp_d2s = [
-            [_d(p, i) for i,p in enumerate(poly_list)]
-            for poly_list in exp_derivs
-        ]
-        # raise Exception(
-        #     (
-        #             (exp_derivs[0][0] * exp_derivs[0][0])
-        #             + exp_d2s[0][0].coeffs*exp_d2s[0][0].scaling
-        #     ).coeffs,
-        #     core_polys[0].coeffs
-        # )
-
-        raise Exception(
-            exp_polys[2].coeffs
-        )
-
-        # and now we can construct the polynomials for each center and axis
-        def _k(p, pd1, pd2, ed1, ed2):
-            t = pd2 + 2*pd1 * ed1 + p * ((ed1 * ed1) + ed2)
-            if isinstance(t, DensePolynomial):
-                t = t.clip(threshold=1e-8)
-            return t
-        kinetic_polys = [
-            [
-                _k(p, pd1, pd2, ed1, ed2)
-                for pd1, pd2, ed1, ed2 in zip(pd1s, pd2s, ed1s, ed2s)
-            ]
-            for p, pd1s, pd2s, ed1s, ed2s in zip(
-                core_polys,
-                core_derivs,
-                core_d2s,
-                exp_derivs,
-                exp_d2s
-            )
-        ]
-
-        # raise Exception(
-        #     kinetic_polys[0][0].coeffs,
-        #     kinetic_polys[0][1],
-        #     kinetic_polys[0][2].coefficient_tensors,
-        #     # kinetic_polys[0][0].coeffs,
-        # )
-
-        return core_polys, kinetic_polys
 
     def evaluate_multiplicative_operator(self,
                                          function,

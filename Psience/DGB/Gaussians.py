@@ -1,7 +1,8 @@
+import numpy as np
 
-from McUtils.Zachary import DensePolynomial
 from McUtils.Coordinerds import CartesianCoordinates1D, CartesianCoordinates2D, CartesianCoordinates3D
 from McUtils.Scaffolding import Logger
+from McUtils.Parallelizers import Parallelizer
 from McUtils.Data import AtomData, UnitsData
 import McUtils.Numputils as nput
 
@@ -79,6 +80,7 @@ class DGBGaussians:
             poly_coeffs = self.canonicalize_poly_coeffs(poly_coeffs, self.alphas)
         self._poly_coeffs = poly_coeffs
 
+        self.parallelizer = Parallelizer.lookup(parallelizer)
         self.logger = Logger.lookup(logger)
 
     @property
@@ -87,24 +89,29 @@ class DGBGaussians:
             self._overlap_data = DGBEvaluator.get_overlap_gaussians(
                 self.coords.centers,
                 self.alphas,
-                self.transformations
+                self.transformations,
+                logger=self.logger,
+                parallelizer=self.parallelizer
             )
         return self._overlap_data
     def get_S(self):
         if self._poly_coeffs is not None:
             raise NotImplementedError("need to reintroduce polynomial support")
-        return DGBEvaluator.evaluate_overlap(self.overlap_data)
+        with self.logger.block(tag="Evaluating S matrix"):
+            return DGBEvaluator.evaluate_overlap(self.overlap_data, logger=self.logger)
     def get_T(self):
         if self._poly_coeffs is not None:
             raise NotImplementedError("need to reintroduce polynomial support")
-        self.logger.log_print("evaluating kinetic energy...")
-        return self.coords.kinetic_energy_evaluator.evaluate_ke(self.overlap_data)
+        with self.logger.block(tag="Evaluating kinetic energy matrix"):
+            return self.coords.kinetic_energy_evaluator.evaluate_ke(self.overlap_data, logger=self.logger)
 
-    def optimize(self, optimizer_options, potential_function=None, **opts):
+    def optimize(self, optimizer_options, potential_function=None, logger=None, **opts):
+        if logger is None:
+            logger = self.logger
         if optimizer_options is True:
             optimizer_options = 'gram-schmidt'
         if isinstance(optimizer_options, (int, float, np.integer, np.floating)):
-            optimizer_options = {'method':'gram-schmidt', 'overlap_cutoff':optimizer_options}
+            optimizer_options = {'method':'gram-schmidt', 'norm_cutoff':optimizer_options}
         if isinstance(optimizer_options, str):
             optimizer_options = {'method':optimizer_options}
 
@@ -113,15 +120,48 @@ class DGBGaussians:
         opts = dict(optimizer_options, **opts)
         del opts['method']
         if method == 'svd':
-            optimized_positions = self._optimize_svd(**opts)
+            optimized_positions = self._optimize_svd(logger=logger, **opts)
         elif method == 'gram-schmidt':
-            optimized_positions = self._optimize_gs(**opts)
+            optimized_positions = self._optimize_gs(logger=logger, **opts)
         elif method == 'energy-cutoff':
-            optimized_positions = self._prune_energy(potential_function, **opts)
+            optimized_positions = self._prune_energy(potential_function, logger=logger,  **opts)
+        elif method == 'decluster':
+            optimized_positions = self._prune_dists(logger=logger, **opts)
         else:
             raise ValueError("don't know what to do with optimizer method '{}'".format(method))
 
         return self.take_gaussian_selection(optimized_positions)
+
+    @classmethod
+    def take_overlap_data_subselection(self, overlap_data, positions):
+        # we need to find the positions in the old stuff where we
+        rows = overlap_data['row_inds']
+        cols = overlap_data['col_inds']
+
+        mask_1, _, _ = nput.contained(rows, positions)
+        mask_2, _, _ = nput.contained(cols, positions)
+        take_pos = np.where(np.logical_and(mask_1 > 0, mask_2 > 0))[0]
+        # raise Exception(
+        #     len(positions),
+        #     len(take_pos),
+        #     len(np.triu_indices(len(positions))[0])
+        # )
+
+        og_keys = {
+            'init_centers',
+            'init_alphas',
+            'init_covariances'
+        }
+
+        new = {
+            k:v[take_pos] if k not in og_keys else v[positions]
+            for k,v in overlap_data.items()
+        }
+        rows, cols = np.triu_indices(len(positions))
+        new['row_inds'] = rows
+        new['col_inds'] = cols
+
+        return new
 
     def take_gaussian_selection(self, full_good_pos):
         centers = self.coords[full_good_pos,]
@@ -136,10 +176,19 @@ class DGBGaussians:
         else:
             _poly_coeffs = None
 
-        return type(self)(
+        new = type(self)(
             centers, alphas, transformations,
             poly_coeffs=_poly_coeffs, logger=self.logger
         )
+        
+        if self._overlap_data is not None:
+            new._overlap_data = self.take_overlap_data_subselection(self.overlap_data, full_good_pos)
+        if self._S is not None:
+            new._S = self._S[np.ix_(full_good_pos, full_good_pos)]
+        if self._T is not None:
+            new._T = self._T[np.ix_(full_good_pos, full_good_pos)]
+
+        return new
 
     @staticmethod
     def _calc_gs_norm(new, S, old):
@@ -238,11 +287,12 @@ class DGBGaussians:
         cur[:, :n] -= changes
         return changes, cur
     @classmethod
-    def _optimize_gs_iter(cls, S, overlap_cutoff, norm_truncation_cutoff):
+    def _optimize_gs_iter(cls, S, overlap_cutoff, norm_truncation_cutoff, logger=None):
         orthog_vecs = [np.array([1.])]
         norms = []  # debug
         mask = np.full(len(S), False, dtype=bool)
         mask[0] = True
+        logger.log_print("pruning with unpivoted Gram-Schmidt norm > {n}", n=norm_truncation_cutoff)
         for i in range(1, len(S)):
             mask[i] = True
             vec = S[i, :i + 1][mask[:i + 1]]
@@ -284,7 +334,11 @@ class DGBGaussians:
     def _optimize_gs_block(cls, S, overlap_cutoff, max_overlap_component,
                            # recalculate_cutoff_factor=0,
                            # chunk_size=5
+                           logger=None
                            ):
+
+        logger.log_print("pruning with pivoted Gram-Schmidt norm > {oc}", oc = overlap_cutoff)
+
         pivots = np.arange(len(S))
         # S_og = S
         S = S.copy()  # we'll use the upper triangle for norms and the lower triangle for storing vecs
@@ -298,7 +352,9 @@ class DGBGaussians:
                 pivots = pivots[kept]
                 full_spec = kept
                 S = S[np.ix_(full_spec, full_spec)]
-                print("dropped:", len(np.unique(rows[bad_pos[0]])))
+                logger.log_print("dropped {n} Gaussians with overlaps greater than {mc}",
+                                 n=len(np.unique(rows[bad_pos[0]])),
+                                 mc=max_overlap_component)
         # all_norms = None
         for i in range(1, len(S)):
 
@@ -347,24 +403,37 @@ class DGBGaussians:
             # print(S_og[:i+1, :i+1])
             # if i > 1:
             #     raise Exception(...)
-        return pivots
+        return np.sort(pivots)
 
+    # def _S_generator(self,
+    #                  chunk_start, chunk_size
+    #                  ):
+    #
+    #     DGBEvaluator.evaluate_overlap(self.overlap_data, logger=self.logger)
+    #     self.get_S()
     gs_optimization_overlap_cutoff=1e-3
     def _optimize_gs(self, *, S=None,
                      norm_cutoff=None,
                      norm_truncation_cutoff=0,
                      max_overlap_cutoff=1,
-                     allow_pivoting=True
+                     allow_pivoting=True,
+                     chunk_size=None,
+                     logger=None
                      ):
+
+        logger.log_print('optimizing using Gram-Schmidt')
         if norm_cutoff is None:
             norm_cutoff = self.gs_optimization_overlap_cutoff
         if S is None:
-            S=self.S
+            if chunk_size is None:
+                S=self.S
+            else:
+                S=self._S_generator
 
         if allow_pivoting:
-            return self._optimize_gs_block(S, norm_cutoff, max_overlap_cutoff)
+            return self._optimize_gs_block(S, norm_cutoff, max_overlap_cutoff, logger=logger)
         else:
-            return self._optimize_gs_iter(S, norm_cutoff, norm_truncation_cutoff)
+            return self._optimize_gs_iter(S, norm_cutoff, norm_truncation_cutoff, logger=logger)
 
     def _optimize_svd(self, min_singular_value=1e-4, num_svd_vectors=None, svd_contrib_cutoff=1e-3):
 
@@ -381,10 +450,30 @@ class DGBGaussians:
 
         return full_good_pos
 
-    def _prune_energy(self, pot, *, cutoff, potential_values=None):
+    def _prune_energy(self, pot, *, cutoff, logger=None, potential_values=None):
+        logger.log_print("pruning Gaussians with energies larger than {ec} cm-1",
+                         ec=cutoff * UnitsData.hartrees_to_wavenumbers
+                         )
         if potential_values is None:
             potential_values = pot(self.coords.centers)
         return np.where(potential_values < cutoff)[0]
+
+    def _prune_dists(self, *,  cluster_radius, logger=None):
+        logger.log_print('declustering data with a radius of {r}', r=cluster_radius)
+        points = self.coords.centers
+        pivots = np.arange(len(points))
+        dec_pts = points.reshape(points.shape[0], -1)
+        for i in range(len(points)):
+            cur_pos = pivots[i]
+            dists = np.linalg.norm(
+                dec_pts[cur_pos][np.newaxis, :] - dec_pts[pivots[i + 1:], :],
+                axis=1
+            )
+            good_pos = np.where(dists > cluster_radius)
+            if len(good_pos) == 0 or len(good_pos[0]) == 0:
+                break
+            pivots = np.concatenate([pivots[:i + 1], pivots[i + 1:][good_pos]])
+        return pivots
 
     @classmethod
     def construct(cls,
@@ -402,7 +491,8 @@ class DGBGaussians:
                   cartesians=None,
                   gmat_function=None,
                   poly_coeffs=None,
-                  logger=None
+                  logger=None,
+                  parallelizer=None
                   ):
         if potential_expansion is not None:
             if potential_function is not None:
