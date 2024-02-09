@@ -1283,6 +1283,95 @@ class DGBTests(TestCase):
                         plot_wavefunctions=False#{'cartesians':[0, 1]} if not cartesians else True
                         )
 
+    @debugTest
+    def test_ModelPotentialPhasedAIMD1D(self):
+        mol, model = self.buildWaterModel(
+            w2=None, wx2=None,
+            ka=None,
+            oh_model=True,
+            dudr1=1 / 5.5,
+            dudr2=None  # 1 / 5.5
+            # dipole_direction=[1, 0, 0]
+        )
+
+        check_freqs = False
+        if check_freqs:
+            freqs = model.normal_modes()[0]
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        check_anh = False
+        if check_anh:
+            model.run_VPT(order=2, states=8, degeneracy_specs=None, logger=True)
+            """
+            ZPE: 1934.73500   1913.73500
+            ============================================= IR Data ==============================================
+            Initial State: 0 
+                           Harmonic                  Anharmonic
+            State   Frequency    Intensity       Frequency    Intensity
+              1    3869.47000     33.99218      3701.47000     33.22606
+              2    7738.94000      0.00000      7234.94000      0.68986
+              3   11608.41000      0.00000     10600.41000      0.02926
+              4   15477.88000      0.00000     13797.88000      0.00000
+              5   19347.35000      0.00000     16827.35000      0.00000
+              6   23216.82000      0.00000     19688.82000      0.00000
+              7   27086.29000      0.00000     22382.29000      0.00000
+              8   30955.76000      0.00000     24907.76000      0.00000
+            ====================================================================================================
+            """
+            raise Exception(...)
+
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(mol.coords, mol.normal_modes.modes)
+
+        sim = model.setup_AIMD(
+            initial_energies=[
+                [2*3701 * self.w2h],
+                [-2*3701 * self.w2h]
+            ],
+            timestep=25,
+            track_velocities=True
+        )
+        sim.propagate(25)
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        momenta = velocities * mol.masses[np.newaxis, :, np.newaxis]
+        # momenta = -model.potential(coords, deriv_order=1)[1]
+        # momenta = np.full(velocities.shape, .0)
+
+        cartesians = False
+        with BlockProfiler(inactive=True):
+
+            dgb = model.setup_DGB(
+                np.round(coords[1:], 8),
+                # optimize_centers=1e-8,
+                optimize_centers=False,
+                modes=None if cartesians else 'normal',
+                cartesians=[0, 1] if cartesians else None,
+                # quadrature_degree=3,
+                expansion_degree=2,
+                # pairwise_potential_functions={
+                #     (0, 1): self.setupMorseFunction(model, 0, 1)
+                #     # (0, 2): self.setupMorseFunction(model, 0, 2)
+                # },
+                momenta=momenta[1:]
+            )
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 15 S functions
+            :: ZPE: 1874.6259549942713
+            :: Frequencies: [ 3701.69591981  7231.85528827 10591.76118441 13773.1942042  16759.56893886 19393.48574319 21119.41033203 22954.87541687 25476.84980589 28047.54215813 30765.12758808 34097.63739187 38236.9908528  47891.33197648]
+            >>--------------------------------------------------<<
+            """
+            print(np.min(dgb.S))
+
+            # raise Exception(...)
+
+            self.runDGB(dgb, mol,
+                        domain_padding=10,
+                        plot_spectrum=False,
+                        plot_wavefunctions=False  # {'cartesians':[0, 1]} if not cartesians else True
+                        )
+
     @validationTest
     def test_ModelPotentialAIMD2D(self):
         mol, model = self.buildWaterModel(
@@ -1642,7 +1731,7 @@ class DGBTests(TestCase):
                         plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True
                         )
 
-    @debugTest
+    @validationTest
     def test_ModelPotentialAIMD3D(self):
         mol, model = self.buildWaterModel(
             # w2=None, wx2=None,
@@ -2706,7 +2795,7 @@ class DGBTests(TestCase):
 
         rots = embedding.rotations
         # need to reembed derivatives
-        coords = nput.vec_tensordot(
+        coords = nput.vec_tensordot( #...?
             embedding.coord_data.coords,
             rots,
             shared=1,
@@ -2716,20 +2805,20 @@ class DGBTests(TestCase):
             grads.reshape(grads.shape[0], -1, 3),
             embedding.rotations,
             shared=1,
-            axes=[-1, 2]
+            axes=[-1, 1] # dv/dx has inverse embedding
         ).reshape(grads.shape)
         hess = nput.vec_tensordot(
             hess.reshape((hess.shape[0], hess.shape[1], -1, 3)),
             embedding.rotations,
             shared=1,
-            axes=[-1, 2]
+            axes=[-1, 1]
         ).reshape(hess.shape)
         hess = np.moveaxis(hess, -2, -1)
         hess = nput.vec_tensordot(
             hess.reshape((hess.shape[0], hess.shape[1], -1, 3)),
             embedding.rotations,
             shared=1,
-            axes=[-1, 2]
+            axes=[-1, 1]
         ).reshape(hess.shape)
 
         coords = np.concatenate([[mol.coords], coords], axis=0)

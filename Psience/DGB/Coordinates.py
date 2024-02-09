@@ -396,19 +396,23 @@ class DGBWatsonModes(DGBCoords):
         return coriolis_inertia_function
 
     @classmethod
-    def embed_coords(cls, carts, modes):
-        flat_carts = (carts - modes.origin[np.newaxis]).reshape((len(carts), -1))
+    def embed_coords(cls, carts, modes, shift=True):
+        if shift:
+            flat_carts = (carts - modes.origin[np.newaxis]).reshape((len(carts), -1))
+        else:
+            flat_carts = (carts).reshape((len(carts), -1))
         return (flat_carts[:, np.newaxis, :] @ modes.inverse.T[np.newaxis]).reshape(
             flat_carts.shape[0],
             modes.matrix.shape[1]
         )
     @classmethod
-    def unembed_coords(cls, mode_coords, modes, masses=None):
+    def unembed_coords(cls, mode_coords, modes, masses=None, shift=True):
         origin = modes.origin
         carts = (mode_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(
             mode_coords.shape[:1] + origin.shape
         )
-        carts = carts + origin
+        if shift:
+            carts = carts + origin[np.newaxis, :, :]
         # if masses is not None:
         #     carts = carts.reshape((carts.shape[0], len(masses), -1))
         #     carts = StructuralProperties.get_eckart_embedded_coords(

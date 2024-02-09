@@ -2,6 +2,7 @@ import collections, functools, numpy as np
 # might be worth excising theses since this could be standalone otherwise?
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Zachary import FiniteDifferenceDerivative, RBFDInterpolator
+import McUtils.Numputils as nput
 
 from ..Molecools import Molecule, MolecularZMatrixCoordinateSystem
 from ..Molecools.Properties import PropertyManager
@@ -20,6 +21,7 @@ class AIMDSimulator:
                  internals=None,
                  velocities=0,
                  track_kinetic_energy=False,
+                 track_velocities=False,
                  timestep=.1,
                  sampling_rate=1
                  ):
@@ -80,27 +82,14 @@ class AIMDSimulator:
             )
         else:
             self.kinetic_energies = None
+        if track_velocities:
+            self.velocity_deque = collections.deque()
+            self.velocity_deque.append(self.velocities)
+        else:
+            self.velocity_deque = None
         self.steps = 0
         self.dt = timestep
         self.sampling_rate = sampling_rate
-
-    @classmethod
-    def from_molecule(cls,
-                      mol,
-                      force_function,
-                      internals=None,
-                      velocities=0,
-                      track_kinetic_energy=False,
-                      timestep=.1,
-                      sampling_rate=1
-                      ):
-        raise NotImplementedError("needs an update")
-        return cls(
-            mol.masses,
-            mol.coords,
-            force_function,
-            internals=mol.internal_coordinates.system
-        )
 
     @classmethod
     def mode_energies_to_velocities(cls, modes, masses, energy_splits, inverse=None):
@@ -189,6 +178,8 @@ class AIMDSimulator:
                 if self.kinetic_energies is not None:
                     self.kinetic_energies.append(self._ke(self._mass, v))
                 self.trajectory.append(c)
+                if self.velocity_deque is not None:
+                    self.velocity_deque.append(v)
 
         return self.trajectory
 
@@ -280,7 +271,7 @@ class AIMDSimulator:
 
         return interpolator_class(traj, *vals, **interpolator_options)
 
-    def extract_trajectory(self, flatten=True, embed=True):
+    def extract_trajectory(self, flatten=True, embed=True, extract_velocities=None):
         ref_struct = None
         if isinstance(embed, (np.ndarray, list, tuple)):
             ref_struct = np.asanyarray(embed)
@@ -288,6 +279,12 @@ class AIMDSimulator:
         base_coords = np.array(self.trajectory)
         if flatten:
             base_coords = base_coords.reshape((-1,)+base_coords.shape[-2:])
+        if extract_velocities is None:
+            extract_velocities = self.velocity_deque is not None
+        if extract_velocities:
+            velocities = np.array(self.velocity_deque)
+        else:
+            velocities = None
         if embed:
             if ref_struct is None:
                 if not flatten:
@@ -302,10 +299,30 @@ class AIMDSimulator:
                 else:
                     ref_struct = ref_crds[0]
             mol = Molecule(["H"]*len(self.masses), ref_struct, masses=self.masses)
-            coords = mol.embed_coords(base_coords)
+            if extract_velocities:
+                embedding = mol.get_embedding_data(base_coords)
+                coords = nput.vec_tensordot(
+                    embedding.coord_data.coords,
+                    embedding.rotations,
+                    shared=1,
+                    axes=[-1, 2]
+                )
+                velocities = nput.vec_tensordot(
+                    np.reshape(velocities, coords.shape), # dx/dt has same embedding
+                    embedding.rotations,
+                    shared=1,
+                    axes=[-1, 2]
+                )
+                coords = np.reshape(coords, base_coords.shape)
+                velocities = np.reshape(velocities, base_coords.shape)
+            else:
+                coords = mol.embed_coords(base_coords)
         else:
             coords = base_coords
-        return coords
+        if extract_velocities:
+            return coords, velocities
+        else:
+            return coords
 
 class PairwisePotential:
     def __init__(self, fun, deriv=None):

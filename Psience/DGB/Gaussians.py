@@ -55,7 +55,10 @@ class DGBGaussians:
     A class to set up the actual N-dimensional Gaussians used in a DGB
     """
 
-    def __init__(self, coords, alphas, transformations=None, *, poly_coeffs=None,
+    def __init__(self, coords, alphas,
+                 transformations=None, *,
+                 momenta=None,
+                 poly_coeffs=None,
                  logger=None,
                  parallelizer=None
                  ):
@@ -70,9 +73,18 @@ class DGBGaussians:
             alphas = [alphas] * self.coords.shape[0]
         self.alphas = np.asanyarray(alphas)
 
+
         if self.alphas.ndim == 1:
             self.alphas = np.broadcast_to(self.alphas[:, np.newaxis], self.coords.shape)
         self._transforms = self.canonicalize_transforms(self.alphas, transformations)
+
+        if isinstance(momenta, (int, float, np.integer, np.floating)):
+            momenta = [momenta] * self.coords.shape[0]
+        if momenta is not None:
+            momenta = np.asanyarray(momenta)
+            if momenta.ndim == 1:
+                momenta = np.broadcast_to(momenta[:, np.newaxis], self.alphas.shape)
+        self.momenta = momenta
 
         self._overlap_data = None
 
@@ -90,6 +102,7 @@ class DGBGaussians:
                 self.coords.centers,
                 self.alphas,
                 self.transformations,
+                self.momenta,
                 logger=self.logger,
                 parallelizer=self.parallelizer
             )
@@ -427,8 +440,11 @@ class DGBGaussians:
         if S is None:
             if chunk_size is None:
                 S=self.S
+                if isinstance(S, tuple): # phases introduced
+                    S = 1/2*(S[0] + S[1])
             else:
-                S=self._S_generator
+                raise NotImplementedError('getting chunking working is hard...')
+                S=self.S
 
         if allow_pivoting:
             return self._optimize_gs_block(S, norm_cutoff, max_overlap_cutoff, logger=logger)
@@ -490,6 +506,7 @@ class DGBGaussians:
                   coordinate_selection=None,
                   cartesians=None,
                   gmat_function=None,
+                  momenta=None,
                   poly_coeffs=None,
                   logger=None,
                   parallelizer=None
@@ -541,6 +558,10 @@ class DGBGaussians:
                             atoms=atoms
                         )
                     )
+
+                    if momenta is not None: # defined as d/dx, even though classically given by m dx/dt
+                        momenta = [np.zeros(momenta.shape[0]), momenta.reshape((momenta.shape[0], -1))]
+                        momenta = DGBWatsonModes.embed_derivs(momenta, modes)[1]
 
                 else:
                     if internals is not None:
@@ -622,7 +643,8 @@ class DGBGaussians:
             alphas = np.broadcast_to(alphas, shp)
 
         return cls(coords, alphas, transformations,
-                   poly_coeffs=poly_coeffs, logger=logger
+                   poly_coeffs=poly_coeffs, logger=logger,
+                   momenta=momenta
                    ), potential_function
     @classmethod
     def get_normal_modes(cls,

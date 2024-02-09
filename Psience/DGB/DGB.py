@@ -140,6 +140,7 @@ class DGB:
                   expansion_degree=None,
                   expansion_type='multicenter',
                   # reference_structure=None,
+                  momenta=None,
                   poly_coeffs=None,
                   pairwise_potential_functions=None,
                   dipole_function=None
@@ -160,6 +161,7 @@ class DGB:
             modes=modes,
             transformations=transformations,
             # projection_indices=projection_indices,
+            momenta=momenta,
             poly_coeffs=poly_coeffs,
             logger=logger,
             parallelizer=parallelizer
@@ -203,6 +205,7 @@ class DGB:
                             modes=None,
                             transformations=None,
                             # projection_indices=projection_indices,
+                            momenta=None,
                             poly_coeffs=None,
                             logger=None,
                             parallelizer=None
@@ -231,6 +234,7 @@ class DGB:
             modes=modes,
             transformations=transformations,
             # projection_indices=projection_indices,
+            momenta=momenta,
             poly_coeffs=poly_coeffs,
             logger=logger,
             parallelizer=parallelizer
@@ -318,24 +322,52 @@ class DGB:
             wavefunction_options=self.wfn_opts
         )
 
+    def get_S(self):
+        od = self.gaussians.overlap_data
+        S = self.gaussians.S
+        if od['initial_phases'] is not None:
+            S_diff, S_sum = S
+            return (S_diff + S_sum)
+        else:
+            return S
     @property
     def S(self):
         if self._S is None:
-            self._S = self.gaussians.S
+            self._S = self.get_S()
         return self._S
+
+    def get_T(self):
+        od = self.gaussians.overlap_data
+        T = self.gaussians.T
+        if od['initial_phases'] is not None:
+            T_diff, T_sum = T
+            S_diff, S_sum = self.gaussians.S
+            return (S_diff * T_diff + S_sum * T_sum)
+        else:
+            return self.S * T
     @property
     def T(self):
         if self._T is None:
-            self._T = self.S * self.gaussians.T
+            self._T = self.get_T()
         return self._T
     @T.setter
     def T(self, T):
         self._T = T
+
+    def get_V(self):
+        od = self.gaussians.overlap_data
+        V = self.pot.evaluate_pe(od)
+        if od['initial_phases'] is not None:
+            V_diff, V_sum = V
+            S_diff, S_sum = self.gaussians.S
+            return (S_diff * V_diff + S_sum * V_sum)
+        else:
+            return self.S * V
     @property
     def V(self):
         if self._V is None:
             with self.logger.block(tag="Evaluating potential energy matrix"):
-                self._V = self.S * self.pot.evaluate_pe(self.gaussians.overlap_data)
+                self._V = self.get_V()
         return self._V
     @V.setter
     def V(self, V):
