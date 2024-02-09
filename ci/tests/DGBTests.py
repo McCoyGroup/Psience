@@ -1325,13 +1325,13 @@ class DGBTests(TestCase):
 
         sim = model.setup_AIMD(
             initial_energies=[
-                [2*3701 * self.w2h],
+                [ 2*3701 * self.w2h],
                 [-2*3701 * self.w2h]
             ],
             timestep=25,
             track_velocities=True
         )
-        sim.propagate(25)
+        sim.propagate(15)
         coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
         momenta = velocities * mol.masses[np.newaxis, :, np.newaxis]
         # momenta = -model.potential(coords, deriv_order=1)[1]
@@ -1342,8 +1342,8 @@ class DGBTests(TestCase):
 
             dgb = model.setup_DGB(
                 np.round(coords[1:], 8),
-                # optimize_centers=1e-8,
-                optimize_centers=False,
+                optimize_centers=1e-8,
+                # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
                 # quadrature_degree=3,
@@ -1352,19 +1352,10 @@ class DGBTests(TestCase):
                 #     (0, 1): self.setupMorseFunction(model, 0, 1)
                 #     # (0, 2): self.setupMorseFunction(model, 0, 2)
                 # },
-                momenta=momenta[1:]
+                momenta=1872*momenta[1:]
             )
 
-            """
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: diagonalizing in the space of 15 S functions
-            :: ZPE: 1874.6259549942713
-            :: Frequencies: [ 3701.69591981  7231.85528827 10591.76118441 13773.1942042  16759.56893886 19393.48574319 21119.41033203 22954.87541687 25476.84980589 28047.54215813 30765.12758808 34097.63739187 38236.9908528  47891.33197648]
-            >>--------------------------------------------------<<
-            """
-            print(np.min(dgb.S))
-
-            # raise Exception(...)
+            # print(np.linalg.eigvalsh(dgb.S))
 
             self.runDGB(dgb, mol,
                         domain_padding=10,
