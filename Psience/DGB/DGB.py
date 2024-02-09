@@ -341,7 +341,7 @@ class DGB:
         T = self.gaussians.T
         if od['initial_phases'] is not None:
             T_diff, T_sum = T
-            S_diff, S_sum = self.gaussians.S
+            S_diff, S_sum = self.gaussians.prefactor
             return (S_diff * T_diff + S_sum * T_sum)
         else:
             return self.S * T
@@ -359,7 +359,7 @@ class DGB:
         V = self.pot.evaluate_pe(od)
         if od['initial_phases'] is not None:
             V_diff, V_sum = V
-            S_diff, S_sum = self.gaussians.S
+            S_diff, S_sum = self.gaussians.prefactor
             return (S_diff * V_diff + S_sum * V_sum)
         else:
             return self.S * V

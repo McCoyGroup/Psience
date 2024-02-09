@@ -62,6 +62,7 @@ class DGBGaussians:
                  logger=None,
                  parallelizer=None
                  ):
+        self._pref = None
         self._S = None
         self._T = None
 
@@ -107,11 +108,11 @@ class DGBGaussians:
                 parallelizer=self.parallelizer
             )
         return self._overlap_data
-    def get_S(self):
+    def get_S(self, just_prefactor=False):
         if self._poly_coeffs is not None:
             raise NotImplementedError("need to reintroduce polynomial support")
         with self.logger.block(tag="Evaluating S matrix"):
-            return DGBEvaluator.evaluate_overlap(self.overlap_data, logger=self.logger)
+            return DGBEvaluator.evaluate_overlap(self.overlap_data, logger=self.logger, just_prefactor=just_prefactor)
     def get_T(self):
         if self._poly_coeffs is not None:
             raise NotImplementedError("need to reintroduce polynomial support")
@@ -163,11 +164,17 @@ class DGBGaussians:
         og_keys = {
             'init_centers',
             'init_alphas',
-            'init_covariances'
+            'init_covariances',
+            'initial_phases',
+            'initial_momenta'
         }
 
         new = {
-            k:v[take_pos] if k not in og_keys else v[positions]
+            k:(
+                v
+                    if v is None else
+                v[take_pos] if k not in og_keys else v[positions]
+            )
             for k,v in overlap_data.items()
         }
         rows, cols = np.triu_indices(len(positions))
@@ -189,17 +196,33 @@ class DGBGaussians:
         else:
             _poly_coeffs = None
 
+        if self.momenta is not None:
+            momenta = self.momenta[full_good_pos,]
+        else:
+            momenta = None
+
         new = type(self)(
             centers, alphas, transformations,
-            poly_coeffs=_poly_coeffs, logger=self.logger
+            poly_coeffs=_poly_coeffs, logger=self.logger,
+            momenta=momenta
         )
         
         if self._overlap_data is not None:
             new._overlap_data = self.take_overlap_data_subselection(self.overlap_data, full_good_pos)
         if self._S is not None:
-            new._S = self._S[np.ix_(full_good_pos, full_good_pos)]
+            base = self._S
+            idx = np.ix_(full_good_pos, full_good_pos)
+            if isinstance(base, tuple):
+                new._S = (base[0][idx], base[1][idx])
+            else:
+                new._S = base[idx]
         if self._T is not None:
-            new._T = self._T[np.ix_(full_good_pos, full_good_pos)]
+            base = self._T
+            idx = np.ix_(full_good_pos, full_good_pos)
+            if isinstance(base, tuple):
+                new._T = (base[0][idx], base[1][idx])
+            else:
+                new._T = base[idx]
 
         return new
 
@@ -1047,6 +1070,11 @@ class DGBGaussians:
 
         return (tfs, invs)
 
+    @property
+    def prefactor(self):
+        if self._pref is None:
+            self._pref = self.get_S(just_prefactor=True)
+        return self._pref
     @property
     def S(self):
         if self._S is None:
