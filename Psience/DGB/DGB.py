@@ -4,8 +4,12 @@ import numpy as np, scipy as sp
 from McUtils.Data import UnitsData
 from McUtils.Zachary import DensePolynomial
 from McUtils.Scaffolding import Logger, NullLogger
+from McUtils.Parallelizers import Parallelizer
 
-from . Components import *
+from .Gaussians import *
+from .Evaluators import *
+from .Coordinates import *
+from .Interpolation import *
 from .Wavefunctions import DGBWavefunctions
 from .Solvers import DGBEigensolver
 
@@ -74,6 +78,8 @@ class DGB:
     def run(self,
             quiet=False,
             calculate_spectrum=True,
+            dipole_degree=0,
+            num_print=20,
             **wavefunction_options
             ):
         """
@@ -94,14 +100,16 @@ class DGB:
                     logger = Logger.lookup(True)
                 logger.log_print('ZPE: {zpe}', zpe=wfns.energies[0] * UnitsData.hartrees_to_wavenumbers)
                 freqs = wfns.frequencies()
-                if len(freqs) > 10:
-                    freqs = freqs[:10]
+                if len(freqs) > num_print:
+                    freqs = freqs[:num_print]
                 logger.log_print('Frequencies: {freqs}', freqs=freqs * UnitsData.hartrees_to_wavenumbers)
                 if calculate_spectrum and wfns.dipole_function is not None:
-                    spec = wfns.get_spectrum()
+                    spec = wfns.get_spectrum(
+                        expansion_degree=dipole_degree
+                    )
                     ints = spec.intensities
-                    if len(ints) > 10:
-                        ints = ints[:10]
+                    if len(ints) > num_print:
+                        ints = ints[:num_print]
                     logger.log_print('Intensities: {ints}', ints=ints)
                 else:
                     spec = None
@@ -126,16 +134,19 @@ class DGB:
                   coordinate_selection=None,
                   cartesians=None,
                   logger=False,
+                  parallelizer=None,
                   optimize_centers=False,
                   quadrature_degree=3,
                   expansion_degree=None,
                   expansion_type='multicenter',
                   # reference_structure=None,
+                  momenta=None,
                   poly_coeffs=None,
                   pairwise_potential_functions=None,
                   dipole_function=None
                   ):
         logger = Logger.lookup(logger)
+        parallelizer = Parallelizer.lookup(parallelizer)
 
         coords, potential_function = cls.construct_gaussians(
             centers,
@@ -150,11 +161,16 @@ class DGB:
             modes=modes,
             transformations=transformations,
             # projection_indices=projection_indices,
+            momenta=momenta,
             poly_coeffs=poly_coeffs,
-            logger=logger
+            logger=logger,
+            parallelizer=parallelizer
         )
         if optimize_centers:
-            coords = coords.optimize(optimize_centers)
+            if not isinstance(optimize_centers, (list, tuple)):
+                optimize_centers = [optimize_centers]
+            for optimizer in optimize_centers:
+                coords = coords.optimize(optimizer, potential_function=potential_function)
 
         potential = cls.construct_potential(
             potential_function,
@@ -171,6 +187,7 @@ class DGB:
             coords,
             potential,
             logger=logger,
+            parallelizer=parallelizer,
             wavefunction_options={'dipole_function':dipole_function}
         )
 
@@ -178,7 +195,7 @@ class DGB:
     def construct_gaussians(cls,
                             centers,
                             alphas,
-                            potential_function,
+                            potential_spec,
                             gmat_function=None,
                             masses=None,
                             atoms=None,
@@ -188,14 +205,26 @@ class DGB:
                             modes=None,
                             transformations=None,
                             # projection_indices=projection_indices,
+                            momenta=None,
                             poly_coeffs=None,
-                            logger=None
+                            logger=None,
+                            parallelizer=None
                             ):
         # here to be overridden
+        if (
+                (isinstance(potential_spec, dict) and 'values' in potential_spec)
+                or (not callable(potential_spec) and all(isinstance(p, np.ndarray) for p in potential_spec))
+        ):
+            potential_function = None
+            potential_expansion = potential_spec
+        else:
+            potential_function = potential_spec
+            potential_expansion = None
         return DGBGaussians.construct(
             centers,
             alphas,
-            potential_function,
+            potential_function=potential_function,
+            potential_expansion=potential_expansion,
             gmat_function=gmat_function,
             masses=masses,
             atoms=atoms,
@@ -205,8 +234,10 @@ class DGB:
             modes=modes,
             transformations=transformations,
             # projection_indices=projection_indices,
+            momenta=momenta,
             poly_coeffs=poly_coeffs,
-            logger=logger
+            logger=logger,
+            parallelizer=parallelizer
         )
 
         # self._S, self._T, self._V = None, None, None
@@ -231,7 +262,8 @@ class DGB:
                             expansion_type=None,
                             # reference_structure=None,
                             pairwise_potential_functions=None,
-                            logger=None
+                            logger=None,
+                            parallelizer=None
                             ):
         return DGBPotentialEnergyEvaluator(
             potential_function,
@@ -251,13 +283,17 @@ class DGB:
                  gaussians:DGBGaussians,
                  potential:DGBPotentialEnergyEvaluator,
                  logger=None,
+                 parallelizer=None,
                  wavefunction_options=None
                  ):
         self.gaussians = gaussians
         self.pot = potential
         self.wfn_opts = wavefunction_options
         self._V = None
+        self._T = None
+        self._S = None
         self.logger = Logger.lookup(logger)
+        self.parallelizer = Parallelizer.lookup(parallelizer)
     def as_cartesian_dgb(self):
         if isinstance(self.gaussians.coords, DGBCartesians):
             return self
@@ -266,7 +302,16 @@ class DGB:
         if isinstance(self.pot.potential_function, DGBCoords.DGBEmbeddedFunction):
             import copy
             new_pot = copy.copy(self.pot)
-            new_pot.potential_function = new_gauss.coords.embed_function(self.pot.potential_function.og_fn)
+            og_fn = self.pot.potential_function.og_fn
+            embed_fn = self.pot.potential_function.embed_fn
+            if isinstance(embed_fn, DGBWatsonInterpolator) and isinstance(og_fn, DGBGenericInterpolator):
+                og_fn = DGBCartesianWatsonInterpolator(
+                    og_fn.centers,
+                    og_fn.derivs,
+                    embed_fn.modes,
+                    **og_fn.opts
+                )
+            new_pot.potential_function = new_gauss.coords.embed_function(og_fn)
         else:
             new_pot = self.pot # this probably won't work...?
 
@@ -277,167 +322,93 @@ class DGB:
             wavefunction_options=self.wfn_opts
         )
 
+    def get_S(self):
+        od = self.gaussians.overlap_data
+        S = self.gaussians.S
+        if od['initial_phases'] is not None:
+            S_diff, S_sum = S
+            return (S_diff + S_sum)
+        else:
+            return S
     @property
     def S(self):
-        return self.gaussians.S
+        if self._S is None:
+            self._S = self.get_S()
+        return self._S
+
+    def get_T(self):
+        od = self.gaussians.overlap_data
+        T = self.gaussians.T
+        if od['initial_phases'] is not None:
+            T_diff, T_sum = T
+            S_diff, S_sum = self.gaussians.S
+            return (S_diff * T_diff + S_sum * T_sum)
+        else:
+            return self.S * T
     @property
     def T(self):
-        return self.S * self.gaussians.T
+        if self._T is None:
+            self._T = self.get_T()
+        return self._T
+    @T.setter
+    def T(self, T):
+        self._T = T
+
+    def get_V(self):
+        od = self.gaussians.overlap_data
+        V = self.pot.evaluate_pe(od)
+        if od['initial_phases'] is not None:
+            V_diff, V_sum = V
+            S_diff, S_sum = self.gaussians.S
+            return (S_diff * V_diff + S_sum * V_sum)
+        else:
+            return self.S * V
     @property
     def V(self):
         if self._V is None:
-            self.logger.log_print("evaluating potential energy...")
-            self._V = self.S * self.pot.evaluate_pe(self.gaussians.overlap_data)
+            with self.logger.block(tag="Evaluating potential energy matrix"):
+                self._V = self.get_V()
         return self._V
-
-    def get_kinetic_polynomials(self):
-        raise NotImplementedError("deprecated")
-        # TODO: implement _multipolynomial_ support so that we can handle
-        #       this in a simpler form
-
-        ndim = self.centers.shape[-1]
-        if self.transformations is None and self.inds is not None:
-            ndim = len(self.inds)
-
-        core_polys = self.get_base_polynomials()
-        core_derivs = [ # these will be indexed by columns
-            [poly.deriv(i) if isinstance(poly, DensePolynomial) else 0 for i in range(ndim)]
-            for poly in core_polys
-        ]
-        core_d2s = [
-            [p.deriv(i) if isinstance(p, DensePolynomial) else 0 for i, p in enumerate(poly_list)]
-            for poly_list in core_derivs
-        ]
-
-        if self.transformations is None:
-            centers = self.centers
-            alphas = self.alphas
-            if self.inds is not None:
-                ndim = len(self.inds)
-                centers = centers[:, self.inds]
-                alphas = alphas[:, self.inds]
-            exp_polys = [ # these will be indexed by columns as well
-                DensePolynomial.from_tensors([0, np.zeros(ndim), np.diag(2*a)], shift=-pt, rescale=False)
-                for pt,a in zip(centers, alphas)
-            ]
-        else:
-            sigs = self.get_inverse_covariances()
-            centers = self.centers
-            if self.inds is not None:
-                Lt, L = self.transformations
-                Lt = Lt[:, :, self.inds]
-                L = L[:, self.inds, :]
-                centers = Lt@( L @ centers[:, :, np.newaxis] )
-                centers = centers.reshape(self.centers.shape)
-
-            raise Exception(sigs[2], centers[2])
-
-            exp_polys = [
-                DensePolynomial.from_tensors([0, np.zeros(ndim), sig], shift=-pt)
-                for pt,sig in zip(
-                    centers,
-                    sigs
-                )
-            ]
-        def _d(p, i):
-            if isinstance(p, DensePolynomial):
-                d = p.deriv(i)
-                if isinstance(d, DensePolynomial):
-                    d = d.clip()
-            else:
-                d = p
-            return d
-        exp_derivs = [
-            [-1/2*_d(poly, i) for i in range(ndim)]
-            for poly in exp_polys
-        ]
- #        raise Exception(exp_derivs[0][1].coeffs)
- #        """
- #        [[[-0.24875972 -1.62256994]
- #  [-1.91803054 -0.        ]]
- #
- # [[ 3.58730135 -0.        ]
- #  [-0.         -0.        ]]]
- #  """
-        exp_d2s = [
-            [_d(p, i) for i,p in enumerate(poly_list)]
-            for poly_list in exp_derivs
-        ]
-        # raise Exception(
-        #     (
-        #             (exp_derivs[0][0] * exp_derivs[0][0])
-        #             + exp_d2s[0][0].coeffs*exp_d2s[0][0].scaling
-        #     ).coeffs,
-        #     core_polys[0].coeffs
-        # )
-
-        raise Exception(
-            exp_polys[2].coeffs
-        )
-
-        # and now we can construct the polynomials for each center and axis
-        def _k(p, pd1, pd2, ed1, ed2):
-            t = pd2 + 2*pd1 * ed1 + p * ((ed1 * ed1) + ed2)
-            if isinstance(t, DensePolynomial):
-                t = t.clip(threshold=1e-8)
-            return t
-        kinetic_polys = [
-            [
-                _k(p, pd1, pd2, ed1, ed2)
-                for pd1, pd2, ed1, ed2 in zip(pd1s, pd2s, ed1s, ed2s)
-            ]
-            for p, pd1s, pd2s, ed1s, ed2s in zip(
-                core_polys,
-                core_derivs,
-                core_d2s,
-                exp_derivs,
-                exp_d2s
-            )
-        ]
-
-        # raise Exception(
-        #     kinetic_polys[0][0].coeffs,
-        #     kinetic_polys[0][1],
-        #     kinetic_polys[0][2].coefficient_tensors,
-        #     # kinetic_polys[0][0].coeffs,
-        # )
-
-        return core_polys, kinetic_polys
+    @V.setter
+    def V(self, V):
+        self._V = V
 
     def evaluate_multiplicative_operator(self,
                                          function,
+                                         embed=True,
                                          expansion_degree=None,
                                          expansion_type=None,
-                                         quadrature_degree=None
-                                         # pairwise_functions=None # integrate out pairwise contribution
+                                         quadrature_degree=None,
+                                         pairwise_functions=None # integrate out pairwise contribution
                                          ):
+
+        if embed:
+            function = self.gaussians.coords.embed_function(function)
+            if pairwise_functions is not None:
+                pairwise_functions = self.gaussians.coords.pairwise_potential_evaluator(pairwise_functions)
 
         pot_mat = self.pot.evaluate_op(
             function,
             self.gaussians.overlap_data,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
-            quadrature_degree=quadrature_degree
+            quadrature_degree=quadrature_degree,
+            pairwise_functions=pairwise_functions
         )
 
-        # with np.printoptions(linewidth=1e8):
-        #     print(pot_mat)
-
-        # if self._scaling_S is None:
-        #     _ = self.S
-        # S = self._scaling_S
         S = self.S
         for _ in range(pot_mat.ndim - 2):
             S = np.expand_dims(S, -1)
         return S * pot_mat
 
-    default_solver_mode = 'singular_B'
+    default_solver_mode = 'similarity'
     def diagonalize(self,
                     *,
                     mode=None,
                     similarity_cutoff=None,
                     similarity_chunk_size=None,
                     similar_det_cutoff=None,
+                    similarity_shift=None,
                     subspace_size=None,
                     min_singular_value=None,
                     nodeless_ground_state=True,
@@ -453,10 +424,16 @@ class DGB:
                 min_singular_value
             ]):
                 mode = 'classic'
-            elif low_rank_epsilon is not None:
+            elif any(x is not None for x in [
+                low_rank_energy_cutoff,
+                low_rank_overlap_cutoff,
+                low_rank_shift
+            ]):
                 mode = 'low-rank'
             elif stable_eigenvalue_epsilon is not None:
                 mode = 'fix-heiberger'
+            elif similarity_shift is not None:
+                mode = 'shift'
             elif any(x is not None for x in [
                 similarity_cutoff,
                 similarity_chunk_size,
@@ -488,6 +465,13 @@ class DGB:
                                                                   similarity_chunk_size=similarity_chunk_size,
                                                                   similar_det_cutoff=similar_det_cutoff
                                                                   )
+        elif mode == 'shift':
+            eigs, evecs = DGBEigensolver.shift_similarity_solver(H, self.S, self,
+                                                                 similarity_cutoff=similarity_cutoff,
+                                                                 similarity_chunk_size=similarity_chunk_size,
+                                                                 similar_det_cutoff=similar_det_cutoff,
+                                                                 similarity_shift=similarity_shift
+                                                                 )
 
         elif mode == 'low-rank':
             eigs, evecs = DGBEigensolver.low_rank_solver(H, self.S, self,
@@ -495,6 +479,9 @@ class DGB:
                                                          low_rank_overlap_cutoff=low_rank_overlap_cutoff,
                                                          low_rank_shift=low_rank_shift
                                                          )
+
+        elif mode == 'cholesky':
+            eigs, evecs = DGBEigensolver.cholesky_solver(H, self.S, self)
 
         elif callable(mode):
             eigs, evecs = mode(H, self.S, )

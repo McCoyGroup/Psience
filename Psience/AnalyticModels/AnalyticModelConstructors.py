@@ -1032,7 +1032,8 @@ class MolecularModel(AnalyticModel):
             initial_energies=None,
             initial_displacements=None,
             displaced_coords=None,
-            track_kinetic_energy=False
+            track_kinetic_energy=False,
+            track_velocities=False
     ):
 
         mol = self.mol
@@ -1044,7 +1045,8 @@ class MolecularModel(AnalyticModel):
             initial_energies=initial_energies,
             initial_displacements=initial_displacements,
             displaced_coords=displaced_coords,
-            track_kinetic_energy=track_kinetic_energy
+            track_kinetic_energy=track_kinetic_energy,
+            track_velocities=track_velocities
         )
 
     def setup_DGB(
@@ -1094,7 +1096,7 @@ class MolecularModel(AnalyticModel):
         if dipole_function is None:
             dipole_function = lambda coords, deriv_order=None: (
                 self.dipole(coords)
-                if deriv_order is None else
+                    if deriv_order is None else
                 [np.moveaxis(d, -1, 1) for d in self.dipole(coords, deriv_order=deriv_order)]
         )
 

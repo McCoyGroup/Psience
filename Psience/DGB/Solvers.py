@@ -1,7 +1,5 @@
 
-import numpy as np, scipy as sp
-
-from .Wavefunctions import DGBWavefunctions
+import numpy as np, scipy as sp, collections
 
 class DGBEigensolver:
 
@@ -79,6 +77,7 @@ class DGBEigensolver:
             )
             evecs = Q.T @ Qqinv.T @ evecs
         if nodeless_ground_state:
+            from .Wavefunctions import DGBWavefunctions
             # fast enough if we have not that many points...
             gswfn = DGBWavefunctions(eigs, evecs, hamiltonian=hamiltonian)[0]
             gs = gswfn.evaluate(hamiltonian.gaussians.coords.centers)
@@ -98,7 +97,7 @@ class DGBEigensolver:
                 )
         return eigs, evecs
 
-    eigensimilarity_cutoff = .85
+    eigensimilarity_cutoff = None
     eigensimilarity_chunk_size = 3
     similar_determinant_cutoff = 0.05
     @classmethod
@@ -112,59 +111,176 @@ class DGBEigensolver:
             similarity_cutoff = cls.eigensimilarity_cutoff
         if similarity_chunk_size is None:
             similarity_chunk_size = cls.eigensimilarity_chunk_size
-        if similar_det_cutoff is None:
-            similar_det_cutoff = cls.similar_determinant_cutoff
 
         eigs, Qs = np.linalg.eigh(S)
         eigh, Qh = np.linalg.eigh(H)
 
         similarity_matrix = Qs.T @ Qh
 
-        dets = np.array([
-            abs(np.linalg.det(similarity_matrix[-n:, -n:]))
-            for n in range(1, len(eigs) + 1)
-        ])
+        # compute moving average of abs of blocks of dets
+        prev_dets = collections.deque(maxlen=similarity_chunk_size)
+        cur_sum = 0
+        strike_det_cutoff = 0.05
+        strikes = 0
+        max_strikes = 10
+        blocks = np.zeros(len(eigs))
+        for n in range(1, len(eigs) + 1):
+            subdet = abs(np.linalg.det(similarity_matrix[-n:, -n:]))
+            if len(prev_dets) == similarity_chunk_size:
+                oldest = prev_dets[0]
+                cur_sum -= oldest
+            prev_dets.append(subdet)
+            cur_sum += subdet
+            avg = cur_sum / len(prev_dets)
+            blocks[n-1] = avg
+            if avg < strike_det_cutoff:
+                strikes += 1
+                if strikes > max_strikes:
+                    break
+            else:
+                strikes = 0
 
-        # import McUtils.Plots as plt
-        # smat = plt.MatrixPlot(similarity_matrix)
-        # sdets = plt.Plot(list(range(1, len(eigs) + 1)), dets).show()
-        # splot_dets = plt.Plot(range(1, len(eigs)), np.diff(dets)).show()
-        # raise Exception(...)
+        # dets = np.array([
+        #     abs(np.linalg.det(similarity_matrix[-n:, -n:]))
+        #     for n in range(1, len(eigs) + 1)
+        # ])
+        #
+        # w = similarity_chunk_size
+        # avgs = np.cumsum(dets[:-1])
+        # avgs[w:] = avgs[w:] - avgs[:-w]
+        # blocks = avgs[w - 1:] / w
 
-        det_chunks = np.split(np.arange(len(dets)), np.where(np.abs(np.diff(dets)) > similar_det_cutoff)[0] + 1)
-        good_runs = [
-            c for c in det_chunks
-                if len(c) > similarity_chunk_size
-                    and
-                np.mean(dets[c]) > similarity_cutoff
-        ]
+        if similarity_cutoff is None:
+            similarity_cutoff = np.floor(np.max(blocks)*100/5)*5 / 100 # next lowest .5
+        block_pos = np.where(blocks > similarity_cutoff)
+        if len(block_pos) == 0 or len(block_pos[0]) == 0:
+            raise ValueError(
+                "couldn't find subspace size where average of previous {} dets greater than {}".format(
+                    similarity_chunk_size,
+                    similarity_cutoff
+                )
+            )
 
-        if len(good_runs) == 0 or len(good_runs[-1]) == 0:
-            raise ValueError("couldn't find stable eigenspace")
+        return int(block_pos[0][-1] + 1) #+ np.ceil(w/2))
 
-        return good_runs[-1][-1]
+
+        # det_chunks = np.split(np.arange(len(dets)), np.where(np.abs(np.diff(dets)) > similar_det_cutoff)[0] + 1)
+        # good_runs = [
+        #     c for c in det_chunks
+        #         if len(c) > similarity_chunk_size
+        #             and
+        #         np.mean(dets[c]) > similarity_cutoff
+        # ]
+        #
+        # if len(good_runs) == 0 or len(good_runs[-1]) == 0:
+        #     import McUtils.Plots as plt
+        #     smat = plt.MatrixPlot(similarity_matrix)
+        #     sdets = plt.Plot(list(range(1, len(eigs) + 1)), dets).show()
+        #     splot_dets = plt.Plot(range(1, len(eigs)), np.diff(dets)).show()
+        #     raise ValueError("couldn't find stable eigenspace")
+
+        # return good_runs[-1][-1]
 
         # raise Exception(good_runs)
         # raise Exception([dets[c] for c in det_chunks])
 
 
     @classmethod
-    def similarity_mapped_solver(self, H, S, hamiltonian,
+    def similarity_mapped_solver(self, H, S,
+                                 hamiltonian,
                                  similarity_cutoff=None,
                                  similarity_chunk_size=None,
                                  similar_det_cutoff=None
                                  ):
-        subspace_size = self.get_eigensimilarity_subspace_size(H, S,
-                                                               similarity_cutoff=similarity_cutoff,
-                                                               similarity_chunk_size=similarity_chunk_size,
-                                                               similar_det_cutoff=similar_det_cutoff
-                                                               )
-        return self.classic_eigensolver(H, S,
-                                        hamiltonian=hamiltonian,
-                                        subspace_size=subspace_size,
-                                        nodeless_ground_state=False
-                                        )
 
+
+        subspace_size = self.get_eigensimilarity_subspace_size(H, S,
+                                               similarity_cutoff=similarity_cutoff,
+                                               similarity_chunk_size=similarity_chunk_size,
+                                               similar_det_cutoff=similar_det_cutoff
+                                               )
+
+        hamiltonian.logger.log_print(
+            'diagonalizing in the space of {} S functions'.format(np.sum(subspace_size))
+        )
+
+        eigh, Qh = np.linalg.eigh(H)
+
+        eigs, Qs = np.linalg.eigh(S)
+        Qs = Qs[:, -subspace_size:]
+        eigs = eigs[-subspace_size:]
+
+        A = Qs.T @ Qh
+
+        D = np.diag(1 / np.sqrt(eigs))
+        C = D @ A @ np.diag(eigh) @ A.T @ D
+
+        engs, Q = np.linalg.eigh(C)
+        # if shift is not None:
+        #     engs = engs - shift
+        #
+        # nz_pos = np.abs(engs) > 1e-12
+        # engs = engs[nz_pos]
+        # Q = Q[:, nz_pos]
+
+        return engs, Qs @ D @ Q
+
+
+    default_shift = 2
+    @classmethod
+    def shift_similarity_solver(self, H, S,
+                                 hamiltonian,
+                                 similarity_cutoff=None,
+                                 similarity_chunk_size=None,
+                                 similar_det_cutoff=None,
+                                 similarity_shift=None
+                                 ):
+        if similarity_shift is None:
+            similarity_shift = self.default_shift
+
+        eigs, Qs = np.linalg.eigh(S)
+        match_pos = np.full(len(S), True)
+        subspace_size = len(S)
+        shift = 0
+        for shift in range(similarity_shift+1):
+            shift_H = H + S * shift
+            subspace_size = min(
+                subspace_size,
+                self.get_eigensimilarity_subspace_size(
+                    shift_H, S,
+                    similarity_cutoff=similarity_cutoff,
+                    similarity_chunk_size=similarity_chunk_size,
+                    similar_det_cutoff=similar_det_cutoff
+                )
+            )
+            eigh, Qh = np.linalg.eigh(shift_H)
+            A = Qs.T @ Qh
+            match_pos = np.logical_and(match_pos, np.abs(np.diag(A)) > .9)
+
+        eigh, Qh = np.linalg.eigh(H + S * similarity_shift)
+        match_pos[:-subspace_size] = False
+
+        hamiltonian.logger.log_print(
+            'diagonalizing in the space of {} common eigenfunctions'.format(np.sum(match_pos))
+        )
+
+        eigh = eigh[match_pos]
+        Qh = Qh[:, match_pos]
+        Qs = Qs[:, match_pos]
+        eigs = eigs[match_pos]
+
+        A = Qs.T @ Qh
+        D = np.diag(1 / np.sqrt(eigs))
+        C = D @ A @ np.diag(eigh) @ A.T @ D
+
+        engs, Q = np.linalg.eigh(C)
+        engs = engs - similarity_shift
+
+        nz_pos = np.abs(engs) > 1e-12
+        engs = engs[nz_pos]
+        Q = Q[:, nz_pos]
+
+        return engs, Qs @ D @ Q
     @classmethod
     def low_rank_solver(cls, H, S, hamiltonian,
                         low_rank_energy_cutoff=None,
@@ -182,16 +298,14 @@ class DGBEigensolver:
 
         eigs, Qs = np.linalg.eigh(S)
         eigh, Qh = np.linalg.eigh(H + S*low_rank_shift)
+        # import McUtils.Plots as plt
+        # plt.ArrayPlot(Qs.T @ Qh).show()
         pos_H = np.abs(eigh) > low_rank_energy_cutoff
         pos_S = eigs > low_rank_overlap_cutoff
-        if np.min(eigh[pos_H]) < 0:
-            if low_rank_shift > 1e6:
-                raise Exception('low_rank_solver not converging, try alternate method')
-            return cls.low_rank_solver(H, S, hamiltonian,
-                                       low_rank_energy_cutoff=low_rank_energy_cutoff,
-                                       low_rank_shift=2*(low_rank_shift - np.min(eigh[pos_H])),
-                                       low_rank_overlap_cutoff=low_rank_overlap_cutoff
-                                       )
+        while np.min(eigh[pos_H]) < 0 and low_rank_shift < 1e6:
+            low_rank_shift = 2 * (low_rank_shift - np.min(eigh[pos_H]))
+            eigh, Qh = np.linalg.eigh(H + S * low_rank_shift)
+            pos_H = np.abs(eigh) > low_rank_energy_cutoff
 
         hamiltonian.logger.log_print(
             'solving with {} H values and {} overlap functions'.format(
@@ -204,14 +318,38 @@ class DGBEigensolver:
         eigh = eigh[pos_H]
         Qs = Qs[:, pos_S]
         eigs = eigs[pos_S]
+        if np.min(eigh) >= 0:
+            A = Qs.T @ Qh
+            B = np.diag(1/np.sqrt(eigs)) @ A @ np.diag(np.sqrt(eigh))
+            Q, sqrt_engs, _ = np.linalg.svd(B)
+            eng_sort = np.argsort(sqrt_engs)
+            engs = sqrt_engs[eng_sort]**2 - low_rank_shift
+            Q = Q[eng_sort].T
+            Q = Qs @ np.diag(1 / np.sqrt(eigs)) @ Q
+        else:
+            A = Qs.T @ Qh
+            C = np.diag(1/np.sqrt(eigs)) @ A @ np.diag(eigh) @ A.T @ np.diag(1/np.sqrt(eigs))
+            engs, Q = np.linalg.eigh(C)
 
-        A = Qs.T @ Qh
-        B = np.diag(1/np.sqrt(eigs)) @ A @ np.diag(np.sqrt(eigh))
-        Q, sqrt_engs, _ = np.linalg.svd(B)
-        eng_sort = np.argsort(sqrt_engs)
-        engs = sqrt_engs[eng_sort]**2 - low_rank_shift
-        Q = Q[eng_sort].T
-        Q = Qs @ np.diag(1 / np.sqrt(eigs)) @ Q
+            raise Exception(engs)
+            # eng_sort = np.argsort(sqrt_engs)
+            # engs = sqrt_engs[eng_sort]**2 - low_rank_shift
+
+
+        return engs, Q
+
+    @classmethod
+    def cholesky_solver(cls, H, S, hamiltonian):
+
+        L = np.linalg.cholesky(S)
+        D = np.diag(np.diag(L))
+        # Dinv = np.diag(1/np.diag(L))
+        # L = L @ Dinv
+
+        L_inv = np.linalg.inv(L)
+        new_H = L_inv @ H @ L_inv.T
+
+        engs = np.linalg.eigvalsh(new_H)
 
         return engs, Q
 

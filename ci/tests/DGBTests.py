@@ -14,7 +14,7 @@ from McUtils.Data import UnitsData, PotentialData, AtomData
 from McUtils.Zachary import Interpolator, FiniteDifferenceDerivative
 import McUtils.Plots as plt
 import McUtils.Numputils as nput
-from McUtils.GaussianInterface import GaussianLogReader
+from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
 from McUtils.Extensions import ModuleLoader
 
 from McUtils.Scaffolding import Checkpointer
@@ -267,102 +267,6 @@ class DGBTests(TestCase):
         #     )
         # )
 
-    @inactiveTest
-    def test_PolyDBGKE(self):
-
-        # from McUtils.Zachary import DensePolynomial
-        #
-        # dense_tensors = DensePolynomial(
-        #         [[0, 1, 2], [3, -5, 7]]
-        #     ).coefficient_tensors
-        # new = DensePolynomial.from_tensors(dense_tensors)
-        # raise Exception(
-        #     new.coeffs
-        # )
-
-        """
-        [[ 5.00000000e+00  5.00000000e+00 -8.14070159e-02 -2.61438679e-23]
- [ 5.00000000e+00  5.00000000e+00 -8.14070159e-02 -2.61438679e-23]
- [-8.14070159e-02 -8.14070159e-02  7.00000000e+00 -4.97570369e-12]
- [-2.61438679e-23 -2.61438679e-23 -4.97570369e-12  9.00000000e+00]]
-        :return:
-        """
-
-        ham = DGB(
-            [[-1, -1], [-1, -1], [0, 0], [2, 2]],
-            None,
-            alphas=[5, 5, 7, 9],
-            poly_coeffs=[None, None, None, None],
-            masses=[1, 1],
-            transformations=np.array([
-                [
-                    [ np.cos(10/180), -np.sin(10/180)],
-                    [ np.sin(10/180),  np.cos(10/180)]
-                ],
-                [
-                    [ np.cos(10 / 180), -np.sin(10 / 180)],
-                    [ np.sin(10 / 180),  np.cos(10 / 180)]
-                ],
-                [
-                    [np.cos(40 / 180), -np.sin(40 / 180)],
-                    [np.sin(40 / 180), np.cos(40 / 180)]
-                ],
-                [
-                    [1, 0],
-                    [0, 1]
-                ]
-            ]),
-            logger=True
-        )
-        # raise Exception(ham.T)
-
-        rot_mat = np.array([
-            [0.3990334094673942, -0.8487736362935158, -0.3469231218323582],
-            [0.8989977455223288, 0.2876708903823626, 0.3302249420809833],
-            [-0.18048654153314841, -0.4436538889266057, 0.8778358816804551]
-        ])
-        rot_mat2 = np.array([
-            [0.6953147343696692, 0.38298501871028495, 0.6081610770280513],
-            [-0.4098117159050655, -0.48387112171352364, 0.7732548707112311],
-            [0.5904166136512273, -0.786887039552171, -0.17949097277979698]
-        ])
-        ang = np.deg2rad(90)
-        ham_3 = DGB(
-            [[-1, -2, 0], [-1, -2, 0], [-1, -1, 3], [-3, 2, 1]],
-            None,
-            projection_indices=[0, 1],
-            alphas=[5, 5, 7, 9],
-            # poly_coeffs=[{1: 1}, None, None, None],
-            poly_coeffs=[None, None, None, None],
-            masses=[1, 2, 1],#[2, 7, 13],
-            transformations=np.array([
-                [
-                    [1, 0, 0],
-                    [0, np.cos(ang), -np.sin(ang)],
-                    [0, np.sin(ang),  np.cos(ang)]
-                ],
-                [
-                    [1, 0, 0],
-                    [0, np.cos(ang), -np.sin(ang)],
-                    [0, np.sin(ang),  np.cos(ang)]
-                ],
-                np.eye(3),
-                # rot_mat2,
-                np.eye(3)
-            ]),
-            logger=True
-        )
-
-        """
-        [[-0.00000000e+00 -0.00000000e+00  1.51479585e+01 -9.71873221e-04]
- [-0.00000000e+00 -0.00000000e+00  1.51479585e+01 -9.71873221e-04]
- [ 1.51479585e+01  1.51479585e+01 -0.00000000e+00 -0.00000000e+00]
- [-9.71873221e-04 -9.71873221e-04 -0.00000000e+00 -0.00000000e+00]]
- """
-
-        # print(ham_3.S)
-        raise Exception(ham_3.T)
-
     w2h = UnitsData.convert("Wavenumbers", "Hartrees")
     @staticmethod
     def multiply_model_functions(
@@ -433,12 +337,12 @@ class DGBTests(TestCase):
         potential_params={}
         if wx is not None:
             potential_params[r1]={'morse':{'w':w, 'wx':wx}}
-        elif w is None:
-            raise ValueError(...)
-        else:
+        elif w is not None:
             potential_params[r1]={'harmonic':{'k':w}}
         if wx2 is not None:
             potential_params[r2]={'morse':{'w':w2, 'wx':wx2}}
+        elif w2 is not None:
+            potential_params[r2]={'harmonic':{'k':w2}}
         elif w2 is not None:
             potential_params[r2]={'harmonic':{'k':w2}}
         if ka is not None:
@@ -557,608 +461,6 @@ class DGBTests(TestCase):
 
         return coords, sim
 
-    @validationTest
-    def test_ModelPotentialAIMD(self):
-
-        mol = Molecule.from_file(
-            TestManager.test_data('water_freq.fchk'),
-            internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
-        )
-        mol = mol.get_embedded_molecule()
-
-        r1 = 0
-        r2 = 1
-        a12 = 2
-        w2h = UnitsData.convert("Wavenumbers", "Hartrees")
-        model = mol.get_model(
-            {
-                r1: {'morse':{'w':3869.47 * w2h, 'wx':84 *w2h}},
-                r2: {'morse':{'w':3869.47 * w2h, 'wx':84 *w2h}},
-                a12: {'harmonic':{'k': 1600**2/150 * w2h}}
-            },
-            dipole=[
-                {
-                    (r1, a12): ({'linear': {'eq': 0, 'scaling': 1/5.5}}, {'sin': {'eq': 0}}),
-                    (r2, a12): ({'linear': {'eq': 0, 'scaling':-1/5.5}}, {'sin': {'eq': 0}})
-                },
-                {
-                    (r1, a12): ({'linear': {'eq': 0, 'scaling': 1 / (2 * 5.5)}}, {'cos': {'eq': 0}}),
-                    (r2, a12): ({'linear': {'eq': 0, 'scaling': 1 / (2 * 5.5)}}, {'cos': {'eq': 0}})
-                },
-                0
-            ]
-        )
-
-        ics = mol.internal_coordinates
-        re1 = ics[1, 0]; re2 = ics[2, 0]; ae = ics[2, 1]
-
-        de = (3869.47 * w2h) ** 2 / (4 * 84 * w2h)
-
-        check_freqs = False
-        if check_freqs:
-            freqs = model.normal_modes()[0]
-            raise Exception(freqs*UnitsData.convert("Hartrees", "Wavenumbers"))
-
-        check_anh = False
-        if check_anh:
-            model.run_VPT(logger=True)
-            raise Exception(...) # very comparable to PODVR
-            """
-            State             Harmonic                     Anharmonic
-                        ZPE                          ZPE    
-              0 0 0    4680.66312                   4610.84351
-            State       Frequency    Intensity       Frequency    Intensity
-              0 0 1    3896.87027     64.98650      3719.85791     63.90801
-              0 1 0    3843.25802      0.17386      3676.15021      0.12777
-              1 0 0    1621.19796     64.86522      1603.43661     64.96941
-              0 0 2    7793.74054      0.00000      7352.95576      0.00703
-              0 2 0    7686.51604      0.00000      7268.92117      0.00362
-              2 0 0    3242.39592      0.00000      3197.00895      0.07403
-              0 1 1    7740.12829      0.00000      7229.92433      1.31011
-              1 0 1    5518.06823      0.00000      5308.87367      0.09319
-              1 1 0    5464.45598      0.00000      5278.21349      0.07390
-              """
-
-        check_dvr = False
-        if check_dvr:
-            dvr = model.setup_DVR(
-                domain=[[1, 4], [1, 4], [np.deg2rad(60), np.deg2rad(160)]],
-                divs=[800, 800, 800], po_divs=[20, 20, 20],
-                potential_optimize=True,
-                logger=True
-            )
-            po_data = dvr.run()
-            """
-            :: PotentialOptimizedDVR([WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None)], pot=SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2))
-            :: g: [[SympyExpr(0.0005786177281533848), SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3])], [SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(0.0005786177281533848), SympyExpr(0.0)], [SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3]), SympyExpr(0.0), SympyExpr(0.000578617728153385/r[2,3]**2 - 6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]) + 0.000578617728153385/r[1,2]**2)]]
-            :: mass: [None, None, None]
-            :: g_deriv: [SympyExpr(0.0), SympyExpr(0.0), SympyExpr(6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]))]
-            :: domain: [[1, 4], [1, 4], [1.0471975511965976, 2.792526803190927]]
-            :: divs: [800, 800, 800]
-            :: potential_function: SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2)
-            ::> constructing grid
-            <::
-            ::> constructing potential matrix
-              > evaluating potential function over grid
-            <::
-            ::> constructing kinetic matrix
-              > evaluating kinetic coupling
-            <::
-            ::> building Hamiltonian
-            <::
-            ::> evaluating wavefunctions
-              ::> diagonalizing Hamiltonian
-                > dimension=(8000, 8000)
-                > density=9.750%
-                > mode=None
-              <::
-            <::
-            >>--------------------------------------------------<<
-            ERROR
-            
-            ======================================================================
-            ERROR: test_ModelPotentialAIMD (tests.DGBTests.DGBTests)
-            ----------------------------------------------------------------------
-            Traceback (most recent call last):
-              File "/Users/Mark/Documents/UW/Research/Development/Peeves/Peeves/TestUtils.py", line 501, in Debug
-                return fn(*args, **kwargs)
-              File "/Users/Mark/Documents/UW/Research/Development/Psience/ci/tests/DGBTests.py", line 1040, in test_ModelPotentialAIMD
-                raise Exception(po_data.wavefunctions.frequencies()*UnitsData.hartrees_to_wavenumbers)
-            Exception: [ 1605.10561571  3201.25184761  3675.81077847  3720.06017794
-              4796.62930569  5280.78674778  5310.62058746  6409.77925325
-              6876.17021986  6890.14602255  7219.00946583  7231.71801329
-              7405.19785922  8061.11922153  8465.22595371  8480.52469107
-              8819.15211826  8827.45481461  8989.31222846  9750.51070295
-             10055.48547869 10126.58850176 10400.03078133 10410.80175582]
-             """
-            raise Exception(po_data.wavefunctions.frequencies()*UnitsData.hartrees_to_wavenumbers)
-
-        cart_pot_func = model.potential
-        cart_dipole_func = model.dipole
-
-        def plot_pot():
-            domain = [
-                [-2.7, 2.7, 100],
-                [-2.3, 1.0, 100]
-            ]
-
-            disps = np.moveaxis(
-                np.array(np.meshgrid(*[np.linspace(*d) for d in domain], indexing='ij')),
-                0, -1
-            ).reshape(-1, 2)
-            points = mol.get_nearest_displacement_coordinates(disps, axes=[0, 1])
-
-            vals = cart_pot_func(points)
-            cut = de / 2
-            vals[vals > cut] = cut
-
-            pot_plot = plt.TriContourPlot(
-                disps[:, 0],
-                disps[:, 1],
-                vals,
-                padding=[[50, 10], [50, 50]]
-            )
-            return pot_plot, points, [d[:2] for d in domain]
-
-        plot_potential = False
-        if plot_potential:
-            plot_pot()[0].show()
-            raise Exception(...)
-
-        def sub_cart_pot_func(coords, deriv_order=None):
-            # expects just x and y coordinates for the atoms
-            coords = coords.reshape(-1, 3, 2)
-            return cart_pot_func(coords, deriv_order=deriv_order, axes=[0, 1])
-
-
-            # coords = np.concatenate([coords, np.zeros((len(coords), 3, 1))], axis=-1)
-            #
-            # terms = cart_pot_func(coords, deriv_order=deriv_order)
-            # if deriv_order is not None:
-            #     new = []
-            #     for n,d in enumerate(terms):
-            #         for j in range(n):
-            #             d = np.take(d, (0, 1, 3, 4, 6, 7), axis=j+1)
-            #         d = d.reshape(base_shape + d.shape[1:])
-            #         new.append(d)
-            # else:
-            #     new = terms.reshape(base_shape)
-            # return new
-
-        def sub_cart_dipole_func(coords, deriv_order=None):
-            # expects just x and y coordinates for the atoms
-            coords = coords.reshape(-1, 3, 2)
-            return cart_dipole_func(coords, deriv_order=deriv_order, axes=[0, 1])
-
-        # raise Exception(
-        #     sub_cart_dipole_func(
-        #         np.broadcast_to(mol.coords[:, :2][np.newaxis], (100, 3, 2)).reshape(100, 6),
-        #         deriv_order=1
-        #     )
-        # )
-
-        np.random.seed(0)
-        # init_disps = np.random.multivariate_normal([0, 0], np.power([[.2, 0], [0, .2]], 2), size=2)
-        ri = .4
-        # for init_disp in [
-        #     # [-ri / 3, ri / 2, np.deg2rad(-50)],
-        #     # [-ri / 3, ri / 2, np.deg2rad(-30)],
-        #     # [ ri, 0, np.deg2rad(-50)],
-        #     # [ ri, ri, np.deg2rad(60)],
-        #     # [ .5, .5, np.deg2rad(60)],
-        #     [ .55, .55, np.deg2rad(60)],
-        #     # [ .7, .7, np.deg2rad(60)],
-        # ]:
-
-        for ie_vec, method, traj_steps, scaling in itertools.product(
-                [
-                    # [ 1650//2, 3850//2, 3900//2],
-                    # [ 1650, 3850, 3900],
-                    # [ 3500, 0, 4000 ],
-                    # [ 1650, 3850//2, 3900 ]
-                    # [ 1650,    0,    0],
-                    # [    0, 3850,    0],
-                    # [    0,    0, 3900],
-                    # [ 1650, 3850,    0],
-                    # # [    0, 3850, 3900], # Blows up?
-                    [ 1650,    0, 3900],
-                    # [ 1650, 3850, 3900],
-                    # [ 1650 * 2,    0, 3900],
-                ],
-                [
-                    # 'unrotated',
-                    'rotated',
-                    # 'H_rotation',
-                    # 'base_rotation',
-                    # 'min_dist'
-                ],
-                [10, 100],#, 150],#, 250],#, 500],
-                [
-                    1 / 2,
-                    1 / 1.5,
-                    1
-                    # 1.2
-                ]
-        ):
-            # initial_displacements = [
-            #             # [ .55, .55, np.deg2rad(60)],
-            #             [ .8, -.2, np.deg2rad(-7)]
-            #         ]
-            raise NotImplementedError()
-
-            sim.propagate(traj_steps)
-            coords = np.array(sim.trajectory).reshape((-1, 3, 3))
-            coords = mol.embed_coords(coords)
-
-            # plot_wavefunctions = False
-            pot_plot = plot_pts = None
-            plot_trajectory = False
-            if plot_trajectory:
-                pot_plot, plot_pts, domain = plot_pot()
-                for i in range(3):
-                    plt.ScatterPlot(
-                        coords[:, i, 0],
-                        coords[:, i, 1],
-                        figure=pot_plot,
-                        plot_range=domain
-                    )
-                pot_plot.show()
-                raise Exception(...)
-
-            e_init = round(
-                np.mean(
-                    cart_pot_func(sim.trajectory[0])
-                    + sim.kinetic_energies[0]
-                ) * UnitsData.hartrees_to_wavenumbers
-            )
-            init_e = np.round(
-                np.mean(initial_energies, axis=0) * UnitsData.hartrees_to_wavenumbers
-            ).astype(int)
-
-            # for min_e in [None]:#100, 500, 800, 1000]:
-            print(f"Running scaling: {scaling}")
-            # plots_dir = os.path.join(
-            #     os.path.expanduser("~/Documents/Postdoc/AIMD-Spec/water_model"),
-            #     f"E{e_init}/EP{init_e[0]}_{init_e[1]}_{init_e[2]}/I{traj_steps}/{method}/S{scaling}"
-            # )
-            plots_dir = None
-            if plots_dir is not None:
-                os.makedirs(plots_dir, exist_ok=True)
-
-            mass_vec = np.array(
-                [AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 2
-                + [AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")] * 4
-            )
-
-            ham_coords = coords.reshape(-1, 9)[:, (0, 1, 3, 4, 6, 7)]
-            method = 'H_rotation'
-            if method == 'rotated':
-                alphas = {
-                    'method': 'virial',
-                    'allow_rotations': True,
-                    'planar': True,
-                    'translation_rotation_frequency': 1e-18,
-                    # 'translation_rotation_masses': mass_vec,
-                    # 'min_frequency':500/UnitsData.hartrees_to_wavenumbers,
-                    'scaling':  scaling
-                }
-                projection_indices = [3, 4, 5]
-                poly_coeffs = None
-                # ham_coords = np.concatenate(
-                #     [ham_coords[:1], ham_coords],
-                #     axis=0
-                # )
-                # poly_coeffs = [
-                #     {0:1}
-                # ] + [None] * (len(ham_coords)-1)
-                poly_coeffs = [None] * (len(ham_coords))
-            elif method == 'H_rotation':
-                ra = (np.deg2rad(180) - ae) / 2
-                cd = np.cos(ra)
-                sd = np.sin(ra)
-                base_rot = np.array([
-                    [ 1,  0,   0,   0,   0,   0],
-                    [ 0,  1,   0,   0,   0,   0],
-                    [ 0,  0,  cd, -sd,   0,   0],
-                    [ 0,  0,  sd,  cd,   0,   0],
-                    [ 0,  0,   0,   0,  cd,  sd],
-                    [ 0,  0,   0,   0, -sd,  cd]
-                ])
-                base_rot = np.eye(6)
-                alphas = {
-                    'method': 'virial',
-                    'base_rotation': base_rot,
-                    'scaling': scaling
-                }
-                projection_indices = None
-                poly_coeffs = None
-                # poly_coeffs = [None] * (len(ham_coords))
-            elif method == 'base_rotation':
-                mol.potential_derivatives = cart_pot_func(mol.coords, deriv_order=2)[1:]
-                trip_mass = np.broadcast_to(
-                    mol.masses[:, np.newaxis] * UnitsData.amu_to_me,
-                    (3, 3)
-                ).flatten()
-                rot = np.concatenate([
-                    mol.translation_rotation_modes[1][0],
-                    mol.normal_modes.modes.basis.matrix
-                ],
-                    axis=-1
-                ) * np.sqrt(trip_mass[:, np.newaxis])
-                rot = rot / np.linalg.norm(rot, axis=0)[np.newaxis, :]
-                # with np.printoptions(linewidth=1e8):
-                #     raise Exception(str(rot))
-                rot = rot[(0, 1, 3, 4, 6, 7), :][:, (0, 1, 5, 6, 7, 8)]
-                # with np.printoptions(linewidth=1e8):
-                #     raise Exception(str(rot))
-                alphas = {
-                    'method': 'virial',
-                    'base_rotation': rot,
-                    # 'min_frequency':500/UnitsData.hartrees_to_wavenumbers,
-                    'scaling': scaling
-                }
-                projection_indices = [3, 4, 5]
-                poly_coeffs = None
-            elif method == 'min_dist':
-                alphas = {'method': 'min_dist',
-                          'scaling': scaling,
-                          # 'min_frequency':min_e/UnitsData.hartrees_to_wavenumbers,
-                          # 'allow_rotations':True
-                          }
-                projection_indices = None
-                poly_coeffs = None
-            else:
-                alphas = {'method': 'virial', 'scaling': scaling, 'remove_translation_rotations': True}
-                projection_indices = None
-                poly_coeffs = None
-                # poly_coeffs = [None] * (len(ham_coords))
-
-            """[[0.07004169 0.04240438 0.03320008 0.04187683 0.05054381 0.04771534
-  0.06524132 0.03906239 0.03523602 0.0476753  0.04793243]
- [0.04240438 0.06475006 0.05773734 0.0454053  0.02215346 0.01653997
-  0.05643786 0.06126858 0.04852323 0.03584074 0.01519887]
-  
-                [[0.01479601 0.00859037 0.00621834 0.00791241 0.00739164 0.00687555
-  0.01318776 0.00814297 0.00707907 0.00861234 0.00823437]
- [0.00859037 0.01378909 0.01235883 0.0094388  0.00343196 0.00230552
-  0.01150354 0.01245531 0.00857874 0.00491725 0.00150661]
- [0.00621834 0.01235883 0.01295151 0.01026206 0.00330853 0.00191848
-  0.00942091 0.01003521 0.00665623 0.00331115 0.00071587]
-  """
-
-            ham = DGB(
-                ham_coords,
-                sub_cart_pot_func,
-                alphas=alphas,
-                poly_coeffs=poly_coeffs,
-                projection_indices=projection_indices,
-                expansion_degree=2,
-                masses=mass_vec,
-                min_singular_value=1e-8,
-                logger=True
-            )
-
-            raise Exception(ham.T)
-
-            plot_orthog = False
-            if plot_orthog:
-                if plot_orthog is True:
-                    plot_orthog = 15
-
-                S = ham.S
-                sig, Q = np.linalg.eigh(S)
-                sig = np.flip(sig)
-                Q = np.flip(Q, axis=1)
-                wfns = DGBWavefunctions(
-                    sig[:plot_orthog],
-                    Q[:, :plot_orthog],
-                    hamiltonian=ham
-                )
-                # wfns = DGBWavefunctions(
-                #     sig[15+25:25+15+plot_orthog],
-                #     Q[:, 25+15:25+15+plot_orthog],
-                #     hamiltonian=ham
-                # )
-
-                for i in range(plot_orthog):
-                    pot_plot, plot_pts, domain = plot_pot()
-                    wfns[i].projection_plot(
-                        [[0, 1], [2, 3], [4, 5]],
-                        plotter=plt.TriContourLinesPlot,
-                        contour_levels=10,
-                        domain=domain,
-                        cmap='RdBu',
-                        figure=pot_plot,
-                        plot_centers=True,
-                        plot_label="Eig: {s}".format(s=wfns[i].energy)
-                    )
-
-                    if plots_dir is not None:
-                        os.makedirs(os.path.join(plots_dir, "seigs"), exist_ok=True)
-                        pot_plot.savefig(os.path.join(plots_dir, "seigs", f"S_eig_{i}.png"))
-                        pot_plot.close()
-                    else:
-                        pot_plot.show()
-                raise Exception(...)
-
-#             with np.printoptions(linewidth=1e8):
-#                 """
-# Exception: ((15, 15), 2.625929151914913e-05, 3.810340801964157, 0.30135909686720164, (15, 15), -0.0018605379556571248, 0.024083643909265783, 0.006150208276975052)
-# """
-#                 raise Exception(ham.V.shape, np.min(ham.V), np.max(ham.V), np.std(ham.V.flatten()),
-#                                 ham.T.shape, np.min(ham.T), np.max(ham.T), np.std(ham.T.flatten()))
-
-            plot_gaussians = False
-            if plot_gaussians:
-
-                for i in range(-1, len(ham.centers)):
-                    pot_plot, plot_pts, domain = plot_pot()
-
-                    if i < 0:
-                        g_sum_dat = np.ones((len(ham.centers), 1))
-                    else:
-                        g_sum_dat = np.zeros((len(ham.centers), 1))
-                        g_sum_dat[i, 0] = 1
-                    wfns = DGBWavefunctions(
-                        [1],
-                        g_sum_dat,
-                        hamiltonian=ham
-                    )
-                    wfns[0].projection_plot(
-                        [[0, 1], [2, 3], [4, 5]],
-                        plotter=plt.TriContourLinesPlot,
-                        contour_levels=10,
-                        domain=domain,
-                        cmap='RdBu',
-                        figure=pot_plot,
-                        plot_centers=True
-                    )
-
-                    if plots_dir is not None:
-                        os.makedirs(os.path.join(plots_dir, "gaussians"), exist_ok=True)
-                        pot_plot.savefig(os.path.join(plots_dir, "gaussians", f"gaussian_{i}.png"))
-                        pot_plot.close()
-                    else:
-                        pot_plot.show()
-                raise Exception(...)
-
-            plot_wfns = True
-            if plot_wfns:
-                wfns = ham.get_wavefunctions(
-                    nodeless_ground_state=True,
-                    stable_epsilon=2e-4,
-                    # min_singular_value=2e-4,
-                    # subspace_size=ssize,
-                    mode='classic'
-                )
-                h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-                plots = []
-                plot_me = np.where(wfns.frequencies() < 8000 / UnitsData.hartrees_to_wavenumbers)
-                num_wfns = 1 + (0 if len(plot_me) == 0 or len(plot_me[0]) == 0 else max(plot_me[0]))
-                for n in range(num_wfns):
-                    # if pot_plot is None:
-                    pot_plot, plot_pts, domain = plot_pot()
-                    if len(wfns) <= n:
-                        break
-
-                    wfn = wfns[n]
-                    proj_plot = wfn.projection_plot(
-                        [[0, 1], [2, 3], [4, 5]],
-                        figure=pot_plot,
-                        plot_label=f"Energy: {(wfn.energy - (0 if n == 0 else wfns[0].energy)) * h2w:.0f}",
-                        padding=[[50, 10], [50, 50]],
-                        plotter=plt.TriContourLinesPlot,
-                        contour_levels=10,
-                        domain=domain,
-                        cmap='RdBu',
-                        plot_centers=True
-                    )
-                    if plots_dir is not None:
-                        pot_plot.savefig(os.path.join(plots_dir, f"wfn_{n}.png"))
-                        pot_plot.close()
-                    else:
-                        plots.append(pot_plot)
-                if plots_dir is None:
-                    plots[0].show()
-            raise Exception(...)
-
-        plot_subspace_energies = True
-        if plot_subspace_energies:
-            engs = []
-            for ssize in range(traj_steps, 10, -8):
-                plots_dir = f"/Users/Mark/Documents/Postdoc/AIMD-Spec/stab_tests/S{scaling}/size_{ssize}"
-                os.makedirs(plots_dir, exist_ok=True)
-                with np.printoptions(linewidth=1e8):
-                    wfns = ham.get_wavefunctions(
-                        nodeless_ground_state=False,
-                        stable_epsilon=2e-4,
-                        # min_singular_value=2e-4,
-                        subspace_size=ssize,
-                        mode='classic'
-                    )
-                engs.append(wfns.energies * UnitsData.convert("Hartrees", "Wavenumbers"))
-
-            ploot = None
-            for i,e in enumerate(engs):
-                from matplotlib.colors import hsv_to_rgb
-                ploot = plt.ScatterPlot(
-                    np.full(len(e), (2*i)),
-                    e,
-                    plot_range=[None, [0, 16000]],
-                    figure=ploot,
-                    color=hsv_to_rgb(
-                            np.concatenate(
-                                [np.clip((e%8000)/8000, 0, 1)[:, np.newaxis], np.ones((len(e), 2))],
-                                axis=-1
-                            )
-                        ),
-                    axes_labels=['Subspace Depletion', 'Energy']
-                )
-            ploot.show()
-            raise Exception(...)
-
-            #     h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-            #     plots = []
-            #     plot_me = np.where(wfns.frequencies() < 1e10)# 8000 / UnitsData.hartrees_to_wavenumbers)
-            #     num_wfns = 1 + (0 if len(plot_me) == 0 or len(plot_me[0]) == 0 else max(plot_me[0]))
-            #     for n in range(num_wfns):
-            #         # if pot_plot is None:
-            #         pot_plot, plot_pts, domain = plot_pot()
-            #         if len(wfns) <= n:
-            #             break
-            #
-            #         wfn = wfns[n]
-            #         proj_plot = wfn.projection_plot(
-            #             [[0, 1], [2, 3], [4, 5]],
-            #             figure=pot_plot,
-            #             plot_label=f"Energy: {(wfn.energy - (0 if n == 0 else wfns[0].energy)) * h2w:.0f}",
-            #             padding=[[50, 10], [50, 50]],
-            #             plotter=plt.TriContourLinesPlot,
-            #             contour_levels=10,
-            #             domain=domain,
-            #             cmap='RdBu',
-            #             plot_centers=True
-            #         )
-            #         if plots_dir is not None:
-            #             pot_plot.savefig(os.path.join(plots_dir, f"wfn_{n}.png"))
-            #             pot_plot.close()
-            #         else:
-            #             plots.append(pot_plot)
-            #     if plots_dir is None:
-            #         plots[0].show()
-            # raise Exception(...)
-
-            plot_spectrum = True
-            if plot_spectrum:
-                if len(wfns) > 1:
-                    plot_me = np.where(wfns.frequencies() * UnitsData.hartrees_to_wavenumbers < 8000)
-                    num_wfns = 1 + (0 if len(plot_me) == 0 or len(plot_me[0]) == 0 else max(plot_me[0]))
-                    spec = wfns[:num_wfns].get_spectrum(sub_cart_dipole_func, expansion_degree=1)  # .normalize(0)
-                    sploot = spec.plot()#plot_range=[[1400, 7000], None])
-                    if plots_dir is not None:
-                        np.savetxt(
-                            os.path.join(plots_dir, "spec.txt"),
-                            np.array([
-                                spec.frequencies,
-                                spec.intensities
-                            ])
-                        )
-                        sploot.savefig(os.path.join(plots_dir, "spec.png"))
-                        sploot.close()
-                    else:
-                        sploot.show()
-
-        plt.Graphics().show()
-
-        raise Exception(wfns.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers"))
-
-        # hmm, grads = cart_pot_derivs(coords, deriv_order=1)
-        # ics = Molecule(mol.atoms, coords, internals=mol.internals).internal_coordinates
-        # r1s = ics[..., 2, 1]
-        # sort = np.argsort(r1s)
-        # plt.Plot(r1s[sort], hmm[sort]).show()
-        # raise Exception(hmm)
-
     @staticmethod
     def buildRunDGB(
             coords,
@@ -1202,9 +504,7 @@ class DGBTests(TestCase):
                 for i in range(4):
                     wfns_cart[i].plot().show()
 
-            spec = wfns_cart[:4].get_spectrum(
-                wfns_cart.gaussians.coords.embed_function(dipole)
-            )
+            spec = wfns_cart[:4].get_spectrum(dipole)
             with logger.block(tag="Intensities"):
                 logger.log_print(
                     logger.prep_array(spec.intensities)
@@ -1217,7 +517,7 @@ class DGBTests(TestCase):
         ...
 
     @validationTest
-    def test_ModelPotentialAIMD1D(self):
+    def test_ModelPotentialAIMD1DOG(self):
 
         mol, model = self.buildWaterModel(
             oh_model=True,
@@ -1574,23 +874,18 @@ class DGBTests(TestCase):
         # for i in range(2):
         #     wfns_nm[i].plot().show()
 
-    @classmethod
-    def runModel(cls):
-        dgb = model.setup_DGB(
-            np.round(coords, 8),
-            optimize_centers=1e-7,
-            # optimize_centers=False,
-            modes=None if cartesians else 'normal',
-            cartesians=[0, 1] if cartesians else None
-        )
-        ...
 
     @classmethod
     def plot_dgb_potential(cls,
                            dgb, mol, potential,
                            domain=None, domain_padding=1,
-                           potential_cutoff=10000,
-                           plot_cartesians=None
+                           potential_cutoff=17000,
+                           plot_cartesians=None,
+                           plot_atoms=True,
+                           cmap=None,
+                           plot_points=100,
+                           levels=24,
+                           **plot_styles
                            ):
         def cutoff_pot(points, cutoff=potential_cutoff / UnitsData.hartrees_to_wavenumbers):
             values = potential(points)
@@ -1608,10 +903,13 @@ class DGBTests(TestCase):
             figure = mol.plot_molecule_function(
                 cutoff_pot,
                 axes=[0, 1],
-                # cmap='RdBu',
                 domain=domain,
                 domain_padding=domain_padding,
-                plot_atoms=True
+                cmap=cmap,
+                plot_points=plot_points,
+                levels=levels,
+                plot_atoms=plot_atoms,
+                **plot_styles
             )
         else:
             if domain is None:
@@ -1619,26 +917,89 @@ class DGBTests(TestCase):
                 domain = Mesh(coords.centers).bounding_box
             points = DGBWavefunction.prep_plot_grid(
                 domain,
-                domain_padding=domain_padding
+                domain_padding=domain_padding,
             )
-            figure = plt.TriContourPlot(
-                *np.moveaxis(points, -1, 0),
-                cutoff_pot(points)
-            )
+            if points.shape[-1] == 1:
+                figure = plt.Plot(
+                    *np.moveaxis(points, -1, 0),
+                    potential(points),
+                    **plot_styles
+                )
+            else:
+                figure = plt.TriContourPlot(
+                    *np.moveaxis(points, -1, 0),
+                    cutoff_pot(points),
+                    cmap=cmap,
+                    levels=levels,
+                    **plot_styles
+                )
 
         return figure
 
-    default_num_plot_wfns = 4
+    @classmethod
+    def plot_gaussians(cls, dgb, mol, nmax=10, start_at=0, sel=None, plot_dir=None):
+        n = len(dgb.gaussians.coords.centers)
+        wfns = DGBWavefunctions(
+            np.zeros(n),
+            np.eye(n),
+            dgb
+        )
+        if sel is not None:
+            subdgb_coords = dgb.gaussians.coords[:, sel]
+            subpot = subdgb_coords.embed_function(dgb.pot.potential_function.og_fn)
+        else:
+            subdgb_coords = dgb.gaussians.coords  # [:, [0, 1]]
+            subpot = dgb.pot.potential_function  # subdgb_coords.embed_function(dgb.pot.potential_function.og_fn)
+
+        if plot_dir is not None:
+            os.makedirs(plot_dir, exist_ok=True)
+        for i in range(start_at, min(n, nmax)):
+            figure = cls.plot_dgb_potential(
+                subdgb_coords, mol, subpot
+            )
+            wf = wfns[i]
+            if sel is not None:
+                wf = wf.project(sel)
+            plot = wf.plot(
+                plotter=plt.TriContourLinesPlot,
+                domain_padding=2,
+                cmap='RdBu',
+                figure=figure,
+                plot_centers={'color': 'red'}
+            )
+            if plot_dir is not None:
+                plot.savefig(os.path.join(plot_dir, f'basis_fn_{i}.pdf'))
+            else:
+                plot.show()
+
+        # wfns = wfns.as_cartesian_wavefunction()
+        # wfns[12].plot_cartesians(
+        #     [0, 1],
+        #     contour_levels=16,
+        #     # cmap='RdBu',
+        #     plot_centers={'color': 'red'},
+        #     domain_padding=.5,
+        # ).show()
+
+    default_num_plot_wfns = 5
     @classmethod
     def runDGB(cls,
                dgb: DGB,
                mol,
+               plot_centers=True,
+               plot_atoms=None,
                plot_potential=True,
                plot_wavefunctions=True,
                plot_spectrum=False,
+               pot_cmap='viridis',
+               pot_points=100,
+               wfn_cmap='RdBu',
+               wfn_points=100,
+               wfn_contours=12,
+               plot_dir=None,
                domain=None,
                domain_padding=1,
-               potential_cutoff=10000,
+               potential_cutoff=15000,
                mode=None,
                nodeless_ground_state=None,
                min_singular_value=None,
@@ -1670,7 +1031,7 @@ class DGBTests(TestCase):
             if plot_wavefunctions is not False:
                 print(e)
 
-                if isinstance(plot_wavefunctions, str) and plot_wavefunctions=='cartesians':
+                if isinstance(plot_wavefunctions, str) and plot_wavefunctions == 'cartesians':
                     plot_wavefunctions = {'cartesians':None}
                 cartesian_plot_axes = None
                 if isinstance(plot_wavefunctions, dict):
@@ -1684,7 +1045,7 @@ class DGBTests(TestCase):
                 figure = cls.plot_dgb_potential(
                     dgb, mol, pot,
                     domain=domain, domain_padding=domain_padding,
-                    potential_cutoff=potential_cutoff
+                    potential_cutoff=potential_cutoff,
                 )
 
                 dgb.gaussians.plot_centers(
@@ -1704,50 +1065,105 @@ class DGBTests(TestCase):
             if isinstance(plot_wavefunctions, str) and plot_wavefunctions=='cartesians':
                 plot_wavefunctions = {'cartesians':None}
             cartesian_plot_axes = None
+            coordinate_sel = None
             if isinstance(plot_wavefunctions, dict):
                 if 'cartesians' in plot_wavefunctions:
                     cartesian_plot_axes=plot_wavefunctions['cartesians']
-                    plot_wavefunctions = True
+                    plot_wavefunctions = plot_wavefunctions.get('num', True)
                     wfns = wfns.as_cartesian_wavefunction()
                     dgb = wfns.hamiltonian
+                elif 'modes' in plot_wavefunctions:
+                    coordinate_sel = plot_wavefunctions['modes']
+                    plot_wavefunctions = plot_wavefunctions.get('num', True)
+                    plot_potential = False
                 else:
                     raise ValueError(plot_wavefunctions)
             if plot_wavefunctions is True:
                 plot_wavefunctions = cls.default_num_plot_wfns
+            figs = []
             if isinstance(plot_wavefunctions, int):
+                plot_wavefunctions = list(range(plot_wavefunctions))
+            if isinstance(plot_wavefunctions, list) and len(plot_wavefunctions) > 0:
 
                 pot = dgb.pot.potential_function
-                for i in range(plot_wavefunctions):
+                if plot_potential:
+                    if plot_atoms is None:
+                        plot_atoms = plot_centers
+                    pot_figure = cls.plot_dgb_potential(
+                        dgb, mol, pot,
+                        cmap=pot_cmap,
+                        plot_points=pot_points,
+                        domain=domain, domain_padding=domain_padding,
+                        potential_cutoff=potential_cutoff,
+                        plot_atoms=plot_atoms
+                    )
+                else:
+                    pot_figure = None
 
-                    if plot_potential:
-                        figure = cls.plot_dgb_potential(
-                            dgb, mol, pot,
-                            domain=domain, domain_padding=domain_padding,
-                            potential_cutoff=potential_cutoff
-                        )
+                if plot_dir is not None:
+                    os.makedirs(plot_dir, exist_ok=True)
+                for i in plot_wavefunctions:
+                    if i < len(wfns):
 
-                    if isinstance(dgb.gaussians.coords, DGBCartesians):
-                        wfns[i].plot_cartesians(
-                            cartesian_plot_axes,
-                            contour_levels=16,
-                            cmap='RdBu',
-                            figure=figure,
-                            plot_centers={'color':'red'},
-                            domain=domain,
-                            domain_padding=.5,
-                            **plot_options
-                        ).show()
-                    else:
-                        wfns[i].plot(
-                            contour_levels=32,
-                            cmap='RdBu',
-                            plotter=plt.TriContourLinesPlot,
-                            plot_centers={'color':'red'},
-                            domain=domain,
-                            domain_padding=domain_padding,
-                            figure=figure,
-                            **plot_options
-                        ).show()
+                        if pot_figure is not None:
+                            figure = pot_figure.copy()
+
+                        if isinstance(dgb.gaussians.coords, DGBCartesians):
+                            figs.append(
+                                wfns[i].plot_cartesians(
+                                    cartesian_plot_axes,
+                                    contour_levels=wfn_contours,
+                                    cmap=wfn_cmap,
+                                    plot_points=wfn_points,
+                                    figure=figure,
+                                    plot_centers={'color':'red'} if plot_centers else False,
+                                    domain=domain,
+                                    domain_padding=domain_padding,
+                                    **plot_options
+                                )
+                            )
+                        else:
+                            if wfns.gaussians.alphas.shape[-1] > 1:
+                                wfn = wfns[i]
+                                if coordinate_sel is not None:
+                                    wfn = wfn.project(coordinate_sel)
+                                figs.append(
+                                    wfn.plot(
+                                        contour_levels=wfn_contours,
+                                        cmap=wfn_cmap,
+                                        plot_points=wfn_points,
+                                        plotter=plt.TriContourLinesPlot ,
+                                        plot_centers={'color':'red'} if plot_centers else False,
+                                        domain=domain,
+                                        domain_padding=domain_padding,
+                                        figure=figure,
+                                        **plot_options
+                                    )
+                                )
+                            else:
+                                figs.append(
+                                    wfns[i].plot(
+                                        plot_centers={'color': 'red'} if plot_centers else False,
+                                        domain=domain,
+                                        cmap=wfn_cmap,
+                                        plot_points=wfn_points,
+                                        domain_padding=domain_padding,
+                                        figure=figure,
+                                        scaling=-.1,
+                                        shift=wfns.energies[i],
+                                        **plot_options
+                                    )
+                                )
+
+                        if plot_dir is not None:
+                            fig = figs.pop()
+                            fig.savefig(os.path.join(plot_dir, f'wfn_{i}.pdf'))
+                            fig.close()
+
+                if plot_dir is None:
+                    figs[0].show()
+
+            return wfns
 
     @classmethod
     def getMorseParameters(cls, w=None, wx=None, m1=None, m2=None, re=None):
@@ -1798,6 +1214,165 @@ class DGBTests(TestCase):
         return morse_basic
 
     @validationTest
+    def test_ModelPotentialAIMD1D(self):
+        mol, model = self.buildWaterModel(
+            w2=None, wx2=None,
+            ka=None,
+            oh_model=True,
+            dudr1=1 / 5.5,
+            dudr2=None#1 / 5.5
+            # dipole_direction=[1, 0, 0]
+        )
+
+        check_freqs = False
+        if check_freqs:
+            freqs = model.normal_modes()[0]
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        check_anh = False
+        if check_anh:
+            model.run_VPT(order=2, states=5, degeneracy_specs='auto', logger=True)
+            """
+            ZPE: 1934.73500   1913.73500
+            ============================================= IR Data ==============================================
+            Initial State: 0 
+                           Harmonic                  Anharmonic
+            State   Frequency    Intensity       Frequency    Intensity
+              1    3869.47000     33.99218      3701.47000     33.22606
+              2    7738.94000      0.00000      7234.94000      0.68986
+              3   11608.41000      0.00000     10600.41000      0.02926
+              4   15477.88000      0.00000     13797.88000      0.00000
+              5   19347.35000      0.00000     16827.35000      0.00000
+            ====================================================================================================
+            """
+            raise Exception(...)
+
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(mol.coords, mol.normal_modes.modes)
+
+        sim = model.setup_AIMD(
+            initial_energies=[
+                [5000 * self.w2h],
+                [-5000 * self.w2h]
+            ],
+            timestep=10
+        )
+        sim.propagate(10)
+        coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+
+        cartesians = False
+        with BlockProfiler(inactive=True):
+
+            dgb = model.setup_DGB(
+                np.round(coords, 8),
+                optimize_centers=1e-8,
+                # optimize_centers=False,
+                modes=None if cartesians else 'normal',
+                cartesians=[0, 1] if cartesians else None,
+                # quadrature_degree=3,
+                expansion_degree=2,
+                pairwise_potential_functions={
+                    (0, 1): self.setupMorseFunction(model, 0, 1)
+                    # (0, 2): self.setupMorseFunction(model, 0, 2)
+                }
+            )
+
+            self.runDGB(dgb, mol,
+                        domain_padding=10,
+                        plot_spectrum=True,
+                        plot_wavefunctions=False#{'cartesians':[0, 1]} if not cartesians else True
+                        )
+
+    @debugTest
+    def test_ModelPotentialPhasedAIMD1D(self):
+        mol, model = self.buildWaterModel(
+            w2=None, wx2=None,
+            ka=None,
+            oh_model=True,
+            dudr1=1 / 5.5,
+            dudr2=None  # 1 / 5.5
+            # dipole_direction=[1, 0, 0]
+        )
+
+        check_freqs = False
+        if check_freqs:
+            freqs = model.normal_modes()[0]
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        check_anh = False
+        if check_anh:
+            model.run_VPT(order=2, states=8, degeneracy_specs=None, logger=True)
+            """
+            ZPE: 1934.73500   1913.73500
+            ============================================= IR Data ==============================================
+            Initial State: 0 
+                           Harmonic                  Anharmonic
+            State   Frequency    Intensity       Frequency    Intensity
+              1    3869.47000     33.99218      3701.47000     33.22606
+              2    7738.94000      0.00000      7234.94000      0.68986
+              3   11608.41000      0.00000     10600.41000      0.02926
+              4   15477.88000      0.00000     13797.88000      0.00000
+              5   19347.35000      0.00000     16827.35000      0.00000
+              6   23216.82000      0.00000     19688.82000      0.00000
+              7   27086.29000      0.00000     22382.29000      0.00000
+              8   30955.76000      0.00000     24907.76000      0.00000
+            ====================================================================================================
+            """
+            raise Exception(...)
+
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(mol.coords, mol.normal_modes.modes)
+
+        sim = model.setup_AIMD(
+            initial_energies=[
+                [2*3701 * self.w2h],
+                [-2*3701 * self.w2h]
+            ],
+            timestep=25,
+            track_velocities=True
+        )
+        sim.propagate(25)
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        momenta = velocities * mol.masses[np.newaxis, :, np.newaxis]
+        # momenta = -model.potential(coords, deriv_order=1)[1]
+        # momenta = np.full(velocities.shape, .0)
+
+        cartesians = False
+        with BlockProfiler(inactive=True):
+
+            dgb = model.setup_DGB(
+                np.round(coords[1:], 8),
+                # optimize_centers=1e-8,
+                optimize_centers=False,
+                modes=None if cartesians else 'normal',
+                cartesians=[0, 1] if cartesians else None,
+                # quadrature_degree=3,
+                expansion_degree=2,
+                # pairwise_potential_functions={
+                #     (0, 1): self.setupMorseFunction(model, 0, 1)
+                #     # (0, 2): self.setupMorseFunction(model, 0, 2)
+                # },
+                momenta=momenta[1:]
+            )
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 15 S functions
+            :: ZPE: 1874.6259549942713
+            :: Frequencies: [ 3701.69591981  7231.85528827 10591.76118441 13773.1942042  16759.56893886 19393.48574319 21119.41033203 22954.87541687 25476.84980589 28047.54215813 30765.12758808 34097.63739187 38236.9908528  47891.33197648]
+            >>--------------------------------------------------<<
+            """
+            print(np.min(dgb.S))
+
+            # raise Exception(...)
+
+            self.runDGB(dgb, mol,
+                        domain_padding=10,
+                        plot_spectrum=False,
+                        plot_wavefunctions=False  # {'cartesians':[0, 1]} if not cartesians else True
+                        )
+
+    @validationTest
     def test_ModelPotentialAIMD2D(self):
         mol, model = self.buildWaterModel(
             # w2=None, wx2=None,
@@ -1814,32 +1389,69 @@ class DGBTests(TestCase):
 
         check_anh = False
         if check_anh:
-            model.run_VPT(order=2, states=2, degeneracy_specs='auto')
+            from Psience.VPT2 import VPTRunner
+
+            VPTRunner.run_simple(
+                [mol.atoms, mol.coords],
+                potential_derivatives=model.potential(mol.coords, deriv_order=4)[1:],
+                dipole_derivatives=model.dipole(mol.coords, deriv_order=3),
+                order=2, states=3,
+                logger=True,
+                degeneracy_specs='auto',
+                calculate_intensities=True
+            )
+
+            # model.run_VPT(order=2, states=2, degeneracy_specs='auto', logger=True)
             """
-            ZPE: 3869.37229   3766.81161 
-            ============================================= IR Data ==============================================
-            Initial State: 0 0 
-                             Harmonic                  Anharmonic
+            ZPE: 3869.37229   3814.75070 
             State     Frequency    Intensity       Frequency    Intensity
-              0 1    3896.87027     64.98650      3726.75080     63.56784
-              1 0    3841.87432      0.26781      3675.99562      0.24283
-              0 2    7793.74054      0.00000      7415.73134      0.00002
-              2 0    7683.74863      0.00000      7220.31281      0.01197
-              1 1    7738.74459      0.00000      7236.19694      1.32008
-            ====================================================================================================
+              0 1    3896.87028     64.98650      3726.72077     63.58462
+              1 0    3841.87433      0.26781      3675.96177      0.25708
+              0 2    7793.74057      0.00000      7415.60644      0.00317
+              2 0    7683.74866      0.00000      7220.11984      0.00861
+              1 1    7738.74461      0.00000      7236.25926      1.32009
+              0 3   11690.61085      0.00000     10986.10686      0.00048
+              3 0   11525.62299      0.00000     10895.67849      0.00008
+              1 2   11635.61490      0.00000     10593.72292      0.00056
+              2 1   11580.61894      0.00000     10596.33867      0.05435
             """
             raise Exception(...)
 
-
+        check_dvr = False
+        if check_dvr:
+            raise Exception("do the proper 2D thing...")
+            print("Running DVR...")
+            dvr = model.setup_DVR(
+                domain=[[1, 4], [1, 4], [np.deg2rad(60), np.deg2rad(160)]],
+                divs=[800, 800, 800], po_divs=[25, 25, 25],
+                potential_optimize=True,
+                logger=True
+            )
+            po_data = dvr.run()
+            """
+            :: PotentialOptimizedDVR([WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None)], pot=SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2))
+            :: g: [[SympyExpr(0.0005786177281533848), SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3])], [SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(0.0005786177281533848), SympyExpr(0.0)], [SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3]), SympyExpr(0.0), SympyExpr(0.000578617728153385/r[2,3]**2 - 6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]) + 0.000578617728153385/r[1,2]**2)]]
+            :: mass: [None, None, None]
+            :: g_deriv: [SympyExpr(0.0), SympyExpr(0.0), SympyExpr(6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]))]
+            :: domain: [[1, 4], [1, 4], [1.0471975511965976, 2.792526803190927]]
+            :: divs: [800, 800, 800]
+            :: potential_function: SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2)
+            ::> constructing grid
+             """
+            raise Exception(
+                po_data.wavefunctions.energies[1] * UnitsData.hartrees_to_wavenumbers,
+                po_data.wavefunctions.frequencies() * UnitsData.hartrees_to_wavenumbers
+            )
         # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
         # raise Exception(mol.coords, mol.normal_modes.modes)
 
+        symm, asymm = model.normal_modes()[0]
         sim = model.setup_AIMD(
             initial_energies=[
-                [5000 * self.w2h, 5000 * self.w2h],
-                [-5000 * self.w2h, 5000 * self.w2h],
-                [-5000 * self.w2h, -5000 * self.w2h],
-                [5000 * self.w2h, -5000 * self.w2h],
+                [ symm,  asymm],
+                [-symm,  asymm],
+                [-symm, -asymm],
+                [ symm, -asymm],
                 # [2000 * self.w2h, 0],
                 # [0, 2000 * self.w2h],
                 # [-2000 * self.w2h, 0],
@@ -1851,90 +1463,17 @@ class DGBTests(TestCase):
                 # [-10000 * self.w2h, 0],
                 # [0, -10000 * self.w2h]
             ],
-            timestep=10
+            timestep=25
         )
-        sim.propagate(5)
+        sim.propagate(35)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
-
-        """
-        In normal modes:
-        
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: solving with subspace size 101
-        :: ZPE: 3827.228939216366
-        :: Frequencies: [ 3676.01153913  3726.87414237  7224.01627225  7236.62308184  7429.51373048 10599.26058545 10607.18122362 10903.18463044 11038.34099881 13802.91267454]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [2.56816018e-01 6.35642463e+01 1.24331875e-02 1.41043612e+00 3.81079976e-03 5.90581119e-02 2.75277562e-03 1.01446344e-04 7.97143141e-04 4.08988724e-03]
-        """
-        """
-        
-        In Carts, 55 steps, ts=5
-        :: Frequencies: [ 1939.3888942   3699.93055922  3859.74233969  7189.02865425  7714.8445865   8802.80971572 10563.99747325 11037.84927957 12296.636057   13821.72667492]
-        
-        Carts, 55 steps, ts=10
-        :: solving with subspace size 73
-        :: ZPE: 7532.453122711061
-        :: Frequencies: [ 1633.3102395   3698.64503592  3735.7664761   6304.89816379  7226.15355447  7383.459363    8004.79155075 10000.8898692  10551.20589953 10782.57343599]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [4.28700118e+01 2.14297296e+01 4.17647493e+01 4.29356664e-01 1.16937902e+00 4.16702226e-02 7.01762939e-02 6.89581212e-01 8.27064938e-02 5.41807145e-02]
-        
-        In Carts, 100 steps, ts=5
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: solving with subspace size 87
-        :: ZPE: 7331.990506623899
-        :: Frequencies: [1430.72412218 3404.32580979 3897.02665756 3994.95055602 5230.74776836 5429.57579877 7381.29884675 7519.66506158 7729.09597527 8860.26071561]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [6.40897590e+01 1.95058105e+00 5.99623811e+01 1.36131150e-01 6.36942154e-02 5.84163730e-02 1.38666640e+00 2.51149005e-01 2.32211506e-02 3.86841086e-01]
-        :: solving with subspace size 100
-        
-        In Carts, 100 steps, ts=10
-        :: ZPE: 7336.39781522725
-        :: Frequencies: [1427.11593939 3432.04732043 3895.09603057 3988.38214228 5241.97642121 5425.90501825 7377.80665742 7517.49093219 7729.31988235 8825.24999752]
-        :: evauating integrals with 3-order quadrature
-        
-        In Carts, 70 steps, ts=10
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: solving with subspace size 98
-        :: ZPE: 7326.681016996741
-        :: Frequencies: [1435.77856578 3333.33096333 3902.88546196 3942.87611828 5194.64332689 5434.52361585 7387.41161128 7524.55152645 7804.25835344 9126.99447282]
-        :: evauating integrals with 3-order quadrature
-        
-        60 steps
-        :: Frequencies: [ 1377.229406    3705.72143869  3736.81168228  5406.54716053  5826.84014487  7216.78498699  7351.68663541  7837.6505418  10083.36649672 10533.55288463]
-        
-        45 steps
-        :: Frequencies: [ 2436.03928042  3698.64362896  3801.00627889  7279.35117131  7366.08174359  8460.97882021 10609.05213299 10885.29699289 11065.10559912 13626.16262504]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [5.75910859e+01 9.41654664e+00 5.39770953e+01 1.46457650e+00 2.78237815e-01 3.35306772e-01 1.82468117e-02 7.36152065e-03 4.68411121e-01 1.77380041e-01]
-        
-        In Carts, 35 steps, ts=10
-        :: solving with subspace size 52
-        :: ZPE: 7555.731254592927
-        :: Frequencies: [ 2412.42538311  3705.23321428  3868.5403588   7278.84245026  7754.44607092  8814.90386733 10694.32194733 11094.04067495 13665.23226306 14053.70858405]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [5.71728397e+01 1.81684789e+00 6.26042566e+01 1.38078789e+00 3.11705536e-01 1.02895881e+00 3.59623454e-02 8.24640665e-02 2.61386129e-01 3.82063099e-01]
-        
-        100, ts=2
-        :: solving with subspace size 44
-        :: ZPE: 7554.981056772567
-        :: Frequencies: [ 1939.07379488  3699.92202569  3859.7668093   7189.28624134  7716.11651689  8803.46788279 10548.88965322 11023.78820586 12301.43309882 13824.2339489 ]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [4.70441202e+01 8.07002546e-01 6.29357209e+01 1.21332288e+00 2.65240178e-01 1.12569607e+00 5.96999211e-02 8.30627352e-02 3.39068096e-01 2.17957292e-03]
-        
-        100, ts=2, overlap criterion=1e-4
-        :: solving with subspace size 33
-        :: ZPE: 7555.468290475696
-        :: Frequencies: [ 3695.75971544  3870.22019617  6358.79849165  7309.53324768  7775.72946854  8936.78003823 10799.49587579 11177.47615028 13663.40562586 14451.36370231]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [  0.35136204  63.18547029 102.22284205  12.06116715   2.42554562   2.29343868   0.50048585   0.34520303   2.50926292   0.87726397]
-        """
 
         cartesians=False
         with BlockProfiler(inactive=True):
 
             dgb = model.setup_DGB(
-                np.round(coords, 8),
-                optimize_centers=1e-8,
+                coords,
+                optimize_centers=1e-14,
                 # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
@@ -1946,71 +1485,12 @@ class DGBTests(TestCase):
                 }
             )
 
-            """
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 20
-            :: ZPE: 3781.082739812134
-            :: Frequencies: [ 3764.44242202  3780.16124925  7293.08485934  7410.86956917 10745.34634858 10763.18031136 13946.96584743 14027.81288441 17082.58958407 17169.09291512]
-            >>--------------------------------------------------<<
-            """
-
-            """
-            :: Frequencies: [ 3675.67859289  3728.1031644   7220.86665227  7237.3542714   7419.82070657 10595.85111444 10598.93290971 10896.9917394  11017.71173165 13798.28724499]
-"""
-
-            """
-            :: solving with subspace size 33
-            :: ZPE: 3793.0886555058923
-            :: Frequencies: [ 3675.73239715  3734.95463105  7232.54865998  7250.05353005  7495.98577501 10620.94739729 10624.18621614 11030.71092945 11336.21159011 13847.20197056]
-            """
-
-            """With PPF
-            :: solving with subspace size 45
-            :: ZPE: 3841.4826749468443
-            :: Frequencies: [ 3675.02112202  3729.63620102  7229.85378398  7236.23218089  7456.89264976 10598.8566352  10615.96482705 10943.09809432 11191.43047547 13808.16470424]
-            :: evauating integrals with 2-degree expansions
-            :: expanding about 1596 points...
-            :: adding up all derivative contributions...
-            :: Intensities: [2.56728500e-01 6.35425388e+01 8.02406454e-03 1.43061410e+00 4.60466363e-03 6.54455300e-02 6.54384505e-04 7.42781967e-05 5.89499126e-03 5.31134260e-03]
-            
-            Without
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 45
-            :: ZPE: 3751.173261233092
-            :: Frequencies: [ 3676.84628937  3723.71917168  7228.86423764  7232.967462    7441.65595244 10592.95585085 10608.78544528 10933.45444733 11154.89630171 13799.18895636]
-            :: evauating integrals with 2-degree expansions
-            :: expanding about 1596 points...
-            :: adding up all derivative contributions...
-            :: Intensities: [2.57620927e-01 6.32698503e+01 8.87958873e-03 1.45502425e+00 4.32335437e-03 6.75462456e-02 6.75232273e-04 5.14558465e-05 9.97234189e-03 4.92214135e-03]
-            >>--------------------------------------------------<<
-"""
-
             self.runDGB(dgb, mol,
-                        vmin=-.05,
-                        vmax=.05,
-                        domain=[[-20, 20], [-20, 20]],
+                        similarity_cutoff=.95,
+                        plot_spectrum=True,
                         plot_wavefunctions=False
                         # mode='classic'
                         )
-
-            """
-            :: solving with subspace size 74
-(301, 74)
-:: ZPE: 3792.2909407628968
-:: Frequencies: [ 3675.67519926  3728.04432428  7220.71371151  7237.21266607  7417.83839273 10595.72920586 10597.47640089 10896.69653986 10993.50986009 13796.28412269]
-"""
-            """
-            :: solving with subspace size 40
-            :: solving with subspace size 39
-            :: solving with subspace size 38
-            :: solving with subspace size 37
-            :: solving with subspace size 36
-            :: solving with subspace size 35
-            :: ZPE: 3793.964913145213
-            :: ZPE: 3794.012794330589
-            :: Frequencies: [ 3708.73341154  3734.86080835  7286.17436413  7316.65491963  8516.61271718 10666.28023563 10748.50595293 12733.0280663  13896.96264286 13996.93743477]
-            :: Frequencies: [ 3705.77682674  3734.88703588  7280.76971625  7313.35796559  8455.29315203 10663.6914612  10725.06347301 12648.70126107 13738.17040782 13897.90723632]
-            """
 
     @validationTest
     def test_ModelPotentialAIMD2D_HOD(self):
@@ -2137,30 +1617,21 @@ class DGBTests(TestCase):
         # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
         # raise Exception(mol.coords, mol.normal_modes.modes)
 
+        bend, symm, asymm = model.normal_modes()[0]
         sim = model.setup_AIMD(
             initial_energies=np.array([
-                [5000, 7000, 0],
-                [5000, -7000, 0],
-                [-5000, 7000, 0],
-                [-5000, -7000, 0],
-                # [5000, 0, 7000],
-                # [5000, 0, -7000],
-                # [-5000, 0, 7000],
-                # [-5000, 0, -7000],
-                # [2000 * self.w2h, 0],
-                # [0, 2000 * self.w2h],
-                # [-2000 * self.w2h, 0],
-                # [0, -2000 * self.w2h],
-                # [-15000 * self.w2h, -15000 * self.w2h],
-                # [15000 * self.w2h, -15000 * self.w2h],
-                # [10000 * self.w2h, 0],
-                # [0, 10000 * self.w2h],
-                # [-10000 * self.w2h, 0],
-                # [0, -10000 * self.w2h]
-            ]) * self.w2h * .6,
+                [ bend,  symm, 0],
+                [ bend, -symm, 0],
+                [-bend,  symm, 0],
+                [-bend, -symm, 0],
+                [ bend, 0,  asymm],
+                [ bend, 0, -asymm],
+                [-bend, 0,  asymm],
+                [-bend, 0, -asymm]
+            ]),
             timestep=15
         )
-        sim.propagate(25)
+        sim.propagate(5)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
         cartesians = False
@@ -2173,40 +1644,86 @@ class DGBTests(TestCase):
                 modes=None if cartesians else 'normal',
                 coordinate_selection=[0, 1],
                 cartesians=[0, 1] if cartesians else None,
-                # quadrature_degree=3,
-                expansion_degree=2,
+                quadrature_degree=3,
+                # expansion_degree=2,
                 # pairwise_potential_functions={
-                #     (0, 1):self.setupMorseFunction(model),
-                #     (0, 2):self.setupMorseFunction(model)
+                #     (0, 1): self.setupMorseFunction(model, 0, 1),
+                #     (0, 2): self.setupMorseFunction(model, 0, 2)
                 # }
             )
 
+            # submol, submodel_stretch = self.buildWaterModel(
+            #     # w2=None, wx2=None,
+            #     ka=None
+            # )
+            # submol, submodel_bend = self.buildWaterModel(
+            #     w=0, wx=None,
+            #     w2=0, wx2=None,
+            #     # ka=None,
+            # )
 
-            """   
-            With Quad
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 58
-            :: ZPE: 2665.6069779880036
-            :: Frequencies: [1608.49531299 3207.00175911 3760.4494808  4795.42751905 5368.63162422 6382.41680842 6974.3954701  7442.50599982 7963.37554881 8596.58017647]
-            >>--------------------------------------------------<<
-            Without PPF
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 48
-            :: ZPE: 2662.2066836743475
-            :: Frequencies: [1608.79009118 3205.20733975 3753.24022201 4618.98702262 4798.93963596 5370.90878283 6389.45983026 6990.67524802 7438.15809096 8073.02852093]
-            >>--------------------------------------------------<<
-            With PPF
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 49
-            :: ZPE: 2667.2411724861367
-            :: Frequencies: [1608.36613953 3207.67172337 3761.47812863 4798.06900587 5371.76199962 6383.85193216 6978.04577871 7443.66050022 8033.8198696  8648.9380281 ]
-            >>--------------------------------------------------<<
+            # print(
+            #     dgb.evaluate_multiplicative_operator(
+            #         submodel_bend.potential,
+            #         quadrature_degree=4
+            #     )[:5, :5]
+            # )
+            # print(
+            #     dgb.evaluate_multiplicative_operator(
+            #         submodel_bend.potential,
+            #         expansion_degree=2
+            #     )[:5, :5]
+            # )
+            #     dgb.evaluate_multiplicative_operator(
+            #         submodel_stretch.potential,
+            #         expansion_degree=2,
+            #         pairwise_functions={
+            #             (0, 1): self.setupMorseFunction(model, 0, 1),
+            #             (0, 2): self.setupMorseFunction(model, 0, 2)
+            #         }
+            #     )[:5, :5]
+
+            # print(
+            #     dgb.evaluate_multiplicative_operator(
+            #         submodel_stretch.potential,
+            #         quadrature_degree=3
+            #     )[:5, :5] -
+            #     dgb.evaluate_multiplicative_operator(
+            #         submodel_stretch.potential,
+            #         expansion_degree=2,
+            #         pairwise_functions={
+            #             (0, 1): self.setupMorseFunction(model, 0, 1),
+            #             (0, 2): self.setupMorseFunction(model, 0, 2)
+            #         }
+            #     )[:5, :5]
+            # )
+            raise Exception(...)
+
+            """
+>>------------------------- Running distributed Gaussian basis calculation -------------------------
+:: diagonalizing in the space of 27 S functions
+:: ZPE: 2703.0532865370874
+:: Frequencies: [ 1611.61510053  3215.4525035   3761.65133913  4822.94422724  5383.49202567  6528.60083868  7121.5055917   7461.58631351  8451.7611391   8802.65305029  9126.15952187 10068.00946755 10655.33557818 11035.91654539 11686.79214732 12368.50320681 12618.40116626 13452.85838251 13927.47046538 14512.77618706]
+>>--------------------------------------------------<<
+[[0.00623843 0.00730029 0.00521558 0.00503987 0.00518823]
+ [0.00730029 0.03210892 0.00082444 0.0032473  0.01149502]
+ [0.00521558 0.00082444 0.02563066 0.00815058 0.00171581]
+ [0.00503987 0.0032473  0.00815058 0.01458135 0.00088887]
+ [0.00518823 0.01149502 0.00171581 0.00088887 0.01424601]]
+ 
+            evauating integrals with 3-order quadrature
+[[0.00624626 0.00731284 0.00521744 0.00504326 0.00519344]
+ [0.00731284 0.03218069 0.00082591 0.00325166 0.0115091 ]
+ [0.00521744 0.00082591 0.0256305  0.00815148 0.00171665]
+ [0.00504326 0.00325166 0.00815148 0.01458469 0.00088981]
+ [0.00519344 0.0115091  0.00171665 0.00088981 0.01425408]]
+ 
+            
             """
 
             # type(self).default_num_plot_wfns = 5
             type(self).default_num_plot_wfns = 1
             self.runDGB(dgb, mol,
-                        similarity_chunk_size=5,
                         # vmin=-.05,
                         # vmax=.05,
                         # domain=[[-2, 2], [-2, 2]],
@@ -2231,37 +1748,43 @@ class DGBTests(TestCase):
 
         check_anh = False
         if check_anh:
-            model.run_VPT(order=2, states=2,
-                          logger=True,
-                          degeneracy_specs='auto'
-                          )
+            from Psience.VPT2 import VPTRunner
+
+            VPTRunner.run_simple(
+                [mol.atoms, mol.coords],
+                potential_derivatives=model.potential(mol.coords, deriv_order=4)[1:],
+                dipole_derivatives=model.dipole(mol.coords, deriv_order=3),
+                order=2, states=3,
+                logger=True,
+                degeneracy_specs='auto',
+                calculate_intensities=True,
+                include_coriolis_coupling=True
+            )
+
             """
-            ZPE:       4680.66312                   4570.46683
-            ============================================= IR Data ==============================================
-            Initial State: 0 0 0 
-                   Harmonic                  Anharmonic
+              0 0 0    4680.66314                   4611.38521
+                              Harmonic                  Anharmonic
             State       Frequency    Intensity       Frequency    Intensity
-              0 0 1    3896.87027     64.98650      3719.85792     62.04864
-              0 1 0    3843.25802      0.17386      3676.15023      0.13738
-              1 0 0    1621.19795     64.86521      1603.43665     64.14564
-              0 0 2    7793.74054      0.00000      7405.54186      0.00156
-              0 2 0    7686.51604      0.00000      7216.33517      0.00897
-              2 0 0    3242.39590      0.00000      3197.00911      0.07403
-              0 1 1    7740.12829      0.00000      7229.92439      1.31011
-              1 0 1    5518.06822      0.00000      5308.87370      0.09319
-              1 1 0    5464.45597      0.00000      5278.21352      0.07390
-              0 0 3   11690.61081      0.00000     10968.41696      0.00035
-              0 3 0   11529.77407      0.00000     10889.96902      0.00002
-              3 0 0    4863.59385      0.00000      4780.71739      0.02966
-              0 1 2   11636.99856      0.00000     10585.28249      0.00057
-              1 0 2    9414.93849      0.00000      8988.15541      0.00045
-              0 2 1   11583.38631      0.00000     10587.48831      0.05388
-              2 0 1    7139.26617      0.00000      6888.02529      0.00327
-              1 2 0    9307.71399      0.00000      8809.00645      0.00197
-              2 1 0    7085.65392      0.00000      6870.41262      0.00035
-              1 1 1    9361.32624      0.00000      8817.56680      0.00646
-            ====================================================================================================
-            """
+              0 0 1    3896.87028     64.98650      3719.85792     62.04864
+              0 1 0    3843.25804      0.17386      3676.15022      0.13738
+              1 0 0    1621.19796     64.86522      1603.43661     64.14564
+              0 0 2    7793.74057      0.00000      7405.54785      0.00156
+              0 2 0    7686.51607      0.00000      7216.32913      0.00897
+              2 0 0    3242.39591      0.00000      3197.00895      0.07403
+              0 1 1    7740.12832      0.00000      7229.92435      1.31011
+              1 0 1    5518.06824      0.00000      5308.87368      0.09319
+              1 1 0    5464.45599      0.00000      5278.21350      0.07390
+              0 0 3   11690.61085      0.00000     10968.42588      0.00035
+              0 3 0   11529.77411      0.00000     10889.98015      0.00002
+              3 0 0    4863.59387      0.00000      4780.71702      0.02966
+              0 1 2   11636.99860      0.00000     10585.27120      0.00057
+              1 0 2    9414.93853      0.00000      8988.16177      0.00045
+              0 2 1   11583.38636      0.00000     10587.47926      0.05388
+              2 0 1    7139.26620      0.00000      6888.02518      0.00327
+              1 2 0    9307.71403      0.00000      8809.00009      0.00197
+              2 1 0    7085.65395      0.00000      6870.41251      0.00035
+              1 1 1    9361.32628      0.00000      8817.56679      0.00646
+              """
             raise Exception(...)
 
         check_dvr = False
@@ -2332,114 +1855,116 @@ class DGBTests(TestCase):
         # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
         # raise Exception(mol.coords, mol.normal_modes.modes)
 
+        bend, symm, asymm = model.normal_modes()[0]
         sim = model.setup_AIMD(
             initial_energies=np.array([
-                [ 5000,  7000,     0 ],
-                [ 5000, -7000,     0 ],
-                [-5000,  7000,     0 ],
-                [-5000, -7000,     0 ],
-                [ 5000,     0,   7000 ],
-                [ 5000,     0,  -7000 ],
-                [-5000,     0,   7000 ],
-                [-5000,     0,  -7000 ],
-                # [2000 * self.w2h, 0],
-                # [0, 2000 * self.w2h],
-                # [-2000 * self.w2h, 0],
-                # [0, -2000 * self.w2h],
-                # [-15000 * self.w2h, -15000 * self.w2h],
-                # [15000 * self.w2h, -15000 * self.w2h],
-                # [10000 * self.w2h, 0],
-                # [0, 10000 * self.w2h],
-                # [-10000 * self.w2h, 0],
-                # [0, -10000 * self.w2h]
-            ]) * self.w2h * .8,
-            timestep=20
+                [ bend,  symm,       0 ],
+                [ bend, -symm,       0 ],
+                [-bend,  symm,       0 ],
+                [-bend, -symm,       0 ],
+                [ bend,     0,   asymm ],
+                [ bend,     0,  -asymm ],
+                [-bend,     0,   asymm ],
+                [-bend,     0,  -asymm ],
+            ]) * 1,
+            timestep=10
         )
-        sim.propagate(35)
+
+        sim.propagate(500)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
+        pruning_energy = 700 / UnitsData.hartrees_to_wavenumbers
         """
-        Normal
-        :: solving with subspace size 100
-        :: ZPE: 4622.827374642189
-        :: Frequencies: [1592.98842318 3187.51067499 3683.5717401  3710.21005314 4793.03025812 5267.83943469 5295.10938209 6605.25174785 6838.03573715 7013.17093466]
-        :: evauating integrals with 3-order quadrature
-        :: Intensities: [6.42325949e+01 7.22688264e-02 1.41927636e-01 6.16947524e+01 5.21691269e-02 9.73523176e-02 5.62461023e-02 4.94777305e-04 3.24686242e-03 2.13024323e-04]
+        :: ZPE: 4597.865441316436
+        :: Frequencies: [1637.6712136  3349.38364799 3590.01285936 3857.62266998 5107.98352405 5644.27631775 6498.18260803 7014.27478321 7799.08239008]
         
-        Cart
-        :: solving with subspace size 100
-        :: ZPE: 7916.658907636596
-        :: Frequencies: [1590.11734842 3171.8868053  3679.51473717 3770.25841141 4763.97197814 5234.66671784 5369.53899233 6368.48510159 6808.28790377 7019.8920343 ]
+        :: Frequencies: [1562.41093717 3417.28316685 3516.60154385 3847.63814055 5383.8738814  5589.93416336 7761.42924146]
         """
 
         """
-        :: solving with subspace size 362
-        :: ZPE: 4622.151471437737
-        :: Frequencies: [1590.5035818  3170.2461846  3677.33109476 3707.56151697 4740.00435086 5259.31931627 5268.32624787 6300.40485011 6798.94882365 6846.70614653]
+        :: ZPE: 4571.052734849301
+        :: Frequencies: [1604.12231989 3198.71878067 3677.31291629 3718.65204757 4784.74017931 5285.5956116  5315.66022305 6359.40692181 6881.25087141 6907.46034492 7227.52667649 7256.22417871 7409.6306825  7930.82731876 8479.74032541 8565.30819461 8843.19785438 8896.60257429 9005.52004136 9485.08015837]
         """
 
         cartesians = False
+        use_interpolation = True
+        if use_interpolation:
+            potential_data = {'centers':coords, 'values':model.potential(coords, deriv_order=2)}
+        else:
+            potential_data = None
         with BlockProfiler(inactive=True):
 
+            """
+            :: ZPE: 4597.450569703509
+            :: Frequencies: [ 1532.0238538   3303.70601926  3886.06002078  3964.43747624  4728.98993909  5346.90145145  5693.6426873   6405.30581875  7154.85197981  7398.30642509  8923.81178447  9713.71335386 10610.13098991 11231.01060612]
+            :: ZPE: 4592.909813102955
+            :: Frequencies: [ 1638.0134135   3340.09636088  3581.51512274  3825.31857303  5495.38492396  5602.10440597  5937.30478358  6935.0265671   7342.87842492  7409.26799591  7525.80528395  7636.42783572  8023.87015034  8660.93003546  9119.65216576  9505.35854727  9725.2442756  10216.54968368 10446.88673994 10589.9953759 ]
+            """
+
+            """
+            :: ZPE: 4611.094983585687
+            :: Frequencies: [1603.44863295 3198.13903952 3679.81865526 3725.47652423 4781.54053    5286.23312573 5321.31083824 6355.83780495 6882.2687276  6957.89008281 7235.86055485 7302.76906113 7416.36229189 7920.22057333 8467.07742527 8570.37531735 8836.64381987 8881.92981176 9006.90005472 9495.1200398 ]
+            
+            :: ZPE: 4571.150876676482
+            :: Frequencies: [1604.93242976 3201.2762706  3679.48073856 3723.99293599 4788.08329001 5286.6499235  5319.70366332 6366.13763555 6890.23518753 6959.79446469 7233.18188159 7302.72415051 7413.80482603 7978.23252103 8491.44159641 8579.49532908 8837.49145321 8877.54093539 9004.81997599 9603.16119709]
+            """
+
             dgb = model.setup_DGB(
-                np.round(coords, 8),
+                coords,
+                potential_function=potential_data,
                 # optimize_centers=False,
-                optimize_centers={
-                    'method':'gram-schmidt',
-                    'overlap_cutoff':1e-14,
-                    'allow_pivoting':True
-                },
-                # optimize_centers=False,
+                optimize_centers=[
+                    {
+                        'method': 'energy-cutoff',
+                        'cutoff': pruning_energy
+                    } if pruning_energy is not None else None,
+                    1e-14
+                ],
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
-                # quadrature_degree=3,
-                expansion_degree=2,
-                pairwise_potential_functions={
-                    (0, 1):self.setupMorseFunction(model, 0, 1),
-                    (0, 2):self.setupMorseFunction(model, 0, 2)
-                }
+                quadrature_degree=3
+                , expansion_degree=2
+                # , pairwise_potential_functions={
+                #     (0, 1):self.setupMorseFunction(model, 0, 1),
+                #     (0, 2):self.setupMorseFunction(model, 0, 2)
+                # }
+                , transformations='diag'
             )
+            """
+            Quad (diag on top)
+            :: Frequencies: [ 1608.15422901  3210.43539753  3687.80981187  3723.55153359  4895.08134347  5324.51974615  5349.55404715  6537.97195165  6996.55458136  7041.99024524  7290.16851734  7323.84521184  7463.58005119  8398.91185649  8786.60637452  8913.35832829  9112.61849297  9495.17548506  9503.36436839 10199.46614382]
+            :: Frequencies: [1602.92862805 3200.09079743 3680.20944591 3722.43343526 4788.04990973 5290.4664062  5320.35773164 6431.87241655 6921.59675425 6925.25078426 7236.71298577 7242.86318064 7423.00166202 8029.54060322 8546.01311377 8551.19640146 8885.17965835 8933.58490114 9033.7236885  9748.41422037]
+            
+            Expansions (diag on top)
+            :: Frequencies: [1602.72784175 3194.17457145 3678.12473949 3720.4027005  4777.70463931 5282.38796837 5309.00508594 6350.68799335 6873.27560286 6887.92343644 7224.47734662 7236.35889162 7408.21856099 7923.43823514 8458.76134409 8478.22811052 8827.51438024 8836.75664778 8995.88311051 9522.79437823]
+            :: Frequencies: [1602.94342352 3200.22645253 3680.44751438 3721.98040484 4788.27296366 5290.77563873 5320.00898146 6431.92197999 6922.26482632 6925.11439887 7237.19784537 7242.6045962  7422.55836083 8029.53907426 8546.6466649  8551.0311153  8886.09236692 8933.92493092 9033.73227324 9749.00043004]
+           """
 
-            """
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 47
-            :: ZPE: 4535.481643651455
-            :: Frequencies: [1615.64813937 3321.57434357 3709.2586991  3764.27308878 5048.23963758 6245.69306909 6395.58664141 6912.16013494 7251.79882944 8025.91636546]
-            >>--------------------------------------------------<<
-            """
+            plot_gaussians = False
+            if plot_gaussians:
+                self.plot_gaussians(dgb, mol, 10, sel=[0, 1])
+                raise Exception(...)
 
-            print(coords.shape[0], dgb.gaussians.coords.centers.shape[0])
-
-            """
-            With Quad
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 154
-            :: ZPE: 4573.230158328804
-            :: Frequencies: [1588.64768586 3167.07657005 3679.50144453 3717.62869601 4736.82684937 5271.40451129 5273.81247512 6300.68974983 6854.37713208 6866.55926857]
-            >>--------------------------------------------------<<
-            With PPF
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 47
-            :: ZPE: 4573.673832476982
-            :: Frequencies: [1599.2575801  3206.2591078  3698.45668271 3741.08837597 4830.32507642 5319.56013734 5390.51062719 6741.5898552  7071.92429821 7136.71098205]
-            >>--------------------------------------------------<<
-            Without PPF
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: solving with subspace size 130
-            :: ZPE: 4532.431583366782
-            :: Frequencies: [1589.78179672 3166.12383827 3680.10680125 3713.00711712 4375.92743048 4741.90750994 5272.49083561 5274.57991176 6314.59727429 6858.09225606]
-            >>--------------------------------------------------<<
-            """
+            # print(dgb.gaussians.alphas[:3])
+            # print(dgb.gaussians.coords.centers[:3])
+            # print(dgb.gaussians.transformations[0][:3])
+            # print(dgb.S[0, :3])
+            # print(dgb.T[0, :3])
+            # raise Exception(...)
 
             # type(self).default_num_plot_wfns = 5
-            type(self).default_num_plot_wfns = 1
+            type(self).default_num_plot_wfns = 5
             self.runDGB(dgb, mol,
+                        similarity_cutoff=.9,
                         # similarity_chunk_size=5,
                         # vmin=-.05,
                         # vmax=.05,
                         # domain=[[-2, 2], [-2, 2]],
                         # plot_wavefunctions=False,
-                        plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
+                        plot_centers=False,
+                        plot_spectrum=True,
+                        plot_wavefunctions=False,
+                        # plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
                         )
 
     @validationTest
@@ -2549,7 +2074,7 @@ class DGBTests(TestCase):
                 # optimize_centers=False,
                 optimize_centers={
                     'method': 'gram-schmidt',
-                    'overlap_cutoff': 1e-14,
+                    'norm_cutoff': 1e-14,
                     'allow_pivoting': True
                 },
                 # alphas=[1, 2, 3],
@@ -2570,7 +2095,7 @@ class DGBTests(TestCase):
             # print(dgb.gaussians.coords.centers[:3])
             # print(dgb.gaussians.alphas[:3])
 
-            type(self).default_num_plot_wfns = 1
+            type(self).default_num_plot_wfns = 5
             self.runDGB(dgb, mol,
                         # similarity_chunk_size=5,
                         # vmin=-.05,
@@ -2581,8 +2106,24 @@ class DGBTests(TestCase):
                         # subspace_size=15,
                         plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True
                         )
+
     @classmethod
-    def getMBPolModel(cls):
+    def declusterPoints(cls, points, radius):
+        pivots = np.arange(len(points))
+        dec_pts = points.reshape(points.shape[0], -1)
+        for i in range(len(points)):
+            cur_pos = pivots[i]
+            dists = np.linalg.norm(
+                dec_pts[cur_pos][np.newaxis, :] - dec_pts[pivots[i+1:], :],
+                axis=1
+            )
+            good_pos = np.where(dists > radius)
+            if len(good_pos) == 0 or len(good_pos[0]) == 0:
+                break
+            pivots = np.concatenate([pivots[:i+1], pivots[i+1:][good_pos]])
+        return points[pivots]
+    @classmethod
+    def getMBPolModel(cls, atoms=None, ref=None, embed=True):
         loader = ModuleLoader(TestManager.current_manager().test_data_dir)
         mbpol = loader.load("LegacyMBPol").MBPol
 
@@ -2643,27 +2184,63 @@ class DGBTests(TestCase):
 
             return chunks
 
-        ref = np.array([
-            [0.00000000e+00, 6.56215885e-02, 0.00000000e+00],
-            [7.57391014e-01, -5.20731105e-01, 0.00000000e+00],
-            [-7.57391014e-01, -5.20731105e-01, 0.00000000e+00]
-        ]) * UnitsData.convert("Angstroms", "BohrRadius")
+        if ref is None:
+            ref = np.array([
+                [0.00000000e+00, 6.56215885e-02, 0.00000000e+00],
+                [7.57391014e-01, -5.20731105e-01, 0.00000000e+00],
+                [-7.57391014e-01, -5.20731105e-01, 0.00000000e+00]
+            ]) * UnitsData.convert("Angstroms", "BohrRadius")
+
+        if atoms is None:
+            atoms = ["O", "H", "H"]
 
         ref_mol = Molecule(
-            ["O", "H", "H"],
+            atoms,
             ref
-        ).get_embedded_molecule(load_properties=False)
+        )
+        if embed:
+            ref_mol = ref_mol.get_embedded_molecule(load_properties=False)
 
         return potential, ref_mol
-    @debugTest
+    @validationTest
     def test_WaterAIMD(self):
         pot, mol = self.getMBPolModel()
+
+        get_anharmonicity = False
+        if get_anharmonicity:
+            mbpol_deriv = pot(mol.coords, deriv_order=4)
+            mol.internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+            conv = mol.get_cartesians_by_internals(4, strip_embedding=True)
+            from McUtils.Zachary import TensorDerivativeConverter
+            internals = TensorDerivativeConverter(conv, [d.squeeze() for d in mbpol_deriv[1:]]).convert()
+            g = (1 / mol.atomic_masses[0] + 1 / mol.atomic_masses[1])
+            w = np.sqrt(internals[1][0, 0] * g)
+            wx = (g/(4*w)) ** 2 * (internals[3][0, 0, 0, 0] - 5 / 3 * internals[2][0, 0, 0]/internals[1][0, 0])
+            raise Exception(
+                w * UnitsData.hartrees_to_wavenumbers, # 3891.634745263701
+                wx * UnitsData.hartrees_to_wavenumbers # 185.31310314514627
+            )
 
         check_freqs = False
         if check_freqs:
             mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
             freqs = mol.normal_modes.modes.freqs
             raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        # mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
+        # mol.internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        # grid = np.linspace(-.5, .5, 15)
+        # modes = mol.normal_modes.modes.basis
+        # disps = grid[:, np.newaxis, np.newaxis] * modes.matrix[:, 0].reshape(mol.coords.shape)[np.newaxis]
+        # coords = mol.coords[np.newaxis] + disps
+        # woof = (coords - modes.origin[np.newaxis]).reshape(len(coords), -1)  @ modes.inverse.T
+        # raise Exception(woof)
+        # import McUtils.Plots as plt
+        # plt.Plot(
+        #     np.array(pot(coords)[0]) - np.array(pot(mol.coords)[0]),
+        #     (mol.normal_modes.modes.freqs[0]**2)*(grid**2) / 2
+        # ).show()
+        # raise Exception(...)
 
         check_anh = False
         if check_anh:
@@ -2697,1739 +2274,622 @@ class DGBTests(TestCase):
         mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
         bend, symm, asym = mol.normal_modes.modes.freqs
 
-        plot_dir = None
-        save_plots = False
-        for steps in [50]:#[10, 25, 50, 100, 150]:
+        base_dir = os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/')
+        for steps in [350]:#[10, 25, 50, 100, 150]:
+            os.makedirs(base_dir, exist_ok=True)
+            timestep = 15
+            ntraj = 100
+
+            """
+            :: Frequencies: [1609.06919262 3282.90976091 3734.21080928 3789.53125267 5217.51875909 5401.89397243 7351.09858836 7664.26359183 8103.99949129]
+            :: ZPE: 4606.627554128196
+            :: Frequencies: [1601.42455194 3329.71690697 3687.62029012 3785.2827193  5239.72140546 5431.43502422 7273.36075106 7609.79139782 7681.97615474]
+            """
+
+            energy_scaling = .8
+            seed = 12213123
+
+            """
+            .85
+            :: ZPE: 4607.609834535458
+            :: Frequencies: [1609.10806831 3257.37674326 3705.80664569 3779.55606179 5117.94616833 5488.9311554  7103.13117146 7268.51482036 8044.95640667]
+
+            .82
+            :: ZPE: 4607.036888835445
+            :: Frequencies: [1611.31520179 3261.72984012 3699.50759743 3787.45568697 5234.54910614 5618.72712325 6996.01648381 7615.2027507  7846.41192519]
+
+            .8 100 steps
+            :: ZPE: 4606.797169141409
+            :: Frequencies: [1610.04169705 3243.34276193 3680.44334095 3781.76488968 5176.71828876 5479.26952197 7119.8232309  7493.5383026  7869.5964258 ]
+            .8 250 steps
+            :: ZPE: 4607.034725666095
+            :: Frequencies: [1609.8186903  3194.26823979 3687.10412523 3788.71573366 5347.51200037 5397.84981027 7399.42924148 7688.38478761 7838.3082727 ]
+            .8 350 steps
+            :: ZPE: 4606.105237460464
+            :: Frequencies: [1607.11057198 3232.15750914 3658.20979239 3788.33747347 5328.52801832 5447.25199542 7395.72409063 7689.17981469 7782.46375781]
+
+            .75 100 steps
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 10 S functions
+            :: ZPE: 4607.485396532124
+            :: Frequencies: [1610.32104831 3297.30449688 3763.90888546 3782.91764011 5241.06813866 5517.12368506 7274.69419998 7642.96341081 7942.17360151]
+            >>--------------------------------------------------<<
+
+            
+            .65
+            :: ZPE: 4607.533920799935
+            :: Frequencies: [1613.81508892 3258.70547351 3694.75250725 3788.44189092 5312.020972   5636.01652342 7396.61172428 7650.71623142 7812.36439688]
+            """
+
+            max_overlap_cutoff = 1 - 1e-4
+            gs_cutoff = 14
+            declustering_radius = None# 1e-4
+            """
+            
+            :: ZPE: 4607.232047211292
+            :: Frequencies: [1607.99305477 3318.41403467 3658.14077806 3782.89189884 5218.17932006 5441.71112339 7350.3120221  7572.49259418 7808.84060981]
+            >
+            
+            :: Frequencies: [1607.99305455 3318.41403421 3658.14077756 3782.89189832 5218.17931934 5441.71112264 7350.31202109 7572.49259314 7808.84060874]
+            """
+            sim_cutoff = .9
+            pruning_energy = 500
+            """ 100 traj, 500 steps, intep, 500 pruning, .75 energy scaling, ts 15
+            :: diagonalizing in the space of 11 S functions
+            :: ZPE: 4717.154477682675
+            :: Frequencies: [1602.07876848 3236.66257428 3679.79007853 3776.33226944 5256.81722745 5404.75831323 6035.77591717 7299.72183774 7442.62142637 7910.01710384]
+            """
+
+
+            """
+            Exact, 500
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 35 S functions
+            :: ZPE: 4583.007641669525
+            :: Frequencies: [ 1601.05016407  3174.65730224  3684.67125309  3770.95940098  4728.54710705  5298.47889909  5369.13419633  6338.92435371  6924.04039369  6960.31893192  7320.32302977  7362.81656092  7506.68210479  8511.34551945  8644.03222131  8958.79563693  9052.24549628  9131.17223488 10316.08262903 10701.95316369]
+            >>--------------------------------------------------<<
+            """
+
+            """
+            Exact, 750
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 55 S functions
+            :: ZPE: 4581.243716175728
+            :: Frequencies: [1597.44655014 3163.96185202 3662.95207721 3762.99936451 4698.24858568 5261.76687761 5349.86321078 6208.53108165 6835.71941787 6915.2882505  7234.6188507  7294.45878951 7479.47895046 7858.08569729 8444.84580236 8517.77292084 8910.91836325 8913.29461064 9072.99048682 9931.81643516]
+            >>--------------------------------------------------<<
+            """
+
+            """
+            :: diagonalizing in the space of 8 S functions (big, small E?)
+            :: ZPE: 4629.894966195605
+            :: Frequencies: [1611.75539366 3322.14103165 3750.51599371 3848.49340383 5428.62343904 6000.33748505 7584.24890693]
+            """
+            # pruning_energy = None
+            use_interpolation = True
+            plot_interpolation_error = False
+
+            """
+            
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 12 S functions
+            :: ZPE: 4602.475402196309
+            :: Frequencies: [1617.49559128 3145.73144444 3683.56942544 3766.45797359 5113.10993611 5333.96662647 5911.9881934  7073.52852616 7521.64746949 7962.9483711  8091.36424309]
+            >>--------------------------------------------------<<
+            
+            No Pruning
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 12 S functions
+            :: ZPE: 4602.475401562745
+            :: Frequencies: [1617.49559106 3145.731444   3683.56942494 3766.45797307 5113.1099354  5333.96662574 5911.98819259 7073.52852519 7521.64746846 7962.94837    8091.36424197]
+            >>--------------------------------------------------<<
+            
+            :: diagonalizing in the space of 14 S functions
+            :: ZPE: 4600.194581907368
+            :: Frequencies: [1625.51287884 3177.65721505 3683.39982601 3781.69900386 5212.88877941 5339.11125786 5892.31521247 6974.31684498 7097.08025867 7591.28785415 7847.54048909 7942.60899911 8600.99496214]
+            >>--------------------------------------------------<<
+            """
+
+            use_pairwise_potentials = False
+            morse_w = 3891.634745263701 * self.w2h
+            morse_wx = 185.31310314514627 * self.w2h
+            expansion_degree = 2
+            virial_scaling = 1/2
+            transformation_method = 'diag' #4642.62343373526, 1624.36701583 3196.27137197 3474.1645502  3740.31164635
+            # transformation_method = 'rpath' #4597.724422233999, 1613.48466441 3197.30480264 3559.70550684 3858.89799206
+            # transformation_method = None #1698.2354715  3295.17558598 3667.70526921 3929.12204053
+
+            run_profiler = True
+            plot_gaussians = False
+            plot_wfns = not run_profiler
+            # plot_wfns = {'modes':[2, 1]}
+            # plot_wfns = {'cartesians':[0, 1], 'num':15}
+
+            plot_dir = os.path.join(base_dir, 'Figures', 'mbpol')
+            if not plot_wfns:
+                plot_dir = None
+            if plot_dir is not None:
+                all_params = (
+                    timestep,
+                    ntraj,
+                    energy_scaling,
+
+                    seed,
+
+                    max_overlap_cutoff ,
+                    gs_cutoff,
+                    declustering_radius,
+                    sim_cutoff,
+                    pruning_energy,
+                    None if not use_pairwise_potentials else morse_wx,
+                    None if not use_pairwise_potentials else morse_w
+                    )
+                param_hash = str(hash(all_params))[:25]
+                plot_dir = os.path.join(plot_dir,
+                                        '{}_E{}_s{}_nt{}_ts{}_sim{}_h{}'.format(
+                                            'interp' if use_interpolation else 'exact',
+                                            pruning_energy,
+                                            steps,
+                                            ntraj,
+                                            timestep,
+                                            int(sim_cutoff * 100),
+                                            param_hash
+                                        )
+                                        )
+
+
+            if pruning_energy is not None:
+                pruning_energy = pruning_energy / UnitsData.hartrees_to_wavenumbers
+
+            pot_cmap = 'Greys_r'
+            pot_points = 250
+            wfn_cmap = 'coolwarm'
+            wnf_points = 100
+            wfn_contours = 10
+            plot_centers = False
+            plot_styles = {
+                'frame': True,
+                # 'ticks_style': (False, False),  # , dict(left=False, right=False))
+                'ticks': ([-2, -1, 0, 1, 2], [-1, -.5, 0]),
+                'axes_labels': ['x (bohr)', 'y (bohr)'],
+                'padding': ([60, 0], [40, 0]),
+                'aspect_ratio': 'auto'
+            }
+            plot_styles = dict(
+                plot_styles,
+                plot_range=[[-2.5, 2.5], [-1.5, 0.5]],
+                image_size=[500, 500 * 2/5]
+            )
+
+            # initial_energies = np.array([
+            #                 [ 3.0, 0.0, 0.0],
+            #                 [ 1.0, 0.0, 0.0],
+            #                 [ 0.0, 3.0, 0.0],
+            #                 [ 0.0, 0.0, -3.0],
+            #                 [ 2.0, 0.0, -2.0],
+            #                 [ 0.0, 2.0, -2.0],
+            #                 [-2.0, 2.0, 2.0],
+            #                 # [ 0.7, 0.7, 0.0],
+            #                 # [-0.7, 0.7, 0.0],
+            #             ]) * np.array([bend, symm, asym])[np.newaxis, :]
+            np.random.seed(seed)
+            dirs = np.random.normal(0, 1, size=(ntraj, 3))
+            dirs = dirs / np.linalg.norm(dirs, axis=1)[:, np.newaxis]
+            dirs = np.concatenate([
+                [
+                    [1, 0, 0],
+                    [0, 1, 0],
+                    [0, 0, 1]
+                ],
+                dirs
+            ])
+            initial_energies = energy_scaling * dirs * np.array([bend, symm, asym])[np.newaxis, :]
+            # initial_energies = initial_energies / np.linalg.norm(initial_energies, axis=1)[:, np.newaxis]
+            # initial_energies = initial_energies * np.array([bend, symm, asym])[np.newaxis, :]
+            # ninit = len(initial_energies)
+
             sim = mol.setup_AIMD(
                 pot,
-                initial_energies=np.array([
-                    [bend, symm, 0],
-                    [bend, -symm, 0],
-                    [-bend, symm, 0],
-                    [-bend, -symm, 0],
-                    [bend, 0, asym],
-                    [bend, 0, -asym],
-                    [-bend, 0, asym],
-                    [-bend, 0, -asym],
-                    # [2000 * self.w2h, 0],
-                    # [0, 2000 * self.w2h],
-                    # [-2000 * self.w2h, 0],
-                    # [0, -2000 * self.w2h],
-                    # [-15000 * self.w2h, -15000 * self.w2h],
-                    # [15000 * self.w2h, -15000 * self.w2h],
-                    # [10000 * self.w2h, 0],
-                    # [0, 10000 * self.w2h],
-                    # [-10000 * self.w2h, 0],
-                    # [0, -10000 * self.w2h]
-                ]) * .5,
-                timestep=25
+                initial_energies=np.array(initial_energies) * energy_scaling,
+                timestep=timestep  # DON'T MESS WITH THIS
             )
             sim.propagate(steps)
             coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
-            for method in ['harm']:#, 'harm', 'rot']:
-                if save_plots:
-                    plot_dir=os.path.expanduser(f'~/Documents/Postdoc/AIMD-Spec/water_new/method_{method}/steps_{steps}/')
-                    os.makedirs(plot_dir, exist_ok=True)
-                print("="*25, "Method:", method, "Steps:", steps, "="*25)
 
-                # a = np.pi / 12
-                cartesians = False
-                with BlockProfiler(inactive=True):
-                    print("="*25, steps, "="*25)
-                    crd = np.round(coords[7:], 8)
-                    dgb = DGB.construct(
-                        crd,
-                        pot,
-                        masses=mol.atomic_masses,
-                        # alphas=[.05, .1],
-                        alphas='auto',
-                        # transformations=np.array(
-                        #         [
-                        #             np.eye(2)
-                        #         ] + [
-                        #             np.array([[np.cos(a), -np.sin(a)],
-                        #                       [np.sin(a), np.cos(a)]])
-                        #             for _ in range(len(crd) - 1)
-                        #         ]
-                        # ) if method == 'rot' else None,
-                        transformations={
-                            'method':'diag',
-                            # 'sort_alphas':False
-                        } if method == 'rot' else None,
-                        # optimize_centers=False,
-                        optimize_centers={
-                            'method': 'gram-schmidt',
-                            'overlap_cutoff': 1e-14,
-                            'allow_pivoting': True
-                        },
-                        # coordinate_selection=[0, 1],
-                        # alphas=[1, 2, 3],
-                        # optimize_centers=False,
-                        modes=None if cartesians else 'normal',
-                        cartesians=[0, 1] if cartesians else None,
-                        quadrature_degree=5,
-                        # expansion_degree=2 if method != 'quad' else None,
-                        # pairwise_potential_functions={
-                        #     (0, 1): self.setupMorseFunction(
-                        #         mol.atomic_masses[0],
-                        #         mol.atomic_masses[1],
-                        #         np.linalg.norm(mol.coords[0] - mol.coords[1])
-                        #         ),
-                        #     (0, 2): self.setupMorseFunction(
-                        #         mol.atomic_masses[0],
-                        #         mol.atomic_masses[2],
-                        #         np.linalg.norm(mol.coords[0] - mol.coords[2])
-                        #     )
-                        # },
-                        logger=True
-                    )
-
-                    plot_gaussians = False
-                    if plot_gaussians:
-                        n = len(dgb.gaussians.coords.centers)
-                        wfns = DGBWavefunctions(
-                            np.zeros(n),
-                            np.eye(n),
-                            dgb
-                        )
-
-                        subdgb_coords = dgb.gaussians.coords#[:, [0, 1]]
-                        subpot = dgb.pot.potential_function#subdgb_coords.embed_function(dgb.pot.potential_function.og_fn)
-                        for i in range(n):
-                            figure = self.plot_dgb_potential(
-                                subdgb_coords, mol, subpot
-                            )
-
-                            plot = wfns[i].plot(
-                                plotter=plt.TriContourLinesPlot,
-                                domain_padding=2,
-                                cmap='RdBu',
-                                figure = figure,
-                                plot_centers={'color': 'red'}
-                            )
-                            if plot_dir is not None:
-                                plot.savefig(os.path.join(plot_dir, f'basis_func_{i}.png'))
-                            else:
-                                plot.show()
-
-                        # wfns = wfns.as_cartesian_wavefunction()
-                        # wfns[12].plot_cartesians(
-                        #     [0, 1],
-                        #     contour_levels=16,
-                        #     # cmap='RdBu',
-                        #     plot_centers={'color': 'red'},
-                        #     domain_padding=.5,
-                        # ).show()
-
-                        raise Exception(...)
-
-                    # print(dgb.gaussians.coords.centers[:3])
-                    # print(dgb.gaussians.alphas[:3])
-
-                    type(self).default_num_plot_wfns = 3
-                    self.runDGB(dgb, mol,
-                                # similarity_chunk_size=5,
-                                # vmin=-.05,
-                                # vmax=.05,
-                                # domain=[[-2, 2], [-2, 2]],
-                                # plot_wavefunctions=False,
-                                # mode='classic',
-                                mode='low-rank',
-                                # subspace_size=15,
-                                # min_singular_value=1e-8,
-                                plot_wavefunctions=False,#{'cartesians': [0, 1]} if not cartesians else True,
-                                plot_spectrum=False
-                                )
-
-    @validationTest
-    def test_Expansion(self):
-        from McUtils.Zachary import Symbols, RBFDInterpolator
-
-        sym = Symbols('xyz')
-
-        np.random.seed(3)
-        ndim = 2
-        pts = np.random.uniform(low=-5, high=5, size=(3500, ndim))
-
-        # fn = sym.morse(sym.x) * sym.morse(sym.y) - sym.morse(sym.x) - sym.morse(sym.y)
-        vars = [sym.x, sym.y][:ndim]
-
-        w = 2.05; wx = .1; mu = 1
-        de = (w ** 2) / (4 * wx)
-        a = np.sqrt(2 * mu * wx)
-
-        def morse_pot(x, de=de, a=a):
-            return sym.morse(x, de=de, a=a)
-        def harmonic_pot(x, w=w):
-            return w/2 * x**2
-        def quartic_pot(r, a=a, de=de):
-            return (a**2*de)*r**2 - (a**3*de)*r**3 + (7/12*a**4*de)*r**4
-        def sextic_pot(r, a=a, de=de):
-            return (de*a**2)*r**2 - (de*a**3)*r**3 + (7/12*de*a**4)*r**4 - (de*a**5 /4)*r**5+ (31*de*a**6/360)*r**6
-
-        fn_1D = morse_pot
-        fn = sum(fn_1D(var) for var in vars) if ndim > 1 else fn_1D(vars[0])
-
-        def simple_morse(c, de=de, a=a, deriv_order=None):
-            ndim = c.shape[-1]
-            if deriv_order is None:
-                return np.sum(de*(1-np.exp(-a*c))**2, axis=-1)
-            else:
-                n = deriv_order
-                m = ((-1)**(n+1) * 2 * a**n * de) * np.exp(-2*a*c)*(np.exp(a*c)-(2**(n-1)))
-                if n == 1:
-                    return m
-                res = np.zeros(c.shape[:-1] + (ndim,)*deriv_order)
-                for k in range(ndim):
-                    idx = (...,) + (k,)*n
-                    res[idx] = m[..., k]
-                return res
-
-        # print(res['AIMDEnergies'].gradients)
-        # interp = RBFDInterpolator.create_function_interpolation(
-        #     pts,
-        #     fn,
-        #     lambda p, f=fn.deriv(order=1): f(p),#.transpose(),
-        #     lambda p, f=fn.deriv(order=2): f(p),#.transpose(2, 0, 1),
-        #     clustering_radius=1e-5,
-        # )
-
-        test_pot = lambda c,fn=fn,deriv_order=None: (
-            fn(c.reshape(-1, ndim)).reshape(c.shape[:-1])
-                if deriv_order is None else
-            np.moveaxis(fn.deriv(order=deriv_order)(c.reshape(-1, ndim)), -1, 0).reshape(c.shape[:-1] + (ndim,)*deriv_order)
-        )
-
-        np.random.seed(0)
-        centers = pts
-        # centers = np.array(
-        #     np.meshgrid(*[
-        #         np.linspace(-5, 5, 50)
-        #     ]*ndim)
-        # ).T.reshape((-1, ndim))
-
-
-        alpha = .3
-        # cluster = .045
-
-        wfns = DGB.run(
-            centers,
-            test_pot,
-            alphas=alpha,
-            # clustering_radius=cluster,
-            quadrature_degree=4,
-            min_singular_value=1e-3
-        )
-        e = wfns.energies
-        print(e[:10])
-
-        wfns = DGB.run(
-            wfns.hamiltonian.centers, # reuse the opt from before
-            test_pot,
-            optimize_centers=False,
-            alphas=alpha,
-            # clustering_radius=cluster,
-            expansion_degree=6,
-            min_singular_value=1e-3
-        )
-        e = wfns.energies
-        print(e[:10])
-
-        ham = DGB.run(
-            wfns.hamiltonian.centers, # reuse the opt from before
-            test_pot,
-            optimize_centers=False,
-            alphas=alpha,
-            # clustering_radius=cluster,
-            expansion_degree=6,
-            expansion_type='taylor',
-            min_singular_value=1e-3
-        )
-        e = wfns.energies
-        print(e[:10])
-
-    @validationTest
-    def test_Interp(self):
-        from McUtils.Zachary import Symbols, SymPyFunction, RBFDInterpolator
-
-        sym = Symbols('xyz')
-
-        np.random.seed(3)
-        ndim = 2
-        pts = np.random.uniform(low=-2, high=8, size=(10000, ndim))
-
-        # fn = sym.morse(sym.x) * sym.morse(sym.y) - sym.morse(sym.x) - sym.morse(sym.y)
-        vars = [sym.x, sym.y][:ndim]
-
-        w = 2.05; wx = .1; mu = 1
-        de = (w ** 2) / (4 * wx)
-        a = np.sqrt(2 * mu * wx)
-
-        def morse_pot(x, de=de, a=a):
-            return sym.morse(x, de=de, a=a)
-
-        def harmonic_pot(x, w=w):
-            return w / 2 * x ** 2
-
-        def quartic_pot(r, a=a, de=de):
-            return (a ** 2 * de) * r ** 2 - (a ** 3 * de) * r ** 3 + (7 / 12 * a ** 4 * de) * r ** 4
-
-        def sextic_pot(r, a=a, de=de):
-            return (de * a ** 2) * r ** 2 - (de * a ** 3) * r ** 3 + (7 / 12 * de * a ** 4) * r ** 4 - (
-                        de * a ** 5 / 4) * r ** 5 + (31 * de * a ** 6 / 360) * r ** 6
-
-        fn_1D = morse_pot
-        fn = sum(fn_1D(var) for var in vars) if ndim > 1 else fn_1D(vars[0])
-        fn = fn_1D(vars[0])
-        for v in vars[1:]:
-            fn = fn * fn_1D(v)
-        fn = fn / (100)
-        for v in vars[1:]:
-            fn = fn + fn_1D(v)
-        # fn = sum(fn_1D(var) for var in vars) if ndim > 1 else fn_1D(vars[0])
-
-
-        x, y = SymPyFunction.symbols('x', 'y')
-        def morse_pot(x, de=de, a=a):
-            return SymPyFunction.morse(x, de=de, a=a)
-        fn = morse_pot(x) * morse_pot(y) / 100 + morse_pot(x) + morse_pot(y)
-
-        interp = RBFDInterpolator.create_function_interpolation(
-            pts,
-            fn,
-            lambda p, f=fn.deriv(order=1): np.moveaxis(f(p), -1, 0),
-            lambda p, f=fn.deriv(order=2): np.moveaxis(f(p), -1, 0),
-            clustering_radius=1e-5,
-            # neighborhood_size=30,
-            multicenter_monomials=True,
-            extra_degree=2,
-            error_threshold=.01,
-            neighborhood_merge_threshold=None
-            # solve_method='solve'
-        )
-
-        test_pot = lambda c, fn=fn, deriv_order=None: (
-            fn(c.reshape(-1, ndim)).reshape(c.shape[:-1])
-            if deriv_order is None else
-            np.moveaxis(fn.deriv(order=deriv_order)(c.reshape(-1, ndim)), -1, 0).reshape(
-                c.shape[:-1] + (ndim,) * deriv_order)
-        )
-
-        # import json, os
-        # with open(os.path.expanduser('~/Desktop/interp_data.json'), 'w+') as out:
-        #     json.dump({
-        #         'points':interp.grid.tolist(),
-        #         'vals':interp.vals.tolist(),
-        #         'ders':[d.tolist() for d in interp.derivs]
-        #     }, out)
-        # raise Exception(...)
-
-
-        # raise Exception(interp(pts[:5], deriv_order=2).shape)
-
-        # raise Exception(fn(pts))
-
-        # print(res['AIMDEnergies'].gradients)
-
-
-        # test_pot = harmonic
-
-        np.random.seed(0)
-        tv = fn(pts)
-        prune_chunks = [
-            pts[tv < 3],
-            pts[np.logical_and(tv > 3, tv < 5)],
-            pts[np.logical_and(tv > 5, tv < 10)]
-        ]
-        centers = np.concatenate(
-            [
-                prune_chunks[0],
-                prune_chunks[1][np.random.random_integers(0, len(prune_chunks[1]), 100)],
-                prune_chunks[2][np.random.random_integers(0, len(prune_chunks[1]), 50)],
-            ],
-            axis=0
-        )
-        # centers = np.array(
-        #     np.meshgrid(*[
-        #         np.linspace(-5, 5, 50)
-        #     ]*ndim)
-        # ).T.reshape((-1, ndim))
-
-        alpha = 1.5
-        # cluster = .045
-
-        ham = DGB(
-            centers,
-            test_pot,
-            alphas=alpha,
-            clustering_radius=0.01,
-            optimize_centers=True,
-            # clustering_radius=.055,
-            # optimize_centers=False,
-            # expansion_degree=2
-        )
-        e, wf = ham.get_wavefunctions()  # print_debug_info=True)
-        print(e[:50])
-
-        ham = DGB(
-            ham.centers,
-            test_pot,
-            alphas=alpha,
-            clustering_radius=None,
-            optimize_centers=False,
-            # clustering_radius=.055,
-            # optimize_centers=False,
-            expansion_degree=2
-        )
-        # print(ham.clustering_radius)
-
-        # np.seterr(all=None, divide=None, over=None, under='warn', invalid=None)
-
-        # c, a = ham.get_overlap_gaussians()
-        # wat = interp(c[[52, 52], [75, 91]], deriv_order=2, use_cache=False, return_interpolation_data=True)
-        # raise Exception("...")
-
-        # ivals, error = interp(c, deriv_order=2, return_error=True)
-        # real_vals = fn(c)
-        # diffs = ivals[0] - real_vals
-        # real_d1s = fn.deriv(order=1)(c).transpose(1, 2, 0)
-        # d1_diffs = ivals[1] - real_d1s
-        # real_d2s = fn.deriv(order=2)(c).transpose(2, 3, 0, 1)
-        # d2_diffs = ivals[2] - real_d2s
-        #
-        # bad_pos = np.where(np.abs(d2_diffs) > 5)
-        # bad_pos = [
-        #     bad_pos[0][bad_pos[0] <= bad_pos[1]],
-        #     bad_pos[1][bad_pos[0] <= bad_pos[1]]
-        # ]
-        # bad_pos = tuple(np.unique(np.array(bad_pos).T, axis=0).T)
-        # _, idata = interp(c[bad_pos], deriv_order=2, use_cache=False, return_interpolation_data=True)
-        # subdata = [
-        #     {
-        #         'mat': i['matrix'].tolist(),
-        #         'weights': i['data'].weights[0].tolist(),
-        #         'centers': i['points'].tolist(),
-        #         'matrix': i['solver_data']['matrix'].tolist(),
-        #         'vals': i['solver_data']['vals'].tolist(),
-        #         'cn': i['solver_data']['condition_number']
-        #     } for i in idata
-        # ]
-        # print(">>", [
-        #     np.dot(i['matrix'], i['weights']) - i['vals']
-        #     for i in subdata
-        #       ])
-
-        # good_pos = np.where(np.abs(d2_diffs) < .0001)
-        # good_pos = [
-        #     good_pos[0][good_pos[0] <= good_pos[1]],
-        #     good_pos[1][good_pos[0] <= good_pos[1]]
-        # ]
-        # good_pos = tuple(np.unique(np.array(good_pos).T, axis=0)[:15].T)
-        # _, idata2 = interp(c[good_pos], deriv_order=2, use_cache=False, return_interpolation_data=True)
-
-        # import json, os
-        # with open(os.path.expanduser('~/Desktop/overlap_center_data.json'), 'w+') as out:
-        #     json.dump({
-        #         'fn':str(fn),
-        #         'ipoints':pts.tolist(),
-        #         'samp_vs':interp.vals.tolist(),
-        #         'samp_ders':[d.tolist() for d in interp.derivs],
-        #         'centers':ham.centers.tolist(),
-        #         'errors':error.tolist(),
-        #         'gauss':c.tolist(),
-        #         'ivals':[i.tolist() for i in ivals],
-        #         'reals':[real_vals.tolist(), real_d1s.tolist(), real_d2s.tolist()],
-        #         'diffs':[diffs.tolist(), d1_diffs.tolist(), d2_diffs.tolist()],
-        #         'idat': [
-        #             [b.tolist() for b in bad_pos],
-        #             [
-        #                 {
-        #                     'mat': i['matrix'].tolist(),
-        #                     'weights': i['data'].weights[0].tolist(),
-        #                     'centers': i['points'].tolist(),
-        #                     'matrix': i['solver_data']['matrix'].tolist(),
-        #                     'vals': i['solver_data']['vals'].tolist(),
-        #                     'cn': i['solver_data']['condition_number']
-        #                 } if i is not None else "n/a" for i in idata
-        #             ]
-        #         ],
-        #         'gdat': [
-        #             [b.tolist() for b in good_pos],
-        #             [
-        #                 {
-        #                     'mat': i['matrix'].tolist(),
-        #                     'weights': i['data'].weights[0].tolist(),
-        #                     'centers': i['points'].tolist(),
-        #                     'vals': i['solver_data']['vals'].tolist(),
-        #                     'cn': i['solver_data']['condition_number']
-        #                 } if i is not None else "n/a"  for i in idata2
-        #             ]
-        #         ]
-        #     }, out)
-        # print("...saved")
-
-        e, wf = ham.get_wavefunctions()#print_debug_info=True)
-        print(e[:50])
-
-
-        ham_1 = ham
-        ham = DGB(
-            ham.centers, # reuse the opt from before
-            interp,
-            alphas=alpha,
-            optimize_centers=False,
-            clustering_radius=None,
-            expansion_degree=2
-         )
-
-        e, wf = ham.get_wavefunctions()#print_debug_info=True)
-        print(e[:50])
-        # with np.printoptions(linewidth=1e8):
-        #     print(ham.V - ham_1.V)
-        import json, os
-        with open(os.path.expanduser('~/Desktop/dgb_V_diffs.json'), 'w+') as out:
-            json.dump({
-                "S": ham_1.S.tolist(),
-                "T": ham_1.T.tolist(),
-                'exact': ham_1.V.tolist(),
-                'interp': ham.V.tolist(),
-                "diff": (ham_1.V - ham.V).tolist()
-            },
-                out)
-
-        # print("UPDATE")
-        # ham.V = ham_1.V
-        # e, wf = ham.get_wavefunctions()  # print_debug_info=True)
-        # print(e[:10])
-
-        ham = DGB(
-            ham.centers, # reuse the opt from before
-            interp,
-            alphas=alpha,
-            optimize_centers=False,
-            clustering_radius=None,
-            expansion_degree=2,
-            expansion_type='taylor'
-        )
-        e, wf = ham.get_wavefunctions() # print_debug_info=True)
-        print(e[:50])
-
-    @inactiveTest
-    def test_WaterFromGauss(self):
-        from McUtils.Numputils import vec_tensordot
-
-        with GaussianLogReader(TestManager.test_data('h2o_aimd.log')) as parser:
-            res = parser.parse(['AIMDCoordinates', 'AIMDEnergies'])
-
-        crds = res['AIMDCoordinates']#.reshape(-1, 9)
-        e = (res['AIMDEnergies'].energies - np.min(res['AIMDEnergies'].energies)) #* 219474.65
-        # print(res['AIMDEnergies'].gradients)
-
-        ref_pos = np.argmin(e)
-        # raise Exception( # proves no extra unit conversion necessary I think...
-        #     # e[ref_pos] * 219475,
-        #     Molecule(
-        #         ["O", "H", "H"],
-        #         res['AIMDCoordinates'][ref_pos],
-        #         potential_derivatives=[
-        #             res['AIMDEnergies'].gradients[ref_pos],
-        #             res['AIMDEnergies'].hessians[ref_pos]
-        #         ]
-        #     ).normal_modes.modes.freqs * 219475
-        # )
-
-        # raise Exception(e* 219475)
-
-        def coord_transformer(crds):
-            _ = 10000
-            return Molecule(["O", "H", "H"], crds.reshape(-1, 3, 3).squeeze(), internals=[[0, _, _, _], [1, 0, _, _], [2, 0, 1, _]])
-
-        def coord_transf(crds, deriv_order=0, direction='forward'):
-            vals = []
-            jacs = [[] for _ in range(deriv_order)]
-            for i,c in enumerate(crds):
-                if i % 50 == 0:
-                    print("...", i)
-                mol = coord_transformer(c)
-                icrds = mol.internal_coordinates
-                # if direction == 'forward':
-                vals.append(icrds[(1, 2, 2), (0, 0, 1)])
-                # else:
-                #     vals.append(icrds.convert(mol.coords.system))
-                if deriv_order > 0:
-                    if direction == 'reverse': # dR/dX
-                        for n, j in enumerate(mol.coords.jacobian(icrds.system, list(range(1, deriv_order+1)), all_numerical=True)):
-                            jacs[n].append(j)
-                    else: # dX/dR
-                        for n,j in enumerate(icrds.jacobian(mol.coords.system, list(range(1, deriv_order+1)), all_numerical=True)):
-                            jacs[n].append(j)
-            vals = np.array(vals)
-            jacs = [np.array(j) for j in jacs]
-            return vals, jacs
-
-        def derivs_to_internals(jacs, grd, hes):
-            dX = jacs[0].reshape((-1, 9, 9))[:, (3, 6, 7), :]
-            dXX = jacs[1].reshape((-1, 9, 9, 9))[:, (3, 6, 7)][:, :, (3, 6, 7)]
-            # print(dXX.shape, dX.shape)
-
-            # import McUtils.Plots as plt
-            # plt.ArrayPlot(dX[0]).show()
-            # raise Exception(dXX)
-            g1 = grd
-            grd = vec_tensordot(dX, g1.reshape(-1, 9), axes=[2, 1], shared=1)
-            hes = vec_tensordot(
-                dX,
-                vec_tensordot(dX, hes.reshape(-1, 9, 9), axes=[2, 2], shared=1),
-                axes=[2, 2],
-                shared=1
-            )
-            hes = hes + vec_tensordot(
-                dXX,
-                g1.reshape(-1, 9),
-                axes=[3, 1],
-                shared=1
-            )
-
-            return grd, hes
-
-        def derivs_to_carts(jacs, grd, hes):
-            grd = grd.reshape((-1, 3))
-            hes = hes.reshape((-1, 3, 3))
-
-            dX = jacs[0].reshape((-1, 9, 9))[:, :, (3, 6, 7)]
-            dXX = jacs[1].reshape((-1, 9, 9, 9))[:, :, :, (3, 6, 7)]
-            # print(grd.shape, hes.shape, dX.shape, dXX.shape)
-            g2 = vec_tensordot(dX, grd, axes=[2, 1], shared=1)
-
-            h1 = vec_tensordot(dX, hes, axes=[2, 2], shared=1)
-            # print("???", h1.shape)
-            h1 = vec_tensordot(dX, h1, axes=[2, 2], shared=1)
-            h2 = h1 + vec_tensordot(dXX, grd, axes=[3, 1], shared=1)
-
-            grd = g2
-
-            return g2, h2
-
-        ref_pos = np.argmin(e)
-        ref = Molecule(["O", "H", "H"], crds[ref_pos]).get_embedded_molecule(load_properties=False)
-        all_crds = []
-        all_grds = []
-        all_hess = []
-        for c, g, h in zip(crds, res['AIMDEnergies'].gradients, res['AIMDEnergies'].hessians):
-            mol = Molecule(["O", "H", "H"],
-                           c,
-                           potential_derivatives=[g,h]
-                           ).get_embedded_molecule(ref, load_properties=False)
-            all_crds.append(mol.coords)
-            pes = mol.potential_derivatives
-            all_grds.append(pes[0])
-            all_hess.append(pes[1])
-
-        crd = np.array(all_crds).reshape(-1, 9)#[[ref_pos]]
-        grd1 = np.array(all_grds)#[[ref_pos]]
-        hes1 = np.array(all_hess)#[[ref_pos]]
-
-        # vals, jacs = coord_transf(crd, direction='forward', deriv_order=2)
-        # grd, hes = derivs_to_internals(jacs, grd1, hes1)
-        #
-        # rev_crds, rev_jacs = coord_transf(crd, direction='reverse', deriv_order=2)
-        # grd2, hes2 = derivs_to_carts(rev_jacs, grd, hes)
-        # import McUtils.Plots as plt
-        # plt.ArrayPlot(rev_jacs[0].reshape(9, 9).T @ jacs[0].reshape(9, 9)).show()
-        #
-        # raise Exception(rev_jacs[0].reshape(9, 9) @ jacs[0].reshape(9, 9))
-
-        # raise Exception( # proves no extra unit conversion necessary I think...
-        #     # e[ref_pos] * 219475,
-        #     np.sqrt(
-        #         scipy.linalg.eigh(
-        #             hes[0],
-        #             coord_transformer(crd[0]).g_matrix,
-        #             type=2
-        #         )[0]
-        #     ) * 219475,
-        #     Molecule(
-        #         ["O", "H", "H"],
-        #         rev_crds[0].reshape(3, 3),
-        #         potential_derivatives=[
-        #             grd2[0],
-        #             hes2[0]
-        #         ]
-        #     ).normal_modes.modes.freqs * 219475
-        # )
-        #
-        # raise Exception(hes1[0] - hes2[0])
-
-        # raise Exception( # proves no extra unit conversion necessary I think...
-        #     # e[ref_pos] * 219475,
-        #     Molecule(
-        #         ["O", "H", "H"],
-        #         crd[0].reshape(3, 3),
-        #         potential_derivatives=[
-        #             grd[0],
-        #             hes1[0]
-        #         ]
-        #     ).normal_modes.modes.freqs * 219475
-        # )
-
-        # vals, jacs = coord_transf(crd, direction='forward', deriv_order=2)
-
-        vals, jacs = coord_transf(crd, direction='forward', deriv_order=2)
-        grd, hes = derivs_to_internals(jacs, grd1, hes1)
-
-        base_interp = McUtils.Zachary.RBFDInterpolator(
-            vals,
-            e,
-            grd, # not sure if this needs a conversion?
-            hes, # not sure if this needs a conversion?
-            clustering_radius=0,
-            error_threshold=.01
-        )
-
-        def interp(crds, deriv_order=0):
-            # print(">>>>", crds.shape)
-            base_shape = crds.shape[:-1]
-            crds = crds.reshape(-1, 9)
-            # print("  > ", crds.shape)
-            vals, jacs = coord_transf(crds, deriv_order=deriv_order, direction='reverse')
-            # print("  > ", vals.shape)
-            # print("  > ", [j.shape for j in jacs])
-            if deriv_order == 2:
-                e, grd, hes = base_interp(vals, deriv_order=deriv_order)
-                grd, hes = derivs_to_carts(jacs, grd, hes)
-                # grd = grd.reshape((-1, 3))
-                # hes = hes.reshape((-1, 3, 3))
-                # dX = jacs[0].reshape((-1, 9, 9))[:, :, (3, 6, 7)]
-                # dXX = jacs[1].reshape((-1, 9, 9, 9))[:, :, :, (3, 6, 7)]
-                # # print(e.shape, grd.shape, hes.shape, dX.shape, dXX.shape)
-                # g2 = vec_tensordot(dX, grd, axes=[2, 1], shared=1)
-                #
-                # h1 = vec_tensordot(dX, hes, axes=[2, 2], shared=1)
-                # # print("???", h1.shape)
-                # h1 = vec_tensordot(dX, h1, axes=[2, 2], shared=1)
-                # hes = h1 + vec_tensordot(dXX, grd, axes=[3, 1], shared=1)
-                # grd = g2 # ugh
-            else:
-                raise ValueError("...")
-            e = e.reshape(base_shape)
-            grd = grd.reshape(base_shape + (9,))
-            hes = hes.reshape(base_shape + (9, 9))
-            # print("  > ", e.shape, grd.shape, hes.shape)
-            return e, grd, hes
-
-        # raise Exception(e-interp(vals))
-
-        ham = DGB(
-            crd,
-            interp,
-            alphas=1.5,
-            clustering_radius=0,
-            optimize_centers=False,
-            # clustering_radius=None,
-            # optimize_centers=False,
-            expansion_degree=2
-        )
-        print(ham.centers.shape)
-        e, wf = ham.get_wavefunctions(min_singular_value=1e-5)  # print_debug_info=True)
-        print(e * 219475)
-
-        # ham = DGB(
-        #     ham.centers,
-        #     interp.global_interpolator,
-        #     alphas=.5,
-        #     clustering_radius=None,
-        #     optimize_centers=False,
-        #     expansion_degree=2
-        # )
-        #
-        # # raise Exception(ham.clustering_radius)
-        # e, wf = ham.get_wavefunctions()  # print_debug_info=True)
-        # print(e)
-
-        # need a new center to expand about to make this work...
-
-        # ham = DGB(
-        #     ham.centers,  # reuse the opt from before
-        #     interp,
-        #     alphas=.5,
-        #     # clustering_radius=.005,
-        #     # optimize_centers=False,
-        #     expansion_degree=2,
-        #     expansion_type='taylor'
-        # )
-        # e, wf = ham.get_wavefunctions()  # print_debug_info=True)  # print_debug_info=True)
-        # print(e[:10])
-
-    @inactiveTest
-    def test_WaterFromAIMD(self):
-
-        from McUtils.Scaffolding import Checkpointer
-        from McUtils.Zachary import RBFDInterpolator, InverseDistanceWeightedInterpolator
-
-        loader = ModuleLoader(TestManager.current_manager().test_data_dir)
-        mbpol = loader.load("LegacyMBPol").MBPol
-
-        b2a = UnitsData.convert("BohrRadius", "Angstroms")
-
-        def potential(coords, deriv_order=0, chunk_size=int(5e5)):
-
-            coords = coords.reshape(-1, 9)
-
-            chunks = [[] for _ in range(deriv_order+1)]
-            num_chunks = int(len(coords) / chunk_size) + 1
-
-            for coords in np.array_split(coords, num_chunks):
-                # interp.logger.log_print("evaluating energies")
-                energies = mbpol.get_pot(coords=coords.reshape(-1, 3, 3) * b2a, nwaters=1, threading_vars=['energy', 'coords'], threading_mode='omp')
-                if deriv_order > 0:
-                    derivs = []
-                    grads = lambda c: mbpol.get_pot_grad(
-                        nwaters=1, coords=c.reshape(-1, 3, 3) * b2a, threading_vars=['energy', 'grad', 'coords'], threading_mode='omp'
-                    )['grad'].reshape(c.shape) * b2a
-                    # interp.logger.log_print("evaluating forces")
-                    derivs.append(grads(coords))
-                    if deriv_order > 1:
-                        # interp.logger.log_print("evaluating Hessians")
-                        hess_fun = FiniteDifferenceDerivative(
-                            grads,
-                            function_shape=(9, 9)
-                        )
-
-                        # chunks = []
-                        # num_chunks = int(len(coords)/1000)
-                        # for a in np.array_split(coords, num_chunks):
-                        #     chunks.append(hess_fun.derivatives(a).compute_derivatives(1))
-                        # hess = np.concatenate(chunks, axis=0)
-                        new_derivs = hess_fun.derivatives(coords).derivative_tensor(list(range(1, deriv_order)))
-                        # print([d.shape for d in new_derivs])
-                        derivs.extend(
-                            np.moveaxis(d, -2, 0)
-                            for i,d in enumerate(new_derivs)
-                        )
-                    # interp.logger.log_print("done")
-                    for i,d in enumerate([energies] + derivs):
-                        chunks[i].append(d)
+            # plops = pot(coords)[0] * 219475
+            # coords = coords[plops < 7500]
+
+
+            # os.makedirs(run_dir, exist_ok=True)
+            # if save_plots:
+            #     plot_dir=run_dir
+            #     os.makedirs(plot_dir, exist_ok=True)
+
+            print("="*25, "Steps:", steps, "Points:", len(coords), "="*25)
+
+            cartesians = False
+            if use_interpolation:
+                augment = False
+                if augment:
+                    with Checkpointer.from_file(os.path.join(base_dir, interp_traj_file)) as chk:
+                        traj = np.concatenate([
+                            chk['coords'],
+                            coords
+                        ])
+                        pot_vals = pot(traj, deriv_order=2)
+                        interp_data = {'centers':traj, 'values':pot_vals}
                 else:
-                    chunks[0].append(energies)
-
-            for i,c in enumerate(chunks):
-                chunks[i] = np.concatenate(c, axis=0)
-
-            return chunks
-
-        # ref = np.array([  # some random structure Mathematica got from who knows where...
-        #     [7.74875081e-06, 6.20321759e-02, -2.09594068e-17],
-        #     [7.83793537e-01, -4.92291304e-01, -1.82568317e-16],
-        #     [-7.83916515e-01, -4.92204344e-01, 2.82713128e-17]
-        # ]) * UnitsData.convert("Angstroms", "BohrRadius")
-        # r1 = np.linalg.norm(ref[1] - ref[0])
-        # v1 = (ref[1] - ref[0]) / r1
-
-        # from Psience.DVR import DVR
-        # def pot(r):
-        #     disps = v1[np.newaxis, :] * r[:, np.newaxis]
-        #     new = np.broadcast_to(ref[np.newaxis], (len(r), 3, 3)).copy()
-        #     new[:, 1] += disps
-        #     return mbpol.get_pot(coords=new * UnitsData.convert("BohrRadius", "Angstroms"), nwaters=1, threading_vars=['energy', 'coords'], threading_mode='omp')
-
-        # sys = DVR(
-        #     domain=[r1 - .5, r1 + 1],
-        #     divs=100,
-        #     potential_function=pot,
-        #     mass=1/(
-        #             1/(UnitsData.convert("AtomicMassUnits", "ElectronMass") * AtomData["O", "Mass"])
-        #             + 1/(UnitsData.convert("AtomicMassUnits", "ElectronMass") * AtomData["H", "Mass"])
-        #     )
-        # )
-        # res = sys.run()
-        # raise Exception(res.wavefunctions.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers"))
-
-
-        # import scipy.optimize as opt
-        # base_pot = lambda coords:mbpol.get_pot(coords=coords.reshape(3, 3), nwaters=1)
-        # ref = np.array([
-        #     [ 0.00000000e+00,  6.56215885e-02, 0.00000000e+00],
-        #     [ 7.57391014e-01, -5.20731105e-01, 0.00000000e+00],
-        #     [-7.57391014e-01, -5.20731105e-01, 0.00000000e+00]
-        # ])
-        # opt_vals = opt.minimize(
-        #     base_pot,
-        #     ref,
-        #     method='Nelder-Mead',
-        #     options=dict(fatol=1e-16)
-        # )
-        #
-        # ugh = Molecule(
-        #     ["O", "H", "H"],
-        #     opt_vals.x.reshape(3, 3) * UnitsData.convert("Angstroms", "BohrRadius")
-        # ).get_embedded_molecule(load_properties=False).coords * UnitsData.convert("BohrRadius", "Angstroms")
-        #
-        # raise Exception( base_pot(ugh), ugh)
-
-        ref = np.array([
-            [0.00000000e+00, 6.56215885e-02, 0.00000000e+00],
-            [7.57391014e-01, -5.20731105e-01, 0.00000000e+00],
-            [-7.57391014e-01, -5.20731105e-01, 0.00000000e+00]
-        ]) * UnitsData.convert("Angstroms", "BohrRadius")
-
-        ref_mol = Molecule(
-            ["O", "H", "H"],
-            ref
-        ).get_embedded_molecule(load_properties=False)
-
-        rebuild_interpolation=False
-        with Checkpointer.from_file(os.path.expanduser("~/Desktop/water_dat.hdf5")) as chk:
-            try:
-                if rebuild_interpolation:
-                    raise Exception("rebuilding...")
-                grid = chk['grid']
-                vals = chk['vals']
-                derivs = chk['derivs']
-            except Exception as e:
-                print("ERROR: ", e)
-
-                np.random.seed(0)
-                disps = np.random.normal(0, 0.5, size=(1000, 3, 3))
-                disps[..., 2] = 0
-                coords = ref + disps
-
-                forces = lambda c: -mbpol.get_pot_grad(
-                    nwaters=1, coords=c.reshape(-1, 3, 3) * b2a,
-                    threading_vars=['energy', 'grad', 'coords'],
-                    threading_mode='omp'
-                )['grad'].reshape(c.shape) * b2a
-                energies = lambda c: mbpol.get_pot(
-                    nwaters=1, coords=c.reshape((-1, 3, 3)) * b2a,
-                    threading_vars=['energy', 'coords'],
-                    threading_mode='omp'
-                ).reshape(c.shape[:-2])
-
-                sim = AIMDSimulator(["O", "H", "H"], coords, force_function=forces)
-                sim.propagate(1000)
-
-                print("Eckart embedding and creating interpolator")
-                interp = sim.build_interpolation(energies, eckart_embed=True, interpolation_order=2, reference=ref, logger="All")#, neighborhood_size=5)
-
-                chk['grid'] = interp.grid
-                chk['vals'] = interp.vals
-                chk['derivs'] = interp.derivs
-
-                grid = chk['grid']
-                vals = chk['vals']
-                derivs = chk['derivs']
-
-            # grid = grid[100*200:]
-            # vals = vals[100*200:]
-            # derivs = [d[100*200:] for d in derivs]
-            #
-            #
-            # grad_dat = derivs[0].reshape((-1, 100, 9))
-            # hess_dat = derivs[1].reshape((-1, 100, 9, 9))
-            # pg = np.arange(len(hess_dat))
-            #
-            # fig = None
-            # for k in range(10):
-            #     fig = plt.Plot(
-            #         pg,
-            #         vals.reshape(-1, 100)[:, k],
-            #         figure=fig,
-            #         plot_label="Energies"
-            #     )
-            # fig.show()
-            #
-            #
-            # for i in range(9):
-            #     fig = None
-            #     for k in range(10):
-            #         fig = plt.Plot(
-            #             pg,
-            #             grad_dat[:, k, i],
-            #             figure=fig,
-            #             plot_label="grads"
-            #         )
-            #     fig.show()
-            #
-            # for i in range(9):
-            #     for j in range(i, 9):
-            #         fig = None
-            #         for k in range(10):
-            #             fig = plt.Plot(
-            #                 pg,
-            #                 hess_dat[:, k, i, j],
-            #                 figure=fig,
-            #                 plot_label=str((i, j))
-            #             )
-            #         fig.show()
-            # raise Exception(...)
-
-            # eval_dat = potential(grid, deriv_order=2)
-            # vals = eval_dat[0]
-            # derivs = eval_dat[1:]
-
-            # rots, (og_ref, ref_com, ref_rot), _ = ref_mol.get_embedding_data(grid[:2].reshape(-1, 3, 3), in_paf=True)
-
-            # raise Exception(
-            #     potential(grid[:2], deriv_order=2)[2] -
-            #     (derivs[1][:2])
-            # )
-
-            # else:
-            # raise Exception(
-            #     np.mean(
-            #         vals * UnitsData.convert("Hartrees", "Wavenumbers")
-            #     ),
-            #     np.std(
-            #         vals * UnitsData.convert("Hartrees", "Wavenumbers")
-            #     )
-            # )
-
-        # good_pos = vals < 15000 * UnitsData.convert("Wavenumbers", "Hartrees")
-
-        # sorting = np.argsort(vals)
-        # distance_cutoff = 0.15
-        # sort_blocks = np.array_split(sorting, len(sorting)/1e3)
-        # final_sortings = []
-        # # print(len(sort_blocks))
-        # for block in sort_blocks:
-        #     # print("....?")
-        #     subpts = grid[block]
-        #     rinds, cinds = np.triu_indices(len(block), k=1)
-        #     v = subpts[rinds] - subpts[cinds]
-        #     dvec = np.linalg.norm(v, axis=1)
-        #     # print(">>> ")
-        #     bad_spots = dvec < distance_cutoff
-        #     if bad_spots.any():
-        #         to_kill = cinds[bad_spots]
-        #         mask = np.ones(len(subpts), dtype=bool)
-        #         mask[to_kill] = False
-        #         final_sortings.append(block[mask])
-
-        # np.random.seed(0)
-        # good_pos = np.concatenate(final_sortings)
-        # good_pos = np.random.choice(good_pos, len(good_pos)) # shuffle around to lose ordering
-        # raise Exception(len(good_pos))
-
-        # grid = grid[good_pos]
-        # vals = vals[good_pos]
-        # derivs = [d[good_pos] for d in derivs]
-
-        # derivs = [
-        #     derivs[0][:, (0, 1, 3, 4, 6, 7)],
-        #     derivs[1][:, :, (0, 1, 3, 4, 6, 7)][:, (0, 1, 3, 4, 6, 7), :]
-        # ]
-
-        der_diags = np.diagonal(derivs[1], axis1=1, axis2=2)
-        trip_mass = np.sqrt(
-            np.broadcast_to(
-                np.array([
-                    AtomData[a, "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
-                    for a in ["O", "H", "H"]
-                ])[:, np.newaxis],
-                (3, 3)
-            )
-        ).flatten()
-        weighted = der_diags / trip_mass[np.newaxis]
-        max_ders = np.max(np.abs(weighted), axis=1)
-
-        alphas = .1 * max_ders
-
-        # raise Exception(int(len(grid)/40))
-
-        subsel = (0, 1, 3, 4, 6, 7)
-        interp = InverseDistanceWeightedInterpolator(
-            grid,#[:, subsel],
-            vals,
-            derivs[0],#[:, subsel],
-            derivs[1],#[:, :, subsel][:, subsel, :],
-            bad_interpolation_retries=1,
-            neighborhood_size=11,
-            # neighborhood_clustering_radius=.1,
-            neighborhood_merge_threshold=None,
-            neighborhood_max_merge_size=25,
-            # multicenter_monomials=True,
-            # monomial_basis=False,
-            # extra_degree=1,
-
-            # kernel='gaussian',
-            # kernel_options={'e':.1},
-
-            # kernel='zeros',
-
-            # kernel='wendland_polynomial',
-            # kernel_options={'d':9, 'k':11},
-
-            # auxiliary_basis='compact',
-            # auxiliary_basis_options={'k':3},
-
-            # auxiliary_basis='compact_laguerre',
-            # auxiliary_basis_options={'k': 3, 'e':.0},
-
-            # clustering_radius=.05,
-            logger="All"
-        )
-
-        def embedded_interp(traj, deriv_order=0, chunk_size=1e2, **opts):
-            from Psience.Psience.Molecools.Properties import PropertyManager
-
-            traj = traj.reshape(-1, 3, 3)
-            rots, _, (pax_traj, _, pax_rots) = ref_mol.get_embedding_data(traj)
-            traj = pax_traj @ np.swapaxes(rots, -2, -1)
-
-            traj = traj.reshape(-1, 9)#[:, subsel]
-            vals = interp(traj, deriv_order=deriv_order, chunk_size=chunk_size, **opts)
-
-            if deriv_order > 0:
-                new_derivs = PropertyManager._transform_derivatives(
-                    vals[1:],
-                    np.swapaxes(pax_rots, -2, -1) @ np.swapaxes(rots, -2, -1)
-                )
-                # if deriv_order > 1:
-                #     # interp.logger.log_print("evaluating Hessians")
-                #     hess_fun = FiniteDifferenceDerivative(
-                #         lambda x: embedded_interp(x, zero_tol=-1, retries=0, deriv_order=1)[1].reshape(x.shape),
-                #         function_shape=(9, 9),
-                #         mesh_spacing=5e-5
-                #     )
-                #
-                #     # chunks = []
-                #     # num_chunks = int(len(coords)/1000)
-                #     # for a in np.array_split(coords, num_chunks):
-                #     #     chunks.append(hess_fun.derivatives(a).compute_derivatives(1))
-                #     # hess = np.concatenate(chunks, axis=0)
-                #     fd_derivs = hess_fun.derivatives(traj).derivative_tensor(list(range(1, deriv_order)))
-                #     # print([d.shape for d in new_derivs])
-                #     new_derivs = list(new_derivs[:1]) + [
-                #         np.moveaxis(d, -2, 0)
-                #         for i, d in enumerate(fd_derivs)
-                #     ]
-                #
-                # # new_derivs = list(new_derivs)
-                # # zz = np.zeros((len(traj), 9))
-                # # zz[:, subsel] = new_derivs[0]
-                # # new_derivs[0] = zz
-                # # if deriv_order > 1:
-                # #     zz = np.zeros((len(traj), 9, 9))
-                # #     zz[np.ix_(np.arange(len(traj)), subsel, subsel)] = new_derivs[1]
-                # #     new_derivs[1] = zz
-                return [vals[0]] + list(new_derivs)
+                    interp_data = {'centers':coords, 'values':pot(coords, deriv_order=2)}
             else:
-                return vals
+                interp_data = None
 
-        #region Test Potential
+            with BlockProfiler(inactive=not run_profiler):
+                crd = np.round(coords[len(initial_energies)-1:], 8)
+                if declustering_radius is not None:
+                    crd = self.declusterPoints(crd, declustering_radius)
+                print("input points:", len(crd))
 
-        # np.random.seed(2)
-        # npts = 15
-        # urgh = grid[:npts]
-        # disps = np.random.normal(0, 0.05, (npts, 3, 3))
-        # disps[..., 2] = 0.0
-        # urgh = urgh + disps.reshape(-1, 9)
-        #
-        # urgh = ref_mol.embed_coords(urgh.reshape(-1, 3, 3)).reshape(-1, 9)
-
-        # urgh = urgh[:2]
-        # a, a1, a2 = [x * UnitsData.convert("Hartrees", "Wavenumbers") for x in potential(urgh, deriv_order=2)]
-        # b, b1, b2 = [x * UnitsData.convert("Hartrees", "Wavenumbers") for x in
-        #             embedded_interp(urgh,
-        #                     zero_tol=-1, retries=0
-        #                     , deriv_order=2
-        #                     # deriv_order=2,
-        #                     # max_distance=.2,
-        #                     # neighbors=int(len(grid)/20),
-        #                     # neighborhood_clustering_radius=.0035,
-        #                     # use_natural_neighbors=True
-        #                     )
-        # ]
-
-
-
-        # b = [x * UnitsData.convert("Hartrees", "Wavenumbers") for x in
-        #              embedded_interp(urgh,
-        #                              zero_tol=-1, retries=00
-        #                              # deriv_order=2,
-        #                              # max_distance=.2,
-        #                              # neighbors=int(len(grid)/20),
-        #                              # neighborhood_clustering_radius=.0035,
-        #                              # use_natural_neighbors=True
-        #                              )
-        #              ]
-        # c = (a - b)
-        # d = 100 * c / a
-
-        # with np.printoptions(linewidth=1e8):
-        #     fack = "\n" + str(np.array([np.round(a), np.round(b), np.round(c, 3)]))
-        #
-        #     fack = fack + "\n Error: {}".format(np.round(np.linalg.norm(d) / len(d), 2))
-        #
-        #     # fack += "\n\n " + str(
-        #     #     np.moveaxis(
-        #     #         np.array([
-        #     #             np.round(a1, 3),
-        #     #             np.round(b1, 3),
-        #     #             np.round(a1 - b1, 3)
-        #     #         ]),
-        #     #         1, 0
-        #     #     )
-        #     # )
-        #     #
-        #     # fack = fack + "\n\n Error: {}".format(np.round(np.linalg.norm(100 * (a1[:, subsel] - b1[:, subsel]) / a1[:, subsel], axis=1), 2))
-        #
-        #     a2 = np.diagonal(a2, axis1=1, axis2=2)
-        #     b2 = np.diagonal(b2, axis1=1, axis2=2)
-        #     fack += "\n\n\n " + str(np.moveaxis(np.array([
-        #         np.round(a2),
-        #         np.round(b2),
-        #         np.round(a2 - b2, 3)
-        #     ]), 1, 0))
-        #
-        #     fack = fack + "\n\n Error: {} ({})".format(
-        #         np.round(np.mean(np.linalg.norm(100 * (a2[:, subsel] - b2[:, subsel]) / a2[:, subsel], axis=1)), 2),
-        #         np.round(np.linalg.norm(100 * (a2[:, subsel] - b2[:, subsel]) / a2[:, subsel], axis=1) / len(a2), 2)
-        #     )
-        #
-        # raise Exception(fack)
-
-        #endregion
-
-        #region Other Methods
-
-        # r1 = np.linalg.norm(ref[1] - ref[0])
-        # v1 = (ref[1] - ref[0]) / r1
-        # def pot(r, deriv_order=0):
-        #     base_shape = r.shape[:-1]
-        #     r = r.flatten()
-        #     disps = v1[np.newaxis] * r[:, np.newaxis]
-        #     pts = np.broadcast_to(ref[np.newaxis], (len(r), 3, 3)).copy()
-        #     pts[:, 1, :] += disps
-        #
-        #     # fig = plt.ScatterPlot(
-        #     #                         pts[:, 0, 0],
-        #     #                         pts[:, 0, 1],
-        #     #                         color="#ff0000",
-        #     #                         padding=[[50, 50], [50, 50]],
-        #     #                     )
-        #     # plt.ScatterPlot(
-        #     #     pts[:, 1, 0],
-        #     #     pts[:, 1, 1],
-        #     #     color="#000000",
-        #     #     figure=fig,
-        #     #     padding=[[50, 50], [50, 50]],
-        #     # )
-        #     # plt.ScatterPlot(
-        #     #     pts[:, 2, 0],
-        #     #     pts[:, 2, 1],
-        #     #     color="#00ff00",
-        #     #     figure=fig,
-        #     #     padding=[[50, 50], [50, 50]],
-        #     # )
-        #     # fig.show()
-        #
-        #     res = potential(pts, deriv_order=deriv_order)[0]
-        #     res[r < -1.5] = 20
-        #
-        #     if len(base_shape) > 0:
-        #         res = res.reshape(base_shape)
-        #
-        #     return res
-
-        # g = np.linspace(-1.5, 10, 1000)
-        # plt.Plot(
-        #     g,
-        #     pot(g)
-        # ).show()
-
-        # red_mass = 1/(
-        #         1/AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-        #         + 1/AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
-        # )
-        #
-        # from Psience.DVR import DVR
-        #
-        # res = DVR(
-        #     domain=[-1, 5],
-        #     divs=200,
-        #     potential_function=pot,
-        #     mass=1/red_mass
-        # ).run()
-        #
-        # raise Exception(
-        #     res.wavefunctions.energies,
-        #     res.wavefunctions.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers"))
-
-        #   array([0.00833372, 0.02447275, 0.03995099, 0.05477823, 0.06896247,
-        #        0.08250939, 0.09542198, 0.10770047, 0.11934227, 0.13034168,
-        #        0.14068864, 0.15036553, 0.1593404 , 0.16755323, 0.17488519,
-        #        0.18106746, 0.18524416, 0.1870915 , 0.18920155, 0.19114839,
-        #        0.19304661, 0.19520578, 0.19770914, 0.20051799, 0.20360185])
-
-
-        # wfns = DGB.run(
-        #     np.linspace(-1, 5, 1000),
-        #     pot,
-        #     logger=interp.logger,
-        #     alphas=15,
-        #     clustering_radius=.0001,
-        #     masses=[1/red_mass],
-        #     # optimize_centers=True,
-        #     min_singular_value=1e-4,
-        #     num_svd_vectors=200,
-        #     # clustering_radius=.055,
-        #     # optimize_centers=False,
-        #     quadrature_degree=8
-        #     # expansion_type='taylor',
-        #     # reference_structure=ref
-        # )
-        # wfns = wfns[np.where(wfns.energies > 1e-4)[0]]
-        # for w in wfns:
-        #     if w.energy > 1e-4:
-        #         w.plot(
-        #             plot_label=f'Energy: {w.energy}',
-        #             padding=[[50, 50], [50, 50]]
-        #         ).show()
-        #
-        # print(wfns.energies)
-        # print(
-        #     wfns.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers")
-        # )
-        #
-        # raise Exception(
-        #     wfns.energies,
-        #     wfns.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers")
-        # )
-        # raise Exception(e[e > .5], (e[e > .5][1:] - e[e > .5][0]) * 219475, ham.clustering_radius)
-
-
-        # from Psience.VPT2 import VPTRunner
-        #
-        # # raise Exception([x.shape for x in potential(ref, deriv_order=4)[1:]])
-        #
-        # uhhh = VPTRunner.run_simple(
-        #     [["O", "H", "H"], ref],
-        #     2,
-        #     potential_derivatives=[
-        #         x.reshape((9,)*(i+1))
-        #         for i,x in enumerate(potential(ref, deriv_order=4)[1:])
-        #     ],
-        #     # order=0,
-        #     # expansion_order=0,
-        #     calculate_intensities=False
-        # )
-        #
-        # raise Exception(...)
-
-        #endregion
-
-        # region Subsetting of sampled points
-
-        np.random.seed(1)
-        divs = [
-            # [250,   500],
-            # [500,   None],
-            # [1000,  500],
-            [5000, None],
-            [10000, 100]
-        ]
-        ec_last = -1
-        all_pos = []
-        for ec, num in divs:
-            pos = np.where(
-                np.logical_and(
-                    vals >= ec_last * UnitsData.convert("Wavenumbers", "Hartrees"),
-                    vals < ec * UnitsData.convert("Wavenumbers", "Hartrees")
-                )
-            )
-            if len(pos) > 0 and len(pos[0]) > 0:
-                all_pos.append(
-                    pos[0][np.random.choice(len(pos[0]), num),]
-                    if num is not None else
-                    pos[0]
-                )
-        good_pos = np.concatenate(all_pos)
-
-        grid = grid[good_pos]
-        vals = vals[good_pos]
-        derivs = [d[good_pos] for d in derivs]
-
-        # endregion
-
-        #region potential for later plotting
-
-        left_hydrogen_mesh = np.array(
-            np.meshgrid(
-                np.linspace(-2.0, -0.5, 25),
-                np.linspace(-2.0,  0.2, 10)
-            ))
-        left_hydrogen_cat = np.moveaxis(left_hydrogen_mesh, 0, -1).reshape(-1, 2)
-        left_hydrogen_points = np.broadcast_to(ref[np.newaxis], (len(left_hydrogen_cat), 3, 3)).copy()
-        left_hydrogen_points[:, 2, :2] = left_hydrogen_cat
-
-
-        right_hydrogen_mesh = np.array(
-            np.meshgrid(
-                np.linspace( 0.5, 2.0, 25),
-                np.linspace(-2.0, 0.2, 10)
-            ))
-        right_hydrogen_cat = np.moveaxis(right_hydrogen_mesh, 0, -1).reshape(-1, 2)
-        right_hydrogen_points = np.broadcast_to(ref[np.newaxis], (len(right_hydrogen_cat), 3, 3)).copy()
-        right_hydrogen_points[:, 1, :2] = right_hydrogen_cat
-
-        full_points = np.concatenate([
-            left_hydrogen_points, right_hydrogen_points
-        ])
-
-        full_cat = np.concatenate([
-            left_hydrogen_cat, right_hydrogen_cat
-        ])
-
-
-        mbpol_pot = lambda r,deriv_order=0: (
-                potential(r)[0].reshape(r.shape[:-1])
-                    if deriv_order == 0 else
-                potential(r, deriv_order=deriv_order)
-        )
-        pot = mbpol_pot
-        # pot = embedded_interp
-
-        sampling_potentials = pot(full_points.reshape(-1, 9)) * UnitsData.convert("Hartrees", "Wavenumbers")
-        # sampling_potentials = embedded_interp(full_points.reshape(-1, 9)) * UnitsData.convert("Hartrees", "Wavenumbers")
-
-        # with Checkpointer.from_file(os.path.expanduser("~/Desktop/interp_engs.hdf5")) as chk:
-        #     chk['energies'] = sampling_potentials
-        # raise Exception(...)
-
-        # plt.TriContourPlot(
-        #     full_cat[:, 0],
-        #     full_cat[:, 1],
-        #     sampling_potentials,
-        #     levels=np.linspace(0, 10000, 25),
-        #     colorbar=True,
-        #     image_size=[600, 600]
-        # ).show()
-
-        # 0.005, 0.05, 0.1,
-        # pos = np.random.choice(len(pts), 9000)
-
-        #endregion
-
-        np.random.seed(0)
-        pos = np.arange(len(grid))
-        run_pos = np.random.choice(pos, 4500)
-        pts = grid[run_pos]
-        r, c = np.triu_indices(len(pts), k=1)
-        dists = np.linalg.norm(pts[r] - pts[c], axis=1)
-        mask = np.ones(len(pts), dtype=bool)
-        mask[c[dists < 1e-1]] = False
-        pts = pts[mask]
-        run_pos = run_pos[mask]
-
-        for a in [15]:#, 10, 5, 2]:#0.5, 0.3, 0.8, 0.4, 0.05, 0.1, 0.2,]:
-            for cr in [0.05]:#, 0.1, 0.2]:
-                for ms in [1e-4]:
-                    with interp.logger.block(tag=f"Alpha: {a} Min-Sing: {ms} Clust: {cr}"):
-
-                        # largest_deriv = np.max(derivs[1]
-                        # a =
-                        der_diags = np.diagonal(derivs[1][run_pos], axis1=1, axis2=2)
-                        trip_mass = np.sqrt(
-                            np.broadcast_to(
-                                np.array([
-                                    AtomData[a, "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
-                                    for a in ["O", "H", "H"]
-                                ])[:, np.newaxis],
-                                (3, 3)
-                            )
-                        ).flatten()
-                        weighted = der_diags / trip_mass[np.newaxis]
-                        max_ders = np.max(np.abs(weighted), axis=1)
-
-                        dist_mat = np.linalg.norm(pts[:, np.newaxis] - pts[np.newaxis, :], axis=2)
-                        np.fill_diagonal(dist_mat, 100)
-                        dist_mins = np.min(dist_mat, axis=1)
-                        alphas = 1/dist_mins #* (1 + 1 * (max_ders - np.min(max_ders)) / (np.max(max_ders) - np.min(max_ders)))
-                        # raise Exception(alphas)
-
-                        # disp_mat = np.abs(pts[:, np.newaxis] - pts[np.newaxis, :])
-                        # disp_mat[np.diag_indices(len(pts))] = 1000
-                        # min_disp = np.min(disp_mat, axis=0)
-                        # min_disp[min_disp < 1e-8] = -1
-                        # alphas = np.sqrt(np.abs(weighted))/(min_disp * np.sqrt(trip_mass)) #* (1 + 1 * (max_ders - np.min(max_ders)) / (np.max(max_ders) - np.min(max_ders)))
-                        # alphas[min_disp == -1] = 10
-                        # alphas[alphas < 6] = 10
-                        # raise Exception(alphas)
-                        # alphas = np.sqrt(max_ders)/dist_mins**2
-                        # alphas = a
-
-                        # pts = pts[np.lexsort(pts.T)]
-                        # ham = DGB(
-                        #     pts,
-                        #     pot,
-                        #     logger=interp.logger,
-                        #     alphas=alphas,
-                        #     atoms=["O", "H", "H"],
-                        #     projection_indices=(0, 1, 3, 4, 6, 7),
-                        #     clustering_radius=cr,
-                        #     optimize_centers=False,
-                        #     min_singular_value=ms,
-                        #     num_svd_vectors=1,
-                        #     svd_contrib_cutoff=1e-2,
-                        #     # clustering_radius=.055,
-                        #     # optimize_centers=False,
-                        #     # quadrature_degree=4,
-                        #     expansion_degree=2 if pot is interp else 2,
-                        #     # expansion_type='taylor',
-                        #     # reference_structure=ref
-                        # )
-                        # diag1 = np.diagonal(ham.S, offset=1)
-                        # urgh = ham.S.copy()
-                        # np.fill_diagonal(urgh)
-                        # raise Exception(np.min(diag1))
-                        # plt.Plot(np.arange(len(diag1)), diag1).show()
-                        #
-                        # plt.ArrayPlot(ham.S).show()
-                        # raise Exception(...)
-                        # ov_pts = ham.get_overlap_gaussians()[0]
-
-
-                        # base_plot = plt.ScatterPlot(
-                        #     interp.grid[:, 0], interp.grid[:, 1],
-                        #     color='red'
-                        # )
-                        # base_plot = plt.ScatterPlot(
-                        #     interp.grid[:, 3], interp.grid[:, 4],
-                        #     color='gray',
-                        #     figure=base_plot
-                        # )
-                        # base_plot = plt.ScatterPlot(
-                        #     interp.grid[:, 6], interp.grid[:, 7],
-                        #     color='gray',
-                        #     figure=base_plot
-                        # )
-                        #
-                        # new_grid = ov_pts[np.triu_indices(len(ov_pts), k=1)].reshape(-1, 9)
-                        # plt.ScatterPlot(
-                        #     new_grid[:, 0], new_grid[:, 1],
-                        #     color='blue',
-                        #     figure=base_plot
-                        # )
-                        # base_plot = plt.ScatterPlot(
-                        #     new_grid[:, 3], new_grid[:, 4],
-                        #     color='blue',
-                        #     figure=base_plot
-                        # )
-                        # base_plot = plt.ScatterPlot(
-                        #     new_grid[:, 6], new_grid[:, 7],
-                        #     color='blue',
-                        #     figure=base_plot
-                        # )
-                        # base_plot.show()
-                        #
-                        #
-                        # raise Exception("...")
-
-                        # a, _, a2 = [x * UnitsData.convert("Hartrees", "Wavenumbers") for x in
-                        #             mbpol_pot(ov_pts.reshape(-1, 9), deriv_order=2)
-                        #             ]
-                        # b, _, b2 = [x * UnitsData.convert("Hartrees", "Wavenumbers") for x in
-                        #             embedded_interp(ov_pts.reshape(-1, 9),
-                        #                     # neighbors=2500,
-                        #                     zero_tol=-1,
-                        #                     deriv_order=2,
-                        #                     # neighborhood_clustering_radius=.0015
-                        #                     )
-                        # ]
-                        # with np.printoptions(linewidth=1e8):
-                        #     c = a - b
-                        #     d = 100 * (c) / a
-                        #     fack = "\n" + str(np.array([
-                        #         np.round(a),
-                        #         np.round(b),
-                        #         np.round(c, 3),
-                        #     ]))
-                        #
-                        #     fack = fack + "\n Error: {}".format(np.round(np.linalg.norm(d) / len(d), 2))
-                        #
-                        #     # fack += "\n\n " + str(
-                        #     #     np.moveaxis(
-                        #     #         np.array([
-                        #     #             np.round(a1, 3),
-                        #     #             np.round(b1, 3),
-                        #     #             np.round(a1 - b1, 3)
-                        #     #         ]),
-                        #     #         1, 0
-                        #     #     )
-                        #     # )
-                        #     #
-                        #     # fack = fack + "\n\n Error: {}".format(np.round(np.linalg.norm(100 * (a1[:, subsel] - b1[:, subsel]) / a1[:, subsel], axis=1), 2))
-                        #
-                        #     a2 = np.diagonal(a2, axis1=1, axis2=2)
-                        #     b2 = np.diagonal(b2, axis1=1, axis2=2)
-                        #     fack += "\n\n\n " + str(np.moveaxis(np.array([
-                        #         np.round(a2),
-                        #         np.round(b2),
-                        #         np.round(a2 - b2, 3)
-                        #     ]), 1, 0))
-                        #
-                        #     fack = fack + "\n\n Error: {} ({})".format(
-                        #         np.round(np.mean(np.linalg.norm(100 * (a2[:, subsel] - b2[:, subsel]) / a2[:, subsel], axis=1)) / len(a2), 2),
-                        #         np.round(np.linalg.norm(100 * (a2[:, subsel] - b2[:, subsel]) / a2[:, subsel], axis=1), 2)
-                        #     )
-                        #
-                        # raise Exception(fack)
-
-                        wfns = DGB.run(
-                            pts,
-                            pot,
-                            logger=interp.logger,
-                            alphas=alphas,
-                            atoms=["O", "H", "H"],
-                            projection_indices=(0, 1, 3, 4, 6, 7),
-                            clustering_radius=cr,
-                            optimize_centers=False,
-                            min_singular_value=ms,
-                            num_svd_vectors=1,
-                            svd_contrib_cutoff=1e-2,
-                            # clustering_radius=.055,
-                            # optimize_centers=False,
-                            # quadrature_degree=4,
-                            expansion_degree=2 if pot is interp else 2,
-                            # expansion_type='taylor',
-                            # reference_structure=ref
+                dgb = DGB.construct(
+                    crd,
+                    pot if not use_interpolation else interp_data,
+                    masses=mol.atomic_masses,
+                    alphas={'method':'virial', 'scaling':virial_scaling},
+                    transformations=transformation_method,
+                    optimize_centers=[
+                        x for x in
+                        [
+                            {
+                                'method': 'energy-cutoff',
+                                'cutoff': pruning_energy
+                            } if pruning_energy is not None else None,
+                            {
+                                'method': 'decluster',
+                                'cluster_radius': declustering_radius
+                            } if declustering_radius is not None else None,
+                            {
+                                'method': 'gram-schmidt',
+                                'norm_cutoff': 10 ** (-gs_cutoff),
+                                'max_overlap_cutoff': max_overlap_cutoff
+                            } if gs_cutoff is not None else None,
+                        ]
+                        if x is not None
+                    ],
+                    modes=None if cartesians else 'normal',
+                    cartesians=[0, 1] if cartesians else None,
+                    quadrature_degree=3,
+                    expansion_degree=expansion_degree,
+                    pairwise_potential_functions={
+                        (0, 1): self.setupMorseFunction(
+                            mol.atomic_masses[0],
+                            mol.atomic_masses[1],
+                            np.linalg.norm(mol.coords[0] - mol.coords[1]),
+                            w=morse_w,
+                            wx=morse_wx
+                            ),
+                        (0, 2): self.setupMorseFunction(
+                            mol.atomic_masses[0],
+                            mol.atomic_masses[2],
+                            np.linalg.norm(mol.coords[0] - mol.coords[2]),
+                            w=morse_w,
+                            wx=morse_wx
                         )
-                    with interp.logger.block(tag="Results:"):
-                        count = 8
-                        ecut = 0e-2
-                        emax = ecut + 7000 * UnitsData.convert("Hartrees", "Wavenumbers")
-                        max_val = None
-                        for i,wfn in enumerate(wfns):
-                            if count > 0 and wfn.energy > ecut and wfn.energy < emax:
-                                count -= 1
-
-                                fig = plt.TriContourPlot(
-                                    full_cat[:, 0],
-                                    full_cat[:, 1],
-                                    sampling_potentials,
-                                    levels=np.linspace(0, 10000, 25),
-                                    colorbar=True,
-                                    cmap='viridis',
-                                    image_size=[600, 600]
-                                )
-
-                                proj = wfn.marginalize_out([0, 1, 2, 5, 6, 7, 8]) # what we're projecting _out_
-                                if max_val is None:
-                                    max_val = min([
-                                        np.abs(np.max(proj.data)) * np.max(proj.alphas),
-                                        2
-                                    ])
-                                proj.plot(
-                                    figure=fig,
-                                    plot_label=f"Wavefunction {i} Energy: {wfn.energy}",
-                                    epilog=[
-                                        plt.Disk(
-                                            ref[0, :2],
-                                            3,
-                                            color='black'
-                                        ),
-
-                                        plt.Disk(
-                                            ref[1, :2],
-                                            2,
-                                            color='black'
-                                        ),
-
-                                        plt.Disk(
-                                            ref[2, :2],
-                                            2,
-                                            color='black'
-                                        )
-                                    ],
-                                    plotter=plt.TriContourLinesPlot,
-                                    levels=np.linspace(-max_val, max_val, 16),
-                                    domain=[[-2, 2], [-2, .2]],
-                                    cmap='RdBu'
-                                )
-
-                                plt.ScatterPlot(
-                                    proj.centers[:, 0],
-                                    proj.centers[:, 1],
-                                    color="#ffffff11",
-                                    figure=fig,
-                                    padding=[[50, 50], [50, 50]],
-                                )
-
-                                proj = wfn.marginalize_out([0, 1, 2, 3, 4, 5, 8])
-
-                                proj.plot(
-                                    figure=fig,
-                                    plotter=plt.TriContourLinesPlot,
-                                    domain=[[-2, 2], [-2, .2]],
-                                    levels=np.linspace(-max_val, max_val, 16),
-                                    cmap='RdBu'
-                                )
-
-                                plt.ScatterPlot(
-                                    proj.centers[:, 0],
-                                    proj.centers[:, 1],
-                                    color="#ffffff11",
-                                    figure=fig,
-                                    padding=[[50, 50], [50, 50]],
-                                )
-
-                                fig.show()
-
-                        # e = wfns.energies
-                        #
-                        # # interp.logger.log_print("All energies: {eng}", eng=wfns.energies)
-                        # pos_e = np.logical_and(e > 1e-2, e < 2)
-                        # e = e[pos_e]
-                        # interp.logger.log_print("energies: {eng}", eng=e)
-                        #
-                        # all_freqs = (e[:, np.newaxis] - e[np.newaxis, :]) * UnitsData.convert("Hartrees", "Wavenumbers")
-                        wfn_start = np.where(wfns.energies > ecut)[0][0]
-                        interp.logger.log_print("ZPE: {e}", e=wfns[wfn_start].energy * UnitsData.convert("Hartrees", "Wavenumbers"))
-                        interp.logger.log_print("All frequencies: {freq}", freq=wfns[wfn_start:wfn_start+20].frequencies() * UnitsData.convert("Hartrees", "Wavenumbers"))
-                        # best_pos = np.argmin(np.abs(all_freqs.flatten() - 3500))
-                        # interp.logger.log_print("Best frequency: {freq}", freq=all_freqs.flatten()[best_pos])
-
-                    gc.collect()
+                    } if use_pairwise_potentials else None,
+                    logger=True
+                )
 
 
-        """
-        VPT
-        
-        ::> States Energies
-          > State     Harmonic   Anharmonic     Harmonic   Anharmonic
-                       ZPE          ZPE    Frequency    Frequency
-        0 0 0   4713.07975   4636.90794            -            - 
-        0 0 1            -            -   3944.32593   3753.07779 
-        0 1 0            -            -   3832.76457   3654.53256 
-        1 0 0            -            -   1649.06900   1594.42231 
-        0 0 2            -            -   7888.65187   7408.76383 
-        0 2 0            -            -   7665.52914   7222.28820 
-        2 0 0            -            -   3298.13800   3152.62843 
-        0 1 1            -            -   7777.09050   7240.72934 
-        1 0 1            -            -   5593.39493   5326.66828 
-        1 1 0            -            -   5481.83357   5232.92568 
-        <::
-        """
+                # plt.Graphics().show()
+                # raise Exception(...)
 
-        """DGB 2500 pts & MB-Pol w/ FD Hessians
-        
-        :: All frequencies: [ 
-             1626.23440329  3291.02298809  3719.74860224  3977.64291868
-             5045.50668587  5397.92323296  5962.62638424  6865.53165906
-             7227.10335916  7351.04973073  7632.22294328  7801.16335243
-             8443.88015359  8788.70001116  9036.19149045  9968.46931843
-             10262.30527112 10676.33757779 10932.38611674]
-        
-        """
+                if use_interpolation and plot_interpolation_error:
+                    sel = slice(None)#slice(15,30)
 
-        """DGB 2500 pts & MB-Pol w/ FD 4th derivs
+                    centers = dgb.gaussians.overlap_data['centers'][sel]
+                    embpot = dgb.gaussians.coords.embed_function(pot)
+                    realpots, _, real_hess = [d * 219475 for d in embpot(centers, deriv_order=2)]
+                    interpots, _, inter_hess = [d * 219475 for d in dgb.pot.potential_function(centers, deriv_order=2)]
 
-        >>------------------------- Results: -------------------------
-        :: All frequencies: [ 1577.73146693  3196.09291218  3713.43203707  3985.63634612
-          4943.97500195  5343.17673283  5891.11364755  6745.74649368
-          7110.01884398  7342.20274783  7643.45326813  7714.82677927
-          8383.75793472  8664.3708776   8957.39854453  9978.36189936
-         10172.96724881 10559.28985947 10913.42580748]
-        >>--------------------------------------------------<<
+                    ords = np.argsort(realpots)
+                    devs = interpots[ords] - realpots[ords]
+                    rows, cols = np.triu_indices_from(dgb.S)
+                    utris = dgb.S[rows, cols]
+                    unscaled_devs = devs
+                    devs = devs * utris
+                    max_dev_pos = np.flip(np.argsort(np.abs(devs)))[:5]
 
-        """
+                    inter_trace = np.sum(np.sum(np.abs(inter_hess[ords]), axis=-1), axis=-1)
+                    real_trace = np.sum(np.sum(np.abs(real_hess[ords]), axis=-1), axis=-1)
+                    dev_trace = inter_trace - real_trace
+                    dev_hess = inter_hess - real_hess
+                    hess_plot = plt.ScatterPlot(realpots[ords], inter_trace - real_trace)
+
+                    print("Mean Absolute Error:", np.mean(np.abs(unscaled_devs)), "Std:", np.std(unscaled_devs))
+                    print("Mean Scaled Error:", np.mean(np.abs(devs)), "Std:", np.std(devs))
+                    print("Mean Hessian Error:", np.mean(np.abs(dev_hess.flatten())),
+                          "Std:", np.std(dev_hess.flatten()),
+                          "Max:", np.max(np.abs(dev_hess.flatten()))
+                          )
+                    print("Mean Summed Hessian Error:", np.mean(np.abs(dev_trace.flatten())),
+                          "Std:", np.std(dev_trace.flatten()),
+                          "Max:", np.max(np.abs(dev_trace.flatten())),
+                          )
+                    print("Maximum (Scaled) Error:", devs[max_dev_pos])
+                    print("Maximum (Scaled) Interpolation Error:")
+                    for l,r,c, tt, ii, ov in zip(
+                            dgb.gaussians.coords.centers[rows[sel][ords[max_dev_pos]]],
+                            dgb.gaussians.coords.centers[cols[sel][ords[max_dev_pos]]],
+                            dgb.gaussians.overlap_data['centers'][sel][ords[max_dev_pos]],
+                            realpots[ords[max_dev_pos]],
+                            interpots[ords[max_dev_pos]],
+                            utris[sel][ords[max_dev_pos]]
+                    ):
+                        print(f"Centers: {c} ({ov}) <- {l} {r}")
+                        print(f"  Error: {ii-tt} <- {tt} {ii}")
+
+                    bad_bad = np.abs(devs) > 50
+
+                    # center_plot=plt.ScatterPlot(
+                    #     centers[:, 0],
+                    #     centers[:, 1],
+                    #     c=unscaled_devs
+                    # )
+                    # center_plot = plt.ScatterPlot(
+                    #     centers[:, 0][bad_bad],
+                    #     centers[:, 1][bad_bad],
+                    #     c='blue'
+                    # )
+                    # plt.ScatterPlot(
+                    #     dgb.gaussians.coords.centers[:, 0],
+                    #     dgb.gaussians.coords.centers[:, 1],
+                    #     c='red',
+                    #     figure=center_plot
+                    # )
+                    # woof = plt.ScatterPlot(realpots[ords], unscaled_devs / realpots[ords])
+                    scaled_dev_plot = plt.ScatterPlot(realpots[ords], unscaled_devs)
+                    dev_plot = plt.ScatterPlot(realpots[ords], devs
+                                               # plot_range=[None, [-100, 100]]
+                                               )
+                    dev_plot.show()
+                    raise Exception(...)
+
+                if plot_gaussians:
+                    self.plot_gaussians(dgb, mol, 10, plot_dir=plot_dir)
+
+                    raise Exception(...)
+
+                type(self).default_num_plot_wfns = 5
+                if plot_wfns is True:
+                    plot_wfns = {'cartesians': [0, 1]} if not cartesians else True
+                wfns = self.runDGB(dgb, mol,
+                            mode='similarity',
+                            similarity_cutoff=sim_cutoff,
+                            plot_wavefunctions=plot_wfns,
+                            plot_spectrum=False,
+                            pot_cmap=pot_cmap,
+                            pot_points=pot_points,
+                            wfn_cmap=wfn_cmap,
+                            wfn_points=wnf_points,
+                            wfn_contours=wfn_contours,
+                            plot_centers=plot_centers,
+                            plot_dir=plot_dir,
+                            **plot_styles
+                            )
+
+                if plot_dir is not None:
+                    with open(os.path.join(plot_dir, 'freqs.txt'), 'w+') as woof:
+                        print("ZPE:", wfns.energies[0] * UnitsData.hartrees_to_wavenumbers, file=woof)
+                        print("Freqs:", wfns.frequencies() * UnitsData.hartrees_to_wavenumbers, file=woof)
+
+
+            if plot_dir is not None or plot_wfns is False:
+                plt.Graphics().show()
+
+    @validationTest
+    def test_WaterFromGauss(self):
+
+        check_anh = False
+        if check_anh:
+            from Psience.VPT2 import VPTRunner
+            VPTRunner.run_simple(TestManager.test_data('h2o_aimd_opt.fchk'),
+                                 states=2, order=2,
+                                 degeneracy_specs='auto'
+                                 )
+            """
+            0 0 0      4671.11065                   4598.17667
+            State       Frequency    Intensity       Frequency    Intensity
+              0 0 1    3922.23915     56.86267      3734.52710     50.58253
+              0 1 0    3817.17658      9.21138      3640.75276      6.13469
+              1 0 0    1602.80557     66.70198      1554.84636     69.96507
+              0 0 2    7844.47830      0.00000      7403.75133      0.00786
+              0 2 0    7634.35317      0.00000      7164.50137      0.87675
+              2 0 0    3205.61114      0.00000      3078.10542      2.38482
+              0 1 1    7739.41573      0.00000      7209.82293      3.76134
+              1 0 1    5525.04472      0.00000      5271.68806      4.38346
+              1 1 0    5419.98215      0.00000      5180.54068      0.06344
+              """
+            raise Exception(...)
+
+        mol = Molecule.from_file(TestManager.test_data('h2o_aimd_opt.fchk'))
+        mol.potential_derivatives; mol.dipole_derivatives; # kludge
+        mol = mol.get_embedded_molecule(embed_properties=True)
+
+        get_initial_velocities = False
+        if get_initial_velocities:
+            nms = mol.normal_modes.modes.basis
+            bend, sym, asym = nms.freqs
+            initial_velocities = AIMDSimulator.mode_energies_to_velocities(
+                nms.inverse.T,
+                mol.atomic_masses,
+                [
+                    [bend, sym, asym]
+                ],
+                inverse=nms.matrix.T
+            )
+            with np.printoptions(suppress=True):
+                print()
+                print(initial_velocities)
+            raise Exception(...)
+
+
+        with GaussianFChkReader(TestManager.test_data('h2o_aimd_opt.fchk')) as parser:
+            ref_eng = parser.parse(['Total Energy'])['Total Energy']
+
+        coords = None
+        grads = None
+        hess = None
+        engs = None
+        # traj_file = TestManager.test_data('h2o_aimd.log')
+        for traj_file in [
+            os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/bomd_h2o_rand.log'),
+            os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/bomd_h2o_rand_5.log'),
+            # os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/bomd_h2o_dupes.log'),
+            os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/bomd_h2o_long.log'),
+            # os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/bomd_h2o_init.log'),
+            # os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/bomd_h2o_rand_1.log')
+        ]:
+            with GaussianLogReader(traj_file) as parser:
+                traj_data = parser.parse(['AIMDTrajectory'])['AIMDTrajectory']
+
+            c = traj_data.coords
+            g = traj_data.vals.gradients#[:3]
+            h = traj_data.vals.hessians#[:3]
+            e = traj_data.vals.energies - ref_eng
+
+
+            # # raise Exception(e[:5]*219475, e[100:105]*219475)
+            #
+            # dupe_pos = np.where(np.diff(e) == 0)[0] + 1
+            # print(dupe_pos)
+            # good_pos = np.setdiff1d(np.arange(len(e)), dupe_pos)
+            # e = e[good_pos]
+            # g = g[good_pos]
+            # h = h[good_pos]
+            #
+            # print(c.shape, g.shape, h.shape, e.shape)
+            #
+            # c = c[:len(e)]
+
+            coords = c if coords is None else np.concatenate([coords, c])
+            engs = e if engs is None else np.concatenate([engs, e])
+            grads = g if grads is None else np.concatenate([grads, g])
+            hess = h if hess is None else np.concatenate([hess, h])
+
+
+        # nvals = min(len(coords), len(grads))
+        # coords = coords[:nvals]
+        # grads = grads[:nvals]
+        # hess = hess[:nvals]
+
+        pot, _ = self.getMBPolModel()
+        new_engs, new_grads, new_hess = pot(coords, deriv_order=2)
+        # engs, grads, hess = new_engs, new_grads, new_hess
+
+        # raise Exception(
+        #     # len(engs), # 135
+        #     np.max(np.abs(engs - new_engs) * 219475),
+        #     engs[:10] * 219475,
+        #     new_engs[:10] * 219475,
+        #     np.where(np.abs(engs - new_engs) * 219475 > 1000)
+        # )
+
+        embedding = mol.get_embedding_data(coords)
+
+        rots = embedding.rotations
+        # need to reembed derivatives
+        coords = nput.vec_tensordot( #...?
+            embedding.coord_data.coords,
+            rots,
+            shared=1,
+            axes=[-1, 2]
+        )
+        grads = nput.vec_tensordot(
+            grads.reshape(grads.shape[0], -1, 3),
+            embedding.rotations,
+            shared=1,
+            axes=[-1, 1] # dv/dx has inverse embedding
+        ).reshape(grads.shape)
+        hess = nput.vec_tensordot(
+            hess.reshape((hess.shape[0], hess.shape[1], -1, 3)),
+            embedding.rotations,
+            shared=1,
+            axes=[-1, 1]
+        ).reshape(hess.shape)
+        hess = np.moveaxis(hess, -2, -1)
+        hess = nput.vec_tensordot(
+            hess.reshape((hess.shape[0], hess.shape[1], -1, 3)),
+            embedding.rotations,
+            shared=1,
+            axes=[-1, 1]
+        ).reshape(hess.shape)
+
+        coords = np.concatenate([[mol.coords], coords], axis=0)
+        engs = np.concatenate([[0], engs], axis=0)
+        grads = np.concatenate([[mol.potential_derivatives[0]], grads], axis=0)
+        hess = np.concatenate([[mol.potential_derivatives[1]], hess], axis=0)
+        values = [engs, grads, hess]
+
+        # mw = np.diag(1/np.sqrt(np.broadcast_to(mol.atomic_masses[:, np.newaxis], (3, 3)).flatten()))
+        # ugh = np.linalg.eigvalsh(mw@hess@mw)
+        # raise Exception(np.sign(ugh) * np.sqrt(np.abs(ugh)) * 219475)
+
+        interp_data = {'centers':coords, 'values':values}
+
+        augment_trajectory = False
+        if augment_trajectory:
+            pot, _ = self.getMBPolModel()
+
+            nms = mol.normal_modes.modes.basis
+            bend, sym, asym = nms.freqs
+            sim = mol.setup_AIMD(
+                pot,
+                initial_energies=np.array([
+                    [ bend,  0, asym],
+                    [-bend,  0, asym],
+                    [ bend,  0,-asym],
+                    [-bend,  0,-asym],
+                    [ bend, sym,   0],
+                    [-bend, sym,   0],
+                    [ bend, sym,   0],
+                    [-bend, sym,   0]
+                ]) * .8,
+                timestep=60
+            )
+            sim.propagate(20)
+            sub_coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+            coords = np.concatenate([coords, sub_coords])
+
+        print("="*25, len(coords), "Points Sampled", "="*25)
+        dgb = DGB.construct(
+            coords,
+            interp_data,
+            masses=mol.atomic_masses,
+            alphas='auto',
+            transformations='diag',
+            modes='normal',
+            expansion_degree=2,
+            optimize_centers={
+                'method':'energy-cutoff',
+                'cutoff':1000 / UnitsData.hartrees_to_wavenumbers
+            },
+            # pairwise_potential_functions={
+            #     (0, 1): self.setupMorseFunction(
+            #         mol.atomic_masses[0],
+            #         mol.atomic_masses[1],
+            #         np.linalg.norm(mol.coords[0] - mol.coords[1])
+            #     ),
+            #     (0, 2): self.setupMorseFunction(
+            #         mol.atomic_masses[0],
+            #         mol.atomic_masses[2],
+            #         np.linalg.norm(mol.coords[0] - mol.coords[2])
+            #     )
+            # },
+            logger=True
+        )
+
+        self.runDGB(dgb, mol,
+                    similarity_cutoff=.9,
+                    plot_centers=True,
+                    # mode='classic',
+                    # subspace_size=15,
+                    plot_spectrum=False,
+                    plot_wavefunctions={'cartesians': [0, 1]}
+                    )

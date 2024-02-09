@@ -1225,7 +1225,8 @@ class Molecule(AbstractMolecule):
                    initial_energies=None,
                    initial_displacements=None,
                    displaced_coords=None,
-                   track_kinetic_energy=False
+                   track_kinetic_energy=False,
+                   track_velocities=False
                    ):
         from ..AIMD import AIMDSimulator
 
@@ -1240,7 +1241,8 @@ class Molecule(AbstractMolecule):
                 init_pos,
                 lambda c: -potential_function(c, deriv_order=1)[1].reshape(c.shape),
                 timestep=timestep,
-                track_kinetic_energy=track_kinetic_energy
+                track_kinetic_energy=track_kinetic_energy,
+                track_velocities=track_velocities
             )
         else:
             self.potential_derivatives = potential_function(self.coords, deriv_order=2)[1:]
@@ -1256,7 +1258,8 @@ class Molecule(AbstractMolecule):
                     inverse=nms.matrix.T
                 ),
                 timestep=timestep,
-                track_kinetic_energy=track_kinetic_energy
+                track_kinetic_energy=track_kinetic_energy,
+                track_velocities=track_velocities
             )
 
         return sim
@@ -1378,7 +1381,7 @@ class Molecule(AbstractMolecule):
         :param crds:
         :type crds:
         :return:
-        :rtype: tuple[np.ndarray, tuple[np.ndarray], tuple[np.ndarray]]
+        :rtype:
         """
         return self.prop('eckart_embedding_data', crds, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
     def get_embedded_molecule(self,
