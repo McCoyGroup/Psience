@@ -108,11 +108,11 @@ class DGBGaussians:
                 parallelizer=self.parallelizer
             )
         return self._overlap_data
-    def get_S(self, just_prefactor=False):
+    def get_S(self, return_prefactor=False):
         if self._poly_coeffs is not None:
             raise NotImplementedError("need to reintroduce polynomial support")
         with self.logger.block(tag="Evaluating S matrix"):
-            return DGBEvaluator.evaluate_overlap(self.overlap_data, logger=self.logger, just_prefactor=just_prefactor)
+            return DGBEvaluator.evaluate_overlap(self.overlap_data, logger=self.logger, return_prefactor=return_prefactor)
     def get_T(self):
         if self._poly_coeffs is not None:
             raise NotImplementedError("need to reintroduce polynomial support")
@@ -209,6 +209,13 @@ class DGBGaussians:
         
         if self._overlap_data is not None:
             new._overlap_data = self.take_overlap_data_subselection(self.overlap_data, full_good_pos)
+        if self._pref is not None:
+            base = self._pref
+            idx = np.ix_(full_good_pos, full_good_pos)
+            if isinstance(base, tuple):
+                new._pref = (base[0][idx], base[1][idx])
+            else:
+                new._pref = base[idx]
         if self._S is not None:
             base = self._S
             idx = np.ix_(full_good_pos, full_good_pos)
@@ -1073,12 +1080,12 @@ class DGBGaussians:
     @property
     def prefactor(self):
         if self._pref is None:
-            self._pref = self.get_S(just_prefactor=True)
+            self._pref, self._S = self.get_S(return_prefactor=True)
         return self._pref
     @property
     def S(self):
         if self._S is None:
-            self._S = self.get_S()
+            self._pref, self._S = self.get_S(return_prefactor=True)
         return self._S
     @S.setter
     def S(self, smat):

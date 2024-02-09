@@ -1175,9 +1175,9 @@ class DGBTests(TestCase):
         anh = wx
         De = (freq ** 2) / (4 * anh)
         if m1 is None:
-            m1 = AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitsOfMass")
+            m1 = AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         if m2 is None:
-            m2 = AtomData["O", "Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitsOfMass")
+            m2 = AtomData["H", "Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         muv = (1 / m1 + 1 / m2)
         a = np.sqrt(2 * anh / muv)
 
@@ -1294,10 +1294,19 @@ class DGBTests(TestCase):
             # dipole_direction=[1, 0, 0]
         )
 
+
+
         check_freqs = False
         if check_freqs:
             freqs = model.normal_modes()[0]
             raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(
+        #     self.getMorseParameters(),
+        #     mol.coords,
+        #     mol.normal_modes.modes.basis.matrix
+        # )
 
         check_anh = False
         if check_anh:
@@ -1346,19 +1355,22 @@ class DGBTests(TestCase):
                 optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
-                # quadrature_degree=3,
-                expansion_degree=2,
+                quadrature_degree=18,
+                # expansion_degree=2,
                 # pairwise_potential_functions={
                 #     (0, 1): self.setupMorseFunction(model, 0, 1)
                 #     # (0, 2): self.setupMorseFunction(model, 0, 2)
                 # },
-                momenta=150*momenta[1:]
+                momenta=15*(100*momenta[1:]),
+                # momenta=150*momenta[1:],
+                # momenta=np.ones_like(150*momenta[1:]) / 10,
+                # momenta=np.zeros_like(momenta[1:])
             )
 
             # print(np.linalg.eigvalsh(dgb.S))
-            # print(dgb.gaussians.coords.centers[:5])
-            # print(dgb.gaussians.momenta[:5])
-            # print(dgb.gaussians.alphas[:5])
+            print(dgb.gaussians.coords.centers[:5])
+            print(dgb.gaussians.momenta[:5])
+            print(dgb.gaussians.alphas[:5])
 
             self.runDGB(dgb, mol,
                         domain_padding=10,
@@ -1850,8 +1862,7 @@ class DGBTests(TestCase):
         # raise Exception(mol.coords, mol.normal_modes.modes)
 
         bend, symm, asymm = model.normal_modes()[0]
-        sim = model.setup_AIMD(
-            initial_energies=np.array([
+        init_e = np.array([
                 [ bend,  symm,       0 ],
                 [ bend, -symm,       0 ],
                 [-bend,  symm,       0 ],
@@ -1860,12 +1871,16 @@ class DGBTests(TestCase):
                 [ bend,     0,  -asymm ],
                 [-bend,     0,   asymm ],
                 [-bend,     0,  -asymm ],
-            ]) * 1,
-            timestep=10
+            ])
+        sim = model.setup_AIMD(
+            initial_energies=init_e * 1,
+            timestep=10,
+            track_velocities=True
         )
-
-        sim.propagate(500)
-        coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        sim.propagate(75)
+        # coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        momenta = 150 * velocities * mol.masses[np.newaxis, :, np.newaxis]
 
         pruning_energy = 700 / UnitsData.hartrees_to_wavenumbers
         """
@@ -1880,13 +1895,43 @@ class DGBTests(TestCase):
         :: Frequencies: [1604.12231989 3198.71878067 3677.31291629 3718.65204757 4784.74017931 5285.5956116  5315.66022305 6359.40692181 6881.25087141 6907.46034492 7227.52667649 7256.22417871 7409.6306825  7930.82731876 8479.74032541 8565.30819461 8843.19785438 8896.60257429 9005.52004136 9485.08015837]
         """
 
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 6 S functions
+        :: ZPE: 4626.367356164042
+        :: Frequencies: [1619.60655338 2133.77350703 3773.21996142 3847.33103224 6594.36898764]
+        >>--------------------------------------------------<<
+        """
+
         cartesians = False
-        use_interpolation = True
+        use_interpolation = False
         if use_interpolation:
             potential_data = {'centers':coords, 'values':model.potential(coords, deriv_order=2)}
         else:
             potential_data = None
+        use_momenta = False
         with BlockProfiler(inactive=True):
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 15 S functions
+            :: ZPE: 4569.059696337776
+            :: Frequencies: [ 1608.80754098  3216.94449611  3703.47869608  3762.41780866  4835.82080583  5420.2895992   5433.19405061  7250.01177644  7323.31350762  7501.31168876  7617.50706198  7893.4242054   9746.29740443 10228.83473985]
+            >>--------------------------------------------------<<
+            """
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 56 S functions
+            :: ZPE: 4581.861159506666
+            :: Frequencies: [1593.42440048 3179.02517045 3679.80951784 3711.92403488 4757.05374131 5285.49196186 5302.43012877 6321.90439255 6872.37334386 6893.83413192 7232.93199651 7311.54294011 7406.72275565 7890.02544108 8457.85459221 8855.08195512 8879.86908611 8979.08988067 9243.53666465 9448.79285329]
+            >>--------------------------------------------------<<
+            """
+
+            """
+            :: diagonalizing in the space of 6 S functions
+            :: ZPE: 4621.103254514144
+            :: Frequencies: [1626.13229446 1854.91547825 3542.66011746 3814.91511096 5645.33283672]
+            """
 
             """
             :: ZPE: 4597.450569703509
@@ -1904,7 +1949,7 @@ class DGBTests(TestCase):
             """
 
             dgb = model.setup_DGB(
-                coords,
+                coords[len(init_e)-1:],
                 potential_function=potential_data,
                 # optimize_centers=False,
                 optimize_centers=[
@@ -1923,7 +1968,30 @@ class DGBTests(TestCase):
                 #     (0, 2):self.setupMorseFunction(model, 0, 2)
                 # }
                 , transformations='diag'
+                , momenta=momenta[len(init_e)-1:] if use_momenta else None
             )
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 28 S functions
+            :: ZPE: 4575.775602600208
+            :: Frequencies: [ 1613.07878096  3213.70373479  3696.06725792  3746.82351792  4812.61991409  5334.04205722  5380.7963598   6594.09044668  7153.21525645  7199.20742615  7359.9240031   7446.44199528  7466.5521983   8173.17755511  8946.95608661  9098.22416268  9688.77529614 10509.60876202 10650.76512812 11113.93952066]
+            >>--------------------------------------------------<<
+            """
+
+            """
+            :: diagonalizing in the space of 5 S functions
+            :: ZPE: 4631.159993716219
+            :: Frequencies: [1654.5274286  3399.10904144 3768.42654735 4351.43562365]
+            
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 50 S functions
+            :: ZPE: 4581.899925357468
+            :: Frequencies: [1594.40031422 3180.8893923  3680.26800032 3714.95577085 4757.77891927 5285.57205191 5306.77728956 6322.88067822 6885.56680522 6974.93397215 7236.77106831 7311.54476953 7407.40616614 7929.08822608 8497.51104151 8878.33658414 8942.86126327 9000.15199805 9520.71309612 9993.134724  ]
+            >>--------------------------------------------------<<
+
+            """
+
             """
             Quad (diag on top)
             :: Frequencies: [ 1608.15422901  3210.43539753  3687.80981187  3723.55153359  4895.08134347  5324.51974615  5349.55404715  6537.97195165  6996.55458136  7041.99024524  7290.16851734  7323.84521184  7463.58005119  8398.91185649  8786.60637452  8913.35832829  9112.61849297  9495.17548506  9503.36436839 10199.46614382]
@@ -1956,7 +2024,7 @@ class DGBTests(TestCase):
                         # domain=[[-2, 2], [-2, 2]],
                         # plot_wavefunctions=False,
                         plot_centers=False,
-                        plot_spectrum=True,
+                        plot_spectrum=False,
                         plot_wavefunctions=False,
                         # plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
                         )
