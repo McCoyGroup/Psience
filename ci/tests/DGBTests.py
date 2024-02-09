@@ -1328,7 +1328,7 @@ class DGBTests(TestCase):
                 [ 2*3701 * self.w2h],
                 [-2*3701 * self.w2h]
             ],
-            timestep=25,
+            timestep=10,
             track_velocities=True
         )
         sim.propagate(15)
@@ -1342,8 +1342,8 @@ class DGBTests(TestCase):
 
             dgb = model.setup_DGB(
                 np.round(coords[1:], 8),
-                optimize_centers=1e-8,
-                # optimize_centers=False,
+                # optimize_centers=1e-8,
+                optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
                 # quadrature_degree=3,
@@ -1352,10 +1352,13 @@ class DGBTests(TestCase):
                 #     (0, 1): self.setupMorseFunction(model, 0, 1)
                 #     # (0, 2): self.setupMorseFunction(model, 0, 2)
                 # },
-                momenta=1872*momenta[1:]
+                momenta=150*momenta[1:]
             )
 
             # print(np.linalg.eigvalsh(dgb.S))
+            # print(dgb.gaussians.coords.centers[:5])
+            # print(dgb.gaussians.momenta[:5])
+            # print(dgb.gaussians.alphas[:5])
 
             self.runDGB(dgb, mol,
                         domain_padding=10,

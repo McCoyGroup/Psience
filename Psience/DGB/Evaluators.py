@@ -204,7 +204,7 @@ class DGBEvaluator:
         return bin * fac
     @classmethod
     def momentum_integral(cls, p, a, k):
-        var = (p**2)/(2*a) # the rest of the sqrt(a) term is included elsewhere
+        var = (p**2)/(a) # the rest of the sqrt(a) term is included elsewhere
         # print("--->", cls.momentum_coeffient(k, 0)/ 2**(k//2))
         # print("--->", cls.simple_poly_int(k))
         expansion = sum(
@@ -299,7 +299,7 @@ class DGBEvaluator:
                                 alphas[..., k],
                                 n
                             )
-                            ms_caches[k][n] =  cls.momentum_integral(
+                            ms_caches[k][n] = cls.momentum_integral(
                                 m_sum[..., k],
                                 alphas[..., k],
                                 n
