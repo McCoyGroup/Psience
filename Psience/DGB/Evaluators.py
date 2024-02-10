@@ -214,7 +214,7 @@ class DGBEvaluator:
         return bin * fac
     @classmethod
     def momentum_integral(cls, p, a, k):
-        var = (p**2)/(a) # the rest of the sqrt(a) term is included elsewhere
+        var = (p**2)/(2*a) # the rest of the sqrt(a) term is included elsewhere
         # print("--->", cls.momentum_coeffient(k, 0)/ 2**(k//2))
         # print("--->", cls.simple_poly_int(k))
         expansion = sum(
@@ -340,7 +340,7 @@ class DGBEvaluator:
                     # compute multinomial coefficient for weighting purposes
                     _, counts = np.unique(idx, return_counts=True)
                     multicoeff = 1
-                    for x in counts: multicoeff*=math.factorial(x)
+                    for x in counts: multicoeff *= math.factorial(x)
                     multicoeff = multicoeff / math.factorial(len(idx))
                     scaling = multicoeff / math.factorial(nd)
                     contrib *= scaling * dcont
@@ -351,14 +351,18 @@ class DGBEvaluator:
                     if m_sum is not None:
                         ms_contrib *= dcont
 
-                sum_prefac = overlap_data['phase_sum_decay']
-                diff_prefac = overlap_data['phase_diff_decay']
-
                 if m_sum is not None:
+                    sum_prefac = overlap_data['phase_sum_decay']
+                    diff_prefac = overlap_data['phase_diff_decay']
+
                     contrib *= np.cos(phase_diff) if nd%2 == 0 else -np.sin(phase_diff)
                     ms_contrib *= np.cos(phase_sum) if nd%2 == 0 else -np.sin(phase_sum)
 
-                    contrib = diff_prefac * contrib + sum_prefac * ms_contrib
+                    ms_contrib *= sum_prefac
+                    contrib *= diff_prefac
+                    # print("dd>", contrib[:5])
+
+                    contrib = contrib +  ms_contrib
 
                 pot[row_inds, col_inds] += contrib
 
@@ -496,22 +500,6 @@ class DGBEvaluator:
                         -1
                     )
                     cos_cor += np.cos(correlation)
-                    # print("?"*50)
-                    # # print(fvals.reshape(-1, quad_disps)[0])
-                    # # print(p.reshape(-1, quad_disps)[0])
-                    # # print(unrot_coords.reshape(-1, quad_disps)[0])
-                    # # print(np.cos(correlation).reshape(-1, quad_disps)[0])
-                    # # print(
-                    # #     np.max(correlation.reshape(-1, quad_disps)[0]),
-                    # #     np.min(correlation.reshape(-1, quad_disps)[0])
-                    # # )
-                    # #
-                    # # import McUtils.Plots as plt
-                    # # plt.Plot(unrot_coords.reshape(-1, quad_disps)[0],
-                    # #          fvals.reshape(-1, quad_disps)[0]*np.cos(correlation.reshape(-1, quad_disps)[0])
-                    # #          ).show()
-                    #
-                    # print(";_; "*50)
                 new_dat = cos_cor * fvals
                 if isinstance(fdat, np.ndarray):
                     fdat = new_dat
@@ -655,6 +643,8 @@ class DGBEvaluator:
             S = S * prefac
 
         else:
+            S[row_inds, col_inds] = full_terms
+            S[col_inds, row_inds] = full_terms
             prefac = S
 
         if return_prefactor:
@@ -1646,8 +1636,8 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
 
             if mom_sum is not None:
                 tf_momenta = [
-                    np.reshape(sub_cov @ mom_diff[:, :, np.newaxis], sub_cov.shape[:2]),
-                    np.reshape(sub_cov @ mom_sum[:, :, np.newaxis], sub_cov.shape[:2]),
+                    np.reshape(tf_cov @ tfs @ covs @ mom_diff[:, :, np.newaxis], sub_cov.shape[:2]),
+                    np.reshape(tf_cov @ tfs @ covs @ mom_sum[:, :, np.newaxis], sub_cov.shape[:2]),
                 ]
             else:
                 tf_momenta = None

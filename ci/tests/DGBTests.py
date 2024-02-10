@@ -1294,8 +1294,6 @@ class DGBTests(TestCase):
             # dipole_direction=[1, 0, 0]
         )
 
-
-
         check_freqs = False
         if check_freqs:
             freqs = model.normal_modes()[0]
@@ -1355,22 +1353,30 @@ class DGBTests(TestCase):
                 optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
-                quadrature_degree=18,
-                # expansion_degree=2,
-                # pairwise_potential_functions={
-                #     (0, 1): self.setupMorseFunction(model, 0, 1)
-                #     # (0, 2): self.setupMorseFunction(model, 0, 2)
-                # },
-                momenta=15*(100*momenta[1:]),
-                # momenta=150*momenta[1:],
+                quadrature_degree=3,
+                expansion_degree=-1,
+                pairwise_potential_functions={
+                    (0, 1): self.setupMorseFunction(model, 0, 1)
+                    # (0, 2): self.setupMorseFunction(model, 0, 2)
+                },
+                # momenta=15*(100*momenta[1:]),
+                momenta=150*momenta[1:],
                 # momenta=np.ones_like(150*momenta[1:]) / 10,
                 # momenta=np.zeros_like(momenta[1:])
             )
 
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 15 S functions
+            :: ZPE: 1874.6654445484646
+            :: Frequencies: [ 3701.65896883  7231.8802379  10591.834868   13773.9302937  16763.72207843 19442.90514644 21366.89341503 23107.37699882 25564.19893302 28107.929736   30768.02886696 34146.63799842 38497.7450025  48064.99243391]
+            >>--------------------------------------------------<<
+            """
+
             # print(np.linalg.eigvalsh(dgb.S))
-            print(dgb.gaussians.coords.centers[:5])
-            print(dgb.gaussians.momenta[:5])
-            print(dgb.gaussians.alphas[:5])
+            # print(dgb.gaussians.coords.centers[:5])
+            # print(dgb.gaussians.momenta[:5])
+            # print(dgb.gaussians.alphas[:5])
 
             self.runDGB(dgb, mol,
                         domain_padding=10,
