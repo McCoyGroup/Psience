@@ -1252,12 +1252,12 @@ class DGBTests(TestCase):
 
         sim = model.setup_AIMD(
             initial_energies=[
-                [5000 * self.w2h],
-                [-5000 * self.w2h]
+                [ 3800 * 3 * self.w2h],
+                [-3800 * 3 * self.w2h]
             ],
             timestep=10
         )
-        sim.propagate(10)
+        sim.propagate(35)
         coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
         cartesians = False
@@ -1267,14 +1267,15 @@ class DGBTests(TestCase):
                 np.round(coords, 8),
                 optimize_centers=1e-8,
                 # optimize_centers=False,
+                alphas={'method':'virial', 'scaling':2},
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
-                # quadrature_degree=3,
-                expansion_degree=2,
-                pairwise_potential_functions={
-                    (0, 1): self.setupMorseFunction(model, 0, 1)
-                    # (0, 2): self.setupMorseFunction(model, 0, 2)
-                }
+                quadrature_degree=3,
+                # expansion_degree=2,
+                # pairwise_potential_functions={
+                #     (0, 1): self.setupMorseFunction(model, 0, 1)
+                #     # (0, 2): self.setupMorseFunction(model, 0, 2)
+                # }
             )
 
             self.runDGB(dgb, mol,
@@ -1283,7 +1284,7 @@ class DGBTests(TestCase):
                         plot_wavefunctions=False#{'cartesians':[0, 1]} if not cartesians else True
                         )
 
-    @debugTest
+    @validationTest
     def test_ModelPotentialPhasedAIMD1D(self):
         mol, model = self.buildWaterModel(
             w2=None, wx2=None,
@@ -1475,10 +1476,13 @@ class DGBTests(TestCase):
                 # [-10000 * self.w2h, 0],
                 # [0, -10000 * self.w2h]
             ],
-            timestep=25
+            timestep=25,
+            track_velocities = True
         )
-        sim.propagate(35)
-        coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        sim.propagate(25)
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        momenta = 250 * velocities * mol.masses[np.newaxis, :, np.newaxis]
+        # momenta = None
 
         cartesians=False
         with BlockProfiler(inactive=True):
@@ -1489,17 +1493,38 @@ class DGBTests(TestCase):
                 # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
-                # quadrature_degree=3,
-                expansion_degree=2,
-                pairwise_potential_functions={
-                    (0, 1):self.setupMorseFunction(model, 0, 1),
-                    (0, 2):self.setupMorseFunction(model, 0, 2)
-                }
+                quadrature_degree=3,
+                # expansion_degree=2,
+                # pairwise_potential_functions={
+                #     (0, 1):self.setupMorseFunction(model, 0, 1),
+                #     (0, 2):self.setupMorseFunction(model, 0, 2)
+                # },
+                # momenta=momenta
             )
+
+            # print(dgb.gaussians.coords.centers[:3])
+            # print(dgb.gaussians.overlap_data['init_covariances'][:3])
+            # print(dgb.gaussians.overlap_data['initial_momenta'][:3])
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 59 S functions
+            :: ZPE: 3815.0254181251166
+            :: Frequencies: [ 3676.14207931  3726.99361301  7221.08377964  7236.78275062  7418.52358929 10595.91399038 10597.43855691 10901.20911454 11001.80376921 13797.34317942 13799.82687628 14293.18090478 14329.25062911 14640.80903924 16841.23176496 16849.01710935 17531.49955265 17572.95249918 17891.12454688 18319.17520319]
+            >>--------------------------------------------------<<
+            """
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 41 S functions
+            :: ZPE: 3815.1110786450845
+            :: Frequencies: [ 3676.77263767  3727.70483878  7227.82029744  7237.90664201  7440.76152723 10601.58120583 10618.10732722 10920.95275887 11104.66728657 13808.26706889 13827.90646153 14416.22589799 14471.29425293 15204.74679781 16858.16199974 16902.38702413 17668.82463041 17864.53996371 18809.9243302  18939.68118366]
+            >>--------------------------------------------------<<
+            """
 
             self.runDGB(dgb, mol,
                         similarity_cutoff=.95,
-                        plot_spectrum=True,
+                        plot_spectrum=False,
                         plot_wavefunctions=False
                         # mode='classic'
                         )
@@ -1880,42 +1905,221 @@ class DGBTests(TestCase):
             ])
         sim = model.setup_AIMD(
             initial_energies=init_e * 1,
-            timestep=10,
+            timestep=15,
             track_velocities=True
         )
-        sim.propagate(75)
+        sim.propagate(100)
         # coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
         coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
-        momenta = 150 * velocities * mol.masses[np.newaxis, :, np.newaxis]
+        momenta = 0 * velocities * mol.masses[np.newaxis, :, np.newaxis]
+        virial_scaling = .5
 
-        pruning_energy = 700 / UnitsData.hartrees_to_wavenumbers
         """
-        :: ZPE: 4597.865441316436
-        :: Frequencies: [1637.6712136  3349.38364799 3590.01285936 3857.62266998 5107.98352405 5644.27631775 6498.18260803 7014.27478321 7799.08239008]
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 15 S functions
+        :: ZPE: 4652.358000659629
+        :: Frequencies: [1684.40449721 3597.7213898  3873.78117656 4078.47189303 5335.72402046 5538.27038685 5723.85133269 6708.69053377 7240.53189216 7298.42917052 8660.01180786 9128.32268901 9142.90083623 9981.77774766]
+        >>--------------------------------------------------<<
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 39 S functions
+        :: ZPE: 4634.598861355121
+        :: Frequencies: [ 1632.86636622  3288.87417932  3783.71748012  3811.67838805  5261.78001401  5409.8264422   5557.84735234  7035.97304543  7376.02169905  7443.04128289  7600.52368619  7640.42498995  8117.22744978  8843.85802501  9322.66037074  9667.71825385  9731.49774275 10067.87553652 10385.32407657 11447.31969692]
+        >>--------------------------------------------------<<
         
-        :: Frequencies: [1562.41093717 3417.28316685 3516.60154385 3847.63814055 5383.8738814  5589.93416336 7761.42924146]
-        """
-
-        """
-        :: ZPE: 4571.052734849301
-        :: Frequencies: [1604.12231989 3198.71878067 3677.31291629 3718.65204757 4784.74017931 5285.5956116  5315.66022305 6359.40692181 6881.25087141 6907.46034492 7227.52667649 7256.22417871 7409.6306825  7930.82731876 8479.74032541 8565.30819461 8843.19785438 8896.60257429 9005.52004136 9485.08015837]
+        >>--------------------------------------------------<<
+        [[0.00444734 0.00433881 0.00431009 0.00441303 0.00423758]
+         [0.00433881 0.00490399 0.00367056 0.00496722 0.00359794]
+         [0.00431009 0.00367056 0.00575581 0.00282745 0.00462028]
+         [0.00441303 0.00496722 0.00282745 0.00657376 0.00380007]
+         [0.00423758 0.00359794 0.00462028 0.00380007 0.00474344]]
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 31 S functions
+        :: ZPE: 4680.929728752489
+        :: Frequencies: [ 1641.36212716  3415.60482732  3825.64941896  3910.32355521  5499.7415202   5732.518073    5956.12351981  7494.86825958  7847.32129503  8180.16334722  8303.76941975  8650.57899158  8906.05192408  9560.85447007 10166.90441368 10542.93610176 10613.38092444 11157.79695062 12179.60355487 12467.51893709]
+        >>--------------------------------------------------<<
         """
 
         """
         >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 6 S functions
-        :: ZPE: 4626.367356164042
-        :: Frequencies: [1619.60655338 2133.77350703 3773.21996142 3847.33103224 6594.36898764]
+        :: diagonalizing in the space of 30 S functions
+        :: ZPE: 4637.699716449409
+        :: Frequencies: [ 1616.96294321  3294.01646564  3772.03904822  3784.06041943  5172.12516261  5522.82063379  5737.15424009  6965.50969295  7391.23626352  7561.21002844  7814.33639957  7928.52976973  8194.27564149  8921.81895009  9602.12667797  9776.82422242 10292.6261917  10393.79682763 11424.19674798 11640.55997371]
+        >>--------------------------------------------------<<
+
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 30 S functions
+        :: ZPE: 4637.699494570408
+        :: Frequencies: [ 1617.02747476  3293.81251403  3772.67989769  3784.06173817  5170.58273429  5522.97044565  5732.03064321  6961.16949616  7391.29092023  7564.46945872  7814.3812352   7929.02620298  8200.82688722  8914.35148873  9602.07625433  9775.51423911 10292.50181143 10360.61670563 11410.81179668 11640.68945796]
+        >>--------------------------------------------------<<
+
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 30 S functions
+        :: ZPE: 4638.244891661685
+        :: Frequencies: [ 1616.78477821  3294.46807874  3773.20201919  3782.84388551  5181.89802862  5521.78269606  5735.02359741  6962.06479314  7390.50557677  7574.94843872  7810.11696309  7948.55227003  8243.75165989  8952.19782027  9598.44775732  9795.22275809 10272.64334085 10317.46132658 11406.52777626 11639.51093341]
+        >>--------------------------------------------------<<
+        
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 33 S functions
+        :: ZPE: 4634.922353900769
+        :: Frequencies: [ 1619.79580148  3281.16483274  3777.77117957  3781.5003399   5182.85932064  5458.53291931  5631.91549415  6955.16877626  7383.65188515  7594.37073982  7795.26922129  7809.14423054  8170.13465115  8751.91122287  9582.34924518  9675.82770712  9819.78083901 10268.20837997 11394.32014445 11409.91197412]
+        >>--------------------------------------------------<<
+        """
+
+
+
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 387 S functions
+        :: ZPE: 4648.339710820686
+        :: Frequencies: [ 1651.03247163  3397.94878189  3819.43370574  3876.68908453  5300.07187634  5620.28355262  5643.83778876  7252.19934672  7602.13139683  7629.77267467  7851.74143498  7992.32766006  8049.91393157  9177.67730943  9643.66073546  9697.14083474  9888.57955989 10174.83629299 10397.68955732 11152.9654287 ]
+        >>--------------------------------------------------<<
+        """
+
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 11 S functions
+        :: ZPE: 4649.610266886014
+        :: Frequencies: [1646.42903277 3032.49733312 3788.44461525 3959.48540767 5270.81047114 5516.28288793 6523.58208743 7695.71291726 8378.72996437 8791.75847041]
+        >>--------------------------------------------------<<
+        
+
+        :: Frequencies: [1688.32285729 3106.0328112  3665.86283701 3865.75461693 5244.16280382 5434.12289495 6415.39090278 6654.17134115 7605.79944938 7677.36462446 9389.918776  ]
+        """
+
+        pruning_energy = 3600 / UnitsData.hartrees_to_wavenumbers
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 54 S functions
+        :: ZPE: 4614.442411583872
+        :: Frequencies: [ 1607.72112723  3206.74855643  3688.20997816  3723.64035495  4887.59371639  5318.21711016  5346.92800225  6498.61943836  6958.99125694  7029.62592293  7276.1796327   7279.76385334  7473.71479695  8374.32051301  8736.46112171  8893.96125366  9108.9804343   9453.48212842  9531.61670507 10181.00775376]
+        >>--------------------------------------------------<<
+        
+        
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 12 S functions
+        :: ZPE: 4653.2084868682605
+        :: Frequencies: [1620.21826275 3260.72168982 3592.10278492 3906.57338743 5208.84620584 5461.70576906 5998.7207235  7457.32533761 7582.21235896 8423.01259084 9523.44670461]
+        >>--------------------------------------------------<<
+        
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 12 S functions
+        :: ZPE: 4657.119978285859
+        :: Frequencies: [1608.8372101  3259.80404489 3585.62199255 3902.93805659 5151.95088628 5458.51640795 5962.84065192 7431.52439192 7562.48636694 8411.99307421 9621.0433801 ]
+        >>--------------------------------------------------<<
+        
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 29 S functions
+        :: ZPE: 4619.131684242413
+        :: Frequencies: [ 1599.39001738  3198.06446328  3715.61817002  3746.20024233  4883.14627486  5309.47668212  5326.94612433  6319.64395027  6897.77290399  6959.76579255  7153.11537194  7290.58313745  7504.26873841  7676.90463794  8387.27437622  8652.74011336  8837.36359979  9163.43789535 10154.73769042 10437.65146805]
+        >>--------------------------------------------------<<
+        """
+
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 1 S functions
+        :: ZPE: 5559.473855826764
+        :: Frequencies: []
+        >>--------------------------------------------------<<
+        
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 1 S functions
+        :: ZPE: 5575.659217367972
+        :: Frequencies: []
         >>--------------------------------------------------<<
         """
 
         cartesians = False
-        use_interpolation = False
+        use_interpolation = True
         if use_interpolation:
             potential_data = {'centers':coords, 'values':model.potential(coords, deriv_order=2)}
         else:
             potential_data = None
-        use_momenta = False
+        use_momenta = True
+        use_pairwise = True
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 23 S functions
+        :: ZPE: 4600.703250847279
+        :: Frequencies: [ 1530.46149562  3388.13868555  3682.18805425  3876.38440234  5132.28910823  5858.7900593   5869.43923589  6967.63806345  7058.39857162  7264.42798058  7618.59646891  7711.13048013  8454.7183768   8896.58372506  9243.97098594  9358.6897885   9585.76851943 10547.49052802 10888.75464172 11664.94980336]
+        >>--------------------------------------------------<<
+        """
+
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 23 S functions
+        :: ZPE: 4642.469725415882
+        :: Frequencies: [ 1530.28770618  3375.24625311  3697.34382634  3877.2853242   5163.92043225  5839.12420919  5873.37759323  6968.55783821  7066.21326919  7270.76531284  7612.57976234  7713.0676612   8490.67266089  8922.5429093   9209.70648285  9461.5368073   9584.91913694 10552.70840716 10892.1038891  11621.88244619]
+        >>--------------------------------------------------<<
+        
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 115 S functions
+        :: ZPE: 4613.237764039511
+        :: Frequencies: [1602.88239457 3194.35321618 3678.21933195 3721.04359412 4776.86177185 5282.93017307 5311.61758831 6349.77310198 6873.24276198 6890.65528297 7227.32178249 7243.23158817 7410.76858839 7912.84223882 8453.55894834 8475.85104013 8831.03226982 8851.41388018 8997.3686748  9468.79834989]
+        >>--------------------------------------------------<<
+        """
+
+
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 114 S functions
+        :: ZPE: 4613.255642055099
+        :: Frequencies: [1602.86994883 3194.45788759 3678.32890506 3721.02500605 4776.84196147 5282.93097394 5311.6025067  6349.68408625 6873.51920201 6890.63584992 7228.97204182 7243.20640233 7410.91068676 7913.52055969 8453.8889637  8475.8565694  8831.06488863 8851.43300675 8997.43220905 9469.25254295]
+        >>--------------------------------------------------<<
+        """
+
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 44 S functions
+        :: ZPE: 4614.391535743782
+        :: Frequencies: [ 1605.60338465  3199.16992473  3684.75986796  3729.25283406  4796.1399122   5304.08988819  5331.24970257  6451.9920039   6950.51158441  6959.94912454  7270.18343516  7293.29113626  7444.23476659  8030.27978322  8503.22182128  8578.98265082  8892.85996938  8921.53824802  9049.5131408  10012.00752875]
+        >>--------------------------------------------------<<
+        """
+
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 40 S functions
+        :: ZPE: 4615.415491889305
+        :: Frequencies: [ 1607.03458024  3199.73725825  3685.69254332  3729.10881073  4812.04814924  5306.73024463  5330.46044052  6475.06754939  6952.03879327  6957.80934198  7279.67960933  7298.83122553  7462.61528959  8212.34625856  8585.77228028  8707.06877401  8901.89209891  8909.65507104  9138.79292384 10026.54992058]
+        >>--------------------------------------------------<<
+        """
+
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+:: diagonalizing in the space of 17 S functions
+:: ZPE: 4621.932414691013
+:: Frequencies: [ 1614.25382749  3229.75851905  3710.01760687  3755.70806763  4965.16070096  5392.47637504  5397.24531532  7035.83351707  7356.60364688  7397.42013699  7505.58964999  7757.62163075  9117.93032929  9637.5672444  11208.23010246 13742.35959404]
+>>--------------------------------------------------<<
+
+"""
+
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 22 S functions
+        :: ZPE: 4627.779170892916
+        :: Frequencies: [ 1603.37542699  3201.17987803  3690.99775225  3826.12932302  4837.25328894  5318.44896534  5563.44220406  6506.09652328  7082.51076697  7334.36091184  8184.23247709  8222.73953261  8882.44984517  9851.4945745  10334.87475701 10952.13878987 11897.23917323 12522.41901728 13922.61432317 15480.91472779]
+        >>--------------------------------------------------<<
+        """
+
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 55 S functions
+        :: ZPE: 4613.764055152169
+        :: Frequencies: [1604.51441203 3200.2528958  3682.24987902 3727.30559731 4788.17915904 5297.51265568 5352.78449673 6363.12964605 6895.41839877 6978.52798322 7247.00095331 7327.48002967 7428.60622617 7940.2727066  8488.92962624 8895.6322358  8940.53428779 9044.09315064 9350.21387072 9546.2258098 ]
+        >>--------------------------------------------------<<
+        
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 13 S functions
+        :: ZPE: 4639.573920662348
+        :: Frequencies: [1613.12182729 3225.98581095 3744.0159727  3746.77291598 4844.18335541 5370.80660528 5437.81851424 6961.66122611 7405.61742233 7846.8757206  8582.79886793 9303.89723554]
+        >>--------------------------------------------------<<
+        
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 18 S functions
+        :: ZPE: 4575.12276190606
+        :: Frequencies: [ 1618.46072775  3220.45599015  3703.96911233  3771.37448851  4843.41678706  5356.44419163  5416.34260808  7050.0117564   7251.44656724  7414.89971758  7531.20532006  7579.21178542  8933.95230277  9387.53703825  9798.409263   10510.02047955 11106.6012973 ]
+        >>--------------------------------------------------<<
+        
+        """
         with BlockProfiler(inactive=True):
             """
             >>------------------------- Running distributed Gaussian basis calculation -------------------------
@@ -1965,17 +2169,25 @@ class DGBTests(TestCase):
                     } if pruning_energy is not None else None,
                     1e-14
                 ],
+                alphas={'method':'virial', 'scaling':virial_scaling},
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
                 quadrature_degree=3
                 , expansion_degree=2
-                # , pairwise_potential_functions={
-                #     (0, 1):self.setupMorseFunction(model, 0, 1),
-                #     (0, 2):self.setupMorseFunction(model, 0, 2)
-                # }
+                , pairwise_potential_functions={
+                    (0, 1):self.setupMorseFunction(model, 0, 1),
+                    (0, 2):self.setupMorseFunction(model, 0, 2)
+                } if use_pairwise else None
                 , transformations='diag'
                 , momenta=momenta[len(init_e)-1:] if use_momenta else None
             )
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 29 S functions
+            :: ZPE: 4621.070203025893
+            :: Frequencies: [ 1612.5368789   3208.56213954  3696.97053809  3754.6146347   4812.80012189  5312.65709999  6411.84633085  6680.27922037  7257.77195695  7277.87948641  7377.19723447  7518.10407279  8797.66839764  9233.26327849  9925.21216708 10414.99363543 10625.47426277 10919.38280277 11015.37832137 12314.26015755]
+            >>--------------------------------------------------<<
+            """
 
             """
             >>------------------------- Running distributed Gaussian basis calculation -------------------------
@@ -2034,6 +2246,7 @@ class DGBTests(TestCase):
                         plot_wavefunctions=False,
                         # plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
                         )
+            plt.Graphics().show()
 
     @validationTest
     def test_ModelPotentialAIMD3DHOD(self):

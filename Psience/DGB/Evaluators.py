@@ -355,8 +355,14 @@ class DGBEvaluator:
                     sum_prefac = overlap_data['phase_sum_decay']
                     diff_prefac = overlap_data['phase_diff_decay']
 
-                    contrib *= np.cos(phase_diff) if nd%2 == 0 else -np.sin(phase_diff)
-                    ms_contrib *= np.cos(phase_sum) if nd%2 == 0 else -np.sin(phase_sum)
+                    contrib *= np.expand_dims(
+                        np.cos(phase_diff) if nd%2 == 0 else -np.sin(phase_diff),
+                        [-x for x in range(1, fdim+1)]
+                    )
+                    ms_contrib *= np.expand_dims(
+                        np.cos(phase_sum) if nd%2 == 0 else -np.sin(phase_sum),
+                        [-x for x in range(1, fdim+1)]
+                    )
 
                     ms_contrib *= sum_prefac
                     contrib *= diff_prefac
@@ -883,8 +889,8 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
             rho_mat = init_covs[cols] @ covs
             rho_sum = np.reshape(rho_mat@j_sum[:, :, np.newaxis], j_sum.shape)
             rho_diff = np.reshape(rho_mat@j_diff[:, :, np.newaxis], j_diff.shape)
-            jp_sum = rho_sum - j[cols]
-            jp_diff = rho_diff + j[cols]
+            jp_sum = (rho_sum - j[cols])
+            jp_diff = (rho_diff + j[cols])
 
             phase_sum = overlap_data['phase_sum_corr']
             phase_diff = overlap_data['phase_diff_corr']
@@ -984,14 +990,10 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
     def annoying_coriolis_term(
             n, u, m, v,
 
-            Sc,
-            #Xc, Sp,
+            Xc,
             Dx,
-            # Gi, Gj,
-            # DS,
-
             ScXc, DxSp, GjGi,
-            DSX
+            GD
     ):
         # print(
         #     (ScXc[:, n, m] * DxSp[:, u, v])[:3] * np.array([1.00000000e+00, 1.12589018e-01, 1.28419714e-01]),
@@ -1003,9 +1005,7 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         return (
             ScXc[:, n, m]*DxSp[:, u, v]
             - (GjGi[:, n, v, m, u] + GjGi[:, n, u, m, v]) / 2
-            - np.reshape(
-                Sc[:, :, n][:, np.newaxis, :] @ (DSX[:, :, v, u] + DSX[:, :, u, v])[:, :, np.newaxis] , (-1)
-                ) * Dx[:, m]
+            - (GD[:, n, u] * Xc[:, m] + GD[:, m, u] * Xc[:, n]) * Dx[:, v]
         )
     @staticmethod
     def annoying_coriolis_momentum_term(
@@ -1074,6 +1074,7 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
 
         Gi = Sc @ SIi
         Gj = Sc @ SIj
+        GD = Gi - Gj
 
         DS = SIi - SIj
         Dx = np.reshape(Sp @ (Xi - Xj)[:, :, np.newaxis], Xi.shape)
@@ -1088,9 +1089,9 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_coriolis_term(
             n, u, m, v,
 
-            Sc, Dx,
+            Xc, Dx,
             ScXc, DxSp, GjGi,
-            DSX
+            GD
         )
 
         contrib = np.zeros(Sc.shape[0])
@@ -1127,8 +1128,6 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
             rho_diff = np.reshape(rho_mat @ j_diff[:, :, np.newaxis], j_diff.shape)
             jp_sum = rho_sum - j[cols]
             jp_diff = rho_diff + j[cols]
-
-            GD = Gi - Gj
 
             sum_real_term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_coriolis_momentum_term(
                     n, u, m, v,
@@ -1178,11 +1177,11 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
             diff_prefac = overlap_data['phase_diff_decay']
 
             diff_contrib = (
-                    np.cos(phase_diff) *(contrib + diff_real_contrib)
+                    np.cos(phase_diff) *(contrib - diff_real_contrib)
                     - np.sin(phase_diff) * diff_imag_contrib
             )
             sum_contrib = (
-                    np.cos(phase_sum) *(contrib + sum_real_contrib)
+                    np.cos(phase_sum) *(contrib - sum_real_contrib)
                     - np.sin(phase_sum) * sum_imag_contrib
             )
             contrib = diff_prefac * diff_contrib + sum_prefac * sum_contrib
