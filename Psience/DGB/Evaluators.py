@@ -57,7 +57,7 @@ class DGBEvaluator:
         :rtype:
         """
 
-        if transformations is not None:
+        if momenta is not None and transformations is not None:
             tfs, inv = transformations
             momenta = np.reshape(
                 momenta[:, np.newaxis, :] @ tfs.transpose((0, 2, 1)),
@@ -130,11 +130,19 @@ class DGBEvaluator:
                 # now express these in terms of the rotated frame
                 mom_sum = np.reshape(mom_sum[:, np.newaxis, :] @ new_rots, mom_sum.shape)
                 mom_diff = np.reshape(mom_diff[:, np.newaxis, :] @ new_rots, mom_diff.shape)
+
+                decay_sum = np.sum(mom_sum ** 2 / (4 * new_alphas), axis=1)
+                decay_diff = np.sum(mom_diff ** 2 / (4 * new_alphas), axis=1)
+
+                sum_prefac = np.exp(-decay_sum)  # * np.cos(phase_sum)
+                diff_prefac = np.exp(-decay_diff)  # * np.cos(phase_diff)
             else:
                 mom_sum = None
                 mom_diff = None
                 phase_sum = None
                 phase_diff = None
+                sum_prefac = None
+                diff_prefac = None
 
             # TODO: turn this into a proper object...
             chunk_data.append( {
@@ -148,7 +156,9 @@ class DGBEvaluator:
                 'momentum_sum': mom_sum,
                 'momentum_diff': mom_diff,
                 'phase_sum_corr': phase_sum,
-                'phase_diff_corr': phase_diff
+                'phase_diff_corr': phase_diff,
+                'phase_sum_decay': sum_prefac,
+                'phase_diff_decay': diff_prefac
             } )
 
         overlap_data = {
@@ -272,7 +282,7 @@ class DGBEvaluator:
 
         pot = np.zeros((npts, npts) + fshape)
         caches = [{} for _ in range(ndim)]
-        mom_sum_pot = np.zeros((npts, npts) + fshape) # for momentum sum
+        # mom_sum_pot = np.zeros((npts, npts) + fshape) # for momentum sum
         ms_caches = [{} for _ in range(ndim)]
         for nd,d in enumerate(derivs): # add up all independent integral contribs...
             # iterate over upper triangle coordinates (we'll add bottom contrib by symmetry)
@@ -299,7 +309,7 @@ class DGBEvaluator:
                                 alphas[..., k],
                                 n
                             )
-                            ms_caches[k][n] =  cls.momentum_integral(
+                            ms_caches[k][n] = cls.momentum_integral(
                                 m_sum[..., k],
                                 alphas[..., k],
                                 n
@@ -321,17 +331,16 @@ class DGBEvaluator:
                         base_contrib = ms_caches[k][n] / alphas[..., k]**np.ceil(n/2)
                         for _ in range(fdim):
                             base_contrib = np.expand_dims(base_contrib, -1)
-                        if isinstance(contrib, int) and fdim > 0:
+                        if isinstance(ms_contrib, int) and fdim > 0:
                             base_contrib = np.broadcast_to(base_contrib, alphas.shape[:-1] + fshape)
                         ms_contrib *= base_contrib
 
                 dcont = d[(slice(None, None, None),)*(fdim+1) + idx] if len(idx) > 0 else d
-
                 if reweight:
                     # compute multinomial coefficient for weighting purposes
                     _, counts = np.unique(idx, return_counts=True)
                     multicoeff = 1
-                    for x in counts: multicoeff*=math.factorial(x)
+                    for x in counts: multicoeff *= math.factorial(x)
                     multicoeff = multicoeff / math.factorial(len(idx))
                     scaling = multicoeff / math.factorial(nd)
                     contrib *= scaling * dcont
@@ -343,24 +352,54 @@ class DGBEvaluator:
                         ms_contrib *= dcont
 
                 if m_sum is not None:
+                    sum_prefac = overlap_data['phase_sum_decay']
+                    diff_prefac = overlap_data['phase_diff_decay']
+
                     contrib *= np.cos(phase_diff) if nd%2 == 0 else -np.sin(phase_diff)
+                    ms_contrib *= np.cos(phase_sum) if nd%2 == 0 else -np.sin(phase_sum)
+
+                    ms_contrib *= sum_prefac
+                    contrib *= diff_prefac
+                    # print("dd>", contrib[:5])
+
+                    contrib = contrib +  ms_contrib
 
                 pot[row_inds, col_inds] += contrib
-                if m_sum is not None:
-                    ms_contrib *= np.cos(phase_sum) if nd%2 == 0 else -np.sin(phase_sum)
-                    mom_sum_pot[row_inds, col_inds] += ms_contrib
-
 
         pot[col_inds, row_inds] = pot[row_inds, col_inds]
-        mom_sum_pot[col_inds, row_inds] = mom_sum_pot[row_inds, col_inds]
+        # mom_sum_pot[col_inds, row_inds] = mom_sum_pot[row_inds, col_inds]
+        #
+        # if m_sum is not None:
+        #     return pot, mom_sum_pot
+        # else:
+        return pot
 
-        if m_sum is not None:
-            return pot, mom_sum_pot
+    @classmethod
+    def quad_weight_eval(cls, function, d_chunk, w_chunk, ndim, centers, squa):
+        d = d_chunk[np.newaxis] / squa[:, np.newaxis]
+        c = centers[:, np.newaxis, :] + d
+        fv = function(c.reshape(-1, ndim))
+        if isinstance(fv, list):
+            chunk_vals = []
+            fshape = fv[0].shape[1:]
+            w_chunk = np.expand_dims(w_chunk, [0] + [-x for x in range(1, len(fshape) + 1)])
+            for mv in fv:
+                mv = mv.reshape(c.shape[:2] + fshape)
+                chunk_vals.append(np.sum(w_chunk * mv, axis=1))
+            return chunk_vals
         else:
-            return pot
-
-    @staticmethod
-    def quad_nd(centers, alphas, function, flatten=False, degree=3, chunk_size=int(1e6), normalize=True):
+            fshape = fv.shape[1:]
+            fv = fv.reshape(c.shape[:2] + fshape)
+            w_chunk = np.expand_dims(w_chunk, [0] + [-x for x in range(1, len(fshape) + 1)])
+            chunk_val = np.sum(w_chunk * fv, axis=1)
+            return chunk_val
+    @classmethod
+    def quad_nd(cls,
+                centers, alphas, function,
+                flatten=False,
+                degree=3, chunk_size=int(1e6),
+                normalize=True
+                ):
         """
         N-dimensional quadrature
 
@@ -395,25 +434,27 @@ class DGBEvaluator:
         val = None
         squa = np.sqrt(alphas)
         for d_chunk, w_chunk in zip(disp_chunks, w_chunks):
-            d = d_chunk[np.newaxis] / squa[:, np.newaxis]
-            c = centers[:, np.newaxis, :] + d
-            fv = function(c.reshape(-1, ndim))
-            fshape = fv.shape[1:]
-            fv = fv.reshape(c.shape[:2] + fshape)
-            w_chunk = np.expand_dims(w_chunk, [0] + [-x for x in range(1, len(fshape)+1)])
-            chunk_val = np.sum(w_chunk * fv, axis=1)
+            chunk_val = cls.quad_weight_eval(function, d_chunk, w_chunk, ndim, centers, squa)
             if val is None:
                 val = chunk_val
             else:
-                val += chunk_val
+                if isinstance(val, list):
+                    for i in range(len(val)):
+                        val[i] += chunk_val[i]
+                else:
+                    val += chunk_val
 
         if normalize:
-            normalization = 1 / np.prod(np.sqrt(alphas), axis=-1)
-            val = val * normalization
+            normalization = 1 / np.prod(squa, axis=-1)
+            if isinstance(val, list):
+                for i in range(len(val)):
+                    val[i] *= normalization
+            else:
+                val *= normalization
         return val
 
     @classmethod
-    def _wrap_rotated_function(cls, func, rotations, inverse):
+    def _wrap_rotated_function(cls, func, rotations, inverse, momenta):
 
         def eval(coords, deriv_order=None, inverse=inverse, rotations=rotations):
             # coords are expressed in the rotated space, we need to transform back out
@@ -442,27 +483,66 @@ class DGBEvaluator:
                         )
                     f_derivs.append(d)
                 fdat = [f_vals] + f_derivs
+            if momenta is not None:
+                # new_dat = []
+                fvals = fdat if isinstance(fdat, np.ndarray) else fdat[0]
+                cos_cor = 0
+                for p in momenta:
+                    p = np.broadcast_to(
+                        p[:, np.newaxis, :],
+                        (p.shape[0], quad_disps) + p.shape[1:]
+                    ).reshape((unrot_coords.shape[0],) + p.shape[1:])
+                    correlation = np.reshape(
+                        np.matmul(
+                            unrot_coords[:, np.newaxis, :],
+                            p[:, :, np.newaxis]
+                        ),
+                        -1
+                    )
+                    cos_cor += np.cos(correlation)
+                new_dat = cos_cor * fvals
+                if isinstance(fdat, np.ndarray):
+                    fdat = new_dat
+                else:
+                    fdat[0] = new_dat
             return fdat
 
         return eval
 
     @classmethod
     def rotated_gaussian_quadrature(cls,
-                                   function,
-                                   alphas,
-                                   centers,
-                                   rotations,
-                                   inverse,
-                                   normalize=True,
-                                   degree=2,
-                                   ):
-        f = cls._wrap_rotated_function(function, rotations, inverse)
+                                    function,
+                                    alphas,
+                                    centers,
+                                    rotations,
+                                    inverse,
+                                    momenta,
+                                    normalize=True,
+                                    degree=2,
+                                    ):
+        f = cls._wrap_rotated_function(function, rotations, inverse, momenta)
         centers = np.reshape(rotations @ centers[:, :, np.newaxis], centers.shape)
 
         vals = cls.quad_nd(centers, alphas, f, degree=degree, normalize=normalize)
 
         normalization = 1 / (np.sqrt(np.pi)) ** centers.shape[-1]  # part of the prefactor...
         vals *= normalization
+            # diff_vals, sum_vals = vals
+            # diff_phase, sum_phase = momenta
+            # diff_corr = np.reshape(
+            #     np.matmul(centers[:, np.newaxis, :], diff_phase[:, :, np.newaxis]),
+            #     -1
+            # )
+            # sum_corr = np.reshape(
+            #     np.matmul(centers[:, np.newaxis, :], sum_phase[:, :, np.newaxis]),
+            #     -1
+            # )
+            # print(sum_vals)
+            # vals = [
+            #     diff_vals * np.cos(diff_corr),
+            #     sum_vals * np.cos(sum_corr)
+            # ]
+
 
         return vals
 
@@ -477,12 +557,15 @@ class DGBEvaluator:
         :rtype:
         """
 
+        use_momenta = overlap_data['momentum_diff'] is not None
         vals = cls.rotated_gaussian_quadrature(
             function,
             overlap_data['alphas'],
             overlap_data['centers'],
             overlap_data['inverse_rotations'],
             overlap_data['rotations'],
+            [overlap_data['momentum_diff'], overlap_data['momentum_sum']]
+                if use_momenta else None,
             degree=degree,
             normalize=False
         )
@@ -525,7 +608,7 @@ class DGBEvaluator:
         return row_inds, col_inds, ndim, det_rat, C
 
     @classmethod
-    def _rot_base_S(cls, overlap_data, logger=None, just_prefactor=False):
+    def _rot_base_S(cls, overlap_data, logger=None, return_prefactor=False):
 
         logger.log_print('evluating {nT} overlaps', nT=len(overlap_data['row_inds']))
         n = len(overlap_data['init_centers'])
@@ -537,52 +620,41 @@ class DGBEvaluator:
         full_terms = scaled_rats * exp_terms
 
         # include phase factors
-        mom_sum = overlap_data['momentum_sum']
-        mom_diff = overlap_data['momentum_diff']
-        if mom_sum is not None:
+        if overlap_data['initial_phases'] is not None:
             j_vecs = overlap_data['initial_phases']
-            alphas = overlap_data['alphas']
-            phase_sum = overlap_data['phase_sum_corr']
-            phase_diff = overlap_data['phase_diff_corr']
-
-            decay_sum = np.sum(mom_sum**2 / (4*alphas), axis=1)
-            decay_diff = np.sum(mom_diff**2 / (4*alphas), axis=1)
-
-            sum_prefac = np.exp(-decay_sum) #* np.cos(phase_sum)
-            if not just_prefactor:
-                sum_prefac = sum_prefac * np.cos(phase_sum)
-            diff_prefac = np.exp(-decay_diff) #* np.cos(phase_diff)
-            if not just_prefactor:
-                diff_prefac = diff_prefac * np.cos(phase_diff)
-
-            diff_terms = full_terms * diff_prefac
-            sum_terms = full_terms * sum_prefac
 
             phases = np.reshape(overlap_data['init_centers'][:, np.newaxis, :] @ j_vecs[:, :, np.newaxis], -1)
             decay_norm = np.sum( overlap_data['initial_momenta']**2 / (2*overlap_data['init_alphas']), axis=1)
             norm = np.sqrt((1 + np.cos(2*phases)*np.exp(-decay_norm)))
             norms = norm[row_inds] * norm[col_inds]
 
-            S[row_inds, col_inds] = diff_terms / norms
-            S[col_inds, row_inds] = S[row_inds, col_inds]
+            full_terms = full_terms / norms
 
-            S_sum = np.eye(n)
-            S_sum[row_inds, col_inds] = sum_terms / norms
-            S_sum[col_inds, row_inds] = S_sum[row_inds, col_inds]
+            prefac = np.eye(n)
+            prefac[row_inds, col_inds] = full_terms
+            prefac[col_inds, row_inds] = prefac[row_inds, col_inds]
+
+            decay_contrib = (
+                    overlap_data['phase_diff_decay'] * np.cos(overlap_data['phase_diff_corr'])
+                    + overlap_data['phase_sum_decay'] *np.cos(overlap_data['phase_sum_corr'])
+            )
+            S[row_inds, col_inds] = decay_contrib
+            S[col_inds, row_inds] = decay_contrib
+            S = S * prefac
 
         else:
             S[row_inds, col_inds] = full_terms
-            S[col_inds, row_inds] = S[row_inds, col_inds]
-            S_sum = None
+            S[col_inds, row_inds] = full_terms
+            prefac = S
 
-        if mom_sum is not None:
-            return S, S_sum
+        if return_prefactor:
+            return prefac, S
         else:
             return S
 
     @classmethod
-    def evaluate_overlap(cls, overlap_data, logger=None, just_prefactor=False):
-        return cls._rot_base_S(overlap_data, logger=logger, just_prefactor=just_prefactor)
+    def evaluate_overlap(cls, overlap_data, logger=None, return_prefactor=False):
+        return cls._rot_base_S(overlap_data, logger=logger, return_prefactor=return_prefactor)
 
 class DGBKineticEnergyEvaluator(DGBEvaluator):
     """
@@ -816,36 +888,37 @@ class DGBKineticEnergyEvaluator(DGBEvaluator):
 
             phase_sum = overlap_data['phase_sum_corr']
             phase_diff = overlap_data['phase_diff_corr']
+            sum_prefac = overlap_data['phase_sum_decay']
+            diff_prefac = overlap_data['phase_diff_decay']
 
-            n = len(init_covs)
-            ke = np.zeros((n, n))
-            ke_sum = np.zeros((n, n))
             diff_contrib = 1 / 2 * np.dot(
                 np.cos(phase_diff)[:, np.newaxis]*(base_contrib+jp_diff**2)
                 - np.sin(phase_diff)[:, np.newaxis] * (2*jp_diff*delta_vec), # factored out the negative sign already
                 1 / masses
             )
-            ke[rows, cols] = diff_contrib
-            ke[cols, rows] = diff_contrib
             sum_contrib = 1 / 2 * np.dot(
                 np.cos(phase_sum)[:, np.newaxis] * (base_contrib+jp_sum**2)
                 - np.sin(phase_sum)[:, np.newaxis] * (2*jp_sum*delta_vec), # factored out the negative sign already
                 1 / masses
             )
-            ke_sum[rows, cols] = sum_contrib
-            ke_sum[cols, rows] = sum_contrib
+
+            sum_prefac = overlap_data['phase_sum_decay']
+            diff_prefac = overlap_data['phase_diff_decay']
+            contrib = diff_prefac * diff_contrib + sum_prefac * sum_contrib
+
+            n = len(init_covs)
+            ke = np.zeros((n, n))
+            ke[rows, cols] = contrib
+            ke[cols, rows] = contrib
+
         else:
 
             full_contrib = 1 / 2 * np.dot(base_contrib, 1 / masses)
             ke = np.zeros((len(init_covs), len(init_covs)))
             ke[rows, cols] = full_contrib
             ke[cols, rows] = full_contrib
-            ke_sum = None
 
-        if j is not None:
-            return ke, ke_sum
-        else:
-            return ke
+        return ke
 
     @classmethod
     def evaluate_classic_momentum_contrib(cls, overlap_data, masses):
@@ -929,7 +1002,7 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         # )
         return (
             ScXc[:, n, m]*DxSp[:, u, v]
-            - (GjGi[:, n, v, m, u] + GjGi[:, n, v, m, u]) / 2
+            - (GjGi[:, n, v, m, u] + GjGi[:, n, u, m, v]) / 2
             - np.reshape(
                 Sc[:, :, n][:, np.newaxis, :] @ (DSX[:, :, v, u] + DSX[:, :, u, v])[:, :, np.newaxis] , (-1)
                 ) * Dx[:, m]
@@ -954,9 +1027,34 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
 
         return (
             (Juv - DxSp[:, u, v]) * rn * rm
-            -(Juv * ScXc[:, n, u])
-            (Du*Jv + Dv*Ju)*(xn*rm + xm*rn)
+            -(Juv * ScXc[:, n, m])
+            + (Du*Jv + Dv*Ju)*(xn*rm + xm*rn)
             + (GD[:, m, u] * rn + GD[:, n, u] * rm) * Jv
+        )
+
+    @staticmethod
+    def annoying_imaginary_momentum_term(
+            n, u, m, v,
+
+            Jp, Dx, r, Xc,
+
+            ScXc, DxSp, GD
+    ):
+        Ju = Jp[:, u]
+        Jv = Jp[:, v]
+        Juv = Ju * Jv
+        rn = r[:, n]
+        rm = r[:, m]
+        xn = Xc[:, n]
+        xm = Xc[:, m]
+        Du = Dx[:, u]
+        Dv = Dx[:, v]
+
+        return (
+                (Juv - DxSp[:, u, v]) * (rn*xm + xn* rm)
+                + (rn*rm - ScXc[:, n, m]) * (DxSp[:, u, v] - Juv)
+                - (GD[:, m, u] * xn + GD[:, n, u] * xm) * Jv
+                + (GD[:, m, u] * rn + GD[:, n, u] * rm) * Dv
         )
     @classmethod
     def evaluate_coriolis_contrib(cls, coriolis_tensors, overlap_data):
@@ -1032,15 +1130,29 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
 
             GD = Gi - Gj
 
-            sum_term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_coriolis_momentum_term(
+            sum_real_term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_coriolis_momentum_term(
                     n, u, m, v,
 
                     jp_sum, Dx, rho_sum, Xc,
 
                     ScXc, DxSp, GD
             )
+            sum_imag_term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_imaginary_momentum_term(
+                n, u, m, v,
 
-            diff_term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_coriolis_momentum_term(
+                jp_sum, Dx, rho_sum, Xc,
+
+                ScXc, DxSp, GD
+            )
+
+            diff_real_term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_coriolis_momentum_term(
+                n, u, m, v,
+
+                jp_diff, Dx, rho_diff, Xc,
+
+                ScXc, DxSp, GD
+            )
+            diff_imag_term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_imaginary_momentum_term(
                 n, u, m, v,
 
                 jp_diff, Dx, rho_diff, Xc,
@@ -1048,31 +1160,39 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
                 ScXc, DxSp, GD
             )
 
-            sum_contrib = np.zeros(Sc.shape[0])
-            diff_contrib = np.zeros(Sc.shape[0])
+            sum_real_contrib = np.zeros(Sc.shape[0])
+            sum_imag_contrib = np.zeros(Sc.shape[0])
+            diff_real_contrib = np.zeros(Sc.shape[0])
+            diff_imag_contrib = np.zeros(Sc.shape[0])
             inds = itertools.product(*[range(ndim)] * 4)
             for n, u, m, v in inds:
                 if n != u and m != v:
-                    sum_contrib += sum_term(n, u, m, v)
-                    diff_contrib += diff_term(n, u, m, v)
+                    sum_real_contrib += sum_real_term(n, u, m, v)
+                    sum_imag_contrib += sum_imag_term(n, u, m, v)
+                    diff_real_contrib += diff_real_term(n, u, m, v)
+                    diff_imag_contrib += diff_imag_term(n, u, m, v)
 
-            npts = X0.shape[0]
-            ke = np.zeros((npts, npts))
-            ke[rows, cols] = contrib + diff_contrib
-            ke[cols, rows] = ke[rows, cols]
+            phase_sum = overlap_data['phase_sum_corr']
+            phase_diff = overlap_data['phase_diff_corr']
+            sum_prefac = overlap_data['phase_sum_decay']
+            diff_prefac = overlap_data['phase_diff_decay']
 
-            ke_sum = np.zeros((npts, npts))
-            ke_sum[rows, cols] = contrib + sum_contrib
-            ke_sum[cols, rows] = ke[rows, cols]
+            diff_contrib = (
+                    np.cos(phase_diff) *(contrib + diff_real_contrib)
+                    - np.sin(phase_diff) * diff_imag_contrib
+            )
+            sum_contrib = (
+                    np.cos(phase_sum) *(contrib + sum_real_contrib)
+                    - np.sin(phase_sum) * sum_imag_contrib
+            )
+            contrib = diff_prefac * diff_contrib + sum_prefac * sum_contrib
 
-            return ke, ke_sum
-        else:
-            npts = X0.shape[0]
-            ke = np.zeros((npts, npts))
-            ke[rows, cols] = contrib
-            ke[cols, rows] = contrib
+        npts = X0.shape[0]
+        ke = np.zeros((npts, npts))
+        ke[rows, cols] = contrib
+        ke[cols, rows] = contrib
 
-            return ke
+        return ke
 
 
     def evaluate_ke(self, overlap_data, logger=None):
@@ -1099,18 +1219,25 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
         logger.log_print("evaluating Watson term contribution")
 
         if overlap_data['initial_phases'] is not None:
-            base_diff, base_sum = base
 
-            watson = np.zeros(base_diff.shape)
-            rows, cols = np.triu_indices_from(base_diff)
-            watson[rows, cols] = B_e
-            watson[cols, rows] = B_e
+            phase_sum = overlap_data['phase_sum_corr']
+            phase_diff = overlap_data['phase_diff_corr']
 
-            cor_diff, cor_sum = coriolis
-            ke = base_diff #- cor_diff + watson
-            ke_sum = base_sum #- cor_sum + watson
+            sum_prefac = overlap_data['phase_sum_decay']
+            diff_prefac = overlap_data['phase_diff_decay']
 
-            return ke, ke_sum
+            diff_wat = np.cos(phase_diff) * B_e
+            sum_wat = np.cos(phase_sum) * B_e
+            watson_contrib = diff_prefac*diff_wat + sum_prefac*sum_wat
+
+            watson = np.zeros(base.shape)
+            rows, cols = np.triu_indices_from(base)
+            watson[rows, cols] = watson_contrib
+            watson[cols, rows] = watson_contrib
+
+            ke = base + watson - coriolis
+
+            return ke
         else:
 
             watson = np.zeros(base.shape)
@@ -1118,7 +1245,7 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
             watson[rows, cols] = B_e
             watson[cols, rows] = B_e
 
-            ke = base #+ watson - coriolis
+            ke = base + watson - coriolis
 
             return ke
 
@@ -1471,6 +1598,8 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
         centers = overlap_data['centers']
         alphas = overlap_data['alphas']
         covs = overlap_data['inverse']
+        mom_sum = overlap_data['momentum_sum']
+        mom_diff = overlap_data['momentum_diff']
 
         npts = centers.shape[0]
         fdim = centers.shape[1]
@@ -1495,7 +1624,8 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
             tfsT = self.get_bond_length_change_transformation(overlap_data, i, j)
             tfs = tfsT.transpose((0, 2, 1)) # tfs is unitary so this is the inverse
             f = self.wrap_distance_function(i, j, overlap_data, tfsT, pairwise_func)
-            tf_cov = np.linalg.inv(tfs @ covs @ tfsT)
+            sub_cov = tfs @ covs @ tfsT
+            tf_cov = np.linalg.inv(sub_cov)
 
             tf_alphas, tf_vecs = np.linalg.eigh(tf_cov)
             tf_alphas = tf_alphas / 2 # baked into the covariances...
@@ -1504,12 +1634,21 @@ class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
             tf_centers = tfs @ centers[:, :, np.newaxis]
             tf_centers = tf_centers.reshape(tf_centers.shape[:2])
 
+            if mom_sum is not None:
+                tf_momenta = [
+                    np.reshape(tf_cov @ tfs @ covs @ mom_diff[:, :, np.newaxis], sub_cov.shape[:2]),
+                    np.reshape(tf_cov @ tfs @ covs @ mom_sum[:, :, np.newaxis], sub_cov.shape[:2]),
+                ]
+            else:
+                tf_momenta = None
+
             pairwise_contrib = self.rotated_gaussian_quadrature(
                 f,
                 tf_alphas,
                 tf_centers,
                 tf_vecs,
                 tf_vecs.transpose(0, 2, 1),
+                tf_momenta,
                 degree=quadrature_degree,
                 normalize=False
             )

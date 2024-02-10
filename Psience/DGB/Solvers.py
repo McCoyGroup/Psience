@@ -212,7 +212,9 @@ class DGBEigensolver:
 
         A = Qs.T @ Qh
 
-        D = np.diag(1 / np.sqrt(eigs))
+        if np.any(eigs < -1e-14):
+            raise ValueError("negative eigenvalues from the S-matrix encountered")
+        D = np.diag(1 / np.sqrt(np.abs(eigs)))
         C = D @ A @ np.diag(eigh) @ A.T @ D
 
         engs, Q = np.linalg.eigh(C)

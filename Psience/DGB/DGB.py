@@ -325,11 +325,7 @@ class DGB:
     def get_S(self):
         od = self.gaussians.overlap_data
         S = self.gaussians.S
-        if od['initial_phases'] is not None:
-            S_diff, S_sum = S
-            return (S_diff + S_sum)
-        else:
-            return S
+        return S
     @property
     def S(self):
         if self._S is None:
@@ -339,12 +335,8 @@ class DGB:
     def get_T(self):
         od = self.gaussians.overlap_data
         T = self.gaussians.T
-        if od['initial_phases'] is not None:
-            T_diff, T_sum = T
-            S_diff, S_sum = self.gaussians.prefactor
-            return (S_diff * T_diff + S_sum * T_sum)
-        else:
-            return self.S * T
+        S = self.gaussians.prefactor
+        return S * T
     @property
     def T(self):
         if self._T is None:
@@ -357,12 +349,15 @@ class DGB:
     def get_V(self):
         od = self.gaussians.overlap_data
         V = self.pot.evaluate_pe(od)
-        if od['initial_phases'] is not None:
-            V_diff, V_sum = V
-            S_diff, S_sum = self.gaussians.prefactor
-            return (S_diff * V_diff + S_sum * V_sum)
-        else:
-            return self.S * V
+        S = self.gaussians.prefactor
+        return S * V
+        #     print('why '*25)
+        #     print(S_diff[0, 0], V_diff[0, 0])
+        #     print(S_sum[0, 0], V_sum[0, 0])
+        #     print(S_diff[0, 0] * V_diff[0, 0],  S_sum[0, 0] * V_sum[0, 0])
+        #     return (S_diff * V_diff + S_sum * V_sum)
+        # else:
+        # return self.S * V
     @property
     def V(self):
         if self._V is None:
