@@ -274,6 +274,21 @@ class DGBEvaluator:
             new_derivs.append(d)
         derivs = new_derivs
 
+        # if m_sum is not None:
+        #     # need to express the momenta in the rotated basis too
+        #     m_diff = nput.vec_tensordot(
+        #         overlap_data['momentum_diff'],
+        #         rotations,
+        #         axes=[1, 1],
+        #         shared=1
+        #     )
+        #     m_sum = nput.vec_tensordot(
+        #         overlap_data['momentum_sum'],
+        #         rotations,
+        #         axes=[1, 1],
+        #         shared=1
+        #     )
+
         if logger is not None:
             logger.log_print("adding up all derivative contributions...")
 
@@ -462,6 +477,7 @@ class DGBEvaluator:
     @classmethod
     def _wrap_rotated_function(cls, func, rotations, inverse, momenta):
 
+        # momenta = momenta@rotations
         def eval(coords, deriv_order=None, inverse=inverse, rotations=rotations):
             # coords are expressed in the rotated space, we need to transform back out
             quad_disps = coords.shape[0] // inverse.shape[0]

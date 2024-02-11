@@ -511,6 +511,25 @@ class MolecularNormalModes(CoordinateSystem):
     #         basis=self.basis, inverse=inv
     #     )
 
+    def to_new_modes(self):
+        """
+        Converts to the new generalized normal modes
+
+        :return:
+        """
+        from ..MixtureModes import NormalModes
+        if self.in_internals:
+            basis = self.molecule.internal_coordinates.system
+        else:
+            basis = self.molecule.coords.system
+        return NormalModes(
+            basis,
+            self.matrix,
+            inverse=self.inverse,
+            freqs=self.freqs,
+            origin=self.origin
+        )
+
     @classmethod
     def from_force_constants(cls,
                              molecule,

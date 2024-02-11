@@ -1131,17 +1131,32 @@ class DGBGaussians:
             inv_alphas, tfs = np.linalg.eigh(subcovs)
             inv_alphas[inv_alphas < bad_alpha_limit] = bad_alpha_limit
 
-            tfs = (tfs, tfs.transpose(0, 2, 1))
             alphas = 1 / (2*inv_alphas) # we have 1/2a
+            tfs = (tfs, tfs.transpose(0, 2, 1))
+
+            momenta = self.momenta
+            if momenta is not None:
+                # we use the fact that the momenta are along the same axes as the old alphas to get
+                scaled_moms = self.alphas * self.momenta
+                # now we have to deal with a S_A @ T @ p type term by noting that we can turn T into its
+                # [indices x len(alphas)] subblock
+                cov_mom = self.transformations[0][:, remaining, :] @ scaled_moms[:, :, np.newaxis]
+                inv_cov = DGBEvaluator.get_inverse_covariances(alphas, tfs)
+                momenta = np.reshape(inv_cov @ cov_mom, alphas.shape)
+
         else:
             scaling = np.power(2 * np.pi, len(indices) / 4) / np.power(np.prod(self.alphas[:, indices], axis=-1), 1 / 4)
             alphas = self.alphas[:, remaining]
             tfs = None
+            momenta = self.momenta
+            if momenta is not None:
+                momenta = momenta[:, remaining]
 
         return scaling, type(self)(
             subcoords,
             alphas=alphas,
-            transformations=tfs
+            transformations=tfs,
+            momenta = momenta
         )
 
     def as_cartesians(self):
@@ -1164,10 +1179,12 @@ class DGBGaussians:
         #     axis=1
         # )
         alphas = self.alphas
+        momenta = self.momenta
         return type(self)(
             carts,
             alphas,
-            transformations=transformations
+            transformations=transformations,
+            momenta=momenta
         )
 
     def plot_centers(self,

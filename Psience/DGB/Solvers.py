@@ -117,6 +117,10 @@ class DGBEigensolver:
 
         similarity_matrix = Qs.T @ Qh
 
+        import McUtils.Plots as plt
+        plt.MatrixPlot(similarity_matrix).show()
+
+
         # compute moving average of abs of blocks of dets
         prev_dets = collections.deque(maxlen=similarity_chunk_size)
         cur_sum = 0
@@ -173,11 +177,7 @@ class DGBEigensolver:
         # ]
         #
         # if len(good_runs) == 0 or len(good_runs[-1]) == 0:
-        #     import McUtils.Plots as plt
-        #     smat = plt.MatrixPlot(similarity_matrix)
-        #     sdets = plt.Plot(list(range(1, len(eigs) + 1)), dets).show()
-        #     splot_dets = plt.Plot(range(1, len(eigs)), np.diff(dets)).show()
-        #     raise ValueError("couldn't find stable eigenspace")
+        # raise ValueError("couldn't find stable eigenspace")
 
         # return good_runs[-1][-1]
 

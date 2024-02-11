@@ -62,7 +62,7 @@ class Wavefunction:
 
     def plot(self,
              figure=None, domain=None, *, domain_padding=None, grid=None, values=None, plot_points=100,
-             index=0, scaling=1, shift=0, plotter=None, plot_density=False,
+             index=0, scaling=1, shift='auto', plotter=None, plot_density=False,
              zero_tol=1e-8, contour_levels=None,
              **opts
              ):
@@ -104,7 +104,10 @@ class Wavefunction:
         # allows us to scale wave functions independently
         if not isinstance(scaling, (int, float, np.integer, np.floating)):
             scaling = scaling[index]
-        if not isinstance(shift, (int, float, np.integer, np.floating)):
+        if shift is None: shift = 0
+        if isinstance(shift, str) and shift == 'auto':
+            shift = self.energy
+        if not isinstance(shift, (int, float, np.integer, np.floating, str)):
             shift = shift[index]
 
         if values is None:
@@ -114,13 +117,13 @@ class Wavefunction:
                 values = self.evaluate(grid)
         values[np.abs(values) < zero_tol] = 0.
 
-        values = values * scaling + shift
-
+        values = values * scaling
         if contour_levels is not None and 'levels' not in opts:
             if np.std(values) > 1e-8:
                 max_val = np.max(np.abs(values))
-                levels = np.linspace(-max_val, max_val, contour_levels)
+                levels = np.linspace(-max_val + shift, max_val + shift, contour_levels)
                 opts['levels'] = levels
+        values = values + shift
 
         if plotter is None:
             if dim == 1:

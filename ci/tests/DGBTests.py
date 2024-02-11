@@ -878,6 +878,7 @@ class DGBTests(TestCase):
     @classmethod
     def plot_dgb_potential(cls,
                            dgb, mol, potential,
+                           coordinate_sel=None,
                            domain=None, domain_padding=1,
                            potential_cutoff=17000,
                            plot_cartesians=None,
@@ -899,10 +900,12 @@ class DGBTests(TestCase):
 
         if plot_cartesians is None:
             plot_cartesians = isinstance(coords, DGBCartesians)
+            if coordinate_sel is None:
+                coordinate_sel = [0, 1]
         if plot_cartesians:
             figure = mol.plot_molecule_function(
                 cutoff_pot,
-                axes=[0, 1],
+                axes=coordinate_sel,
                 domain=domain,
                 domain_padding=domain_padding,
                 cmap=cmap,
@@ -937,66 +940,145 @@ class DGBTests(TestCase):
         return figure
 
     @classmethod
-    def plot_gaussians(cls, dgb, mol, nmax=10, start_at=0, sel=None, plot_dir=None):
+    def plot_gaussians(cls,
+                       dgb, mol,
+                       *,
+                       domain=None,
+                       domain_padding=1,
+                       cmap='RdBu',
+                       plot_dir=None,
+                       plot_name='gaussian_{i}.pdf',
+                       **plot_options
+                       ):
         n = len(dgb.gaussians.coords.centers)
         wfns = DGBWavefunctions(
             np.zeros(n),
             np.eye(n),
             dgb
         )
-        if sel is not None:
-            subdgb_coords = dgb.gaussians.coords[:, sel]
-            subpot = subdgb_coords.embed_function(dgb.pot.potential_function.og_fn)
-        else:
-            subdgb_coords = dgb.gaussians.coords  # [:, [0, 1]]
-            subpot = dgb.pot.potential_function  # subdgb_coords.embed_function(dgb.pot.potential_function.og_fn)
-
-        if plot_dir is not None:
-            os.makedirs(plot_dir, exist_ok=True)
-        for i in range(start_at, min(n, nmax)):
-            figure = cls.plot_dgb_potential(
-                subdgb_coords, mol, subpot
-            )
-            wf = wfns[i]
-            if sel is not None:
-                wf = wf.project(sel)
-            plot = wf.plot(
-                plotter=plt.TriContourLinesPlot,
-                domain_padding=2,
-                cmap='RdBu',
-                figure=figure,
-                plot_centers={'color': 'red'}
-            )
-            if plot_dir is not None:
-                plot.savefig(os.path.join(plot_dir, f'basis_fn_{i}.pdf'))
-            else:
-                plot.show()
-
-        # wfns = wfns.as_cartesian_wavefunction()
-        # wfns[12].plot_cartesians(
-        #     [0, 1],
-        #     contour_levels=16,
-        #     # cmap='RdBu',
-        #     plot_centers={'color': 'red'},
-        #     domain_padding=.5,
-        # ).show()
+        cls.plot_wavefunctions(
+            wfns, dgb, mol,
+            cmap=cmap,
+            plot_name=plot_name,
+            plot_dir=plot_dir,
+            domain=domain,
+            domain_padding=domain_padding,
+            potential_styles=dict(
+                domain=domain,
+                domain_padding=domain_padding
+            ),
+            **plot_options
+        )
 
     default_num_plot_wfns = 5
+    @classmethod
+    def plot_wavefunctions(cls,
+                           wfns, dgb, mol,
+                           which=True,
+                           coordinate_sel=None,
+                           cartesians=None,
+                           plot_dir=None,
+                           plot_name='wfn_{i}.pdf',
+                           plot_potential=True,
+                           plot_atoms=None,
+                           plot_centers=True,
+                           potential_styles=None,
+                           **plot_options
+                           ):
+
+        figure = None
+        if cartesians:
+            wfns = wfns.as_cartesian_wavefunction()
+            dgb = wfns.hamiltonian
+
+        if coordinate_sel is None:
+            coordinate_sel = list(range(dgb.gaussians.alphas.shape[-1]))
+
+        figs = []
+        if which is True:
+            which = cls.default_num_plot_wfns
+        if isinstance(which, int):
+            which = list(range(which))
+        if isinstance(which, list) and len(which) > 0:
+            pot = dgb.pot.potential_function
+            if plot_potential:
+                if plot_atoms is None:
+                    plot_atoms = bool(plot_centers)
+                if potential_styles is None:
+                    potential_styles = {}
+                pot_figure = cls.plot_dgb_potential(
+                    dgb, mol, pot,
+                    plot_atoms=plot_atoms,
+                    **potential_styles
+                )
+            else:
+                pot_figure = None
+
+            if plot_dir is not None:
+                os.makedirs(plot_dir, exist_ok=True)
+            if (
+                    coordinate_sel is None and wfns.gaussians.alphas.shape[-1] == 1
+                    or len(coordinate_sel) == 1
+            ):
+                for k in ['cmap', 'levels', 'plotter', 'contour_levels']:
+                    if k in plot_options: del plot_options[k]
+                    if k in potential_styles: del potential_styles[k]
+            for i in which:
+                if i < len(wfns):
+                    if pot_figure is not None:
+                        figure = pot_figure.copy()
+
+                    if isinstance(dgb.gaussians.coords, DGBCartesians):
+                        figs.append(
+                            wfns[i].plot_cartesians(
+                                coordinate_sel,
+                                plot_centers=plot_centers,
+                                figure=figure,
+                                **plot_options
+                            )
+                        )
+                    else:
+                        if wfns.gaussians.alphas.shape[-1] > 1:
+                            wfn = wfns[i]
+                            if coordinate_sel is not None:
+                                wfn = wfn.project(coordinate_sel)
+                            figs.append(
+                                wfn.plot(
+                                    figure=figure,
+                                    plot_centers=plot_centers,
+                                    **plot_options
+                                )
+                            )
+                        else:
+                            figs.append(
+                                wfns[i].plot(
+                                    figure=figure,
+                                    plot_centers=plot_centers,
+                                    **plot_options
+                                )
+                            )
+
+                    if plot_dir is not None:
+                        fig = figs.pop()
+                        fig.savefig(os.path.join(plot_dir, plot_name.format(i=i)))
+                        fig.close()
+
+            if plot_dir is None:
+                figs[0].show()
     @classmethod
     def runDGB(cls,
                dgb: DGB,
                mol,
                plot_centers=True,
-               plot_atoms=None,
-               plot_potential=True,
                plot_wavefunctions=True,
                plot_spectrum=False,
                pot_cmap='viridis',
-               pot_points=100,
                wfn_cmap='RdBu',
                wfn_points=100,
                wfn_contours=12,
                plot_dir=None,
+               plot_potential=True,
+               pot_points=100,
                domain=None,
                domain_padding=1,
                potential_cutoff=15000,
@@ -1038,6 +1120,7 @@ class DGBTests(TestCase):
                     if 'cartesians' in plot_wavefunctions:
                         cartesian_plot_axes=plot_wavefunctions['cartesians']
                         dgb = dgb.as_cartesian_dgb()
+                        raise Exception(...)
                     else:
                         raise ValueError(plot_wavefunctions)
 
@@ -1061,107 +1144,49 @@ class DGBTests(TestCase):
             if plot_spectrum:
                 spec[:5].plot().show()
 
-            figure = None
-            if isinstance(plot_wavefunctions, str) and plot_wavefunctions=='cartesians':
-                plot_wavefunctions = {'cartesians':None}
-            cartesian_plot_axes = None
+            use_cartesians = False
+            if isinstance(plot_wavefunctions, str) and plot_wavefunctions == 'cartesians':
+                plot_wavefunctions = {'cartesians': None}
             coordinate_sel = None
             if isinstance(plot_wavefunctions, dict):
                 if 'cartesians' in plot_wavefunctions:
-                    cartesian_plot_axes=plot_wavefunctions['cartesians']
+                    use_cartesians = True
+                    coordinate_sel = plot_wavefunctions['cartesians']
                     plot_wavefunctions = plot_wavefunctions.get('num', True)
-                    wfns = wfns.as_cartesian_wavefunction()
-                    dgb = wfns.hamiltonian
                 elif 'modes' in plot_wavefunctions:
                     coordinate_sel = plot_wavefunctions['modes']
                     plot_wavefunctions = plot_wavefunctions.get('num', True)
                     plot_potential = False
                 else:
                     raise ValueError(plot_wavefunctions)
-            if plot_wavefunctions is True:
-                plot_wavefunctions = cls.default_num_plot_wfns
-            figs = []
-            if isinstance(plot_wavefunctions, int):
-                plot_wavefunctions = list(range(plot_wavefunctions))
-            if isinstance(plot_wavefunctions, list) and len(plot_wavefunctions) > 0:
 
-                pot = dgb.pot.potential_function
-                if plot_potential:
-                    if plot_atoms is None:
-                        plot_atoms = plot_centers
-                    pot_figure = cls.plot_dgb_potential(
-                        dgb, mol, pot,
+            if plot_wavefunctions:
+                cls.plot_wavefunctions(
+                    wfns,
+                    dgb,
+                    mol,
+                    cartesians=use_cartesians,
+                    coordinate_sel=coordinate_sel,
+                    plot_dir=plot_dir,
+                    contour_levels=wfn_contours,
+                    cmap=wfn_cmap,
+                    plot_points=wfn_points,
+                    plot_centers={'color': 'red'} if plot_centers else False,
+                    domain=domain,
+                    domain_padding=domain_padding,
+                    plot_potential=plot_potential,
+                    scaling=.2,
+                    plotter=plt.TriContourLinesPlot,
+                    potential_styles=dict(
+                        domain=domain,
+                        domain_padding=domain_padding,
                         cmap=pot_cmap,
-                        plot_points=pot_points,
-                        domain=domain, domain_padding=domain_padding,
-                        potential_cutoff=potential_cutoff,
-                        plot_atoms=plot_atoms
-                    )
-                else:
-                    pot_figure = None
+                        plot_points=pot_points
+                    ),
+                    **plot_options
+                )
 
-                if plot_dir is not None:
-                    os.makedirs(plot_dir, exist_ok=True)
-                for i in plot_wavefunctions:
-                    if i < len(wfns):
 
-                        if pot_figure is not None:
-                            figure = pot_figure.copy()
-
-                        if isinstance(dgb.gaussians.coords, DGBCartesians):
-                            figs.append(
-                                wfns[i].plot_cartesians(
-                                    cartesian_plot_axes,
-                                    contour_levels=wfn_contours,
-                                    cmap=wfn_cmap,
-                                    plot_points=wfn_points,
-                                    figure=figure,
-                                    plot_centers={'color':'red'} if plot_centers else False,
-                                    domain=domain,
-                                    domain_padding=domain_padding,
-                                    **plot_options
-                                )
-                            )
-                        else:
-                            if wfns.gaussians.alphas.shape[-1] > 1:
-                                wfn = wfns[i]
-                                if coordinate_sel is not None:
-                                    wfn = wfn.project(coordinate_sel)
-                                figs.append(
-                                    wfn.plot(
-                                        contour_levels=wfn_contours,
-                                        cmap=wfn_cmap,
-                                        plot_points=wfn_points,
-                                        plotter=plt.TriContourLinesPlot ,
-                                        plot_centers={'color':'red'} if plot_centers else False,
-                                        domain=domain,
-                                        domain_padding=domain_padding,
-                                        figure=figure,
-                                        **plot_options
-                                    )
-                                )
-                            else:
-                                figs.append(
-                                    wfns[i].plot(
-                                        plot_centers={'color': 'red'} if plot_centers else False,
-                                        domain=domain,
-                                        cmap=wfn_cmap,
-                                        plot_points=wfn_points,
-                                        domain_padding=domain_padding,
-                                        figure=figure,
-                                        scaling=-.1,
-                                        shift=wfns.energies[i],
-                                        **plot_options
-                                    )
-                                )
-
-                        if plot_dir is not None:
-                            fig = figs.pop()
-                            fig.savefig(os.path.join(plot_dir, f'wfn_{i}.pdf'))
-                            fig.close()
-
-                if plot_dir is None:
-                    figs[0].show()
 
             return wfns
 
@@ -1342,6 +1367,8 @@ class DGBTests(TestCase):
         sim.propagate(15)
         coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
         momenta = velocities * mol.masses[np.newaxis, :, np.newaxis]
+        all_pots = model.potential(coords)
+        pots_scaling = 1 + (all_pots - np.min(all_pots)) / (np.max(all_pots) - np.min(all_pots))
         # momenta = -model.potential(coords, deriv_order=1)[1]
         # momenta = np.full(velocities.shape, .0)
 
@@ -1353,6 +1380,7 @@ class DGBTests(TestCase):
                 # optimize_centers=1e-8,
                 optimize_centers=False,
                 modes=None if cartesians else 'normal',
+                # alphas={'method':'virial', 'scaling':pots_scaling[1:, np.newaxis]},
                 cartesians=[0, 1] if cartesians else None,
                 quadrature_degree=3,
                 expansion_degree=-1,
@@ -1361,10 +1389,19 @@ class DGBTests(TestCase):
                     # (0, 2): self.setupMorseFunction(model, 0, 2)
                 },
                 # momenta=15*(100*momenta[1:]),
-                momenta=150*momenta[1:],
+                # momenta=150*momenta[1:],
                 # momenta=np.ones_like(150*momenta[1:]) / 10,
                 # momenta=np.zeros_like(momenta[1:])
             )
+
+            plot_gaussians = False
+            if plot_gaussians:
+                self.plot_gaussians(dgb, mol,
+                                    which=[0, 1, 2, 5],
+                                    domain_padding=10,
+                                    scaling=.2
+                                    )
+                raise Exception(...)
 
             """
             >>------------------------- Running distributed Gaussian basis calculation -------------------------
@@ -1382,7 +1419,7 @@ class DGBTests(TestCase):
             self.runDGB(dgb, mol,
                         domain_padding=10,
                         plot_spectrum=False,
-                        plot_wavefunctions=False  # {'cartesians':[0, 1]} if not cartesians else True
+                        plot_wavefunctions=True  # {'cartesians':[0, 1]} if not cartesians else True
                         )
 
     @validationTest
@@ -1494,13 +1531,22 @@ class DGBTests(TestCase):
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
                 quadrature_degree=3,
-                # expansion_degree=2,
+                expansion_degree=2,
                 # pairwise_potential_functions={
                 #     (0, 1):self.setupMorseFunction(model, 0, 1),
                 #     (0, 2):self.setupMorseFunction(model, 0, 2)
                 # },
-                # momenta=momenta
+                # transformations='diag'
+                momenta=momenta
             )
+
+            plot_gaussians = True
+            if plot_gaussians:
+                self.plot_gaussians(dgb, mol)
+            raise Exception(...)
+
+
+
 
             # print(dgb.gaussians.coords.centers[:3])
             # print(dgb.gaussians.overlap_data['init_covariances'][:3])
@@ -1768,8 +1814,33 @@ class DGBTests(TestCase):
                         plot_wavefunctions={'cartesians': [0, 1]} if not cartesians else True
                         )
 
-    @validationTest
+    def symmetrizePoints(self, coords, equivalent_atoms, unique_tol=7):
+        coords = np.asanyarray(coords)
+        all_perms = [
+            np.unique(list(itertools.permutations(a)), axis=0)
+            for a in equivalent_atoms
+        ]
+        stacks = [coords]
+        for swaps in itertools.product(*all_perms):
+            perm = np.arange(coords.shape[1])
+            for og,sw in zip(equivalent_atoms, swaps):
+                perm[og] = perm[sw]
+            stacks.append(coords[:, perm])
+        coords = np.concatenate(stacks, axis=0)
+        if unique_tol is not None:
+            _, upos = np.unique(np.round(coords, unique_tol), return_index=True, axis=0)
+            coords = coords[np.sort(upos)]
+        return coords
+    @debugTest
     def test_ModelPotentialAIMD3D(self):
+
+        # raise Exception(
+        #     self.symmetrizePoints(
+        #         [[0, 1, -1], [0, 1, 1]],
+        #         [[1, 2]]
+        #     )
+        # )
+
         mol, model = self.buildWaterModel(
             # w2=None, wx2=None,
             # ka=None,
@@ -1894,232 +1965,68 @@ class DGBTests(TestCase):
 
         bend, symm, asymm = model.normal_modes()[0]
         init_e = np.array([
-                [ bend,  symm,       0 ],
-                [ bend, -symm,       0 ],
-                [-bend,  symm,       0 ],
-                [-bend, -symm,       0 ],
-                [ bend,     0,   asymm ],
-                [ bend,     0,  -asymm ],
-                [-bend,     0,   asymm ],
-                [-bend,     0,  -asymm ],
+                [-bend,     0,       0 ],
+                [ bend,     0,       0 ],
+                [    0,  -symm,       0 ],
+                # [    0,   symm,       0 ],
+                [    0,     0,   asymm ],
+                # [ bend,  symm,       0 ],
+                # [-bend,  symm,       0 ],
+                # [ bend,     0,   asymm ],
+                # [-bend,     0,   asymm ],
+                # [    0,  symm,   asymm ],
+                # [ bend,  symm,   asymm ],
+                # [-bend,  symm,   asymm ],
             ])
         sim = model.setup_AIMD(
             initial_energies=init_e * 1,
-            timestep=15,
+            timestep=25,
             track_velocities=True
         )
         sim.propagate(100)
+
+
         # coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
         coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
-        momenta = 0 * velocities * mol.masses[np.newaxis, :, np.newaxis]
-        virial_scaling = .5
-
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 15 S functions
-        :: ZPE: 4652.358000659629
-        :: Frequencies: [1684.40449721 3597.7213898  3873.78117656 4078.47189303 5335.72402046 5538.27038685 5723.85133269 6708.69053377 7240.53189216 7298.42917052 8660.01180786 9128.32268901 9142.90083623 9981.77774766]
-        >>--------------------------------------------------<<
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 39 S functions
-        :: ZPE: 4634.598861355121
-        :: Frequencies: [ 1632.86636622  3288.87417932  3783.71748012  3811.67838805  5261.78001401  5409.8264422   5557.84735234  7035.97304543  7376.02169905  7443.04128289  7600.52368619  7640.42498995  8117.22744978  8843.85802501  9322.66037074  9667.71825385  9731.49774275 10067.87553652 10385.32407657 11447.31969692]
-        >>--------------------------------------------------<<
-        
-        >>--------------------------------------------------<<
-        [[0.00444734 0.00433881 0.00431009 0.00441303 0.00423758]
-         [0.00433881 0.00490399 0.00367056 0.00496722 0.00359794]
-         [0.00431009 0.00367056 0.00575581 0.00282745 0.00462028]
-         [0.00441303 0.00496722 0.00282745 0.00657376 0.00380007]
-         [0.00423758 0.00359794 0.00462028 0.00380007 0.00474344]]
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 31 S functions
-        :: ZPE: 4680.929728752489
-        :: Frequencies: [ 1641.36212716  3415.60482732  3825.64941896  3910.32355521  5499.7415202   5732.518073    5956.12351981  7494.86825958  7847.32129503  8180.16334722  8303.76941975  8650.57899158  8906.05192408  9560.85447007 10166.90441368 10542.93610176 10613.38092444 11157.79695062 12179.60355487 12467.51893709]
-        >>--------------------------------------------------<<
-        """
-
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 30 S functions
-        :: ZPE: 4637.699716449409
-        :: Frequencies: [ 1616.96294321  3294.01646564  3772.03904822  3784.06041943  5172.12516261  5522.82063379  5737.15424009  6965.50969295  7391.23626352  7561.21002844  7814.33639957  7928.52976973  8194.27564149  8921.81895009  9602.12667797  9776.82422242 10292.6261917  10393.79682763 11424.19674798 11640.55997371]
-        >>--------------------------------------------------<<
-
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 30 S functions
-        :: ZPE: 4637.699494570408
-        :: Frequencies: [ 1617.02747476  3293.81251403  3772.67989769  3784.06173817  5170.58273429  5522.97044565  5732.03064321  6961.16949616  7391.29092023  7564.46945872  7814.3812352   7929.02620298  8200.82688722  8914.35148873  9602.07625433  9775.51423911 10292.50181143 10360.61670563 11410.81179668 11640.68945796]
-        >>--------------------------------------------------<<
-
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 30 S functions
-        :: ZPE: 4638.244891661685
-        :: Frequencies: [ 1616.78477821  3294.46807874  3773.20201919  3782.84388551  5181.89802862  5521.78269606  5735.02359741  6962.06479314  7390.50557677  7574.94843872  7810.11696309  7948.55227003  8243.75165989  8952.19782027  9598.44775732  9795.22275809 10272.64334085 10317.46132658 11406.52777626 11639.51093341]
-        >>--------------------------------------------------<<
-        
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 33 S functions
-        :: ZPE: 4634.922353900769
-        :: Frequencies: [ 1619.79580148  3281.16483274  3777.77117957  3781.5003399   5182.85932064  5458.53291931  5631.91549415  6955.16877626  7383.65188515  7594.37073982  7795.26922129  7809.14423054  8170.13465115  8751.91122287  9582.34924518  9675.82770712  9819.78083901 10268.20837997 11394.32014445 11409.91197412]
-        >>--------------------------------------------------<<
-        """
-
-
-
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 387 S functions
-        :: ZPE: 4648.339710820686
-        :: Frequencies: [ 1651.03247163  3397.94878189  3819.43370574  3876.68908453  5300.07187634  5620.28355262  5643.83778876  7252.19934672  7602.13139683  7629.77267467  7851.74143498  7992.32766006  8049.91393157  9177.67730943  9643.66073546  9697.14083474  9888.57955989 10174.83629299 10397.68955732 11152.9654287 ]
-        >>--------------------------------------------------<<
-        """
-
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 11 S functions
-        :: ZPE: 4649.610266886014
-        :: Frequencies: [1646.42903277 3032.49733312 3788.44461525 3959.48540767 5270.81047114 5516.28288793 6523.58208743 7695.71291726 8378.72996437 8791.75847041]
-        >>--------------------------------------------------<<
-        
-
-        :: Frequencies: [1688.32285729 3106.0328112  3665.86283701 3865.75461693 5244.16280382 5434.12289495 6415.39090278 6654.17134115 7605.79944938 7677.36462446 9389.918776  ]
-        """
-
+        coords = coords[len(init_e) - 1:]
+        velocities = velocities[len(init_e) - 1:]
+        momenta = 150 * velocities * mol.masses[np.newaxis, :, np.newaxis]
+        virial_scaling = 1.2
+        # all_pots = model.potential(coords)
+        # virial_scaling = 1 + (all_pots - np.min(all_pots)) / (np.max(all_pots) - np.min(all_pots))
+        # virial_scaling = virial_scaling[:, np.newaxis]
         pruning_energy = 3600 / UnitsData.hartrees_to_wavenumbers
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 54 S functions
-        :: ZPE: 4614.442411583872
-        :: Frequencies: [ 1607.72112723  3206.74855643  3688.20997816  3723.64035495  4887.59371639  5318.21711016  5346.92800225  6498.61943836  6958.99125694  7029.62592293  7276.1796327   7279.76385334  7473.71479695  8374.32051301  8736.46112171  8893.96125366  9108.9804343   9453.48212842  9531.61670507 10181.00775376]
-        >>--------------------------------------------------<<
-        
-        
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 12 S functions
-        :: ZPE: 4653.2084868682605
-        :: Frequencies: [1620.21826275 3260.72168982 3592.10278492 3906.57338743 5208.84620584 5461.70576906 5998.7207235  7457.32533761 7582.21235896 8423.01259084 9523.44670461]
-        >>--------------------------------------------------<<
-        
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 12 S functions
-        :: ZPE: 4657.119978285859
-        :: Frequencies: [1608.8372101  3259.80404489 3585.62199255 3902.93805659 5151.95088628 5458.51640795 5962.84065192 7431.52439192 7562.48636694 8411.99307421 9621.0433801 ]
-        >>--------------------------------------------------<<
-        
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 29 S functions
-        :: ZPE: 4619.131684242413
-        :: Frequencies: [ 1599.39001738  3198.06446328  3715.61817002  3746.20024233  4883.14627486  5309.47668212  5326.94612433  6319.64395027  6897.77290399  6959.76579255  7153.11537194  7290.58313745  7504.26873841  7676.90463794  8387.27437622  8652.74011336  8837.36359979  9163.43789535 10154.73769042 10437.65146805]
-        >>--------------------------------------------------<<
-        """
 
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 1 S functions
-        :: ZPE: 5559.473855826764
-        :: Frequencies: []
-        >>--------------------------------------------------<<
-        
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 1 S functions
-        :: ZPE: 5575.659217367972
-        :: Frequencies: []
-        >>--------------------------------------------------<<
-        """
+        mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        modes = mol.normal_modes.modes.basis.to_new_modes()
+        emb_coords = modes.embed_coords(coords)
+        new_emb = emb_coords * np.array([1, 1, -1])[np.newaxis, :]
+        new_coords = modes.unembed_coords(new_emb)
 
         cartesians = False
         use_interpolation = True
+        use_quadrature = False
+        permute_coords = True
         if use_interpolation:
-            potential_data = {'centers':coords, 'values':model.potential(coords, deriv_order=2)}
+            if permute_coords:
+                interp_coords = np.concatenate([coords, new_coords], axis=0)
+            else:
+                interp_coords = coords
+            potential_data = {
+                'centers':interp_coords,
+                'values':model.potential(interp_coords, deriv_order=2)
+            }
         else:
             potential_data = None
         use_momenta = True
         use_pairwise = True
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 23 S functions
-        :: ZPE: 4600.703250847279
-        :: Frequencies: [ 1530.46149562  3388.13868555  3682.18805425  3876.38440234  5132.28910823  5858.7900593   5869.43923589  6967.63806345  7058.39857162  7264.42798058  7618.59646891  7711.13048013  8454.7183768   8896.58372506  9243.97098594  9358.6897885   9585.76851943 10547.49052802 10888.75464172 11664.94980336]
-        >>--------------------------------------------------<<
-        """
 
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 23 S functions
-        :: ZPE: 4642.469725415882
-        :: Frequencies: [ 1530.28770618  3375.24625311  3697.34382634  3877.2853242   5163.92043225  5839.12420919  5873.37759323  6968.55783821  7066.21326919  7270.76531284  7612.57976234  7713.0676612   8490.67266089  8922.5429093   9209.70648285  9461.5368073   9584.91913694 10552.70840716 10892.1038891  11621.88244619]
-        >>--------------------------------------------------<<
-        
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 115 S functions
-        :: ZPE: 4613.237764039511
-        :: Frequencies: [1602.88239457 3194.35321618 3678.21933195 3721.04359412 4776.86177185 5282.93017307 5311.61758831 6349.77310198 6873.24276198 6890.65528297 7227.32178249 7243.23158817 7410.76858839 7912.84223882 8453.55894834 8475.85104013 8831.03226982 8851.41388018 8997.3686748  9468.79834989]
-        >>--------------------------------------------------<<
-        """
+        if use_quadrature and use_interpolation:
+            raise ValueError("don't use interpolation with quadrature...")
 
+        # plot_wfns = {'modes':[2, 1]}
+        plot_wfns = {'cartesians':[0, 1], 'num':10}
 
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 114 S functions
-        :: ZPE: 4613.255642055099
-        :: Frequencies: [1602.86994883 3194.45788759 3678.32890506 3721.02500605 4776.84196147 5282.93097394 5311.6025067  6349.68408625 6873.51920201 6890.63584992 7228.97204182 7243.20640233 7410.91068676 7913.52055969 8453.8889637  8475.8565694  8831.06488863 8851.43300675 8997.43220905 9469.25254295]
-        >>--------------------------------------------------<<
-        """
-
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 44 S functions
-        :: ZPE: 4614.391535743782
-        :: Frequencies: [ 1605.60338465  3199.16992473  3684.75986796  3729.25283406  4796.1399122   5304.08988819  5331.24970257  6451.9920039   6950.51158441  6959.94912454  7270.18343516  7293.29113626  7444.23476659  8030.27978322  8503.22182128  8578.98265082  8892.85996938  8921.53824802  9049.5131408  10012.00752875]
-        >>--------------------------------------------------<<
-        """
-
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 40 S functions
-        :: ZPE: 4615.415491889305
-        :: Frequencies: [ 1607.03458024  3199.73725825  3685.69254332  3729.10881073  4812.04814924  5306.73024463  5330.46044052  6475.06754939  6952.03879327  6957.80934198  7279.67960933  7298.83122553  7462.61528959  8212.34625856  8585.77228028  8707.06877401  8901.89209891  8909.65507104  9138.79292384 10026.54992058]
-        >>--------------------------------------------------<<
-        """
-
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-:: diagonalizing in the space of 17 S functions
-:: ZPE: 4621.932414691013
-:: Frequencies: [ 1614.25382749  3229.75851905  3710.01760687  3755.70806763  4965.16070096  5392.47637504  5397.24531532  7035.83351707  7356.60364688  7397.42013699  7505.58964999  7757.62163075  9117.93032929  9637.5672444  11208.23010246 13742.35959404]
->>--------------------------------------------------<<
-
-"""
-
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 22 S functions
-        :: ZPE: 4627.779170892916
-        :: Frequencies: [ 1603.37542699  3201.17987803  3690.99775225  3826.12932302  4837.25328894  5318.44896534  5563.44220406  6506.09652328  7082.51076697  7334.36091184  8184.23247709  8222.73953261  8882.44984517  9851.4945745  10334.87475701 10952.13878987 11897.23917323 12522.41901728 13922.61432317 15480.91472779]
-        >>--------------------------------------------------<<
-        """
-
-        """
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 55 S functions
-        :: ZPE: 4613.764055152169
-        :: Frequencies: [1604.51441203 3200.2528958  3682.24987902 3727.30559731 4788.17915904 5297.51265568 5352.78449673 6363.12964605 6895.41839877 6978.52798322 7247.00095331 7327.48002967 7428.60622617 7940.2727066  8488.92962624 8895.6322358  8940.53428779 9044.09315064 9350.21387072 9546.2258098 ]
-        >>--------------------------------------------------<<
-        
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 13 S functions
-        :: ZPE: 4639.573920662348
-        :: Frequencies: [1613.12182729 3225.98581095 3744.0159727  3746.77291598 4844.18335541 5370.80660528 5437.81851424 6961.66122611 7405.61742233 7846.8757206  8582.79886793 9303.89723554]
-        >>--------------------------------------------------<<
-        
-        >>------------------------- Running distributed Gaussian basis calculation -------------------------
-        :: diagonalizing in the space of 18 S functions
-        :: ZPE: 4575.12276190606
-        :: Frequencies: [ 1618.46072775  3220.45599015  3703.96911233  3771.37448851  4843.41678706  5356.44419163  5416.34260808  7050.0117564   7251.44656724  7414.89971758  7531.20532006  7579.21178542  8933.95230277  9387.53703825  9798.409263   10510.02047955 11106.6012973 ]
-        >>--------------------------------------------------<<
-        
-        """
         with BlockProfiler(inactive=True):
             """
             >>------------------------- Running distributed Gaussian basis calculation -------------------------
@@ -2159,7 +2066,7 @@ class DGBTests(TestCase):
             """
 
             dgb = model.setup_DGB(
-                coords[len(init_e)-1:],
+                coords,
                 potential_function=potential_data,
                 # optimize_centers=False,
                 optimize_centers=[
@@ -2173,14 +2080,15 @@ class DGBTests(TestCase):
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
                 quadrature_degree=3
-                , expansion_degree=2
+                , expansion_degree=2 if not use_quadrature else None
                 , pairwise_potential_functions={
                     (0, 1):self.setupMorseFunction(model, 0, 1),
                     (0, 2):self.setupMorseFunction(model, 0, 2)
-                } if use_pairwise else None
+                } if use_pairwise and not use_quadrature else None
                 , transformations='diag'
-                , momenta=momenta[len(init_e)-1:] if use_momenta else None
+                , momenta=momenta if use_momenta else None
             )
+
             """
             >>------------------------- Running distributed Gaussian basis calculation -------------------------
             :: diagonalizing in the space of 29 S functions
@@ -2222,7 +2130,10 @@ class DGBTests(TestCase):
 
             plot_gaussians = False
             if plot_gaussians:
-                self.plot_gaussians(dgb, mol, 10, sel=[0, 1])
+                self.plot_gaussians(dgb, mol,
+                                    cartesians=True,
+                                    coordinate_sel=[0, 1]
+                                    )
                 raise Exception(...)
 
             # print(dgb.gaussians.alphas[:3])
@@ -2241,9 +2152,9 @@ class DGBTests(TestCase):
                         # vmax=.05,
                         # domain=[[-2, 2], [-2, 2]],
                         # plot_wavefunctions=False,
-                        plot_centers=False,
+                        plot_centers=True,
                         plot_spectrum=False,
-                        plot_wavefunctions=False,
+                        plot_wavefunctions=plot_wfns,
                         # plot_wavefunctions={'cartesians':[0, 1]} if not cartesians else True
                         )
             plt.Graphics().show()
