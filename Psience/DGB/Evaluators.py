@@ -632,7 +632,7 @@ class DGBEvaluator:
     @classmethod
     def _rot_base_S(cls, overlap_data, logger=None, return_prefactor=False):
 
-        logger.log_print('evluating {nT} overlaps', nT=len(overlap_data['row_inds']))
+        logger.log_print('evaluating {nT} overlaps', nT=len(overlap_data['row_inds']))
         n = len(overlap_data['init_centers'])
         S = np.eye(n)
         row_inds, col_inds, ndim, det_rat, C = cls._rot_base_S_components(overlap_data)

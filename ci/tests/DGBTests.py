@@ -1086,6 +1086,7 @@ class DGBTests(TestCase):
                nodeless_ground_state=None,
                min_singular_value=None,
                subspace_size=None,
+               plot_similarity=False,
                similarity_cutoff=None,
                similarity_chunk_size=None,
                similar_det_cutoff=None,
@@ -1140,6 +1141,8 @@ class DGBTests(TestCase):
 
             raise e
         else:
+            if plot_similarity:
+                plt.ArrayPlot(dgb.get_similarity_matrix()).show()
 
             if plot_spectrum:
                 spec[:5].plot().show()
@@ -1237,6 +1240,77 @@ class DGBTests(TestCase):
             return _morse(r, re=re, alpha=alpha, De=De, deriv_order=deriv_order)
 
         return morse_basic
+
+    @classmethod
+    def plot_interpolation_error(cls, dgb, pot):
+        sel = slice(None)  # slice(15,30)
+
+        centers = dgb.gaussians.overlap_data['centers'][sel]
+        embpot = dgb.gaussians.coords.embed_function(pot)
+        realpots, _, real_hess = [d * 219475 for d in embpot(centers, deriv_order=2)]
+        interpots, _, inter_hess = [d * 219475 for d in dgb.pot.potential_function(centers, deriv_order=2)]
+
+        ords = np.argsort(realpots)
+        devs = interpots[ords] - realpots[ords]
+        rows, cols = np.triu_indices_from(dgb.S)
+        utris = dgb.S[rows, cols]
+        unscaled_devs = devs
+        devs = devs * utris
+        max_dev_pos = np.flip(np.argsort(np.abs(devs)))[:5]
+
+        inter_trace = np.sum(np.sum(np.abs(inter_hess[ords]), axis=-1), axis=-1)
+        real_trace = np.sum(np.sum(np.abs(real_hess[ords]), axis=-1), axis=-1)
+        dev_trace = inter_trace - real_trace
+        dev_hess = inter_hess - real_hess
+        hess_plot = plt.ScatterPlot(realpots[ords], inter_trace - real_trace)
+
+        print("Mean Absolute Error:", np.mean(np.abs(unscaled_devs)), "Std:", np.std(unscaled_devs))
+        print("Mean Scaled Error:", np.mean(np.abs(devs)), "Std:", np.std(devs))
+        print("Mean Hessian Error:", np.mean(np.abs(dev_hess.flatten())),
+              "Std:", np.std(dev_hess.flatten()),
+              "Max:", np.max(np.abs(dev_hess.flatten()))
+              )
+        print("Mean Summed Hessian Error:", np.mean(np.abs(dev_trace.flatten())),
+              "Std:", np.std(dev_trace.flatten()),
+              "Max:", np.max(np.abs(dev_trace.flatten())),
+              )
+        print("Maximum (Scaled) Error:", devs[max_dev_pos])
+        print("Maximum (Scaled) Interpolation Error:")
+        for l, r, c, tt, ii, ov in zip(
+                dgb.gaussians.coords.centers[rows[sel][ords[max_dev_pos]]],
+                dgb.gaussians.coords.centers[cols[sel][ords[max_dev_pos]]],
+                dgb.gaussians.overlap_data['centers'][sel][ords[max_dev_pos]],
+                realpots[ords[max_dev_pos]],
+                interpots[ords[max_dev_pos]],
+                utris[sel][ords[max_dev_pos]]
+        ):
+            print(f"Centers: {c} ({ov}) <- {l} {r}")
+            print(f"  Error: {ii - tt} <- {tt} {ii}")
+
+        bad_bad = np.abs(devs) > 50
+
+        # center_plot=plt.ScatterPlot(
+        #     centers[:, 0],
+        #     centers[:, 1],
+        #     c=unscaled_devs
+        # )
+        # center_plot = plt.ScatterPlot(
+        #     centers[:, 0][bad_bad],
+        #     centers[:, 1][bad_bad],
+        #     c='blue'
+        # )
+        # plt.ScatterPlot(
+        #     dgb.gaussians.coords.centers[:, 0],
+        #     dgb.gaussians.coords.centers[:, 1],
+        #     c='red',
+        #     figure=center_plot
+        # )
+        # woof = plt.ScatterPlot(realpots[ords], unscaled_devs / realpots[ords])
+        scaled_dev_plot = plt.ScatterPlot(realpots[ords], unscaled_devs)
+        dev_plot = plt.ScatterPlot(realpots[ords], devs
+                                   # plot_range=[None, [-100, 100]]
+                                   )
+        dev_plot.show()
 
     @validationTest
     def test_ModelPotentialAIMD1D(self):
@@ -1831,7 +1905,7 @@ class DGBTests(TestCase):
             _, upos = np.unique(np.round(coords, unique_tol), return_index=True, axis=0)
             coords = coords[np.sort(upos)]
         return coords
-    @debugTest
+    @validationTest
     def test_ModelPotentialAIMD3D(self):
 
         # raise Exception(
@@ -2005,6 +2079,7 @@ class DGBTests(TestCase):
 
         cartesians = False
         use_interpolation = True
+        plot_interpolation_error = True
         use_quadrature = False
         permute_coords = True
         if use_interpolation:
@@ -2134,6 +2209,10 @@ class DGBTests(TestCase):
                                     cartesians=True,
                                     coordinate_sel=[0, 1]
                                     )
+                raise Exception(...)
+
+            if use_interpolation and plot_interpolation_error:
+                self.plot_interpolation_error(dgb, model.potential)
                 raise Exception(...)
 
             # print(dgb.gaussians.alphas[:3])
@@ -2394,7 +2473,7 @@ class DGBTests(TestCase):
             ref_mol = ref_mol.get_embedded_molecule(load_properties=False)
 
         return potential, ref_mol
-    @validationTest
+    @debugTest
     def test_WaterAIMD(self):
         pot, mol = self.getMBPolModel()
 
@@ -2467,125 +2546,42 @@ class DGBTests(TestCase):
         bend, symm, asym = mol.normal_modes.modes.freqs
 
         base_dir = os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/')
-        for steps in [350]:#[10, 25, 50, 100, 150]:
+        for steps in [250]:#[10, 25, 50, 100, 150]:
             os.makedirs(base_dir, exist_ok=True)
             timestep = 15
-            ntraj = 100
-
-            """
-            :: Frequencies: [1609.06919262 3282.90976091 3734.21080928 3789.53125267 5217.51875909 5401.89397243 7351.09858836 7664.26359183 8103.99949129]
-            :: ZPE: 4606.627554128196
-            :: Frequencies: [1601.42455194 3329.71690697 3687.62029012 3785.2827193  5239.72140546 5431.43502422 7273.36075106 7609.79139782 7681.97615474]
-            """
+            ntraj = 50
 
             energy_scaling = .8
             seed = 12213123
 
-            """
-            .85
-            :: ZPE: 4607.609834535458
-            :: Frequencies: [1609.10806831 3257.37674326 3705.80664569 3779.55606179 5117.94616833 5488.9311554  7103.13117146 7268.51482036 8044.95640667]
-
-            .82
-            :: ZPE: 4607.036888835445
-            :: Frequencies: [1611.31520179 3261.72984012 3699.50759743 3787.45568697 5234.54910614 5618.72712325 6996.01648381 7615.2027507  7846.41192519]
-
-            .8 100 steps
-            :: ZPE: 4606.797169141409
-            :: Frequencies: [1610.04169705 3243.34276193 3680.44334095 3781.76488968 5176.71828876 5479.26952197 7119.8232309  7493.5383026  7869.5964258 ]
-            .8 250 steps
-            :: ZPE: 4607.034725666095
-            :: Frequencies: [1609.8186903  3194.26823979 3687.10412523 3788.71573366 5347.51200037 5397.84981027 7399.42924148 7688.38478761 7838.3082727 ]
-            .8 350 steps
-            :: ZPE: 4606.105237460464
-            :: Frequencies: [1607.11057198 3232.15750914 3658.20979239 3788.33747347 5328.52801832 5447.25199542 7395.72409063 7689.17981469 7782.46375781]
-
-            .75 100 steps
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: diagonalizing in the space of 10 S functions
-            :: ZPE: 4607.485396532124
-            :: Frequencies: [1610.32104831 3297.30449688 3763.90888546 3782.91764011 5241.06813866 5517.12368506 7274.69419998 7642.96341081 7942.17360151]
-            >>--------------------------------------------------<<
-
-            
-            .65
-            :: ZPE: 4607.533920799935
-            :: Frequencies: [1613.81508892 3258.70547351 3694.75250725 3788.44189092 5312.020972   5636.01652342 7396.61172428 7650.71623142 7812.36439688]
-            """
-
+            svd_contrib_cutoff = None #1.5*1e-2
+            svd_min_value = None #1e-4
             max_overlap_cutoff = 1 - 1e-4
             gs_cutoff = 14
             declustering_radius = None# 1e-4
-            """
-            
-            :: ZPE: 4607.232047211292
-            :: Frequencies: [1607.99305477 3318.41403467 3658.14077806 3782.89189884 5218.17932006 5441.71112339 7350.3120221  7572.49259418 7808.84060981]
-            >
-            
-            :: Frequencies: [1607.99305455 3318.41403421 3658.14077756 3782.89189832 5218.17931934 5441.71112264 7350.31202109 7572.49259314 7808.84060874]
-            """
+
             sim_cutoff = .9
-            pruning_energy = 500
-            """ 100 traj, 500 steps, intep, 500 pruning, .75 energy scaling, ts 15
-            :: diagonalizing in the space of 11 S functions
-            :: ZPE: 4717.154477682675
-            :: Frequencies: [1602.07876848 3236.66257428 3679.79007853 3776.33226944 5256.81722745 5404.75831323 6035.77591717 7299.72183774 7442.62142637 7910.01710384]
-            """
+            plot_similarity = False
+            # pruning_energy = 1000
+            pruning_energy = None
+            pruning_probabilities = [[250, None], [500, .8], [700, .5], [1000, .25]]
+            if pruning_probabilities is not None:
+                pruning_probabilities = [
+                    [e / UnitsData.hartrees_to_wavenumbers, p]
+                    for e,p in pruning_probabilities
+                ]
 
-
-            """
-            Exact, 500
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: diagonalizing in the space of 35 S functions
-            :: ZPE: 4583.007641669525
-            :: Frequencies: [ 1601.05016407  3174.65730224  3684.67125309  3770.95940098  4728.54710705  5298.47889909  5369.13419633  6338.92435371  6924.04039369  6960.31893192  7320.32302977  7362.81656092  7506.68210479  8511.34551945  8644.03222131  8958.79563693  9052.24549628  9131.17223488 10316.08262903 10701.95316369]
-            >>--------------------------------------------------<<
-            """
-
-            """
-            Exact, 750
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: diagonalizing in the space of 55 S functions
-            :: ZPE: 4581.243716175728
-            :: Frequencies: [1597.44655014 3163.96185202 3662.95207721 3762.99936451 4698.24858568 5261.76687761 5349.86321078 6208.53108165 6835.71941787 6915.2882505  7234.6188507  7294.45878951 7479.47895046 7858.08569729 8444.84580236 8517.77292084 8910.91836325 8913.29461064 9072.99048682 9931.81643516]
-            >>--------------------------------------------------<<
-            """
-
-            """
-            :: diagonalizing in the space of 8 S functions (big, small E?)
-            :: ZPE: 4629.894966195605
-            :: Frequencies: [1611.75539366 3322.14103165 3750.51599371 3848.49340383 5428.62343904 6000.33748505 7584.24890693]
-            """
-            # pruning_energy = None
             use_interpolation = True
             plot_interpolation_error = False
 
-            """
-            
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: diagonalizing in the space of 12 S functions
-            :: ZPE: 4602.475402196309
-            :: Frequencies: [1617.49559128 3145.73144444 3683.56942544 3766.45797359 5113.10993611 5333.96662647 5911.9881934  7073.52852616 7521.64746949 7962.9483711  8091.36424309]
-            >>--------------------------------------------------<<
-            
-            No Pruning
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: diagonalizing in the space of 12 S functions
-            :: ZPE: 4602.475401562745
-            :: Frequencies: [1617.49559106 3145.731444   3683.56942494 3766.45797307 5113.1099354  5333.96662574 5911.98819259 7073.52852519 7521.64746846 7962.94837    8091.36424197]
-            >>--------------------------------------------------<<
-            
-            :: diagonalizing in the space of 14 S functions
-            :: ZPE: 4600.194581907368
-            :: Frequencies: [1625.51287884 3177.65721505 3683.39982601 3781.69900386 5212.88877941 5339.11125786 5892.31521247 6974.31684498 7097.08025867 7591.28785415 7847.54048909 7942.60899911 8600.99496214]
-            >>--------------------------------------------------<<
-            """
+            use_momenta = True
+            momentum_scaling = 1000
 
             use_pairwise_potentials = False
             morse_w = 3891.634745263701 * self.w2h
             morse_wx = 185.31310314514627 * self.w2h
             expansion_degree = 2
-            virial_scaling = 1/2
+            virial_scaling = 1
             transformation_method = 'diag' #4642.62343373526, 1624.36701583 3196.27137197 3474.1645502  3740.31164635
             # transformation_method = 'rpath' #4597.724422233999, 1613.48466441 3197.30480264 3559.70550684 3858.89799206
             # transformation_method = None #1698.2354715  3295.17558598 3667.70526921 3929.12204053
@@ -2627,7 +2623,6 @@ class DGBTests(TestCase):
                                             param_hash
                                         )
                                         )
-
 
             if pruning_energy is not None:
                 pruning_energy = pruning_energy / UnitsData.hartrees_to_wavenumbers
@@ -2683,9 +2678,14 @@ class DGBTests(TestCase):
                 pot,
                 initial_energies=np.array(initial_energies) * energy_scaling,
                 timestep=timestep  # DON'T MESS WITH THIS
+                , track_velocities=True
             )
             sim.propagate(steps)
-            coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+            coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+            momenta = momentum_scaling * velocities * mol.masses[np.newaxis, :, np.newaxis]
+
+            # plt.HistogramPlot(pot(coords)[0]*219475.6).show()
+            # raise Exception(...)
 
             # plops = pot(coords)[0] * 219475
             # coords = coords[plops < 7500]
@@ -2715,13 +2715,13 @@ class DGBTests(TestCase):
                 interp_data = None
 
             with BlockProfiler(inactive=not run_profiler):
-                crd = np.round(coords[len(initial_energies)-1:], 8)
-                if declustering_radius is not None:
-                    crd = self.declusterPoints(crd, declustering_radius)
-                print("input points:", len(crd))
+                # crd = np.round(coords[len(initial_energies)-1:], 8)
+                # if declustering_radius is not None:
+                #     crd = self.declusterPoints(crd, declustering_radius)
+                print("input points:", len(coords))
 
                 dgb = DGB.construct(
-                    crd,
+                    coords,
                     pot if not use_interpolation else interp_data,
                     masses=mol.atomic_masses,
                     alphas={'method':'virial', 'scaling':virial_scaling},
@@ -2731,12 +2731,18 @@ class DGBTests(TestCase):
                         [
                             {
                                 'method': 'energy-cutoff',
+                                'probabilities':pruning_probabilities,
                                 'cutoff': pruning_energy
-                            } if pruning_energy is not None else None,
+                            } if (pruning_energy is not None or pruning_probabilities is not None) else None,
                             {
                                 'method': 'decluster',
                                 'cluster_radius': declustering_radius
                             } if declustering_radius is not None else None,
+                            {
+                                'method': 'svd',
+                                'contrib_cutoff': svd_contrib_cutoff,
+                                'min_value': svd_min_value
+                            } if svd_contrib_cutoff is not None else None,
                             {
                                 'method': 'gram-schmidt',
                                 'norm_cutoff': 10 ** (-gs_cutoff),
@@ -2765,6 +2771,7 @@ class DGBTests(TestCase):
                             wx=morse_wx
                         )
                     } if use_pairwise_potentials else None,
+                    momenta=momenta if use_momenta else None,
                     logger=True
                 )
 
@@ -2773,98 +2780,31 @@ class DGBTests(TestCase):
                 # raise Exception(...)
 
                 if use_interpolation and plot_interpolation_error:
-                    sel = slice(None)#slice(15,30)
-
-                    centers = dgb.gaussians.overlap_data['centers'][sel]
-                    embpot = dgb.gaussians.coords.embed_function(pot)
-                    realpots, _, real_hess = [d * 219475 for d in embpot(centers, deriv_order=2)]
-                    interpots, _, inter_hess = [d * 219475 for d in dgb.pot.potential_function(centers, deriv_order=2)]
-
-                    ords = np.argsort(realpots)
-                    devs = interpots[ords] - realpots[ords]
-                    rows, cols = np.triu_indices_from(dgb.S)
-                    utris = dgb.S[rows, cols]
-                    unscaled_devs = devs
-                    devs = devs * utris
-                    max_dev_pos = np.flip(np.argsort(np.abs(devs)))[:5]
-
-                    inter_trace = np.sum(np.sum(np.abs(inter_hess[ords]), axis=-1), axis=-1)
-                    real_trace = np.sum(np.sum(np.abs(real_hess[ords]), axis=-1), axis=-1)
-                    dev_trace = inter_trace - real_trace
-                    dev_hess = inter_hess - real_hess
-                    hess_plot = plt.ScatterPlot(realpots[ords], inter_trace - real_trace)
-
-                    print("Mean Absolute Error:", np.mean(np.abs(unscaled_devs)), "Std:", np.std(unscaled_devs))
-                    print("Mean Scaled Error:", np.mean(np.abs(devs)), "Std:", np.std(devs))
-                    print("Mean Hessian Error:", np.mean(np.abs(dev_hess.flatten())),
-                          "Std:", np.std(dev_hess.flatten()),
-                          "Max:", np.max(np.abs(dev_hess.flatten()))
-                          )
-                    print("Mean Summed Hessian Error:", np.mean(np.abs(dev_trace.flatten())),
-                          "Std:", np.std(dev_trace.flatten()),
-                          "Max:", np.max(np.abs(dev_trace.flatten())),
-                          )
-                    print("Maximum (Scaled) Error:", devs[max_dev_pos])
-                    print("Maximum (Scaled) Interpolation Error:")
-                    for l,r,c, tt, ii, ov in zip(
-                            dgb.gaussians.coords.centers[rows[sel][ords[max_dev_pos]]],
-                            dgb.gaussians.coords.centers[cols[sel][ords[max_dev_pos]]],
-                            dgb.gaussians.overlap_data['centers'][sel][ords[max_dev_pos]],
-                            realpots[ords[max_dev_pos]],
-                            interpots[ords[max_dev_pos]],
-                            utris[sel][ords[max_dev_pos]]
-                    ):
-                        print(f"Centers: {c} ({ov}) <- {l} {r}")
-                        print(f"  Error: {ii-tt} <- {tt} {ii}")
-
-                    bad_bad = np.abs(devs) > 50
-
-                    # center_plot=plt.ScatterPlot(
-                    #     centers[:, 0],
-                    #     centers[:, 1],
-                    #     c=unscaled_devs
-                    # )
-                    # center_plot = plt.ScatterPlot(
-                    #     centers[:, 0][bad_bad],
-                    #     centers[:, 1][bad_bad],
-                    #     c='blue'
-                    # )
-                    # plt.ScatterPlot(
-                    #     dgb.gaussians.coords.centers[:, 0],
-                    #     dgb.gaussians.coords.centers[:, 1],
-                    #     c='red',
-                    #     figure=center_plot
-                    # )
-                    # woof = plt.ScatterPlot(realpots[ords], unscaled_devs / realpots[ords])
-                    scaled_dev_plot = plt.ScatterPlot(realpots[ords], unscaled_devs)
-                    dev_plot = plt.ScatterPlot(realpots[ords], devs
-                                               # plot_range=[None, [-100, 100]]
-                                               )
-                    dev_plot.show()
+                    self.plot_interpolation_error(dgb, pot)
                     raise Exception(...)
 
                 if plot_gaussians:
                     self.plot_gaussians(dgb, mol, 10, plot_dir=plot_dir)
-
                     raise Exception(...)
 
                 type(self).default_num_plot_wfns = 5
                 if plot_wfns is True:
                     plot_wfns = {'cartesians': [0, 1]} if not cartesians else True
                 wfns = self.runDGB(dgb, mol,
-                            mode='similarity',
-                            similarity_cutoff=sim_cutoff,
-                            plot_wavefunctions=plot_wfns,
-                            plot_spectrum=False,
-                            pot_cmap=pot_cmap,
-                            pot_points=pot_points,
-                            wfn_cmap=wfn_cmap,
-                            wfn_points=wnf_points,
-                            wfn_contours=wfn_contours,
-                            plot_centers=plot_centers,
-                            plot_dir=plot_dir,
-                            **plot_styles
-                            )
+                                   mode='similarity',
+                                   similarity_cutoff=sim_cutoff,
+                                   plot_similarity=plot_similarity,
+                                   plot_wavefunctions=plot_wfns,
+                                   plot_spectrum=False,
+                                   pot_cmap=pot_cmap,
+                                   pot_points=pot_points,
+                                   wfn_cmap=wfn_cmap,
+                                   wfn_points=wnf_points,
+                                   wfn_contours=wfn_contours,
+                                   plot_centers=plot_centers,
+                                   plot_dir=plot_dir,
+                                   **plot_styles
+                                   )
 
                 if plot_dir is not None:
                     with open(os.path.join(plot_dir, 'freqs.txt'), 'w+') as woof:

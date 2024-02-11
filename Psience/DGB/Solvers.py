@@ -117,10 +117,6 @@ class DGBEigensolver:
 
         similarity_matrix = Qs.T @ Qh
 
-        import McUtils.Plots as plt
-        plt.MatrixPlot(similarity_matrix).show()
-
-
         # compute moving average of abs of blocks of dets
         prev_dets = collections.deque(maxlen=similarity_chunk_size)
         cur_sum = 0

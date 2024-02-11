@@ -488,6 +488,16 @@ class DGB:
 
         return eigs, evecs
 
+    def get_similarity_matrix(self):
+        eigs, Qs = np.linalg.eigh(self.S)
+        eigh, Qh = np.linalg.eigh(self.V + self.T)
+
+        similarity_matrix = Qs.T @ Qh
+
+        # import McUtils.Plots as plt
+        # plt.MatrixPlot(similarity_matrix).show()
+        return similarity_matrix
+
     def get_wavefunctions(self,
                           mode=None,
                           similarity_cutoff=None,
