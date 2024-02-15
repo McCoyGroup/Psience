@@ -59,6 +59,7 @@ class DGBGaussians:
                  transformations=None, *,
                  momenta=None,
                  poly_coeffs=None,
+                 kinetic_options=None,
                  logger=None,
                  parallelizer=None
                  ):
@@ -93,6 +94,10 @@ class DGBGaussians:
             poly_coeffs = self.canonicalize_poly_coeffs(poly_coeffs, self.alphas)
         self._poly_coeffs = poly_coeffs
 
+        if kinetic_options is None:
+            kinetic_options = {}
+        self.kinetic_options = kinetic_options
+
         self.parallelizer = Parallelizer.lookup(parallelizer)
         self.logger = Logger.lookup(logger)
 
@@ -117,7 +122,7 @@ class DGBGaussians:
         if self._poly_coeffs is not None:
             raise NotImplementedError("need to reintroduce polynomial support")
         with self.logger.block(tag="Evaluating kinetic energy matrix"):
-            return self.coords.kinetic_energy_evaluator.evaluate_ke(self.overlap_data, logger=self.logger)
+            return self.coords.kinetic_energy_evaluator.evaluate_ke(self.overlap_data, logger=self.logger, **self.kinetic_options)
 
     def optimize(self, optimizer_options, potential_function=None, logger=None, **opts):
         if logger is None:
@@ -146,43 +151,6 @@ class DGBGaussians:
 
         return self.take_gaussian_selection(optimized_positions)
 
-    @classmethod
-    def take_overlap_data_subselection(self, overlap_data, positions):
-        # we need to find the positions in the old stuff where we
-        rows = overlap_data['row_inds']
-        cols = overlap_data['col_inds']
-
-        mask_1, _, _ = nput.contained(rows, positions)
-        mask_2, _, _ = nput.contained(cols, positions)
-        take_pos = np.where(np.logical_and(mask_1 > 0, mask_2 > 0))[0]
-        # raise Exception(
-        #     len(positions),
-        #     len(take_pos),
-        #     len(np.triu_indices(len(positions))[0])
-        # )
-
-        og_keys = {
-            'init_centers',
-            'init_alphas',
-            'init_covariances',
-            'initial_phases',
-            'initial_momenta'
-        }
-
-        new = {
-            k:(
-                v
-                    if v is None else
-                v[take_pos] if k not in og_keys else v[positions]
-            )
-            for k,v in overlap_data.items()
-        }
-        rows, cols = np.triu_indices(len(positions))
-        new['row_inds'] = rows
-        new['col_inds'] = cols
-
-        return new
-
     def take_gaussian_selection(self, full_good_pos):
         centers = self.coords[full_good_pos,]
         alphas = self.alphas[full_good_pos,]
@@ -204,11 +172,12 @@ class DGBGaussians:
         new = type(self)(
             centers, alphas, transformations,
             poly_coeffs=_poly_coeffs, logger=self.logger,
-            momenta=momenta
+            momenta=momenta,
+            kinetic_options=self.kinetic_options
         )
         
         if self._overlap_data is not None:
-            new._overlap_data = self.take_overlap_data_subselection(self.overlap_data, full_good_pos)
+            new._overlap_data = self.overlap_data.take_subselection(full_good_pos)
         if self._pref is not None:
             base = self._pref
             idx = np.ix_(full_good_pos, full_good_pos)
@@ -541,8 +510,16 @@ class DGBGaussians:
                     if next_prob is None:
                         new_pivs = np.arange(cur_pivot, pivot_pos)
                     else:
-                        probs = np.random.uniform(0, 1, size=pivot_pos - cur_pivot)
-                        sel = np.where(probs < next_prob)
+                        if next_prob < 1:
+                            probs = np.random.uniform(0, 1, size=pivot_pos)
+                            sel = np.where(probs < next_prob)
+                        else: # take this many points from that region
+                            if pivot_pos >= next_prob:
+                                sel = [
+                                    np.sort(np.random.choice(np.arange(pivot_pos), next_prob, replace=False))
+                                ]
+                            else:
+                                sel = [np.arange(pivot_pos)]
                         if len(sel) > 0 and len(sel[0]) > 0:
                             new_pivs = cur_pivot + sel[0]
                     cur_pivot = pivot_pos
@@ -588,6 +565,7 @@ class DGBGaussians:
                   masses=None,
                   atoms=None,
                   modes=None,
+                  kinetic_options=None,
                   internals=None,
                   coordinate_selection=None,
                   cartesians=None,
@@ -706,6 +684,9 @@ class DGBGaussians:
                     raise ValueError("unknown transformation spec {}".format(modes))
             transformations = cls.canonicalize_transforms(coords.centers, transformations)
 
+            if momenta is not None:
+                momenta = DGBEvaluator.get_momentum_vectors(momenta, transformations)
+
         if isinstance(alphas, (str, dict)):
             if isinstance(alphas, str) and alphas == 'auto':
                 if modes is not None:
@@ -730,7 +711,8 @@ class DGBGaussians:
 
         return cls(coords, alphas, transformations,
                    poly_coeffs=poly_coeffs, logger=logger,
-                   momenta=momenta
+                   momenta=momenta,
+                   kinetic_options=kinetic_options
                    ), potential_function
     @classmethod
     def get_normal_modes(cls,

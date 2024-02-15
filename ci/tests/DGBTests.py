@@ -1168,6 +1168,7 @@ class DGBTests(TestCase):
                     wfns,
                     dgb,
                     mol,
+                    which=plot_wavefunctions,
                     cartesians=use_cartesians,
                     coordinate_sel=coordinate_sel,
                     plot_dir=plot_dir,
@@ -1432,10 +1433,10 @@ class DGBTests(TestCase):
 
         sim = model.setup_AIMD(
             initial_energies=[
-                [ 2*3701 * self.w2h],
+                # [ 2*3701 * self.w2h],
                 [-2*3701 * self.w2h]
             ],
-            timestep=10,
+            timestep=25,
             track_velocities=True
         )
         sim.propagate(15)
@@ -1450,23 +1451,38 @@ class DGBTests(TestCase):
         with BlockProfiler(inactive=True):
 
             dgb = model.setup_DGB(
-                np.round(coords[1:], 8),
+                np.round(coords, 8),
                 # optimize_centers=1e-8,
                 optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 # alphas={'method':'virial', 'scaling':pots_scaling[1:, np.newaxis]},
                 cartesians=[0, 1] if cartesians else None,
-                quadrature_degree=3,
-                expansion_degree=-1,
+                quadrature_degree=25,
+                expansion_degree=2,
                 pairwise_potential_functions={
-                    (0, 1): self.setupMorseFunction(model, 0, 1)
-                    # (0, 2): self.setupMorseFunction(model, 0, 2)
+                    'functions': {
+                        (0, 1): self.setupMorseFunction(model, 0, 1)
+                        # (0, 2): self.setupMorseFunction(model, 0, 2)
+                    },
+                    'quadrature_degree': 11
                 },
+                momenta=1872/2*momenta,
                 # momenta=15*(100*momenta[1:]),
-                # momenta=150*momenta[1:],
                 # momenta=np.ones_like(150*momenta[1:]) / 10,
                 # momenta=np.zeros_like(momenta[1:])
             )
+
+            # moms = dgb.gaussians.momenta.flatten()
+            # print(dgb.gaussians.overlap_data.delta_phase_diff.flatten())
+            # argh = dgb.gaussians.alphas.flatten()
+            # r, c = dgb.gaussians.overlap_data.indices
+            # jd = (moms[r] / argh[r] + moms[c] / argh[c] ) * (argh[r]*argh[c]/(argh[r]+argh[c]))
+            # print(jd)
+            # raise Exception(...)
+
+            # moms = dgb.gaussians.momenta
+            #
+            # plt.ScatterPlot(np.arange(len(moms)), np.abs(moms.flatten())).show()
 
             plot_gaussians = False
             if plot_gaussians:
@@ -1541,29 +1557,29 @@ class DGBTests(TestCase):
             """
             raise Exception(...)
 
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 69 S functions
+        :: ZPE: 3815.1602161487854
+        :: Frequencies: [ 3676.15271753  3727.03078901  7220.80144039  7236.73919476  7416.68728081 10595.20948421 10597.32265836 10897.3034496  10990.64643556 13795.47060442 13797.44564618 14285.28218497 14321.1505273  14573.69425921 16830.3614471  16835.00173818 17518.48942695 17543.56990564 17847.28555492 18095.84541425]
+        >>--------------------------------------------------<<
+        """
         check_dvr = False
         if check_dvr:
-            raise Exception("do the proper 2D thing...")
-            print("Running DVR...")
-            dvr = model.setup_DVR(
-                domain=[[1, 4], [1, 4], [np.deg2rad(60), np.deg2rad(160)]],
-                divs=[800, 800, 800], po_divs=[25, 25, 25],
-                potential_optimize=True,
+            raise Exception("getting model DVRs working in normal mode subspaces unfinished")
+            nm_model, freqs = model.to_normal_modes()
+            raise Exception(nm_model.coords, nm_model.rotation)
+            dvr = nm_model.setup_DVR(
+                domain=[[-10, 10], [-10, 10]],
+                divs=[65, 65],
+
+                # potential_optimize=True,
                 logger=True
             )
             po_data = dvr.run()
-            """
-            :: PotentialOptimizedDVR([WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None)], pot=SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2))
-            :: g: [[SympyExpr(0.0005786177281533848), SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3])], [SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(0.0005786177281533848), SympyExpr(0.0)], [SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3]), SympyExpr(0.0), SympyExpr(0.000578617728153385/r[2,3]**2 - 6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]) + 0.000578617728153385/r[1,2]**2)]]
-            :: mass: [None, None, None]
-            :: g_deriv: [SympyExpr(0.0), SympyExpr(0.0), SympyExpr(6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]))]
-            :: domain: [[1, 4], [1, 4], [1.0471975511965976, 2.792526803190927]]
-            :: divs: [800, 800, 800]
-            :: potential_function: SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2)
-            ::> constructing grid
-             """
+
             raise Exception(
-                po_data.wavefunctions.energies[1] * UnitsData.hartrees_to_wavenumbers,
+                po_data.wavefunctions.energies[0] * UnitsData.hartrees_to_wavenumbers,
                 po_data.wavefunctions.frequencies() * UnitsData.hartrees_to_wavenumbers
             )
         # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
@@ -1571,11 +1587,11 @@ class DGBTests(TestCase):
 
         symm, asymm = model.normal_modes()[0]
         sim = model.setup_AIMD(
-            initial_energies=[
+            initial_energies=np.array([
                 [ symm,  asymm],
                 [-symm,  asymm],
-                [-symm, -asymm],
-                [ symm, -asymm],
+                [ 0,    -asymm],
+                [-symm,      0],
                 # [2000 * self.w2h, 0],
                 # [0, 2000 * self.w2h],
                 # [-2000 * self.w2h, 0],
@@ -1586,18 +1602,17 @@ class DGBTests(TestCase):
                 # [0, 10000 * self.w2h],
                 # [-10000 * self.w2h, 0],
                 # [0, -10000 * self.w2h]
-            ],
-            timestep=25,
-            track_velocities = True
+            ])*2,
+            timestep=15,
+            track_velocities=True
         )
         sim.propagate(25)
         coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
-        momenta = 250 * velocities * mol.masses[np.newaxis, :, np.newaxis]
+        momenta = 1872 * velocities * mol.masses[np.newaxis, :, np.newaxis]
         # momenta = None
 
         cartesians=False
         with BlockProfiler(inactive=True):
-
             dgb = model.setup_DGB(
                 coords,
                 optimize_centers=1e-14,
@@ -1605,26 +1620,40 @@ class DGBTests(TestCase):
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
                 quadrature_degree=3,
+                kinetic_options=dict(
+                    include_diagonal_contribution=True,
+                    include_coriolis_coupling=True,
+                    include_watson_term=True
+                ),
                 expansion_degree=2,
-                # pairwise_potential_functions={
-                #     (0, 1):self.setupMorseFunction(model, 0, 1),
-                #     (0, 2):self.setupMorseFunction(model, 0, 2)
-                # },
+                pairwise_potential_functions={
+                    'functions': {
+                        (0, 1): self.setupMorseFunction(model, 0, 1),
+                        (0, 2): self.setupMorseFunction(model, 0, 2)
+                    },
+                    'quadrature_degree': 7
+                },
                 # transformations='diag'
-                momenta=momenta
+                # momenta=momenta #/ (10*1872)
             )
 
-            plot_gaussians = True
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 80 S functions
+            :: ZPE: 3830.3764717334275
+            :: Frequencies: [ 3675.84806189  3726.63119184  7220.21030118  7236.04910246  7416.59927689 10594.35262638 10596.41056233 10898.18829694 10992.57836132 13795.01411084 13795.28408024 14287.32637531 14325.71150395 14607.27796273 16827.61503786 16828.53168599 17521.47359305 17552.51517707 17879.83078742 18202.01573779]
+            >>--------------------------------------------------<<
+            """
+
+            plot_gaussians = False
             if plot_gaussians:
                 self.plot_gaussians(dgb, mol)
-            raise Exception(...)
+                raise Exception(...)
 
 
-
-
-            # print(dgb.gaussians.coords.centers[:3])
-            # print(dgb.gaussians.overlap_data['init_covariances'][:3])
-            # print(dgb.gaussians.overlap_data['initial_momenta'][:3])
+            # print(dgb.gaussians.coords.centers[:5])
+            # print(dgb.gaussians.overlap_data.initial_precision_matrices[:5])
+            # print(dgb.gaussians.overlap_data.initial_momenta[:5])
 
             """
             >>------------------------- Running distributed Gaussian basis calculation -------------------------
@@ -1643,9 +1672,177 @@ class DGBTests(TestCase):
             """
 
             self.runDGB(dgb, mol,
-                        similarity_cutoff=.95,
+                        similarity_cutoff=.9,
                         plot_spectrum=False,
-                        plot_wavefunctions=False
+                        plot_wavefunctions=True
+                        # mode='classic'
+                        )
+
+    @validationTest
+    def test_ModelPotentialAIMD2DPhased(self):
+        mol, model = self.buildWaterModel(
+            # w2=None, wx2=None,
+            ka=None,
+            dudr1=1 / 5.5,
+            dudr2=1 / 5.5
+            # dipole_direction=[1, 0, 0]
+        )
+
+        check_freqs = False
+        if check_freqs:
+            freqs = model.normal_modes()[0]
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        check_anh = False
+        if check_anh:
+            from Psience.VPT2 import VPTRunner
+
+            VPTRunner.run_simple(
+                [mol.atoms, mol.coords],
+                potential_derivatives=model.potential(mol.coords, deriv_order=4)[1:],
+                dipole_derivatives=model.dipole(mol.coords, deriv_order=3),
+                order=2, states=3,
+                logger=True,
+                degeneracy_specs='auto',
+                calculate_intensities=True
+            )
+
+            # model.run_VPT(order=2, states=2, degeneracy_specs='auto', logger=True)
+            """
+            ZPE: 3869.37229   3814.75070 
+            State     Frequency    Intensity       Frequency    Intensity
+              0 1    3896.87028     64.98650      3726.72077     63.58462
+              1 0    3841.87433      0.26781      3675.96177      0.25708
+              0 2    7793.74057      0.00000      7415.60644      0.00317
+              2 0    7683.74866      0.00000      7220.11984      0.00861
+              1 1    7738.74461      0.00000      7236.25926      1.32009
+              0 3   11690.61085      0.00000     10986.10686      0.00048
+              3 0   11525.62299      0.00000     10895.67849      0.00008
+              1 2   11635.61490      0.00000     10593.72292      0.00056
+              2 1   11580.61894      0.00000     10596.33867      0.05435
+            """
+            raise Exception(...)
+
+        """
+        >>------------------------- Running distributed Gaussian basis calculation -------------------------
+        :: diagonalizing in the space of 69 S functions
+        :: ZPE: 3815.1602161487854
+        :: Frequencies: [ 3676.15271753  3727.03078901  7220.80144039  7236.73919476  7416.68728081 10595.20948421 10597.32265836 10897.3034496  10990.64643556 13795.47060442 13797.44564618 14285.28218497 14321.1505273  14573.69425921 16830.3614471  16835.00173818 17518.48942695 17543.56990564 17847.28555492 18095.84541425]
+        >>--------------------------------------------------<<
+        """
+        check_dvr = False
+        if check_dvr:
+            raise Exception("getting model DVRs working in normal mode subspaces unfinished")
+            nm_model, freqs = model.to_normal_modes()
+            raise Exception(nm_model.coords, nm_model.rotation)
+            dvr = nm_model.setup_DVR(
+                domain=[[-10, 10], [-10, 10]],
+                divs=[65, 65],
+
+                # potential_optimize=True,
+                logger=True
+            )
+            po_data = dvr.run()
+
+            raise Exception(
+                po_data.wavefunctions.energies[0] * UnitsData.hartrees_to_wavenumbers,
+                po_data.wavefunctions.frequencies() * UnitsData.hartrees_to_wavenumbers
+            )
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(mol.coords, mol.normal_modes.modes)
+
+        symm, asymm = model.normal_modes()[0]
+        sim = model.setup_AIMD(
+            initial_energies=np.array([
+                # [symm, asymm],
+                # [-symm, asymm],
+                # [symm/4, -asymm],
+                [-symm, -asymm/4],
+                [-symm,  asymm/4],
+                [symm/1.25,  0],
+                [  0,   -asymm],
+                # [2000 * self.w2h, 0],
+                # [0, 2000 * self.w2h],
+                # [-2000 * self.w2h, 0],
+                # [0, -2000 * self.w2h],
+                # [-15000 * self.w2h, -15000 * self.w2h],
+                # [15000 * self.w2h, -15000 * self.w2h],
+                # [10000 * self.w2h, 0],
+                # [0, 10000 * self.w2h],
+                # [-10000 * self.w2h, 0],
+                # [0, -10000 * self.w2h]
+            ]) * 1.5,
+            timestep=35,
+            track_velocities=True
+        )
+        sim.propagate(75)
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        momenta = velocities * np.sqrt(1872*mol.masses[np.newaxis, :, np.newaxis])
+        # momenta = None
+
+        cartesians = False
+        with BlockProfiler(inactive=True):
+            dgb = model.setup_DGB(
+                coords,
+                optimize_centers=1e-14,
+                # optimize_centers=False,
+                modes=None if cartesians else 'normal',
+                cartesians=[0, 1] if cartesians else None,
+                quadrature_degree=13,
+                kinetic_options=dict(
+                    include_diagonal_contribution=True,
+                    include_coriolis_coupling=True,
+                    include_watson_term=True
+                ),
+                expansion_degree=2,
+                pairwise_potential_functions={
+                    'functions': {
+                        (0, 1): self.setupMorseFunction(model, 0, 1),
+                        (0, 2): self.setupMorseFunction(model, 0, 2)
+                    },
+                    'quadrature_degree': 15
+                },
+                # transformations='diag'
+                momenta=momenta  # / (10*1872)
+            )
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 42 S functions
+            :: ZPE: 3807.934037992968
+            :: Frequencies: [ 3670.59088106  3722.14749007  7223.15562229  7241.64616306  7433.96076833 10611.01532298 10617.63213164 10927.53928568 11021.45838168 13840.65454305 13857.82570452 14315.76238991 14392.61356996 14591.09156348 17033.31359745 17085.14955273 17629.61337665 17728.52042598 18143.68951671 18205.18621647]
+            >>--------------------------------------------------<<
+            """
+
+            plot_gaussians = False
+            if plot_gaussians:
+                self.plot_gaussians(dgb, mol)
+                raise Exception(...)
+
+            # print(dgb.gaussians.coords.centers[:5])
+            # print(dgb.gaussians.overlap_data.initial_precision_matrices[:5])
+            # print(dgb.gaussians.overlap_data.initial_momenta[:5])
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 59 S functions
+            :: ZPE: 3815.0254181251166
+            :: Frequencies: [ 3676.14207931  3726.99361301  7221.08377964  7236.78275062  7418.52358929 10595.91399038 10597.43855691 10901.20911454 11001.80376921 13797.34317942 13799.82687628 14293.18090478 14329.25062911 14640.80903924 16841.23176496 16849.01710935 17531.49955265 17572.95249918 17891.12454688 18319.17520319]
+            >>--------------------------------------------------<<
+            """
+
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 41 S functions
+            :: ZPE: 3815.1110786450845
+            :: Frequencies: [ 3676.77263767  3727.70483878  7227.82029744  7237.90664201  7440.76152723 10601.58120583 10618.10732722 10920.95275887 11104.66728657 13808.26706889 13827.90646153 14416.22589799 14471.29425293 15204.74679781 16858.16199974 16902.38702413 17668.82463041 17864.53996371 18809.9243302  18939.68118366]
+            >>--------------------------------------------------<<
+            """
+
+            self.runDGB(dgb, mol,
+                        similarity_cutoff=.9,
+                        plot_spectrum=False,
+                        plot_wavefunctions=True
                         # mode='classic'
                         )
 
@@ -1669,16 +1866,30 @@ class DGBTests(TestCase):
 
         check_anh = False
         if check_anh:
-            model.run_VPT(order=2, states=2, degeneracy_specs='auto', logger=True)
+            from Psience.VPT2 import VPTRunner
+
+            VPTRunner.run_simple(
+                [mol.atoms, mol.coords],
+                potential_derivatives=model.potential(mol.coords, deriv_order=4)[1:],
+                dipole_derivatives=model.dipole(mol.coords, deriv_order=3),
+                order=2, states=3,
+                logger=True,
+                degeneracy_specs='auto',
+                calculate_intensities=True
+            )
             """
-            ZPE:     3302.64651                   3220.08468
+            ZPE:     3302.64651                   3257.26478
                              Harmonic                  Anharmonic
             State     Frequency    Intensity       Frequency    Intensity
-              0 1    3870.20673     34.00202      3702.08096     33.19339
-              1 0    2735.08628     16.06164      2616.40747     15.75924
-              0 2    7740.41347      0.00000      7236.30645      0.65964
-              2 0    5470.17256      0.00000      5114.40644      0.37370
-              1 1    6605.29301      0.00000      6317.94784      0.00436
+              0 1    3870.20673     34.00202      3702.01796     33.21144
+              1 0    2735.08628     16.06164      2616.34401     15.76628
+              0 2    7740.41347      0.00000      7236.18025      0.65997
+              2 0    5470.17256      0.00000      5114.27885      0.37349
+              1 1    6605.29301      0.00000      6317.69578      0.00394
+              0 3   11610.62020      0.00000     10602.48686      0.02761
+              3 0    8205.25884      0.00000      7493.80452      0.01495
+              1 2   10475.49975      0.00000      9851.19188      0.00008
+              2 1    9340.37929      0.00000      8814.96443      0.00002
             """
             raise Exception(...)
 
@@ -1686,12 +1897,13 @@ class DGBTests(TestCase):
         # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
         # raise Exception(mol.coords, mol.normal_modes.modes)
 
+        symm, asymm = model.normal_modes()[0]
         sim = model.setup_AIMD(
-            initial_energies=[
-                [5000 * self.w2h, 5000 * self.w2h],
-                [-5000 * self.w2h, 5000 * self.w2h],
-                [-5000 * self.w2h, -5000 * self.w2h],
-                [5000 * self.w2h, -5000 * self.w2h],
+            initial_energies=np.array([
+                [ symm, asymm],
+                [-symm, asymm],
+                [-symm, -asymm],
+                [ symm, -asymm],
                 # [2000 * self.w2h, 0],
                 # [0, 2000 * self.w2h],
                 # [-2000 * self.w2h, 0],
@@ -1702,31 +1914,50 @@ class DGBTests(TestCase):
                 # [0, 10000 * self.w2h],
                 # [-10000 * self.w2h, 0],
                 # [0, -10000 * self.w2h]
-            ],
-            timestep=15
+            ]) * 1,
+            timestep=15,
+            track_velocities=True
         )
-        sim.propagate(25)
-        coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        sim.propagate(35)
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        momenta = 250 * velocities * mol.masses[np.newaxis, :, np.newaxis]
 
         cartesians = False
         with BlockProfiler(inactive=True):
-
             dgb = model.setup_DGB(
                 np.round(coords, 8),
-                optimize_centers=1e-8,
+                optimize_centers=1e-14,
                 # optimize_centers=False,
                 modes=None if cartesians else 'normal',
                 cartesians=[0, 1] if cartesians else None,
-                # quadrature_degree=3,
-                expansion_degree=2,
-                pairwise_potential_functions={
-                    (0, 1): self.setupMorseFunction(model, 0, 1),
-                    (0, 2): self.setupMorseFunction(model, 0, 2,
-                                                    w=3869.47 * self.w2h / np.sqrt(2),
-                                                    wx=84 * self.w2h / np.sqrt(2),
-                                                    )
-                }
+                quadrature_degree=7,
+                # expansion_degree=2,
+                # pairwise_potential_functions={
+                #     (0, 1): self.setupMorseFunction(model, 0, 1),
+                #     (0, 2): self.setupMorseFunction(model, 0, 2,
+                #                                     w=3869.47 * self.w2h / np.sqrt(2),
+                #                                     wx=84 * self.w2h / np.sqrt(2),
+                #                                     )
+                # },
+                kinetic_options=dict(
+                    include_diagonal_contribution=True,
+                    include_watson_term=True,
+                    include_coriolis_coupling=True
+                ),
+                momenta=momenta
             )
+
+            # print(dgb.gaussians.coords.centers[:5])
+            # print(dgb.gaussians.overlap_data['init_covariances'][:5])
+            # print(dgb.gaussians.overlap_data['initial_momenta'][:5])
+            # raise Exception(
+            #     dgb.T[:5, :5]
+            # )
+
+            plot_gaussians = False
+            if plot_gaussians:
+                self.plot_gaussians(dgb, mol)
+                raise Exception(...)
 
             self.runDGB(dgb, mol,
                         # vmin=-.05,
@@ -1808,75 +2039,6 @@ class DGBTests(TestCase):
                 #     (0, 2): self.setupMorseFunction(model, 0, 2)
                 # }
             )
-
-            # submol, submodel_stretch = self.buildWaterModel(
-            #     # w2=None, wx2=None,
-            #     ka=None
-            # )
-            # submol, submodel_bend = self.buildWaterModel(
-            #     w=0, wx=None,
-            #     w2=0, wx2=None,
-            #     # ka=None,
-            # )
-
-            # print(
-            #     dgb.evaluate_multiplicative_operator(
-            #         submodel_bend.potential,
-            #         quadrature_degree=4
-            #     )[:5, :5]
-            # )
-            # print(
-            #     dgb.evaluate_multiplicative_operator(
-            #         submodel_bend.potential,
-            #         expansion_degree=2
-            #     )[:5, :5]
-            # )
-            #     dgb.evaluate_multiplicative_operator(
-            #         submodel_stretch.potential,
-            #         expansion_degree=2,
-            #         pairwise_functions={
-            #             (0, 1): self.setupMorseFunction(model, 0, 1),
-            #             (0, 2): self.setupMorseFunction(model, 0, 2)
-            #         }
-            #     )[:5, :5]
-
-            # print(
-            #     dgb.evaluate_multiplicative_operator(
-            #         submodel_stretch.potential,
-            #         quadrature_degree=3
-            #     )[:5, :5] -
-            #     dgb.evaluate_multiplicative_operator(
-            #         submodel_stretch.potential,
-            #         expansion_degree=2,
-            #         pairwise_functions={
-            #             (0, 1): self.setupMorseFunction(model, 0, 1),
-            #             (0, 2): self.setupMorseFunction(model, 0, 2)
-            #         }
-            #     )[:5, :5]
-            # )
-            raise Exception(...)
-
-            """
->>------------------------- Running distributed Gaussian basis calculation -------------------------
-:: diagonalizing in the space of 27 S functions
-:: ZPE: 2703.0532865370874
-:: Frequencies: [ 1611.61510053  3215.4525035   3761.65133913  4822.94422724  5383.49202567  6528.60083868  7121.5055917   7461.58631351  8451.7611391   8802.65305029  9126.15952187 10068.00946755 10655.33557818 11035.91654539 11686.79214732 12368.50320681 12618.40116626 13452.85838251 13927.47046538 14512.77618706]
->>--------------------------------------------------<<
-[[0.00623843 0.00730029 0.00521558 0.00503987 0.00518823]
- [0.00730029 0.03210892 0.00082444 0.0032473  0.01149502]
- [0.00521558 0.00082444 0.02563066 0.00815058 0.00171581]
- [0.00503987 0.0032473  0.00815058 0.01458135 0.00088887]
- [0.00518823 0.01149502 0.00171581 0.00088887 0.01424601]]
- 
-            evauating integrals with 3-order quadrature
-[[0.00624626 0.00731284 0.00521744 0.00504326 0.00519344]
- [0.00731284 0.03218069 0.00082591 0.00325166 0.0115091 ]
- [0.00521744 0.00082591 0.0256305  0.00815148 0.00171665]
- [0.00504326 0.00325166 0.00815148 0.01458469 0.00088981]
- [0.00519344 0.0115091  0.00171665 0.00088981 0.01425408]]
- 
-            
-            """
 
             # type(self).default_num_plot_wfns = 5
             type(self).default_num_plot_wfns = 1
@@ -2456,18 +2618,33 @@ class DGBTests(TestCase):
             return chunks
 
         if ref is None:
-            ref = np.array([
-                [0.00000000e+00, 6.56215885e-02, 0.00000000e+00],
-                [7.57391014e-01, -5.20731105e-01, 0.00000000e+00],
-                [-7.57391014e-01, -5.20731105e-01, 0.00000000e+00]
-            ]) * UnitsData.convert("Angstroms", "BohrRadius")
+            base_mol = Molecule.from_file(
+                TestManager.test_data('water_freq.fchk'),
+                # internals=[
+                #     [0, -1, -1, -1],
+                #     [1,  0, -1, -1],
+                #     [2,  0,  1, -1],
+                # ]
+            )
+            ref = base_mol.embed_coords(
+                np.array([
+                    [ 0.00000000e+00, 6.56215885e-02, 0.00000000e+00],
+                    [ 7.57391014e-01, -5.20731105e-01, 0.00000000e+00],
+                    [-7.57391014e-01, -5.20731105e-01, 0.00000000e+00]
+                ]) * UnitsData.convert("Angstroms", "BohrRadius")
+            )
 
         if atoms is None:
             atoms = ["O", "H", "H"]
 
         ref_mol = Molecule(
             atoms,
-            ref
+            ref,
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1],
+            ]
         )
         if embed:
             ref_mol = ref_mol.get_embedded_molecule(load_properties=False)
@@ -2520,7 +2697,7 @@ class DGBTests(TestCase):
             VPTRunner.run_simple(
                 [mol.atoms, mol.coords],
                 potential_derivatives=[x.reshape((9,)*(i+1)) for i,x in enumerate(pot(mol.coords, deriv_order=4)[1:])],
-                order=2, states=2,
+                order=2, states=3,
                 logger=True,
                 degeneracy_specs='auto',
                 calculate_intensities=False,
@@ -2534,24 +2711,109 @@ class DGBTests(TestCase):
             0 1 0            -            -   3832.76457   3654.53255 
             1 0 0            -            -   1649.06900   1594.42231 
             0 0 2            -            -   7888.65187   7438.71221 
-            0 2 0            -            -   7665.52914   7192.33980 
+            0 2 0            -            -   7665.52913   7192.33980 
             2 0 0            -            -   3298.13800   3152.62843 
             0 1 1            -            -   7777.09050   7240.72933 
-            1 0 1            -            -   5593.39493   5326.66828 
-            1 1 0            -            -   5481.83357   5232.92568 
+            1 0 1            -            -   5593.39493   5326.66827 
+            1 1 0            -            -   5481.83356   5232.92567 
+            0 0 3            -            -  11832.97780  11018.63165 
+            0 3 0            -            -  11498.29370  10576.33941 
+            3 0 0            -            -   4947.20699   4674.61836 
+            0 1 2            -            -  11721.41643  10856.46185 
+            1 0 2            -            -   9537.72086   8992.67966 
+            0 2 1            -            -  11609.85507  10590.03042 
+            2 0 1            -            -   7242.46393   6864.04257 
+            1 2 0            -            -   9314.59813   8753.49494 
+            2 1 0            -            -   7130.90256   6775.10260 
+            1 1 1            -            -   9426.15950   8798.29063 
             """
             raise Exception(...)
+
+        check_dvr = False
+        if check_dvr:
+            print("Running DVR...")
+            _, model = self.buildWaterModel()
+            # raise Exception(
+            #     pot(mol.coords)[0] * 219475.6,
+            #     pot(
+            #         mol.get_displaced_coordinates([0, 0, np.deg2rad(20)],
+            #                                       which=[[1, 0], [2, 0], [2, 1]],
+            #                                       internals='convert'
+            #                                       )
+            #     )[0] * 219475.6
+            # )
+
+            def dvr_pot_2D(r1_r2):
+                wtf = mol.get_displaced_coordinates(r1_r2,
+                                                    which=[[1, 0], [2, 0]],
+                                                    internals='convert',
+                                                    shift=False
+                                                    )
+                return pot(wtf)[0]
+
+            check_2D = False
+            if check_2D:
+                from Psience.DVR import DVR
+
+                g = mol.g_matrix
+                dvr = DVR(
+                    domain=[[-.8, 4], [-.8, 4]],
+                    divs=[65, 65],
+                    potential_function=dvr_pot_2D,
+                    # potential_optimize=True,
+                    mass=[1/g[0, 0], 1/g[1, 1]]
+                )
+                po_data = dvr.run()
+
+                raise Exception(
+                    po_data.wavefunctions.energies[0] * UnitsData.hartrees_to_wavenumbers,
+                    po_data.wavefunctions.frequencies() * UnitsData.hartrees_to_wavenumbers
+                ) # (3854.9297402883662, array([ 3698.88169563,  3749.86717414,  7271.35937109,  7287.32215267,  7458.51363147, 10683.16263559, 10685.53778109, 10953.61442016, 11058.32733702, 13931.80465625, 13932.03079906, 14356.60163659, 14402.72073965, 14594.61553838, 17023.49860127, 17023.51359847, 17616.6793513 , 17627.09751354, 17881.43008292, 18037.28968883, 19959.94642842, 19959.94791335, 20708.21307361, 20709.51395151]))
+
+            def dvr_pot(internals):
+                return pot(
+                    mol.get_displaced_coordinates(internals,
+                                                  which=[[1, 0], [2, 0], [2, 1]],
+                                                  internals='convert',
+                                                  shift=False
+                                                  )
+                )[0]
+
+            dvr = model.setup_DVR(
+                domain=[[1, 4], [1, 4], [np.deg2rad(60), np.deg2rad(160)]],
+                divs=[250, 250, 250], po_divs=[10, 10, 10],
+                potential_function=dvr_pot,
+                potential_optimize=True,
+                logger=True
+            )
+            po_data = dvr.run()
+            """
+            :: PotentialOptimizedDVR([WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None), WavefunctionBasisDVR(None, pts=20, pot=None)], pot=SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2))
+            :: g: [[SympyExpr(0.0005786177281533848), SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3])], [SympyExpr(3.42971451934982e-5*cos(a[1,2,3])), SympyExpr(0.0005786177281533848), SympyExpr(0.0)], [SympyExpr(-3.42971451934982e-5*sin(a[1,2,3])/r[2,3]), SympyExpr(0.0), SympyExpr(0.000578617728153385/r[2,3]**2 - 6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]) + 0.000578617728153385/r[1,2]**2)]]
+            :: mass: [None, None, None]
+            :: g_deriv: [SympyExpr(0.0), SympyExpr(0.0), SympyExpr(6.85942903869965e-5*cos(a[1,2,3])/(r[1,2]*r[2,3]))]
+            :: domain: [[1, 4], [1, 4], [1.0471975511965976, 2.792526803190927]]
+            :: divs: [800, 800, 800]
+            :: potential_function: SympyExpr(0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[1,2] - 1.8253409520594)))**2 + 0.203038951525208*(1 - exp(-0.813301570558368*sqrt(2)*(r[2,3] - 1.82534095205941)))**2 + 0.255579575354735*(0.551593470847119*a[1,2,3] - 1)**2)
+            ::> constructing grid
+             """
+            raise Exception(
+                po_data.wavefunctions.energies[0] * UnitsData.hartrees_to_wavenumbers,
+                po_data.wavefunctions.frequencies() * UnitsData.hartrees_to_wavenumbers
+            ) # (4657.147585108215, array([ 1595.25277439,  3153.66720663,  3655.6922087 ,  3754.49583297,  4676.08351552,  5234.20735022,  5330.20359925,  6176.29484715,  6776.34052468,  6872.17821481,  7198.77054399,  7246.98480079,  7442.24706299,  7700.29802817,  8284.99947714,  8382.03692207,  8759.51001205,  8804.70740614,  8997.71446091,  9320.71050596,  9777.01870092,  9871.10775062, 10284.54734903, 10328.55463384]))
+        # mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        # raise Exception(mol.coords, mol.normal_modes.modes)
 
         mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
         bend, symm, asym = mol.normal_modes.modes.freqs
 
         base_dir = os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/')
-        for steps in [250]:#[10, 25, 50, 100, 150]:
+        for steps in [350]:#[10, 25, 50, 100, 150]:
             os.makedirs(base_dir, exist_ok=True)
-            timestep = 15
+            timestep = 25
             ntraj = 50
 
-            energy_scaling = .8
+            energy_scaling = 1
             seed = 12213123
 
             svd_contrib_cutoff = None #1.5*1e-2
@@ -2564,33 +2826,45 @@ class DGBTests(TestCase):
             plot_similarity = False
             # pruning_energy = 1000
             pruning_energy = None
-            pruning_probabilities = [[250, None], [500, .8], [700, .5], [1000, .25]]
+            pruning_probabilities = [[250, 500], [500, 500], [1000, 500], [1600, 500], [3600, 100]]
             if pruning_probabilities is not None:
                 pruning_probabilities = [
                     [e / UnitsData.hartrees_to_wavenumbers, p]
                     for e,p in pruning_probabilities
                 ]
 
-            use_interpolation = True
+            use_interpolation = False
             plot_interpolation_error = False
 
-            use_momenta = True
-            momentum_scaling = 1000
+            """
+            >>------------------------- Running distributed Gaussian basis calculation -------------------------
+            :: diagonalizing in the space of 30 S functions
+            :: ZPE: 4699.655449323992
+            :: Frequencies: [ 1593.78350018  3227.21076654  3677.96974645  3760.55445805  4968.33053817  5447.13795543  5561.15140395  6439.46764936  6969.30704561  7206.78145883  7468.36586141  7501.7226483   7636.97825599  8536.70497126  8610.3430483   9058.82151809  9364.45589377  9884.77282794 10390.89757528 10559.04176505]
+            >>--------------------------------------------------<<
+            """
+
+            use_momenta = False
+            momentum_scaling = 1 / 2
+
+            use_coriolis = True
+            use_watson = True
 
             use_pairwise_potentials = False
             morse_w = 3891.634745263701 * self.w2h
             morse_wx = 185.31310314514627 * self.w2h
-            expansion_degree = 2
-            virial_scaling = 1
+            quadrature_degree = 3
+            expansion_degree = None
+            virial_scaling = 1/2
             transformation_method = 'diag' #4642.62343373526, 1624.36701583 3196.27137197 3474.1645502  3740.31164635
             # transformation_method = 'rpath' #4597.724422233999, 1613.48466441 3197.30480264 3559.70550684 3858.89799206
             # transformation_method = None #1698.2354715  3295.17558598 3667.70526921 3929.12204053
 
-            run_profiler = True
+            run_profiler = False
             plot_gaussians = False
             plot_wfns = not run_profiler
             # plot_wfns = {'modes':[2, 1]}
-            # plot_wfns = {'cartesians':[0, 1], 'num':15}
+            plot_wfns = {'cartesians':[0, 1], 'num':[12]}
 
             plot_dir = os.path.join(base_dir, 'Figures', 'mbpol')
             if not plot_wfns:
@@ -2682,7 +2956,7 @@ class DGBTests(TestCase):
             )
             sim.propagate(steps)
             coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
-            momenta = momentum_scaling * velocities * mol.masses[np.newaxis, :, np.newaxis]
+            momenta = momentum_scaling * velocities * np.sqrt(mol.atomic_masses[np.newaxis, :, np.newaxis])
 
             # plt.HistogramPlot(pot(coords)[0]*219475.6).show()
             # raise Exception(...)
@@ -2697,9 +2971,9 @@ class DGBTests(TestCase):
             #     os.makedirs(plot_dir, exist_ok=True)
 
             print("="*25, "Steps:", steps, "Points:", len(coords), "="*25)
-
             cartesians = False
             if use_interpolation:
+                symmetrize=True
                 augment = False
                 if augment:
                     with Checkpointer.from_file(os.path.join(base_dir, interp_traj_file)) as chk:
@@ -2709,6 +2983,14 @@ class DGBTests(TestCase):
                         ])
                         pot_vals = pot(traj, deriv_order=2)
                         interp_data = {'centers':traj, 'values':pot_vals}
+                elif symmetrize:
+                    mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
+                    modes = mol.normal_modes.modes.basis.to_new_modes()
+                    emb_coords = modes.embed_coords(coords)
+                    new_emb = emb_coords * np.array([1, 1, -1])[np.newaxis, :]
+                    new_coords = modes.unembed_coords(new_emb)
+                    interp_coords = np.concatenate([coords, new_coords], axis=0)
+                    interp_data = {'centers':interp_coords, 'values':pot(interp_coords, deriv_order=2)}
                 else:
                     interp_data = {'centers':coords, 'values':pot(coords, deriv_order=2)}
             else:
@@ -2753,24 +3035,31 @@ class DGBTests(TestCase):
                     ],
                     modes=None if cartesians else 'normal',
                     cartesians=[0, 1] if cartesians else None,
-                    quadrature_degree=3,
+                    quadrature_degree=quadrature_degree,
                     expansion_degree=expansion_degree,
                     pairwise_potential_functions={
-                        (0, 1): self.setupMorseFunction(
-                            mol.atomic_masses[0],
-                            mol.atomic_masses[1],
-                            np.linalg.norm(mol.coords[0] - mol.coords[1]),
-                            w=morse_w,
-                            wx=morse_wx
+                        'functions': {
+                            (0, 1): self.setupMorseFunction(
+                                mol.atomic_masses[0],
+                                mol.atomic_masses[1],
+                                np.linalg.norm(mol.coords[0] - mol.coords[1]),
+                                w=morse_w,
+                                wx=morse_wx
                             ),
-                        (0, 2): self.setupMorseFunction(
-                            mol.atomic_masses[0],
-                            mol.atomic_masses[2],
-                            np.linalg.norm(mol.coords[0] - mol.coords[2]),
-                            w=morse_w,
-                            wx=morse_wx
-                        )
+                            (0, 2): self.setupMorseFunction(
+                                mol.atomic_masses[0],
+                                mol.atomic_masses[2],
+                                np.linalg.norm(mol.coords[0] - mol.coords[2]),
+                                w=morse_w,
+                                wx=morse_wx
+                            )
+                        },
+                        'quadrature_degree': quadrature_degree
                     } if use_pairwise_potentials else None,
+                    kinetic_options=dict(
+                        include_coriolis_coupling=use_coriolis,
+                        include_watson_term=use_watson
+                    ),
                     momenta=momenta if use_momenta else None,
                     logger=True
                 )
