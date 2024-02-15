@@ -59,6 +59,7 @@ class DGBGaussians:
                  transformations=None, *,
                  momenta=None,
                  poly_coeffs=None,
+                 kinetic_options=None,
                  logger=None,
                  parallelizer=None
                  ):
@@ -93,6 +94,10 @@ class DGBGaussians:
             poly_coeffs = self.canonicalize_poly_coeffs(poly_coeffs, self.alphas)
         self._poly_coeffs = poly_coeffs
 
+        if kinetic_options is None:
+            kinetic_options = {}
+        self.kinetic_options = kinetic_options
+
         self.parallelizer = Parallelizer.lookup(parallelizer)
         self.logger = Logger.lookup(logger)
 
@@ -117,7 +122,7 @@ class DGBGaussians:
         if self._poly_coeffs is not None:
             raise NotImplementedError("need to reintroduce polynomial support")
         with self.logger.block(tag="Evaluating kinetic energy matrix"):
-            return self.coords.kinetic_energy_evaluator.evaluate_ke(self.overlap_data, logger=self.logger)
+            return self.coords.kinetic_energy_evaluator.evaluate_ke(self.overlap_data, logger=self.logger, **self.kinetic_options)
 
     def optimize(self, optimizer_options, potential_function=None, logger=None, **opts):
         if logger is None:
@@ -146,43 +151,6 @@ class DGBGaussians:
 
         return self.take_gaussian_selection(optimized_positions)
 
-    @classmethod
-    def take_overlap_data_subselection(self, overlap_data, positions):
-        # we need to find the positions in the old stuff where we
-        rows = overlap_data['row_inds']
-        cols = overlap_data['col_inds']
-
-        mask_1, _, _ = nput.contained(rows, positions)
-        mask_2, _, _ = nput.contained(cols, positions)
-        take_pos = np.where(np.logical_and(mask_1 > 0, mask_2 > 0))[0]
-        # raise Exception(
-        #     len(positions),
-        #     len(take_pos),
-        #     len(np.triu_indices(len(positions))[0])
-        # )
-
-        og_keys = {
-            'init_centers',
-            'init_alphas',
-            'init_covariances',
-            'initial_phases',
-            'initial_momenta'
-        }
-
-        new = {
-            k:(
-                v
-                    if v is None else
-                v[take_pos] if k not in og_keys else v[positions]
-            )
-            for k,v in overlap_data.items()
-        }
-        rows, cols = np.triu_indices(len(positions))
-        new['row_inds'] = rows
-        new['col_inds'] = cols
-
-        return new
-
     def take_gaussian_selection(self, full_good_pos):
         centers = self.coords[full_good_pos,]
         alphas = self.alphas[full_good_pos,]
@@ -204,11 +172,12 @@ class DGBGaussians:
         new = type(self)(
             centers, alphas, transformations,
             poly_coeffs=_poly_coeffs, logger=self.logger,
-            momenta=momenta
+            momenta=momenta,
+            kinetic_options=self.kinetic_options
         )
         
         if self._overlap_data is not None:
-            new._overlap_data = self.take_overlap_data_subselection(self.overlap_data, full_good_pos)
+            new._overlap_data = self.overlap_data.take_subselection(full_good_pos)
         if self._pref is not None:
             base = self._pref
             idx = np.ix_(full_good_pos, full_good_pos)
@@ -267,11 +236,17 @@ class DGBGaussians:
     @classmethod
     def _gs_off_diag_norms(cls, S, rows, cols, vec): # this is the slow step...
         if cls._fast_outer is None:
+            import time
             # from McUtils.Misc import jit
             # @jit(nopython=True, cache=True, warn=True)
             def fast_mul(vec:np.ndarray, rows:np.ndarray, cols:np.ndarray):
-                return (vec[:, rows] * vec[:, cols])
+                # wtf = time.time()
+                mul = (vec[:, rows] * vec[:, cols])
+                # elp = time.time() - wtf
+                # print("--->", vec.shape, np.average(np.sum(np.abs(vec) > 1e-3, axis=1)), len(rows), f"{elp}s")
+                return mul
             cls._fast_outer = fast_mul
+
 
         return 2 * np.matmul(
             S[rows, cols][np.newaxis, np.newaxis, :],
@@ -295,7 +270,13 @@ class DGBGaussians:
     #     ugh = S[:len(vec), :len(vec)]
     #     Sv = np.matmul(ugh, vec).reshape(vec.shape)
     #     return np.matmul(Sv[:, np.newaxis, :], vec[:, :, np.newaxis]).reshape(-1)
-
+    @classmethod
+    def _gs_direct_norm(cls, S, vec):
+        c1 = np.dot(vec, S)# I just assume dot is faster
+        return np.matmul(
+            c1[:, np.newaxis, :],
+            vec[:, :, np.newaxis]
+        ).flatten()
     @classmethod
     def _calc_gs_norm_block(cls, new, S, old):
         # generalizes the row-by-row form to calculate the norms for every vector at once so
@@ -306,13 +287,16 @@ class DGBGaussians:
         vec = new[:, :-1]
         rows, cols = np.triu_indices(vec.shape[-1], k=1)
 
-        off_diag = cls._gs_off_diag_norms(S, rows, cols, vec)
-        diag = cls._gs_diag_norms(vec)
-        # base_norm = cls._gs_direct_norm(S, vec)
-
+        # off_diag = cls._gs_off_diag_norms(S, rows, cols, vec)
+        # diag = cls._gs_diag_norms(vec)
+        # base_norm = diag + off_diag
+        subs = np.eye(vec.shape[-1])
+        subs[rows, cols] = S[rows, cols]
+        subs[cols, rows] = S[rows, cols]
+        base_norm = cls._gs_direct_norm(subs, vec)
         correction_norm = cls._gs_extra_norm(old, vec)
 
-        return diag + off_diag + correction_norm
+        return base_norm + correction_norm
     @staticmethod
     def _calc_gs_next_block(vecs, ortho):
         new = np.zeros(vecs.shape)
@@ -464,61 +448,110 @@ class DGBGaussians:
                      logger=None
                      ):
 
-        logger.log_print('optimizing using Gram-Schmidt')
-        if norm_cutoff is None:
-            norm_cutoff = self.gs_optimization_overlap_cutoff
-        if S is None:
-            if chunk_size is None:
-                S=self.S
-                if isinstance(S, tuple): # phases introduced
-                    S = 1/2*(S[0] + S[1])
+        with logger.block(tag='optimizing using Gram-Schmidt'):
+            if norm_cutoff is None:
+                norm_cutoff = self.gs_optimization_overlap_cutoff
+            if S is None:
+                if chunk_size is None:
+                    S=self.S
+                    if isinstance(S, tuple): # phases introduced
+                        S = 1/2*(S[0] + S[1])
+                else:
+                    raise NotImplementedError('getting chunking working is hard...')
+                    S=self.S
+
+            if allow_pivoting:
+                pivots = self._optimize_gs_block(S, norm_cutoff, max_overlap_cutoff, logger=logger)
             else:
-                raise NotImplementedError('getting chunking working is hard...')
-                S=self.S
+                pivots = self._optimize_gs_iter(S, norm_cutoff, norm_truncation_cutoff, logger=logger)
+            logger.log_print("pruned {nD} Gaussians",  nD=len(S)-len(pivots))
 
-        if allow_pivoting:
-            return self._optimize_gs_block(S, norm_cutoff, max_overlap_cutoff, logger=logger)
-        else:
-            return self._optimize_gs_iter(S, norm_cutoff, norm_truncation_cutoff, logger=logger)
+        return pivots
 
-    def _optimize_svd(self, min_singular_value=1e-4, num_svd_vectors=None, svd_contrib_cutoff=1e-3):
+    def _optimize_svd(self, *, S=None,
+                      min_value=1e-12,
+                      num_vectors=None,
+                      contrib_cutoff=1e-3,
+                      logger=None
+                      ):
+        if S is None:
+            S = self.S
 
-        if min_singular_value is None and num_svd_vectors is None:
-            raise ValueError("either a minimum singular value or number of eigenvectors needs to be passes")
-        sig, evecs = np.linalg.eigh(self.get_S())
-        if num_svd_vectors:
-            good_loc = slice(max(len(sig) - num_svd_vectors, 0), len(sig))
-        else:
-            # self.logger.log_print("most important center threshold: {t}", t=min_singular_value)
-            good_loc = np.where(sig > min_singular_value)[0]
-        # raise Exception(np.min(np.abs(U)))
-        full_good_pos = np.unique(np.where(np.abs(evecs[:, good_loc]) > svd_contrib_cutoff)[0])
+        with logger.block(tag='optimizing by taking subspaces of the overlap matrix'):
+            sig, evecs = np.linalg.eigh(S)
+            # for i in range(5):
+            #     print("wtf", i, len(np.unique(np.where(np.abs(evecs[:, -(i+1):]) > contrib_cutoff)[0])), sig[-(i+1)],
+            #           np.min(evecs[:, -(i+1)]), np.max(evecs[:, -(i+1)]), np.std(evecs[:, -(i+1)]))
+            if num_vectors:
+                good_loc = slice(max(len(sig) - num_vectors, 0), len(sig))
+            else:
+                # self.logger.log_print("most important center threshold: {t}", t=min_singular_value)
+                good_loc = np.where(sig > min_value)[0]
+            full_good_pos = np.unique(np.where(np.abs(evecs[:, good_loc]) > contrib_cutoff)[0])
+            logger.log_print("pruned {nD} Gaussians",  nD=len(S)-len(full_good_pos))
 
         return full_good_pos
 
-    def _prune_energy(self, pot, *, cutoff, logger=None, potential_values=None):
-        logger.log_print("pruning Gaussians with energies larger than {ec} cm-1",
-                         ec=cutoff * UnitsData.hartrees_to_wavenumbers
-                         )
+    default_energy_cutoff = 1600 / UnitsData.hartrees_to_wavenumbers
+    def _prune_energy(self, pot, *, cutoff=None, probabilities=None, logger=None, potential_values=None):
         if potential_values is None:
             potential_values = pot(self.coords.centers)
-        return np.where(potential_values < cutoff)[0]
+        if probabilities is not None:
+            with logger.block(tag="pruning Gaussians with energies by distribution {d} cm-1",
+                              d=[
+                                  [np.round(c * UnitsData.hartrees_to_wavenumbers, 3), 1 if p is None else p]
+                                  for c, p in probabilities
+                              ]):
+                pots = np.sort(potential_values)
+                cur_pivot = 0
+                pivots = []
+                for next_e, next_prob in probabilities:
+                    pivot_pos = np.searchsorted(pots[cur_pivot:], next_e)+1 # position past where the energy would occur
+                    if next_prob is None:
+                        new_pivs = np.arange(cur_pivot, pivot_pos)
+                    else:
+                        if next_prob < 1:
+                            probs = np.random.uniform(0, 1, size=pivot_pos)
+                            sel = np.where(probs < next_prob)
+                        else: # take this many points from that region
+                            if pivot_pos >= next_prob:
+                                sel = [
+                                    np.sort(np.random.choice(np.arange(pivot_pos), next_prob, replace=False))
+                                ]
+                            else:
+                                sel = [np.arange(pivot_pos)]
+                        if len(sel) > 0 and len(sel[0]) > 0:
+                            new_pivs = cur_pivot + sel[0]
+                    cur_pivot = pivot_pos
+                    pivots.append(new_pivs)
+                full_good_pos = np.concatenate(pivots)
+                logger.log_print("pruned {nD} Gaussians", nD=len(potential_values) - len(full_good_pos))
+        else:
+            if cutoff is not None:
+                cutoff = self.default_energy_cutoff
+            with logger.block(tag="pruning Gaussians with energies larger than {ec} cm-1",
+                              ec=np.round(cutoff * UnitsData.hartrees_to_wavenumbers, 3)
+                              ):
+                full_good_pos = np.where(potential_values < cutoff)[0]
+                logger.log_print("pruned {nD} Gaussians", nD=len(potential_values) - len(full_good_pos))
+        return full_good_pos
 
     def _prune_dists(self, *,  cluster_radius, logger=None):
-        logger.log_print('declustering data with a radius of {r}', r=cluster_radius)
-        points = self.coords.centers
-        pivots = np.arange(len(points))
-        dec_pts = points.reshape(points.shape[0], -1)
-        for i in range(len(points)):
-            cur_pos = pivots[i]
-            dists = np.linalg.norm(
-                dec_pts[cur_pos][np.newaxis, :] - dec_pts[pivots[i + 1:], :],
-                axis=1
-            )
-            good_pos = np.where(dists > cluster_radius)
-            if len(good_pos) == 0 or len(good_pos[0]) == 0:
-                break
-            pivots = np.concatenate([pivots[:i + 1], pivots[i + 1:][good_pos]])
+        with logger.block(tag=logger.log_print('declustering data with a radius of {r}', r=cluster_radius)):
+            points = self.coords.centers
+            pivots = np.arange(len(points))
+            dec_pts = points.reshape(points.shape[0], -1)
+            for i in range(len(points)):
+                cur_pos = pivots[i]
+                dists = np.linalg.norm(
+                    dec_pts[cur_pos][np.newaxis, :] - dec_pts[pivots[i + 1:], :],
+                    axis=1
+                )
+                good_pos = np.where(dists > cluster_radius)
+                if len(good_pos) == 0 or len(good_pos[0]) == 0:
+                    break
+                pivots = np.concatenate([pivots[:i + 1], pivots[i + 1:][good_pos]])
+            logger.log_print("pruned {nD} Gaussians", nD=len(self.coords.centers) - len(pivots))
         return pivots
 
     @classmethod
@@ -532,6 +565,7 @@ class DGBGaussians:
                   masses=None,
                   atoms=None,
                   modes=None,
+                  kinetic_options=None,
                   internals=None,
                   coordinate_selection=None,
                   cartesians=None,
@@ -650,6 +684,9 @@ class DGBGaussians:
                     raise ValueError("unknown transformation spec {}".format(modes))
             transformations = cls.canonicalize_transforms(coords.centers, transformations)
 
+            if momenta is not None:
+                momenta = DGBEvaluator.get_momentum_vectors(momenta, transformations)
+
         if isinstance(alphas, (str, dict)):
             if isinstance(alphas, str) and alphas == 'auto':
                 if modes is not None:
@@ -674,7 +711,8 @@ class DGBGaussians:
 
         return cls(coords, alphas, transformations,
                    poly_coeffs=poly_coeffs, logger=logger,
-                   momenta=momenta
+                   momenta=momenta,
+                   kinetic_options=kinetic_options
                    ), potential_function
     @classmethod
     def get_normal_modes(cls,
@@ -1131,17 +1169,32 @@ class DGBGaussians:
             inv_alphas, tfs = np.linalg.eigh(subcovs)
             inv_alphas[inv_alphas < bad_alpha_limit] = bad_alpha_limit
 
-            tfs = (tfs, tfs.transpose(0, 2, 1))
             alphas = 1 / (2*inv_alphas) # we have 1/2a
+            tfs = (tfs, tfs.transpose(0, 2, 1))
+
+            momenta = self.momenta
+            if momenta is not None:
+                # we use the fact that the momenta are along the same axes as the old alphas to get
+                scaled_moms = self.alphas * self.momenta
+                # now we have to deal with a S_A @ T @ p type term by noting that we can turn T into its
+                # [indices x len(alphas)] subblock
+                cov_mom = self.transformations[0][:, remaining, :] @ scaled_moms[:, :, np.newaxis]
+                inv_cov = DGBEvaluator.get_inverse_covariances(alphas, tfs)
+                momenta = np.reshape(inv_cov @ cov_mom, alphas.shape)
+
         else:
             scaling = np.power(2 * np.pi, len(indices) / 4) / np.power(np.prod(self.alphas[:, indices], axis=-1), 1 / 4)
             alphas = self.alphas[:, remaining]
             tfs = None
+            momenta = self.momenta
+            if momenta is not None:
+                momenta = momenta[:, remaining]
 
         return scaling, type(self)(
             subcoords,
             alphas=alphas,
-            transformations=tfs
+            transformations=tfs,
+            momenta = momenta
         )
 
     def as_cartesians(self):
@@ -1164,10 +1217,12 @@ class DGBGaussians:
         #     axis=1
         # )
         alphas = self.alphas
+        momenta = self.momenta
         return type(self)(
             carts,
             alphas,
-            transformations=transformations
+            transformations=transformations,
+            momenta=momenta
         )
 
     def plot_centers(self,

@@ -957,12 +957,14 @@ class Molecule(AbstractMolecule):
             raise ValueError("can only plot up to 2 axes at a time")
 
         if domain is None:
-            if isinstance(domain_padding, (int, float, np.integer, np.floating)):
-                domain_padding = [-domain_padding, domain_padding]
-            domain_padding = np.asanyarray(domain_padding)
-            if domain_padding.ndim == 1:
-                domain_padding = domain_padding[np.newaxis, :]
-            domain = Mesh(self.coords[:, axes]).bounding_box + domain_padding
+            domain = Mesh(self.coords[:, axes]).bounding_box
+            if domain_padding is not None:
+                if isinstance(domain_padding, (int, float, np.integer, np.floating)):
+                    domain_padding = [-domain_padding, domain_padding]
+                domain_padding = np.asanyarray(domain_padding)
+                if domain_padding.ndim == 1:
+                    domain_padding = domain_padding[np.newaxis, :]
+                domain = domain + domain_padding
 
         if isinstance(plot_points, (int, np.integer)):
             plot_points = [plot_points] * len(domain)

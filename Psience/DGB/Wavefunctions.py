@@ -128,11 +128,14 @@ class DGBWavefunction(Wavefunction):
             proj = self.marginalize_out(subspec)  # what we're projecting _out_
 
             ps = dict(plot_styles, **atom_styles[i])
+            ps['plotter'] = ps.get(
+                'plotter',
+                plt.TriContourLinesPlot if proj.ndim == 2 else None
+            )
 
             figure = proj.plot(
                 figure=figure,
                 plot_centers=plot_centers,
-                plotter=plt.TriContourLinesPlot if proj.ndim == 2 else None,
                 # levels=np.linspace(-max_val, max_val, 16),
                 # domain=[[-2, 2], [-2, .2]],
                 # cmap='RdBu'
@@ -165,19 +168,35 @@ class DGBWavefunction(Wavefunction):
             tfs = np.broadcast_to(tfs[:, np.newaxis, :, :], (len(tfs), len(points)) + tfs.shape[1:])
             c_disps = tfs.transpose((0, 1, 3, 2)) @ c_disps[:, :, :, np.newaxis]
             c_disps = c_disps.reshape(c_disps.shape[:-1])
-        alphas = self.gaussians.alphas[:, np.newaxis]
+
+        alphas = self.gaussians.alphas[:, np.newaxis, :]
         # if self.inds is not None:
         #     c_disps = c_disps[..., self.inds]
         #     alphas = alphas[..., self.inds]
-        normas = (2 * alphas / np.pi) ** (1/4)
-        exp_evals = np.exp(-alphas * c_disps**2)
-        # print(c_disps[:2, :2], normas.shape)
+        normas = np.prod((2 * alphas / np.pi) ** (1/4), axis=-1)
+        exp_evals = np.prod(np.exp(-alphas * c_disps**2), axis=-1)
+
+        momenta = self.gaussians.momenta
+        if momenta is not None:
+            points = points[np.newaxis, :, :, np.newaxis]
+            if tfs is not None:
+                points = tfs.transpose((0, 1, 3, 2)) @ points
+            momenta = momenta[:, np.newaxis, np.newaxis, :]
+            correlation = momenta @ points
+            correlation = correlation.reshape(correlation.shape[:2])
+            exp_evals *= np.cos(correlation)
+            sum_term = np.sum(
+                (momenta.reshape(alphas.shape)**2) / (2 * alphas),
+                axis=-1
+            )
+            cos_corr = momenta @ centers[:, np.newaxis, :, np.newaxis]
+            cos_corr = np.reshape(cos_corr, cos_corr.shape[:2])
+            normas /= np.sqrt((1 + np.exp(-sum_term)*np.cos(cos_corr))/2)
 
         vals = np.dot(
             self.data,
-            np.prod(normas * exp_evals, axis=-1)
+            normas * exp_evals
         )
-        # print(exp_evals[:3, :2], self.data.shape)
         if reshape is not None:
             vals = vals.reshape(reshape)
         return vals

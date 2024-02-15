@@ -714,6 +714,7 @@ class AnalyticModel:
                   domain=None, divs=None,
                   use_normal_modes=False,
                   expansion_order=None,
+                  potential_function=None,
                   **params
                   ):
         if use_normal_modes:
@@ -728,6 +729,8 @@ class AnalyticModel:
 
         from ..DVR import DVR
         params = dict(self.get_DVR_parameters(expansion_order=expansion_order), **params)
+        if potential_function is not None:
+            params['potential_function'] = potential_function
         return DVR(
             domain=domain,
             divs=divs,

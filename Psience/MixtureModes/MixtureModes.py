@@ -91,3 +91,33 @@ class MixtureModes(CoordinateSystem):
             origin=orig,
             inverse=new_inv
         )
+
+    def embed_coords(self, carts):
+        flat_carts = (carts - self.origin[np.newaxis]).reshape((len(carts), -1))
+        return (flat_carts[:, np.newaxis, :] @ self.inverse.T[np.newaxis]).reshape(
+            flat_carts.shape[0],
+            self.matrix.shape[1]
+        )
+    def unembed_coords(self, mode_coords):
+        origin = self.origin
+        carts = (mode_coords[:, np.newaxis, :] @ self.matrix.T[np.newaxis]).reshape(
+            mode_coords.shape[:1] + origin.shape
+        )
+        carts = carts + origin[np.newaxis]
+        return carts
+    def embed_derivs(self, derivs):
+        fshape = derivs[0].ndim
+        _ = []
+        for n, d in enumerate(derivs):
+            for j in range(n):
+                d = np.tensordot(d, self.matrix, axes=[fshape, 0])
+            _.append(d)
+        return _
+    def unembed_derivs(self, derivs):
+        fshape = derivs[0].ndim
+        _ = []
+        for n, d in enumerate(derivs):
+            for j in range(n):
+                d = np.tensordot(d, self.inverse, axes=[fshape, 0])
+            _.append(d)
+        return _

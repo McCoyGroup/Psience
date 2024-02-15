@@ -143,7 +143,8 @@ class DGB:
                   momenta=None,
                   poly_coeffs=None,
                   pairwise_potential_functions=None,
-                  dipole_function=None
+                  dipole_function=None,
+                  kinetic_options=None
                   ):
         logger = Logger.lookup(logger)
         parallelizer = Parallelizer.lookup(parallelizer)
@@ -164,7 +165,8 @@ class DGB:
             momenta=momenta,
             poly_coeffs=poly_coeffs,
             logger=logger,
-            parallelizer=parallelizer
+            parallelizer=parallelizer,
+            kinetic_options=kinetic_options
         )
         if optimize_centers:
             if not isinstance(optimize_centers, (list, tuple)):
@@ -203,6 +205,7 @@ class DGB:
                             coordinate_selection=None,
                             cartesians=None,
                             modes=None,
+                            kinetic_options=None,
                             transformations=None,
                             # projection_indices=projection_indices,
                             momenta=None,
@@ -233,7 +236,7 @@ class DGB:
             cartesians=cartesians,
             modes=modes,
             transformations=transformations,
-            # projection_indices=projection_indices,
+            kinetic_options=kinetic_options,
             momenta=momenta,
             poly_coeffs=poly_coeffs,
             logger=logger,
@@ -487,6 +490,16 @@ class DGB:
 
 
         return eigs, evecs
+
+    def get_similarity_matrix(self):
+        eigs, Qs = np.linalg.eigh(self.S)
+        eigh, Qh = np.linalg.eigh(self.V + self.T)
+
+        similarity_matrix = Qs.T @ Qh
+
+        # import McUtils.Plots as plt
+        # plt.MatrixPlot(similarity_matrix).show()
+        return similarity_matrix
 
     def get_wavefunctions(self,
                           mode=None,
