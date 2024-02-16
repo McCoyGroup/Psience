@@ -933,9 +933,11 @@ class Molecule(AbstractMolecule):
                                *,
                                axes,
                                sel=None,
+                               embed=False,
+                               modes_nearest=False,
                                domain=None,
                                domain_padding=1,
-                               plot_points=100,
+                               plot_points=500,
                                weighting_function=None,
                                mask_function=None,
                                mask_value=0,
@@ -980,8 +982,12 @@ class Molecule(AbstractMolecule):
             axes=axes,
             sel=sel,
             weighting_function=weighting_function,
+            modes_nearest=modes_nearest,
             return_distances=True
         )
+
+        if embed:
+            eval_points = self.embed_coords(eval_points)
 
         values = function(eval_points)
         if mask_function is not None:
@@ -1034,9 +1040,46 @@ class Molecule(AbstractMolecule):
         else:
             return plotter(*np.moveaxis(grid_points, -1, 0), values, epilog=epilog, **plot_options)
 
+    def get_nearest_displacement_atoms(self,
+                                       points,
+                                       sel=None, axes=None, weighting_function=None,
+                                       return_distances=False
+                                       ):
+
+        pts = np.asanyarray(points)
+        smol = pts.ndim == 1
+        if smol: pts = pts[np.newaxis]
+        pts = pts.reshape(-1, pts.shape[-1])
+
+        if axes is None:
+            axes = [0, 1, 2]
+        axes = np.asanyarray(axes)
+
+        if sel is None:
+            sel = np.arange(len(self.masses))
+        sel = np.asanyarray(sel)
+
+        ref = self.coords
+        masses = self.masses
+        dists = np.linalg.norm(
+            pts[:, np.newaxis, :] - ref[np.newaxis, sel[:, np.newaxis], axes[np.newaxis, :]],
+            axis=-1
+        )
+        if weighting_function is None:
+            weighting_function = np.sqrt
+        dists = dists * weighting_function(masses)[np.newaxis, sel]
+        nearest = np.argmin(dists, axis=-1)
+        atom_idx = sel[nearest]
+
+        if return_distances:
+            return atom_idx, dists[np.arange(len(nearest)), nearest]
+        else:
+            return atom_idx
+
     def get_nearest_displacement_coordinates(self,
                                              points,
                                              sel=None, axes=None, weighting_function=None,
+                                             modes_nearest=False,
                                              return_distances=False
                                              ):
         """
@@ -1066,24 +1109,63 @@ class Molecule(AbstractMolecule):
         sel = np.asanyarray(sel)
 
         ref = self.coords
-        masses = self.masses
-        dists = np.linalg.norm(
-            pts[:, np.newaxis, :] - ref[np.newaxis, sel[:, np.newaxis], axes[np.newaxis, :]],
-            axis=-1
+        atom_idx = self.get_nearest_displacement_atoms(
+            points,
+            sel=sel, axes=axes, weighting_function=weighting_function,
+            return_distances=return_distances
         )
-        if weighting_function is None:
-            weighting_function = np.sqrt
-        dists = dists * weighting_function(masses)[np.newaxis, sel]
-        nearest = np.argmin(dists, axis=-1)
-        atom_idx = sel[nearest]
-        coords = np.broadcast_to(ref[np.newaxis], (len(pts),) + ref.shape).copy()
-        coords[np.arange(len(nearest))[:, np.newaxis], atom_idx[:, np.newaxis], axes[np.newaxis, :]] = pts
+        if return_distances:
+            atom_idx, dists = atom_idx
 
-        coords = coords.reshape(base_shape + coords.shape[-2:])
+        if modes_nearest:
+            npts = len(points)
+            diag = np.arange(npts)
+            mode_origin = self.normal_modes.modes.basis.origin
+            mode_origin = mode_origin[:, axes]
+            origin_coords = np.broadcast_to(mode_origin[np.newaxis], (npts,) + mode_origin.shape)
+
+            origin_coords = origin_coords[diag, atom_idx]
+            nearest_disps = pts - origin_coords
+
+            modes = self.normal_modes.modes.basis.matrix
+            mat = np.reshape(modes, (1, len(self.masses), -1, modes.shape[-1]))
+            mat = mat[:, :, axes, :]
+            mat = np.broadcast_to(mat, (npts,) + mat.shape[1:])
+            mat_bits = mat[diag, atom_idx, :, :]  # N x 3 x N_modes
+            pseudo_inverses = np.linalg.inv(mat_bits @ mat_bits.transpose(0, 2, 1))
+            print(mat_bits.shape, pseudo_inverses.shape, nearest_disps.shape)
+            ls_coords = mat_bits.transpose(0, 2, 1) @ pseudo_inverses @ nearest_disps[:, :, np.newaxis]
+            # ls_coords = np.reshape(ls_coords, ls_coords.shape[:2])
+            # print(modes.shape, ls_coords.shape, pseudo_inverses.shape, modes.shape)
+            test = modes[np.newaxis, :, :] @ ls_coords
+            ls_coords = np.reshape(ls_coords, ls_coords.shape[:2])
+            print(test.shape, nearest_disps.shape)
+            print(test.reshape(test.shape[0], -1, 3))
+            print(nearest_disps)
+            print(pts)
+            print(ls_coords)
+            norms = np.linalg.norm(ls_coords, axis=-1)
+            sorting = np.argsort(norms)
+            print(norms[sorting[:5]])
+            print(ls_coords[sorting[:5]])
+            print(pts[sorting[:5]])
+
+
+            # raise Exception(ls_coords)
+            coords = self.normal_modes.modes.basis.to_new_modes().unembed_coords(
+                np.reshape(ls_coords, ls_coords.shape[:2])
+            )
+
+            print(coords)
+
+        else:
+            coords = np.broadcast_to(ref[np.newaxis], (len(pts),) + ref.shape).copy()
+            coords[np.arange(len(atom_idx))[:, np.newaxis], atom_idx[:, np.newaxis], axes[np.newaxis, :]] = pts
+            coords = coords.reshape(base_shape + coords.shape[-2:])
         if smol: coords = coords[0]
 
         if return_distances:
-            return coords, dists[np.arange(len(nearest)), nearest]
+            return coords, dists
         else:
             return coords
 

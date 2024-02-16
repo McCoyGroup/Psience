@@ -231,8 +231,8 @@ class OverlapGaussianData:
             new_alphas = product_data['alphas']
 
             # expressed in terms of the global frame
-            phases_sum = momenta[rows] - momenta[cols]
-            phases_diff = momenta[rows] + momenta[cols]
+            phases_sum = momenta[rows] + momenta[cols]
+            phases_diff = momenta[rows] - momenta[cols]
             rho_sum = np.reshape(new_cov @ phases_sum[:, :, np.newaxis], phases_sum.shape)
             rho_diff = np.reshape(new_cov @ phases_diff[:, :, np.newaxis], phases_sum.shape)
             # dot momentum sum or difference into displacement from origin
@@ -240,13 +240,13 @@ class OverlapGaussianData:
             corr_diff = np.reshape(new_centers[:, np.newaxis, :] @ phases_diff[:, :, np.newaxis], -1)
             # compute the J+ terms we use for all derivations
             scj = covs @ momenta[:, :, np.newaxis]
-            delta_j_sum = np.reshape(new_si @ (scj[rows] + scj[cols]), phases_sum.shape)
-            delta_j_diff = np.reshape(new_si @ (scj[rows] - scj[cols]), phases_diff.shape)
+            delta_j_sum = np.reshape(new_si @ (scj[rows] - scj[cols]), phases_sum.shape)
+            delta_j_diff = np.reshape(new_si @ (scj[rows] + scj[cols]), phases_diff.shape)
 
             # now express these in terms of the rotated frame
 
             mom_sum = DGBEvaluator.get_momentum_vectors(phases_sum, (new_rots, new_rots.transpose(0, 2, 1)))
-            mom_diff =DGBEvaluator.get_momentum_vectors(phases_diff, (new_rots, new_rots.transpose(0, 2, 1)))
+            mom_diff = DGBEvaluator.get_momentum_vectors(phases_diff, (new_rots, new_rots.transpose(0, 2, 1)))
 
             decay_sum = np.sum(mom_sum ** 2 / (4 * new_alphas), axis=1)
             decay_diff = np.sum(mom_diff ** 2 / (4 * new_alphas), axis=1)
@@ -395,7 +395,7 @@ class DGBEvaluator:
         if phases is not None and transformations is not None:
             tfs, inv = transformations
             momenta = np.reshape(
-                phases[:, np.newaxis, :] @ tfs.transpose((0, 2, 1)),
+                phases[:, np.newaxis, :] @ inv.transpose((0, 2, 1)),
                 phases.shape
             )
         else:
@@ -415,7 +415,7 @@ class DGBEvaluator:
         if momenta is not None and transformations is not None:
             tfs, inv = transformations
             phases = np.reshape(
-                momenta[:, np.newaxis, :] @ inv.transpose((0, 2, 1)),
+                momenta[:, np.newaxis, :] @ tfs.transpose((0, 2, 1)),
                 momenta.shape
             )
         else:
@@ -1241,7 +1241,7 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
     ):
         return (
             -(Xc[:, n]*r[:, m] + Xc[:, m]*r[:, n])*(Dx[:, v] * Dx[:, u] - Sp[:, u, v] - Jp[:, u]*Jp[:, v])
-            -(Xc[:, m]*Xc[:, n] - r[:, n]*r[:, n] + Sc[:, n, m])
+            -(Xc[:, m]*Xc[:, n] - r[:, n]*r[:, m] + Sc[:, n, m])*(Dx[:, v]*Jp[:, u] + Dx[:, u]*Jp[:, v])
             +(Jp[:, v]*Xc[:, n]+Dx[:, v]*r[:, n])*DG[:, m, u]
             +(Jp[:, v]*Xc[:, m]+Dx[:, v]*r[:, m])*DG[:, n, u]
         )
@@ -1263,9 +1263,6 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
 
         Dx = overlap_data.center_difference
         Dx = np.reshape(Sp @ overlap_data.center_difference[:, :, np.newaxis], Dx.shape)
-
-        ScXc = Sc + Xc[:, :, np.newaxis] * Xc[:, np.newaxis, :]
-        DxSp = Dx[:, :, np.newaxis] * Dx[:, np.newaxis, :] - Sp
 
         ndim = Xc.shape[-1]
 
@@ -1322,10 +1319,18 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
             inds = itertools.product(*[range(ndim)] * 4)
             for n, u, m, v in inds:
                 if n != u and m != v:
-                    sum_real_contrib += sum_real_term(n, u, m, v)
-                    sum_imag_contrib += sum_imag_term(n, u, m, v)
-                    diff_real_contrib += diff_real_term(n, u, m, v)
-                    diff_imag_contrib += diff_imag_term(n, u, m, v)
+                    real_cont = sum_real_term(n, u, m, v)
+                    imag_cont = sum_imag_term(n, u, m, v)
+                    # print("Sum I:", (n, u, m, v), 219475*imag_cont)
+                    # print("Sum R:", (n, u, m, v), 219475*real_cont)
+                    sum_real_contrib += real_cont
+                    sum_imag_contrib += imag_cont
+                    real_cont = diff_real_term(n, u, m, v)
+                    imag_cont = diff_imag_term(n, u, m, v)
+                    # print("Diff I:", (n, u, m, v), 219475*imag_cont)
+                    # print("Diff R:", (n, u, m, v), 219475*real_cont)
+                    diff_real_contrib += real_cont
+                    diff_imag_contrib += imag_cont
 
             cos_sum, sin_sum = overlap_data.correlation_factors_sum
             cos_diff, sin_diff = overlap_data.correlation_factors_diff
@@ -1333,11 +1338,11 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
             diff_prefac = overlap_data.decay_factor_diff
 
             diff_contrib = (
-                    cos_diff *(contrib + diff_real_contrib)
+                    cos_diff * (contrib + diff_real_contrib)
                     + sin_diff * diff_imag_contrib
             )
             sum_contrib = (
-                    cos_sum *(contrib + sum_real_contrib)
+                    cos_sum * (contrib + sum_real_contrib)
                     + sin_sum * sum_imag_contrib
             )
 
@@ -1345,8 +1350,8 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
 
         npts = overlap_data.npts
         ke = np.zeros((npts, npts))
-        ke[rows, cols] = contrib
-        ke[cols, rows] = contrib
+        ke[rows, cols] = -contrib
+        ke[cols, rows] = -contrib
 
         return ke
 
@@ -1638,7 +1643,9 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
         )
 
 class DGBPairwisePotentialEvaluator(DGBEvaluator, metaclass=abc.ABCMeta):
-    def __init__(self, coords, pairwise_potential_functions, quadrature_degree=3):
+    def __init__(self, coords, pairwise_potential_functions, quadrature_degree=3,
+                 use_with_interpolation='ignored'
+                 ):
         self.coords = coords
         self.pairwise_potential_functions = pairwise_potential_functions
         self.quadrature_degree = quadrature_degree

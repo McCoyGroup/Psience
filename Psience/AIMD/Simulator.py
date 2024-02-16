@@ -301,17 +301,25 @@ class AIMDSimulator:
             mol = Molecule(["H"]*len(self.masses), ref_struct, masses=self.masses)
             if extract_velocities:
                 embedding = mol.get_embedding_data(base_coords)
-                coords = nput.vec_tensordot(
-                    embedding.coord_data.coords,
-                    embedding.rotations,
-                    shared=1,
-                    axes=[-1, 2]
+                coords = np.tensordot(
+                    nput.vec_tensordot(
+                        embedding.coord_data.coords,
+                        embedding.rotations,
+                        shared=1,
+                        axes=[-1, 2]
+                    ),
+                    embedding.reference_data.axes,
+                    axes=[-1, 1]
                 )
-                velocities = nput.vec_tensordot(
-                    np.reshape(velocities, coords.shape), # dx/dt has same embedding
-                    embedding.rotations,
-                    shared=1,
-                    axes=[-1, 2]
+                velocities = np.tensordot(
+                    nput.vec_tensordot(
+                        np.reshape(velocities, coords.shape),  # dx/dt has same embedding
+                        embedding.rotations,
+                        shared=1,
+                        axes=[-1, 2]
+                    ),
+                    embedding.reference_data.axes,
+                    axes=[-1, 1]
                 )
                 coords = np.reshape(coords, base_coords.shape)
                 velocities = np.reshape(velocities, base_coords.shape)

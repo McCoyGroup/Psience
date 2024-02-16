@@ -163,6 +163,7 @@ class DGB:
             transformations=transformations,
             # projection_indices=projection_indices,
             momenta=momenta,
+            pairwise_potential_functions=pairwise_potential_functions,
             poly_coeffs=poly_coeffs,
             logger=logger,
             parallelizer=parallelizer,
@@ -209,6 +210,7 @@ class DGB:
                             transformations=None,
                             # projection_indices=projection_indices,
                             momenta=None,
+                            pairwise_potential_functions=None,
                             poly_coeffs=None,
                             logger=None,
                             parallelizer=None
@@ -238,6 +240,7 @@ class DGB:
             transformations=transformations,
             kinetic_options=kinetic_options,
             momenta=momenta,
+            pairwise_potential_functions=pairwise_potential_functions,
             poly_coeffs=poly_coeffs,
             logger=logger,
             parallelizer=parallelizer

@@ -884,6 +884,7 @@ class DGBTests(TestCase):
                            plot_cartesians=None,
                            plot_atoms=True,
                            cmap=None,
+                           modes_nearest=False,
                            plot_points=100,
                            levels=24,
                            **plot_styles
@@ -907,6 +908,7 @@ class DGBTests(TestCase):
                 cutoff_pot,
                 axes=coordinate_sel,
                 domain=domain,
+                modes_nearest=modes_nearest,
                 domain_padding=domain_padding,
                 cmap=cmap,
                 plot_points=plot_points,
@@ -1246,10 +1248,10 @@ class DGBTests(TestCase):
     def plot_interpolation_error(cls, dgb, pot):
         sel = slice(None)  # slice(15,30)
 
-        centers = dgb.gaussians.overlap_data['centers'][sel]
+        centers = dgb.gaussians.overlap_data.centers[sel]
         embpot = dgb.gaussians.coords.embed_function(pot)
-        realpots, _, real_hess = [d * 219475 for d in embpot(centers, deriv_order=2)]
-        interpots, _, inter_hess = [d * 219475 for d in dgb.pot.potential_function(centers, deriv_order=2)]
+        realpots, realgrad, real_hess = [d * 219475 for d in embpot(centers, deriv_order=2)]
+        interpots, intergrad, inter_hess = [d * 219475 for d in dgb.pot.potential_function(centers, deriv_order=2)]
 
         ords = np.argsort(realpots)
         devs = interpots[ords] - realpots[ords]
@@ -1259,11 +1261,17 @@ class DGBTests(TestCase):
         devs = devs * utris
         max_dev_pos = np.flip(np.argsort(np.abs(devs)))[:5]
 
+        inter_gnorm = np.sum(np.abs(intergrad[ords]), axis=-1)
+        real_gnorm = np.sum(np.abs(realgrad[ords]), axis=-1)
+        dev_gnorm = inter_gnorm - real_gnorm
+        # dev_hess = inter_hess - real_hess
+        grad_plot = plt.ScatterPlot(realpots[ords], dev_gnorm)
+
         inter_trace = np.sum(np.sum(np.abs(inter_hess[ords]), axis=-1), axis=-1)
         real_trace = np.sum(np.sum(np.abs(real_hess[ords]), axis=-1), axis=-1)
         dev_trace = inter_trace - real_trace
         dev_hess = inter_hess - real_hess
-        hess_plot = plt.ScatterPlot(realpots[ords], inter_trace - real_trace)
+        hess_plot = plt.ScatterPlot(realpots[ords], dev_trace)
 
         print("Mean Absolute Error:", np.mean(np.abs(unscaled_devs)), "Std:", np.std(unscaled_devs))
         print("Mean Scaled Error:", np.mean(np.abs(devs)), "Std:", np.std(devs))
@@ -1280,7 +1288,7 @@ class DGBTests(TestCase):
         for l, r, c, tt, ii, ov in zip(
                 dgb.gaussians.coords.centers[rows[sel][ords[max_dev_pos]]],
                 dgb.gaussians.coords.centers[cols[sel][ords[max_dev_pos]]],
-                dgb.gaussians.overlap_data['centers'][sel][ords[max_dev_pos]],
+                dgb.gaussians.overlap_data.centers[sel][ords[max_dev_pos]],
                 realpots[ords[max_dev_pos]],
                 interpots[ords[max_dev_pos]],
                 utris[sel][ords[max_dev_pos]]
@@ -1307,10 +1315,11 @@ class DGBTests(TestCase):
         #     figure=center_plot
         # )
         # woof = plt.ScatterPlot(realpots[ords], unscaled_devs / realpots[ords])
-        scaled_dev_plot = plt.ScatterPlot(realpots[ords], unscaled_devs)
-        dev_plot = plt.ScatterPlot(realpots[ords], devs
-                                   # plot_range=[None, [-100, 100]]
-                                   )
+        # dev_plot = plt.ScatterPlot(realpots[ords], unscaled_devs)
+        dev_plot = plt.ScatterPlot(realpots[ords], unscaled_devs)
+        # dev_plot = plt.ScatterPlot(realpots[ords], devs
+        #                            # plot_range=[None, [-100, 100]]
+        #                            )
         dev_plot.show()
 
     @validationTest
@@ -2701,7 +2710,7 @@ class DGBTests(TestCase):
                 logger=True,
                 degeneracy_specs='auto',
                 calculate_intensities=False,
-                include_coriolis_coupling=True
+                include_coriolis_coupling=False
             )
             """
             State     Harmonic   Anharmonic     Harmonic   Anharmonic
@@ -2808,12 +2817,12 @@ class DGBTests(TestCase):
         bend, symm, asym = mol.normal_modes.modes.freqs
 
         base_dir = os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/')
-        for steps in [350]:#[10, 25, 50, 100, 150]:
+        for steps in [500]:#[10, 25, 50, 100, 150]:
             os.makedirs(base_dir, exist_ok=True)
-            timestep = 25
-            ntraj = 50
+            timestep = 10
+            ntraj = 150
 
-            energy_scaling = 1
+            energy_scaling = .75
             seed = 12213123
 
             svd_contrib_cutoff = None #1.5*1e-2
@@ -2826,70 +2835,73 @@ class DGBTests(TestCase):
             plot_similarity = False
             # pruning_energy = 1000
             pruning_energy = None
-            pruning_probabilities = [[250, 500], [500, 500], [1000, 500], [1600, 500], [3600, 100]]
-            if pruning_probabilities is not None:
-                pruning_probabilities = [
-                    [e / UnitsData.hartrees_to_wavenumbers, p]
-                    for e,p in pruning_probabilities
-                ]
+            # pruning_probabilities = [[250, 650], [500, 650], [1000, 1000], [1600, 500], [3600, 200]]#, [7000, 50]]
+            pruning_probabilities = [[3600, 1600]]#, [7000, 50]]
 
-            use_interpolation = False
+            use_interpolation = True
             plot_interpolation_error = False
 
-            """
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: diagonalizing in the space of 30 S functions
-            :: ZPE: 4699.655449323992
-            :: Frequencies: [ 1593.78350018  3227.21076654  3677.96974645  3760.55445805  4968.33053817  5447.13795543  5561.15140395  6439.46764936  6969.30704561  7206.78145883  7468.36586141  7501.7226483   7636.97825599  8536.70497126  8610.3430483   9058.82151809  9364.45589377  9884.77282794 10390.89757528 10559.04176505]
-            >>--------------------------------------------------<<
-            """
-
-            use_momenta = False
-            momentum_scaling = 1 / 2
+            use_momenta = True
+            use_sqrt_masses = True
+            # momentum_scaling = .1
+            momentum_scaling = 1 if use_sqrt_masses else 1 / 8
 
             use_coriolis = True
             use_watson = True
 
-            use_pairwise_potentials = False
+            use_pairwise_potentials = True
+            interpolate_ppf = True
             morse_w = 3891.634745263701 * self.w2h
             morse_wx = 185.31310314514627 * self.w2h
-            quadrature_degree = 3
-            expansion_degree = None
+            quadrature_degree = 11
+            expansion_degree = 2
             virial_scaling = 1/2
-            transformation_method = 'diag' #4642.62343373526, 1624.36701583 3196.27137197 3474.1645502  3740.31164635
-            # transformation_method = 'rpath' #4597.724422233999, 1613.48466441 3197.30480264 3559.70550684 3858.89799206
-            # transformation_method = None #1698.2354715  3295.17558598 3667.70526921 3929.12204053
+            transformation_method = 'diag'
+            # transformation_method = None
 
             run_profiler = False
             plot_gaussians = False
             plot_wfns = not run_profiler
             # plot_wfns = {'modes':[2, 1]}
-            plot_wfns = {'cartesians':[0, 1], 'num':[12]}
+            plot_wfns = {'cartesians':[0, 1], 'num':15}
+
+            run_opts = {
+                'timestep': timestep,
+                'trajectories': ntraj,
+                'pruning_probabilities': pruning_probabilities,
+                'momentum_scaling': None if not use_momenta else momentum_scaling,
+                'sqrt_masses': use_sqrt_masses,
+                'energy_scaling': energy_scaling,
+                'use_coriolis': use_coriolis,
+                'use_watson': use_watson,
+                'ppf_w': None if not use_pairwise_potentials else morse_w,
+                'ppf_wx': None if not use_pairwise_potentials else morse_wx,
+                'interpolate_ppf': interpolate_ppf,
+                'quadrature_degree': quadrature_degree,
+                'expansion_degree': expansion_degree,
+                'seed': seed,
+                'max_overlap_cutoff': max_overlap_cutoff,
+                'gram_schmidt_cutoff': gs_cutoff,
+                'similarity_cutoff': sim_cutoff,
+                'pruning_energy': pruning_energy,
+                'transformation_method': transformation_method,
+                'virial_scaling': virial_scaling
+            }
 
             plot_dir = os.path.join(base_dir, 'Figures', 'mbpol')
             if not plot_wfns:
                 plot_dir = None
             if plot_dir is not None:
-                all_params = (
-                    timestep,
-                    ntraj,
-                    energy_scaling,
-
-                    seed,
-
-                    max_overlap_cutoff ,
-                    gs_cutoff,
-                    declustering_radius,
-                    sim_cutoff,
-                    pruning_energy,
-                    None if not use_pairwise_potentials else morse_wx,
-                    None if not use_pairwise_potentials else morse_w
-                    )
+                all_params = tuple(run_opts.keys())
                 param_hash = str(hash(all_params))[:25]
                 plot_dir = os.path.join(plot_dir,
                                         '{}_E{}_s{}_nt{}_ts{}_sim{}_h{}'.format(
                                             'interp' if use_interpolation else 'exact',
-                                            pruning_energy,
+                                            pruning_energy
+                                                if pruning_energy is not None else
+                                            pruning_probabilities[-1][0]
+                                                if pruning_probabilities is not None else
+                                            None,
                                             steps,
                                             ntraj,
                                             timestep,
@@ -2898,6 +2910,11 @@ class DGBTests(TestCase):
                                         )
                                         )
 
+            if pruning_probabilities is not None:
+                pruning_probabilities = [
+                    [e / UnitsData.hartrees_to_wavenumbers, p]
+                    for e, p in pruning_probabilities
+                ]
             if pruning_energy is not None:
                 pruning_energy = pruning_energy / UnitsData.hartrees_to_wavenumbers
 
@@ -2951,12 +2968,17 @@ class DGBTests(TestCase):
             sim = mol.setup_AIMD(
                 pot,
                 initial_energies=np.array(initial_energies) * energy_scaling,
-                timestep=timestep  # DON'T MESS WITH THIS
+                timestep=timestep
                 , track_velocities=True
             )
             sim.propagate(steps)
             coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
-            momenta = momentum_scaling * velocities * np.sqrt(mol.atomic_masses[np.newaxis, :, np.newaxis])
+
+            momenta = momentum_scaling * velocities * (
+                np.sqrt(mol.atomic_masses[np.newaxis, :, np.newaxis])
+                    if use_sqrt_masses else
+                mol.atomic_masses[np.newaxis, :, np.newaxis]
+            )
 
             # plt.HistogramPlot(pot(coords)[0]*219475.6).show()
             # raise Exception(...)
@@ -2973,7 +2995,7 @@ class DGBTests(TestCase):
             print("="*25, "Steps:", steps, "Points:", len(coords), "="*25)
             cartesians = False
             if use_interpolation:
-                symmetrize=True
+                symmetrize = False
                 augment = False
                 if augment:
                     with Checkpointer.from_file(os.path.join(base_dir, interp_traj_file)) as chk:
@@ -2984,11 +3006,12 @@ class DGBTests(TestCase):
                         pot_vals = pot(traj, deriv_order=2)
                         interp_data = {'centers':traj, 'values':pot_vals}
                 elif symmetrize:
-                    mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
+                    # mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
                     modes = mol.normal_modes.modes.basis.to_new_modes()
                     emb_coords = modes.embed_coords(coords)
                     new_emb = emb_coords * np.array([1, 1, -1])[np.newaxis, :]
                     new_coords = modes.unembed_coords(new_emb)
+
                     interp_coords = np.concatenate([coords, new_coords], axis=0)
                     interp_data = {'centers':interp_coords, 'values':pot(interp_coords, deriv_order=2)}
                 else:
@@ -2996,11 +3019,62 @@ class DGBTests(TestCase):
             else:
                 interp_data = None
 
+            # modes = mol.normal_modes.modes.basis.to_new_modes()
+            # embedded_coords = modes.embed_coords(interp_data['centers'])
+            # embedded_vals = modes.embed_derivs(interp_data['values'])
+            #
+            # fitting_vals = embedded_vals[0]*219475.6 < 800
+            # cents = interp_data['centers'][fitting_vals]
+            # embedded_coords = embedded_coords[fitting_vals]
+            # embedded_vals = [v[fitting_vals] for v in embedded_vals]
+            #
+            # def bond_transform(centers, modes, i, j):
+            #     bond_tf = nput.dist_deriv(centers, i, j)[1]
+            #     bond_vectors = np.zeros(centers.shape)
+            #     bond_vectors[:, i] = bond_tf[0]
+            #     bond_vectors[:, j] = bond_tf[1]
+            #     bond_vectors = bond_vectors.reshape(bond_vectors.shape[0], -1)
+            #
+            #     tfs = np.linalg.svd(bond_vectors @ modes.matrix[np.newaxis, :])
+            #
+            #
+            # raise Exception(bond_tf.shape)
+            #
+            # figs = []
+            # for crd in range(3):
+            #     rem = np.setdiff1d(np.arange(3), crd)
+            #
+            #     inverse_sub_hess = np.linalg.inv(embedded_vals[2][:, rem, :][:, :, rem])
+            #     sub_grad = embedded_vals[1][:, rem]
+            #     pot_contrib = sub_grad[:, np.newaxis, :] @ inverse_sub_hess @ sub_grad[:, :, np.newaxis]
+            #
+            #     crd_sort = np.argsort(embedded_coords[:, 2])
+            #     emb_pot = embedded_vals[0] - 1/2*pot_contrib.flatten()
+            #
+            #     figs.append(
+            #         plt.ScatterPlot(
+            #             embedded_coords[crd_sort, crd],
+            #             emb_pot[crd_sort]*219475.6,
+            #             # plot_range=[None, [-500, 500]]
+            #         )
+            #     )
+            #     figs.append(
+            #         plt.ScatterPlot(
+            #             embedded_coords[crd_sort, crd],
+            #             embedded_vals[0][crd_sort] * 219475.6,
+            #             # plot_range=[None, [-500, 500]]
+            #         )
+            #     )
+            # figs[0].show()
+            #
+            # raise Exception(...)
+
             with BlockProfiler(inactive=not run_profiler):
                 # crd = np.round(coords[len(initial_energies)-1:], 8)
                 # if declustering_radius is not None:
                 #     crd = self.declusterPoints(crd, declustering_radius)
                 print("input points:", len(coords))
+                print("input coords:", coords[0])
 
                 dgb = DGB.construct(
                     coords,
@@ -3054,7 +3128,8 @@ class DGBTests(TestCase):
                                 wx=morse_wx
                             )
                         },
-                        'quadrature_degree': quadrature_degree
+                        'quadrature_degree': quadrature_degree,
+                        'use_with_interpolation': interpolate_ppf
                     } if use_pairwise_potentials else None,
                     kinetic_options=dict(
                         include_coriolis_coupling=use_coriolis,
@@ -3097,6 +3172,7 @@ class DGBTests(TestCase):
 
                 if plot_dir is not None:
                     with open(os.path.join(plot_dir, 'freqs.txt'), 'w+') as woof:
+                        print(run_opts, file=woof)
                         print("ZPE:", wfns.energies[0] * UnitsData.hartrees_to_wavenumbers, file=woof)
                         print("Freqs:", wfns.frequencies() * UnitsData.hartrees_to_wavenumbers, file=woof)
 

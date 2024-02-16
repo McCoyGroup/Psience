@@ -573,6 +573,7 @@ class DGBGaussians:
                   momenta=None,
                   poly_coeffs=None,
                   logger=None,
+                  pairwise_potential_functions=None,
                   parallelizer=None
                   ):
         if potential_expansion is not None:
@@ -591,6 +592,7 @@ class DGBGaussians:
             potential_function = DGBGenericInterpolator(
                 interp_coords,
                 potential_expansion,
+                pairwise_potential_functions=pairwise_potential_functions,
                 **expansion_opts
             )
 
