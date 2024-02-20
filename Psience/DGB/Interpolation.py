@@ -141,7 +141,8 @@ class WatsonPairwisePotential:
 
     def get_bond_lengths(self, coords, i, j, deriv_order=0):
         d0, proj = self.get_coordinate_bond_length_projection(i, j)
-        delta_contribs = np.reshape(proj[np.newaxis] @ coords[:, :, np.newaxis], coords.shape)
+        delta_contribs = proj[np.newaxis] @ coords[:, :, np.newaxis]
+        delta_contribs = np.reshape(delta_contribs, delta_contribs.shape[:2])
 
         d = d0[np.newaxis, :] + delta_contribs
 

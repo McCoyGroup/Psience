@@ -253,8 +253,8 @@ class DGBCartesians(DGBCoords):
         test = np.arange(na*nd).reshape((1, na, nd))
         inferrable = np.broadcast_to(test, self.coords.shape)[selector][0]
 
-        test_atoms = test[0, :, 0]
-        sub_atoms = inferrable[:, 0]
+        test_atoms = test[0, :, 0] // nd
+        sub_atoms = inferrable[:, 0] // nd
         # we map the atoms back to their positions in the original list
         atom_sel = np.searchsorted(test_atoms, sub_atoms)
         if len(atom_sel) == na and np.all(atom_sel == np.arange(na)):

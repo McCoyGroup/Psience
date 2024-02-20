@@ -602,6 +602,16 @@ class Molecule(AbstractMolecule):
             ))
         self._ints = ics
 
+    def get_internals(self, strip_embedding=True):
+        ics = self.internal_coordinates
+        if ics is None:
+           return None
+        embedding_coords = self._get_embedding_coords()
+        if embedding_coords is not None and strip_embedding:
+            good_coords = np.setdiff1d(np.arange(3 * len(self.masses)), embedding_coords)
+            ics = ics.flatten()[good_coords]
+        return ics
+
     def _get_int_jacobs(self,
                        jacs,
                        strip_dummies=False,
@@ -1133,22 +1143,22 @@ class Molecule(AbstractMolecule):
             mat = np.broadcast_to(mat, (npts,) + mat.shape[1:])
             mat_bits = mat[diag, atom_idx, :, :]  # N x 3 x N_modes
             pseudo_inverses = np.linalg.inv(mat_bits @ mat_bits.transpose(0, 2, 1))
-            print(mat_bits.shape, pseudo_inverses.shape, nearest_disps.shape)
+            # print(mat_bits.shape, pseudo_inverses.shape, nearest_disps.shape)
             ls_coords = mat_bits.transpose(0, 2, 1) @ pseudo_inverses @ nearest_disps[:, :, np.newaxis]
             # ls_coords = np.reshape(ls_coords, ls_coords.shape[:2])
             # print(modes.shape, ls_coords.shape, pseudo_inverses.shape, modes.shape)
             test = modes[np.newaxis, :, :] @ ls_coords
             ls_coords = np.reshape(ls_coords, ls_coords.shape[:2])
-            print(test.shape, nearest_disps.shape)
-            print(test.reshape(test.shape[0], -1, 3))
-            print(nearest_disps)
-            print(pts)
-            print(ls_coords)
+            # print(test.shape, nearest_disps.shape)
+            # print(test.reshape(test.shape[0], -1, 3))
+            # print(nearest_disps)
+            # print(pts)
+            # print(ls_coords)
             norms = np.linalg.norm(ls_coords, axis=-1)
             sorting = np.argsort(norms)
-            print(norms[sorting[:5]])
-            print(ls_coords[sorting[:5]])
-            print(pts[sorting[:5]])
+            # print(norms[sorting[:5]])
+            # print(ls_coords[sorting[:5]])
+            # print(pts[sorting[:5]])
 
 
             # raise Exception(ls_coords)
@@ -1156,7 +1166,7 @@ class Molecule(AbstractMolecule):
                 np.reshape(ls_coords, ls_coords.shape[:2])
             )
 
-            print(coords)
+            # print(coords)
 
         else:
             coords = np.broadcast_to(ref[np.newaxis], (len(pts),) + ref.shape).copy()
@@ -1306,6 +1316,8 @@ class Molecule(AbstractMolecule):
     def setup_AIMD(self,
                    potential_function,
                    timestep=.5,
+                   total_energy=None,
+                   trajectories=1,
                    initial_energies=None,
                    initial_displacements=None,
                    displaced_coords=None,
@@ -1330,6 +1342,16 @@ class Molecule(AbstractMolecule):
             )
         else:
             self.potential_derivatives = potential_function(self.coords, deriv_order=2)[1:]
+
+            if total_energy is not None:
+                freqs = self.normal_modes.modes.freqs
+                dirs = np.random.normal(0, 1, size=(trajectories, freqs.shape[0]))
+                dirs = dirs / np.linalg.norm(dirs, axis=1)[:, np.newaxis] # random unbiased directions
+
+                dirs = dirs / np.sum(np.abs(dirs), axis=1)[:, np.newaxis] # weights in each dimension
+                energies = dirs * freqs[np.newaxis, :]
+                initial_energies = total_energy * energies / np.sum(np.abs(energies), axis=1)[:, np.newaxis]
+
             nms = self.normal_modes.modes.basis
             sim = AIMDSimulator(
                 self.atomic_masses,

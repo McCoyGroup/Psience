@@ -16,7 +16,7 @@ __reload_hook__ = [".MixtureModes"]
 class NormalModes(MixtureModes):
     name="NormalModes"
 
-    default_zero_freq_cutoff = 4.5e-5 # 10 wavenumbers...
+    default_zero_freq_cutoff = 2.5e-4 # 50 wavenumbers...
     @classmethod
     def get_normal_modes(cls,
                          f_matrix,
@@ -51,7 +51,7 @@ class NormalModes(MixtureModes):
             # and modes[:, nz] = g12 @ V[:, nz]; inv[nz, :] = (V.T)[nz, :] @ gi12 (this is only the _left_ inverse)
             if zero_freq_cutoff is None:
                 zero_freq_cutoff = cls.default_zero_freq_cutoff
-            nonzero = np.abs(freq2) > zero_freq_cutoff
+            nonzero = np.abs(freq2) > zero_freq_cutoff**2
             # if len(nonzero) < len(modes):
             #     if np.linalg.det(modes) != 1 or not np.allclose(modes.T @ modes, np.eyelen(modes)):
             #         # we're working in a non-invertible subspace...

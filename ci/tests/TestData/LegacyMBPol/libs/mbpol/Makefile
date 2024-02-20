@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -O0
+CXXFLAGS = -O2
 
 MBPOL_CPP = mbpol/libmbpol.cpp \
             mbpol/poly-2b-v6x.cpp mbpol/poly-2b-v6x-nogrd.cpp \

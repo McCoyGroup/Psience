@@ -102,6 +102,8 @@ class PerturbationTheoryHamiltonian:
         if mode_selection is not None:
             mode_selection = tuple(mode_selection)
         mode_n = modes.basis.matrix.shape[1] if mode_selection is None else len(mode_selection)
+        if mode_n == 0:
+            raise ValueError("empty normal modes supplied")
         self.mode_n = mode_n
         if n_quanta is None:
             # This is a basically a historical option. We keep it but there's really no reason.

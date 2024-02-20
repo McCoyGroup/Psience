@@ -981,6 +981,7 @@ class DGBTests(TestCase):
                            cartesians=None,
                            plot_dir=None,
                            plot_name='wfn_{i}.pdf',
+                           plot_label='{e} cm-1',
                            plot_potential=True,
                            plot_atoms=None,
                            plot_centers=True,
@@ -1010,6 +1011,7 @@ class DGBTests(TestCase):
                     potential_styles = {}
                 pot_figure = cls.plot_dgb_potential(
                     dgb, mol, pot,
+                    coordinate_sel=coordinate_sel,
                     plot_atoms=plot_atoms,
                     **potential_styles
                 )
@@ -1029,33 +1031,43 @@ class DGBTests(TestCase):
                 if i < len(wfns):
                     if pot_figure is not None:
                         figure = pot_figure.copy()
+                    w = wfns[i]
+                    if i == 0:
+                        e = w.energy
+                    else:
+                        e = w.energy - wfns.energies[0]
+                    e = e * UnitsData.hartrees_to_wavenumbers
+                    lab = plot_label.format(i=i, e=e) if plot_label is not None else None
 
                     if isinstance(dgb.gaussians.coords, DGBCartesians):
+
                         figs.append(
-                            wfns[i].plot_cartesians(
+                            w.plot_cartesians(
                                 coordinate_sel,
                                 plot_centers=plot_centers,
                                 figure=figure,
+                                plot_label=lab,
                                 **plot_options
                             )
                         )
                     else:
                         if wfns.gaussians.alphas.shape[-1] > 1:
-                            wfn = wfns[i]
                             if coordinate_sel is not None:
-                                wfn = wfn.project(coordinate_sel)
+                                w = w.project(coordinate_sel)
                             figs.append(
-                                wfn.plot(
+                                w.plot(
                                     figure=figure,
                                     plot_centers=plot_centers,
+                                    plot_label=lab,
                                     **plot_options
                                 )
                             )
                         else:
                             figs.append(
-                                wfns[i].plot(
+                                w.plot(
                                     figure=figure,
                                     plot_centers=plot_centers,
+                                    plot_label=lab,
                                     **plot_options
                                 )
                             )
@@ -1123,7 +1135,6 @@ class DGBTests(TestCase):
                     if 'cartesians' in plot_wavefunctions:
                         cartesian_plot_axes=plot_wavefunctions['cartesians']
                         dgb = dgb.as_cartesian_dgb()
-                        raise Exception(...)
                     else:
                         raise ValueError(plot_wavefunctions)
 
@@ -2565,6 +2576,150 @@ class DGBTests(TestCase):
             pivots = np.concatenate([pivots[:i+1], pivots[i+1:][good_pos]])
         return points[pivots]
     @classmethod
+    def plot_quadratic_opt_potentials(cls, interp_data, mol, local_coordinates=None):
+        modes = mol.normal_modes.modes.basis.to_new_modes()
+        print(modes.matrix.shape)
+        print([v.shape for v in interp_data['values']])
+        embedded_coords = modes.embed_coords(interp_data['centers'])
+        embedded_vals = modes.embed_derivs(interp_data['values'])
+
+        fitting_vals = embedded_vals[0] * 219475.6 < 3600
+        cents = interp_data['centers'][fitting_vals]
+        embedded_coords = embedded_coords[fitting_vals]
+        embedded_vals = [v[fitting_vals] for v in embedded_vals]
+
+        def bond_vec(coords, i, j):
+            bond_tf = nput.dist_deriv(coords, i, j)[1]
+            bond_vectors = np.zeros(coords.shape)
+            bond_vectors[:, i] = bond_tf[0]
+            bond_vectors[:, j] = bond_tf[1]
+            bond_vectors = bond_vectors.reshape(bond_vectors.shape[0], -1)
+
+            return bond_vectors
+
+        def angle_vec(coords, i, j, k):
+            ang_tf = nput.angle_deriv(coords, i, j, k)[1]
+            ang_vectors = np.zeros(coords.shape)
+            ang_vectors[:, i] = ang_tf[0]
+            ang_vectors[:, j] = ang_tf[1]
+            ang_vectors[:, k] = ang_tf[2]
+            ang_vectors = ang_vectors.reshape(ang_vectors.shape[0], -1)
+
+            return ang_vectors
+
+        def poly_kernel(centers, points, m=3):
+            vals = 1 + np.sum(centers[:, np.newaxis, :] * points[np.newaxis, :, :], axis=-1)
+            return vals ** m
+
+        def poly_krr(coords, vals, l=1, m=3):
+            kernel_mat = poly_kernel(coords, coords, m=m)
+            regularizer = np.eye(len(coords))
+            # print(kernel_mat.shape, regularizer.shape)
+            np.fill_diagonal(regularizer, l)
+            weights = np.dot(
+                np.linalg.inv(kernel_mat + regularizer),
+                vals
+            )
+
+            def regression(pts, *, coords=coords, kernel=poly_kernel, m=m, weights=weights):
+                return np.dot(weights, kernel(coords, pts, m=m))
+
+            return regression
+
+
+        if local_coordinates is not None:
+
+            localizers = np.array([
+                bond_vec(cents, *inds)
+                    if len(inds) == 2 else
+                angle_vec(cents, *inds)
+                for inds in local_coordinates
+            ]).transpose((1, 2, 0))
+            # print(modes.matrix)
+            # print(localizers[0])
+
+            # print(localizers[0])
+
+            pseudos = np.linalg.inv(modes.matrix.T @ modes.matrix) @ modes.matrix.T
+            # print(pseudos.shape, localizers.shape)
+
+            vec_ls = pseudos[np.newaxis] @ localizers[:, :]
+
+            # print(vec_ls[0])
+
+            svd_bits = np.linalg.svd(vec_ls)
+            polar_rots = svd_bits[0] @ svd_bits[2]
+
+            # print(polar_rots[0])
+            # raise Exception(
+            #     cents[0],
+            #     modes.matrix
+            # )
+
+            embedded_coords = nput.vec_tensordot(
+                polar_rots,
+                embedded_coords,
+                shared=1,
+                axes=[2, 1]
+            )
+
+            _ = []
+            for n, d in enumerate(embedded_vals):
+                for __ in range(n):
+                    d = nput.vec_tensordot(
+                        d,
+                        polar_rots,
+                        shared=1,
+                        axes=[1, 2]
+                    )
+                _.append(d)
+            embedded_vals = _
+
+        # print(embedded_coords[50:55, 0])
+        # print(
+        #     np.linalg.norm(cents[50:55, 0] - cents[50:55, 1], axis=1) - np.linalg.norm(cents[0, 0] - cents[0, 1])
+        # )
+
+        # raise Exception(vec_ls[0])
+
+        figs = []
+        for crd in range(cents.shape[-1]):
+            rem = np.setdiff1d(np.arange(cents.shape[-1]), crd)
+
+            inverse_sub_hess = np.linalg.inv(embedded_vals[2][:, rem, :][:, :, rem])
+            sub_grad = embedded_vals[1][:, rem]
+            pot_contrib = sub_grad[:, np.newaxis, :] @ inverse_sub_hess @ sub_grad[:, :, np.newaxis]
+
+            crd_sort = np.argsort(embedded_coords[:, crd])
+            emb_pot = embedded_vals[0] - 1 / 2 * pot_contrib.flatten()
+
+            crds = embedded_coords[crd_sort, crd]
+            regression = poly_krr(crds[:, np.newaxis], emb_pot[crd_sort])
+
+            regressed = plt.ScatterPlot(
+                crds,
+                emb_pot[crd_sort] * 219475.6,
+                # plot_range=[None, [-500, 500]]
+            )
+            plt.ScatterPlot(
+                crds, regression(crds[:, np.newaxis]) * 219475.6,
+                figure=regressed
+            )
+            figs.append(
+                regressed
+            )
+
+            figs.append(
+                plt.ScatterPlot(
+                    embedded_coords[crd_sort, crd],
+                    embedded_vals[0][crd_sort] * 219475.6,
+                    # plot_range=[None, [-500, 500]]
+                )
+            )
+        figs[0].show()
+
+        raise Exception(...)
+    @classmethod
     def getMBPolModel(cls, atoms=None, ref=None, embed=True):
         loader = ModuleLoader(TestManager.current_manager().test_data_dir)
         mbpol = loader.load("LegacyMBPol").MBPol
@@ -2659,7 +2814,7 @@ class DGBTests(TestCase):
             ref_mol = ref_mol.get_embedded_molecule(load_properties=False)
 
         return potential, ref_mol
-    @debugTest
+    @validationTest
     def test_WaterAIMD(self):
         pot, mol = self.getMBPolModel()
 
@@ -2820,7 +2975,7 @@ class DGBTests(TestCase):
         for steps in [500]:#[10, 25, 50, 100, 150]:
             os.makedirs(base_dir, exist_ok=True)
             timestep = 10
-            ntraj = 150
+            ntraj = 10
 
             energy_scaling = .75
             seed = 12213123
@@ -2836,7 +2991,7 @@ class DGBTests(TestCase):
             # pruning_energy = 1000
             pruning_energy = None
             # pruning_probabilities = [[250, 650], [500, 650], [1000, 1000], [1600, 500], [3600, 200]]#, [7000, 50]]
-            pruning_probabilities = [[3600, 1600]]#, [7000, 50]]
+            pruning_probabilities = [[1200, 200]]#, [7000, 50]]
 
             use_interpolation = True
             plot_interpolation_error = False
@@ -2938,17 +3093,6 @@ class DGBTests(TestCase):
                 image_size=[500, 500 * 2/5]
             )
 
-            # initial_energies = np.array([
-            #                 [ 3.0, 0.0, 0.0],
-            #                 [ 1.0, 0.0, 0.0],
-            #                 [ 0.0, 3.0, 0.0],
-            #                 [ 0.0, 0.0, -3.0],
-            #                 [ 2.0, 0.0, -2.0],
-            #                 [ 0.0, 2.0, -2.0],
-            #                 [-2.0, 2.0, 2.0],
-            #                 # [ 0.7, 0.7, 0.0],
-            #                 # [-0.7, 0.7, 0.0],
-            #             ]) * np.array([bend, symm, asym])[np.newaxis, :]
             np.random.seed(seed)
             dirs = np.random.normal(0, 1, size=(ntraj, 3))
             dirs = dirs / np.linalg.norm(dirs, axis=1)[:, np.newaxis]
@@ -2961,9 +3105,6 @@ class DGBTests(TestCase):
                 dirs
             ])
             initial_energies = energy_scaling * dirs * np.array([bend, symm, asym])[np.newaxis, :]
-            # initial_energies = initial_energies / np.linalg.norm(initial_energies, axis=1)[:, np.newaxis]
-            # initial_energies = initial_energies * np.array([bend, symm, asym])[np.newaxis, :]
-            # ninit = len(initial_energies)
 
             sim = mol.setup_AIMD(
                 pot,
@@ -3019,55 +3160,9 @@ class DGBTests(TestCase):
             else:
                 interp_data = None
 
-            # modes = mol.normal_modes.modes.basis.to_new_modes()
-            # embedded_coords = modes.embed_coords(interp_data['centers'])
-            # embedded_vals = modes.embed_derivs(interp_data['values'])
-            #
-            # fitting_vals = embedded_vals[0]*219475.6 < 800
-            # cents = interp_data['centers'][fitting_vals]
-            # embedded_coords = embedded_coords[fitting_vals]
-            # embedded_vals = [v[fitting_vals] for v in embedded_vals]
-            #
-            # def bond_transform(centers, modes, i, j):
-            #     bond_tf = nput.dist_deriv(centers, i, j)[1]
-            #     bond_vectors = np.zeros(centers.shape)
-            #     bond_vectors[:, i] = bond_tf[0]
-            #     bond_vectors[:, j] = bond_tf[1]
-            #     bond_vectors = bond_vectors.reshape(bond_vectors.shape[0], -1)
-            #
-            #     tfs = np.linalg.svd(bond_vectors @ modes.matrix[np.newaxis, :])
-            #
-            #
-            # raise Exception(bond_tf.shape)
-            #
-            # figs = []
-            # for crd in range(3):
-            #     rem = np.setdiff1d(np.arange(3), crd)
-            #
-            #     inverse_sub_hess = np.linalg.inv(embedded_vals[2][:, rem, :][:, :, rem])
-            #     sub_grad = embedded_vals[1][:, rem]
-            #     pot_contrib = sub_grad[:, np.newaxis, :] @ inverse_sub_hess @ sub_grad[:, :, np.newaxis]
-            #
-            #     crd_sort = np.argsort(embedded_coords[:, 2])
-            #     emb_pot = embedded_vals[0] - 1/2*pot_contrib.flatten()
-            #
-            #     figs.append(
-            #         plt.ScatterPlot(
-            #             embedded_coords[crd_sort, crd],
-            #             emb_pot[crd_sort]*219475.6,
-            #             # plot_range=[None, [-500, 500]]
-            #         )
-            #     )
-            #     figs.append(
-            #         plt.ScatterPlot(
-            #             embedded_coords[crd_sort, crd],
-            #             embedded_vals[0][crd_sort] * 219475.6,
-            #             # plot_range=[None, [-500, 500]]
-            #         )
-            #     )
-            # figs[0].show()
-            #
-            # raise Exception(...)
+            plot_quadratic_opt = True
+            if plot_quadratic_opt:
+                self.plot_quadratic_opt_potentials(interp_data)
 
             with BlockProfiler(inactive=not run_profiler):
                 # crd = np.round(coords[len(initial_energies)-1:], 8)
@@ -3179,6 +3274,362 @@ class DGBTests(TestCase):
 
             if plot_dir is not None or plot_wfns is False:
                 plt.Graphics().show()
+
+    @classmethod
+    def setupOCHHModel(cls):
+
+        loader = ModuleLoader(os.path.expanduser("~/Documents/Postdoc"))
+        h2co_mod = loader.load("H2COPot")
+        h2co = h2co_mod.Potential
+        h2co_i = h2co_mod.InternalsPotential
+
+        struct = Molecule.from_file(
+            TestManager.test_data('OCHH_freq.fchk')
+        )
+        pds = struct.potential_derivatives;
+        # struct = struct.get_embedded_molecule(embed_properties=True)
+
+        ints = h2co.get_internals(struct.coords * UnitsData.convert("BohrRadius", "Angstroms"), order=[3, 2, 1, 0])
+        # s2 = h2co.from_internals(ints)
+        # ints2 = h2co.get_internals(s2)
+        # print(ints)
+        # print(ints2)
+        # raise Exception(...)
+
+        def pot_i(c): return h2co_i.get_pot(c)
+        # fd_i = FiniteDifferenceDerivative(pot_i,
+        #                                   function_shape=((6,), None),
+        #                                   ).derivatives(ints)
+
+        # ints = np.array[
+        #     1.210000 , 1.100000,   1.100000,
+        #     np.deg2rad(122.000000),  np.deg2rad(122.000000), np.deg2rad(180.000000)
+        # ]
+        import scipy.optimize as opt
+        opt_ints = opt.minimize(pot_i, ints, method='nelder-mead', tol=1e-8)
+        # raise Exception(opt_ints.fun, opt_ints.message)
+
+        # print(opt_ints)
+        ref_crds = opt_ints.x
+        ref_val = opt_ints.fun
+        ref_struct = h2co.from_internals(ref_crds)
+        # print(ref_struct)
+        # print(ref_crds[5] - np.pi)
+        # print(h2co.get_internals(ref_struct))
+        # raise Exception(...)
+        ref_struct = struct.embed_coords(ref_struct[(3, 2, 0, 1),] * UnitsData.convert("Angstroms", "BohrRadius"))
+        # ref_struct = ref_struct[(3, 2, 1, 0),]
+
+        ref_val = h2co.get_pot(
+            ref_struct * UnitsData.convert("BohrRadius", "Angstroms"),
+            order=(3, 2, 1, 0)
+        )
+        def pot(crds, deriv_order=None):
+            crds = crds * UnitsData.convert("BohrRadius", "Angstroms")
+            pot_vals = h2co.get_pot(crds, order=(3, 2, 1, 0)) - ref_val
+            pot_vals *= UnitsData.convert("Wavenumbers", "Hartrees")
+            if deriv_order is not None and deriv_order > 0:
+                from McUtils.Zachary import FiniteDifferenceDerivative
+                fd = FiniteDifferenceDerivative(lambda c:h2co.get_pot(c, order=(3, 2, 1, 0)),
+                                                function_shape=((4, 3), None),
+                                                ).derivatives(crds)
+                derivs = fd.derivative_tensor(list(range(1, deriv_order+1)))
+                a2b = UnitsData.convert("BohrRadius", "Angstroms")
+                w2h = UnitsData.convert("Wavenumbers", "Hartrees")
+
+                for n,d in enumerate(derivs):
+                    derivs[n] = np.moveaxis(d * (w2h * a2b**(n+1)), -1, 0)
+                pot_vals = [pot_vals] + derivs
+            return pot_vals
+
+        mol = Molecule(
+            ["O", "C", "H", "H"],
+            ref_struct
+        )
+
+        # ders = pot(mol.coords, deriv_order=2)
+        # print(ref_val)
+        # print(np.round(struct.potential_derivatives[0] * UnitsData.hartrees_to_wavenumbers, 2))
+        # print(np.round(ders[1] * UnitsData.hartrees_to_wavenumbers, 2))
+        # print(
+        #     np.round(struct.potential_derivatives[1] * UnitsData.hartrees_to_wavenumbers, 2)
+        # )
+        # print(
+        #     np.round(ders[2] * UnitsData.hartrees_to_wavenumbers, 2)
+        # )
+
+        return pot, mol
+
+    @debugTest
+    def test_OCHH(self):
+        pot, mol = self.setupOCHHModel()
+
+        check_freqs = False
+        if check_freqs:
+            mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
+            # from Psience.MixtureModes import NormalModes
+            # freqs, modes, inv = NormalModes.get_normal_modes(
+            #     mol.potential_derivatives[1],
+            #     mol.atomic_masses,
+            #     remove_transrot=True
+            # )
+            # raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+            freqs = mol.normal_modes.modes.freqs
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+            # [1184.78739083 1270.60326063 1536.38630622 1773.53059261 2938.06517553 3014.04194109]
+
+        check_anh = False
+        if check_anh:
+            from Psience.VPT2 import VPTRunner
+            pot_data = pot(mol.coords, deriv_order=4)
+            # print([p.shape for p in pot_data])
+
+            VPTRunner.run_simple(
+                [mol.atoms, mol.coords],
+                potential_derivatives=[
+                    x.reshape((12,) * (i + 1))
+                    for i, x in enumerate(pot_data[1:])
+                ],
+                order=2, states=2,
+                logger=True,
+                degeneracy_specs='auto',
+                calculate_intensities=False,
+                include_coriolis_coupling=True
+            )
+            raise Exception(...)
+            """
+            0 0 0 0 0 0   5858.70733   5780.61825            -            - 
+            0 0 0 0 0 1            -            -   3014.04194   2850.24192 
+            0 0 0 0 1 0            -            -   2938.06518   2775.12218 
+            0 0 0 1 0 0            -            -   1773.53059   1751.14686 
+            0 0 1 0 0 0            -            -   1536.38631   1500.26999 
+            0 1 0 0 0 0            -            -   1270.60326   1250.28571 
+            1 0 0 0 0 0            -            -   1184.78739   1172.06491 
+            0 0 0 0 0 2            -            -   6028.08388   5653.82461 
+            0 0 0 0 2 0            -            -   5876.13035   5448.28685 
+            0 0 0 2 0 0            -            -   3547.06119   3486.35662 
+            0 0 2 0 0 0            -            -   3072.77261   3000.53136 
+            0 2 0 0 0 0            -            -   2541.20652   2494.07307 
+            2 0 0 0 0 0            -            -   2369.57478   2341.64290 
+            0 0 0 0 1 1            -            -   5952.10712   5394.06886 
+            0 0 0 1 0 1            -            -   4787.57253   4580.10924 
+            0 0 1 0 0 1            -            -   4550.42825   4358.80717 
+            0 1 0 0 0 1            -            -   4284.64520   4058.08650 
+            1 0 0 0 0 1            -            -   4198.82933   4014.00756 
+            0 0 0 1 1 0            -            -   4711.59577   4530.51952 
+            0 0 1 0 1 0            -            -   4474.45148   4247.93348 
+            0 1 0 0 1 0            -            -   4208.66844   4016.74144 
+            1 0 0 0 1 0            -            -   4122.85257   3939.42832 
+            0 0 1 1 0 0            -            -   3309.91690   3242.31432 
+            0 1 0 1 0 0            -            -   3044.13385   3007.87873 
+            1 0 0 1 0 0            -            -   2958.31798   2918.05297 
+            0 1 1 0 0 0            -            -   2806.98957   2710.80788 
+            1 0 1 0 0 0            -            -   2721.17370   2672.80691 
+            1 1 0 0 0 0            -            -   2455.39065   2433.78560 
+            0 1 1 0 0 1            -            -   5821.03151   5261.03933 
+            0 1 0 1 0 1            -            -   6058.17579   5537.94960 
+            0 1 1 0 1 0            -            -   5745.05474   5538.43152 
+            0 1 0 1 1 0            -            -   5982.19903   5770.45894 
+            0 1 2 0 0 0            -            -   4343.37587   4173.15105 
+            0 1 0 2 0 0            -            -   4817.66445   4755.77039 
+            0 1 1 1 0 0            -            -   4580.52016   4465.97584 
+            0 2 0 1 0 0            -            -   4314.73711   4258.80431 
+            1 1 1 0 0 0            -            -   3991.77696   3884.91158 
+            1 1 0 1 0 0            -            -   4228.92124   4184.92679 
+            0 0 3 0 0 0            -            -   4609.15892   4493.31862
+            """
+
+        get_anharmonicity = False
+        if get_anharmonicity:
+            # print(np.round(mol.coords, 8))
+            mbpol_deriv = pot(np.round(mol.coords, 8), deriv_order=4)
+            # print(mbpol_deriv[2] * UnitsData.hartrees_to_wavenumbers)
+            mol.internals = [
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  1,  0, -1],
+                [3,  1,  0,  2]
+            ]
+            conv = mol.get_cartesians_by_internals(4, strip_embedding=True)
+            from McUtils.Zachary import TensorDerivativeConverter
+            internals = TensorDerivativeConverter(conv, [d.squeeze() for d in mbpol_deriv[1:]]).convert()
+
+            # print(internals[1] / self.w2h)
+
+            for i,j,k in [[0, 1, 0], [1, 2, 1], [1, 3, 3]]:
+                g = (1 / mol.atomic_masses[i] + 1 / mol.atomic_masses[j])
+                w = np.sqrt(internals[1][k, k] * g)
+                wx = (g / (4 * w)) ** 2 * (
+                        internals[3][k, k, k, k] - 5 / 3 * internals[2][k, k, k] / internals[1][k, k]
+                )
+                print((i,j), w / self.w2h, wx / self.w2h)
+            raise Exception(...)
+
+        sim = mol.setup_AIMD(
+            pot,
+            total_energy=3600 * self.w2h,
+            trajectories=25,
+            timestep=25,
+            track_velocities=True
+        )
+        sim.propagate(125)
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+
+        momenta = velocities * mol.atomic_masses[np.newaxis, :, np.newaxis]
+        wCH = 2995 * self.w2h
+        wxCH = 197 * self.w2h
+        wCO = 1837 * self.w2h
+        wxCO = 20 * self.w2h
+
+        interp_data = {'centers':coords, 'values':pot(coords, deriv_order=2)}
+
+        # self.plot_quadratic_opt_potentials(interp_data, mol)
+
+        dgb = DGB.construct(
+            coords,
+            pot,#interp_data,
+            masses=mol.atomic_masses,
+            alphas='virial',
+            transformations='diag',
+            optimize_centers=[
+                {
+                    'method': 'energy-cutoff',
+                    'probabilities': [[3600 * self.w2h, 800]],
+                    'cutoff': None
+                }
+                # {
+                #     'method': 'gram-schmidt',
+                #     'norm_cutoff': 10 ** (-14),
+                #     'max_overlap_cutoff': 1-1e-4
+                # }
+            ],
+            modes='normal',
+            expansion_degree=2,
+            pairwise_potential_functions={
+                'functions': {
+                    (0, 1): self.setupMorseFunction(
+                        mol.atomic_masses[0],
+                        mol.atomic_masses[1],
+                        np.linalg.norm(mol.coords[0] - mol.coords[1]),
+                        w=wCO,
+                        wx=wxCO
+                    ),
+                    (1, 2): self.setupMorseFunction(
+                        mol.atomic_masses[1],
+                        mol.atomic_masses[2],
+                        np.linalg.norm(mol.coords[1] - mol.coords[2]),
+                        w=wCH,
+                        wx=wxCH
+                    ),
+                    (1, 3): self.setupMorseFunction(
+                        mol.atomic_masses[1],
+                        mol.atomic_masses[3],
+                        np.linalg.norm(mol.coords[1] - mol.coords[3]),
+                        w=wCH,
+                        wx=wxCH
+                    )
+                },
+                'quadrature_degree': 7,
+                'use_with_interpolation': True
+            },
+            # momenta=momenta,
+            logger=True
+        )
+
+        wfns = self.runDGB(dgb, mol,
+                           mode='similarity',
+                           plot_spectrum=False,
+                           plot_wavefunctions={'cartesians':[1, 2], 'num': 15}
+                           )
+
+
+    @validationTest
+    def test_WaterAIMDDisplaced(self):
+        pot, mol = self.getMBPolModel()
+
+        steps = 800
+        sim = mol.setup_AIMD(
+            pot,
+            # initial_displacements=[[.12]],
+            # displaced_coords=[[1, 0]],
+            # initial_energies=[[800 * self.w2h, 1600 * self.w2h, 1600 * self.w2h]], # localized?
+            initial_energies=[[800 * self.w2h, 0, 1600 * self.w2h]],
+            timestep=25,
+            track_velocities=True
+        )
+        sim.propagate(steps)
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        print(coords[1] - coords[0])
+
+        # print(pot(coords[0])[0] * 219475.6)
+        #
+        # e = pot(coords)[0] * 219475.6
+        # plt.Plot(np.arange(len(e)), e).show()
+        # raise Exception(...)
+
+        # coords = np.concatenate([[mol.coords], coords], axis=0)
+        # velocities = np.concatenate([[np.zeros_like(mol.coords)], velocities], axis=0)
+
+        momentum_scaling = 1 / 8
+        if momentum_scaling is not None:
+            momenta = momentum_scaling * velocities * (
+                mol.atomic_masses[np.newaxis, :, np.newaxis]
+            )
+        else:
+            momenta = None
+
+        morse_w = 3891.634745263701 * self.w2h
+        morse_wx = 185.31310314514627 * self.w2h
+
+        use_interpolation = False
+        if use_interpolation:
+            interp_data = {'centers': coords, 'values': pot(coords, deriv_order=2)}
+        else:
+            interp_data = None
+
+        dgb = DGB.construct(
+            coords,
+            pot if not use_interpolation else interp_data,
+            masses=mol.atomic_masses,
+            transformations='diag',
+            alphas='virial',
+            modes='normal',
+            expansion_degree=2,
+            pairwise_potential_functions={
+                'functions': {
+                    (0, 1): self.setupMorseFunction(
+                        mol.atomic_masses[0],
+                        mol.atomic_masses[1],
+                        np.linalg.norm(mol.coords[0] - mol.coords[1]),
+                        w=morse_w,
+                        wx=morse_wx
+                    ),
+                    (0, 2): self.setupMorseFunction(
+                        mol.atomic_masses[0],
+                        mol.atomic_masses[2],
+                        np.linalg.norm(mol.coords[0] - mol.coords[2]),
+                        w=morse_w,
+                        wx=morse_wx
+                    )
+                },
+                'quadrature_degree': 5,
+                'use_with_interpolation': True
+            },
+            momenta=momenta,
+            logger=True
+        )
+
+        wfns = self.runDGB(dgb, mol,
+                           mode='similarity',
+                           plot_spectrum=False,
+                           plot_wavefunctions={'cartesians': [0, 1], 'num': 3}
+                           )
+
+        # print("ZPE:", wfns.energies[0] * UnitsData.hartrees_to_wavenumbers, file=woof)
+        # print("Freqs:", wfns.frequencies() * UnitsData.hartrees_to_wavenumbers, file=woof)
+
+
+
 
     @validationTest
     def test_WaterFromGauss(self):
