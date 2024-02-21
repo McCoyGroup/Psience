@@ -6,7 +6,7 @@ from McUtils.Parallelizers import Parallelizer
 from McUtils.Data import AtomData, UnitsData
 import McUtils.Numputils as nput
 
-from ..MixtureModes import NormalModes
+from ..Modes import NormalModes
 
 from .Coordinates import *
 from .Evaluators import *

@@ -1316,8 +1316,10 @@ class Molecule(AbstractMolecule):
     def setup_AIMD(self,
                    potential_function,
                    timestep=.5,
+                   seed=None,
                    total_energy=None,
                    trajectories=1,
+                   sampled_modes=None,
                    initial_energies=None,
                    initial_displacements=None,
                    displaced_coords=None,
@@ -1344,8 +1346,15 @@ class Molecule(AbstractMolecule):
             self.potential_derivatives = potential_function(self.coords, deriv_order=2)[1:]
 
             if total_energy is not None:
+                if seed is not None:
+                    np.random.seed(seed)
                 freqs = self.normal_modes.modes.freqs
-                dirs = np.random.normal(0, 1, size=(trajectories, freqs.shape[0]))
+                if sampled_modes is None:
+                    sampled_modes = list(range(freqs.shape[0]))
+                subdirs = np.random.normal(0, 1, size=(trajectories, len(sampled_modes)))
+
+                dirs = np.zeros((trajectories, freqs.shape[0]))
+                dirs[:, sampled_modes] = subdirs
                 dirs = dirs / np.linalg.norm(dirs, axis=1)[:, np.newaxis] # random unbiased directions
 
                 dirs = dirs / np.sum(np.abs(dirs), axis=1)[:, np.newaxis] # weights in each dimension
@@ -1369,6 +1378,28 @@ class Molecule(AbstractMolecule):
             )
 
         return sim
+
+    def setup_VPT(self,
+                  *,
+                  states=2,
+                  order=2,
+                  use_internals=None,
+                  **opts
+                  ):
+        from ..VPT2 import VPTRunner
+
+        if use_internals or use_internals is None:
+            return VPTRunner.construct(self, states, order=order, **opts)
+        else:
+            return VPTRunner.construct(
+                [self.atoms, self.coords],
+                states,
+                potential_derivatives=self.potential_derivatives,
+                modes=self.normal_modes.modes.basis,
+                order=order,
+                **opts
+            )
+
 
     @property
     def g_matrix(self):

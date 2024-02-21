@@ -92,6 +92,10 @@ class MixtureModes(CoordinateSystem):
             inverse=new_inv
         )
 
+    @property
+    def cartesian_modes(self):
+        return self.origin.ndim == 2
+
     def embed_coords(self, carts):
         flat_carts = (carts - self.origin[np.newaxis]).reshape((len(carts), -1))
         return (flat_carts[:, np.newaxis, :] @ self.inverse.T[np.newaxis]).reshape(

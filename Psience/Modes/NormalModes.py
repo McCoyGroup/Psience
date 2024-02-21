@@ -3,6 +3,7 @@ import numpy as np, scipy.linalg as slag
 import scipy.linalg
 
 from McUtils.Data import AtomData, UnitsData
+import McUtils.Numputils as nput
 
 from .MixtureModes import MixtureModes
 
@@ -124,6 +125,102 @@ class NormalModes(MixtureModes):
                                           dimensionless=dimensionless)
 
         return cls(basis, modes, inverse=inv, freqs=freqs, **opts)
+
+    def get_nearest_mode_transform(self, alternate_modes):
+        modes = self.matrix
+
+        ls_coords = np.linalg.inv(modes.T @ modes) @ modes.T @ alternate_modes
+
+        U, s, V = np.linalg.svd(ls_coords)
+        good_s = np.where(s > 1e-8)[0]
+        R = (U[:, good_s] @ V[good_s, :])
+
+        return R
+
+    def get_localized_modes(self, target_coords, symmetrizer=None,
+                            make_oblique=False,
+                            rediagonalize=False
+                            ):
+        from .ObliqueModes import ObliqueModeGenerator
+
+        carts = self.origin
+        if carts.ndim != 2:
+            raise NotImplementedError("can't get local modes for non-Cartesian basis")
+
+        targets = []
+        for idx in target_coords:
+            nidx = len(idx)
+            if nidx == 2:
+                targets.append(nput.dist_vec(carts, *idx))
+            elif nidx == 3:
+                targets.append(nput.angle_vec(carts, *idx))
+            elif nidx == 4:
+                targets.append(nput.dihed_vec(carts, *idx))
+            else:
+                raise ValueError("can't parse coordinate spec {}".format(idx))
+        target_modes = np.array(targets).T
+
+        if symmetrizer is not None:
+            if isinstance(symmetrizer, (np.ndarray, list)):
+                symmetrizer = np.asanyarray(symmetrizer)
+                target_modes = target_modes @ symmetrizer.T
+            else:
+                target_modes = symmetrizer(target_modes)
+
+        ltf = self.get_nearest_mode_transform(target_modes)
+
+        if make_oblique:
+            new_f = ltf.T @ np.diag(self.freqs ** 2) @ ltf
+            new_g = np.eye(len(new_f))
+            ob_f, ob_g, u, ob_ui = ObliqueModeGenerator(new_f, new_g).run()
+            ltf = ltf @ ob_ui
+
+        if rediagonalize:
+            new_f = ltf.T @ np.diag(self.freqs ** 2) @ ltf
+            new_freq2, mode_tf = np.linalg.eigh(new_f)
+            if not make_oblique:
+                new_freqs = np.sqrt(new_freq2)
+            else:
+                new_freqs = new_freq2
+                mode_tf = mode_tf @ np.diag(np.sqrt(new_freqs))
+
+            full_tf = ltf @ mode_tf
+            new_modes = self.matrix @ full_tf
+            new_inv = full_tf.T @ self.inverse
+
+            return full_tf, type(self)(
+                self.basis,
+                new_modes,
+                inverse=new_inv,
+                origin=self.origin,
+                freqs=new_freqs
+            )
+        else:
+            return ltf
+
+    @classmethod
+    def from_molecule(cls, mol, dimensionless=False, use_internals=None):
+        from ..Molecools import Molecule
+
+        mol = mol  # type:Molecule
+        if use_internals is None:
+            use_internals = mol.internal_coordinates is not None
+        if use_internals:
+            return cls.from_fg(
+                mol.internal_coordinates.system,
+                mol.get_internal_potential_derivatives(2)[1],
+                mol.g_matrix,
+                dimensionless=dimensionless,
+                origin=mol.coords
+            )
+        else:
+            return cls.from_fg(
+                mol.coords.system,
+                mol.potential_derivatives[1],
+                mol.atomic_masses,
+                dimensionless=dimensionless,
+                origin=mol.coords
+            )
 
 class ReactionPathModes(NormalModes):
     def get_rp_modes(cls,

@@ -3465,43 +3465,126 @@ class DGBTests(TestCase):
                 print((i,j), w / self.w2h, wx / self.w2h)
             raise Exception(...)
 
+        ########################################################################
+        ##
+        ##              JOB PARAMETERS
+        ##
+        seed = 12332123
+        esamp = 3600
+        ntraj = 35
+        samp_modes = [4, 5]
+        ts = 25
+        steps = 225
+
+        pruning_probabilities = [[3000, 1000]]
+
+        use_pairwise = True
+        use_interpolation = False
+        momentum_scaling = 1/8
+
+        run_opts = {
+            'sampling_energy': esamp,
+            'trajectories': ntraj,
+            'timestep': ts,
+            'steps': steps,
+            'sampled_modes': samp_modes,
+            'pruning_probabilities': pruning_probabilities,
+            'momentum_scaling': momentum_scaling,
+            'use_pairwise':use_pairwise,
+            'seed': seed
+        }
+        ########################################################################
+        ##
+        ##              PLOT PARAMETERS
+        ##
+
+        plot_wfns = {'cartesians':[1, 2], 'num': 15}
+
+        pot_cmap = 'viridis'
+        pot_points = 250
+        wfn_cmap = 'coolwarm'
+        wnf_points = 100
+        wfn_contours = 10
+        plot_centers = False
+        plot_styles = {
+            'frame': True,
+            # 'ticks_style': (False, False),  # , dict(left=False, right=False))
+            'ticks': ([-2, -1, 0, 1, 2], [-1, -.5, 0]),
+            'axes_labels': ['x (bohr)', 'y (bohr)'],
+            'padding': ([60, 0], [40, 50]),
+            'aspect_ratio': 'auto'
+        }
+        plot_styles = dict(
+            plot_styles,
+            # plot_range=[[-2.5, 2.5], [-1.5, 0.5]],
+            # image_size=[500, 500 * 2 / 5]
+        )
+
+        ########################################################################
+        ##
+        ##              RUN JOB
+        ##
+        plot_dir = os.path.join(os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/'), 'Figures', 'ochh')
+        if not plot_wfns:
+            plot_dir = None
+        if plot_dir is not None:
+            all_params = tuple(run_opts.keys())
+            param_hash = str(hash(all_params))[:25]
+            plot_dir = os.path.join(plot_dir,
+                                    '{}_E{}_P{}_nt{}_s{}_ts{}_h{}'.format(
+                                        'interp' if use_interpolation else 'exact',
+                                        pruning_probabilities[-1][0]
+                                            if pruning_probabilities is not None else
+                                        None,
+                                        esamp,
+                                        steps,
+                                        ntraj,
+                                        ts,
+                                        param_hash
+                                    )
+                                    )
+        if pruning_probabilities is not None:
+            pruning_probabilities = [[e * self.w2h, n] for e,n in pruning_probabilities]
+
         sim = mol.setup_AIMD(
             pot,
-            total_energy=3600 * self.w2h,
-            trajectories=25,
-            timestep=25,
-            track_velocities=True
+            total_energy=esamp * self.w2h,
+            trajectories=ntraj,
+            sampled_modes=samp_modes,
+            timestep=ts,
+            track_velocities=True,
+            seed=seed
         )
-        sim.propagate(125)
+        sim.propagate(steps)
         coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
 
-        momenta = velocities * mol.atomic_masses[np.newaxis, :, np.newaxis]
+        if momentum_scaling is not None:
+            momenta = momentum_scaling * velocities * mol.atomic_masses[np.newaxis, :, np.newaxis]
+        else:
+            momenta = None
+
         wCH = 2995 * self.w2h
         wxCH = 197 * self.w2h
         wCO = 1837 * self.w2h
         wxCO = 20 * self.w2h
 
-        interp_data = {'centers':coords, 'values':pot(coords, deriv_order=2)}
-
-        # self.plot_quadratic_opt_potentials(interp_data, mol)
+        if use_interpolation:
+            pot_spec = {'centers':coords, 'values':pot(coords, deriv_order=2)}
+        else:
+            pot_spec = pot
 
         dgb = DGB.construct(
             coords,
-            pot,#interp_data,
+            pot_spec,
             masses=mol.atomic_masses,
             alphas='virial',
             transformations='diag',
             optimize_centers=[
                 {
                     'method': 'energy-cutoff',
-                    'probabilities': [[3600 * self.w2h, 800]],
+                    'probabilities': pruning_probabilities,
                     'cutoff': None
                 }
-                # {
-                #     'method': 'gram-schmidt',
-                #     'norm_cutoff': 10 ** (-14),
-                #     'max_overlap_cutoff': 1-1e-4
-                # }
             ],
             modes='normal',
             expansion_degree=2,
@@ -3531,17 +3614,31 @@ class DGBTests(TestCase):
                 },
                 'quadrature_degree': 7,
                 'use_with_interpolation': True
-            },
-            # momenta=momenta,
+            } if use_pairwise else None,
+            momenta=momenta,
             logger=True
         )
 
         wfns = self.runDGB(dgb, mol,
                            mode='similarity',
                            plot_spectrum=False,
-                           plot_wavefunctions={'cartesians':[1, 2], 'num': 15}
+                           plot_wavefunctions=plot_wfns,
+                           pot_cmap=pot_cmap,
+                           pot_points=pot_points,
+                           wfn_cmap=wfn_cmap,
+                           wfn_points=wnf_points,
+                           wfn_contours=wfn_contours,
+                           plot_centers=plot_centers,
+                           plot_dir=plot_dir,
+                           **plot_styles
                            )
+        if plot_dir is not None:
+            with open(os.path.join(plot_dir, 'freqs.txt'), 'w+') as woof:
+                print(run_opts, file=woof)
+                print("ZPE:", wfns.energies[0] * UnitsData.hartrees_to_wavenumbers, file=woof)
+                print("Freqs:", wfns.frequencies() * UnitsData.hartrees_to_wavenumbers, file=woof)
 
+        plt.Graphics().show()
 
     @validationTest
     def test_WaterAIMDDisplaced(self):

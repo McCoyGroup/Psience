@@ -14,7 +14,7 @@ __all__ = [
     "MolecularNormalModes",
 ]
 
-__reload_hook__ = [".MoleculeInterface", ".Transformations", '..MixtureModes']
+__reload_hook__ = [".MoleculeInterface", ".Transformations", '..Modes']
 
 class MolecularVibrations:
 
@@ -517,7 +517,7 @@ class MolecularNormalModes(CoordinateSystem):
 
         :return:
         """
-        from ..MixtureModes import NormalModes
+        from ..Modes import NormalModes
         if self.in_internals:
             basis = self.molecule.internal_coordinates.system
         else:
@@ -569,7 +569,7 @@ class MolecularNormalModes(CoordinateSystem):
         :rtype: MolecularNormalModes
         """
 
-        from ..MixtureModes import NormalModes
+        from ..Modes import NormalModes
 
         if atoms is not None and masses is None:
             masses = atoms

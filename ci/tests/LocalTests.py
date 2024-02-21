@@ -18,7 +18,7 @@ from McUtils.Extensions import ModuleLoader
 
 from McUtils.Scaffolding import Checkpointer
 
-from Psience.LocalModes import *
+from Psience.Modes import *
 from Psience.Molecools import *
 
 import numpy as np
@@ -28,7 +28,7 @@ class LocalTests(TestCase):
     def setUp(self) -> None:
         np.set_printoptions(linewidth=1e8)
 
-    @debugTest
+    @validationTest
     def test_Water(self):
         mol = Molecule.from_file(
             TestManager.test_data('HOD_freq.fchk'),
@@ -39,284 +39,405 @@ class LocalTests(TestCase):
             ]
         )
 
-        iterative = False
-        if iterative:
-            ortho = BlockLocalFGOrthogonalizer.from_molecule(mol, logger=True)
-            f, g, u, its, _ = ortho.run()
-            ui = np.linalg.inv(u)
+        ortho = ObliqueModeGenerator.from_molecule(mol, frequency_scaled=True)
 
-            rl, a, rr = np.linalg.svd(u)
-            r = (rl @ rr)
-            # with np.printoptions(linewidth=1e8, suppress=True):
-            #     print(np.round(r, 8))
+        f, g, u, ui = ortho.run()
 
-            u2 = u @ r.T
-            u2i = np.linalg.inv(u2)
-            print(np.round(u2, 8))
-            print(np.round(u2i, 8))
-            # print(u2)
-            # print("-"*50)
-            #
-            # print(u.T@ ortho.g @u)
-            # print(ui@ ortho.f @ui.T)
-            # print("-"*50)
-            gp = u2.T@ ortho.g @u2
-            fp = u2i@ ortho.f @u2i.T
-            # print(gp)
-            # print(fp)
+        import scipy
 
-            freq2, modes = scipy.linalg.eigh(ortho.f, ortho.g, type=3)
-            freqs = np.sqrt(freq2)
-            modes = modes / np.sqrt(freqs)[np.newaxis, :]
-            rU, a, rM = np.linalg.svd(modes)
-            R = (rU @ rM)
-            # with np.printoptions(linewidth=1e8, suppress=True):
-            #     print(np.round(r, 8))
+        g12 = scipy.linalg.fractional_matrix_power(ortho.g, 1/2)
+        gi12 = scipy.linalg.fractional_matrix_power(ortho.g, -1/2)
+        # freq2, L = scipy.linalg.eigh(ortho.f, ortho.g, type=3)
+        # raise Exception(...)
+        # print(ui)
+        # gfg = g12 @ ortho.f @ g12
+        gvals, gvecs = np.linalg.eigh(ortho.g)
+        gvals = gvals[(2, 1, 0),]
+        gvecs = gvecs[:, (2, 1, 0)]
 
-            no_rot = modes @ R.T
-            print("-"*100)
-            print(no_rot)
-            print("-"*100)
-            print(modes.T @ ortho.f @ modes)
-            print("-"*100)
-            print(u2i)
+        # print(g12)
+        # print(gvecs@np.diag(np.power(gvals, 1/2))@gvecs.T)
+        # raise Exception(...)
 
-            raise Exception(
-                freqs,
-                # modes.T @ ortho.f @ modes,
-                modes @ R.T
-            )
+        fvals, fvecs = np.linalg.eigh(ortho.f)
+        fvecs = fvecs[:, (2, 1, 0)]
+        fvals = fvals[(2, 1, 0),]
 
+        freq2, Q = np.linalg.eigh(g12 @ ortho.f @ g12)
+        freq2 = freq2[(2, 1, 0),]
+        Q = Q[:, (2, 1, 0)]
 
-            # print(u2)
-            print(
-                "Asymmetry Norms",
-                "U", np.linalg.norm((u - u.T).flatten()),
-                "S", np.linalg.norm((u2 - u2.T).flatten())
-            )
-            print(
-                "Off-Diag Norms  ",
-                "U:", ortho.off_diag_norm(f, g),
-                "S:", ortho.off_diag_norm(fp, gp),
-            )
-            print(
-                "Diag Norms  ",
-                "U:",np.linalg.norm(np.diag(f - g)),
-                "S:",np.linalg.norm(np.diag(fp - gp)),
-            )
+        F = np.diag(1 / np.power(freq2, 1/4))
+        FF = np.diag(1 / np.power(freq2, 1/8))
+        Fi = np.diag(np.power(freq2, 1/4))
+        L = g12 @ Q @ F
+        l12 = np.diag(np.power(gvals, 1/2))
+        print("="*50)
+        LU, LS, LV = np.linalg.svd(g12 @ Q)
+        print(np.power(gvals, 1/2))
+        print(l12@F)
+        # print(
+        #     np.linalg.svd(l12@np.diag([1, -1, 1])@F)[1]
+        # )
+        print('-'*50)
 
-            # with np.printoptions(linewidth=1e8):
-            #     print("Iterations:", its)
-            #     print(f)
-            #     print("-" * 50)
-            #     print(g)
+        print(ui)
 
-            self.assertLess(its, 250)
+        print('-'*50)
 
-        else:
-            ortho = BlockLocalFGOrthogonalizer.from_molecule(mol, frequency_scaled=True)
+        U, S, V = np.linalg.svd(L)
+        print(S)
+        print(
+            np.linalg.svd(l12@gvecs.T@Q@F)[1]
+        )
+        print('-' * 50)
+        print(U)
+        print(V)
+        print(U.T @ V)
+        print(gvecs.T @ U)
+        print('-' * 50)
+        print(LV)
+        print(gvecs)
+        print(fvecs)
+        raise Exception(...)
+        # LU, LS, LV = np.linalg.svd(np.diag(gvals) @ LV @)
+        print('-'*50)
+        print(U)
+        print(gvecs)
+        print(fvecs)
+        print('-'*50)
+        print(ui)
+        print(U @ np.diag(S) @ U.T)
+        raise Exception(...)
+        # print(LU)
+        # print("-"*50)
+        # print(gvecs)
+        # print(LS, np.sqrt(gvals))
+        print("="*50)
+        # print(LV)
+        # print("-"*50)
+        # print(gvecs.T @ Q)
+        # print("-"*50)
+        print(ui)
+        print("-"*50)
+        print(g12)
+        # print("-"*50)
+        # print(gvecs @ F@np.diag(np.power(gvals, 1/2)) @ gvecs.T)
+        print("-"*50)
+        print(Q)
+        print("-"*50)
+        print(gvecs)
+        print("-"*50)
+        print(np.linalg.eigh(ui)[0])
+        print(np.linalg.eigh(ui)[1])
+        print("-"*50)
+        print(gvals / fvals)
 
+        raise Exception(...)
+        L = g12 @ Q @ F
+        Li = Fi @ Q.T @ gi12
+        print("-"*50)
+        print(L.T @ ortho.f @ L)
+        print("-"*50)
+        print(Li @ ortho.g @ Li.T)
+        print("="*50)
+        print(ortho.rotation)
+        print("-"*50)
+        print(Q)
+        print("-"*50)
+        print(Q.T @ ortho.rotation)
+        print("-"*50)
+        V = gvecs.T @ Q
+        print("-"*50)
+        print(V.T @ np.diag(np.power(gvals, 1/2)) @ V)
+        print("-"*50)
+        print(ui)
+        # print(freq3, freq2)
+        raise Exception(...)
+        print(Qgfg.T @ ortho.f @ Qgfg + Qgfg.T @ ortho.g @ Qgfg)
 
-            f, g, u, ui = ortho.run()
+        F = np.diag([7, 5, 3])
+        print(np.linalg.svd(ortho.f @ F)[1])
+        print(np.linalg.svd(ortho.f)[1])
 
-            import scipy
-
-            g12 = scipy.linalg.fractional_matrix_power(ortho.g, 1/2)
-            gi12 = scipy.linalg.fractional_matrix_power(ortho.g, -1/2)
-            # freq2, L = scipy.linalg.eigh(ortho.f, ortho.g, type=3)
-            # raise Exception(...)
-            # print(ui)
-            # gfg = g12 @ ortho.f @ g12
-            gvals, gvecs = np.linalg.eigh(ortho.g)
-            gvals = gvals[(2, 1, 0),]
-            gvecs = gvecs[:, (2, 1, 0)]
-
-            # print(g12)
-            # print(gvecs@np.diag(np.power(gvals, 1/2))@gvecs.T)
-            # raise Exception(...)
-
-            fvals, fvecs = np.linalg.eigh(ortho.f)
-            fvecs = fvecs[:, (2, 1, 0)]
-            fvals = fvals[(2, 1, 0),]
-
-            freq2, Q = np.linalg.eigh(g12 @ ortho.f @ g12)
-            freq2 = freq2[(2, 1, 0),]
-            Q = Q[:, (2, 1, 0)]
-
-            F = np.diag(1 / np.power(freq2, 1/4))
-            FF = np.diag(1 / np.power(freq2, 1/8))
-            Fi = np.diag(np.power(freq2, 1/4))
-            L = g12 @ Q @ F
-            l12 = np.diag(np.power(gvals, 1/2))
-            print("="*50)
-            LU, LS, LV = np.linalg.svd(g12 @ Q)
-            print(np.power(gvals, 1/2))
-            print(l12@F)
-            # print(
-            #     np.linalg.svd(l12@np.diag([1, -1, 1])@F)[1]
-            # )
-            print('-'*50)
-
-            print(ui)
-
-            print('-'*50)
-
-            U, S, V = np.linalg.svd(L)
-            print(S)
-            print(
-                np.linalg.svd(l12@gvecs.T@Q@F)[1]
-            )
-            print('-' * 50)
-            print(U)
-            print(V)
-            print(U.T @ V)
-            print(gvecs.T @ U)
-            print('-' * 50)
-            print(LV)
-            print(gvecs)
-            print(fvecs)
-            raise Exception(...)
-            # LU, LS, LV = np.linalg.svd(np.diag(gvals) @ LV @)
-            print('-'*50)
-            print(U)
-            print(gvecs)
-            print(fvecs)
-            print('-'*50)
-            print(ui)
-            print(U @ np.diag(S) @ U.T)
-            raise Exception(...)
-            # print(LU)
-            # print("-"*50)
-            # print(gvecs)
-            # print(LS, np.sqrt(gvals))
-            print("="*50)
-            # print(LV)
-            # print("-"*50)
-            # print(gvecs.T @ Q)
-            # print("-"*50)
-            print(ui)
-            print("-"*50)
-            print(g12)
-            # print("-"*50)
-            # print(gvecs @ F@np.diag(np.power(gvals, 1/2)) @ gvecs.T)
-            print("-"*50)
-            print(Q)
-            print("-"*50)
-            print(gvecs)
-            print("-"*50)
-            print(np.linalg.eigh(ui)[0])
-            print(np.linalg.eigh(ui)[1])
-            print("-"*50)
-            print(gvals / fvals)
-
-            raise Exception(...)
-            L = g12 @ Q @ F
-            Li = Fi @ Q.T @ gi12
-            print("-"*50)
-            print(L.T @ ortho.f @ L)
-            print("-"*50)
-            print(Li @ ortho.g @ Li.T)
-            print("="*50)
-            print(ortho.rotation)
-            print("-"*50)
-            print(Q)
-            print("-"*50)
-            print(Q.T @ ortho.rotation)
-            print("-"*50)
-            V = gvecs.T @ Q
-            print("-"*50)
-            print(V.T @ np.diag(np.power(gvals, 1/2)) @ V)
-            print("-"*50)
-            print(ui)
-            # print(freq3, freq2)
-            raise Exception(...)
-            print(Qgfg.T @ ortho.f @ Qgfg + Qgfg.T @ ortho.g @ Qgfg)
-
-            F = np.diag([7, 5, 3])
-            print(np.linalg.svd(ortho.f @ F)[1])
-            print(np.linalg.svd(ortho.f)[1])
-
-            raise Exception(...)
+        raise Exception(...)
 
 
 
-            # print(L @ np.diag(1/np.power(freq2, 1/4)))
-            # print(L / np.power(freq2, 1/4)[np.newaxis, :])
-            F = np.diag(1 / np.power(freq2, 1/4))
-            rU, S, rV = np.linalg.svd(L)
-            print(...)
-            gvals, gvecs = np.linalg.eigh(ortho.g)
-            gvals = gvals[(2, 1, 0),]
-            gvecs = gvecs[:, (2, 1, 0)]
-            fvals, fvecs = np.linalg.eigh(ortho.f)
-            fvecs = fvecs[:, (2, 1, 0)]
-            fvals = fvals[(2, 1, 0),]
+        # print(L @ np.diag(1/np.power(freq2, 1/4)))
+        # print(L / np.power(freq2, 1/4)[np.newaxis, :])
+        F = np.diag(1 / np.power(freq2, 1/4))
+        rU, S, rV = np.linalg.svd(L)
+        print(...)
+        gvals, gvecs = np.linalg.eigh(ortho.g)
+        gvals = gvals[(2, 1, 0),]
+        gvecs = gvecs[:, (2, 1, 0)]
+        fvals, fvecs = np.linalg.eigh(ortho.f)
+        fvecs = fvecs[:, (2, 1, 0)]
+        fvals = fvals[(2, 1, 0),]
 
-            fvals, fvecs = np.linalg.eigh(ortho.f)
+        fvals, fvecs = np.linalg.eigh(ortho.f)
 
-            # print(rU)
-            print(rV)
-            print(Qgfg)
+        # print(rU)
+        print(rV)
+        print(Qgfg)
 
-            raise Exception(...)
-            # R1 = rU @ rV
+        raise Exception(...)
+        # R1 = rU @ rV
 
-            # rU3, S3, rV3 = np.linalg.svd(np.diag(S) @ rV @ F)
-            # print(S3)
-            # print(F @ np.diag(S))
+        # rU3, S3, rV3 = np.linalg.svd(np.diag(S) @ rV @ F)
+        # print(S3)
+        # print(F @ np.diag(S))
 
-            # print(R1)
-            LF = L @ F
-            rU2, S2, rV2 = np.linalg.svd(LF)
-            # print(rU)
-            # print(rU2)
-            print(np.diag(S) @ rV @ F)
-            raise Exception(...)
-            freq12 = np.diag(np.power(freq2, 1/8))
-            print(g12)
-            print(ui)
-            raise Exception(...)
+        # print(R1)
+        LF = L @ F
+        rU2, S2, rV2 = np.linalg.svd(LF)
+        # print(rU)
+        # print(rU2)
+        print(np.diag(S) @ rV @ F)
+        raise Exception(...)
+        freq12 = np.diag(np.power(freq2, 1/8))
+        print(g12)
+        print(ui)
+        raise Exception(...)
 
-            s, l = np.linalg.eigh(f)
-            print(s)
-            print(l)
-            print(ortho.rotation)
-            print(ui)
-            print("-"*20)
-            H = ortho.modes @ ortho.modes.T
-            sh, qh = np.linalg.eigh(H)
-            P = qh @ np.diag(np.sqrt(sh)) @ qh.T
-            print(P)
-            s, l = np.linalg.eigh(P@ortho.f@P)
-            print(s)
-            print(l)
-
-
-            # print("-"*50)
-            # print(u)
-            #
-            # raise Exception(...)
+        s, l = np.linalg.eigh(f)
+        print(s)
+        print(l)
+        print(ortho.rotation)
+        print(ui)
+        print("-"*20)
+        H = ortho.modes @ ortho.modes.T
+        sh, qh = np.linalg.eigh(H)
+        P = qh @ np.diag(np.sqrt(sh)) @ qh.T
+        print(P)
+        s, l = np.linalg.eigh(P@ortho.f@P)
+        print(s)
+        print(l)
 
 
-            # freq2, modes = scipy.linalg.eigh(ortho.f, ortho.g, type=3)
-            # freqs = np.sqrt(freq2)
-            # modes = modes / np.sqrt(freqs)[np.newaxis, :]
-            # print(np.linalg.inv(modes))
+        # print("-"*50)
+        # print(u)
+        #
+        # raise Exception(...)
 
-            # print(np.linalg.norm((f - g).flatten()))
-            # print("-"*50)
-            # print(f)
-            # print("-"*50)
-            # print(ortho.f)
-            # print("-"*50)
-            # freq2, modes = scipy.linalg.eigh(ortho.f, ortho.g, type=3)
-            # print(np.sqrt(freq2))
-            # print("-"*50)
-            # print(u)
-            # print("-"*50)
-            # print(ui)
 
-            self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
+        # freq2, modes = scipy.linalg.eigh(ortho.f, ortho.g, type=3)
+        # freqs = np.sqrt(freq2)
+        # modes = modes / np.sqrt(freqs)[np.newaxis, :]
+        # print(np.linalg.inv(modes))
+
+        # print(np.linalg.norm((f - g).flatten()))
+        # print("-"*50)
+        # print(f)
+        # print("-"*50)
+        # print(ortho.f)
+        # print("-"*50)
+        # freq2, modes = scipy.linalg.eigh(ortho.f, ortho.g, type=3)
+        # print(np.sqrt(freq2))
+        # print("-"*50)
+        # print(u)
+        # print("-"*50)
+        # print(ui)
+
+        self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
+
+    @debugTest
+    def test_CartesianObliques(self):
+        ochh = Molecule.from_file(
+            TestManager.test_data('OCHH_freq.fchk')
+        )
+
+
+        nms = NormalModes.from_molecule(ochh, dimensionless=False)
+        # phases = nms.matrix.T @ ochh.normal_modes.modes.basis.matrix
+        # print(np.round(nms.matrix, 8))
+        # print(np.round(ochh.normal_modes.modes.basis.matrix, 8))
+        # print(phases)
+        # raise Exception(...)
+
+        make_oblique = True
+        tf, loc_nms = nms.get_localized_modes(
+            [
+                [0, 1],
+                [1, 2],
+                [1, 3],
+                # [0, 1, 2],
+                # [0, 1, 3],
+                # [3, 0, 1, 2]
+            ],
+            rediagonalize=True,
+            make_oblique=make_oblique
+        )
+
+        # ltf = nms.get_nearest_mode_transform(
+        #     np.array([
+        #         nput.dist_vec(ochh.coords, 0, 1),
+        #         nput.dist_vec(ochh.coords, 1, 2),
+        #         nput.dist_vec(ochh.coords, 1, 3)
+        #     ]).T
+        # )
+        #
+        # new_f = ltf.T @ np.diag(nms.freqs**2) @ ltf
+        # new_g = np.eye(new_f.shape[0])
+        # f, g, u, ui = ObliqueModeGenerator(new_f, new_g).run()
+        #
+        # # #### OBLIQUE MODES ####
+        # freqs, subtf = np.linalg.eigh(f)
+        # tf = ltf @ ui @ subtf @ np.diag(np.sqrt(freqs))
+        # freq_weight = np.diag(1 / np.sqrt(freqs))
+        # #
+        # # ##### LOCAL MODES ####
+        # # use_locals = False
+        # # if use_locals:
+        # #     freqs, subtf = np.linalg.eigh(new_f[np.ix_(sel, sel)])
+        # #     freqs = np.sqrt(freqs)
+        # #     full_tf = ltf[:, sel] @ subtf #@ np.diag(np.sqrt(freqs))
+        # #     freq_weight = np.diag(1 / np.sqrt(freqs))
+        #
+        # submodes = nms.matrix @ tf
+
+
+        submodes = loc_nms.matrix
+        freqs = loc_nms.freqs
+        freq_weight = np.diag(1/np.sqrt(freqs))
+        pot_expansion = []
+        for d in ochh.potential_derivatives:
+            for _ in range(d.ndim):
+                d = np.tensordot(
+                    d,
+                    submodes @ freq_weight
+                        if d.shape[0] == submodes.shape[0] else
+                    tf @ freq_weight,
+                    axes=[0, 0]
+                )
+            pot_expansion.append(d)
+
+
+        from Psience.VPT2 import VPTRunner
+        # VPTRunner.construct(ochh, 2,
+        #                     logger=False,
+        #                     degeneracy_specs='auto'
+        #                     )[0].print_tables(print_intensities=False)
+        # VPTRunner.construct(ochh, 2,
+        #                     degeneracy_specs='auto',
+        #                     mode_selection=mode_sel,
+        #                     logger=False
+        #                     )[0].print_tables(print_intensities=False)
+        VPTRunner.construct(
+            [ochh.atoms, ochh.coords],
+            2,
+            modes={
+                "freqs": freqs,
+                "matrix": submodes
+            },
+            potential_terms=pot_expansion[1:],
+            degeneracy_specs='auto',
+            logger=False
+        )[0].print_tables(print_intensities=False)
+
+
+        """
+        State           Harmonic   Anharmonic     Harmonic   Anharmonic
+                             ZPE          ZPE    Frequency    Frequency
+        0 0 0 0 0 0   5866.87156   5785.95861            -            - 
+        0 0 0 0 0 1            -            -   3061.70147   2849.45769 
+        0 0 0 0 1 0            -            -   2977.64049   2820.56384 
+        0 0 0 1 0 0            -            -   1727.08266   1695.15533 
+        0 0 1 0 0 0            -            -   1527.04080   1493.14076 
+        0 1 0 0 0 0            -            -   1252.16396   1231.36293 
+        1 0 0 0 0 0            -            -   1188.11375   1166.70550 
+        0 0 0 0 0 2            -            -   6123.40294   5731.72546 
+        0 0 0 0 2 0            -            -   5955.28097   5532.92598 
+        0 0 0 2 0 0            -            -   3454.16533   3372.18254 
+        0 0 2 0 0 0            -            -   3054.08160   2988.76306 
+        0 2 0 0 0 0            -            -   2504.32791   2459.65863 
+        2 0 0 0 0 0            -            -   2376.22750   2327.64607 
+        0 0 0 0 1 1            -            -   6039.34196   5565.57154 
+        0 0 0 1 0 1            -            -   4788.78413   4508.33183 
+        0 0 1 0 0 1            -            -   4588.74227   4446.79734 
+        0 1 0 0 0 1            -            -   4313.86543   4213.81275 
+        1 0 0 0 0 1            -            -   4249.81522   4003.29233 
+        0 0 0 1 1 0            -            -   4704.72315   4510.73967 
+        0 0 1 0 1 0            -            -   4504.68129   4286.94108 
+        0 1 0 0 1 0            -            -   4229.80444   4043.26327 
+        1 0 0 0 1 0            -            -   4165.75424   3978.44642 
+        0 0 1 1 0 0            -            -   3254.12346   3181.59712 
+        0 1 0 1 0 0            -            -   2979.24662   2967.72531 
+        1 0 0 1 0 0            -            -   2915.19641   2854.75879 
+        0 1 1 0 0 0            -            -   2779.20476   2710.42233 
+        1 0 1 0 0 0            -            -   2715.15455   2657.69499 
+        1 1 0 0 0 0            -            -   2440.27770   2404.82203 
+        0 0 2 0 1 0            -            -   6031.72209   5786.26238 
+        0 1 1 0 0 1            -            -   5840.90623   5608.86152 
+        0 1 0 1 0 1            -            -   6040.94809   6001.75418 
+        0 1 0 1 1 0            -            -   5956.88711   5748.09964 
+        0 1 0 2 0 0            -            -   4706.32928   4672.21579 
+        0 1 2 0 0 0            -            -   4306.24556   4167.25991 
+        0 1 1 1 0 0            -            -   4506.28742   4345.62126 
+        0 2 1 0 0 0            -            -   4031.36871   3898.73656 
+        0 2 0 1 0 0            -            -   4231.41058   4069.45265 
+        1 1 0 1 0 0            -            -   4167.36037   4126.98922 
+        0 0 3 0 0 0            -            -   4581.12240   4478.76781
+        """
+
+        """ Normal Modes
+        State     Harmonic   Anharmonic     Harmonic   Anharmonic
+                       ZPE          ZPE    Frequency    Frequency
+        0 0 0   3883.21231   3848.54461            -            - 
+        0 0 1            -            -   3061.70147   2925.37144 
+        0 1 0            -            -   2977.64049   2847.66748 
+        1 0 0            -            -   1727.08266   1710.70822 
+        0 0 2            -            -   6123.40294   5806.87736 
+        0 2 0            -            -   5955.28097   5604.90828 
+        2 0 0            -            -   3454.16533   3406.08166 
+        0 1 1            -            -   6039.34196   5642.06772 
+        1 0 1            -            -   4788.78413   4637.14742 
+        1 1 0            -            -   4704.72315   4555.22865
+        """
+
+        """ Oblique Local Modes
+        State     Harmonic   Anharmonic     Harmonic   Anharmonic
+                       ZPE          ZPE    Frequency    Frequency
+        0 0 0   3868.62462   3812.12079            -            - 
+        0 0 1            -            -   3060.00233   2879.64920 
+        0 1 0            -            -   2967.89474   2797.47207 
+        1 0 0            -            -   1709.35216   1688.22426 
+        0 0 2            -            -   6120.00467   5750.18297 
+        0 2 0            -            -   5935.78947   5470.27498 
+        2 0 0            -            -   3418.70433   3350.23441 
+        0 1 1            -            -   6027.89707   5455.04389 
+        1 0 1            -            -   4769.35450   4576.68510 
+        1 1 0            -            -   4677.24690   4487.05707 
+        """
+
+        """ Local Modes
+        :: State     Harmonic   Anharmonic     Harmonic   Anharmonic
+                       ZPE          ZPE    Frequency    Frequency
+        0 0 0   3865.36393   3808.78515            -            - 
+        0 0 1            -            -   3057.44273   2877.19612 
+        0 1 0            -            -   2964.03881   2791.91573 
+        1 0 0            -            -   1709.24632   1688.85191 
+        0 0 2            -            -   6114.88546   5743.61141 
+        0 2 0            -            -   5928.07762   5460.03704 
+        2 0 0            -            -   3418.49264   3351.87208 
+        0 1 1            -            -   6021.48154   5445.88005 
+        1 0 1            -            -   4766.68905   4575.01593 
+        1 1 0            -            -   4673.28513   4482.67440 
+        >>--------------------------------------------------<<
+        """
+
+        # print(np.round(runner.hamiltonian.V_terms[0], 8))
+        # # print(runner.hamiltonian.V_terms[1])
+        #
+        # print(np.round(pot_expansion[1], 8))
+        #
+        # # print(np.round(runner.hamiltonian.V_terms[0], 8))
+        # print(np.round(runner.hamiltonian.V_terms[1][2], 8))
+        #
+        # print(np.round(pot_expansion[2][2], 8))
+
+
 
     @validationTest
     def test_OCHH(self):
@@ -333,84 +454,45 @@ class LocalTests(TestCase):
         )
 
         iterative = False
-        if iterative:
-            ortho = BlockLocalFGOrthogonalizerIterative.from_molecule(mol, logger=True)
-            f, g, u, its, _ = ortho.run()
 
-            # with np.printoptions(linewidth=1e8):
-            #     print("Iterations:", its)
-            #     print(f)
-            #     print("-" * 50)
-            #     print(g)
+        ortho = ObliqueModeGenerator.from_molecule(mol, sel=[0, 1, 3, 2, 4])
+        f, g, u, ui = ortho.run()
+        # print(np.linalg.norm((f - g).flatten()))
+        # print("-"*50)
+        # print(u)
+        # print("-"*50)
+        # print(ui)
 
-            rl, a, rr = np.linalg.svd(u)
-            r = (rl @ rr)
-            # with np.printoptions(linewidth=1e8, suppress=True):
-            #     print(np.round(r, 8))
+        self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
 
-            u2 = u @ r.T
-            u2i = np.linalg.inv(u2)
-            gp = u2.T @ ortho.g @ u2
-            fp = u2i @ ortho.f @ u2i.T
+        from McUtils.Misc import TeX
 
-            print(u2)
-            print(
-                "Asymmetry Norms",
-                "U", np.linalg.norm((u - u.T).flatten()),
-                "S", np.linalg.norm((u2 - u2.T).flatten())
-            )
-            print(
-                "Off-Diag Norms  ",
-                "U:", ortho.off_diag_norm(f, g),
-                "S:", ortho.off_diag_norm(fp, gp),
-            )
-            print(
-                "Diag Norms  ",
-                "U:", np.linalg.norm(np.diag(f - g)),
-                "S:", np.linalg.norm(np.diag(fp - gp)),
-            )
+        def format_mat(lhs, m, label=None, digits=2):
+            f_og = m.astype(object)
+            f_og[np.tril_indices_from(f_og, -1)] = ""
+            fsym = TeX.bold(lhs).as_expr()
+            TeX.Writer.real_digits = digits
+            fexpr = fsym.Eq(TeX.Matrix(f_og))
+            return TeX.Equation(fexpr, label=label).format_tex()
 
-            self.assertLess(its, 250)
+        sys = 'ochh'
+        print(
+            format_mat('f', ortho.f * UnitsData.convert("Hartrees", "Wavenumbers"), label='f_'+sys)
+        )
+        print(
+            format_mat('g', ortho.g * UnitsData.convert("Hartrees", "Wavenumbers"), label='g_'+sys)
+        )
+        print(
+            format_mat('F', f * UnitsData.convert("Hartrees", "Wavenumbers"), label='F_'+sys)
+        )
+        print(
+            format_mat('P', u, label='P_'+sys, digits=3)
+        )
 
-        else:
-            ortho = BlockLocalFGOrthogonalizer.from_molecule(mol, sel=[0, 1, 3, 2, 4])
-            f, g, u, ui = ortho.run()
-            # print(np.linalg.norm((f - g).flatten()))
-            # print("-"*50)
-            # print(u)
-            # print("-"*50)
-            # print(ui)
-
-            self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
-
-            from McUtils.Misc import TeX
-
-            def format_mat(lhs, m, label=None, digits=2):
-                f_og = m.astype(object)
-                f_og[np.tril_indices_from(f_og, -1)] = ""
-                fsym = TeX.bold(lhs).as_expr()
-                TeX.Writer.real_digits = digits
-                fexpr = fsym.Eq(TeX.Matrix(f_og))
-                return TeX.Equation(fexpr, label=label).format_tex()
-
-            sys = 'ochh'
-            print(
-                format_mat('f', ortho.f * UnitsData.convert("Hartrees", "Wavenumbers"), label='f_'+sys)
-            )
-            print(
-                format_mat('g', ortho.g * UnitsData.convert("Hartrees", "Wavenumbers"), label='g_'+sys)
-            )
-            print(
-                format_mat('F', f * UnitsData.convert("Hartrees", "Wavenumbers"), label='F_'+sys)
-            )
-            print(
-                format_mat('P', u, label='P_'+sys, digits=3)
-            )
-
-            # g_test = u@ortho.g@u
-            # print(
-            #     format_mat('G_scaled', g_test * UnitsData.convert("Hartrees", "Wavenumbers"), label='G_ochh')
-            # )
+        # g_test = u@ortho.g@u
+        # print(
+        #     format_mat('G_scaled', g_test * UnitsData.convert("Hartrees", "Wavenumbers"), label='G_ochh')
+        # )
 
     @validationTest
     def test_HOONO(self):
@@ -427,66 +509,16 @@ class LocalTests(TestCase):
             internals=zmatrix
         )
 
-        iterative = False
-        if iterative:
-            ortho = BlockLocalFGOrthogonalizerIterative.from_molecule(mol, logger=True)
-            f, g, u, its, _ = ortho.run()
-
-            # with np.printoptions(linewidth=1e8):
-            #     print("Iterations:", its)
-            #     print(f)
-            #     print("-" * 50)
-            #     print(g)
-
-            rl, a, rr = np.linalg.svd(u)
-            r = (rl @ rr)
-            # with np.printoptions(linewidth=1e8, suppress=True):
-            #     print(np.round(r, 8))
-
-            u2 = u @ r.T
-            u2i = np.linalg.inv(u2)
-            # print(u2)
-            # print("-" * 50)
-
-            # ui = np.linalg.inv(u)
-            # print(u.T @ ortho.g @ u)
-            # print(ui @ ortho.f @ ui.T)
-            # print("-" * 50)
-            gp = u2.T @ ortho.g @ u2
-            fp = u2i @ ortho.f @ u2i.T
-            # print(gp)
-            # print(fp)
-
-            print(u2)
-            print(
-                "Asymmetry Norms",
-                "U", np.linalg.norm((u - u.T).flatten()),
-                "S", np.linalg.norm((u2 - u2.T).flatten())
-            )
-            print(
-                "Off-Diag Norms  ",
-                "U:", ortho.off_diag_norm(f, g),
-                "S:", ortho.off_diag_norm(fp, gp),
-            )
-            print(
-                "Diag Norms  ",
-                "U:",np.linalg.norm(np.diag(f - g)),
-                "S:",np.linalg.norm(np.diag(fp - gp)),
-            )
-
-            self.assertLess(its, 250)
-
-        else:
-            ortho = BlockLocalFGOrthogonalizer.from_molecule(mol)
-            f, g, u, ui = ortho.run()
-            # print(np.linalg.norm((f - g).flatten()))
-            # print("-"*50)
-            # print(u)
-            # print("-"*50)
-            # print(ui)
+        ortho = ObliqueModeGenerator.from_molecule(mol)
+        f, g, u, ui = ortho.run()
+        # print(np.linalg.norm((f - g).flatten()))
+        # print("-"*50)
+        # print(u)
+        # print("-"*50)
+        # print(ui)
 
 
-            self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
+        self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
 
     @validationTest
     def test_NH3(self):
@@ -539,14 +571,14 @@ class LocalTests(TestCase):
             TestManager.test_data('nh3.fchk'),
             internals=zmatrix
         )
-        ortho = BlockLocalFGOrthogonalizer.from_molecule(mol)
+        ortho = ObliqueModeGenerator.from_molecule(mol)
         f, g, u, ui = ortho.run()
 
         self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
 
         iterative = False
         if iterative:
-            ortho = BlockLocalFGOrthogonalizerIterative.from_molecule(mol, logger=True)
+            ortho = ObliqueModeGeneratorIterative.from_molecule(mol, logger=True)
             f, g, u, its, _ = ortho.run()
 
             # with np.printoptions(linewidth=1e8):
@@ -607,7 +639,7 @@ class LocalTests(TestCase):
                 TestManager.test_data('nh3.fchk'),
                 internals=zmatrix
             )
-            ortho = BlockLocalFGOrthogonalizer.from_molecule(mol, sel=[0, 1, 3, 2, 4, 5])
+            ortho = ObliqueModeGenerator.from_molecule(mol, sel=[0, 1, 3, 2, 4, 5])
             f, g, u, ui = ortho.run()
 
 
@@ -640,7 +672,7 @@ class LocalTests(TestCase):
                 internals=internals
             )
 
-            ortho = BlockLocalFGOrthogonalizer.from_molecule(mol, sel=[0, 1, 3, 2, 4, 5])
+            ortho = ObliqueModeGenerator.from_molecule(mol, sel=[0, 1, 3, 2, 4, 5])
             f, g, u, ui = ortho.run()
             # print(np.linalg.norm((f - g).flatten()))
             # print("-"*50)
@@ -730,7 +762,7 @@ class LocalTests(TestCase):
 
         iterative = False
         if iterative:
-            ortho = BlockLocalFGOrthogonalizerIterative.from_molecule(dimer,
+            ortho = ObliqueModeGeneratorIterative.from_molecule(dimer,
                                                              max_iterations=5000,
                                                              scaling=1,
                                                              damping=1.001,
@@ -782,7 +814,7 @@ class LocalTests(TestCase):
             self.assertLess(its, 5000)
 
         else:
-            ortho = BlockLocalFGOrthogonalizer.from_molecule(dimer, sel=sel)
+            ortho = ObliqueModeGenerator.from_molecule(dimer, sel=sel)
             f, g, u, ui = ortho.run()
             # print("-"*50)
             # print(f)
@@ -934,7 +966,7 @@ class LocalTests(TestCase):
                 pd[1]
             ]
 
-            ortho = BlockLocalFGOrthogonalizer.from_molecule(dimer, sel=sel)
+            ortho = ObliqueModeGenerator.from_molecule(dimer, sel=sel)
             print(np.sqrt(scipy.linalg.eigvalsh(ortho.f, ortho.g, type=3)) * 219475.6)
             f, g, u, ui = ortho.run()
 
@@ -976,7 +1008,7 @@ class LocalTests(TestCase):
 [ 127.04607029  147.21749535  166.72211701  360.22808449  630.47924308 1636.68361974 1656.14710237]
 """
 
-            # subdimer = BlockLocalFGOrthogonalizer(
+            # subdimer = ObliqueModeGenerator(
             #     ortho.f[:6, :6],
             #     ortho.g[:6, :6]
             # )
@@ -1010,7 +1042,7 @@ class LocalTests(TestCase):
        &       &        &        & 3735.3
        """
 
-        ortho = BlockLocalFGOrthogonalizer(f, g)
+        ortho = ObliqueModeGenerator(f, g)
         f, g, u, ui = ortho.run()
         raise Exception(
             np.sqrt(scipy.linalg.eigvalsh(ortho.f, ortho.g, type=3)) * UnitsData.convert("Hartrees", "Wavenumbers"),
