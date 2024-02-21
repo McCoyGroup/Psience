@@ -248,55 +248,34 @@ class LocalTests(TestCase):
             TestManager.test_data('OCHH_freq.fchk')
         )
 
-
         nms = NormalModes.from_molecule(ochh, dimensionless=False)
-        # phases = nms.matrix.T @ ochh.normal_modes.modes.basis.matrix
         # print(np.round(nms.matrix, 8))
         # print(np.round(ochh.normal_modes.modes.basis.matrix, 8))
         # print(phases)
         # raise Exception(...)
 
-        make_oblique = True
+        make_oblique = False
         tf, loc_nms = nms.get_localized_modes(
             [
-                [0, 1],
+                [1, 0],
                 [1, 2],
                 [1, 3],
+                # [1, 2, 3],
                 # [0, 1, 2],
                 # [0, 1, 3],
-                # [3, 0, 1, 2]
+                # [2, 1, 0, 3]
             ],
             rediagonalize=True,
-            make_oblique=make_oblique
+            make_oblique=make_oblique,
+            # symmetrizer=lambda crds:np.array([
+            #     crds[:, 0],
+            #     1/np.sqrt(2)*(crds[:, 1] + crds[:, 2]),
+            #     1/np.sqrt(2)*(crds[:, 1] - crds[:, 2])
+            # ]).T
         )
 
-        # ltf = nms.get_nearest_mode_transform(
-        #     np.array([
-        #         nput.dist_vec(ochh.coords, 0, 1),
-        #         nput.dist_vec(ochh.coords, 1, 2),
-        #         nput.dist_vec(ochh.coords, 1, 3)
-        #     ]).T
-        # )
-        #
-        # new_f = ltf.T @ np.diag(nms.freqs**2) @ ltf
-        # new_g = np.eye(new_f.shape[0])
-        # f, g, u, ui = ObliqueModeGenerator(new_f, new_g).run()
-        #
-        # # #### OBLIQUE MODES ####
-        # freqs, subtf = np.linalg.eigh(f)
-        # tf = ltf @ ui @ subtf @ np.diag(np.sqrt(freqs))
-        # freq_weight = np.diag(1 / np.sqrt(freqs))
-        # #
-        # # ##### LOCAL MODES ####
-        # # use_locals = False
-        # # if use_locals:
-        # #     freqs, subtf = np.linalg.eigh(new_f[np.ix_(sel, sel)])
-        # #     freqs = np.sqrt(freqs)
-        # #     full_tf = ltf[:, sel] @ subtf #@ np.diag(np.sqrt(freqs))
-        # #     freq_weight = np.diag(1 / np.sqrt(freqs))
-        #
-        # submodes = nms.matrix @ tf
-
+        # submodes = -nms.matrix
+        # tf = np.eye(6)
 
         submodes = loc_nms.matrix
         freqs = loc_nms.freqs
@@ -312,29 +291,54 @@ class LocalTests(TestCase):
                     axes=[0, 0]
                 )
             pot_expansion.append(d)
-
+        # need to account for Gaussian 4th deriv issues
+        v4 = pot_expansion[3]
+        for i in range(v4.shape[0]):
+            for j in range(i + 1, v4.shape[0]):
+                for k in range(j + 1, v4.shape[0]):
+                    for l in range(k + 1, v4.shape[0]):
+                        for p in itertools.permutations([i, j, k, l]):
+                            v4[p] = 0
+        for i in range(v4.shape[0]):
+            v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
 
         from Psience.VPT2 import VPTRunner
-        # VPTRunner.construct(ochh, 2,
-        #                     logger=False,
-        #                     degeneracy_specs='auto'
-        #                     )[0].print_tables(print_intensities=False)
-        # VPTRunner.construct(ochh, 2,
-        #                     degeneracy_specs='auto',
-        #                     mode_selection=mode_sel,
-        #                     logger=False
-        #                     )[0].print_tables(print_intensities=False)
-        VPTRunner.construct(
+        full_runner = VPTRunner.construct(ochh, 2,
+                            # degeneracy_specs='auto',
+                            logger=False
+                            )[0]
+        subrunner = VPTRunner.construct(ochh, 2,
+                            # degeneracy_specs='auto',
+                            mode_selection=[3, 4, 5],
+                            logger=False
+                            )[0]
+        new_runner = VPTRunner.construct(
             [ochh.atoms, ochh.coords],
             2,
+            # degeneracy_specs='auto',
             modes={
                 "freqs": freqs,
                 "matrix": submodes
             },
-            potential_terms=pot_expansion[1:],
-            degeneracy_specs='auto',
-            logger=False
-        )[0].print_tables(print_intensities=False)
+            logger=False,
+            potential_terms=pot_expansion[1:]
+        )[0]
+
+        # print(
+        #     np.max(np.abs(full_runner.hamiltonian.V_terms[0] - new_runner.hamiltonian.V_terms[0]))
+        # )
+        # print(
+        #     np.max(np.abs(full_runner.hamiltonian.V_terms[1] - new_runner.hamiltonian.V_terms[1]))
+        # )
+        # print(
+        #     np.max(np.abs(full_runner.hamiltonian.V_terms[2] - new_runner.hamiltonian.V_terms[2]))
+        # )
+        # print(full_runner.hamiltonian.V_terms[2][0, 0] - new_runner.hamiltonian.V_terms[2][0, 0])
+        # raise Exception(...)
+
+        full_runner.print_tables(print_intensities=False)
+        subrunner.print_tables(print_intensities=False)
+        new_runner.print_tables(print_intensities=False)
 
 
         """
@@ -398,17 +402,17 @@ class LocalTests(TestCase):
 
         """ Oblique Local Modes
         State     Harmonic   Anharmonic     Harmonic   Anharmonic
-                       ZPE          ZPE    Frequency    Frequency
-        0 0 0   3868.62462   3812.12079            -            - 
-        0 0 1            -            -   3060.00233   2879.64920 
-        0 1 0            -            -   2967.89474   2797.47207 
-        1 0 0            -            -   1709.35216   1688.22426 
-        0 0 2            -            -   6120.00467   5750.18297 
-        0 2 0            -            -   5935.78947   5470.27498 
-        2 0 0            -            -   3418.70433   3350.23441 
-        0 1 1            -            -   6027.89707   5455.04389 
-        1 0 1            -            -   4769.35450   4576.68510 
-        1 1 0            -            -   4677.24690   4487.05707 
+               ZPE          ZPE    Frequency    Frequency
+        0 0 0   3868.62462   3827.58481            -            - 
+        0 0 1            -            -   3060.00233   2916.50714 
+        0 1 0            -            -   2967.89474   2836.44049 
+        1 0 0            -            -   1709.35216   1674.25397 
+        0 0 2            -            -   6120.00467   5789.49061 
+        0 2 0            -            -   5935.78947   5582.62006 
+        2 0 0            -            -   3418.70433   3322.29384 
+        0 1 1            -            -   6027.89707   5620.66689 
+        1 0 1            -            -   4769.35450   4583.49200 
+        1 1 0            -            -   4677.24690   4500.19541 
         """
 
         """ Local Modes

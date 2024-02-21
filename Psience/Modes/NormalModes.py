@@ -137,7 +137,9 @@ class NormalModes(MixtureModes):
 
         return R
 
-    def get_localized_modes(self, target_coords, symmetrizer=None,
+    def get_localized_modes(self, target_coords,
+                            symmetrizer=None,
+                            mode_selection=None,
                             make_oblique=False,
                             rediagonalize=False
                             ):
@@ -173,7 +175,9 @@ class NormalModes(MixtureModes):
             new_f = ltf.T @ np.diag(self.freqs ** 2) @ ltf
             new_g = np.eye(len(new_f))
             ob_f, ob_g, u, ob_ui = ObliqueModeGenerator(new_f, new_g).run()
-            ltf = ltf @ ob_ui
+            ltf = ltf @ ob_ui[:, mode_selection]
+        elif mode_selection is not None:
+            ltf = ltf[:, mode_selection]
 
         if rediagonalize:
             new_f = ltf.T @ np.diag(self.freqs ** 2) @ ltf
