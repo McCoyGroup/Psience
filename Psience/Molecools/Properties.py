@@ -1955,7 +1955,7 @@ class NormalModesManager(PropertyManager):
 
             modes = modes.T
 
-            modes = MolecularNormalModes(self.mol, modes, inverse=modes.T, freqs=freqs)
+            modes = MolecularNormalModes(self.mol, modes, inverse=np.linalg.pinv(modes), freqs=freqs)
             self._freqs = freqs # important for rephasing to work right...
 
             if rephase:

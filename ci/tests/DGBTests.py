@@ -2683,8 +2683,8 @@ class DGBTests(TestCase):
         # raise Exception(vec_ls[0])
 
         figs = []
-        for crd in range(cents.shape[-1]):
-            rem = np.setdiff1d(np.arange(cents.shape[-1]), crd)
+        for crd in range(embedded_coords.shape[-1]):
+            rem = np.setdiff1d(np.arange(embedded_coords.shape[-1]), crd)
 
             inverse_sub_hess = np.linalg.inv(embedded_vals[2][:, rem, :][:, :, rem])
             sub_grad = embedded_vals[1][:, rem]
@@ -3470,17 +3470,19 @@ class DGBTests(TestCase):
         ##              JOB PARAMETERS
         ##
         seed = 12332123
-        esamp = 3600
+        esamp = 1200
         ntraj = 35
         samp_modes = [4, 5]
         ts = 25
-        steps = 225
+        steps = 50
 
         pruning_probabilities = [[3000, 1000]]
 
         use_pairwise = True
-        use_interpolation = False
+        use_interpolation = True
         momentum_scaling = 1/8
+
+        plot_quadratic_opt = False
 
         run_opts = {
             'sampling_energy': esamp,
@@ -3570,6 +3572,9 @@ class DGBTests(TestCase):
 
         if use_interpolation:
             pot_spec = {'centers':coords, 'values':pot(coords, deriv_order=2)}
+            if plot_quadratic_opt:
+                self.plot_quadratic_opt_potentials(pot_spec, mol)
+                raise Exception(...)
         else:
             pot_spec = pot
 

@@ -271,6 +271,7 @@ class ExpansionTerms:
         else:
             self.raw_modes = None
             modes = self._modes
+        self._presel_dim = len(self.modes.freqs)
         if mode_selection is not None:
             modes = modes[mode_selection]
         self._modes = modes
@@ -380,17 +381,16 @@ class ExpansionTerms:
         :rtype:
         """
         L = modes.matrix.T
+        Linv = modes.inverse
         freqs = modes.freqs
         freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
         if self._check_internal_modes(clean=False):
             conv = freq_conv
-            L = L * conv
-            Linv = modes.inverse / conv
         else:
             mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
             conv = freq_conv * mass_conv
-            L = L * conv
-            Linv = (L / freq_conv**2)
+        L = L * conv
+        Linv = Linv / conv
         modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
         return modes
 
@@ -1331,10 +1331,10 @@ class PotentialTerms(ExpansionTerms):
         internals_n = 3 * n - 6
         coord_n = 3 * n
 
-        if len(derivs) > 2 and self.mode_sel is not None and thirds.shape[0] == internals_n:
+        if len(derivs) > 2 and self.mode_sel is not None and thirds.shape[0] == self._presel_dim:
             thirds = thirds[(self.mode_sel,)]
 
-        if len(derivs) > 3 and self.mode_sel is not None and fourths.shape[0] == internals_n:
+        if len(derivs) > 3 and self.mode_sel is not None and fourths.shape[0] == self._presel_dim:
             if not isinstance(self.mode_sel, slice):
                 fourths = fourths[np.ix_(self.mode_sel, self.mode_sel)]
             else:
@@ -1885,19 +1885,25 @@ class KineticTerms(ExpansionTerms):
     __props__ = ExpansionTerms.__props__ + (
         'g_derivative_threshold',
         "gmatrix_tolerance",
-        'use_cartesian_kinetic_energy'
+        'use_cartesian_kinetic_energy',
+        "check_input_gmatrix"
+        "freq_tolerance"
     )
     def __init__(self,
                  molecule,
                  g_derivative_threshold=1e-3,
                  gmatrix_tolerance=1e-6,
                  use_cartesian_kinetic_energy=False,
+                 check_input_gmatrix=True,
+                 freq_tolerance=2e-3,
                  **opts
                  ):
         super().__init__(molecule, **opts)
         self.g_derivative_threshold = g_derivative_threshold
         self.gmatrix_tolerance = gmatrix_tolerance
         self.use_cartesian_kinetic_energy = use_cartesian_kinetic_energy
+        self.freq_tolerance = freq_tolerance
+        self.check_input_gmatrix = check_input_gmatrix
 
     def get_terms(self, order=None, logger=None, return_expressions=False):
 
@@ -1988,6 +1994,22 @@ class KineticTerms(ExpansionTerms):
             G_terms = terms, G_terms
         else:
             G_terms = terms
+
+        if self.freq_tolerance is not None and self.check_input_gmatrix:
+            real_freqs = np.diag(G_terms[0])
+            nominal_freqs = self.modes.freqs
+            # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
+            if self.freq_tolerance is not None:
+                if np.max(np.abs(nominal_freqs - real_freqs)) > self.freq_tolerance:
+                    raise PerturbationTheoryException(
+                        "Input frequencies aren't obtained when transforming the G matrix;"
+                        " this likely indicates issues with the input mode vectors"
+                        " got \n{}\n but expected \n{}\n".format(
+                            real_freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
+                            nominal_freqs * UnitsData.convert("Hartrees", "Wavenumbers")
+                        )
+                    )
+
         try:
             self.checkpointer['gmatrix_terms'] = G_terms
         except (OSError, KeyError):
@@ -2303,10 +2325,10 @@ class DipoleTerms(ExpansionTerms):
         internals_n = 3 * n - 6
         coord_n = 3 * n
 
-        if len(derivs) > 2 and self.mode_sel is not None and seconds.shape[0] == internals_n:
+        if len(derivs) > 2 and self.mode_sel is not None and seconds.shape[0] == self._presel_dim:
             seconds = seconds[(self.mode_sel,)]
 
-        if self.mode_sel is not None and thirds.shape[0] == internals_n:
+        if self.mode_sel is not None and thirds.shape[0] == self._presel_dim:
             if not isinstance(self.mode_sel, slice):
                 thirds = thirds[np.ix_(self.mode_sel, self.mode_sel)]
             else:

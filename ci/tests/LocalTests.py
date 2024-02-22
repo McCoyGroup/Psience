@@ -242,207 +242,6 @@ class LocalTests(TestCase):
 
         self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
 
-    @debugTest
-    def test_CartesianObliques(self):
-        ochh = Molecule.from_file(
-            TestManager.test_data('OCHH_freq.fchk')
-        )
-
-        nms = NormalModes.from_molecule(ochh, dimensionless=False)
-        # print(np.round(nms.matrix, 8))
-        # print(np.round(ochh.normal_modes.modes.basis.matrix, 8))
-        # print(phases)
-        # raise Exception(...)
-
-        make_oblique = False
-        tf, loc_nms = nms.get_localized_modes(
-            [
-                [1, 0],
-                [1, 2],
-                [1, 3],
-                # [1, 2, 3],
-                # [0, 1, 2],
-                # [0, 1, 3],
-                # [2, 1, 0, 3]
-            ],
-            rediagonalize=True,
-            make_oblique=make_oblique,
-            # symmetrizer=lambda crds:np.array([
-            #     crds[:, 0],
-            #     1/np.sqrt(2)*(crds[:, 1] + crds[:, 2]),
-            #     1/np.sqrt(2)*(crds[:, 1] - crds[:, 2])
-            # ]).T
-        )
-
-        # submodes = -nms.matrix
-        # tf = np.eye(6)
-
-        submodes = loc_nms.matrix
-        freqs = loc_nms.freqs
-        freq_weight = np.diag(1/np.sqrt(freqs))
-        pot_expansion = []
-        for d in ochh.potential_derivatives:
-            for _ in range(d.ndim):
-                d = np.tensordot(
-                    d,
-                    submodes @ freq_weight
-                        if d.shape[0] == submodes.shape[0] else
-                    tf @ freq_weight,
-                    axes=[0, 0]
-                )
-            pot_expansion.append(d)
-        # need to account for Gaussian 4th deriv issues
-        v4 = pot_expansion[3]
-        for i in range(v4.shape[0]):
-            for j in range(i + 1, v4.shape[0]):
-                for k in range(j + 1, v4.shape[0]):
-                    for l in range(k + 1, v4.shape[0]):
-                        for p in itertools.permutations([i, j, k, l]):
-                            v4[p] = 0
-        for i in range(v4.shape[0]):
-            v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
-
-        from Psience.VPT2 import VPTRunner
-        full_runner = VPTRunner.construct(ochh, 2,
-                            # degeneracy_specs='auto',
-                            logger=False
-                            )[0]
-        subrunner = VPTRunner.construct(ochh, 2,
-                            # degeneracy_specs='auto',
-                            mode_selection=[3, 4, 5],
-                            logger=False
-                            )[0]
-        new_runner = VPTRunner.construct(
-            [ochh.atoms, ochh.coords],
-            2,
-            # degeneracy_specs='auto',
-            modes={
-                "freqs": freqs,
-                "matrix": submodes
-            },
-            logger=False,
-            potential_terms=pot_expansion[1:]
-        )[0]
-
-        # print(
-        #     np.max(np.abs(full_runner.hamiltonian.V_terms[0] - new_runner.hamiltonian.V_terms[0]))
-        # )
-        # print(
-        #     np.max(np.abs(full_runner.hamiltonian.V_terms[1] - new_runner.hamiltonian.V_terms[1]))
-        # )
-        # print(
-        #     np.max(np.abs(full_runner.hamiltonian.V_terms[2] - new_runner.hamiltonian.V_terms[2]))
-        # )
-        # print(full_runner.hamiltonian.V_terms[2][0, 0] - new_runner.hamiltonian.V_terms[2][0, 0])
-        # raise Exception(...)
-
-        full_runner.print_tables(print_intensities=False)
-        subrunner.print_tables(print_intensities=False)
-        new_runner.print_tables(print_intensities=False)
-
-
-        """
-        State           Harmonic   Anharmonic     Harmonic   Anharmonic
-                             ZPE          ZPE    Frequency    Frequency
-        0 0 0 0 0 0   5866.87156   5785.95861            -            - 
-        0 0 0 0 0 1            -            -   3061.70147   2849.45769 
-        0 0 0 0 1 0            -            -   2977.64049   2820.56384 
-        0 0 0 1 0 0            -            -   1727.08266   1695.15533 
-        0 0 1 0 0 0            -            -   1527.04080   1493.14076 
-        0 1 0 0 0 0            -            -   1252.16396   1231.36293 
-        1 0 0 0 0 0            -            -   1188.11375   1166.70550 
-        0 0 0 0 0 2            -            -   6123.40294   5731.72546 
-        0 0 0 0 2 0            -            -   5955.28097   5532.92598 
-        0 0 0 2 0 0            -            -   3454.16533   3372.18254 
-        0 0 2 0 0 0            -            -   3054.08160   2988.76306 
-        0 2 0 0 0 0            -            -   2504.32791   2459.65863 
-        2 0 0 0 0 0            -            -   2376.22750   2327.64607 
-        0 0 0 0 1 1            -            -   6039.34196   5565.57154 
-        0 0 0 1 0 1            -            -   4788.78413   4508.33183 
-        0 0 1 0 0 1            -            -   4588.74227   4446.79734 
-        0 1 0 0 0 1            -            -   4313.86543   4213.81275 
-        1 0 0 0 0 1            -            -   4249.81522   4003.29233 
-        0 0 0 1 1 0            -            -   4704.72315   4510.73967 
-        0 0 1 0 1 0            -            -   4504.68129   4286.94108 
-        0 1 0 0 1 0            -            -   4229.80444   4043.26327 
-        1 0 0 0 1 0            -            -   4165.75424   3978.44642 
-        0 0 1 1 0 0            -            -   3254.12346   3181.59712 
-        0 1 0 1 0 0            -            -   2979.24662   2967.72531 
-        1 0 0 1 0 0            -            -   2915.19641   2854.75879 
-        0 1 1 0 0 0            -            -   2779.20476   2710.42233 
-        1 0 1 0 0 0            -            -   2715.15455   2657.69499 
-        1 1 0 0 0 0            -            -   2440.27770   2404.82203 
-        0 0 2 0 1 0            -            -   6031.72209   5786.26238 
-        0 1 1 0 0 1            -            -   5840.90623   5608.86152 
-        0 1 0 1 0 1            -            -   6040.94809   6001.75418 
-        0 1 0 1 1 0            -            -   5956.88711   5748.09964 
-        0 1 0 2 0 0            -            -   4706.32928   4672.21579 
-        0 1 2 0 0 0            -            -   4306.24556   4167.25991 
-        0 1 1 1 0 0            -            -   4506.28742   4345.62126 
-        0 2 1 0 0 0            -            -   4031.36871   3898.73656 
-        0 2 0 1 0 0            -            -   4231.41058   4069.45265 
-        1 1 0 1 0 0            -            -   4167.36037   4126.98922 
-        0 0 3 0 0 0            -            -   4581.12240   4478.76781
-        """
-
-        """ Normal Modes
-        State     Harmonic   Anharmonic     Harmonic   Anharmonic
-                       ZPE          ZPE    Frequency    Frequency
-        0 0 0   3883.21231   3848.54461            -            - 
-        0 0 1            -            -   3061.70147   2925.37144 
-        0 1 0            -            -   2977.64049   2847.66748 
-        1 0 0            -            -   1727.08266   1710.70822 
-        0 0 2            -            -   6123.40294   5806.87736 
-        0 2 0            -            -   5955.28097   5604.90828 
-        2 0 0            -            -   3454.16533   3406.08166 
-        0 1 1            -            -   6039.34196   5642.06772 
-        1 0 1            -            -   4788.78413   4637.14742 
-        1 1 0            -            -   4704.72315   4555.22865
-        """
-
-        """ Oblique Local Modes
-        State     Harmonic   Anharmonic     Harmonic   Anharmonic
-               ZPE          ZPE    Frequency    Frequency
-        0 0 0   3868.62462   3827.58481            -            - 
-        0 0 1            -            -   3060.00233   2916.50714 
-        0 1 0            -            -   2967.89474   2836.44049 
-        1 0 0            -            -   1709.35216   1674.25397 
-        0 0 2            -            -   6120.00467   5789.49061 
-        0 2 0            -            -   5935.78947   5582.62006 
-        2 0 0            -            -   3418.70433   3322.29384 
-        0 1 1            -            -   6027.89707   5620.66689 
-        1 0 1            -            -   4769.35450   4583.49200 
-        1 1 0            -            -   4677.24690   4500.19541 
-        """
-
-        """ Local Modes
-        :: State     Harmonic   Anharmonic     Harmonic   Anharmonic
-                       ZPE          ZPE    Frequency    Frequency
-        0 0 0   3865.36393   3808.78515            -            - 
-        0 0 1            -            -   3057.44273   2877.19612 
-        0 1 0            -            -   2964.03881   2791.91573 
-        1 0 0            -            -   1709.24632   1688.85191 
-        0 0 2            -            -   6114.88546   5743.61141 
-        0 2 0            -            -   5928.07762   5460.03704 
-        2 0 0            -            -   3418.49264   3351.87208 
-        0 1 1            -            -   6021.48154   5445.88005 
-        1 0 1            -            -   4766.68905   4575.01593 
-        1 1 0            -            -   4673.28513   4482.67440 
-        >>--------------------------------------------------<<
-        """
-
-        # print(np.round(runner.hamiltonian.V_terms[0], 8))
-        # # print(runner.hamiltonian.V_terms[1])
-        #
-        # print(np.round(pot_expansion[1], 8))
-        #
-        # # print(np.round(runner.hamiltonian.V_terms[0], 8))
-        # print(np.round(runner.hamiltonian.V_terms[1][2], 8))
-        #
-        # print(np.round(pot_expansion[2][2], 8))
-
-
-
     @validationTest
     def test_OCHH(self):
         zmatrix = [
@@ -1053,7 +852,360 @@ class LocalTests(TestCase):
             np.linalg.eigvalsh(f) * UnitsData.convert("Hartrees", "Wavenumbers")
         )
 
+    @debugTest
+    def test_OCHHObliqueVPT(self):
+        ochh = Molecule.from_file(
+            TestManager.test_data('OCHH_freq.fchk')
+        )
 
+        nms = NormalModes.from_molecule(ochh, dimensionless=False)
+        # print(np.round(nms.matrix, 8))
+        # print(np.round(ochh.normal_modes.modes.basis.matrix, 8))
+        # print(phases)
+        # raise Exception(...)
 
+        make_oblique = True
+        (tf, tf_inv), loc_nms = nms.get_localized_modes(
+            [
+                [1, 0],
+                [1, 2],
+                [1, 3],
+                # [1, 2, 3],
+                [0, 1, 2],
+                [0, 1, 3],
+                [2, 1, 0, 3]
+            ],
+            rediagonalize=True,
+            make_oblique=make_oblique,
+            mode_selection=[0, 1, 2],
+            symmetrizer=lambda crds:np.array([
+                crds[:, 0],
+                1/np.sqrt(2)*(crds[:, 1] + crds[:, 2]),
+                1/np.sqrt(2)*(crds[:, 1] - crds[:, 2]),
+                1/np.sqrt(2)*(crds[:, 3] + crds[:, 4]),
+                1/np.sqrt(2)*(crds[:, 3] - crds[:, 4]),
+                crds[:, 5]
+            ]).T
+        )
 
+        pot_expansion = list(ochh.potential_derivatives)
+        nm_tf = tf.T
+        pot_expansion[2] = np.tensordot(nm_tf, pot_expansion[2], axes=[1, 0])
+        pot_expansion[3] = np.tensordot(nm_tf,
+                                        np.tensordot(nm_tf, pot_expansion[3], axes=[1, 1]),
+                                        axes=[1, 1]
+                                        )
+
+        from Psience.VPT2 import VPTRunner
+        full_runner = VPTRunner.construct(ochh, 2,
+                            degeneracy_specs='auto',
+                            logger=False
+                            )[0]
+        subrunner = VPTRunner.construct(ochh, 2,
+                            degeneracy_specs='auto',
+                            mode_selection=[3, 4, 5],
+                            logger=False
+                            )[0]
+        new_runner = VPTRunner.construct(
+            [ochh.atoms, ochh.coords],
+            2,
+            degeneracy_specs='auto',
+            modes={'freqs':loc_nms.freqs, 'matrix':loc_nms.matrix, 'inverse':loc_nms.inverse},
+            logger=False,
+            potential_derivatives=pot_expansion
+        )[0]
+
+        full_runner.print_tables(print_intensities=False)
+        """
+        >>------------------------- Degenerate Energies -------------------------
+        State           Harmonic   Anharmonic     Harmonic   Anharmonic
+                             ZPE          ZPE    Frequency    Frequency
+        0 0 0 0 0 0   5866.87172   5796.34178            -            - 
+        0 0 0 0 0 1            -            -   3061.70145   2987.29160 
+        0 0 0 0 1 0            -            -   2977.64049   2843.35728 
+        0 0 0 1 0 0            -            -   1727.08266   1693.95557 
+        """
+        # subrunner.print_tables(print_intensities=False)
+        """
+        >>------------------------- Degenerate Energies -------------------------
+        State     Harmonic   Anharmonic     Harmonic   Anharmonic
+                       ZPE          ZPE    Frequency    Frequency
+        0 0 0   3883.21230   3848.71494            -            - 
+        0 0 1            -            -   3061.70145   2924.82377 
+        0 1 0            -            -   2977.64049   2847.67134 
+        1 0 0            -            -   1727.08266   1711.71453 
+        0 0 2            -            -   6123.40290   5804.53642 
+        0 2 0            -            -   5955.28097   5604.60379 
+        2 0 0            -            -   3454.16533   3408.09426 
+        0 1 1            -            -   6039.34194   5641.53164 
+        1 0 1            -            -   4788.78411   4639.61866 
+        1 1 0            -            -   4704.72315   4556.23881 
+        >>--------------------------------------------------<<
+        """
+        new_runner.print_tables(print_intensities=False)
+        """
+        State     Harmonic   Anharmonic     Harmonic   Anharmonic
+               ZPE          ZPE    Frequency    Frequency
+        0 0 0   3861.83994   3821.09271            -            - 
+        0 0 1            -            -   3055.66055   2912.14354 
+        0 1 0            -            -   2959.78211   2827.49408 
+        1 0 0            -            -   1708.23723   1674.16514 
+        0 0 2            -            -   6111.32109   5778.49325 
+        0 2 0            -            -   5919.56421   5565.55617 
+        2 0 0            -            -   3416.47445   3322.56151 
+        0 1 1            -            -   6015.44265   5607.36174 
+        1 0 1            -            -   4763.89777   4579.59631 
+        1 1 0            -            -   4668.01933   4491.76492 
+        >>--------------------------------------------------<<
+        """
+
+    @validationTest
+    def test_WaterDimerObliqueVPT(self):
+        dimer = Molecule.from_file(
+            TestManager.test_data('water_dimer_freq.fchk')
+        )
+
+        nms = dimer.normal_modes.modes.basis.to_new_modes()#
+        # nms = NormalModes.from_molecule(dimer, dimensionless=False)
+        # from Psience.VPT2 import VPTRunner
+        # VPTRunner.run_simple(dimer, 2,
+        #                     degeneracy_specs='auto'
+        #                     )
+
+        make_oblique = False
+        (tf, tf_inv), loc_nms = nms.get_localized_modes(
+            [
+                [1, 2], # LHS SP OH
+                [0, 1], # free OH
+                [0, 1, 2], # Free bend
+                [0, 1, 3, 2], # OOP SP
+
+                [1, 3], # OO
+                [4, 3],
+                [5, 3],
+                [4, 3, 1],
+                [5, 3, 1],
+                [5, 3, 1, 4],
+                [4, 3, 1, 2],
+                [4, 3, 1, 0]
+            ],
+            rediagonalize=True,
+            make_oblique=make_oblique,
+            mode_selection=[0, 1, 2]
+            # symmetrizer=lambda crds: np.array([
+            #     crds[:, 0],
+            #     1 / np.sqrt(2) * (crds[:, 1] + crds[:, 2]),
+            #     1 / np.sqrt(2) * (crds[:, 1] - crds[:, 2]),
+            #     1 / np.sqrt(2) * (crds[:, 3] + crds[:, 4]),
+            #     1 / np.sqrt(2) * (crds[:, 3] - crds[:, 4]),
+            #     crds[:, 5]
+            # ]).T
+        )
+
+        # print(dimer.coords)
+        # print(nms.matrix)
+        # print(loc_nms.matrix)
+        # raise Exception(...)
+
+        # raise Exception(loc_nms.freqs * 219475.6)
+        # masses = dimer.atomic_masses
+        # undim_modes = nms.make_dimensionless(masses)
+        # undim_modes = loc_nms.make_dimensionless(masses)
+        # trip_mass = np.broadcast_to(
+        #     np.sqrt(masses)[:, np.newaxis],
+        #     (len(masses), undim_modes.matrix.shape[0] // len(masses))
+        # ).flatten()
+        # mw_der = dimer.potential_derivatives[1] / (trip_mass[:, np.newaxis] * trip_mass[np.newaxis, :])
+        # raise Exception(
+        #     undim_modes.freqs * 219475.6,
+        #     np.diag(undim_modes.matrix.T @ undim_modes.matrix) * 219475.6,
+        #     # undim_modes.matrix.T @ undim_modes.matrix * 219475.6,
+        #     np.diag(undim_modes.inverse @ mw_der @ undim_modes.inverse.T) * 219475.6,
+        # )
+
+        pot_expansion = list(dimer.potential_derivatives)
+        nm_tf = tf.T
+        # print(np.round(tf, 2))
+        # print(np.round(tf_inv, 2))
+        # print(np.round(nms.matrix - loc_nms.matrix @ tf_inv, 2))
+        # print(np.round(nms.inverse - tf @ loc_nms.inverse, 2))
+        # raise Exception(loc_nms.freqs, nms.freqs)
+        pot_expansion[2] = np.tensordot(nm_tf, pot_expansion[2], axes=[1, 0])
+        pot_expansion[3] = np.tensordot(nm_tf,
+                                        np.tensordot(nm_tf, pot_expansion[3], axes=[1, 1]),
+                                        axes=[1, 1]
+                                        )
+
+        from Psience.VPT2 import VPTRunner
+        full_runner = VPTRunner.construct(dimer, 2,
+                                          degeneracy_specs='auto',
+                                          logger=False
+                                          )[0]
+        hf_runner = VPTRunner.construct(dimer, 2,
+                                        degeneracy_specs='auto',
+                                        mode_selection=[i for i,f in enumerate(nms.freqs) if f > 1000 / 219475.6],
+                                        logger=False
+                                        )[0]
+
+        hoh_runner = VPTRunner.construct(dimer, 2,
+                                        degeneracy_specs='auto',
+                                        mode_selection=[-6 ,-4, -1],
+                                        logger=False
+                                        )[0]
+        new_runner = VPTRunner.construct(
+            [dimer.atoms, dimer.coords],
+            2,
+            degeneracy_specs='auto',
+            # mode_selection=[i for i,f in enumerate(loc_nms.freqs) if f > 1000 / 219475.6],
+            modes={'freqs': loc_nms.freqs, 'matrix': loc_nms.matrix, 'inverse': loc_nms.inverse},
+            logger=False,
+            potential_derivatives=pot_expansion
+        )[0]
+        # raise Exception(
+        #     hf_runner.hamiltonian.V_terms[1][0] * 219475,
+        #     new_runner.hamiltonian.V_terms[1][0] * 219475
+        # )
+
+        # full_runner.print_tables(print_intensities=False)
+        """
+        >>------------------------- Deperturbed Energies -------------------------
+        :: State                       Harmonic   Anharmonic     Harmonic   Anharmonic
+                                         ZPE          ZPE    Frequency    Frequency
+        0 0 0 0 0 0 0 0 0 0 0 0  10133.32562   9928.34735            -            - 
+        0 0 0 0 0 0 0 0 0 0 0 1            -            -   3935.27376   3779.83820 
+        0 0 0 0 0 0 0 0 0 0 1 0            -            -   3915.15761   3741.22006 
+        0 0 0 0 0 0 0 0 0 1 0 0            -            -   3813.91883   3647.33470 
+        0 0 0 0 0 0 0 0 1 0 0 0            -            -   3718.74059   3582.50325 
+        0 0 0 0 0 0 0 1 0 0 0 0            -            -   1650.27150   1615.63293 
+        0 0 0 0 0 0 1 0 0 0 0 0            -            -   1629.31503   1585.61078 
+        0 0 0 0 0 1 0 0 0 0 0 0            -            -    630.33864    570.09157 
+        0 0 0 0 1 0 0 0 0 0 0 0            -            -    360.39517    331.79023 
+        0 0 0 1 0 0 0 0 0 0 0 0            -            -    184.18194    218.02583 
+        0 0 1 0 0 0 0 0 0 0 0 0            -            -    154.94037    205.30373 
+        0 1 0 0 0 0 0 0 0 0 0 0            -            -    147.11065    169.95357 
+        1 0 0 0 0 0 0 0 0 0 0 0            -            -    127.00715    167.93124 
+        >>------------------------- Degenerate Energies -------------------------
+        State                       Harmonic   Anharmonic     Harmonic   Anharmonic
+                                         ZPE          ZPE    Frequency    Frequency
+        0 0 0 0 0 0 0 0 0 0 0 0  10133.32562   9928.33507            -            - 
+        0 0 0 0 0 0 0 0 0 0 0 1            -            -   3935.27376   3895.91045 
+        0 0 0 0 0 0 0 0 0 0 1 0            -            -   3915.15761   3751.34005 
+        0 0 0 0 0 0 0 0 0 1 0 0            -            -   3813.91883   3762.88143 
+        0 0 0 0 0 0 0 0 1 0 0 0            -            -   3718.74059   3582.51554 
+        0 0 0 0 0 0 0 1 0 0 0 0            -            -   1650.27150   1584.31960 
+        0 0 0 0 0 0 1 0 0 0 0 0            -            -   1629.31503   1579.03776 
+        0 0 0 0 0 1 0 0 0 0 0 0            -            -    630.33864    579.75883 
+        0 0 0 0 1 0 0 0 0 0 0 0            -            -    360.39517    329.74797 
+        0 0 0 1 0 0 0 0 0 0 0 0            -            -    184.18194    220.03342 
+        0 0 1 0 0 0 0 0 0 0 0 0            -            -    154.94037    105.79500 
+        0 1 0 0 0 0 0 0 0 0 0 0            -            -    147.11065    215.94945 
+        1 0 0 0 0 0 0 0 0 0 0 0            -            -    127.00715    201.30696 
+        """
+        # hf_runner.print_tables(print_intensities=False)
+        """
+        >>------------------------- Deperturbed Energies -------------------------
+        State           Harmonic   Anharmonic     Harmonic   Anharmonic
+                             ZPE          ZPE    Frequency    Frequency
+        0 0 0 0 0 0   9331.33866   9203.97083            -            - 
+        0 0 0 0 0 1            -            -   3935.27375   3748.96957 
+        0 0 0 0 1 0            -            -   3915.15760   3727.63027 
+        0 0 0 1 0 0            -            -   3813.91883   3646.25947 
+        0 0 1 0 0 0            -            -   3718.74059   3522.16962 
+        0 1 0 0 0 0            -            -   1650.27151   1586.97884 
+        1 0 0 0 0 0            -            -   1629.31502   1571.37950 
+        0 0 0 0 0 2            -            -   7870.54750   7407.27914 
+        0 0 0 0 2 0            -            -   7830.31521   7320.69281 
+        0 0 0 2 0 0            -            -   7627.83767   7213.15140 
+        0 0 2 0 0 0            -            -   7437.48119   6896.34749 
+        0 2 0 0 0 0            -            -   3300.54303   3144.83427 
+        2 0 0 0 0 0            -            -   3258.63005   3115.28710 
+        0 0 0 0 1 1            -            -   7850.43135   7476.50529 
+        0 0 0 1 0 1            -            -   7749.19258   7242.46255 
+        0 0 1 0 0 1            -            -   7654.01434   7268.32213 
+        0 1 0 0 0 1            -            -   5585.54526   5333.66574 
+        1 0 0 0 0 1            -            -   5564.58877   5287.02147 
+        0 0 0 1 1 0            -            -   7729.07644   7372.61204 
+        0 0 1 0 1 0            -            -   7633.89820   7183.92249 
+        0 1 0 0 1 0            -            -   5565.42912   5278.58862 
+        1 0 0 0 1 0            -            -   5544.47263   5296.36071 
+        0 0 1 1 0 0            -            -   7532.65943   7163.68204 
+        0 1 0 1 0 0            -            -   5464.19035   5231.80428 
+        1 0 0 1 0 0            -            -   5443.23386   5201.28059 
+        0 1 1 0 0 0            -            -   5369.01211   5087.28544 
+        1 0 1 0 0 0            -            -   5348.05562   5091.69518 
+        1 1 0 0 0 0            -            -   3279.58654   3151.62003 
+        >>--------------------------------------------------<<
+        >>------------------------- Degenerate Energies -------------------------
+        State           Harmonic   Anharmonic     Harmonic   Anharmonic
+                             ZPE          ZPE    Frequency    Frequency
+        0 0 0 0 0 0   9331.33866   9203.97083            -            - 
+        0 0 0 0 0 1            -            -   3935.27375   3748.96957 
+        0 0 0 0 1 0            -            -   3915.15760   3727.63027 
+        0 0 0 1 0 0            -            -   3813.91883   3646.25947 
+        0 0 1 0 0 0            -            -   3718.74059   3522.16962 
+        0 1 0 0 0 0            -            -   1650.27151   1586.97884 
+        1 0 0 0 0 0            -            -   1629.31502   1571.37950 
+        0 0 0 0 0 2            -            -   7870.54750   7431.94954 
+        0 0 0 0 2 0            -            -   7830.31521   7320.69281 
+        0 0 0 2 0 0            -            -   7627.83767   7188.48099 
+        0 0 2 0 0 0            -            -   7437.48119   6870.94252 
+        0 2 0 0 0 0            -            -   3300.54303   3136.67763 
+        2 0 0 0 0 0            -            -   3258.63005   3114.03466 
+        0 0 0 0 1 1            -            -   7850.43135   7476.50529 
+        0 0 0 1 0 1            -            -   7749.19258   7242.46255 
+        0 0 1 0 0 1            -            -   7654.01434   7268.32213 
+        0 1 0 0 0 1            -            -   5585.54526   5334.52274 
+        1 0 0 0 0 1            -            -   5564.58877   5286.16447 
+        0 0 0 1 1 0            -            -   7729.07644   7372.61204 
+        0 0 1 0 1 0            -            -   7633.89820   7209.32746 
+        0 1 0 0 1 0            -            -   5565.42912   5273.91429 
+        1 0 0 0 1 0            -            -   5544.47263   5301.03504 
+        0 0 1 1 0 0            -            -   7532.65943   7163.68204 
+        0 1 0 1 0 0            -            -   5464.19035   5231.80428 
+        1 0 0 1 0 0            -            -   5443.23386   5201.28059 
+        0 1 1 0 0 0            -            -   5369.01211   5081.97346 
+        1 0 1 0 0 0            -            -   5348.05562   5097.00716 
+        1 1 0 0 0 0            -            -   3279.58654   3161.02911 
+        >>--------------------------------------------------<<
+        """
+        hoh_runner.print_tables(print_intensities=False)
+        """
+        0 0 0   4641.66468   4620.60458            -            - 
+        0 0 1            -            -   3935.27375   3973.35109 
+        0 1 0            -            -   3718.74059   3573.65580 
+        1 0 0            -            -   1629.31502   1584.61633 
+        0 0 2            -            -   7870.54750   8030.90518 
+        0 2 0            -            -   7437.48119   7014.34155 
+        2 0 0            -            -   3258.63005   3158.09074 
+        0 1 1            -            -   7654.01434   7522.32324 
+        1 0 1            -            -   5564.58877   5490.39975 
+        1 1 0            -            -   5348.05562   5158.72630 
+        """
+        new_runner.print_tables(print_intensities=False)
+        """
+        Oblique
+        0 0 0   4543.47464   4485.06828            -            - 
+        0 0 1            -            -   3865.65444   3698.22906 
+        0 1 0            -            -   3574.53344   3376.02145 
+        1 0 0            -            -   1646.76140   1599.13137 
+        0 0 2            -            -   7731.30887   7201.12091 
+        0 2 0            -            -   7149.06688   6534.81736 
+        2 0 0            -            -   3293.52280   3164.80781 
+        0 1 1            -            -   7440.18788   7135.05098 
+        1 0 1            -            -   5512.41584   5292.38363 
+        1 1 0            -            -   5221.29484   4951.77943 
+        """
+        """
+        Local
+        0 0 1            -            -   3881.93936   3706.82985 
+        0 1 0            -            -   3649.28873   3454.91359 
+        1 0 0            -            -   1647.81095   1595.20414 
+        0 0 2            -            -   7763.87872   7234.00043 
+        0 2 0            -            -   7298.57745   6714.99623 
+        2 0 0            -            -   3295.62190   3158.06919 
+        0 1 1            -            -   7531.22809   7187.01672 
+        1 0 1            -            -   5529.75031   5285.86021 
+        1 1 0            -            -   5297.09968   5025.75608 
+        >>--------------------------------------------------<<
+        """
 

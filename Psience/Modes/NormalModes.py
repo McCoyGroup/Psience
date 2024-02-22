@@ -1,6 +1,5 @@
 
-import numpy as np, scipy.linalg as slag
-import scipy.linalg
+import numpy as np, scipy.linalg as slag, itertools
 
 from McUtils.Data import AtomData, UnitsData
 import McUtils.Numputils as nput
@@ -170,29 +169,39 @@ class NormalModes(MixtureModes):
                 target_modes = symmetrizer(target_modes)
 
         ltf = self.get_nearest_mode_transform(target_modes)
+        ltf_inv = ltf.T
 
         if make_oblique:
             new_f = ltf.T @ np.diag(self.freqs ** 2) @ ltf
             new_g = np.eye(len(new_f))
-            ob_f, ob_g, u, ob_ui = ObliqueModeGenerator(new_f, new_g).run()
-            ltf = ltf @ ob_ui[:, mode_selection]
+            ob_f, ob_g, ob_u, ob_ui = ObliqueModeGenerator(new_f, new_g).run()
+            if mode_selection is not None:
+                ltf = ltf @ ob_u[:, mode_selection]
+                ltf_inv = ob_ui[mode_selection, :] @ ltf_inv
+            else:
+                ltf = ltf @ ob_u
+                ltf_inv = ob_ui @ ltf_inv
         elif mode_selection is not None:
             ltf = ltf[:, mode_selection]
+            ltf_inv = ltf.T
 
         if rediagonalize:
-            new_f = ltf.T @ np.diag(self.freqs ** 2) @ ltf
+            new_f = ltf_inv @ np.diag(self.freqs ** 2) @ ltf_inv.T
             new_freq2, mode_tf = np.linalg.eigh(new_f)
+            mode_inv = mode_tf.T
             if not make_oblique:
                 new_freqs = np.sqrt(new_freq2)
             else:
                 new_freqs = new_freq2
-                mode_tf = mode_tf @ np.diag(np.sqrt(new_freqs))
+                mode_tf = mode_tf @ np.diag(1/np.sqrt(new_freqs))
+                mode_inv = np.diag(np.sqrt(new_freqs)) @ mode_inv
 
             full_tf = ltf @ mode_tf
+            full_inv = mode_inv @ ltf_inv
             new_modes = self.matrix @ full_tf
-            new_inv = full_tf.T @ self.inverse
+            new_inv = full_inv @ self.inverse
 
-            return full_tf, type(self)(
+            return (full_tf, full_inv), type(self)(
                 self.basis,
                 new_modes,
                 inverse=new_inv,
@@ -201,6 +210,22 @@ class NormalModes(MixtureModes):
             )
         else:
             return ltf
+
+    def make_dimensionless(self, masses):
+        L = self.matrix.T
+        Linv = self.inverse
+        freqs = self.freqs
+        conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
+        if masses is not None:
+            trip_mass = np.broadcast_to(
+                np.sqrt(masses)[:, np.newaxis],
+                (len(masses), L.shape[1]//len(masses))
+            ).flatten()
+            mass_conv = np.broadcast_to(trip_mass[np.newaxis, :], L.shape)
+            conv = conv * mass_conv
+        L = L * conv
+        Linv = Linv / conv
+        return type(self)(self.basis, L.T, inverse=Linv, origin=self.origin, freqs=self.freqs)
 
     @classmethod
     def from_molecule(cls, mol, dimensionless=False, use_internals=None):
