@@ -125,107 +125,6 @@ class NormalModes(MixtureModes):
 
         return cls(basis, modes, inverse=inv, freqs=freqs, **opts)
 
-    def get_nearest_mode_transform(self, alternate_modes):
-        modes = self.matrix
-
-        ls_coords = np.linalg.inv(modes.T @ modes) @ modes.T @ alternate_modes
-
-        U, s, V = np.linalg.svd(ls_coords)
-        good_s = np.where(s > 1e-8)[0]
-        R = (U[:, good_s] @ V[good_s, :])
-
-        return R
-
-    def get_localized_modes(self, target_coords,
-                            symmetrizer=None,
-                            mode_selection=None,
-                            make_oblique=False,
-                            rediagonalize=False
-                            ):
-        from .ObliqueModes import ObliqueModeGenerator
-
-        carts = self.origin
-        if carts.ndim != 2:
-            raise NotImplementedError("can't get local modes for non-Cartesian basis")
-
-        targets = []
-        for idx in target_coords:
-            nidx = len(idx)
-            if nidx == 2:
-                targets.append(nput.dist_vec(carts, *idx))
-            elif nidx == 3:
-                targets.append(nput.angle_vec(carts, *idx))
-            elif nidx == 4:
-                targets.append(nput.dihed_vec(carts, *idx))
-            else:
-                raise ValueError("can't parse coordinate spec {}".format(idx))
-        target_modes = np.array(targets).T
-
-        if symmetrizer is not None:
-            if isinstance(symmetrizer, (np.ndarray, list)):
-                symmetrizer = np.asanyarray(symmetrizer)
-                target_modes = target_modes @ symmetrizer.T
-            else:
-                target_modes = symmetrizer(target_modes)
-
-        ltf = self.get_nearest_mode_transform(target_modes)
-        ltf_inv = ltf.T
-
-        if make_oblique:
-            new_f = ltf.T @ np.diag(self.freqs ** 2) @ ltf
-            new_g = np.eye(len(new_f))
-            ob_f, ob_g, ob_u, ob_ui = ObliqueModeGenerator(new_f, new_g).run()
-            if mode_selection is not None:
-                ltf = ltf @ ob_u[:, mode_selection]
-                ltf_inv = ob_ui[mode_selection, :] @ ltf_inv
-            else:
-                ltf = ltf @ ob_u
-                ltf_inv = ob_ui @ ltf_inv
-        elif mode_selection is not None:
-            ltf = ltf[:, mode_selection]
-            ltf_inv = ltf.T
-
-        if rediagonalize:
-            new_f = ltf_inv @ np.diag(self.freqs ** 2) @ ltf_inv.T
-            new_freq2, mode_tf = np.linalg.eigh(new_f)
-            mode_inv = mode_tf.T
-            if not make_oblique:
-                new_freqs = np.sqrt(new_freq2)
-            else:
-                new_freqs = new_freq2
-                mode_tf = mode_tf @ np.diag(1/np.sqrt(new_freqs))
-                mode_inv = np.diag(np.sqrt(new_freqs)) @ mode_inv
-
-            full_tf = ltf @ mode_tf
-            full_inv = mode_inv @ ltf_inv
-            new_modes = self.matrix @ full_tf
-            new_inv = full_inv @ self.inverse
-
-            return (full_tf, full_inv), type(self)(
-                self.basis,
-                new_modes,
-                inverse=new_inv,
-                origin=self.origin,
-                freqs=new_freqs
-            )
-        else:
-            return ltf
-
-    def make_dimensionless(self, masses):
-        L = self.matrix.T
-        Linv = self.inverse
-        freqs = self.freqs
-        conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
-        if masses is not None:
-            trip_mass = np.broadcast_to(
-                np.sqrt(masses)[:, np.newaxis],
-                (len(masses), L.shape[1]//len(masses))
-            ).flatten()
-            mass_conv = np.broadcast_to(trip_mass[np.newaxis, :], L.shape)
-            conv = conv * mass_conv
-        L = L * conv
-        Linv = Linv / conv
-        return type(self)(self.basis, L.T, inverse=Linv, origin=self.origin, freqs=self.freqs)
 
     @classmethod
     def from_molecule(cls, mol, dimensionless=False, use_internals=None):
@@ -248,8 +147,172 @@ class NormalModes(MixtureModes):
                 mol.potential_derivatives[1],
                 mol.atomic_masses,
                 dimensionless=dimensionless,
+                masses=mol.atomic_masses,
                 origin=mol.coords
             )
+
+    def get_nearest_mode_transform(self, alternate_modes, unitary=True, unitary_mode_cutoff=1e-6):
+        modes = self.matrix
+
+        ls_tf = np.linalg.inv(modes.T @ modes) @ modes.T @ alternate_modes
+
+        if unitary:
+            U, s, V = np.linalg.svd(ls_tf)
+            good_s = np.where(s > unitary_mode_cutoff)[0]
+            R = (U[:, good_s] @ V[good_s, :])
+        else:
+            R = ls_tf
+
+        return R
+
+    def get_localized_modes(self,
+                            target_coords,
+                            fixed_coords=None,
+                            mass_weight=True,
+                            symmetrizer=None,
+                            mode_selection=None,
+                            make_oblique=False,
+                            rediagonalize=False,
+                            unitary=True,
+                            return_target_modes=False
+                            ):
+        from .ObliqueModes import ObliqueModeGenerator
+
+        carts = self.origin
+        if carts.ndim != 2:
+            raise NotImplementedError("can't get local modes for non-Cartesian basis")
+
+        targets = []
+        for idx in target_coords:
+            nidx = len(idx)
+            if nidx == 2:
+                targets.append(nput.dist_vec(carts, *idx))
+            elif nidx == 3:
+                targets.append(nput.angle_vec(carts, *idx))
+            elif nidx == 4:
+                targets.append(nput.dihed_vec(carts, *idx))
+            else:
+                raise ValueError("can't parse coordinate spec {}".format(idx))
+
+        # if normalize:
+        #     targets = [
+        #         t/np.linalg.norm(t)
+        #         for t in targets
+        #     ]
+        if fixed_coords is not None:
+            targets = np.array(targets)
+            fixed_pos = np.array(fixed_coords) * 3
+            for p in fixed_pos:
+                targets[:, p:p + 3] = 0
+        target_modes = np.asanyarray(targets).T
+
+        if symmetrizer is not None:
+            if isinstance(symmetrizer, (np.ndarray, list)):
+                symmetrizer = np.asanyarray(symmetrizer)
+                target_modes = target_modes @ symmetrizer.T
+            else:
+                target_modes = symmetrizer(target_modes)
+
+        if mass_weight:
+            masses = self.masses
+            if masses is None: raise ValueError("modes have no associated masses")
+            trip_mass = np.broadcast_to(
+                np.sqrt(masses)[:, np.newaxis],
+                (len(masses), carts.shape[1])
+            ).flatten()
+            target_modes = target_modes / trip_mass[:, np.newaxis]
+            ltf = self.make_mass_weighted().get_nearest_mode_transform(target_modes, unitary=unitary)
+        else:
+            ltf = self.get_nearest_mode_transform(target_modes, unitary=unitary)
+        if unitary:
+            ltf_inv = ltf.T
+        else:
+            ltf_inv = np.linalg.pinv(ltf)
+
+        if make_oblique:
+            new_f = ltf.T @ np.diag(self.freqs ** 2) @ ltf
+            new_g = np.eye(len(new_f))
+            ob_f, ob_g, ob_u, ob_ui = ObliqueModeGenerator(new_f, new_g).run()
+            if mode_selection is not None:
+                ltf = ltf @ ob_u[:, mode_selection]
+                ltf_inv = ob_ui[mode_selection, :] @ ltf_inv
+            else:
+                ltf = ltf @ ob_u
+                ltf_inv = ob_ui @ ltf_inv
+        elif mode_selection is not None:
+            ltf = ltf[:, mode_selection]
+            ltf_inv = ltf.T
+
+        res = (ltf, ltf_inv)
+        if rediagonalize:
+            new_f = ltf_inv @ np.diag(self.freqs ** 2) @ ltf_inv.T
+            new_freq2, mode_tf = np.linalg.eigh(new_f)
+            mode_inv = mode_tf.T
+            if not make_oblique:
+                new_freqs = np.sqrt(new_freq2)
+            else:
+                new_freqs = new_freq2
+                mode_tf = mode_tf @ np.diag(1/np.sqrt(new_freqs))
+                mode_inv = np.diag(np.sqrt(new_freqs)) @ mode_inv
+
+            full_tf = ltf @ mode_tf
+            full_inv = mode_inv @ ltf_inv
+            new_modes = self.matrix @ full_tf
+            new_inv = full_inv @ self.inverse
+
+            res = (full_tf, full_inv), type(self)(
+                self.basis,
+                new_modes,
+                inverse=new_inv,
+                origin=self.origin,
+                freqs=new_freqs,
+                masses=self.masses
+            )
+
+        if return_target_modes:
+            res = res + (target_modes,)
+
+        return res
+
+    def make_mass_weighted(self, masses=None):
+        if masses is None:
+            masses = self.masses
+        if masses is None:
+            raise ValueError("need masses to mass-weight")
+        trip_mass = np.broadcast_to(
+            np.sqrt(masses)[:, np.newaxis],
+            (len(masses), self.matrix.shape[0]//len(masses))
+        ).flatten()
+        L = self.matrix * trip_mass[:, np.newaxis] # del_X Q
+        Linv = self.inverse / trip_mass[np.newaxis, :] # del_Q X
+
+        return type(self)(self.basis, L, inverse=Linv,
+                          origin=self.origin,
+                          freqs=self.freqs,
+                          masses=np.ones(len(masses))
+                          )
+
+    def make_dimensionless(self, masses=None):
+        L = self.matrix.T
+        Linv = self.inverse
+        freqs = self.freqs
+        conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
+        if masses is None:
+            masses = self.masses
+        if masses is not None:
+            trip_mass = np.broadcast_to(
+                np.sqrt(masses)[:, np.newaxis],
+                (len(masses), L.shape[1]//len(masses))
+            ).flatten()
+            mass_conv = np.broadcast_to(trip_mass[np.newaxis, :], L.shape)
+            conv = conv * mass_conv
+        L = L * conv
+        Linv = Linv / conv
+        return type(self)(self.basis, L.T, inverse=Linv, origin=self.origin,
+                          freqs=self.freqs,
+                          masses=np.ones(len(masses)) if masses is not None else None
+                          )
+
 
 class ReactionPathModes(NormalModes):
     def get_rp_modes(cls,

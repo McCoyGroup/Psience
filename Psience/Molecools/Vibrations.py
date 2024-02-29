@@ -527,7 +527,8 @@ class MolecularNormalModes(CoordinateSystem):
             self.matrix,
             inverse=self.inverse,
             freqs=self.freqs,
-            origin=self.origin
+            origin=self.origin,
+            masses=self.molecule.atomic_masses
         )
 
     @classmethod

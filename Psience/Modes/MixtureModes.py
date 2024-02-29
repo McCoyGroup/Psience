@@ -21,7 +21,9 @@ class MixtureModes(CoordinateSystem):
                  basis,
                  coeffs,
                  freqs=None,
-                 origin=None, inverse=None,
+                 origin=None,
+                 masses=None,
+                 inverse=None,
                  name=None
                  ):
         coeffs = np.asanyarray(coeffs)
@@ -35,6 +37,7 @@ class MixtureModes(CoordinateSystem):
             origin=origin
         )
         self.freqs = freqs
+        self.masses = masses
 
     def __getitem__(self, item):
         """
@@ -61,6 +64,7 @@ class MixtureModes(CoordinateSystem):
             name=self.name,
             freqs=freq,
             origin=self._origin,
+            masses=self.masses,
             inverse=inv
         )
 
@@ -88,6 +92,7 @@ class MixtureModes(CoordinateSystem):
             self.basis,
             new_mat,
             freqs=self.freqs,
+            masses=self.masses,
             origin=orig,
             inverse=new_inv
         )
