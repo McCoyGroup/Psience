@@ -446,30 +446,416 @@ class VPT2Tests(TestCase):
         # raise Exception(op.poly_sum())
 
     @debugTest
-    def test_HOHVPTRunner(self):
+    def test_HOHNoKE(self):
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     # include_pseudopotential=False,
+        #     # include_coriolis_coupling=False,
+        #     # kinetic_terms=[np.zeros((3,)*(i+2)) for i in range(3)],
+        #     potential_terms=[np.zeros((3,)*(i+2)) for i in range(3)],
+        #     zero_element_warning=False
+        # )
+
+        COM = -3
+        A = -2
+        C = -1
+        X = 1000
+        LHF = 0
+        LO = 1
+        SH = 2
+        RO = 3
+        RH1 = 4
+        RH2 = 5
+
+        dimer_internals = [
+            [LHF, X, X, X],
+            [LO, LHF, X, X],
+            [SH, LO, LHF, X],
+            [RH2, SH, LO, LHF],  # get out of plane
+            [RO, LO, RH2, LHF],
+            [RH1, RO, RH2, LHF]
+        ]
+
+        hoono_internals = [
+            [1, -1, -1, -1],
+            [2,  1, -1, -1],
+            [3,  2,  1, -1],
+            [0,  1,  2,  3],
+            [4,  3,  2,  1]
+        ]
+
 
         file_name = "HOH_freq.fchk"
-        from Psience.BasisReps import HarmonicOscillatorMatrixGenerator
-        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'rho'
-        # VPTRunner.run_simple(
-        #     TestManager.test_data(file_name),
-        #     3,
-        #     memory_constrained=True,
-        #     logger=True
+        test_internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        # file_name = "water_dimer_freq.fchk"
+        # test_internals = dimer_internals
+        # file_name = "HOONO_freq.fchk"
+        # test_internals = hoono_internals
+        # file_name = "OCHH_freq.fchk"
+
+        mol = Molecule.from_file(TestManager.test_data(file_name))
+        # test_internals = None
+
+        runner1, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            internals=test_internals,
+            # expansion_order={'potential':0},
+            # include_pseudopotential=False,
+            logger=False
+        )
+        # runner1.print_tables()
+        R = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
+        Q = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
+
+        runner1.hamiltonian.reexpress_G(
+            R, Q
+        )
+        raise Exception(...)
+
+
+        runner2, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            internals=[[1, -1, -1, -1], [2, 1, -1, -1], [0, 1, 2, -1]],
+            logger=False
+        )
+
+        # print(runner1.hamiltonian.G_terms[1]+2/3*runner1.hamiltonian.V_terms[1])
+        # print(runner2.hamiltonian.G_terms[1]+2/3*runner2.hamiltonian.V_terms[1])
+        #
+        # raise Exception(...)
+
+        from McUtils.Zachary import TensorDerivativeConverter
+
+        def symm_terms(v_terms):
+            test_V = [0, 0, 0, 0]
+            for i in [3, 2, 1]:
+                test_V[i] = v_terms[i-1]
+            test_V[0] = np.zeros(len(test_V[1]))
+            n = len(test_V[0])
+            for i in range(n):
+                for j in range(n):
+                    for k in range(n):
+                        perms = list(itertools.permutations([i, j, k]))
+                        v3 = sum(test_V[2][p] for p in perms) / len(perms)
+                        for p in perms:
+                            test_V[2][p] = v3
+                        for l in range(n):
+                            perms = list(itertools.permutations([i, j, k, l]))
+                            v4 = sum(test_V[3][p] for p in perms) / len(perms)
+                            for p in perms:
+                                test_V[3][p] = v4
+
+            return test_V
+
+        test_V1 = symm_terms(runner1.hamiltonian.V_terms)
+        n = len(test_V1[0])
+        test_G = [
+            np.zeros((n,) * (i + 2)) if isinstance(g, int) and g == 0 else g
+            for i, g in enumerate(reversed([runner1.hamiltonian.G_terms[n] for n in [2, 1, 0]]))
+        ]
+        # test_V2 = symm_terms(runner2.hamiltonian.V_terms)
+
+        V3 = test_V1[2]
+        freqs = np.diag(test_V1[1])
+
+        V3 = np.tensordot(V3, np.tensordot(V3, np.diag(1/freqs), axes=[2, -1]), axes=[2, -1])
+        V3 = V3 + np.moveaxis(V3, 2, 1) + np.moveaxis(V3, 2, 0)
+
+        ders = [
+            np.eye(len(test_V1[1])),
+            -test_V1[2] / (3*freqs[np.newaxis, np.newaxis, :]),
+            -(test_V1[3] - 5/9*V3) / (4*freqs[np.newaxis, np.newaxis, np.newaxis, :]),
+            0
+        ]
+        # test_V[2] = 0
+        # test_V[3] = 0
+        # corr = wtf + np.moveaxis(wtf, 2, 0) + np.moveaxis(wtf, 1, 0)
+        # print(corr[0])# + test_V[2])
+        # raise Exception(...)
+        # convs = TensorDerivativeConverter(ders, test_V1).convert()#print_transformations=True)
+        convs = TensorDerivativeConverter.convert_fast(ders, test_V1, order=len(ders))
+        print(...)
+        # print(convs[2])
+        # print(convs[3])
+
+        R2 = test_V1[2] / (3*freqs[np.newaxis, np.newaxis, :])
+        # R3 = (test_V1[3] - 6/9*V3) / (4*freqs[np.newaxis, np.newaxis, np.newaxis, :])
+        # R2Q2 = np.tensordot(R2, ders[1], axes=[2, 0])
+        # R2Q2 = R2Q2 + R2Q2.transpose(0,2,1,3) + R2Q2.transpose(2,1,0,3)
+        # R3 = -(ders[2] + R2Q2)
+        R3 = (test_V1[3] - 1/9*V3) / (4*freqs[np.newaxis, np.newaxis, np.newaxis, :])
+
+        dersR = [
+            np.eye(len(test_V1[1])),
+            R2,
+            R3,
+            0
+        ]
+        # convs_R = TensorDerivativeConverter(dersR, convs).convert()  # print_transformations=True)
+
+        # print(np.round(convs[2], 7))
+        # print(np.round(convs[3], 7))
+        # print(np.round(convs_R[1] - test_V1[1], 7))
+        # print(np.round(convs_R[2] - test_V1[2], 7))
+        # print(np.round(convs_R[3] - test_V1[3], 7))
+        # raise Exception(...)
+
+        G0 = np.diag(freqs)
+
+        Q1 = ders[0]
+        Q2 = ders[1]
+        Q3 = ders[2]
+
+        R1 = dersR[0]
+
+        G1_Q = np.tensordot(
+            R2,
+            G0,
+            axes=[1, 0]
+        )
+        # G1 = test_G[1] + (G1_Q + G1_Q.transpose(0, 2, 1))
+
+        W = freqs[:, np.newaxis] / freqs[np.newaxis, :]
+        V1 = test_V1[2]
+        VV = test_V1[2][:, :, :, np.newaxis, np.newaxis] * test_V1[2][np.newaxis, np.newaxis, :, :, :]
+        G1 = test_G[1] + test_V1[2] / 3 * (W + W.T)[np.newaxis]
+
+        G2_QR = 2 * np.tensordot(
+            ders[1],
+            test_V1[2]/3,
+            axes=[2,0]
+        )
+
+        # G2_QR_exp = -sum(
+        #     (
+        #         VV[:, :, a, :, :] / 3 * W[np.newaxis, np.newaxis, :, :]
+        #         #+ V1[:, :, a, np.newaxis, np.newaxis] * test_G[1][np.newaxis, np.newaxis, a, :, :]
+        #     ) / (3 * freqs[a])
+        #     for a in range(3)
         # )
-        # HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'poly'
+        #
+        # print(G2_QR - G2_QR_exp)
+        #
+        # raise Exception(...)
+
+        G2_RR = np.tensordot(
+            R2,
+            R2 * freqs[np.newaxis, :, np.newaxis],
+            axes=[1,1]
+        )
+        G2_RR = sum(
+            G2_RR.transpose(*p)
+            for p in [
+                [0, 2, 1, 3],
+                [0, 2, 3, 1]
+            ]
+        )
+
+        G2_R3 = R3 * freqs[np.newaxis, np.newaxis, :, np.newaxis]
+        G2_R3 = G2_R3 + G2_R3.transpose(0, 1, 3, 2)
+
+        G2_RG = np.tensordot(
+            R2,
+            test_G[1],
+            axes=[1,1]
+        )
+
+        G2_RG = sum(
+            G2_RG.transpose(*p)
+            for p in [
+                [0,2,1,3],
+                [2,0,1,3],
+                [0,2,3,1],
+                [2,0,3,1]
+            ]
+        )
+
+        G2_QG = np.tensordot(
+            Q2,
+            test_G[1],
+            axes=[2,0]
+        )
+
+        G2 = (
+            G2_QR
+            + G2_RR
+            + G2_RG
+            + G2_QG
+            + G2_R3
+            + test_G[2]
+        )
+
+        # print(np.sum(np.abs(G2 - np.moveaxis(G2, 1, 0))))
+        # print(np.sum(np.abs(G2 - np.moveaxis(G2, 3, 2))))
+        # # print(np.max(G2), np.min(G2), np.max(test_G[2]), np.min(test_G[2]))
+        # raise Exception(...)
+
+
+        # runner1.print_tables(print_intensities=False)
+        rrr, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            internals=test_internals,
+            kinetic_terms=[G0, test_G[1], test_G[2]],
+            potential_terms=[G0, test_V1[2], test_V1[3]],
+            include_pseudopotential=False,
+            include_coriolis_coupling=True,
+            logger=False
+        )
+        rrr.print_tables(print_intensities=False)
+        """
+        :: State    <0|dH(2)|0>  <0|dH(1)|1> 
+              0 0 0    100.74075   -156.70145
+              0 0 1    296.33507   -545.08549
+              0 1 0    301.26122   -538.53511
+              1 0 0    108.13556   -213.67502
+              0 0 2    587.47448  -1127.09543
+              0 2 0    597.90621  -1104.59990
+              2 0 0    109.32398   -292.47319
+              0 1 1    687.69956  -1284.13087
+              1 0 1    312.98434   -634.36364
+              1 1 0    326.60393   -633.50201
+        """
+        """
+              0 0 0    105.49844   -157.99275
+              0 0 1    335.26400   -580.55272
+              0 1 0    279.87458   -513.67920
+              1 0 0    105.42497   -207.50600
+              0 0 2    703.29509  -1239.45907
+              0 2 0    554.24618  -1057.46833
+              2 0 0    108.34454   -288.04967
+              0 1 1    678.58740  -1271.55370
+              1 0 1    349.24337   -667.17858
+              1 1 0    259.61523   -563.04545
+              """
+
+        """
+            0 0 0     10.85263   -144.38370
+            0 0 1    103.73295   -428.81417
+            0 1 0    102.30966   -416.98116
+            1 0 0    -35.81457   -148.46241
+            0 0 2    249.91709   -862.39340
+            0 2 0    252.94485   -836.86328
+            2 0 0    -83.05123   -180.01127
+            0 1 1    313.14314   -985.39758
+            1 0 1     18.26562   -419.47037
+            1 1 0      2.24708   -387.69952
+            """
+
+        # for i in range(n):
+        #     for j in range(n):
+        #         for k in range(n):
+        #             if not (i==j and j==k):
+        #                 G1[i,j,k] = 0
+
+        rrr, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            internals=test_internals,
+            kinetic_terms=[G0, G1, G2],
+            potential_terms=[G0, 0, 0],
+            include_pseudopotential=False,
+            include_coriolis_coupling=True,
+            logger=False,
+            zero_element_warning=False
+        )
+        rrr.print_tables(print_intensities=False)
+
+        # print(
+        #     # H2       H1
+        #     # 113.097, -305.887
+        #     219475 * runner1.hamiltonian.get_2nd_order_freqs(
+        #         runner1.states.state_list,
+        #         V_terms=[G0, 0, 0],
+        #         G_terms=[G0, G1, G2]
+        #     )
+        # )
+
+        """
+          0 0 0    176.43652   -163.08293
+          0 0 1    289.53377   -468.96990
+          0 1 0    298.51621   -466.47580
+          1 0 0    170.71509   -206.94025
+          """
+        raise Exception(...)
+
+
+        """
+              0 0 0    176.43652   -163.08293
+              0 0 1    289.53377   -468.96990
+              0 1 0    298.51621   -466.47580
+              1 0 0    170.71509   -206.94025
+              0 0 2    455.91832   -926.22498
+              0 2 0    479.53208   -916.91148
+              2 0 0    153.91367   -267.74859
+              0 1 1    529.20837  -1056.32539
+              1 0 1    285.83732   -537.90233
+              1 1 0    301.48690   -539.07068
+        """
+        """
+          0 0 0     88.73554   -172.09145
+          0 0 1    239.96002   -516.11032
+          0 1 0    191.24982   -455.91603
+          1 0 0    108.69731   -241.63993
+          0 0 2    461.67666  -1028.70222
+          0 2 0    353.91552   -887.99927
+          2 0 0    138.27476   -348.84148
+          0 1 1    455.22336  -1079.05125
+          1 0 1    308.63734   -657.43414
+          1 1 0    183.18822   -517.48003
+          """
+
+        raise Exception(...)
+
+        # print(runner1.hamiltonian.V_terms[0])
+        # print(runner2.hamiltonian.V_terms[0])
+        # print(runner1.hamiltonian.G_terms[1])
+        # print(runner1.hamiltonian.G_terms[1])
+        # print(runner1.hamiltonian.V_terms[1])
+        # print(runner2.hamiltonian.G_terms[1])
+        # print(runner2.hamiltonian.V_terms[1])
+        raise Exception(...)
+
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
-            3
+            2,
+            # include_pseudopotential=False,
+            # kinetic_terms=[np.zeros((3,)*(i+2)) for i in range(3)],
+            # potential_terms=[np.zeros((3,) * (i + 2)) for i in range(3)],
+            internals=[[1, -1, -1, -1], [2, 1, -1, -1], [0, 1, 2, -1]],
+            # potential_derivatives=[mol.potential_derivatives[0], mol.potential_derivatives[1]] + [
+            #     np.zeros_like(mol.potential_derivatives[2]),
+            #     np.zeros_like(mol.potential_derivatives[3])
+            # ],
+            # expansion_order={'kinetic':0},
+            include_pseudopotential=False,
+            # potential_terms=[0, 0, 0],
+            potential_derivatives=[np.zeros_like(m) if i != 1 else m for i,m in enumerate(mol.potential_derivatives)],
+            zero_element_warning=False,
+            calculate_intensities=False
         )
-        # VPTRunner.run_simple(
-        #     TestManager.test_data(file_name),
-        #     3,
-        #     memory_constrained=True,
-        #     include_pseudopotential=False,
-        #     internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]],
-        #     logger=True
-        # )
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            # include_pseudopotential=False,
+            # kinetic_terms=[np.zeros((3,)*(i+2)) for i in range(3)],
+            # potential_terms=[np.zeros((3,)*(i+2)) for i in range(3)],
+            # potential_derivatives=[mol.potential_derivatives[0], mol.potential_derivatives[1]] + [
+            #     np.zeros_like(mol.potential_derivatives[2]),
+            #     np.zeros_like(mol.potential_derivatives[3])
+            # ],
+            # expansion_order={'kinetic':0},
+            include_pseudopotential=False,
+            # potential_terms=[0, 0, 0],
+            potential_derivatives=[np.zeros_like(m) if i != 1 else m for i,m in enumerate(mol.potential_derivatives)],
+            internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]],
+            zero_element_warning=False,
+            calculate_intensities=False
+        )
         # VPTRunner.run_simple(
         #     TestManager.test_data(file_name),
         #     3,
@@ -481,6 +867,16 @@ class VPT2Tests(TestCase):
 
     @validationTest
     def test_HOHVPTRunner(self):
+
+        file_name = "HOH_freq.fchk"
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            3
+        )
+
+    @validationTest
+    def test_HODVPTRunner(self):
 
         file_name = "HOD_freq.fchk"
 
@@ -1237,13 +1633,13 @@ State             Frequency    Intensity       Frequency    Intensity
     def test_OCHHFasterDegen(self):
 
         file_name = "OCHH_freq.fchk"
-        VPTRunner.run_simple(
-            TestManager.test_data(file_name),
-            2,
-            logger=True,
-            degeneracy_specs='auto',
-            extended_space_target_property='frequencies'
-        )
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     logger=True,
+        #     degeneracy_specs='auto',
+        #     extended_space_target_property='frequencies'
+        # )
 
         VPTRunner.run_simple(
             TestManager.test_data(file_name),

@@ -251,6 +251,9 @@ class PerturbationTheoryHamiltonian:
             return Z
 
 
+    def reexpress_G(self, forward_derivs, reverse_derivs, order=2):
+        return self.G_terms.base_terms.reexpress(forward_derivs, reverse_derivs, order=order)
+
     @property
     def H0(self):
         """
@@ -645,6 +648,72 @@ class PerturbationTheoryHamiltonian:
             return harm, anharm, x_mat
         else:
             return harm, anharm
+
+    def get_potential_optimized_coordinates(self):
+        ...
+
+    def get_2nd_order_freqs(self, states, *, freqs=None, V_terms=None, G_terms=None):
+        """
+
+        :param states:
+        :type states:
+        :return:
+        :rtype:
+        """
+
+        # h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # TODO: figure out WTF the units on this have to be...
+
+        if freqs is None:
+            freqs = self.modes.freqs
+        w = freqs
+        if self.mode_selection is not None:
+            w = w[self.mode_selection,]
+
+        if G_terms is None:
+            G_terms = self.G_terms
+        G2 = G_terms[2]
+        G1 = G_terms[1]
+
+        if V_terms is None:
+            V_terms = self.V_terms
+        V2 = V_terms[2]
+        V1 = V_terms[1]
+
+        if isinstance(G1, int) and G1 == 0:
+            G1 = np.zeros((len(w),)*3)
+        if isinstance(G2, int) and G2 == 0:
+            G2 = np.zeros((len(w),)*4)
+        if isinstance(V1, int) and V1 == 0:
+            V1 = np.zeros((len(w),)*3)
+        if isinstance(V2, int) and V2 == 0:
+            V2 = np.zeros((len(w),)*4)
+
+        V2 = V2 / 24
+        V1 = V1 / 6
+        G2 = G2 / 4
+        G1 = G1 / 2
+
+        exc = np.asanyarray(states)
+        ndim = exc.shape[1]
+        anh_h1 = np.zeros(len(exc))
+        anh_h2 = np.zeros(len(exc))
+        VV1 = 3*V1
+        for i in range(ndim):
+            for j in range(ndim):
+                exc_prod = exc[:, i] * (exc[:, j] + 1)
+                scaling_h2 = (G2[j,j,i,i] + G2[i,i,j,j])/ (4 if i == j else 2)
+                # print(scaling_h2, exc_prod[:4])
+                scaling_h1 = sum(
+                    (G1[i,j,k] + G1[j,i,k] + G1[k,i,j] + VV1[i, j, k])**2 / (w[i] + w[j] + w[k])
+                        + (G1[j,i,k] - (G1[i,j,k] + G1[k,i,j]) + VV1[i, j, k])**2 / (w[i] - w[j] + w[k])
+                    for k in range(ndim)
+                )
+                anh_h1 += exc_prod * scaling_h1
+                # anh_h2 += exc_prod * scaling_h2
+        h0_contrib = np.dot(exc, w)
+        return anh_h1 # h0_contrib + anh_h1 + anh_h2
 
     #endregion Nielsen energies
 

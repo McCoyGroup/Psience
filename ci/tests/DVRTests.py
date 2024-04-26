@@ -4,6 +4,7 @@ from unittest import TestCase
 
 from McUtils.Data import UnitsData, PotentialData
 from McUtils.Zachary import Interpolator
+from McUtils.Extensions import ModuleLoader
 import McUtils.Plots as plt
 
 from Psience.DVR import *
@@ -212,7 +213,7 @@ class DVRTests(TestCase):
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
 
-    @debugTest
+    @validationTest
     def test_Ring2DDifferentMass(self):
 
         dvr_2D = RingNDDVR((45, 45))
@@ -288,6 +289,59 @@ class DVRTests(TestCase):
                          )
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
+
+    def setupMBPolModel(self):
+        ...
+    @debugTest
+    def test_MBPolDVR(self):
+        loader = ModuleLoader(TestManager.current_manager().test_data_dir)
+        mbpol = loader.load("LegacyMBPol").potential
+        mol = Molecule.from_file(TestManager.test_data("water_freq.fchk")) # we won't bother to reoptimize
+
+
+        mol.zmatrix = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+
+        disps_r = np.linspace(-.2, .5, 25) / UnitsData.bohr_to_angstroms
+        # # disps_r = np.zeros_like(disps_r)
+        # dr_coords0 = mol.get_displaced_coordinates(
+        #     disps_r[:, np.newaxis],
+        #     [0],
+        #     internals='convert',
+        #     strip_embedding=True
+        # )
+        # dr_coords1 = mol.get_displaced_coordinates(
+        #     disps_r[:, np.newaxis],
+        #     [1],
+        #     internals='convert',
+        #     strip_embedding=True
+        # )
+
+        # pot0 = mbpol(dr_coords0)[0]
+        # pot1 = mbpol(dr_coords1)[0]
+        # p1 = plt.Plot(disps_r, pot0 * 219475.6)
+        # plt.Plot(disps_r, pot1 * 219475.6).show()
+
+        disps_grid = np.array(np.meshgrid(disps_r, disps_r))
+        dr_coords = mol.get_displaced_coordinates(
+            np.moveaxis(disps_grid, 0, -1).reshape(-1, disps_grid.shape[0]),
+            [0, 1],
+            internals='convert',
+            strip_embedding=True
+        )
+
+        # raise Exception(
+        #     np.linalg.norm(dr_coords[:, 0] - dr_coords[:, 1], axis=1),
+        #     np.linalg.norm(dr_coords[:, 0] - dr_coords[:, 2], axis=1)
+        # )
+
+        pot = mbpol(dr_coords)[0]
+        plt.ContourPlot(*disps_grid, pot.reshape(disps_grid[0].shape) * 219475.6).show()
+
+
 
     @validationTest
     def test_MoleculeDVR(self):

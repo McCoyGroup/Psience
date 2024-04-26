@@ -151,22 +151,26 @@ class NormalModes(MixtureModes):
                 origin=mol.coords
             )
 
-    def get_nearest_mode_transform(self, alternate_modes, unitary=True, unitary_mode_cutoff=1e-6):
+    def get_nearest_mode_transform(self, alternate_modes, unitary=True):#, unitary_mode_cutoff=1e-6):
         modes = self.matrix
 
         ls_tf = np.linalg.inv(modes.T @ modes) @ modes.T @ alternate_modes
 
+        U, s, V = np.linalg.svd(ls_tf)
+        # good_s = np.where(s > unitary_mode_cutoff)[0]
         if unitary:
-            U, s, V = np.linalg.svd(ls_tf)
-            good_s = np.where(s > unitary_mode_cutoff)[0]
-            R = (U[:, good_s] @ V[good_s, :])
+            R = U[:, :len(s)] @ V[:len(s), :]
+            # R = (U[:, :len(s)] @ V[good_s, ])
         else:
             R = ls_tf
+            # R = (U[:, :len(s)] @ np.diag(s) @ V[:len(s), good_s])
+
+
 
         return R
 
     def get_localized_modes(self,
-                            target_coords,
+                            target_coords:"Iterable[Iterable[int]|dict]",
                             fixed_coords=None,
                             mass_weight=True,
                             symmetrizer=None,
@@ -183,16 +187,34 @@ class NormalModes(MixtureModes):
             raise NotImplementedError("can't get local modes for non-Cartesian basis")
 
         targets = []
+        coord_types = {
+            'dist': nput.dist_vec,
+            'bend': nput.angle_vec,
+            'rock': nput.rock_vec,
+            'dihed': nput.dihed_vec,
+            'oop': nput.oop_vec
+        }
+        coord_keys = list(coord_types.keys())
         for idx in target_coords:
-            nidx = len(idx)
-            if nidx == 2:
-                targets.append(nput.dist_vec(carts, *idx))
-            elif nidx == 3:
-                targets.append(nput.angle_vec(carts, *idx))
-            elif nidx == 4:
-                targets.append(nput.dihed_vec(carts, *idx))
+            if isinstance(idx, dict):
+                for k in coord_keys:
+                    if k in idx:
+                        coord_type = k
+                        idx = idx[k]
+                        break
+                else:
+                    raise ValueError("can't parse coordinate spec {}".format(idx))
             else:
-                raise ValueError("can't parse coordinate spec {}".format(idx))
+                nidx = len(idx)
+                if nidx == 2:
+                    coord_type = 'dist'
+                elif nidx == 3:
+                    coord_type = 'bend'
+                elif nidx == 4:
+                    coord_type = 'dihed'
+                else:
+                    raise ValueError("can't parse coordinate spec {}".format(idx))
+            targets.append(coord_types[coord_type](carts, *idx))
 
         # if normalize:
         #     targets = [
@@ -230,7 +252,7 @@ class NormalModes(MixtureModes):
             ltf_inv = np.linalg.pinv(ltf)
 
         if make_oblique:
-            new_f = ltf.T @ np.diag(self.freqs ** 2) @ ltf
+            new_f = ltf_inv @ np.diag(self.freqs ** 2) @ ltf_inv.T
             new_g = np.eye(len(new_f))
             ob_f, ob_g, ob_u, ob_ui = ObliqueModeGenerator(new_f, new_g).run()
             if mode_selection is not None:
@@ -241,19 +263,27 @@ class NormalModes(MixtureModes):
                 ltf_inv = ob_ui @ ltf_inv
         elif mode_selection is not None:
             ltf = ltf[:, mode_selection]
-            ltf_inv = ltf.T
+            ltf_inv = ltf_inv[mode_selection, :]
 
         res = (ltf, ltf_inv)
         if rediagonalize:
             new_f = ltf_inv @ np.diag(self.freqs ** 2) @ ltf_inv.T
-            new_freq2, mode_tf = np.linalg.eigh(new_f)
-            mode_inv = mode_tf.T
-            if not make_oblique:
-                new_freqs = np.sqrt(new_freq2)
-            else:
-                new_freqs = new_freq2
-                mode_tf = mode_tf @ np.diag(1/np.sqrt(new_freqs))
-                mode_inv = np.diag(np.sqrt(new_freqs)) @ mode_inv
+            new_g = ltf.T @ ltf
+            new_freqs, mode_tf, mode_inv = self.get_normal_modes(
+                new_f, new_g,
+                dimensionless=False
+            )
+            mode_inv, mode_tf = mode_tf.T, mode_inv.T
+            # new_freq2, mode_inv = slag.eigh(new_f, new_g, type=3)
+            # # raise Exception(new_freq2 * 219475.6)
+            # mode_tf = np.linalg.pinv(mode_inv)
+            # # if not make_oblique:
+            # new_freqs = np.sqrt(new_freq2)
+            # raise Exception(new_freqs * 219475.6)
+            # else:
+            #     new_freqs = new_freq2
+            #     mode_tf = mode_tf @ np.diag(1/np.sqrt(new_freqs))
+            #     mode_inv = np.diag(np.sqrt(new_freqs)) @ mode_inv
 
             full_tf = ltf @ mode_tf
             full_inv = mode_inv @ ltf_inv

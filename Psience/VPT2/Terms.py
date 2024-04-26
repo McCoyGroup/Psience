@@ -10,6 +10,7 @@ from McUtils.Data import UnitsData
 from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer
 from McUtils.Zachary import TensorDerivativeConverter, TensorExpansionTerms
+from McUtils.Combinatorics import IntegerPartitioner, UniquePermutations
 
 from ..Molecools import Molecule, MolecularVibrations, MolecularNormalModes
 
@@ -2016,6 +2017,63 @@ class KineticTerms(ExpansionTerms):
             pass
 
         return G_terms
+
+    @classmethod
+    def _dRGQ_partition_contrib(cls, partition, R, G):
+        r1, r2, s = partition
+        if s - 1 >= len(G): return 0
+        if r1 - 1 >= len(R) or r2 - 1 >= len(R): return 0
+
+        # adapted from standard tensor derivative conversions
+        perm_counter = 2
+        perm_idx = []  # to establish the set of necessary permutations to make things symmetric
+
+        base_term = G[s]
+        if isinstance(base_term, (int, float, np.integer, np.floating)) and base_term == 0:
+            return 0
+        if s > 0:
+            perm_idx.extend([perm_counter] * (s-1))
+            perm_counter -= 1
+
+        for r in [r1, r2]:
+            d = R[r - 1]
+            if isinstance(d, (int, float, np.integer, np.floating)) and d == 0:
+                return 0
+            base_term = np.tensordot(d, base_term, axes=[-2, -1])
+            perm_idx.extend([perm_counter] * r)
+            perm_counter -= 1
+
+        # sometimes we overcount, so we factor that out here
+        nterms = TensorDerivativeConverter.compute_partition_terms(partition)
+        perm_inds, _ = UniquePermutations(perm_idx).permutations(return_indices=True)
+
+        overcount = len(perm_inds) / nterms
+        base_term = base_term / overcount
+
+        # print(base_term.shape, perm_idx, _, perm_inds)
+
+        return sum(base_term.transpose(p) for p in perm_inds)
+
+    @classmethod
+    def _dRGQ_derivs(cls, R, G, o):
+        parts = IntegerPartitioner.partitions(o, pad=True, max_len=3)
+        if parts.shape[1] < 3:
+            parts = np.concatenate([
+                parts, np.zeros((parts.shape[0], 3 - parts.shape[1]), dtype=parts.dtype)
+            ],
+                axis=1
+            )
+        for partition in parts:
+            ...
+
+    def reexpress(self, forward_derivs, reverse_derivs, order=2):
+        R = reverse_derivs
+        Q = forward_derivs
+        G = list(reversed([self[o] for o in range(order, -1, -1)]))
+
+        G_R = [self._dRGQ_derivs(R, G, o) for o in range(1, order+1)]
+
+        return TensorDerivativeConverter.convert_fast(Q, G_R, order=order)
 
 class CoriolisTerm(ExpansionTerms):
     """

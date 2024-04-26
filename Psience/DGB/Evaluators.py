@@ -625,6 +625,10 @@ class DGBEvaluator:
                         [-x for x in range(1, fdim+1)]
                     )
 
+                    if ms_contrib.ndim > 1:
+                        sum_prefac = sum_prefac[:, np.newaxis]
+                        diff_prefac = diff_prefac[:, np.newaxis]
+
                     ms_contrib *= sum_prefac
                     contrib *= diff_prefac
                     # print("dd>", contrib[:5])

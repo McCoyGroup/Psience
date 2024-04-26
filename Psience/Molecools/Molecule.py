@@ -848,7 +848,11 @@ class Molecule(AbstractMolecule):
             internals=self.internals
         ).evaluate(func, internals=internals, deriv_order=deriv_order, strip_embedding=strip_embedding)
 
-    def get_displaced_coordinates(self, displacements, which=None, sel=None, axes=None, internals=False, shift=True):
+    def get_displaced_coordinates(self, displacements, which=None, sel=None, axes=None,
+                                  internals=False,
+                                  strip_embedding=False,
+                                  shift=True
+                                  ):
         displacements = np.asanyarray(displacements)
 
         if which is not None:
@@ -862,6 +866,10 @@ class Molecule(AbstractMolecule):
         if internals and self.internals is None:
             raise ValueError("can't displace in internals without internal coordinate spec")
         base_coords = self.coords if not internals else self.internal_coordinates
+        if strip_embedding:
+            ecs = self._get_embedding_coords()
+            all_coords = np.arange(len(self._ats) * 3)
+            which = np.setdiff1d(all_coords, ecs)[which,]
 
         if which is not None:
             if displacements.shape[-1] != len(which):  # displacements provided in atom coordinates

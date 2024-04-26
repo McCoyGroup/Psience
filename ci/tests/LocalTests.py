@@ -380,136 +380,77 @@ class LocalTests(TestCase):
 
         self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
 
-        iterative = False
-        if iterative:
-            ortho = ObliqueModeGeneratorIterative.from_molecule(mol, logger=True)
-            f, g, u, its, _ = ortho.run()
-
-            # with np.printoptions(linewidth=1e8):
-            #     print('Initial:')
-            #     print("F")
-            #     print(ortho.f)
-            #     print("-" * 50)
-            #     print("G")
-            #     print(ortho.g)
-            #     print("="*50)
-            #     print("Iterations:", its)
-            #     print("F")
-            #     print(f)
-            #     print("-" * 50)
-            #     print("G")
-            #     print(g)
-
-            rl, a, rr = np.linalg.svd(u)
-            r = (rl @ rr)
-            # with np.printoptions(linewidth=1e8, suppress=True):
-            #     print(np.round(r, 8))
-
-            u2 = u @ r.T
-            u2i = np.linalg.inv(u2)
-            # print(u2)
-            # print("-"*50)
-            #
-            # print(u.T@ ortho.g @u)
-            # print(ui@ ortho.f @ui.T)
-            # print("-"*50)
-            gp = u2.T @ ortho.g @ u2
-            fp = u2i @ ortho.f @ u2i.T
-            # print(gp)
-            # print(fp)
-
-            print(u2)
-            print(
-                "Asymmetry Norms",
-                "U", np.linalg.norm((u - u.T).flatten()),
-                "S", np.linalg.norm((u2 - u2.T).flatten())
-            )
-            print(
-                "Off-Diag Norms  ",
-                "U:", ortho.off_diag_norm(f, g),
-                "S:", ortho.off_diag_norm(fp, gp),
-            )
-            print(
-                "Diag Norms  ",
-                "U:", np.linalg.norm(np.diag(f - g)),
-                "S:", np.linalg.norm(np.diag(fp - gp)),
-            )
-
-            self.assertLess(its, 250)
-
-        else:
-
-            mol = Molecule.from_file(
-                TestManager.test_data('nh3.fchk'),
-                internals=zmatrix
-            )
-            ortho = ObliqueModeGenerator.from_molecule(mol, sel=[0, 1, 3, 2, 4, 5])
-            f, g, u, ui = ortho.run()
+        mol = Molecule.from_file(
+            TestManager.test_data('nh3.fchk'),
+            internals=zmatrix
+        )
+        ortho = ObliqueModeGenerator.from_molecule(mol, sel=[0, 1, 3, 2, 4, 5])
+        f, g, u, ui = ortho.run()
 
 
-            from McUtils.Misc import TeX
+        from McUtils.Misc import TeX
 
-            def format_mat(lhs, m, label=None, digits=1):
-                f_og = m.astype(object)
-                f_og[np.tril_indices_from(f_og, -1)] = ""
-                fsym = TeX.bold(lhs).as_expr()
-                TeX.Writer.real_digits = digits
-                fexpr = fsym.Eq(TeX.Matrix(f_og))
-                return TeX.Equation(fexpr, label=label).format_tex()
+        def format_mat(lhs, m, label=None, digits=1):
+            f_og = m.astype(object)
+            f_og[np.tril_indices_from(f_og, -1)] = ""
+            fsym = TeX.bold(lhs).as_expr()
+            TeX.Writer.real_digits = digits
+            fexpr = fsym.Eq(TeX.Matrix(f_og))
+            return TeX.Equation(fexpr, label=label).format_tex()
 
-            sys = 'nh3_nosymm'
-            print(
-                format_mat('F', ortho.f * UnitsData.convert("Hartrees", "Wavenumbers"), label='f_' + sys)
-            )
-            print(
-                format_mat('G', ortho.g * UnitsData.convert("Hartrees", "Wavenumbers"), label='g_' + sys)
-            )
-            print(
-                format_mat('F', f * UnitsData.convert("Hartrees", "Wavenumbers"), label='F_' + sys)
-            )
-            print(
-                format_mat('A', u, label='P_' + sys, digits=3)
-            )
+        sys = 'nh3_nosymm'
+        print(
+            format_mat('F', ortho.f * UnitsData.convert("Hartrees", "Wavenumbers"), label='f_' + sys)
+        )
+        print(
+            format_mat('G', ortho.g * UnitsData.convert("Hartrees", "Wavenumbers"), label='g_' + sys)
+        )
+        print(
+            format_mat('F', f * UnitsData.convert("Hartrees", "Wavenumbers"), label='F_' + sys)
+        )
+        print(
+            format_mat('A', u, label='P_' + sys, digits=3)
+        )
 
-            mol = Molecule.from_file(
-                TestManager.test_data('nh3.fchk'),
-                internals=internals
-            )
+        mol = Molecule.from_file(
+            TestManager.test_data('nh3.fchk'),
+            internals=internals
+        )
 
-            ortho = ObliqueModeGenerator.from_molecule(mol, sel=[0, 1, 3, 2, 4, 5])
-            f, g, u, ui = ortho.run()
-            # print(np.linalg.norm((f - g).flatten()))
-            # print("-"*50)
-            # print(u)
-            # print("-"*50)
-            # print(ui)
+        ortho = ObliqueModeGenerator.from_molecule(mol, sel=[0, 1, 3, 2, 4, 5])
+        f, g, u, ui = ortho.run()
+        # print(np.linalg.norm((f - g).flatten()))
+        # print("-"*50)
+        # print(u)
+        # print("-"*50)
+        # print(ui)
 
-            self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
+        self.assertLess(abs(np.linalg.norm((f - g).flatten())), 1e-15)
 
-            from McUtils.Misc import TeX
+        from McUtils.Misc import TeX
 
-            def format_mat(lhs, m, label=None, digits=1):
-                f_og = m.astype(object)
-                f_og[np.tril_indices_from(f_og, -1)] = ""
-                fsym = TeX.bold(lhs).as_expr()
-                TeX.Writer.real_digits = digits
-                fexpr = fsym.Eq(TeX.Matrix(f_og))
-                return TeX.Equation(fexpr, label=label).format_tex()
+        def format_mat(lhs, m, label=None, digits=1):
+            f_og = m.astype(object)
+            f_og[np.tril_indices_from(f_og, -1)] = ""
+            fsym = TeX.bold(lhs).as_expr()
+            TeX.Writer.real_digits = digits
+            fexpr = fsym.Eq(TeX.Matrix(f_og))
+            return TeX.Equation(fexpr, label=label).format_tex()
 
-            print("="*50)
-            sys = 'nh3_symm'
-            print(
-                format_mat('F', ortho.f * UnitsData.convert("Hartrees", "Wavenumbers"), label='f_' + sys)
-            )
-            print(
-                format_mat('G', ortho.g * UnitsData.convert("Hartrees", "Wavenumbers"), label='g_' + sys)
-            )
-            print(
-                format_mat("F", f * UnitsData.convert("Hartrees", "Wavenumbers"), label='F_' + sys)
-            )
-            print(
-                format_mat('A', u, label='P_' + sys, digits=3)
-            )
+        print("="*50)
+        sys = 'nh3_symm'
+        print(
+            format_mat('F', ortho.f * UnitsData.convert("Hartrees", "Wavenumbers"), label='f_' + sys)
+        )
+        print(
+            format_mat('G', ortho.g * UnitsData.convert("Hartrees", "Wavenumbers"), label='g_' + sys)
+        )
+        print(
+            format_mat("F", f * UnitsData.convert("Hartrees", "Wavenumbers"), label='F_' + sys)
+        )
+        print(
+            format_mat('A', u, label='P_' + sys, digits=3)
+        )
 
     @validationTest
     def test_Dimer(self):
@@ -1287,8 +1228,12 @@ class LocalTests(TestCase):
                       model_name,
                       base_coords,
                       internals,
-                      subsel=None,
+                      coord_sel=None,
+                      mode_selection=None,
                       monomer=0,
+                      states=2,
+                      logger=False,
+                      degeneracy_specs='auto',
                       fix_oxygens=False,
                       mass_weight=True,
                       unitary=True,
@@ -1297,7 +1242,8 @@ class LocalTests(TestCase):
                       print_normal_modes=False,
                       print_local_modes=False,
                       print_target_modes=False,
-                      reexpand=False
+                      reexpand=False,
+                      return_runner=False
                       ):
         from Psience.VPT2 import VPTRunner
 
@@ -1354,12 +1300,12 @@ class LocalTests(TestCase):
                 print(nms.origin)
                 print(nms.matrix)
 
-        if subsel is None and monomer is not None:
+        if coord_sel is None and monomer is not None:
             if isinstance(monomer, (int, np.integer)):
-                subsel = [0 + 3*monomer, 1 + 3*monomer, 2 + 3*monomer]
+                coord_sel = [0 + 3 * monomer, 1 + 3 * monomer, 2 + 3 * monomer]
             else:
                 monomers = list(sorted(monomer)) # type:list
-                subsel = sum([
+                coord_sel = sum([
                     [0 + 3 * m, 1 + 3 * m, 2 + 3 * m]
                     for m in monomers
                     ],
@@ -1368,10 +1314,10 @@ class LocalTests(TestCase):
                 # include the OO coordinates
                 o_pos = nwaters * 3
                 for i,m1 in enumerate(monomers):
-                    shift_1 = sum(nwaters-j for j in range(m1))
+                    shift_1 = sum(nwaters-j-1 for j in range(m1))
                     for m2 in monomers[i+1:]:
                         oo_mode = o_pos + shift_1 + (m2 - m1) - 1
-                        subsel.append(oo_mode)
+                        coord_sel.append(oo_mode)
                         # print(internals[oo_mode])
 
         if internals is not None:
@@ -1382,7 +1328,7 @@ class LocalTests(TestCase):
                 mass_weight=mass_weight,
                 unitary=unitary,
                 make_oblique=make_oblique,
-                mode_selection=subsel,
+                mode_selection=coord_sel,
                 return_target_modes=True
             )
 
@@ -1410,18 +1356,121 @@ class LocalTests(TestCase):
         #                                 axes=[1, 1]
         #                                 )
 
+        if isinstance(mode_selection, (int, float, np.integer, np.floating)):
+             mode_selection = [i for i,f in enumerate(loc_nms.freqs) if f > mode_selection]
+
         new_runner = VPTRunner.construct(
             [mol.atoms, mol.coords],
-            2,
-            degeneracy_specs='auto',
-            # mode_selection=[i for i,f in enumerate(loc_nms.freqs) if f > 1000 / 219475.6],
+            states,
+            degeneracy_specs=degeneracy_specs,
+            mode_selection=mode_selection,
             modes={'freqs': loc_nms.freqs, 'matrix': loc_nms.matrix, 'inverse': loc_nms.inverse},
-            logger=False,
+            logger=logger,
             potential_derivatives=pot_expansion
         )[0]
-        new_runner.print_tables(print_intensities=False)
+        if return_runner:
+            return new_runner
+        else:
+            new_runner.print_tables(print_intensities=False)
+    def runMBPolMonomers(self,
+                         model_name,
+                         base_coords,
+                         internals,
+                         print_local_modes=True,
+                         **opts
+                         ):
+        nwaters = len(base_coords) // 3
+        for i in range(nwaters):
+            print("=" * 25, "Monomer", i, "=" * 25)
+            self.runMBPolModel(
+                model_name,
+                base_coords,
+                internals,
+                **opts,
+                print_local_modes=print_local_modes,
+                monomer=i
+            )
+    def runMBPolDimers(self,
+                       model_name,
+                       base_coords,
+                       internals,
+                       print_local_modes=True,
+                       **opts
+                       ):
+        nwaters = len(base_coords) // 3
+        for i in itertools.combinations(range(nwaters), 2):
+            print("=" * 25, "Dimer", i, "=" * 25)
+            self.runMBPolModel(
+                model_name,
+                base_coords,
+                internals,
+                print_local_modes=print_local_modes,
+                **opts,
+                monomer=list(i)
+            )
 
-    def setupDefaultInternals(self, nwaters, remapping=None):
+    def runMBPolNMers(self,
+                      model_name,
+                      base_coords,
+                      internals,
+                      k,
+                      print_local_modes=True,
+                      **opts
+                      ):
+        nwaters = len(base_coords) // 3
+        for i in itertools.combinations(range(nwaters), k):
+            print("=" * 25, "NMer", i, "=" * 25)
+            self.runMBPolModel(
+                model_name,
+                base_coords,
+                internals,
+                print_local_modes=print_local_modes,
+                **opts,
+                monomer=list(i)
+            )
+
+    def runMBE(self,
+               model_name,
+               base_coords,
+               internals,
+               order,
+               run_non_oblique=True,
+               **opts
+               ):
+
+        if isinstance(order, (int, np.integer)):
+            order = range(1, order+1)
+
+        for i,k in enumerate(order):
+            if i > 0:
+                print("~"*100)
+            if k == 1:
+                runner = self.runMBPolMonomers
+            elif k == 2:
+                runner = self.runMBPolDimers
+            else:
+                runner = lambda *a,_o=k,**kw:self.runMBPolNMers(*a,_o,**kw)
+
+            runner(
+                model_name,
+                base_coords,
+                internals,
+                **opts
+            )
+            if run_non_oblique:
+                runner(
+                    model_name,
+                    base_coords,
+                    internals,
+                    make_oblique=False,
+                    **opts
+                )
+
+    def setupDefaultInternals(self, nwaters, remapping=None,
+                              include_hoh_rocks=False,
+                              include_hoh_oop=True,
+                              include_hydrogen_oop=False,
+                              include_oxygen_oop=False):
         internals = []
         for i in range(nwaters):
             # monomer internals
@@ -1437,27 +1486,43 @@ class LocalTests(TestCase):
         combos = itertools.combinations(waters_pos, 2)
         internals.extend(combos)
 
-        if nwaters > 2:
-            nats = nwaters * 3
-            for i in range(nwaters):
-                diheds = np.array([
-                    [1, 0, 3, 6],
-                    [2, 0, 3, 6]
-                ]) + 3*i
-                internals.extend((diheds % nats).tolist())
-        else:
-            internals.extend([
-                [1, 0, 3, 2],
-                [4, 3, 0, 5]
-            ])
+        if include_hydrogen_oop:
+            if nwaters > 2:
+                nats = nwaters * 3
+                for i in range(nwaters):
+                    diheds = np.array([
+                        [1, 0, 3, 6],
+                        [2, 0, 3, 6]
+                    ]) + 3*i
+                    internals.extend((diheds % nats).tolist())
+            else:
+                internals.extend([
+                    [1, 0, 3, 2],
+                    [4, 3, 0, 5]
+                ])
 
-        if nwaters > 3:
-            nats = nwaters * 3
+        if include_hoh_rocks:
             for i in range(nwaters):
-                diheds = np.array([
-                    [0, 3, 6, 9]
-                ]) + 3 * i
-                internals.extend((diheds % nats).tolist())
+                # monomer internals
+                internals.append(
+                    {"rock":np.array([0, 1, 2]) + 3 * i}
+                )
+        if include_hoh_oop:
+            for i in range(nwaters):
+                # monomer internals
+                internals.extend([
+                    {"oop":np.array([1, 0, 2]) + 3 * i},
+                    {"oop":np.array([2, 0, 1]) + 3 * i}
+                ])
+
+        if include_oxygen_oop:
+            if nwaters > 3:
+                nats = nwaters * 3
+                for i in range(nwaters):
+                    diheds = np.array([
+                        [0, 3, 6, 9]
+                    ]) + 3 * i
+                    internals.extend((diheds % nats).tolist())
 
         if remapping is not None:
             internals = [ [remapping[i] for i in idx] for idx in internals ]
@@ -1466,7 +1531,7 @@ class LocalTests(TestCase):
         # raise Exception(len(internals))
         return internals
 
-    @debugTest
+    @validationTest
     def test_WaterDimerMBPol(self):
         dimer_coords = [
              [ 2.86771112e+00, -3.17080506e-05, -2.23401093e-01],
@@ -1476,11 +1541,22 @@ class LocalTests(TestCase):
              [-3.31628543e+00,  1.43506723e+00, -6.69046768e-01],
              [-3.31598121e+00, -1.43556339e+00, -6.69113632e-01]
         ]
-        dimer_internals = self.setupDefaultInternals(2) + [
-            [2, 0, 3],
-            # [4, 3, 0, 1],
-            # [5, 3, 0, 1]
+        dimer_internals = self.setupDefaultInternals(2,
+                                                     include_hoh_rocks=True,
+                                                     # include_hydrogen_oop=True,
+                                                     # include_oxygen_oop=True
+                                                     ) + [
+            # [0, 2, 3]
+            # {'rock':[0, 2, 1]}
+            # [3, 4, 0],
+            # [3, 5, 0],
+            # [2, 0, 3, 1],
+            # [5, 3, 0, 4]
         ]
+        # for i in dimer_internals: print(i)
+        # coord_sel = list(range(len(dimer_internals)))
+        coord_sel = None
+        unitary = True
 
         # self.runMBPolModel(
         #     'dimer',
@@ -1507,27 +1583,66 @@ class LocalTests(TestCase):
         0 1 0 0 0 0 0 0 0 0 0 0            -            -    139.43585    122.53374 
         1 0 0 0 0 0 0 0 0 0 0 0            -            -    115.32749     98.06471 
         """
+        # dimer_internals = dimer_internals[:7]
 
-        print("=" * 25, "Monomer 01", "=" * 25)
-        self.runMBPolModel(
+        self.runMBPolDimers(
             'dimer',
             dimer_coords,
             dimer_internals,
             make_oblique=True,
-            print_local_modes=True,
             # print_target_modes=True,
-            monomer=[0, 1]
+            print_local_modes=True,
+            states=1,
+            unitary=unitary,
+            coord_sel=coord_sel
         )
-        print("=" * 25, "Monomer 01", "=" * 25)
-        self.runMBPolModel(
+        self.runMBPolDimers(
             'dimer',
             dimer_coords,
             dimer_internals,
             make_oblique=False,
             print_local_modes=True,
-            unitary=False,
-            monomer=[0, 1]
+            states=1,
+            unitary=unitary,
+            # logger=True,
+            # degeneracy_specs=None
+            coord_sel=coord_sel
         )
+        raise Exception(...)
+        """
+          0 0 0 0 0 0 0 0 0 0 0 0   5853.10002  -6074.76262
+          0 0 0 0 0 0 0 0 0 0 0 1   4855.74021  -5270.21753
+          0 0 0 0 0 0 0 0 0 0 1 0   4892.10490  -5300.24470
+          0 0 0 0 0 0 0 0 0 1 0 0   4885.68015  -5292.13179
+          0 0 0 0 0 0 0 0 1 0 0 0   5266.83748  -5643.89664
+          0 0 0 0 0 0 0 1 0 0 0 0   5971.60496  -6247.66005
+          0 0 0 0 0 0 1 0 0 0 0 0   5954.60280  -6226.05650
+          0 0 0 0 0 1 0 0 0 0 0 0   6844.30755  -7174.06762
+          0 0 0 0 1 0 0 0 0 0 0 0   8054.93504  -8291.34756
+          0 0 0 1 0 0 0 0 0 0 0 0   7741.35679  -7995.76363
+          0 0 1 0 0 0 0 0 0 0 0 0  10720.29560 -10952.97684
+          0 1 0 0 0 0 0 0 0 0 0 0  12571.55265 -12810.11736
+          1 0 0 0 0 0 0 0 0 0 0 0  15945.16875 -16184.09412
+          """
+        # print("?"*100)
+        # print(
+        #     #43259.11917984811 -8466.495366325204
+        #     #75789.83266522287 -7139.485937973492
+        #     np.max(runner.hamiltonian.V_terms[2] * 219475.6),
+        #     np.min(runner.hamiltonian.V_terms[2] * 219475.6)
+        # )
+        # print("=" * 25, "Monomer 01", "=" * 25)
+        # self.runMBPolModel(
+        #     'dimer',
+        #     dimer_coords,
+        #     dimer_internals,
+        #     make_oblique=False,
+        #     print_local_modes=True,
+        #     unitary=False,
+        #     # coord_sel=[i for i,x in enumerate(dimer_internals) if any(j in x for j in [0, 1, 2])],
+        #     monomer=[0, 1],
+        #     mode_selection=1000 / UnitsData.hartrees_to_wavenumbers#
+        # )
         raise Exception(...)
         for i in range(2):
             print("="*25, "Monomer", i, "="*25)
@@ -1574,50 +1689,51 @@ class LocalTests(TestCase):
         # self.runMBPolModel(
         #     'trimer',
         #     init_coords,
-        #     None,
-        #     make_oblique=False,
-        #     subsel=list(range(nwaters*9-6)),
-        #     print_normal_modes=False
+        #     internals,
+        #     coord_sel=None,
+        #     monomer=None
         # )
-        """
-        >>------------------------- Degenerate Energies -------------------------
-        :: State                                         Harmonic   Anharmonic     Harmonic   Anharmonic
-                                                           ZPE          ZPE    Frequency    Frequency
-        0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0  16030.84844  15620.45757            -            - 
-        0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1            -            -   3916.28037   3712.73266 
-        0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0            -            -   3915.29839   3685.53888 
-        0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0            -            -   3906.79461   3930.33805 
-        0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0            -            -   3694.20888   3481.52786 
-        0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0            -            -   3684.90336   3415.98138 
-        0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0            -            -   3635.89009   3491.38620 
-        0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0            -            -   1684.75872   1578.52875 
-        0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0            -            -   1660.53344   1586.95042 
-        0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0            -            -   1655.79428   1550.23620 
-        0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0            -            -    827.46761   1078.76585 
-        0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0            -            -    644.78331    522.58431 
-        """
+        # raise Exception(...)
 
-        for i in range(2):
-            print("=" * 25, "Monomer", i, "=" * 25)
-            self.runMBPolModel(
-                'trimer',
-                init_coords,
-                internals,
-                print_local_modes=True,
-                # print_target_modes=True,
-                mass_weight=True,
-                monomer=i
-            )
-        for i in range(2):
-            print("=" * 25, "Monomer", i, "=" * 25)
-            self.runMBPolModel(
-                'trimer',
-                init_coords,
-                internals,
-                make_oblique=False,
-                print_local_modes=True,
-                monomer=i
-            )
+        # self.runMBPolNMers(
+        #     'trimer',
+        #     init_coords,
+        #     internals,
+        #     3
+        # )
+        # self.runMBPolNMers(
+        #     'trimer',
+        #     init_coords,
+        #     internals,
+        #     3,
+        #     make_oblique=False,
+        # )
+        # raise Exception(...)
+
+        # self.runMBPolDimers(
+        #     'trimer',
+        #     init_coords,
+        #     internals,
+        # )
+        # self.runMBPolDimers(
+        #     'trimer',
+        #     init_coords,
+        #     internals,
+        #     make_oblique=False,
+        # )
+        # raise Exception(...)
+
+        self.runMBPolMonomers(
+            'trimer',
+            init_coords,
+            internals,
+        )
+        self.runMBPolMonomers(
+            'trimer',
+            init_coords,
+            internals,
+            make_oblique=False
+        )
 
     @validationTest
     def test_WaterTetramerMBPol(self):
@@ -2059,7 +2175,7 @@ class LocalTests(TestCase):
         1 1 0            -            -   4982.51639   4665.46163 
         """
 
-    @validationTest
+    @debugTest#(log_file='~/Documents/Postdoc/local_VPT/hexamer_mbe_rocks.txt')
     def test_WaterHexamerMBPol(self):
         hexamer_base_coords = np.array([
             [-0.35921654,  0.66032868,  1.70403349],
@@ -2081,31 +2197,110 @@ class LocalTests(TestCase):
             [-1.20686995, -1.67534742, -0.25579395],
             [-2.62103595, -1.13064966, -0.59766950]
         ]) * UnitsData.convert("Angstroms", "BohrRadius")
-        hexamer_internals = self.setupDefaultInternals(6)
+        hexamer_internals = self.setupDefaultInternals(6,
+                                                       include_hoh_rocks=True,
+                                                       include_hoh_oop=True)
+        self.runMBPolMonomers(
+            'hexamer',
+            hexamer_base_coords,
+            hexamer_internals,
+            print_local_modes=False
+        )
+        raise Exception(...)
+        # for i in [3, 4, 5, 9, 10, 11, 24, 34, 36]:
+        #     print(hexamer_internals[i])
+        # raise Exception(...)
 
-        for i in range(6):
-            print("="*25, "Monomer", i, "="*25)
-            self.runMBPolModel(
-                'hexamer',
-                hexamer_base_coords,
-                hexamer_internals,
-                # print_normal_modes=True,
-                print_local_modes=True,
-                # print_target_modes=True,
-                make_oblique=True,
-                monomer=i
-            )
+        self.runMBPolModel(
+            'hexamer',
+            hexamer_base_coords,
+            hexamer_internals,
+            coord_sel=[3, 4, 5, 34],
+            monomer=None,
+            # monomer=[1, 3],
+            unitary=False,
+            make_oblique=True,
+            # return_runner=True
+        )
+        self.runMBPolModel(
+            'hexamer',
+            hexamer_base_coords,
+            hexamer_internals,
+            coord_sel=[9, 10, 11, 36],
+            monomer=None,
+            # monomer=[1, 3],
+            unitary=False,
+            make_oblique=True,
+            # return_runner=True
+        )
+        self.runMBPolModel(
+            'hexamer',
+            hexamer_base_coords,
+            hexamer_internals,
+            coord_sel=[3, 4, 5, 34],
+            monomer=None,
+            # monomer=[1, 3],
+            unitary=False,
+            make_oblique=False,
+            # return_runner=True
+        )
+        self.runMBPolModel(
+            'hexamer',
+            hexamer_base_coords,
+            hexamer_internals,
+            coord_sel=[9, 10, 11, 36],
+            monomer=None,
+            # monomer=[1, 3],
+            unitary=False,
+            make_oblique=False,
+            # return_runner=True
+        )
+        self.runMBPolModel(
+            'hexamer',
+            hexamer_base_coords,
+            hexamer_internals,
+            coord_sel=[3, 4, 5, 9, 10, 11, 24, 34, 36],
+            monomer=None,
+            # monomer=[1, 3],
+            unitary=False,
+            make_oblique=True,
+            # return_runner=True
+        )
+        self.runMBPolModel(
+            'hexamer',
+            hexamer_base_coords,
+            hexamer_internals,
+            coord_sel=[3, 4, 5, 9, 10, 11, 24, 34, 36],
+            monomer=None,
+            # monomer=[1, 3],
+            unitary=False,
+            make_oblique=False,
+            # return_runner=True
+        )
+        # t1 = wtf_runner.hamiltonian.V_terms[1]
+        # wtf_runner = self.runMBPolModel(
+        #     'hexamer',
+        #     hexamer_base_coords,
+        #     hexamer_internals,
+        #     monomer=[0, 4],
+        #     unitary=False,
+        #     make_oblique=True,
+        #     return_runner=True
+        # )
+        # t2 = wtf_runner.hamiltonian.V_terms[1]
+        #
+        # print(...)
+        # print(t1[-1]*219475.6)
+        # print(t2[-1]*219475.6)
+        # raise Exception(...)
 
-        for i in range(6):
-            print("="*25, "Monomer", i, "="*25)
-            self.runMBPolModel(
-                'hexamer',
-                hexamer_base_coords,
-                hexamer_internals,
-                make_oblique=False,
-                print_local_modes=True,
-                monomer=i
-            )
+        # self.runMBE(
+        #     'hexamer',
+        #     hexamer_base_coords,
+        #     hexamer_internals,
+        #     2,
+        #     unitary=True
+        # )
 
     @validationTest
     def test_WaterOctamerMBPol(self):
