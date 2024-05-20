@@ -31,7 +31,7 @@ class BasisSetTests(TestCase):
 
         self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
 
-    @debugTest
+    @validationTest
     def test_HOElements(self):
 
         # mat_gen = HarmonicOscillatorMatrixGenerator(['x', 'x', 'x', 'x', 'p', 'p'])
@@ -660,15 +660,6 @@ class BasisSetTests(TestCase):
         self.assertTrue((states[some_sel,] == rev).all(),
                         msg="{} != {}".format(states[some_sel,], rev))
 
-    # @debugTest
-    # def test_HOPXP(self):
-    #
-    #     new_basi = HarmonicOscillatorProductBasis((10, 10, 10))
-    #     old_prod = SimpleProductBasis(HarmonicOscillatorBasis, (10, 10, 10))
-    #
-    #     new_rep = new_basis.representation('p', 'x', 'p')
-    #     old_rep = old_basis.representation('p', 'x', 'p')
-
     #endregion
 
     #region Indices
@@ -926,9 +917,6 @@ class BasisSetTests(TestCase):
             list(np.intersect1d(filter_inds, subinds))
         )
 
-
-
-
     @validationTest
     def test_StateConnections(self):
 
@@ -966,6 +954,14 @@ class BasisSetTests(TestCase):
         #         exc = tf.excitations
 
         # raise Exception(len(exc))
+
+    @debugTest
+    def test_StateSpaceStatesGen(self):
+        wheeeeee = BasisStateSpace.states_under_freq_threshold(
+            [1, 1.2, 1.8, 2, 2.5, 2.7, 2.8, 2.9, 3],
+            4
+        )
+        raise Exception(len(wheeeeee))
 
     #endregion
 

@@ -2,7 +2,7 @@
 Provides a relatively haphazard set of simple classes to keep track of state information.
 By providing a single interface here, we can avoid recomputing information over and over.
 """
-import itertools
+import itertools, collections, bisect
 
 import numpy as np, itertools as ip, enum, scipy.sparse as sp
 import abc
@@ -644,6 +644,54 @@ class BasisStateSpace(AbstractStateSpace):
             states = []
 
         return cls(basis, states, mode=cls.StateSpaceSpec.Excitations)
+
+    @classmethod
+    def states_under_freq_threshold(cls, freqs, thresh, basis=None):
+        ndim = len(freqs)
+        if basis is None:
+            from .HarmonicOscillator import HarmonicOscillatorProductBasis
+            basis = HarmonicOscillatorProductBasis(ndim)
+        base_state = np.zeros(ndim, dtype=int)
+        queue = collections.deque()
+        states = []
+        # indices = []
+
+        states.append(base_state)
+        queue.append([0, base_state])
+        # indices.append(basis.ravel_state_inds(base_state)[0])
+
+        # alternate indexing method, in case individual ravels are too slow
+        indices = set()
+        indices.add(tuple(base_state))
+
+        while queue:
+            e, s = queue.popleft()
+            for n,ee in enumerate(freqs):
+                enew = e + ee
+                if enew > thresh: # assume freqs is sorted
+                    break
+
+                ss = s.copy()
+                ss[n] += 1
+
+                idx = tuple(ss)
+                if idx not in indices:
+                    states.append(ss)
+                    queue.append([enew, ss])
+                    indices.add(idx)
+
+                # # in case we wanted to precompute the inds...
+                # idx = basis.ravel_state_inds(ss)[0]
+                # x = bisect.bisect_left(indices, idx)
+                # if x == len(indices) or indices[x] != idx:
+                #     states.append(ss)
+                #     queue.append([enew, ss])
+                #     indices.append(idx)
+
+        return np.array(states) #np.array(indices)
+
+
+
 
     def get_mode(self):
         return self.StateSpaceSpec.Indices if self.has_indices else self.StateSpaceSpec.Excitations
