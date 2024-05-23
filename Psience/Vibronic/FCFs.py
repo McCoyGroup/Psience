@@ -83,17 +83,20 @@ class FranckCondonModel:
         return evaluate_contrib
 
     @classmethod
+    def zero_point_alpha_contrib(cls, alphas):
+        return (np.sqrt(2 * np.pi)**len(alphas))/np.prod(np.sqrt(alphas))
+    @classmethod
     def term_evaluator(self, exponents_list, splits_list, weights, gammas, alphas=None):
         ndim = len(exponents_list[0])
         prefacs = np.array([np.prod(gammas[exponents]) for exponents in exponents_list]) * weights
         if alphas is not None:
-            prefacs = prefacs * np.sqrt(2 * np.pi)**(len(alphas))/np.prod(np.sqrt(alphas))
+            prefacs = prefacs * self.zero_point_alpha_contrib(alphas)
         prealphas = alphas
 
         def evaluate_contrib(alphas, poly_coeffs, batch_size=int(1e7)):
             contrib = [0] * len(exponents_list)
 
-            scaling = prefacs * (1 if prealphas is not None else np.sqrt(2 * np.pi)**(len(alphas))/np.prod(np.sqrt(alphas)))
+            scaling = prefacs * (1 if prealphas is not None else self.zero_point_alpha_contrib(alphas))
 
             ncoords = len(alphas)
             nperms = np.math.factorial(ncoords) // np.math.factorial(ncoords - ndim)
@@ -222,10 +225,14 @@ class FranckCondonModel:
         U, s, V = np.linalg.svd(ls_tf)
         L = U @ V  # Effectively a Duschinsky matrix
 
+
         # find displacement vector (center of gs ground state in this new basis)
         modes_gs = modes_es @ L
         dx = modes_es.T @ (center_gs - center_es)
         c_gs = L.T @ dx
+
+        # print(L)
+        # raise Exception(c_gs)
 
         # print(center_es)
         # print(center_gs)
@@ -234,11 +241,11 @@ class FranckCondonModel:
         # raise Exception(c_gs)
 
         # inverse covariance matrices in this coordinate system
-        Z_gs = (L.T @ np.diag(1 / freqs_gs ** 2) @ L)
-        Z_es = np.diag(1 / freqs_es ** 2)
+        Z_gs = (L.T @ np.diag(freqs_gs) @ L)
+        Z_es = np.diag(freqs_es)
         Z_c = Z_gs + Z_es
 
-        S_c = (L.T @ np.diag(freqs_gs ** 2) @ L) + np.diag(freqs_es ** 2)
+        S_c = (L.T @ np.diag(1/ (freqs_gs)) @ L) + np.diag(1/(freqs_es))
 
         norm_gs = np.prod(np.power(freqs_gs, 1/4))
         norm_es = np.prod(np.power(freqs_es, 1/4))
@@ -248,10 +255,10 @@ class FranckCondonModel:
         )
         # prefactor = 1
 
-        alphas_c, modes_c = np.linalg.eigh(Z_c)
+        inv_alphas_c, modes_c = np.linalg.eigh(Z_c)
         center = np.linalg.inv(Z_c) @ (Z_gs @ c_gs)
 
-        return (alphas_c, modes_c, center, prefactor), (L, c_gs), (np.eye(L.shape[0]), np.zeros(c_gs.shape))
+        return (inv_alphas_c, modes_c, center, prefactor), (L, c_gs), (np.eye(L.shape[0]), np.zeros(c_gs.shape))
 
     @classmethod
     def eval_fcf_overlaps(self,
@@ -271,6 +278,13 @@ class FranckCondonModel:
         # 3. shift the polynomials so they are centered at the overlap Gaussian (but don't rotate)
         # 4. express the normal modes (transformation coeffs) w.r.t. the central Gaussian coords
         # 5. for every pair of polynomial terms, if even, evaluate polynomial contrib, reusing when possible
+
+        freqs_gs = np.asanyarray(freqs_gs)
+        freqs_es = np.asanyarray(freqs_es)
+        modes_gs = np.asanyarray(modes_gs)
+        modes_es = np.asanyarray(modes_es)
+        center_gs = np.asanyarray(center_gs)
+        center_es = np.asanyarray(center_es)
 
         (alphas, modes_c, center, scaling), (L_gs, c_gs), (L_es, c_es) = self.get_overlap_gaussian_data(
             freqs_gs, modes_gs, center_gs,
@@ -334,7 +348,6 @@ class FranckCondonModel:
                 work_queues[key] = queue
             queue.append([poly_coeffs, scaling])
 
-        print("!-"*50)
         for key,queue in work_queues.items():
             exponents = np.array(key)
             plan = self.evaluator_plans.get(key, None)
@@ -378,7 +391,8 @@ class FranckCondonModel:
             gs_nms.basis,
             ref_mat,
             origin=ref_coords,
-            freqs=gs_nms.freqs
+            freqs=gs_nms.freqs,
+            masses=gs_nms.masses
         )
 
         emb_coords = embedding.coord_data.coords[0] @ embedding.rotations[0].T
@@ -394,20 +408,52 @@ class FranckCondonModel:
             gs_modes.basis,
             emb_mat,
             origin=emb_coords,
-            freqs=es_nms.freqs
+            freqs=es_nms.freqs,
+            masses=es_nms.masses
         )
 
         return gs_modes, es_modes
 
     @classmethod
+    def mass_weight_nms(cls, nms, masses=None):
+        if masses is None: masses = nms.masses
+
+        mat = nms.matrix
+        mat = np.reshape(
+            np.sqrt(masses)[:, np.newaxis, np.newaxis] * mat.reshape((-1, 3, mat.shape[-1])),
+            mat.shape
+        )
+
+        inv = nms.inverse
+        inv = np.reshape(
+            np.sqrt(masses)[np.newaxis, np.newaxis, :] * inv.reshape((inv.shape[0], 3, -1)),
+            inv.shape
+        )
+
+        origin = np.sqrt(masses)[:, np.newaxis] * nms.origin
+
+        return NormalModes(
+            nms.basis,
+            mat,
+            inverse=inv,
+            origin=origin,
+            freqs=nms.freqs
+        )
+
+
+    @classmethod
     def get_fcfs(self,
                  gs_nms: 'NormalModes', es_nms: 'NormalModes',
                  excitations, ground_states=None,
-                 embed=True, masses=None
+                 embed=True, masses=None, mass_weight=True
                  ):
 
         if embed:
             gs_nms, es_nms = self.embed_modes(gs_nms, es_nms, masses=masses)
+
+        if mass_weight:
+            gs_nms = self.mass_weight_nms(gs_nms, masses=masses)
+            es_nms = self.mass_weight_nms(es_nms, masses=masses)
 
         gs_freqs = gs_nms.freqs
         gs_center = gs_nms.origin.flatten()
