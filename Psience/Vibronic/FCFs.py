@@ -46,7 +46,7 @@ class FranckCondonModel:
             def evaluate_zero(alphas, poly_coeffs, batch_size=int(1e7)):
                 base_val = np.sqrt(2 * np.pi) ** (len(alphas)) / np.prod(np.sqrt(alphas))
                 if not (isinstance(poly_coeffs, np.ndarray) and poly_coeffs.ndim == 2):
-                    base_val = [base_val] * len(poly_coeffs)
+                    base_val = np.full(len(poly_coeffs), base_val)
                 return base_val
             evaluators.append(evaluate_zero)
         else:
@@ -58,14 +58,25 @@ class FranckCondonModel:
 
                 # find the different numbers of ways to split the terms up
                 term_classes = [
-                    IntegerPartitioner2D.get_partitions(exponents, terms)
+                    IntegerPartitioner2D.get_partitions(exponents, terms)#[:1]
                     for terms in parts
                 ]
 
-                weights = np.array([
-                    np.prod([UniquePermutations.count_permutations(counts) for counts in term])
-                    for term in term_classes
-                ])
+                weights = [
+                    np.array([
+                        np.prod([UniquePermutations.count_permutations(counts) for counts in term])
+                        for term in term_class
+                        ])
+                    for term_class in term_classes
+                ]
+
+                print("???", exponents)
+                for e,s,w in zip(parts, term_classes, weights):
+                    print(">---------------:")
+                    print(e)
+                    print(s)
+                    print(w)
+                    print(":---------------<")
 
                 evaluators.append(
                     self.term_evaluator(parts, term_classes, weights, max_gamma, alphas=alphas)
@@ -76,8 +87,7 @@ class FranckCondonModel:
                 [
                     ev(alphas, poly_coeffs, batch_size=batch_size)
                     for ev in evaluators
-                 ],
-                [] if not isinstance(poly_coeffs, np.ndarray) else 0
+                 ]
             )
 
         return evaluate_contrib
@@ -86,9 +96,9 @@ class FranckCondonModel:
     def zero_point_alpha_contrib(cls, alphas):
         return (np.sqrt(2 * np.pi)**len(alphas))/np.prod(np.sqrt(alphas))
     @classmethod
-    def term_evaluator(self, exponents_list, splits_list, weights, gammas, alphas=None):
+    def term_evaluator(self, exponents_list, splits_list, weights_list, gammas, alphas=None):
         ndim = len(exponents_list[0])
-        prefacs = np.array([np.prod(gammas[exponents]) for exponents in exponents_list]) * weights
+        prefacs = np.array([np.prod(gammas[exponents]) for exponents in exponents_list])
         if alphas is not None:
             prefacs = prefacs * self.zero_point_alpha_contrib(alphas)
         prealphas = alphas
@@ -123,51 +133,53 @@ class FranckCondonModel:
                     ind_array,
                     exponents_list,
                     splits_list,
+                    weights_list,
                     alphas,
                     poly_coeffs
                 )
                 for i,c in enumerate(new_contribs):
-                    if isinstance(c, list):
-                        contrib[i] += sum(c)
-                        # if not isinstance(contrib[i], list):
-                        #     if contrib[i] != 0: raise ValueError("mismatch in contribs...")
-                        #     contrib[i] = c
-                        # else:
-                        #     for j,cc in enumerate(c):
-                        #         contrib[i][j] += cc
-                    else:
-                        contrib[i] += c
-
-
-            return [
+                    contrib[i] += c#sum(cc*ss for cc,ss in zip(c, scaling))
+                    # if isinstance(c, list):
+                    #     contrib[i] += sum(c)
+                    #     # if not isinstance(contrib[i], list):
+                    #     #     if contrib[i] != 0: raise ValueError("mismatch in contribs...")
+                    #     #     contrib[i] = c
+                    #     # else:
+                    #     #     for j,cc in enumerate(c):
+                    #     #         contrib[i][j] += cc
+                    # else:
+                    #     contrib[i] += c
+            wtf = sum(
                 c * s for c,s in zip(contrib, scaling)
-            ]
+            )
+            print("wtf", wtf)
+            return wtf
 
         return evaluate_contrib
 
     @classmethod
-    def evaluate_poly_chunks(cls, poly_coeffs, exps, splits, alphas, include_baseline=False):
+    def evaluate_poly_chunks(cls, poly_coeffs, exps, splits, weights, alphas, include_baseline=False):
         if isinstance(poly_coeffs, np.ndarray) and poly_coeffs.ndim == 2:
-            return cls.evaluate_poly_chunks([poly_coeffs], exps, splits, alphas)
+            return cls.evaluate_poly_chunks([poly_coeffs], exps, splits, weights, alphas)[0]
 
         if include_baseline:
             raise NotImplementedError("need to add")
 
         alpha_contrib = np.prod(1 / (alphas ** (exps[np.newaxis] // 2)), axis=-1)  # c array of values
         # compute contribution from polynomial factors, can add them up immediately
-        multi_contrib = 0
-        for pc in poly_coeffs:
+        multi_contrib = np.zeros(len(poly_coeffs))
+        for ii,pc in enumerate(poly_coeffs):
             poly_exps = pc[:, np.newaxis, :, :] ** splits[np.newaxis, :, :, :]  # c x l x k x d
-            poly_contrib = np.sum(
+            poly_contrib = np.dot(
                 np.prod(np.prod(poly_exps, axis=-1), axis=-1),
-                axis=1
+                weights
             )
-            multi_contrib += np.dot(alpha_contrib, poly_contrib)
+            multi_contrib[ii] = np.dot(alpha_contrib, poly_contrib)
 
         return multi_contrib
 
     @classmethod
-    def evaluate_poly_contrib_chunk(self, inds, exponents_list, splits_list, alphas, coeffs):
+    def evaluate_poly_contrib_chunk(self, inds, exponents_list, splits_list, weights_list, alphas, coeffs):
         # k is the number of initial coords, d is the number of final coords
         # n is the total number of coords
         # exps is a d vector of exponents
@@ -196,9 +208,9 @@ class FranckCondonModel:
         subalphas = alphas[inds] # c x d array of non-zero alphas
 
         contribs = []
-        for exps, splits in zip(exponents_list, splits_list):
+        for exps, splits, weights in zip(exponents_list, splits_list, weights_list):
             poly_chunks = self.evaluate_poly_chunks(
-                poly_coeffs, exps, splits, subalphas
+                poly_coeffs, exps, splits, weights, subalphas
             )
             # print("...", poly_chunks)
             contribs.append(poly_chunks)
@@ -295,8 +307,8 @@ class FranckCondonModel:
         shift_gs = center - c_gs
         shift_es = center - c_es
 
-        Q_gs = modes_c @ L_gs
-        Q_es = modes_c @ L_es
+        Q_gs = (modes_c @ L_gs)
+        Q_es = (modes_c @ L_es)
 
         polys1 = [
             HermiteProductPolynomial.from_quanta(eg, freqs_gs).shift(shift_gs)
@@ -313,13 +325,12 @@ class FranckCondonModel:
         for spoly_gs in polys1:
             for spoly_es in polys2:
                 poly = spoly_gs.concat(spoly_es)
-
-                overlaps.append(
-                    scaling * self.evaluate_shifted_poly_overlap(
+                ov = scaling * self.evaluate_shifted_poly_overlap(
                         poly, Q,
                         alphas
                     )
-                )
+                print("<::", scaling, ov/scaling, ov)
+                overlaps.append(ov)
 
         return overlaps
 
@@ -338,6 +349,7 @@ class FranckCondonModel:
             exponents = np.array(exponents)
             ordering = np.argsort(-exponents)
             exponents = exponents[ordering]
+            print("::>", inds)
             poly_coeffs = Q[:, inds][:, ordering] if Q is not None else None
 
             # put coeffs on the queue so we can batch the calls
@@ -357,13 +369,14 @@ class FranckCondonModel:
                 else:
                     plan = self.get_poly_evaluation_plan(exponents)
                 self.evaluator_plans[key] = plan
-            coeff_stack = [poly for poly,scaling in queue]
-            coeff_weights = [scaling for poly,scaling in queue]
-            subcontribs = plan(alphas, coeff_stack)
-            # print("--->", subcontribs, coeff_weights)
-            wtf = sum(w*c for w,c in zip(coeff_weights, subcontribs))
-            # print("   >", wtf)
-            contrib += wtf
+            coeff_stack = [poly for poly,scaling in queue if abs(scaling) > 1e-15]
+            coeff_weights = [scaling for poly,scaling in queue if abs(scaling) > 1e-15]
+            if len(coeff_weights) > 0:
+                subcontribs = plan(alphas, coeff_stack)
+                print("--->", len(coeff_stack), subcontribs, coeff_weights)
+                wtf = sum(w*c for w,c in zip(coeff_weights, subcontribs))
+                contrib += wtf
+                print("   >", wtf, contrib)
 
         return contrib
 
@@ -517,7 +530,7 @@ class HermiteProductPolynomial:
                     for i,k in zip(term_coords, term)
                 ])
                 term = [term[i] for i in sub_inds]
-                yield term, term_prod, sub_inds
+                yield term, term_prod, [term_coords[i] for i in sub_inds]
 
     @classmethod
     def from_quanta(cls, quanta, alphas):
@@ -534,5 +547,7 @@ class HermiteProductPolynomial:
     def get_1D_hermite_poly(self, n, a):
         return DensePolynomial(
             np.flip(np.asarray(sp.special.hermite(n, monic=False)))
-            * np.sqrt(a ** np.arange(n + 1) / (2 ** (n) * np.math.factorial(n)))
+            * np.sqrt(
+                a ** np.arange(n + 1) / (2 ** (n) * np.math.factorial(n))
+            )
         )

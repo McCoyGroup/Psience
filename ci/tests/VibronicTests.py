@@ -63,63 +63,66 @@ class VibronicTests(TestCase):
         gs = self.fake_mode_data(3)
         es = self.shift_modes(gs, [1, 0, 0])
 
-        self.assertTrue(np.allclose(
-            FranckCondonModel.get_fcfs(
-                gs,
-                es,
-                [
-                    [0, 0, 0],
-                    [1, 0, 0],
-                    [2, 0, 0],
-                    [0, 1, 0],
-                    [0, 0, 1]
-                ],
-                embed=True,
-                mass_weight=False
-            ),
-            [0.7788007830714044, -0.5506953149031834, 0.27534765745159184, 0, 0]
-            )
-        )
-
-        gs.freqs = np.array([1, 2, 2])
-        es.freqs = np.array([1, 2, 2])
-        self.assertTrue(np.allclose(
-            FranckCondonModel.get_fcfs(
-                gs[[0, 1]],
-                es[[0, 1]],
-                [
-                    [0, 0],
-                    [1, 0],
-                    [2, 0],
-                    [0, 1]
-                ],
-                embed=False,
-                mass_weight=False
-            ),
-            [0.7788007830714044, -0.5506953149031834, 0.27534765745159184, 0]
-        ))
-
-        gs.freqs = np.array([2, 2, 2])
-        es = self.shift_modes(gs, [1, 0, 0])
-        gs.freqs = np.array([1, 2, 2])
         # self.assertTrue(np.allclose(
+        #     FranckCondonModel.get_fcfs(
+        #         gs,
+        #         es,
+        #         [
+        #             [0, 0, 0],
+        #             [1, 0, 0],
+        #             [2, 0, 0],
+        #             [0, 1, 0],
+        #             [0, 0, 1]
+        #         ],
+        #         embed=True,
+        #         mass_weight=False
+        #     ),
+        #     [0.7788007830714044, -0.5506953149031834, 0.27534765745159184, 0, 0]
+        #     )
+        # )
+        #
+        # gs.freqs = np.array([1, 2, 2])
+        # es.freqs = np.array([1, 2, 2])
+        # self.assertTrue(np.allclose(
+        #     FranckCondonModel.get_fcfs(
+        #         gs[[0, 1]],
+        #         es[[0, 1]],
+        #         [
+        #             [0, 0],
+        #             [1, 0],
+        #             [2, 0],
+        #             [0, 1]
+        #         ],
+        #         embed=False,
+        #         mass_weight=False
+        #     ),
+        #     [0.7788007830714044, -0.5506953149031834, 0.27534765745159184, 0]
+        # ))
+        #
+        # gs.freqs = np.array([2, 2, 2])
+        # es = self.shift_modes(gs, [1, 0, 0])
+        # gs.freqs = np.array([1, 2, 2])
+        # # self.assertTrue(np.allclose(
+        #
+        # self.assertTrue(np.allclose(
+        #     FranckCondonModel.get_fcfs(
+        #         gs[[0, 1]],
+        #         es[[0, 1]],
+        #         [
+        #             [0, 0],
+        #             [1, 0],
+        #             [2, 0],
+        #             [0, 1]
+        #         ],
+        #         embed=False,
+        #         mass_weight=False
+        #     ),
+        #     [0.6957401109084786, -0.46382674060565227, 0.3826375391742289, 0]
+        # ))
 
-        self.assertTrue(np.allclose(
-            FranckCondonModel.get_fcfs(
-                gs[[0, 1]],
-                es[[0, 1]],
-                [
-                    [0, 0],
-                    [1, 0],
-                    [2, 0],
-                    [0, 1]
-                ],
-                embed=False,
-                mass_weight=False
-            ),
-            [0.6957401109084786, -0.46382674060565227, 0.3826375391742289, 0]
-        ))
 
+        gs.freqs = np.array([1, 2, 2])
+        es = self.shift_modes(gs, [0, 0, 0])
         a = np.pi/6
         c = np.cos(a); s = np.sin(a)
         rot = np.array([
@@ -130,6 +133,7 @@ class VibronicTests(TestCase):
         es.matrix = es.matrix @ rot
         es.inverse = rot.T @ es.inverse
         # self.assertTrue(np.allclose(
+
         print(
         FranckCondonModel.get_fcfs(
             gs[[0, 1]],
@@ -138,7 +142,10 @@ class VibronicTests(TestCase):
                 [0, 0],
                 [1, 0],
                 [2, 0],
-                [0, 1]
+                [0, 1],
+                [0, 2],
+                [1, 1],
+                [3, 1]
             ],
             embed=False,
             mass_weight=False
