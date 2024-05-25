@@ -70,13 +70,12 @@ class FranckCondonModel:
                     for term_class in term_classes
                 ]
 
-                print("???", exponents)
-                for e,s,w in zip(parts, term_classes, weights):
-                    print(">---------------:")
-                    print(e)
-                    print(s)
-                    print(w)
-                    print(":---------------<")
+                # print(">---- exps -------:", exponents)
+                # for e,s,w in zip(parts, term_classes, weights):
+                #     print(e)
+                #     print(s)
+                #     print(w)
+                #     print(":---------------<")
 
                 evaluators.append(
                     self.term_evaluator(parts, term_classes, weights, max_gamma, alphas=alphas)
@@ -109,7 +108,7 @@ class FranckCondonModel:
             scaling = prefacs * (1 if prealphas is not None else self.zero_point_alpha_contrib(alphas))
 
             ncoords = len(alphas)
-            nperms = np.math.factorial(ncoords) // np.math.factorial(ncoords - ndim)
+            nperms = np.math.comb(ncoords, ndim)
             # try to split evenly into k batches
             num_batches = 1 + (nperms // batch_size)
             real_batch_size = nperms // num_batches
@@ -119,7 +118,9 @@ class FranckCondonModel:
             # real_batch_size += batch_remainder // num_batches
             # batch_remainder = subremainder
 
-            batch_generator = it.permutations(range(ncoords), ndim)
+            # print(":::::", exponents_list, ":::::")
+
+            batch_generator = it.combinations(range(ncoords), ndim)
             for batch_number in range(num_batches):
                 num_terms = real_batch_size
                 if batch_remainder > 0: # exhaust remainder bit by bit
@@ -149,11 +150,10 @@ class FranckCondonModel:
                     #     #         contrib[i][j] += cc
                     # else:
                     #     contrib[i] += c
-            wtf = sum(
-                c * s for c,s in zip(contrib, scaling)
-            )
-            print("wtf", wtf)
-            return wtf
+
+            cont = sum(c * s for c,s in zip(contrib, scaling))
+            # print("     contrib:", cont)
+            return cont
 
         return evaluate_contrib
 
@@ -204,6 +204,8 @@ class FranckCondonModel:
             poly_coeffs = np.empty((c, k, d), dtype=coeffs.dtype)
             for i in range(k): poly_coeffs[:, i, :] = coeffs[:, i][inds]
 
+        # print("|||", poly_coeffs)
+
         # compute extra alpha contrib to integrals
         subalphas = alphas[inds] # c x d array of non-zero alphas
 
@@ -216,6 +218,54 @@ class FranckCondonModel:
             contribs.append(poly_chunks)
 
         return contribs
+
+
+
+    evaluator_plans = {}
+    @classmethod
+    def evaluate_shifted_poly_overlap(self,
+                                      poly:'HermiteProductPolynomial',
+                                      Q,
+                                      alphas
+                                      ):
+
+        contrib = 0
+
+        work_queues = {}
+        for exponents, scaling, inds in poly.term_iter(filter=lambda x,nzi,nzc:sum(x[i] for i in nzi)%2==0):
+            exponents = np.array(exponents)
+            ordering = np.argsort(-exponents)
+            exponents = exponents[ordering]
+            poly_coeffs = Q[:, inds][:, ordering] if Q is not None else None
+
+            # put coeffs on the queue so we can batch the calls
+            key = tuple(exponents)
+            queue = work_queues.get(key, None)
+            if queue is None:
+                queue = []
+                work_queues[key] = queue
+            queue.append([poly_coeffs, scaling])
+
+        for key,queue in work_queues.items():
+            exponents = np.array(key)
+            # print("="*10, exponents, "="*10)
+            plan = self.evaluator_plans.get(key, None)
+            if plan is None:
+                if Q is None:
+                    plan = self.get_simple_poly_evaluator(exponents)
+                else:
+                    plan = self.get_poly_evaluation_plan(exponents)
+                self.evaluator_plans[key] = plan
+            coeff_stack = [poly for poly,scaling in queue if abs(scaling) > 1e-15]
+            coeff_weights = [scaling for poly,scaling in queue if abs(scaling) > 1e-15]
+            if len(coeff_weights) > 0:
+                subcontribs = plan(alphas, coeff_stack)
+                # print("--->", len(coeff_stack), subcontribs, coeff_weights)
+                wtf = sum(w*c for w,c in zip(coeff_weights, subcontribs))
+                contrib += wtf
+                # print("   >", wtf, contrib)
+
+        return contrib
 
     @classmethod
     def df_weights(cls, n):
@@ -329,56 +379,10 @@ class FranckCondonModel:
                         poly, Q,
                         alphas
                     )
-                print("<::", scaling, ov/scaling, ov)
+                # print("<::", scaling, ov/scaling, ov)
                 overlaps.append(ov)
 
         return overlaps
-
-    evaluator_plans = {}
-    @classmethod
-    def evaluate_shifted_poly_overlap(self,
-                                      poly:'HermiteProductPolynomial',
-                                      Q,
-                                      alphas
-                                      ):
-
-        contrib = 0
-
-        work_queues = {}
-        for exponents, scaling, inds in poly.term_iter(filter=lambda x,nzi,nzc:sum(x[i] for i in nzi)%2==0):
-            exponents = np.array(exponents)
-            ordering = np.argsort(-exponents)
-            exponents = exponents[ordering]
-            print("::>", inds)
-            poly_coeffs = Q[:, inds][:, ordering] if Q is not None else None
-
-            # put coeffs on the queue so we can batch the calls
-            key = tuple(exponents)
-            queue = work_queues.get(key, None)
-            if queue is None:
-                queue = []
-                work_queues[key] = queue
-            queue.append([poly_coeffs, scaling])
-
-        for key,queue in work_queues.items():
-            exponents = np.array(key)
-            plan = self.evaluator_plans.get(key, None)
-            if plan is None:
-                if Q is None:
-                    plan = self.get_simple_poly_evaluator(exponents)
-                else:
-                    plan = self.get_poly_evaluation_plan(exponents)
-                self.evaluator_plans[key] = plan
-            coeff_stack = [poly for poly,scaling in queue if abs(scaling) > 1e-15]
-            coeff_weights = [scaling for poly,scaling in queue if abs(scaling) > 1e-15]
-            if len(coeff_weights) > 0:
-                subcontribs = plan(alphas, coeff_stack)
-                print("--->", len(coeff_stack), subcontribs, coeff_weights)
-                wtf = sum(w*c for w,c in zip(coeff_weights, subcontribs))
-                contrib += wtf
-                print("   >", wtf, contrib)
-
-        return contrib
 
     @classmethod
     def embed_modes(cls, gs_nms: 'NormalModes', es_nms, masses=None):
