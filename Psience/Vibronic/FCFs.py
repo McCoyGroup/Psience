@@ -279,17 +279,21 @@ class FranckCondonModel:
     @classmethod
     def get_overlap_gaussian_data(self,
                                   freqs_gs, modes_gs, center_gs,
-                                  freqs_es, modes_es, center_es
+                                  freqs_es, modes_es, center_es,
+                                  rotation_method='duschinsky'
                                   ):
 
-        # use least squares to express ground state modes as LCs of excited state modes
-        ls_tf = np.linalg.inv(modes_es.T @ modes_es) @ modes_es.T @ modes_gs
-        U, s, V = np.linalg.svd(ls_tf)
-        L = U @ V  # Effectively a Duschinsky matrix
+        if rotation_method == 'least-squares':
+            # use least squares to express ground state modes as LCs of excited state modes
+            ls_tf = np.linalg.inv(modes_es.T @ modes_es) @ modes_es.T @ modes_gs
+            U, s, V = np.linalg.svd(ls_tf)
+            L = U @ V  # Effectively a Duschinsky matrix
+        else:
+            L = modes_es.T @ modes_gs
 
 
         # find displacement vector (center of gs ground state in this new basis)
-        modes_gs = modes_es @ L
+        # modes_gs = modes_es @ L
         dx = modes_es.T @ (center_gs - center_es)
         c_gs = L.T @ dx
 
@@ -354,8 +358,10 @@ class FranckCondonModel:
         )
 
         # We now have the space to define the parameters that go into the overlap calculation
-        shift_gs = center - c_gs
-        shift_es = center - c_es
+        shift_gs = center - c_gs #- L_gs @ modes_c.T @ center
+        shift_es = center - c_es #- modes_c.T @ center
+
+        # raise Exception(shift_es, shift_gs, c_gs)
 
         Q_gs = (modes_c @ L_gs)
         Q_es = (modes_c @ L_es)
