@@ -119,6 +119,7 @@ class FranckCondonModel:
             # batch_remainder = subremainder
 
             # print(":::::", exponents_list, ":::::")
+            # print("    scaling:", scaling)
 
             batch_generator = it.combinations(range(ncoords), ndim)
             for batch_number in range(num_batches):
@@ -174,6 +175,8 @@ class FranckCondonModel:
                 np.prod(np.prod(poly_exps, axis=-1), axis=-1),
                 weights
             )
+            # print("??", alpha_contrib)
+            # print("??", poly_contrib)
             multi_contrib[ii] = np.dot(alpha_contrib, poly_contrib)
 
         return multi_contrib
@@ -204,8 +207,6 @@ class FranckCondonModel:
             poly_coeffs = np.empty((c, k, d), dtype=coeffs.dtype)
             for i in range(k): poly_coeffs[:, i, :] = coeffs[:, i][inds]
 
-        # print("|||", poly_coeffs)
-
         # compute extra alpha contrib to integrals
         subalphas = alphas[inds] # c x d array of non-zero alphas
 
@@ -214,7 +215,6 @@ class FranckCondonModel:
             poly_chunks = self.evaluate_poly_chunks(
                 poly_coeffs, exps, splits, weights, subalphas
             )
-            # print("...", poly_chunks)
             contribs.append(poly_chunks)
 
         return contribs
@@ -290,6 +290,9 @@ class FranckCondonModel:
             L = U @ V  # Effectively a Duschinsky matrix
         else:
             L = modes_es.T @ modes_gs
+            # L = L.T
+
+        # raise Exception(L)
 
 
         # find displacement vector (center of gs ground state in this new basis)
@@ -321,10 +324,10 @@ class FranckCondonModel:
         )
         # prefactor = 1
 
-        inv_alphas_c, modes_c = np.linalg.eigh(Z_c)
+        alphas_c, modes_c = np.linalg.eigh(Z_c)
         center = np.linalg.inv(Z_c) @ (Z_gs @ c_gs)
 
-        return (inv_alphas_c, modes_c, center, prefactor), (L, c_gs), (np.eye(L.shape[0]), np.zeros(c_gs.shape))
+        return (alphas_c, modes_c, center, prefactor), (L, c_gs), (np.eye(L.shape[0]), np.zeros(c_gs.shape))
 
     @classmethod
     def eval_fcf_overlaps(self,
@@ -363,8 +366,8 @@ class FranckCondonModel:
 
         # raise Exception(shift_es, shift_gs, c_gs)
 
-        Q_gs = (modes_c @ L_gs)
-        Q_es = (modes_c @ L_es)
+        Q_gs = (modes_c.T @ L_gs)
+        Q_es = (modes_c.T @ L_es)
 
         polys1 = [
             HermiteProductPolynomial.from_quanta(eg, freqs_gs).shift(shift_gs)
