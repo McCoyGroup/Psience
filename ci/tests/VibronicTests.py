@@ -201,14 +201,9 @@ class VibronicTests(TestCase):
         print()
 
         fc_model = FranckCondonModel.from_files(
-            '/Users/Mark/Documents/Postdoc/FCFs/nh3_s0.fchk',
-            '/Users/Mark/Documents/Postdoc/FCFs/nh3_s1.fchk'
+            TestManager.test_data('nh3_s0.fchk'),
+            TestManager.test_data('nh3_s1.fchk')
         )
-
-        # ov_data = fc_model.get_overlap_data()
-        # print(ov_data.es.center)
-        #
-        # raise Exception()
 
         uuugh = np.power(
                 fc_model.get_overlaps(
@@ -227,6 +222,6 @@ class VibronicTests(TestCase):
                 ),
                 2
             )
-        print(np.sum(uuugh))
+        # print(np.sum(uuugh))
         print(uuugh)
-        print(uuugh / np.max(uuugh))
+        # print(uuugh / np.max(uuugh))
