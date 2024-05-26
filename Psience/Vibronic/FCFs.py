@@ -1,5 +1,5 @@
 
-import numpy as np, scipy as sp, itertools as it
+import numpy as np, scipy as sp, itertools as it, collections
 from McUtils.Zachary import DensePolynomial
 from McUtils.Combinatorics import IntegerPartitioner, IntegerPartitioner2D, UniquePermutations
 
@@ -22,7 +22,74 @@ class FranckCondonModel:
     #     """
     #
 
+    def __init__(self, gs_nms:NormalModes, es_nms, embed=True, masses=None, mass_weight=True):
+        if embed:
+            gs_nms, es_nms = self.embed_modes(gs_nms, es_nms, masses=masses)
 
+        if mass_weight:
+            gs_nms = self.mass_weight_nms(gs_nms, masses=masses)
+            es_nms = self.mass_weight_nms(es_nms, masses=masses)
+
+        self.gs_nms = gs_nms
+        self.es_nms = es_nms
+
+    @classmethod
+    def from_files(cls, gs_file, es_file, mass_weight=True):
+        from ..Molecools import Molecule
+        return cls.from_mols(
+            Molecule.from_file(gs_file),
+            Molecule.from_file(es_file),
+            mass_weight=mass_weight
+        )
+
+    @classmethod
+    def from_mols(cls, gs, es, mass_weight=True):
+        gs = gs.get_embedded_molecule()
+        es = es.get_embedded_molecule(ref=gs)
+
+        return cls(
+            gs.normal_modes.modes.basis.to_new_modes(),
+            es.normal_modes.modes.basis.to_new_modes(),
+            mass_weight=mass_weight
+        )
+
+    def get_overlaps(self,
+                     excitations, *, ground_states=None
+                     ):
+        return self.get_fcfs(
+            self.gs_nms, self.es_nms,
+            excitations,
+            ground_states=ground_states,
+            embed=False,
+            mass_weight=False
+        )
+
+
+    OverlapData = collections.namedtuple('OverlapData', ['alphas', 'scaling', 'center', 'gs', 'es'])
+    Embedding = collections.namedtuple('Embedding', ['modes', 'center'])
+    def get_overlap_data(self) -> OverlapData:
+
+        freqs_gs = np.asanyarray(self.gs_nms.freqs)
+        freqs_es = np.asanyarray(self.es_nms.freqs)
+        modes_gs = np.asanyarray(self.gs_nms.matrix)
+        modes_es = np.asanyarray(self.es_nms.matrix)
+        inv_gs = np.asanyarray(self.gs_nms.inverse)
+        inv_es = np.asanyarray(self.es_nms.inverse)
+        center_gs = np.asanyarray(self.gs_nms.origin).flatten()
+        center_es = np.asanyarray(self.es_nms.origin).flatten()
+
+        (alphas, modes_c, center, scaling), (L_gs, c_gs), (L_es, c_es) = self.get_overlap_gaussian_data(
+            freqs_gs, modes_gs, inv_gs, center_gs,
+            freqs_es, modes_es, inv_es, center_es
+        )
+
+        return self.OverlapData(
+            alphas,
+            scaling,
+            self.Embedding(modes_c, center),
+            self.Embedding(L_gs, c_gs),
+            self.Embedding(L_es, c_es)
+        )
 
     @classmethod
     def get_poly_evaluation_plan(self, exponents, alphas=None):
@@ -297,7 +364,9 @@ class FranckCondonModel:
         # find displacement vector (center of gs ground state in this new basis)
         # modes_gs = modes_es @ L
         dx = inv_es @ (center_gs - center_es)
-        c_gs = inv_gs @ (center_gs - center_es)
+        # c_gs = inv_es @ (center_gs - center_es)
+
+        # raise Exception(c_gs)
 
         # print(L)
         # raise Exception(c_gs)
@@ -324,9 +393,9 @@ class FranckCondonModel:
         # prefactor = 1
 
         alphas_c, modes_c = np.linalg.eigh(Z_c)
-        center = np.linalg.inv(Z_c) @ (Z_gs @ c_gs)
+        center = np.linalg.inv(Z_c) @ (Z_es @ dx)
 
-        return (alphas_c, modes_c, center, prefactor), (L, c_gs), (np.eye(L.shape[0]), np.zeros(c_gs.shape))
+        return (alphas_c, modes_c, center, prefactor), (L, np.zeros(dx.shape)), (np.eye(L.shape[0]), dx)
 
     @classmethod
     def eval_fcf_overlaps(self,
@@ -480,6 +549,19 @@ class FranckCondonModel:
         if mass_weight:
             gs_nms = self.mass_weight_nms(gs_nms, masses=masses)
             es_nms = self.mass_weight_nms(es_nms, masses=masses)
+
+        if isinstance(excitations, (int, np.integer)) or isinstance(excitations[0], (int, np.integer)):
+            from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis as HO
+            excitations = BasisStateSpace.from_quanta(
+                HO(len(gs_nms.freqs)), excitations
+            ).excitations
+        if ground_states is not None and (
+                isinstance(ground_states, (int, np.integer)) or isinstance(ground_states[0], (int, np.integer))
+        ):
+            from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis as HO
+            ground_states = BasisStateSpace.from_quanta(
+                HO(len(gs_nms.freqs)), ground_states
+            ).excitations
 
         gs_freqs = gs_nms.freqs
         gs_center = gs_nms.origin.flatten()
