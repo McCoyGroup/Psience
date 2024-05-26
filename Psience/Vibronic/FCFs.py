@@ -278,27 +278,26 @@ class FranckCondonModel:
 
     @classmethod
     def get_overlap_gaussian_data(self,
-                                  freqs_gs, modes_gs, center_gs,
-                                  freqs_es, modes_es, center_es,
-                                  rotation_method='duschinsky'
+                                  freqs_gs, modes_gs, inv_gs, center_gs,
+                                  freqs_es, modes_es, inv_es, center_es,
+                                  rotation_method='default'
                                   ):
 
         if rotation_method == 'least-squares':
             # use least squares to express ground state modes as LCs of excited state modes
             ls_tf = np.linalg.inv(modes_es.T @ modes_es) @ modes_es.T @ modes_gs
             U, s, V = np.linalg.svd(ls_tf)
-            L = U @ V  # Effectively a Duschinsky matrix
+            L = U @ V  # Unitary version of a Duschinsky matrix
+            L = L.T
         else:
-            L = modes_es.T @ modes_gs
-            # L = L.T
-
-        # raise Exception(L)
+            L = inv_gs @ modes_es
+            # Linv = inv_es @ modes_gs
 
 
         # find displacement vector (center of gs ground state in this new basis)
         # modes_gs = modes_es @ L
-        dx = modes_es.T @ (center_gs - center_es)
-        c_gs = L.T @ dx
+        dx = inv_es @ (center_gs - center_es)
+        c_gs = inv_gs @ (center_gs - center_es)
 
         # print(L)
         # raise Exception(c_gs)
@@ -331,8 +330,8 @@ class FranckCondonModel:
 
     @classmethod
     def eval_fcf_overlaps(self,
-                           excitations_gs, freqs_gs, modes_gs, center_gs,
-                           excitations_es, freqs_es, modes_es, center_es
+                           excitations_gs, freqs_gs, modes_gs, inv_gs, center_gs,
+                           excitations_es, freqs_es, modes_es, inv_es, center_es
                            ):
         """
         Evaluates the Gaussian overlaps between two H.O. wave functions defined by
@@ -352,12 +351,14 @@ class FranckCondonModel:
         freqs_es = np.asanyarray(freqs_es)
         modes_gs = np.asanyarray(modes_gs)
         modes_es = np.asanyarray(modes_es)
+        inv_gs = np.asanyarray(inv_gs)
+        inv_es = np.asanyarray(inv_es)
         center_gs = np.asanyarray(center_gs)
         center_es = np.asanyarray(center_es)
 
         (alphas, modes_c, center, scaling), (L_gs, c_gs), (L_es, c_es) = self.get_overlap_gaussian_data(
-            freqs_gs, modes_gs, center_gs,
-            freqs_es, modes_es, center_es
+            freqs_gs, modes_gs, inv_gs, center_gs,
+            freqs_es, modes_es, inv_es, center_es
         )
 
         # We now have the space to define the parameters that go into the overlap calculation
@@ -452,12 +453,11 @@ class FranckCondonModel:
 
         inv = nms.inverse
         inv = np.reshape(
-            np.sqrt(masses)[np.newaxis, np.newaxis, :] * inv.reshape((inv.shape[0], 3, -1)),
+            inv.reshape((inv.shape[0], -1, 3)) / np.sqrt(masses)[np.newaxis, :, np.newaxis],
             inv.shape
         )
 
         origin = np.sqrt(masses)[:, np.newaxis] * nms.origin
-
         return NormalModes(
             nms.basis,
             mat,
@@ -492,8 +492,8 @@ class FranckCondonModel:
         es_center = es_nms.origin.flatten()
         es_basis = es_nms.matrix
         return self.eval_fcf_overlaps(
-            ground_states, gs_freqs, gs_basis, gs_center,
-            excitations, es_freqs, es_basis, es_center
+            ground_states, gs_freqs, gs_basis, gs_nms.inverse, gs_center,
+            excitations, es_freqs, es_basis, es_nms.inverse, es_center
         )
 
 class HermiteProductPolynomial:

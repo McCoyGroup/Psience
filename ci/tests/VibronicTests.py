@@ -57,112 +57,101 @@ class VibronicTests(TestCase):
             masses=modes.masses
         )
 
-    @debugTest
+    @validationTest
     def test_FCFs1D(self):
         np.random.seed(123123123)
         gs = self.fake_mode_data(3)
         es = self.shift_modes(gs, [1, 0, 0])
 
+        self.assertTrue(np.allclose(
+            FranckCondonModel.get_fcfs(
+                gs,
+                es,
+                [
+                    [0, 0, 0],
+                    [1, 0, 0],
+                    [2, 0, 0],
+                    [0, 1, 0],
+                    [0, 0, 1]
+                ],
+                embed=True,
+                mass_weight=False
+            ),
+            [0.7788007830714044, -0.5506953149031834, 0.27534765745159184, 0, 0]
+            )
+        )
+
+        gs.freqs = np.array([1, 2, 2])
+        es.freqs = np.array([1, 2, 2])
+        self.assertTrue(np.allclose(
+            FranckCondonModel.get_fcfs(
+                gs[[0, 1]],
+                es[[0, 1]],
+                [
+                    [0, 0],
+                    [1, 0],
+                    [2, 0],
+                    [0, 1]
+                ],
+                embed=False,
+                mass_weight=False
+            ),
+            [0.7788007830714044, -0.5506953149031834, 0.27534765745159184, 0]
+        ))
+
+        gs.freqs = np.array([2, 2, 2])
+        es = self.shift_modes(gs, [1, 0, 0])
+        gs.freqs = np.array([1, 2, 2])
         # self.assertTrue(np.allclose(
-        #     FranckCondonModel.get_fcfs(
-        #         gs,
-        #         es,
-        #         [
-        #             [0, 0, 0],
-        #             [1, 0, 0],
-        #             [2, 0, 0],
-        #             [0, 1, 0],
-        #             [0, 0, 1]
-        #         ],
-        #         embed=True,
-        #         mass_weight=False
-        #     ),
-        #     [0.7788007830714044, -0.5506953149031834, 0.27534765745159184, 0, 0]
-        #     )
-        # )
-        #
-        # gs.freqs = np.array([1, 2, 2])
-        # es.freqs = np.array([1, 2, 2])
-        # self.assertTrue(np.allclose(
-        #     FranckCondonModel.get_fcfs(
-        #         gs[[0, 1]],
-        #         es[[0, 1]],
-        #         [
-        #             [0, 0],
-        #             [1, 0],
-        #             [2, 0],
-        #             [0, 1]
-        #         ],
-        #         embed=False,
-        #         mass_weight=False
-        #     ),
-        #     [0.7788007830714044, -0.5506953149031834, 0.27534765745159184, 0]
-        # ))
-        #
-        # gs.freqs = np.array([2, 2, 2])
-        # es = self.shift_modes(gs, [1, 0, 0])
-        # gs.freqs = np.array([1, 2, 2])
-        # # self.assertTrue(np.allclose(
-        #
-        # self.assertTrue(np.allclose(
-        #     FranckCondonModel.get_fcfs(
-        #         gs[[0, 1]],
-        #         es[[0, 1]],
-        #         [
-        #             [0, 0],
-        #             [1, 0],
-        #             [2, 0],
-        #             [0, 1]
-        #         ],
-        #         embed=False,
-        #         mass_weight=False
-        #     ),
-        #     [0.6957401109084786, -0.46382674060565227, 0.3826375391742289, 0]
-        # ))
-        #
-        # gs.freqs = np.array([1, 2, 2])
-        # es = self.shift_modes(gs, [0, 0, 0])
-        # a = np.pi/6
-        # c = np.cos(a); s = np.sin(a)
-        # rot = np.array([
-        #     [c, -s, 0],
-        #     [s,  c, 0],
-        #     [0,  0, 1]
-        # ])
-        # es.matrix = es.matrix @ rot
-        # es.inverse = rot.T @ es.inverse
-        # es = self.shift_modes(es, [1, 0, 0])
-        # self.assertTrue(np.allclose(
-        #     FranckCondonModel.get_fcfs(
-        #         gs[[0, 1]],
-        #         es[[0, 1]],
-        #         [
-        #             [0, 0],
-        #             [1, 0],
-        #             [2, 0],
-        #             [0, 1],
-        #             [0, 2],
-        #             [1, 1],
-        #             [3, 1],
-        #             [4, 0]
-        #         ],
-        #         embed=False,
-        #         mass_weight=False
-        #     ),
-        #     [0.7496767974532862, -0.44516984867014925, 0.1387318098673722, -0.27260974452846753, 0.11828712209744374,
-        #      0.2731724071385005, 0.04095176853485087, -0.006611444894396162]
-        # ))
-        """
-========== [2] ==========
-::::: [[2]] :::::
-    scaling: [2.23855208]
-?? [0.46860914 0.25866359 0.16666667]
-?? [0.9330127 0.        0.0669873]
-     contrib: [1.00372832]
----> 1 [1.00372832] [1.4142135623730951]
-   > 1.4194861976924371 -0.16340915941092438
-[-0.07188316853490442]
-"""
+
+        self.assertTrue(np.allclose(
+            FranckCondonModel.get_fcfs(
+                gs[[0, 1]],
+                es[[0, 1]],
+                [
+                    [0, 0],
+                    [1, 0],
+                    [2, 0],
+                    [0, 1]
+                ],
+                embed=False,
+                mass_weight=False
+            ),
+            [0.6957401109084786, -0.46382674060565227, 0.3826375391742289, 0]
+        ))
+
+        gs.freqs = np.array([1, 2, 2])
+        es = self.shift_modes(gs, [0, 0, 0])
+        a = np.pi/6
+        c = np.cos(a); s = np.sin(a)
+        rot = np.array([
+            [c, -s, 0],
+            [s,  c, 0],
+            [0,  0, 1]
+        ])
+        es.matrix = es.matrix @ rot
+        es.inverse = rot.T @ es.inverse
+        es = self.shift_modes(es, [1, 0, 0])
+        self.assertTrue(np.allclose(
+            FranckCondonModel.get_fcfs(
+                gs[[0, 1]],
+                es[[0, 1]],
+                [
+                    [0, 0],
+                    [1, 0],
+                    [2, 0],
+                    [0, 1],
+                    [0, 2],
+                    [1, 1],
+                    [3, 1],
+                    [4, 0]
+                ],
+                embed=False,
+                mass_weight=False
+            ),
+            [0.7496767974532862, -0.44516984867014925, 0.1387318098673722, -0.27260974452846753, 0.11828712209744374,
+             0.2731724071385005, 0.04095176853485087, -0.006611444894396162]
+        ))
 
         gs.freqs = np.array([1, 1, 3])
         es = self.shift_modes(gs, [0, 0, 0])
@@ -190,7 +179,7 @@ class VibronicTests(TestCase):
         es.matrix = es.matrix @ rot
         es.inverse = rot.T @ es.inverse
         es = self.shift_modes(es, [.5, 0, 0])
-        print(
+        self.assertTrue(np.allclose(
             FranckCondonModel.get_fcfs(
                 gs,
                 es,
@@ -203,16 +192,33 @@ class VibronicTests(TestCase):
                 ],
                 embed=False,
                 mass_weight=False
-            )
-        )
+            ),
+            [-0.03514901704682615, -0.028699052241704527]
+        ))
 
-    @validationTest
+    @debugTest
     def test_FCFsNH3(self):
+        print()
 
         gs = Molecule.from_file('/Users/Mark/Documents/Postdoc/FCFs/nh3_s0.fchk')
         es = Molecule.from_file('/Users/Mark/Documents/Postdoc/FCFs/nh3_s1.fchk')
 
-        from Psience.BasisReps import BasisStateSpace
+        gs = gs.get_embedded_molecule()
+        es = es.get_embedded_molecule(ref=gs)
+
+        # uhhh = gs.normal_modes.modes.basis#.to_new_modes()
+        # # print(uhhh.inverse @ uhhh.matrix)
+        # raise Exception(...)
+
+        # gs_modes = FranckCondonModel.mass_weight_nms(gs.normal_modes.modes.basis.to_new_modes())
+        # es_modes = FranckCondonModel.mass_weight_nms(es.normal_modes.modes.basis.to_new_modes())
+
+        # print(
+        #     np.linalg.det(es_modes.matrix.T @ gs_modes.matrix)
+        # )
+        # raise Exception(...)
+
+        from Psience.BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis as HO
         from McUtils.Data import UnitsData
 
         # exc_states = BasisStateSpace.states_under_freq_threshold(
@@ -222,9 +228,7 @@ class VibronicTests(TestCase):
         # print(exc_states)
         # raise Exception(es.normal_modes.modes.freqs * UnitsData.hartrees_to_wavenumbers)
 
-        print()
-        print(
-            np.power(
+        uuugh = np.power(
                 FranckCondonModel.get_fcfs(
                     gs.normal_modes.modes.basis.to_new_modes(),
                     es.normal_modes.modes.basis.to_new_modes(),
@@ -234,14 +238,18 @@ class VibronicTests(TestCase):
                         [2, 0, 0, 0, 0, 0],
                         [3, 0, 0, 0, 0, 0],
                         [0, 1, 0, 0, 0, 0],
+                        [0, 1, 0, 0, 0, 0],
                         [0, 0, 1, 0, 0, 0],
                         [0, 0, 0, 1, 0, 0],
                         [0, 0, 0, 0, 1, 0],
                         [0, 0, 0, 0, 0, 1],
                     ],
-                    embed=True,
-                    mass_weight=True
+                    # BasisStateSpace.from_quanta(HO(6), [0, 1, 2, 3]).excitations,
+                    embed=False,
+                    mass_weight=False
                 ),
                 2
             )
-        )
+        print(np.sum(uuugh))
+        print(uuugh)
+        print(uuugh / np.max(uuugh))

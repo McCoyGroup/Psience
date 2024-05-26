@@ -424,14 +424,12 @@ class MolecularNormalModes(CoordinateSystem):
         )
         mat = mat_2.reshape(self.matrix.shape)
 
-        # if self._inv is not None:
-        #     mat = self.matrix.reshape((self.matrix.shape[0] // 3, 3, -1))
-        #     mat_2 = np.moveaxis(
-        #         np.tensordot(tmat, mat, axes=[1, 1]),
-        #         0,
-        #         1
-        #     )
-        #     mat = mat_2.reshape(self.matrix.shape)
+        if self._inv is not None:
+            inv = self.inverse.reshape((-1, self.matrix.shape[0] // 3, 3))
+            inv = np.tensordot(inv, np.linalg.inv(tmat), axes=[2, 0])
+            inv = inv.reshape(self.inverse.shape)
+        else:
+            inv = None
 
         # norms = np.linalg.norm(
         #         self.matrix,
@@ -454,6 +452,7 @@ class MolecularNormalModes(CoordinateSystem):
         return type(self)(
             self.molecule,
             mat,
+            inverse=inv,
             origin=orig,
             freqs=self.freqs
         )
