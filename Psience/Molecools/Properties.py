@@ -276,7 +276,7 @@ class StructuralProperties:
             # need to make them broadcast together and we assume
             # we have an extra stack of coords
             n_sys = coords.shape[0]
-            ref =  np.reshape(
+            ref = np.reshape(
                     np.broadcast_to(
                         ref[np.newaxis],
                         (n_sys // ref.shape[0],) + ref.shape
@@ -1955,7 +1955,7 @@ class NormalModesManager(PropertyManager):
 
             modes = modes.T
 
-            modes = MolecularNormalModes(self.mol, modes, inverse=modes.T, freqs=freqs)
+            modes = MolecularNormalModes(self.mol, modes, inverse=np.linalg.pinv(modes), freqs=freqs)
             self._freqs = freqs # important for rephasing to work right...
 
             if rephase:

@@ -3,6 +3,6 @@ A file that only exists to make this directory useable as a way to import Psienc
 Mostly useful during development
 """
 
-from .Psience.LocalModes import *
-from .Psience.LocalModes import __all__
-from .Psience.LocalModes import __doc__
+from .Psience.Modes import *
+from .Psience.Modes import __all__
+from .Psience.Modes import __doc__

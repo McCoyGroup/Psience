@@ -124,7 +124,6 @@ class DGBWavefunction(Wavefunction):
                 subspec = np.sort(
                     np.concatenate([subspec, full_spec[atom][xyz_remv]])
                 )
-
             proj = self.marginalize_out(subspec)  # what we're projecting _out_
 
             ps = dict(plot_styles, **atom_styles[i])

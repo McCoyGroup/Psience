@@ -6,7 +6,7 @@ from McUtils.Parallelizers import Parallelizer
 from McUtils.Data import AtomData, UnitsData
 import McUtils.Numputils as nput
 
-from ..MixtureModes import NormalModes
+from ..Modes import NormalModes
 
 from .Coordinates import *
 from .Evaluators import *
@@ -516,10 +516,10 @@ class DGBGaussians:
                         else: # take this many points from that region
                             if pivot_pos >= next_prob:
                                 sel = [
-                                    np.sort(np.random.choice(np.arange(pivot_pos), next_prob, replace=False))
+                                    np.sort(np.random.choice(np.arange(pivot_pos-1), next_prob, replace=False))
                                 ]
                             else:
-                                sel = [np.arange(pivot_pos)]
+                                sel = [np.arange(pivot_pos-1)]
                         if len(sel) > 0 and len(sel[0]) > 0:
                             new_pivs = cur_pivot + sel[0]
                     cur_pivot = pivot_pos
@@ -573,6 +573,7 @@ class DGBGaussians:
                   momenta=None,
                   poly_coeffs=None,
                   logger=None,
+                  pairwise_potential_functions=None,
                   parallelizer=None
                   ):
         if potential_expansion is not None:
@@ -591,6 +592,7 @@ class DGBGaussians:
             potential_function = DGBGenericInterpolator(
                 interp_coords,
                 potential_expansion,
+                pairwise_potential_functions=pairwise_potential_functions,
                 **expansion_opts
             )
 
@@ -723,7 +725,7 @@ class DGBGaussians:
                          internals=None,
                          gmat_function=None,
                          reference_structure=None,
-                         stationary_point_norm=1e-6
+                         stationary_point_norm=1e-2
                          ):
         if internals is not None:
             raise ValueError("internal coordinate support still to come")

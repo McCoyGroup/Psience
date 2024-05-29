@@ -884,6 +884,7 @@ class DGBTests(TestCase):
                            plot_cartesians=None,
                            plot_atoms=True,
                            cmap=None,
+                           modes_nearest=False,
                            plot_points=100,
                            levels=24,
                            **plot_styles
@@ -907,6 +908,7 @@ class DGBTests(TestCase):
                 cutoff_pot,
                 axes=coordinate_sel,
                 domain=domain,
+                modes_nearest=modes_nearest,
                 domain_padding=domain_padding,
                 cmap=cmap,
                 plot_points=plot_points,
@@ -979,6 +981,7 @@ class DGBTests(TestCase):
                            cartesians=None,
                            plot_dir=None,
                            plot_name='wfn_{i}.pdf',
+                           plot_label='{e} cm-1',
                            plot_potential=True,
                            plot_atoms=None,
                            plot_centers=True,
@@ -1008,6 +1011,7 @@ class DGBTests(TestCase):
                     potential_styles = {}
                 pot_figure = cls.plot_dgb_potential(
                     dgb, mol, pot,
+                    coordinate_sel=coordinate_sel,
                     plot_atoms=plot_atoms,
                     **potential_styles
                 )
@@ -1027,33 +1031,43 @@ class DGBTests(TestCase):
                 if i < len(wfns):
                     if pot_figure is not None:
                         figure = pot_figure.copy()
+                    w = wfns[i]
+                    if i == 0:
+                        e = w.energy
+                    else:
+                        e = w.energy - wfns.energies[0]
+                    e = e * UnitsData.hartrees_to_wavenumbers
+                    lab = plot_label.format(i=i, e=e) if plot_label is not None else None
 
                     if isinstance(dgb.gaussians.coords, DGBCartesians):
+
                         figs.append(
-                            wfns[i].plot_cartesians(
+                            w.plot_cartesians(
                                 coordinate_sel,
                                 plot_centers=plot_centers,
                                 figure=figure,
+                                plot_label=lab,
                                 **plot_options
                             )
                         )
                     else:
                         if wfns.gaussians.alphas.shape[-1] > 1:
-                            wfn = wfns[i]
                             if coordinate_sel is not None:
-                                wfn = wfn.project(coordinate_sel)
+                                w = w.project(coordinate_sel)
                             figs.append(
-                                wfn.plot(
+                                w.plot(
                                     figure=figure,
                                     plot_centers=plot_centers,
+                                    plot_label=lab,
                                     **plot_options
                                 )
                             )
                         else:
                             figs.append(
-                                wfns[i].plot(
+                                w.plot(
                                     figure=figure,
                                     plot_centers=plot_centers,
+                                    plot_label=lab,
                                     **plot_options
                                 )
                             )
@@ -1121,7 +1135,6 @@ class DGBTests(TestCase):
                     if 'cartesians' in plot_wavefunctions:
                         cartesian_plot_axes=plot_wavefunctions['cartesians']
                         dgb = dgb.as_cartesian_dgb()
-                        raise Exception(...)
                     else:
                         raise ValueError(plot_wavefunctions)
 
@@ -1144,9 +1157,6 @@ class DGBTests(TestCase):
             if plot_similarity:
                 plt.ArrayPlot(dgb.get_similarity_matrix()).show()
 
-            if plot_spectrum:
-                spec[:5].plot().show()
-
             use_cartesians = False
             if isinstance(plot_wavefunctions, str) and plot_wavefunctions == 'cartesians':
                 plot_wavefunctions = {'cartesians': None}
@@ -1162,6 +1172,18 @@ class DGBTests(TestCase):
                     plot_potential = False
                 else:
                     raise ValueError(plot_wavefunctions)
+
+            if plot_spectrum:
+                which = plot_wavefunctions
+                if which is True:
+                    which = cls.default_num_plot_wfns
+                if isinstance(which, int):
+                    which = list(range(which))
+                spec_plot = spec[which].plot()
+                if plot_dir is not None:
+                    os.makedirs(plot_dir, exist_ok=True)
+                    spec_plot.savefig(os.path.join(plot_dir, 'spec.png'))
+                    spec_plot.close()
 
             if plot_wavefunctions:
                 cls.plot_wavefunctions(
@@ -1190,9 +1212,10 @@ class DGBTests(TestCase):
                     **plot_options
                 )
 
-
-
-            return wfns
+            if plot_spectrum:
+                return wfns, spec
+            else:
+                return wfns
 
     @classmethod
     def getMorseParameters(cls, w=None, wx=None, m1=None, m2=None, re=None):
@@ -1246,10 +1269,10 @@ class DGBTests(TestCase):
     def plot_interpolation_error(cls, dgb, pot):
         sel = slice(None)  # slice(15,30)
 
-        centers = dgb.gaussians.overlap_data['centers'][sel]
+        centers = dgb.gaussians.overlap_data.centers[sel]
         embpot = dgb.gaussians.coords.embed_function(pot)
-        realpots, _, real_hess = [d * 219475 for d in embpot(centers, deriv_order=2)]
-        interpots, _, inter_hess = [d * 219475 for d in dgb.pot.potential_function(centers, deriv_order=2)]
+        realpots, realgrad, real_hess = [d * 219475 for d in embpot(centers, deriv_order=2)]
+        interpots, intergrad, inter_hess = [d * 219475 for d in dgb.pot.potential_function(centers, deriv_order=2)]
 
         ords = np.argsort(realpots)
         devs = interpots[ords] - realpots[ords]
@@ -1259,11 +1282,17 @@ class DGBTests(TestCase):
         devs = devs * utris
         max_dev_pos = np.flip(np.argsort(np.abs(devs)))[:5]
 
+        inter_gnorm = np.sum(np.abs(intergrad[ords]), axis=-1)
+        real_gnorm = np.sum(np.abs(realgrad[ords]), axis=-1)
+        dev_gnorm = inter_gnorm - real_gnorm
+        # dev_hess = inter_hess - real_hess
+        grad_plot = plt.ScatterPlot(realpots[ords], dev_gnorm)
+
         inter_trace = np.sum(np.sum(np.abs(inter_hess[ords]), axis=-1), axis=-1)
         real_trace = np.sum(np.sum(np.abs(real_hess[ords]), axis=-1), axis=-1)
         dev_trace = inter_trace - real_trace
         dev_hess = inter_hess - real_hess
-        hess_plot = plt.ScatterPlot(realpots[ords], inter_trace - real_trace)
+        hess_plot = plt.ScatterPlot(realpots[ords], dev_trace)
 
         print("Mean Absolute Error:", np.mean(np.abs(unscaled_devs)), "Std:", np.std(unscaled_devs))
         print("Mean Scaled Error:", np.mean(np.abs(devs)), "Std:", np.std(devs))
@@ -1280,7 +1309,7 @@ class DGBTests(TestCase):
         for l, r, c, tt, ii, ov in zip(
                 dgb.gaussians.coords.centers[rows[sel][ords[max_dev_pos]]],
                 dgb.gaussians.coords.centers[cols[sel][ords[max_dev_pos]]],
-                dgb.gaussians.overlap_data['centers'][sel][ords[max_dev_pos]],
+                dgb.gaussians.overlap_data.centers[sel][ords[max_dev_pos]],
                 realpots[ords[max_dev_pos]],
                 interpots[ords[max_dev_pos]],
                 utris[sel][ords[max_dev_pos]]
@@ -1307,10 +1336,11 @@ class DGBTests(TestCase):
         #     figure=center_plot
         # )
         # woof = plt.ScatterPlot(realpots[ords], unscaled_devs / realpots[ords])
-        scaled_dev_plot = plt.ScatterPlot(realpots[ords], unscaled_devs)
-        dev_plot = plt.ScatterPlot(realpots[ords], devs
-                                   # plot_range=[None, [-100, 100]]
-                                   )
+        # dev_plot = plt.ScatterPlot(realpots[ords], unscaled_devs)
+        dev_plot = plt.ScatterPlot(realpots[ords], unscaled_devs)
+        # dev_plot = plt.ScatterPlot(realpots[ords], devs
+        #                            # plot_range=[None, [-100, 100]]
+        #                            )
         dev_plot.show()
 
     @validationTest
@@ -2556,6 +2586,150 @@ class DGBTests(TestCase):
             pivots = np.concatenate([pivots[:i+1], pivots[i+1:][good_pos]])
         return points[pivots]
     @classmethod
+    def plot_quadratic_opt_potentials(cls, interp_data, mol, local_coordinates=None):
+        modes = mol.normal_modes.modes.basis.to_new_modes()
+        print(modes.matrix.shape)
+        print([v.shape for v in interp_data['values']])
+        embedded_coords = modes.embed_coords(interp_data['centers'])
+        embedded_vals = modes.embed_derivs(interp_data['values'])
+
+        fitting_vals = embedded_vals[0] * 219475.6 < 3600
+        cents = interp_data['centers'][fitting_vals]
+        embedded_coords = embedded_coords[fitting_vals]
+        embedded_vals = [v[fitting_vals] for v in embedded_vals]
+
+        def bond_vec(coords, i, j):
+            bond_tf = nput.dist_deriv(coords, i, j)[1]
+            bond_vectors = np.zeros(coords.shape)
+            bond_vectors[:, i] = bond_tf[0]
+            bond_vectors[:, j] = bond_tf[1]
+            bond_vectors = bond_vectors.reshape(bond_vectors.shape[0], -1)
+
+            return bond_vectors
+
+        def angle_vec(coords, i, j, k):
+            ang_tf = nput.angle_deriv(coords, i, j, k)[1]
+            ang_vectors = np.zeros(coords.shape)
+            ang_vectors[:, i] = ang_tf[0]
+            ang_vectors[:, j] = ang_tf[1]
+            ang_vectors[:, k] = ang_tf[2]
+            ang_vectors = ang_vectors.reshape(ang_vectors.shape[0], -1)
+
+            return ang_vectors
+
+        def poly_kernel(centers, points, m=3):
+            vals = 1 + np.sum(centers[:, np.newaxis, :] * points[np.newaxis, :, :], axis=-1)
+            return vals ** m
+
+        def poly_krr(coords, vals, l=1, m=3):
+            kernel_mat = poly_kernel(coords, coords, m=m)
+            regularizer = np.eye(len(coords))
+            # print(kernel_mat.shape, regularizer.shape)
+            np.fill_diagonal(regularizer, l)
+            weights = np.dot(
+                np.linalg.inv(kernel_mat + regularizer),
+                vals
+            )
+
+            def regression(pts, *, coords=coords, kernel=poly_kernel, m=m, weights=weights):
+                return np.dot(weights, kernel(coords, pts, m=m))
+
+            return regression
+
+
+        if local_coordinates is not None:
+
+            localizers = np.array([
+                bond_vec(cents, *inds)
+                    if len(inds) == 2 else
+                angle_vec(cents, *inds)
+                for inds in local_coordinates
+            ]).transpose((1, 2, 0))
+            # print(modes.matrix)
+            # print(localizers[0])
+
+            # print(localizers[0])
+
+            pseudos = np.linalg.inv(modes.matrix.T @ modes.matrix) @ modes.matrix.T
+            # print(pseudos.shape, localizers.shape)
+
+            vec_ls = pseudos[np.newaxis] @ localizers[:, :]
+
+            # print(vec_ls[0])
+
+            svd_bits = np.linalg.svd(vec_ls)
+            polar_rots = svd_bits[0] @ svd_bits[2]
+
+            # print(polar_rots[0])
+            # raise Exception(
+            #     cents[0],
+            #     modes.matrix
+            # )
+
+            embedded_coords = nput.vec_tensordot(
+                polar_rots,
+                embedded_coords,
+                shared=1,
+                axes=[2, 1]
+            )
+
+            _ = []
+            for n, d in enumerate(embedded_vals):
+                for __ in range(n):
+                    d = nput.vec_tensordot(
+                        d,
+                        polar_rots,
+                        shared=1,
+                        axes=[1, 2]
+                    )
+                _.append(d)
+            embedded_vals = _
+
+        # print(embedded_coords[50:55, 0])
+        # print(
+        #     np.linalg.norm(cents[50:55, 0] - cents[50:55, 1], axis=1) - np.linalg.norm(cents[0, 0] - cents[0, 1])
+        # )
+
+        # raise Exception(vec_ls[0])
+
+        figs = []
+        for crd in range(embedded_coords.shape[-1]):
+            rem = np.setdiff1d(np.arange(embedded_coords.shape[-1]), crd)
+
+            inverse_sub_hess = np.linalg.inv(embedded_vals[2][:, rem, :][:, :, rem])
+            sub_grad = embedded_vals[1][:, rem]
+            pot_contrib = sub_grad[:, np.newaxis, :] @ inverse_sub_hess @ sub_grad[:, :, np.newaxis]
+
+            crd_sort = np.argsort(embedded_coords[:, crd])
+            emb_pot = embedded_vals[0] - 1 / 2 * pot_contrib.flatten()
+
+            crds = embedded_coords[crd_sort, crd]
+            regression = poly_krr(crds[:, np.newaxis], emb_pot[crd_sort])
+
+            regressed = plt.ScatterPlot(
+                crds,
+                emb_pot[crd_sort] * 219475.6,
+                # plot_range=[None, [-500, 500]]
+            )
+            plt.ScatterPlot(
+                crds, regression(crds[:, np.newaxis]) * 219475.6,
+                figure=regressed
+            )
+            figs.append(
+                regressed
+            )
+
+            figs.append(
+                plt.ScatterPlot(
+                    embedded_coords[crd_sort, crd],
+                    embedded_vals[0][crd_sort] * 219475.6,
+                    # plot_range=[None, [-500, 500]]
+                )
+            )
+        figs[0].show()
+
+        raise Exception(...)
+    @classmethod
     def getMBPolModel(cls, atoms=None, ref=None, embed=True):
         loader = ModuleLoader(TestManager.current_manager().test_data_dir)
         mbpol = loader.load("LegacyMBPol").MBPol
@@ -2650,7 +2824,7 @@ class DGBTests(TestCase):
             ref_mol = ref_mol.get_embedded_molecule(load_properties=False)
 
         return potential, ref_mol
-    @debugTest
+    @validationTest
     def test_WaterAIMD(self):
         pot, mol = self.getMBPolModel()
 
@@ -2701,7 +2875,7 @@ class DGBTests(TestCase):
                 logger=True,
                 degeneracy_specs='auto',
                 calculate_intensities=False,
-                include_coriolis_coupling=True
+                include_coriolis_coupling=False
             )
             """
             State     Harmonic   Anharmonic     Harmonic   Anharmonic
@@ -2808,12 +2982,12 @@ class DGBTests(TestCase):
         bend, symm, asym = mol.normal_modes.modes.freqs
 
         base_dir = os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/')
-        for steps in [350]:#[10, 25, 50, 100, 150]:
+        for steps in [500]:#[10, 25, 50, 100, 150]:
             os.makedirs(base_dir, exist_ok=True)
-            timestep = 25
-            ntraj = 50
+            timestep = 10
+            ntraj = 10
 
-            energy_scaling = 1
+            energy_scaling = .75
             seed = 12213123
 
             svd_contrib_cutoff = None #1.5*1e-2
@@ -2826,70 +3000,73 @@ class DGBTests(TestCase):
             plot_similarity = False
             # pruning_energy = 1000
             pruning_energy = None
-            pruning_probabilities = [[250, 500], [500, 500], [1000, 500], [1600, 500], [3600, 100]]
-            if pruning_probabilities is not None:
-                pruning_probabilities = [
-                    [e / UnitsData.hartrees_to_wavenumbers, p]
-                    for e,p in pruning_probabilities
-                ]
+            # pruning_probabilities = [[250, 650], [500, 650], [1000, 1000], [1600, 500], [3600, 200]]#, [7000, 50]]
+            pruning_probabilities = [[1200, 200]]#, [7000, 50]]
 
-            use_interpolation = False
+            use_interpolation = True
             plot_interpolation_error = False
 
-            """
-            >>------------------------- Running distributed Gaussian basis calculation -------------------------
-            :: diagonalizing in the space of 30 S functions
-            :: ZPE: 4699.655449323992
-            :: Frequencies: [ 1593.78350018  3227.21076654  3677.96974645  3760.55445805  4968.33053817  5447.13795543  5561.15140395  6439.46764936  6969.30704561  7206.78145883  7468.36586141  7501.7226483   7636.97825599  8536.70497126  8610.3430483   9058.82151809  9364.45589377  9884.77282794 10390.89757528 10559.04176505]
-            >>--------------------------------------------------<<
-            """
-
-            use_momenta = False
-            momentum_scaling = 1 / 2
+            use_momenta = True
+            use_sqrt_masses = True
+            # momentum_scaling = .1
+            momentum_scaling = 1 if use_sqrt_masses else 1 / 8
 
             use_coriolis = True
             use_watson = True
 
-            use_pairwise_potentials = False
+            use_pairwise_potentials = True
+            interpolate_ppf = True
             morse_w = 3891.634745263701 * self.w2h
             morse_wx = 185.31310314514627 * self.w2h
-            quadrature_degree = 3
-            expansion_degree = None
+            quadrature_degree = 11
+            expansion_degree = 2
             virial_scaling = 1/2
-            transformation_method = 'diag' #4642.62343373526, 1624.36701583 3196.27137197 3474.1645502  3740.31164635
-            # transformation_method = 'rpath' #4597.724422233999, 1613.48466441 3197.30480264 3559.70550684 3858.89799206
-            # transformation_method = None #1698.2354715  3295.17558598 3667.70526921 3929.12204053
+            transformation_method = 'diag'
+            # transformation_method = None
 
             run_profiler = False
             plot_gaussians = False
             plot_wfns = not run_profiler
             # plot_wfns = {'modes':[2, 1]}
-            plot_wfns = {'cartesians':[0, 1], 'num':[12]}
+            plot_wfns = {'cartesians':[0, 1], 'num':15}
+
+            run_opts = {
+                'timestep': timestep,
+                'trajectories': ntraj,
+                'pruning_probabilities': pruning_probabilities,
+                'momentum_scaling': None if not use_momenta else momentum_scaling,
+                'sqrt_masses': use_sqrt_masses,
+                'energy_scaling': energy_scaling,
+                'use_coriolis': use_coriolis,
+                'use_watson': use_watson,
+                'ppf_w': None if not use_pairwise_potentials else morse_w,
+                'ppf_wx': None if not use_pairwise_potentials else morse_wx,
+                'interpolate_ppf': interpolate_ppf,
+                'quadrature_degree': quadrature_degree,
+                'expansion_degree': expansion_degree,
+                'seed': seed,
+                'max_overlap_cutoff': max_overlap_cutoff,
+                'gram_schmidt_cutoff': gs_cutoff,
+                'similarity_cutoff': sim_cutoff,
+                'pruning_energy': pruning_energy,
+                'transformation_method': transformation_method,
+                'virial_scaling': virial_scaling
+            }
 
             plot_dir = os.path.join(base_dir, 'Figures', 'mbpol')
             if not plot_wfns:
                 plot_dir = None
             if plot_dir is not None:
-                all_params = (
-                    timestep,
-                    ntraj,
-                    energy_scaling,
-
-                    seed,
-
-                    max_overlap_cutoff ,
-                    gs_cutoff,
-                    declustering_radius,
-                    sim_cutoff,
-                    pruning_energy,
-                    None if not use_pairwise_potentials else morse_wx,
-                    None if not use_pairwise_potentials else morse_w
-                    )
+                all_params = tuple(run_opts.keys())
                 param_hash = str(hash(all_params))[:25]
                 plot_dir = os.path.join(plot_dir,
                                         '{}_E{}_s{}_nt{}_ts{}_sim{}_h{}'.format(
                                             'interp' if use_interpolation else 'exact',
-                                            pruning_energy,
+                                            pruning_energy
+                                                if pruning_energy is not None else
+                                            pruning_probabilities[-1][0]
+                                                if pruning_probabilities is not None else
+                                            None,
                                             steps,
                                             ntraj,
                                             timestep,
@@ -2898,6 +3075,11 @@ class DGBTests(TestCase):
                                         )
                                         )
 
+            if pruning_probabilities is not None:
+                pruning_probabilities = [
+                    [e / UnitsData.hartrees_to_wavenumbers, p]
+                    for e, p in pruning_probabilities
+                ]
             if pruning_energy is not None:
                 pruning_energy = pruning_energy / UnitsData.hartrees_to_wavenumbers
 
@@ -2921,17 +3103,6 @@ class DGBTests(TestCase):
                 image_size=[500, 500 * 2/5]
             )
 
-            # initial_energies = np.array([
-            #                 [ 3.0, 0.0, 0.0],
-            #                 [ 1.0, 0.0, 0.0],
-            #                 [ 0.0, 3.0, 0.0],
-            #                 [ 0.0, 0.0, -3.0],
-            #                 [ 2.0, 0.0, -2.0],
-            #                 [ 0.0, 2.0, -2.0],
-            #                 [-2.0, 2.0, 2.0],
-            #                 # [ 0.7, 0.7, 0.0],
-            #                 # [-0.7, 0.7, 0.0],
-            #             ]) * np.array([bend, symm, asym])[np.newaxis, :]
             np.random.seed(seed)
             dirs = np.random.normal(0, 1, size=(ntraj, 3))
             dirs = dirs / np.linalg.norm(dirs, axis=1)[:, np.newaxis]
@@ -2944,19 +3115,21 @@ class DGBTests(TestCase):
                 dirs
             ])
             initial_energies = energy_scaling * dirs * np.array([bend, symm, asym])[np.newaxis, :]
-            # initial_energies = initial_energies / np.linalg.norm(initial_energies, axis=1)[:, np.newaxis]
-            # initial_energies = initial_energies * np.array([bend, symm, asym])[np.newaxis, :]
-            # ninit = len(initial_energies)
 
             sim = mol.setup_AIMD(
                 pot,
                 initial_energies=np.array(initial_energies) * energy_scaling,
-                timestep=timestep  # DON'T MESS WITH THIS
+                timestep=timestep
                 , track_velocities=True
             )
             sim.propagate(steps)
             coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
-            momenta = momentum_scaling * velocities * np.sqrt(mol.atomic_masses[np.newaxis, :, np.newaxis])
+
+            momenta = momentum_scaling * velocities * (
+                np.sqrt(mol.atomic_masses[np.newaxis, :, np.newaxis])
+                    if use_sqrt_masses else
+                mol.atomic_masses[np.newaxis, :, np.newaxis]
+            )
 
             # plt.HistogramPlot(pot(coords)[0]*219475.6).show()
             # raise Exception(...)
@@ -2973,7 +3146,7 @@ class DGBTests(TestCase):
             print("="*25, "Steps:", steps, "Points:", len(coords), "="*25)
             cartesians = False
             if use_interpolation:
-                symmetrize=True
+                symmetrize = False
                 augment = False
                 if augment:
                     with Checkpointer.from_file(os.path.join(base_dir, interp_traj_file)) as chk:
@@ -2984,11 +3157,12 @@ class DGBTests(TestCase):
                         pot_vals = pot(traj, deriv_order=2)
                         interp_data = {'centers':traj, 'values':pot_vals}
                 elif symmetrize:
-                    mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
+                    # mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
                     modes = mol.normal_modes.modes.basis.to_new_modes()
                     emb_coords = modes.embed_coords(coords)
                     new_emb = emb_coords * np.array([1, 1, -1])[np.newaxis, :]
                     new_coords = modes.unembed_coords(new_emb)
+
                     interp_coords = np.concatenate([coords, new_coords], axis=0)
                     interp_data = {'centers':interp_coords, 'values':pot(interp_coords, deriv_order=2)}
                 else:
@@ -2996,11 +3170,16 @@ class DGBTests(TestCase):
             else:
                 interp_data = None
 
+            plot_quadratic_opt = True
+            if plot_quadratic_opt:
+                self.plot_quadratic_opt_potentials(interp_data)
+
             with BlockProfiler(inactive=not run_profiler):
                 # crd = np.round(coords[len(initial_energies)-1:], 8)
                 # if declustering_radius is not None:
                 #     crd = self.declusterPoints(crd, declustering_radius)
                 print("input points:", len(coords))
+                print("input coords:", coords[0])
 
                 dgb = DGB.construct(
                     coords,
@@ -3054,7 +3233,8 @@ class DGBTests(TestCase):
                                 wx=morse_wx
                             )
                         },
-                        'quadrature_degree': quadrature_degree
+                        'quadrature_degree': quadrature_degree,
+                        'use_with_interpolation': interpolate_ppf
                     } if use_pairwise_potentials else None,
                     kinetic_options=dict(
                         include_coriolis_coupling=use_coriolis,
@@ -3097,12 +3277,555 @@ class DGBTests(TestCase):
 
                 if plot_dir is not None:
                     with open(os.path.join(plot_dir, 'freqs.txt'), 'w+') as woof:
+                        print(run_opts, file=woof)
                         print("ZPE:", wfns.energies[0] * UnitsData.hartrees_to_wavenumbers, file=woof)
                         print("Freqs:", wfns.frequencies() * UnitsData.hartrees_to_wavenumbers, file=woof)
 
 
             if plot_dir is not None or plot_wfns is False:
                 plt.Graphics().show()
+
+    @classmethod
+    def setupOCHHModel(cls):
+
+        loader = ModuleLoader(os.path.expanduser("~/Documents/Postdoc"))
+        h2co_mod = loader.load("H2COPot")
+        h2co = h2co_mod.Potential
+        h2co_i = h2co_mod.InternalsPotential
+
+        struct = Molecule.from_file(
+            TestManager.test_data('OCHH_freq.fchk')
+        )
+        pds = struct.potential_derivatives;
+        # struct = struct.get_embedded_molecule(embed_properties=True)
+
+        ints = h2co.get_internals(struct.coords * UnitsData.convert("BohrRadius", "Angstroms"), order=[3, 2, 1, 0])
+        # s2 = h2co.from_internals(ints)
+        # ints2 = h2co.get_internals(s2)
+        # print(ints)
+        # print(ints2)
+        # raise Exception(...)
+
+        def pot_i(c): return h2co_i.get_pot(c)
+        # fd_i = FiniteDifferenceDerivative(pot_i,
+        #                                   function_shape=((6,), None),
+        #                                   ).derivatives(ints)
+
+        # ints = np.array[
+        #     1.210000 , 1.100000,   1.100000,
+        #     np.deg2rad(122.000000),  np.deg2rad(122.000000), np.deg2rad(180.000000)
+        # ]
+        import scipy.optimize as opt
+        opt_ints = opt.minimize(pot_i, ints, method='nelder-mead', tol=1e-8)
+        # raise Exception(opt_ints.fun, opt_ints.message)
+
+        # print(opt_ints)
+        ref_crds = opt_ints.x
+        ref_val = opt_ints.fun
+        ref_struct = h2co.from_internals(ref_crds)
+        # print(ref_struct)
+        # print(ref_crds[5] - np.pi)
+        # print(h2co.get_internals(ref_struct))
+        # raise Exception(...)
+        ref_struct = struct.embed_coords(ref_struct[(3, 2, 0, 1),] * UnitsData.convert("Angstroms", "BohrRadius"))
+        # ref_struct = ref_struct[(3, 2, 1, 0),]
+
+        ref_val = h2co.get_pot(
+            ref_struct * UnitsData.convert("BohrRadius", "Angstroms"),
+            order=(3, 2, 1, 0)
+        )
+        def pot(crds, deriv_order=None):
+            crds = crds * UnitsData.convert("BohrRadius", "Angstroms")
+            pot_vals = h2co.get_pot(crds, order=(3, 2, 1, 0)) - ref_val
+            pot_vals *= UnitsData.convert("Wavenumbers", "Hartrees")
+            if deriv_order is not None and deriv_order > 0:
+                from McUtils.Zachary import FiniteDifferenceDerivative
+                fd = FiniteDifferenceDerivative(lambda c:h2co.get_pot(c, order=(3, 2, 1, 0)),
+                                                function_shape=((4, 3), None),
+                                                ).derivatives(crds)
+                derivs = fd.derivative_tensor(list(range(1, deriv_order+1)))
+                a2b = UnitsData.convert("BohrRadius", "Angstroms")
+                w2h = UnitsData.convert("Wavenumbers", "Hartrees")
+
+                for n,d in enumerate(derivs):
+                    derivs[n] = np.moveaxis(d * (w2h * a2b**(n+1)), -1, 0)
+                pot_vals = [pot_vals] + derivs
+            return pot_vals
+        def dip(crds,
+                deriv_order=None,
+                ch_scaling=.05,
+                reCH=np.linalg.norm(ref_struct[2]-ref_struct[1]),
+                reOH=np.linalg.norm(ref_struct[0]-ref_struct[1]),
+                muCH=.1,
+                muOH=.1
+                ):
+            crds = mol.embed_coords(crds)
+            vOH = crds[..., 0, :] - crds[..., 1, :]
+            vCH1 = crds[..., 2, :] - crds[..., 1, :]
+            vCH2 = crds[..., 3, :] - crds[..., 1, :]
+
+            # d_ch1 = np.linalg.norm(vCH1, axis=1)
+            # d_ch2 = np.linalg.norm(vCH2, axis=1)
+
+            mu = muCH*vCH1 + muCH*vCH2
+            if deriv_order is not None:
+                vals = [mu]
+                if deriv_order > 0:
+                    der = np.zeros(crds.shape[:-2] + (4, 3, 3))
+                    for i in range(3):
+                        der[..., 1, i, i] = -muCH
+                        der[..., 2, i, i] = muCH
+                        der[..., 3, i, i] = muCH
+                    vals.append(der.reshape(crds.shape[:-2] + (12, 3)))
+                if deriv_order > 1:
+                    for n in range(2, deriv_order+1):
+                        vals.append(np.zeros(crds.shape[:-2] + (12,) * n + (3,)))
+            else:
+                vals = mu
+
+            return vals
+
+        mol = Molecule(
+            ["O", "C", "H", "H"],
+            ref_struct
+        )
+
+        # ders = pot(mol.coords, deriv_order=2)
+        # print(ref_val)
+        # print(np.round(struct.potential_derivatives[0] * UnitsData.hartrees_to_wavenumbers, 2))
+        # print(np.round(ders[1] * UnitsData.hartrees_to_wavenumbers, 2))
+        # print(
+        #     np.round(struct.potential_derivatives[1] * UnitsData.hartrees_to_wavenumbers, 2)
+        # )
+        # print(
+        #     np.round(ders[2] * UnitsData.hartrees_to_wavenumbers, 2)
+        # )
+
+        return pot, dip, mol
+
+    @debugTest
+    def test_OCHH(self):
+        pot, dip, mol = self.setupOCHHModel()
+
+        # mp2_dips = Molecule.from_file(TestManager.test_data('OCHH_freq.fchk')).dipole_derivatives
+        # raise Exception([x.shape for x in mp2_dips])
+
+
+        check_freqs = False
+        if check_freqs:
+            mol.potential_derivatives = pot(mol.coords, deriv_order=2)[1:]
+            # from Psience.MixtureModes import NormalModes
+            # freqs, modes, inv = NormalModes.get_normal_modes(
+            #     mol.potential_derivatives[1],
+            #     mol.atomic_masses,
+            #     remove_transrot=True
+            # )
+            # raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+            freqs = mol.normal_modes.modes.freqs
+            raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
+            # [1184.78739083 1270.60326063 1536.38630622 1773.53059261 2938.06517553 3014.04194109]
+
+        check_anh = True
+        if check_anh:
+            from Psience.VPT2 import VPTRunner
+            ref = Molecule.from_file(TestManager.test_data("OCHH_freq.fchk"))
+            dip_data = dip(ref.coords, deriv_order=3)
+
+            raise Exception(
+                ref.dipole_derivatives[0],
+                dip_data[0],
+
+                np.round(ref.dipole_derivatives[1], 3),
+                dip_data[1]
+            )
+
+            pot_data = pot(mol.coords, deriv_order=4)
+            # print([p.shape for p in pot_data])
+
+            VPTRunner.run_simple(
+                [mol.atoms, mol.coords],
+                potential_derivatives=[
+                    x.reshape((12,) * (i + 1))
+                    for i, x in enumerate(pot_data[1:])
+                ],
+                dipole_derivatives=[
+                    x.reshape((12,) * i + (3,))
+                    for i, x in enumerate(dip_data)
+                ],
+                order=2, states=2,
+                logger=True,
+                degeneracy_specs='auto',
+                calculate_intensities=True,
+                include_coriolis_coupling=True
+            )
+            raise Exception(...)
+
+            """
+              0 0 0 0 0 1    3061.70145     75.32618      2987.29160     41.19591
+              0 0 0 0 1 0    2977.64049     69.29750      2843.35728     64.98758
+              0 0 0 1 0 0    1727.08266     63.79277      1693.95557     65.09723
+              0 0 1 0 0 0    1527.04080     11.12160      1491.73003      8.93269
+              0 1 0 0 0 0    1252.16421      0.81827      1242.65091      0.99868
+              1 0 0 0 0 0    1188.11382     22.55337      1175.01252     22.43774
+              """
+
+            """
+            Frequencies: [1257.77784315 1514.7902823  1812.63143398 2553.56241347 2746.19602712 2774.80002807 2872.65981983 3037.50273679 3425.75291775 3855.89411738 4053.8672658  4058.65861075 4256.21344489 4284.91574908 4486.9004042  4681.12975328 5402.69097744 5447.08298043 5457.00745903 5591.70891857]
+            Intensities: [4.73279353e+00 1.51145292e+01 1.30323775e+00 3.70759211e-01 4.99730532e+00 5.65406679e+00 1.16745910e+01 1.43106181e-01 3.61556716e-02 1.39865720e-02 3.45668683e-02 3.27061178e-02 2.84079688e-03 4.08529292e-02 3.87081866e-02 1.12128775e-02 1.03492789e-01 1.92986621e-01 1.40923179e-01 5.74540235e-02]
+            """
+            """
+            0 0 0 0 0 0   5858.70733   5780.61825            -            - 
+            State             Frequency    Intensity       Frequency    Intensity
+              0 0 0 0 0 1    3014.04194     14.52524      2850.24192      8.76303
+              0 0 0 0 1 0    2938.06518      5.48204      2775.12218      4.88592
+              0 0 0 1 0 0    1773.53059      0.49777      1751.14686      0.40608
+              0 0 1 0 0 0    1536.38631     13.86982      1500.26999     13.82658
+              0 1 0 0 0 0    1270.60326      3.23438      1250.28571      3.10240
+              1 0 0 0 0 0    1184.78739     17.49239      1172.06491     17.55483
+              0 0 0 0 0 2    6028.08388      0.00000      5653.82461      0.03006
+              0 0 0 0 2 0    5876.13035      0.00000      5448.28685      0.09970
+              0 0 0 2 0 0    3547.06119      0.00000      3486.35662      0.00317
+              0 0 2 0 0 0    3072.77261      0.00000      3000.53136      0.37886
+              0 2 0 0 0 0    2541.20652      0.00000      2494.07307      0.17432
+              2 0 0 0 0 0    2369.57478      0.00000      2341.64290      0.06316
+              0 0 0 0 1 1    5952.10712      0.00000      5394.06886      0.15345
+              0 0 0 1 0 1    4787.57253      0.00000      4580.10924      0.01632
+              0 0 1 0 0 1    4550.42825      0.00000      4358.80717      0.04745
+              0 1 0 0 0 1    4284.64520      0.00000      4058.08650      0.01781
+              1 0 0 0 0 1    4198.82933      0.00000      4014.00756      0.00003
+              0 0 0 1 1 0    4711.59577      0.00000      4530.51952      0.00037
+              0 0 1 0 1 0    4474.45148      0.00000      4247.93348      0.00640
+              0 1 0 0 1 0    4208.66844      0.00000      4016.74144      0.00284
+              1 0 0 0 1 0    4122.85257      0.00000      3939.42832      0.01917
+              0 0 1 1 0 0    3309.91690      0.00000      3242.31432      0.00383
+              0 1 0 1 0 0    3044.13385      0.00000      3007.87873      1.34919
+              1 0 0 1 0 0    2958.31798      0.00000      2918.05297      0.00105
+              0 1 1 0 0 0    2806.98957      0.00000      2710.80788      4.12478
+              1 0 1 0 0 0    2721.17370      0.00000      2672.80691      0.00415
+              1 1 0 0 0 0    2455.39065      0.00000      2433.78560      0.00000
+              0 1 1 0 0 1    5821.03151      0.00000      5261.03933      0.00342
+              0 1 0 1 0 1    6058.17579      0.00000      5537.94960      0.00376
+              0 1 1 0 1 0    5745.05474      0.00000      5538.43152      0.23076
+              0 1 0 1 1 0    5982.19903      0.00000      5770.45894      0.01369
+              0 1 2 0 0 0    4343.37587      0.00000      4173.15105      0.00852
+              0 1 0 2 0 0    4817.66445      0.00000      4755.77039      0.00059
+              0 1 1 1 0 0    4580.52016      0.00000      4465.97584      0.00158
+              0 2 0 1 0 0    4314.73711      0.00000      4258.80431      0.00408
+              1 1 1 0 0 0    3991.77696      0.00000      3884.91158      0.00001
+              1 1 0 1 0 0    4228.92124      0.00000      4184.92679      0.00000
+              0 0 3 0 0 0    4609.15892      0.00000      4493.31862      0.00020
+            """
+
+        get_anharmonicity = False
+        if get_anharmonicity:
+            # print(np.round(mol.coords, 8))
+            mbpol_deriv = pot(np.round(mol.coords, 8), deriv_order=4)
+            # print(mbpol_deriv[2] * UnitsData.hartrees_to_wavenumbers)
+            mol.internals = [
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  1,  0, -1],
+                [3,  1,  0,  2]
+            ]
+            conv = mol.get_cartesians_by_internals(4, strip_embedding=True)
+            from McUtils.Zachary import TensorDerivativeConverter
+            internals = TensorDerivativeConverter(conv, [d.squeeze() for d in mbpol_deriv[1:]]).convert()
+
+            # print(internals[1] / self.w2h)
+
+            for i,j,k in [[0, 1, 0], [1, 2, 1], [1, 3, 3]]:
+                g = (1 / mol.atomic_masses[i] + 1 / mol.atomic_masses[j])
+                w = np.sqrt(internals[1][k, k] * g)
+                wx = (g / (4 * w)) ** 2 * (
+                        internals[3][k, k, k, k] - 5 / 3 * internals[2][k, k, k] / internals[1][k, k]
+                )
+                print((i,j), w / self.w2h, wx / self.w2h)
+            raise Exception(...)
+
+        ########################################################################
+        ##
+        ##              JOB PARAMETERS
+        ##
+        seed = 12332123
+        esamp = 1200
+        ntraj = 35
+        samp_modes = [4, 5]
+        ts = 25
+        steps = 50
+
+        pruning_probabilities = [[3000, 1000]]
+
+        use_pairwise = True
+        use_interpolation = True
+        momentum_scaling = 1/8
+
+        plot_quadratic_opt = False
+
+        run_opts = {
+            'sampling_energy': esamp,
+            'trajectories': ntraj,
+            'timestep': ts,
+            'steps': steps,
+            'sampled_modes': samp_modes,
+            'pruning_probabilities': pruning_probabilities,
+            'momentum_scaling': momentum_scaling,
+            'use_pairwise':use_pairwise,
+            'seed': seed
+        }
+        ########################################################################
+        ##
+        ##              PLOT PARAMETERS
+        ##
+
+        plot_wfns = {'cartesians':[1, 2], 'num': 8}
+
+        pot_cmap = 'viridis'
+        pot_points = 250
+        wfn_cmap = 'coolwarm'
+        wnf_points = 100
+        wfn_contours = 10
+        plot_centers = False
+        plot_styles = {
+            'frame': True,
+            # 'ticks_style': (False, False),  # , dict(left=False, right=False))
+            'ticks': ([-2, -1, 0, 1, 2], [-1, -.5, 0]),
+            'axes_labels': ['x (bohr)', 'y (bohr)'],
+            'padding': ([60, 0], [40, 50]),
+            'aspect_ratio': 'auto'
+        }
+        plot_styles = dict(
+            plot_styles,
+            # plot_range=[[-2.5, 2.5], [-1.5, 0.5]],
+            # image_size=[500, 500 * 2 / 5]
+        )
+
+        ########################################################################
+        ##
+        ##              RUN JOB
+        ##
+        plot_dir = os.path.join(os.path.expanduser('~/Documents/Postdoc/AIMD-Spec/'), 'Figures', 'ochh')
+        # plot_dir = None
+        if not plot_wfns:
+            plot_dir = None
+        if plot_dir is not None:
+            all_params = tuple(run_opts.keys())
+            param_hash = str(hash(all_params))[:25]
+            plot_dir = os.path.join(plot_dir,
+                                    '{}_E{}_P{}_nt{}_s{}_ts{}_h{}'.format(
+                                        'interp' if use_interpolation else 'exact',
+                                        pruning_probabilities[-1][0]
+                                            if pruning_probabilities is not None else
+                                        None,
+                                        esamp,
+                                        steps,
+                                        ntraj,
+                                        ts,
+                                        param_hash
+                                    )
+                                    )
+        if pruning_probabilities is not None:
+            pruning_probabilities = [[e * self.w2h, n] for e,n in pruning_probabilities]
+
+        sim = mol.setup_AIMD(
+            pot,
+            total_energy=esamp * self.w2h,
+            trajectories=ntraj,
+            sampled_modes=samp_modes,
+            timestep=ts,
+            track_velocities=True,
+            seed=seed
+        )
+        sim.propagate(steps)
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+
+        if momentum_scaling is not None:
+            momenta = momentum_scaling * velocities * mol.atomic_masses[np.newaxis, :, np.newaxis]
+        else:
+            momenta = None
+
+        wCH = 2995 * self.w2h
+        wxCH = 197 * self.w2h
+        wCO = 1837 * self.w2h
+        wxCO = 20 * self.w2h
+
+        if use_interpolation:
+            pot_spec = {'centers':coords, 'values':pot(coords, deriv_order=2)}
+            if plot_quadratic_opt:
+                self.plot_quadratic_opt_potentials(pot_spec, mol)
+                raise Exception(...)
+        else:
+            pot_spec = pot
+
+        dgb = DGB.construct(
+            coords,
+            pot_spec,
+            masses=mol.atomic_masses,
+            alphas='virial',
+            transformations='diag',
+            optimize_centers=[
+                {
+                    'method': 'energy-cutoff',
+                    'probabilities': pruning_probabilities,
+                    'cutoff': None
+                }
+            ],
+            modes='normal',
+            expansion_degree=2,
+            dipole_function=dip,
+            kinetic_options=dict(
+                include_diagonal_contribution=True,
+                include_coriolis_coupling=False,
+                include_watson_term=True
+            ),
+            pairwise_potential_functions={
+                'functions': {
+                    (0, 1): self.setupMorseFunction(
+                        mol.atomic_masses[0],
+                        mol.atomic_masses[1],
+                        np.linalg.norm(mol.coords[0] - mol.coords[1]),
+                        w=wCO,
+                        wx=wxCO
+                    ),
+                    (1, 2): self.setupMorseFunction(
+                        mol.atomic_masses[1],
+                        mol.atomic_masses[2],
+                        np.linalg.norm(mol.coords[1] - mol.coords[2]),
+                        w=wCH,
+                        wx=wxCH
+                    ),
+                    (1, 3): self.setupMorseFunction(
+                        mol.atomic_masses[1],
+                        mol.atomic_masses[3],
+                        np.linalg.norm(mol.coords[1] - mol.coords[3]),
+                        w=wCH,
+                        wx=wxCH
+                    )
+                },
+                'quadrature_degree': 7,
+                'use_with_interpolation': True
+            } if use_pairwise else None,
+            momenta=momenta,
+            logger=True
+        )
+
+        """
+        :: Frequencies: [1252.24659959 1505.98393625 1792.31727531 2523.20884409 2737.95857183 2767.62076398 2852.80406901 3022.33507122 3210.95637484 3368.36242505 3875.79187657 3986.57915748 4075.47067342 4183.03780892 4245.70438564 4277.9908709  4404.85137617 4630.16498847 4680.04855428 4745.89396681]
+        :: evaluating integrals with 0-degree expansions about 1000 points
+        :: adding up all derivative contributions...
+        :: Intensities: [4.63892868e+00 1.49651543e+01 1.39384765e+00 2.95289675e-01 5.30336185e+00 5.69761681e+00 1.07367965e+01 1.30620018e-01 6.16645546e-01 7.43239902e-03 1.10031844e-04 6.87804524e-03 2.36942134e-03 1.50643972e-02 1.22915375e-02 6.63803163e-03 4.42776619e-02 2.01396229e-02 7.16336521e-03 2.64387122e-03]
+        >>--------------------------------------------------<<
+        """
+
+        wfns, spec = self.runDGB(dgb, mol,
+                           mode='similarity',
+                           plot_spectrum=True,
+                           plot_wavefunctions=plot_wfns,
+                           pot_cmap=pot_cmap,
+                           pot_points=pot_points,
+                           wfn_cmap=wfn_cmap,
+                           wfn_points=wnf_points,
+                           wfn_contours=wfn_contours,
+                           plot_centers=plot_centers,
+                           plot_dir=plot_dir,
+                           **plot_styles
+                           )
+        if plot_dir is not None:
+            with open(os.path.join(plot_dir, 'freqs.txt'), 'w+') as woof:
+                print(run_opts, file=woof)
+                print("ZPE:", wfns.energies[0] * UnitsData.hartrees_to_wavenumbers, file=woof)
+                print("Freqs:", wfns.frequencies() * UnitsData.hartrees_to_wavenumbers, file=woof)
+                if spec is not None:
+                    print("Ints:", spec.intensities, file=woof)
+
+        plt.Graphics().show()
+
+    @validationTest
+    def test_WaterAIMDDisplaced(self):
+        pot, mol = self.getMBPolModel()
+
+        steps = 800
+        sim = mol.setup_AIMD(
+            pot,
+            # initial_displacements=[[.12]],
+            # displaced_coords=[[1, 0]],
+            # initial_energies=[[800 * self.w2h, 1600 * self.w2h, 1600 * self.w2h]], # localized?
+            initial_energies=[[800 * self.w2h, 0, 1600 * self.w2h]],
+            timestep=25,
+            track_velocities=True
+        )
+        sim.propagate(steps)
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        print(coords[1] - coords[0])
+
+        # print(pot(coords[0])[0] * 219475.6)
+        #
+        # e = pot(coords)[0] * 219475.6
+        # plt.Plot(np.arange(len(e)), e).show()
+        # raise Exception(...)
+
+        # coords = np.concatenate([[mol.coords], coords], axis=0)
+        # velocities = np.concatenate([[np.zeros_like(mol.coords)], velocities], axis=0)
+
+        momentum_scaling = 1 / 8
+        if momentum_scaling is not None:
+            momenta = momentum_scaling * velocities * (
+                mol.atomic_masses[np.newaxis, :, np.newaxis]
+            )
+        else:
+            momenta = None
+
+        morse_w = 3891.634745263701 * self.w2h
+        morse_wx = 185.31310314514627 * self.w2h
+
+        use_interpolation = False
+        if use_interpolation:
+            interp_data = {'centers': coords, 'values': pot(coords, deriv_order=2)}
+        else:
+            interp_data = None
+
+        dgb = DGB.construct(
+            coords,
+            pot if not use_interpolation else interp_data,
+            masses=mol.atomic_masses,
+            transformations='diag',
+            alphas='virial',
+            modes='normal',
+            expansion_degree=2,
+            pairwise_potential_functions={
+                'functions': {
+                    (0, 1): self.setupMorseFunction(
+                        mol.atomic_masses[0],
+                        mol.atomic_masses[1],
+                        np.linalg.norm(mol.coords[0] - mol.coords[1]),
+                        w=morse_w,
+                        wx=morse_wx
+                    ),
+                    (0, 2): self.setupMorseFunction(
+                        mol.atomic_masses[0],
+                        mol.atomic_masses[2],
+                        np.linalg.norm(mol.coords[0] - mol.coords[2]),
+                        w=morse_w,
+                        wx=morse_wx
+                    )
+                },
+                'quadrature_degree': 5,
+                'use_with_interpolation': True
+            },
+            momenta=momenta,
+            logger=True
+        )
+
+        wfns = self.runDGB(dgb, mol,
+                           mode='similarity',
+                           plot_spectrum=False,
+                           plot_wavefunctions={'cartesians': [0, 1], 'num': 3}
+                           )
+
+        # print("ZPE:", wfns.energies[0] * UnitsData.hartrees_to_wavenumbers, file=woof)
+        # print("Freqs:", wfns.frequencies() * UnitsData.hartrees_to_wavenumbers, file=woof)
+
+
+
 
     @validationTest
     def test_WaterFromGauss(self):
