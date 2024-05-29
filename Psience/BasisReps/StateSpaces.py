@@ -646,18 +646,24 @@ class BasisStateSpace(AbstractStateSpace):
         return cls(basis, states, mode=cls.StateSpaceSpec.Excitations)
 
     @classmethod
-    def states_under_freq_threshold(cls, freqs, thresh, basis=None):
+    def states_under_freq_threshold(cls, freqs, thresh, min_freq=None,
+                                    max_state=None,
+                                    min_quanta=None, max_quanta=None, basis=None):
         ndim = len(freqs)
-        if basis is None:
-            from .HarmonicOscillator import HarmonicOscillatorProductBasis
-            basis = HarmonicOscillatorProductBasis(ndim)
+        # if basis is None:
+        #     from .HarmonicOscillator import HarmonicOscillatorProductBasis
+        #     basis = HarmonicOscillatorProductBasis(ndim)
+
         base_state = np.zeros(ndim, dtype=int)
         queue = collections.deque()
         states = []
-        # indices = []
 
-        states.append(base_state)
-        queue.append([0, base_state])
+        if (
+                (min_freq is None or 0 >= min_freq)
+            and (min_quanta is None or 0 >= min_quanta)
+        ):
+            states.append(base_state)
+        queue.append([0, 0, 0, base_state])
         # indices.append(basis.ravel_state_inds(base_state)[0])
 
         # alternate indexing method, in case individual ravels are too slow
@@ -665,28 +671,29 @@ class BasisStateSpace(AbstractStateSpace):
         indices.add(tuple(base_state))
 
         while queue:
-            e, s = queue.popleft()
-            for n,ee in enumerate(freqs):
+            e, mod_ind, q, s = queue.popleft()
+            q = q + 1
+            for n,ee in enumerate(freqs[mod_ind:]):
+                n = mod_ind + n
+                if max_state is not None and s[n] >= max_state[n]: continue
+
                 enew = e + ee
                 if enew > thresh: # assume freqs is sorted
                     break
 
-                ss = s.copy()
-                ss[n] += 1
+                enqueue = max_quanta is None or q < max_quanta
+                reap = (
+                        (min_freq is None or enew >= min_freq)
+                    and (min_quanta is None or q >= min_quanta)
+                )
+                if reap or enqueue:
+                    ss = s.copy()
+                    ss[n] += 1
 
-                idx = tuple(ss)
-                if idx not in indices:
-                    states.append(ss)
-                    queue.append([enew, ss])
-                    indices.add(idx)
-
-                # # in case we wanted to precompute the inds...
-                # idx = basis.ravel_state_inds(ss)[0]
-                # x = bisect.bisect_left(indices, idx)
-                # if x == len(indices) or indices[x] != idx:
-                #     states.append(ss)
-                #     queue.append([enew, ss])
-                #     indices.append(idx)
+                    if reap:
+                        states.append(ss)
+                    if enqueue:
+                        queue.append([enew, n, q, ss])
 
         return np.array(states) #np.array(indices)
 

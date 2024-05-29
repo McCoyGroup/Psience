@@ -1,5 +1,6 @@
 
 import numpy as np, scipy as sp, itertools as it, collections
+from McUtils.Scaffolding import Logger
 from McUtils.Zachary import DensePolynomial
 from McUtils.Combinatorics import IntegerPartitioner, IntegerPartitioner2D, UniquePermutations
 
@@ -22,7 +23,9 @@ class FranckCondonModel:
     #     """
     #
 
-    def __init__(self, gs_nms:NormalModes, es_nms, embed=True, masses=None, mass_weight=True):
+    def __init__(self, gs_nms:NormalModes, es_nms, embed=True, masses=None, mass_weight=True,
+                 logger=None
+                 ):
         if embed:
             gs_nms, es_nms = self.embed_modes(gs_nms, es_nms, masses=masses)
 
@@ -33,24 +36,28 @@ class FranckCondonModel:
         self.gs_nms = gs_nms
         self.es_nms = es_nms
 
+        self.logger = logger
+
     @classmethod
-    def from_files(cls, gs_file, es_file, mass_weight=True):
+    def from_files(cls, gs_file, es_file, mass_weight=True, logger=None):
         from ..Molecools import Molecule
         return cls.from_mols(
             Molecule.from_file(gs_file),
             Molecule.from_file(es_file),
-            mass_weight=mass_weight
+            mass_weight=mass_weight,
+            logger=logger
         )
 
     @classmethod
-    def from_mols(cls, gs, es, mass_weight=True):
+    def from_mols(cls, gs, es, mass_weight=True, logger=None):
         gs = gs.get_embedded_molecule()
         es = es.get_embedded_molecule(ref=gs)
 
         return cls(
             gs.normal_modes.modes.basis.to_new_modes(),
             es.normal_modes.modes.basis.to_new_modes(),
-            mass_weight=mass_weight
+            mass_weight=mass_weight,
+            logger=logger
         )
 
     def get_overlaps(self,
@@ -225,6 +232,15 @@ class FranckCondonModel:
 
         return evaluate_contrib
 
+    @staticmethod
+    def _expand(pc, splits):
+        return pc[:, np.newaxis, :, :] ** splits[np.newaxis, :, :, :]  # c x l x k x d
+    @staticmethod
+    def _contract(poly_exps, weights):
+        return np.dot(
+                np.prod(np.prod(poly_exps, axis=-1), axis=-1),
+                weights
+            )
     @classmethod
     def evaluate_poly_chunks(cls, poly_coeffs, exps, splits, weights, alphas, include_baseline=False):
         if isinstance(poly_coeffs, np.ndarray) and poly_coeffs.ndim == 2:
@@ -237,11 +253,8 @@ class FranckCondonModel:
         # compute contribution from polynomial factors, can add them up immediately
         multi_contrib = np.zeros(len(poly_coeffs))
         for ii,pc in enumerate(poly_coeffs):
-            poly_exps = pc[:, np.newaxis, :, :] ** splits[np.newaxis, :, :, :]  # c x l x k x d
-            poly_contrib = np.dot(
-                np.prod(np.prod(poly_exps, axis=-1), axis=-1),
-                weights
-            )
+            poly_exps = cls._expand(pc, splits)
+            poly_contrib = cls._contract(poly_exps, weights)
             # print("??", alpha_contrib)
             # print("??", poly_contrib)
             multi_contrib[ii] = np.dot(alpha_contrib, poly_contrib)
@@ -399,14 +412,17 @@ class FranckCondonModel:
 
     @classmethod
     def eval_fcf_overlaps(self,
-                           excitations_gs, freqs_gs, modes_gs, inv_gs, center_gs,
-                           excitations_es, freqs_es, modes_es, inv_es, center_es
-                           ):
+                          excitations_gs, freqs_gs, modes_gs, inv_gs, center_gs,
+                          excitations_es, freqs_es, modes_es, inv_es, center_es,
+                          logger=None
+                          ):
         """
         Evaluates the Gaussian overlaps between two H.O. wave functions defined by
         a set of polynomial coefficients, broadening factors, and centers, assuming
         the modes and centers are in an Eckart fream
         """
+
+        logger = Logger.lookup(logger)
 
         # The steps to this process
         # 0. Express ground state nms. w.r.t excited state frame
@@ -430,6 +446,12 @@ class FranckCondonModel:
             freqs_es, modes_es, inv_es, center_es
         )
 
+        with logger.block(tag='Duschinksy Transformation'):
+            logger.log_print(
+                L_gs,
+                message_prepper=logger.prep_array
+            )
+
         # We now have the space to define the parameters that go into the overlap calculation
         shift_gs = center - c_gs #- L_gs @ modes_c.T @ center
         shift_es = center - c_es #- modes_c.T @ center
@@ -450,16 +472,36 @@ class FranckCondonModel:
 
         Q = np.concatenate([Q_gs, Q_es], axis=1)
 
-        overlaps = []
-        for spoly_gs in polys1:
-            for spoly_es in polys2:
-                poly = spoly_gs.concat(spoly_es)
-                ov = scaling * self.evaluate_shifted_poly_overlap(
-                        poly, Q,
-                        alphas
-                    )
-                # print("<::", scaling, ov/scaling, ov)
-                overlaps.append(ov)
+
+        with logger.block(tag="Evaluating Overlaps"):
+            overlaps = []
+            n = 0
+            block_counter = 1
+            block_size = 1000
+            full_blocks = len(excitations_gs) * len(excitations_es)
+            num_blocks = int(np.ceil(full_blocks / block_size))
+            import time
+            block_start = None
+            logger.log_print("num integrals: {n}", n=full_blocks)
+            for spoly_gs in polys1:
+                for spoly_es in polys2:
+                    if n % block_size == 0:
+                        if block_start is not None:
+                            block_end = time.time()
+                            logger.log_print("   took: {:.3f}s".format(block_end-block_start))
+                        block_start = time.time()
+                        logger.log_print("evaluating block {} of {}".format(
+                            block_counter, num_blocks
+                        ))
+                        block_counter += 1
+                    n += 1
+                    poly = spoly_gs.concat(spoly_es)
+                    ov = scaling * self.evaluate_shifted_poly_overlap(
+                            poly, Q,
+                            alphas
+                        )
+                    # print("<::", scaling, ov/scaling, ov)
+                    overlaps.append(ov)
 
         return overlaps
 
@@ -535,12 +577,94 @@ class FranckCondonModel:
             freqs=nms.freqs
         )
 
+    @classmethod
+    def prep_states_from_threshold_and_quanta(cls, nms, *,
+                                              threshold=None, min_freq=None, max_state=None,
+                                              min_quanta=None, max_quanta=None
+                                              ):
+        from ..BasisReps import BasisStateSpace
+
+        if threshold is None and max_state is None and max_quanta is None:
+            raise ValueError("need at least one filter criterion out of `threshold`, `max_state`, or `max_quanta`")
+
+        freqs = nms.freqs
+        if threshold is None:
+            threshold = freqs[-1] * (np.sum(max_state) if max_state is not None else max_quanta)
+
+        return BasisStateSpace.states_under_freq_threshold(
+            freqs,
+            threshold,
+            min_freq=min_freq,
+            max_state=max_state,
+            min_quanta=min_quanta,
+            max_quanta=max_quanta
+        )
+
+    state_space_prep_registry = {}
+    @classmethod
+    def state_space_prep_dispatchers(cls):
+        return dict(
+            {
+                'threshold': cls.prep_states_from_threshold_and_quanta
+            },
+            **cls.state_space_prep_registry
+        )
+    @classmethod
+    def dispatch_state_space_prep(cls, spec, nms):
+        method = spec.get('method', None)
+        if method is None:
+            # infer method from spec
+            if 'threshold' in spec or 'quanta' in spec:
+                method = 'threshold'
+            else:
+                raise ValueError("can't infer state space method from {}".format(spec))
+        spec = spec.copy()
+        if 'method' in spec: del spec['method']
+
+        prepper = cls.state_space_prep_dispatchers().get(method)
+
+        return prepper(nms, **spec)
+
+    @classmethod
+    def prep_state_space(cls, excitations, nms, check=True):
+        """
+        Dispatcher to get appropriate state spaces
+        :param excitations:
+        :param check:
+        :return:
+        """
+        if excitations is None: return excitations
+
+        refilter = not check
+        if check:
+            try:
+                exc0 = excitations[0][0]
+            except (KeyError, TypeError):
+                refilter = True
+            else:
+                refilter = not isinstance(exc0, int)
+
+        if refilter:
+            if isinstance(excitations, dict):
+                # dispatch on methods
+                excitations = cls.dispatch_state_space_prep(excitations, nms)
+            elif isinstance(excitations, (int, np.integer)) or isinstance(excitations[0], (int, np.integer)):
+                from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis as HO
+                excitations = BasisStateSpace.from_quanta(
+                    HO(len(nms.freqs)), excitations
+                ).excitations
+            else:
+                raise ValueError("can't build a state space from {}".format(excitations))
+
+        return excitations
+
 
     @classmethod
     def get_fcfs(self,
                  gs_nms: 'NormalModes', es_nms: 'NormalModes',
                  excitations, ground_states=None,
-                 embed=True, masses=None, mass_weight=True
+                 embed=True, masses=None, mass_weight=True,
+                 logger=None
                  ):
 
         if embed:
@@ -549,19 +673,6 @@ class FranckCondonModel:
         if mass_weight:
             gs_nms = self.mass_weight_nms(gs_nms, masses=masses)
             es_nms = self.mass_weight_nms(es_nms, masses=masses)
-
-        if isinstance(excitations, (int, np.integer)) or isinstance(excitations[0], (int, np.integer)):
-            from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis as HO
-            excitations = BasisStateSpace.from_quanta(
-                HO(len(gs_nms.freqs)), excitations
-            ).excitations
-        if ground_states is not None and (
-                isinstance(ground_states, (int, np.integer)) or isinstance(ground_states[0], (int, np.integer))
-        ):
-            from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis as HO
-            ground_states = BasisStateSpace.from_quanta(
-                HO(len(gs_nms.freqs)), ground_states
-            ).excitations
 
         gs_freqs = gs_nms.freqs
         gs_center = gs_nms.origin.flatten()
@@ -575,8 +686,70 @@ class FranckCondonModel:
         es_basis = es_nms.matrix
         return self.eval_fcf_overlaps(
             ground_states, gs_freqs, gs_basis, gs_nms.inverse, gs_center,
-            excitations, es_freqs, es_basis, es_nms.inverse, es_center
+            excitations, es_freqs, es_basis, es_nms.inverse, es_center,
+            logger=logger
         )
+    @classmethod
+    def get_fcf_spectrum(self,
+                         gs_nms: 'NormalModes', es_nms: 'NormalModes',
+                         excitations, ground_states=None,
+                         embed=True, masses=None, mass_weight=True,
+                         logger=None,
+                         return_states=False
+                         ):
+        from ..Spectra import DiscreteSpectrum
+        from McUtils.Data import UnitsData
+
+        if embed:
+            gs_nms, es_nms = self.embed_modes(gs_nms, es_nms, masses=masses)
+
+        if mass_weight:
+            gs_nms = self.mass_weight_nms(gs_nms, masses=masses)
+            es_nms = self.mass_weight_nms(es_nms, masses=masses)
+
+
+        excitations = self.prep_state_space(excitations, es_nms)
+        ground_states = self.prep_state_space(ground_states, gs_nms)
+
+        overlaps = self.get_fcfs(
+            gs_nms, es_nms,
+            excitations, ground_states=ground_states,
+            embed=False, masses=None, mass_weight=False,
+            logger=logger
+        )
+
+        freqs = np.dot(np.asanyarray(excitations), es_nms.freqs) * UnitsData.convert("Hartrees", "Wavenumbers")
+        ints = np.power(overlaps, 2)
+
+        if ground_states is not None:
+            ret = []
+            bs = len(freqs)
+            for i in range(len(ground_states)):
+                ret.append(
+                    DiscreteSpectrum(freqs, ints[i*bs:(i+1)*bs])
+                )
+        else:
+            ret = DiscreteSpectrum(freqs, np.power(overlaps, 2))
+
+        if return_states:
+            ret = (ret, (ground_states, excitations))
+
+        return ret
+
+    def get_spectrum(self,
+                     excitations, *, ground_states=None,
+                     return_states=False
+                     ):
+        return self.get_fcf_spectrum(
+            self.gs_nms, self.es_nms,
+            excitations,
+            ground_states=ground_states,
+            embed=False,
+            mass_weight=False,
+            return_states=return_states,
+            logger=self.logger
+        )
+
 
 class HermiteProductPolynomial:
 

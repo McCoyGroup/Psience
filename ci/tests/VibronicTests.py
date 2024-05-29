@@ -6,13 +6,13 @@ except:
     pass
 from unittest import TestCase
 
+import os, sys, numpy as np
+
 from McUtils.Coordinerds import CartesianCoordinates3D
+from McUtils.Data import UnitsData
 from Psience.Vibronic import *
 from Psience.Molecools import Molecule
 from Psience.Modes import *
-
-import numpy as np
-
 
 class VibronicTests(TestCase):
     @classmethod
@@ -198,12 +198,18 @@ class VibronicTests(TestCase):
 
     @debugTest
     def test_FCFsNH3(self):
-        print()
+        # print()
 
         fc_model = FranckCondonModel.from_files(
             TestManager.test_data('nh3_s0.fchk'),
-            TestManager.test_data('nh3_s1.fchk')
+            TestManager.test_data('nh3_s1.fchk'),
+            logger=True
         )
+
+        # od = fc_model.get_overlap_data()
+        #
+        # print(fc_model.gs_nms.freqs)
+        # print(fc_model.es_nms.freqs)
 
         uuugh = np.power(
                 fc_model.get_overlaps(
@@ -212,7 +218,6 @@ class VibronicTests(TestCase):
                         [1, 0, 0, 0, 0, 0],
                         [2, 0, 0, 0, 0, 0],
                         [3, 0, 0, 0, 0, 0],
-                        [0, 1, 0, 0, 0, 0],
                         [0, 1, 0, 0, 0, 0],
                         [0, 0, 1, 0, 0, 0],
                         [0, 0, 0, 1, 0, 0],
@@ -223,5 +228,44 @@ class VibronicTests(TestCase):
                 2
             )
         # print(np.sum(uuugh))
-        print(uuugh)
+        self.assertTrue(np.allclose(
+            uuugh,
+            [2.79672434e-02, 2.43447521e-02, 3.66375168e-05, 1.45628441e-02, 5.93123060e-08, 1.35127810e-08, 6.98421424e-08,
+             3.91535362e-09, 6.62467294e-02]
+        ))
+        # print(uuugh)
         # print(uuugh / np.max(uuugh))
+
+        spec = fc_model.get_spectrum({'threshold':4000 / UnitsData.hartrees_to_wavenumbers, 'max_quanta':6})
+        # spec.plot().show()
+        # print(spec.intensities)
+
+    @inactiveTest
+    def test_FCFsBig(self):
+
+        root = os.path.expanduser('~/Documents/Postdoc/FCFs/')
+        path = lambda *p:os.path.join(root, *p)
+        fc_model = FranckCondonModel.from_files(
+            path('Na2_m0_s0.fchk'),
+            path('Na2_m0_s1.fchk')
+        )
+
+        q = 3
+        t = 1000
+        # with BlockProfiler('FCFs'):
+        oof, (_, excitations) = fc_model.get_spectrum(
+            {
+                'threshold': t / UnitsData.hartrees_to_wavenumbers,
+                # 'min_quanta': q,
+                'max_quanta': q,
+            },
+            return_states=True
+        )
+        oof.plot().savefig(path(f'Na2_m0_{t}_{q}_quanta.png'))
+        np.savez(path(f'Na2_m0_{t}_{q}_spec.npz'),
+                 freqs=oof.frequencies,
+                 fcfs=oof.intensities,
+                 excitations=excitations)
+        # with open(path(f'Na2_m0_{t}_{q}_quanta.txt'), 'w+') as out:
+        #     print('Freqs:', oof.frequencies, file=out)
+        #     print('FCFs:', oof.intensities, file=out)
