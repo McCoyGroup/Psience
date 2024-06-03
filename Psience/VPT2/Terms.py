@@ -10,7 +10,7 @@ from McUtils.Data import UnitsData
 from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer
 from McUtils.Zachary import TensorDerivativeConverter, TensorExpansionTerms
-from McUtils.Combinatorics import IntegerPartitioner, UniquePermutations
+from McUtils.Combinatorics import IntegerPartitionPermutations, UniquePermutations
 
 from ..Molecools import Molecule, MolecularVibrations, MolecularNormalModes
 
@@ -2024,56 +2024,107 @@ class KineticTerms(ExpansionTerms):
         if s - 1 >= len(G): return 0
         if r1 - 1 >= len(R) or r2 - 1 >= len(R): return 0
 
-        # adapted from standard tensor derivative conversions
-        perm_counter = 2
-        perm_idx = []  # to establish the set of necessary permutations to make things symmetric
-
         base_term = G[s]
         if isinstance(base_term, (int, float, np.integer, np.floating)) and base_term == 0:
             return 0
-        if s > 0:
-            perm_idx.extend([perm_counter] * (s-1))
-            perm_counter -= 1
 
+        r_perm_counter = 1
+        r_perm_idx = []
+        g_perm_idx = []
+
+        a = base_term.ndim - 2
+        print("...", a)
         for r in [r1, r2]:
-            d = R[r - 1]
+            d = R[r]
             if isinstance(d, (int, float, np.integer, np.floating)) and d == 0:
                 return 0
-            base_term = np.tensordot(d, base_term, axes=[-2, -1])
-            perm_idx.extend([perm_counter] * r)
-            perm_counter -= 1
+            if r == 0:
+                base_term = np.moveaxis(base_term, a, -1)
+            else:
+                base_term = np.tensordot(base_term, d, axes=[a, 0])
+                r_perm_idx.extend([r_perm_counter] * r)
+                r_perm_counter -= 1
+        if r2 > 0:
+            # 1 1 -> (x, i, y, j) -> (-3 -> -2)
+            base_term = np.moveaxis(base_term, -(r2 + 2), -2) # axis from the r1 contraction
+        # if s > 0:
+        g_perm_idx = ([1]*s) + ([0]*(r1+r2))
 
-        # sometimes we overcount, so we factor that out here
-        nterms = TensorDerivativeConverter.compute_partition_terms(partition)
-        perm_inds, _ = UniquePermutations(perm_idx).permutations(return_indices=True)
+        if r1 > 0 or r2 > 0:
+            # r1 and r2 need to be permuted to preserve symmetry, but all perms can overcount
+            nterms = TensorDerivativeConverter.compute_partition_terms([p for p in partition[:2] if p > 0])
+            r_perms, _ = UniquePermutations(r_perm_idx).permutations(return_indices=True)
 
-        overcount = len(perm_inds) / nterms
-        base_term = base_term / overcount
+            overcount = len(r_perms) / nterms
+            base_term = base_term / overcount
 
-        # print(base_term.shape, perm_idx, _, perm_inds)
+            # if r1 != r2:
+            base_term = base_term + np.moveaxis(base_term, -1, -2)
 
-        return sum(base_term.transpose(p) for p in perm_inds)
+
+            # g indices need to be swapped into the r coords sometimes too
+            g_perms, _ = UniquePermutations(g_perm_idx).permutations(return_indices=True)
+
+            # take direct product of permutation indices
+            perm_inds = []
+            # print(overcount)
+            padding = list(range(base_term.ndim - 2, base_term.ndim))
+            for p in g_perms:
+                for r in r_perms:
+                    perm_inds.append(
+                        list(p[:s]) + list(p[s:][r]) + padding
+                    )
+            # print(perm_inds)
+
+            # if r1 == 1 and r2 == 1:
+            #     print(base_term[0, 1])
+            #     print(base_term[1, 0])
+
+            base_term = sum(
+                base_term.transpose(p)
+                for p in perm_inds
+            )
+
+        return base_term
 
     @classmethod
     def _dRGQ_derivs(cls, R, G, o):
-        parts = IntegerPartitioner.partitions(o, pad=True, max_len=3)
-        if parts.shape[1] < 3:
-            parts = np.concatenate([
-                parts, np.zeros((parts.shape[0], 3 - parts.shape[1]), dtype=parts.dtype)
-            ],
-                axis=1
-            )
-        for partition in parts:
-            ...
+        # parts = IntegerPartitionPermutations(o, dim=3).get_partition_permutations(flatten=True)
+
+        # print("="*50)
+        total_cont = 0
+        for g in range(o+1):
+            rem = (o+1)-g
+            # don't want to go smaller than half of rem, b.c. symmetry
+            for r1 in range(rem//2, rem):
+                r2 = o - (g + r1)
+                # print("-"*10)
+                # print(r1, r2, g)
+                pc = cls._dRGQ_partition_contrib([r1, r2, g], R, G)
+                # print(pc[0])
+                total_cont += pc
+        # print("_"*50)
+        return total_cont
 
     def reexpress(self, forward_derivs, reverse_derivs, order=2):
+        """
+        Finds a coordinate transformation the give 0 contribution to the G-matrix
+
+        :param forward_derivs:
+        :param reverse_derivs:
+        :param order:
+        :return:
+        """
         R = reverse_derivs
         Q = forward_derivs
         G = list(reversed([self[o] for o in range(order, -1, -1)]))
 
         G_R = [self._dRGQ_derivs(R, G, o) for o in range(1, order+1)]
 
-        return TensorDerivativeConverter.convert_fast(Q, G_R, order=order)
+        # print(G_R[1][0, 0])
+        # raise Exception(...)
+
+        return [G[0]] + TensorDerivativeConverter.convert_fast(Q, G_R, order=order, val_axis=0)
 
 class CoriolisTerm(ExpansionTerms):
     """

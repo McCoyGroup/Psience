@@ -447,6 +447,7 @@ class VPT2Tests(TestCase):
 
     @debugTest
     def test_HOHNoKE(self):
+        print()
 
         # VPTRunner.run_simple(
         #     TestManager.test_data(file_name),
@@ -507,13 +508,11 @@ class VPT2Tests(TestCase):
             logger=False
         )
         # runner1.print_tables()
-        R = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
-        Q = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
-
-        runner1.hamiltonian.reexpress_G(
-            R, Q
-        )
-        raise Exception(...)
+        # R = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
+        # Q = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
+        #
+        # G_new = runner1.hamiltonian.reexpress_G(R, Q)
+        # raise Exception([G.shape for G in G_new])
 
 
         runner2, _ = VPTRunner.construct(
@@ -578,7 +577,6 @@ class VPT2Tests(TestCase):
         # raise Exception(...)
         # convs = TensorDerivativeConverter(ders, test_V1).convert()#print_transformations=True)
         convs = TensorDerivativeConverter.convert_fast(ders, test_V1, order=len(ders))
-        print(...)
         # print(convs[2])
         # print(convs[3])
 
@@ -689,6 +687,39 @@ class VPT2Tests(TestCase):
             + test_G[2]
         )
 
+
+        # print((G1_Q[0] + G1_Q.transpose(0, 2, 1))[0])
+        # print(G1_Q[0])
+        # print(test_G[1][0])
+        # print(R2[0])
+        # print(G1[0] - test_G[1][0])
+
+        print(
+            (
+                    + G2_RR
+                    # + G2_RG
+                    + G2_R3
+                    + test_G[2]
+            )[0, 0]
+        )
+
+        ggg = [G0, G1, G2]
+        ggg_test = runner1.hamiltonian.reexpress_G([Q1, Q2, Q3], [R1, R2, R3])
+
+        # print(ggg[1] - ggg_test[1])
+        # print(ggg[1][0])
+        # print(ggg_test[1][0])
+        print(ggg[2][0, 0])
+        print(ggg_test[2][0, 0])
+        # runner1.print_tables()
+        # R = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
+        # Q = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
+        #
+        # G_new = runner1.hamiltonian.reexpress_G(R, Q)
+        # raise Exception([G.shape for G in G_new])
+
+        # raise Exception(...)
+
         # print(np.sum(np.abs(G2 - np.moveaxis(G2, 1, 0))))
         # print(np.sum(np.abs(G2 - np.moveaxis(G2, 3, 2))))
         # # print(np.max(G2), np.min(G2), np.max(test_G[2]), np.min(test_G[2]))
@@ -756,7 +787,7 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             2,
             internals=test_internals,
-            kinetic_terms=[G0, G1, G2],
+            kinetic_terms=ggg_test,#[G0, G1, G2],
             potential_terms=[G0, 0, 0],
             include_pseudopotential=False,
             include_coriolis_coupling=True,
