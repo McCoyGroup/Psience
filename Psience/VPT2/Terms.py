@@ -5,12 +5,13 @@ import itertools
 
 import numpy as np, functools as fp, itertools as ip, time, enum
 
-from McUtils.Numputils import SparseArray, levi_cevita3, vec_tensordot, vec_outer
+from McUtils.Numputils import SparseArray, levi_cevita3
+import McUtils.Numputils as nput
 from McUtils.Data import UnitsData
 from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer
 from McUtils.Zachary import TensorDerivativeConverter, TensorExpansionTerms
-from McUtils.Combinatorics import IntegerPartitionPermutations, UniquePermutations
+from McUtils.Combinatorics import UniquePermutations
 
 from ..Molecools import Molecule, MolecularVibrations, MolecularNormalModes
 
@@ -1057,7 +1058,7 @@ class ExpansionTerms:
         if order is not None:
             if len(base) < order:
                 raise ValueError("insufficient {} (have {} but expected {})".format(
-                    'CartesiansByInternalModes',
+                    'CartesianModesByCartesians',
                     len(base),
                     order
                 ))
@@ -1101,7 +1102,7 @@ class ExpansionTerms:
         if order is not None:
             if len(base) < order:
                 raise ValueError("insufficient {} (have {} but expected {})".format(
-                    'CartesiansByInternalModes',
+                    'InternalsByInternalModes',
                     len(base),
                     order
                 ))
@@ -1880,6 +1881,37 @@ class PotentialTerms(ExpansionTerms):
 
         return terms
 
+    @classmethod
+    def get_potential_optimized_coordinates(cls, V_expansion, order=2):
+        V = [0] + V_expansion
+        w = np.diag(V[1])
+        forward_derivs = [np.eye(V[1].shape[0])]
+        reverse_derivs = [np.eye(V[1].shape[0])]
+
+        w = w[np.newaxis, :]
+        for o in range(1, order + 1):
+            V_rem = TensorDerivativeConverter.convert_fast(forward_derivs, V,
+                                                           order=o+2, val_axis=0
+                                                           )[-1]
+            w = w[np.newaxis]
+            new_Q = -V_rem / ((o+2)*w)
+            forward_derivs = forward_derivs + [new_Q]
+            new_R = -nput.tensordot_deriv(forward_derivs, reverse_derivs + [0], o)[-1]
+            reverse_derivs = reverse_derivs + [new_R]
+
+        return forward_derivs, reverse_derivs
+
+    def optimize_coordinates(self, order=2):
+        V = list(reversed([self[o] for o in range(order, -1, -1)]))
+        RX = self.get_cartesians_by_internals(order=order, strip_embedding=True)
+        XR = self.get_internals_by_cartesians(order=order, strip_embedding=True)
+        QR, RQ = self.get_potential_optimized_coordinates(V, order=order)
+
+        QX = TensorDerivativeConverter.convert_fast(QR, RX)
+        XQ = TensorDerivativeConverter.convert_fast(XR, RQ)
+
+        return (QR, RQ), (QX, XQ)
+
 class KineticTerms(ExpansionTerms):
     """Represents the KE coefficients"""
 
@@ -1933,28 +1965,45 @@ class KineticTerms(ExpansionTerms):
             else:
                 QY_derivs = self.get_modes_by_cartesians(order=order+1)
                 YQ_derivs = self.get_cartesians_by_modes(order=order+1)
+                # QY_derivs = self.get_internals_by_cartesians(order=order + 1) # really dRdY derivatives
+                # YQ_derivs = self.get_cartesians_by_internals(order=order + 1) # really dYdR derivatives
             # RQ = dot(YQ, RY)
 
-            term_getter = TensorDerivativeConverter(YQ_derivs, QY_derivs).terms
+            # term_getter = TensorDerivativeConverter(YQ_derivs, QY_derivs).terms
+            term_getter = TensorDerivativeConverter([np.eye(9,9), 0, 0], QY_derivs).terms
             term_getter.v_name = 'Y'
             J = term_getter.XV(1)
             G_terms = [J.dot(J, 1, 1)]
             for i in range(1, order+1):
                 g_cur = G_terms[-1].dQ()#.simplify(check_arrays=True)
                 G_terms.append(g_cur)
-            terms = []
-            # for i,x in enumerate(G_terms):
-            #     if i > 0:
-            #         print(x)
-            #         arr = x.asarray(print_terms=True)
-            #         print(">>>>")
-            #         print((arr,))
-            #         terms.append(arr)
-            #     else:
-            #         terms.append(x.array)
             terms = [x.array for x in G_terms]
+            if order == 2:
+                print("!", terms[2][0, 0])
+            #
+            # """
+            # [[-0.0e+00  3.9e-07  8.8e-07]
+            #  [ 3.9e-07 -0.0e+00  8.8e-07]
+            #  [ 8.8e-07  8.8e-07  0.0e+00]]
+            #  """
+            #
+            # """
+            # [[-3.800e-07 -3.142e-05  0.000e+00]
+            #  [-3.142e-05  1.843e-05 -0.000e+00]
+            #  [ 0.000e+00 -0.000e+00 -1.198e-05]]
+            # """
+            #
+            # QR_derivs = self.get_internals_by_internal_modes(order=order+1)
+            # RQ = self.get_internal_modes_by_internals(order=1)[0]
+            # # print(
+            # #     [q.shape for q in QY_derivs],
+            # #     [g.shape for g in terms])
+            terms = [terms[0]] + TensorDerivativeConverter.convert_fast(YQ_derivs, terms[1:], val_axis=0)
+            # terms = [
+            #     np.tensordot(np.tensordot(t, RQ, axes=[-2, 0]), RQ, axes=[-2, 0])
+            #     for t in terms
+            # ]
             # print(terms[0])
-            # print(self.modes.matrix)
 
             if uses_internal_modes:
                 QR = self.modes.matrix
@@ -2030,10 +2079,9 @@ class KineticTerms(ExpansionTerms):
 
         r_perm_counter = 1
         r_perm_idx = []
-        g_perm_idx = []
+        # g_perm_idx = []
 
         a = base_term.ndim - 2
-        print("...", a)
         for r in [r1, r2]:
             d = R[r]
             if isinstance(d, (int, float, np.integer, np.floating)) and d == 0:
@@ -2074,11 +2122,6 @@ class KineticTerms(ExpansionTerms):
                     perm_inds.append(
                         list(p[:s]) + list(p[s:][r]) + padding
                     )
-            # print(perm_inds)
-
-            # if r1 == 1 and r2 == 1:
-            #     print(base_term[0, 1])
-            #     print(base_term[1, 0])
 
             base_term = sum(
                 base_term.transpose(p)
@@ -2106,6 +2149,32 @@ class KineticTerms(ExpansionTerms):
         # print("_"*50)
         return total_cont
 
+    @classmethod
+    def reexpress_G(self,
+                    G_expansion, forward_derivs, reverse_derivs, order=2
+                    # G_subexpansion=None
+                    ):
+        """
+        Apply a coordinate transformation to the G-matrix
+
+        :param forward_derivs:
+        :param reverse_derivs:
+        :param order:
+        :return:
+        """
+        R = reverse_derivs
+        Q = forward_derivs
+        G = G_expansion
+
+        # if G_subexpansion is None:
+        G_R = [self._dRGQ_derivs(R, G, o) for o in range(1, order+1)]
+        # else:
+        #     G_R = G_subexpansion + [self._dRGQ_derivs(R, G, o) for o in range(1, order + 1)]
+
+        # print(G_R[1][0, 0])
+        # raise Exception(...)
+
+        return [G[0]] + TensorDerivativeConverter.convert_fast(Q, G_R, order=order, val_axis=0)
     def reexpress(self, forward_derivs, reverse_derivs, order=2):
         """
         Finds a coordinate transformation the give 0 contribution to the G-matrix
@@ -2115,16 +2184,42 @@ class KineticTerms(ExpansionTerms):
         :param order:
         :return:
         """
-        R = reverse_derivs
-        Q = forward_derivs
         G = list(reversed([self[o] for o in range(order, -1, -1)]))
+        return self.reexpress_G(G, forward_derivs, reverse_derivs)
 
-        G_R = [self._dRGQ_derivs(R, G, o) for o in range(1, order+1)]
+    @classmethod
+    def get_kinetic_optimized_coordinates(cls, G_expansion, order=2):
+        # we do this order-by-order by noting that at each order we end up with a term
+        # that includes the highest derivative of the new coordinates with respect to the old
+        # multiplied by the G matrix, done two ways, so a transformation that eliminates the
+        # coordinates is just (R^n)_a...bij = -1/2w_i [rem]_a...bij
 
-        # print(G_R[1][0, 0])
-        # raise Exception(...)
+        G = G_expansion
+        w = np.diag(G[0])
+        forward_derivs = [np.eye(G[0].shape[0])]
+        reverse_derivs = [np.eye(G[0].shape[0])]
 
-        return [G[0]] + TensorDerivativeConverter.convert_fast(Q, G_R, order=order, val_axis=0)
+        w = 2 * w[:, np.newaxis]
+        for o in range(1, order+1):
+            G_rem = cls.reexpress_G(G, forward_derivs, reverse_derivs + [0], order=o)[-1]
+            w = w[np.newaxis]
+            new_R = -G_rem / w
+            reverse_derivs = reverse_derivs + [new_R]
+            new_Q = -nput.tensordot_deriv(forward_derivs + [0], reverse_derivs, o)[-1]
+            forward_derivs = forward_derivs + [new_Q]
+
+        return forward_derivs, reverse_derivs
+    def optimize_coordinates(self, order=2):
+        G = list(reversed([self[o] for o in range(order, -1, -1)]))
+        RX = self.get_cartesians_by_internals(order=order, strip_embedding=True)
+        XR = self.get_internals_by_cartesians(order=order, strip_embedding=True)
+        QR, RQ = self.get_kinetic_optimized_coordinates(G, order=order)
+
+        QX = TensorDerivativeConverter.convert_fast(QR, RX)
+        XQ = TensorDerivativeConverter.convert_fast(XR, RQ)
+
+        return (QR, RQ), (QX, XQ)
+
 
 class CoriolisTerm(ExpansionTerms):
     """
@@ -2412,7 +2507,6 @@ class DipoleTerms(ExpansionTerms):
                 np.moveaxis(np.array(x), 0, -1)
                 for x in tp_derivs
             ]
-            print([d.shape for d in derivs])
 
         if self._check_mode_terms(derivs):
             return derivs

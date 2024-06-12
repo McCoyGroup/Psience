@@ -23,6 +23,9 @@ from McUtils.Zachary import FiniteDifferenceDerivative
 import sys, os, numpy as np, itertools as ip
 
 class VPT2Tests(TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        np.set_printoptions(linewidth=int(1e8))
 
     # region Water Analogs
 
@@ -446,6 +449,123 @@ class VPT2Tests(TestCase):
         # raise Exception(op.poly_sum())
 
     @debugTest
+    def test_NewEmbedding(self):
+        file_name = "HOH_freq.fchk"
+        test_internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        # file_name = "water_dimer_freq.fchk"
+        # test_internals = dimer_internals
+        # file_name = "HOONO_freq.fchk"
+        # test_internals = hoono_internals
+        # file_name = "OCHH_freq.fchk"
+
+        mol = Molecule.from_file(
+            TestManager.test_data(file_name),
+            internals=test_internals
+        )#.get_embedded_molecule()
+        h1 = mol.hamiltonian
+        runner1, _ = VPTRunner.construct(
+            mol,
+            2,
+            internals=test_internals,
+            logger=False
+        )
+        h2 = runner1.hamiltonian
+
+        t1 = h1.G_terms
+        t2 = h2.G_terms
+
+        # print(t1.embedding.embedding.coords)
+        # print(t2.base_terms.molecule.coords)
+        # raise Exception(...)
+
+        # print(...)
+        # # print(
+        # #     t1.embedding.get_internals_by_mw_cartesians(order=2, strip_embedding=True)[0]
+        # # )
+        # # print(
+        # #     t2.base_terms.get_internals_by_cartesians(order=2)[0]
+        # # )
+        # print(
+        #     np.round(
+        #         t1.embedding.get_mw_cartesians_by_internals(order=2, strip_embedding=True)[0],
+        #         8
+        #     )
+        # )
+        # print("="*50)
+        # print(
+        #     np.round(
+        #         t2.base_terms.get_cartesians_by_internals(order=1)[0],
+        #         8
+        #     )
+        # )
+
+        # print(
+        #     np.round(
+        #         t1.embedding.get_internals_by_mw_cartesians(order=2, strip_embedding=True)[0],
+        #         8
+        #     )
+        # )
+        # print(
+        #     np.round(
+        #         t2.base_terms.get_internals_by_cartesians(order=1)[0],
+        #         8
+        #     )
+        # )
+
+        # print(
+        #     np.round(
+        #         t1.embedding.get_internals_by_cartesians(order=2, strip_embedding=True)[1][0],
+        #         8
+        #     )
+        # )
+        # print(
+        #     np.round(
+        #         t2.base_terms.get_modes_by_cartesians(order=2)[1][0],
+        #         8
+        #     )
+        # )
+        # raise Exception(...)
+        # QY_derivs = self.get_modes_by_cartesians(order=order + 1)
+        # YQ_derivs = self.get_cartesians_by_modes(order=order + 1)
+        g1 = h1.get_VPT_expansions({'kinetic':2})['kinetic']
+        g2 = h2.G_terms.base_terms
+        t2.base_terms.gmatrix_tolerance = None
+        t2.base_terms.freq_tolerance = None
+
+        print(np.round(g1[1][0] - g2[1][0], 8))
+        print("_"*20)
+        print(np.round(g1[2][0, 0], 8))
+        print("_"*20)
+        print(np.round(g2[2][0, 0], 8))
+        # print(np.round(g2[1][0], 8))
+        # g2.get_terms(2)
+        # print(g1[2] - g2[2])
+
+        raise Exception(...)
+
+        G = g1
+        VPTRunner.construct(
+            mol,
+            2,
+            internals=test_internals,
+            kinetic_terms=G,
+            # potential_terms=[G[0], 0, 0],
+            include_pseudopotential=False,
+            include_coriolis_coupling=False,
+            logger=False
+        )[0].print_tables(print_intensities=False)
+        VPTRunner.construct(
+            mol,
+            2,
+            internals=test_internals,
+            kinetic_terms=[h2.G_terms[0], h2.G_terms[1], h2.G_terms[2]],
+            # potential_terms=[G[0], 0, 0],
+            include_pseudopotential=False,
+            include_coriolis_coupling=False,
+            logger=False
+        )[0].print_tables(print_intensities=False)
+
+    @inactiveTest
     def test_HOHNoKE(self):
         print()
 
@@ -694,14 +814,14 @@ class VPT2Tests(TestCase):
         # print(R2[0])
         # print(G1[0] - test_G[1][0])
 
-        print(
-            (
-                    + G2_RR
-                    # + G2_RG
-                    + G2_R3
-                    + test_G[2]
-            )[0, 0]
-        )
+        # print(
+        #     (
+        #             + G2_RR
+        #             # + G2_RG
+        #             + G2_R3
+        #             + test_G[2]
+        #     )[0, 0]
+        # )
 
         ggg = [G0, G1, G2]
         ggg_test = runner1.hamiltonian.reexpress_G([Q1, Q2, Q3], [R1, R2, R3])
@@ -709,14 +829,21 @@ class VPT2Tests(TestCase):
         # print(ggg[1] - ggg_test[1])
         # print(ggg[1][0])
         # print(ggg_test[1][0])
-        print(ggg[2][0, 0])
-        print(ggg_test[2][0, 0])
+        # print(ggg[2][0, 0])
+        # print(ggg_test[2][0, 0])
         # runner1.print_tables()
         # R = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
         # Q = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
         #
         # G_new = runner1.hamiltonian.reexpress_G(R, Q)
         # raise Exception([G.shape for G in G_new])
+
+        (Q, R), _ = runner1.hamiltonian.get_potential_optimized_coordinates()
+        # print(Q[1][0])
+        # print(Q2[0])
+        # print(R[1] - R2)
+        # print(Q[2][:, :, 0, 0])
+        # print(Q3[:, :, 0, 0])
 
         # raise Exception(...)
 

@@ -432,7 +432,7 @@ class DGBTests(TestCase):
             init_pos = mol.get_displaced_coordinates(
                 initial_displacements,
                 which=displaced_coords,
-                internals='reembed'
+                use_internals='reembed'
             )
 
             sim = AIMDSimulator(

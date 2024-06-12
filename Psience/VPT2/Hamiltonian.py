@@ -250,9 +250,18 @@ class PerturbationTheoryHamiltonian:
             Z = Z[0, 0] + Z[1, 1] + Z[2, 2]
             return Z
 
+    def get_kinetic_optimized_coordinates(self, order=2):
+        return self.G_terms.base_terms.optimize_coordinates(order=order)
+
+    def get_potential_optimized_coordinates(self, order=2):
+        return self.V_terms.base_terms.optimize_coordinates(order=order)
 
     def reexpress_G(self, forward_derivs, reverse_derivs, order=2):
         return self.G_terms.base_terms.reexpress(forward_derivs, reverse_derivs, order=order)
+
+    def potential_optimize(self, order=2):
+        ...
+
 
     @property
     def H0(self):
@@ -649,9 +658,6 @@ class PerturbationTheoryHamiltonian:
         else:
             return harm, anharm
 
-    def get_potential_optimized_coordinates(self):
-        ...
-
     def get_2nd_order_freqs(self, states, *, freqs=None, V_terms=None, G_terms=None):
         """
 
@@ -716,182 +722,6 @@ class PerturbationTheoryHamiltonian:
         return anh_h1 # h0_contrib + anh_h1 + anh_h2
 
     #endregion Nielsen energies
-
-    def get_coupled_space(self, states, order):
-        """
-        Returns the set of states that couple the given states up to the given order at each level of perturbation (beyond zero order).
-        We keep track of how each individual state in states is transformed, as we only need to compute elements within those
-        blocks, allowing for relatively dramatic speed-ups.
-
-        :param state: the states of interest
-        :type state: BasisStateSpace
-        :param order: the order of perturbation theory we're doing
-        :type order: int
-        :param freqs: the zero-order frequencies in each vibrational mode being coupled
-        :type freqs: Iterable[float]
-        :param freq_threshold: the threshold for the maximum frequency difference between states to be considered
-        :type freq_threshold: None | float
-        :return: the sets of coupled states
-        :rtype: tuple[BasisMultiStateSpace]
-        """
-        raise NotImplementedError("dead code path")
-
-        nits = order - 1
-        if nits >= 0:
-
-            transitions_h1 = self.basis.selection_rules("x", "x", "x")
-            transitions_h2 = self.basis.selection_rules("x", "x", "x", "x")
-
-            # the states that can be coupled through H1
-            self.logger.log_print('getting states coupled through H^(1)')
-            h1_space = states.apply_selection_rules(
-                transitions_h1,
-                iterations=(order - 1)
-            )
-
-            # from second order corrections
-            self.logger.log_print('getting states coupled through H^(2)')
-            h2_space = states.apply_selection_rules(
-                transitions_h2,
-                iterations=(order - 1)
-            )
-
-
-        else:
-            h1_space = states.take_states([])
-            h2_space = states.take_states([])
-
-        return h1_space, h2_space
-
-    def get_representations(self,
-                            states,
-                            coupled_states=None,
-                            degeneracies=None,
-                            order=2
-                            ):
-        """
-        Returns the representations of the perturbations in the basis of coupled states
-
-        :param coupled_states:
-        :type coupled_states:
-        :return:
-        :rtype:
-        """
-
-        raise NotImplementedError("gotta fix this...")
-
-        with self.logger.block(tag='Computing PT corrections:'):
-            with self.logger.block(tag='getting coupled states'):
-                start = time.time()
-
-                states, coupled_states, degeneracies = self.get_input_state_spaces(states, coupled_states, degeneracies)
-
-                end = time.time()
-                self.logger.log_print("took {}s...", round(end - start, 3))
-
-            H, tot_space = self._get_VPT_representations(
-                self.perturbations,
-                states,
-                coupled_states,
-                logger=self.logger
-            )
-
-        return H
-
-    def get_input_state_spaces(self,
-                               states,
-                               coupled_states=None,
-                               degeneracies=None,
-                               order=2,
-                               deg_extra_order=2
-                               ):
-        """
-        Converts the input state specs into proper `BasisStateSpace` specs that
-        will directly feed into the code
-
-        :param states:
-        :type states:
-        :param coupled_states:
-        :type coupled_states:
-        :param degeneracies:
-        :type degeneracies:
-        :return:
-        :rtype:
-        """
-        raise NotImplementedError("dead code path")
-
-        # raise Exception(states)
-        # need to rewrite this to work better with BasisStateSpace
-        if not isinstance(states, BasisStateSpace):
-            states = BasisStateSpace(self.basis, states)
-
-        no_states_to_start = coupled_states is None
-
-        coupled_states = self._prep_coupled_states(states, coupled_states, order)
-
-        # raise Exception(coupled_states)
-
-        space_list = [states] + list(coupled_states)
-        total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
-        flat_total_space = total_space.to_single().take_unique()
-
-        degeneracies = DegenerateMultiStateSpace.from_spec(self, states, flat_total_space, degeneracies)
-
-        if no_states_to_start and degeneracies is not None:
-            for g in degeneracies:
-                if len(g) > 1: # these states can now couple to many more states through indirect couplings
-                    extra_states = self.get_coupled_space(g, order+2) # we
-                    g_inds = tuple(states.find(g))
-                    for c, e in zip(coupled_states, extra_states):
-                        for i, s in zip(g_inds, e):
-                            c[i] = s
-
-        space_list = [states] + list(coupled_states)
-        total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
-        flat_total_space = total_space.to_single().take_unique()
-
-        return states, coupled_states, total_space, flat_total_space, degeneracies
-
-    def _prep_coupled_states(self, states, coupled_states, order):
-        """
-        Preps coupled states as input for `get_wavefunctions` and `get_representations`
-
-        :param states:
-        :type states:
-        :param coupled_states:
-        :type coupled_states:
-        :param order:
-        :type order:
-        :return:
-        :rtype:
-        """
-        if coupled_states is None or isinstance(coupled_states, (int, np.integer, float, np.floating)):
-            # pull the states that we really want to couple
-            coupled_states = self.get_coupled_space(states, order,
-                                                    # freqs=self.modes.freqs,
-                                                    # freq_threshold=coupled_states
-                                                    )
-
-        elif isinstance(coupled_states, (BasisStateSpace, BasisMultiStateSpace)):
-            # same spec for both perturbations
-            coupled_states = [coupled_states, coupled_states]
-        elif isinstance(coupled_states[0], (BasisStateSpace, BasisMultiStateSpace)):
-            pass
-
-        elif isinstance(coupled_states[0], (int, np.integer)):  # got a single `BasisStateSpace` as indices
-            coupled_states = BasisStateSpace(self.basis, coupled_states, mode="indices")
-            coupled_states = [coupled_states, coupled_states]
-
-        elif isinstance(coupled_states[0][0], (int, np.integer)):  # got a single `BasisStateSpace` as excitations
-            coupled_states = BasisStateSpace(self.basis, coupled_states, mode="excitations")
-            coupled_states = [coupled_states, coupled_states]
-
-        else:
-            raise ValueError("Not sure what to do with coupled space spec {}".format(
-                coupled_states
-            ))
-
-        return coupled_states
 
     def _get_expansion_orders(self, expansion_order, order):
         if expansion_order is None:

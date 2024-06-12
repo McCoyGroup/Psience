@@ -595,9 +595,13 @@ class StructuralProperties:
         zeta = np.zeros((J.shape[0], X, N, N))
         if N > 1:  # no contrib otherwise
             for a in range(X):
+                b = (a + 1) % X
+                c = (a + 2) % X
+                if b % 2 == 1:
+                    c, b = b, c
                 zeta_vals = np.sum(
-                    J[:, (a + 1) % X, rows, :] * J[:, (a + 2) % X, cols, :]
-                    - J[:, (a + 1) % X, cols, :] * J[:, (a + 2) % X, rows, :],
+                    J[:, b, rows, :] * J[:, c, cols, :]
+                    - J[:, b, cols, :] * J[:, c, rows, :],
                     axis=2
                 )
                 zeta[:, a, rows, cols] = zeta_vals
