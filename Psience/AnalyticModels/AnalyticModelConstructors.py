@@ -396,7 +396,7 @@ class AnalyticModel:
         return {k:self.vals[k] for k in self.vals.keys() - set(self.internal_coordinates)}
 
     def normal_modes(self, dimensionless=True):
-        from ..MixtureModes import NormalModes
+        from ..Modes import NormalModes
 
         v = self.v(evaluate=True)[-1]
         g = self.g(evaluate=True)[-1]
@@ -1140,7 +1140,7 @@ class MolecularModelFunction:
         ):
             carts = self.mol.get_displaced_coordinates(
                 carts,
-                which=which, sel=sel, axes=axes, internals=internals,
+                which=which, sel=sel, axes=axes, use_internals=internals,
                 shift=False
             )
 
@@ -1154,7 +1154,7 @@ class MolecularModelFunction:
             ),
             carts,
             deriv_order=None if deriv_order is not None and deriv_order == 0 else deriv_order,
-            internals=True,
+            use_internals=True,
             strip_embedding=True
         )
         if deriv_order is not None:

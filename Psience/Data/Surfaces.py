@@ -167,7 +167,7 @@ class DipoleSurface(MultiSurface):
 class PotentialSurface(Surface):
     """
     A potential surface structure to go along with the DipoleSurface.
-    Provides convenient access to dipole data + a unified interface to things like energy minimization
+    Provides convenient access to potential data + a unified interface to things like energy minimization
     """
 
     @staticmethod

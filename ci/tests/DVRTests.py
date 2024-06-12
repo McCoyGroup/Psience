@@ -329,7 +329,7 @@ class DVRTests(TestCase):
         dr_coords = mol.get_displaced_coordinates(
             np.moveaxis(disps_grid, 0, -1).reshape(-1, disps_grid.shape[0]),
             [0, 1],
-            internals='convert',
+            use_internals='convert',
             strip_embedding=True
         )
 

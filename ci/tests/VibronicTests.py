@@ -196,7 +196,7 @@ class VibronicTests(TestCase):
             [0.16796089572281053, -1.0693197339113112e-16, -0.10980392299108514]
         ))
 
-    @debugTest
+    @validationTest
     def test_FCFsNH3(self):
         # print()
 
@@ -240,29 +240,48 @@ class VibronicTests(TestCase):
         # spec.plot().show()
         # print(spec.intensities)
 
-    @inactiveTest
+    @validationTest
     def test_FCFsBig(self):
 
+        s = 2
         root = os.path.expanduser('~/Documents/Postdoc/FCFs/')
         path = lambda *p:os.path.join(root, *p)
         fc_model = FranckCondonModel.from_files(
-            path('Na2_m0_s0.fchk'),
-            path('Na2_m0_s1.fchk')
+            path(f'Na{s}_m0_s0.fchk'),
+            path(f'Na{s}_m0_s1.fchk'),
+            logger=True
         )
 
-        q = 3
+        main_modes = [1, 4, 7]
+        aux_modes = [0, 2, 5, 8,  9, 10, 12, 13, 15, 20, 24, 25, 27, 28,
+                     33, 37, 41, 44, 46, 47, 51, 55, 56, 59, 60]
+        # nz_modes = [ 0,  1,  2,  4,  5,  7,  8,  9, 10, 12, 13, 15, 20, 24, 25, 27, 28,
+        #              33, 37, 41, 44, 46, 47, 51, 55, 56, 59, 60 ]
+
+
+        q = 6
         t = 1000
         # with BlockProfiler('FCFs'):
         oof, (_, excitations) = fc_model.get_spectrum(
             {
                 'threshold': t / UnitsData.hartrees_to_wavenumbers,
-                # 'min_quanta': q,
+                'min_quanta': q,
                 'max_quanta': q,
+                'max_state': [
+                    (
+                        q
+                            if s in main_modes else
+                        2
+                            if s in aux_modes else
+                        0
+                    )
+                    for s in range(len(fc_model.es_nms.freqs))
+                ]
             },
             return_states=True
         )
-        oof.plot().savefig(path(f'Na2_m0_{t}_{q}_quanta.png'))
-        np.savez(path(f'Na2_m0_{t}_{q}_spec.npz'),
+        oof.plot().savefig(path(f'Na{s}_m0_{t}_{q}_quanta.png'))
+        np.savez(path(f'Na{s}_m0_{t}_{q}_spec.npz'),
                  freqs=oof.frequencies,
                  fcfs=oof.intensities,
                  excitations=excitations)
