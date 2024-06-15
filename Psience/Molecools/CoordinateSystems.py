@@ -321,24 +321,29 @@ class MolecularEmbedding:
                 embedding = None
         return embedding
 
-    def get_cartesians_by_internals(self, order=None, strip_embedding=False):
-        base = self._get_int_jacobs(order, reembed=True) if order is not None else self._jacobians['internals']
-        if order is not None:
-            if len(base) < order:
-                raise ValueError("insufficient {} (have {} but expected {})".format(
-                    'CartesiansByInternals',
-                    len(base),
-                    order
-                ))
-            base = base[:order]
+    def get_cartesians_by_internals(self, order=None, strip_embedding=False, reembed=False):
+        if not reembed:
+            wtf = self.get_internals_by_cartesians(order, strip_embedding=False) # faster to just do these derivs.
+            base = nput.inverse_transformation(wtf, order-1)
+            # print(order, len(wtf), len(base))
+        else:
+            base = self._get_int_jacobs(order, reembed=True) if order is not None else self._jacobians['internals']
+            if order is not None:
+                if len(base) < order:
+                    raise ValueError("insufficient {} (have {} but expected {})".format(
+                        'CartesiansByInternals',
+                        len(base),
+                        order
+                    ))
+                base = base[:order]
 
-        _ = []
-        sh = self.coords.shape[:-2]
-        nc = 3 * len(self.masses)
-        for i, b in enumerate(base):
-            b = b.reshape(sh + (nc,) * (i + 2))
-            _.append(b)
-        base = _
+            _ = []
+            sh = self.coords.shape[:-2]
+            nc = 3 * len(self.masses)
+            for i, b in enumerate(base):
+                b = b.reshape(sh + (nc,) * (i + 2))
+                _.append(b)
+            base = _
 
         embedding_coords = self._get_embedding_coords() if strip_embedding else None
         if embedding_coords is not None and strip_embedding:

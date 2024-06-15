@@ -458,11 +458,18 @@ class VPT2Tests(TestCase):
         # test_internals = hoono_internals
         # file_name = "OCHH_freq.fchk"
 
+
         mol = Molecule.from_file(
             TestManager.test_data(file_name),
             internals=test_internals
         )#.get_embedded_molecule()
         h1 = mol.hamiltonian
+        wtf = h1.embedding.get_internals_by_cartesians(2)
+        inv = nput.inverse_transformation(wtf, 2)
+        # raise Exception([i.shape for i in inv])
+        # print(np.round(nput.tensor_reexpand(inv, wtf, 2)[1], 8))
+        # raise Exception(...)
+
         runner1, _ = VPTRunner.construct(
             mol,
             2,
@@ -527,43 +534,49 @@ class VPT2Tests(TestCase):
         # raise Exception(...)
         # QY_derivs = self.get_modes_by_cartesians(order=order + 1)
         # YQ_derivs = self.get_cartesians_by_modes(order=order + 1)
-        g1 = h1.get_VPT_expansions({'kinetic':2})['kinetic']
-        g2 = h2.G_terms.base_terms
-        t2.base_terms.gmatrix_tolerance = None
-        t2.base_terms.freq_tolerance = None
+        # g1 = h1.get_VPT_expansions({'kinetic':2})['kinetic']
+        # g2 = h2.G_terms.base_terms
+        # t2.base_terms.gmatrix_tolerance = None
+        # t2.base_terms.freq_tolerance = None
 
-        print(np.round(g1[1][0] - g2[1][0], 8))
-        print("_"*20)
-        print(np.round(g1[2][0, 0], 8))
-        print("_"*20)
-        print(np.round(g2[2][0, 0], 8))
-        # print(np.round(g2[1][0], 8))
-        # g2.get_terms(2)
-        # print(g1[2] - g2[2])
+        # print(np.round(g1[1][0] - g2[1][0], 8))
+        # print("_"*20)
+        # print(np.round(g1[2][0, 0], 8))
+        # print("_"*20)
+        # print(np.round(g2[2][0, 0], 8))
+        # # print(np.round(g2[1][0], 8))
+        # # g2.get_terms(2)
+        # # print(g1[2] - g2[2])
+        #
+        # raise Exception(...)
 
-        raise Exception(...)
+        # G = g1
+        # VPTRunner.construct(
+        #     mol,
+        #     2,
+        #     internals=test_internals,
+        #     kinetic_terms=G,
+        #     # potential_terms=[G[0], 0, 0],
+        #     include_pseudopotential=False,
+        #     include_coriolis_coupling=False,
+        #     logger=False
+        # )[0].print_tables(print_intensities=False)
+        # VPTRunner.construct(
+        #     mol,
+        #     2,
+        #     internals=test_internals,
+        #     kinetic_terms=[h2.G_terms[0], h2.G_terms[1], h2.G_terms[2]],
+        #     # potential_terms=[G[0], 0, 0],
+        #     include_pseudopotential=False,
+        #     include_coriolis_coupling=False,
+        #     logger=False
+        # )[0].print_tables(print_intensities=False)
 
-        G = g1
-        VPTRunner.construct(
-            mol,
-            2,
-            internals=test_internals,
-            kinetic_terms=G,
-            # potential_terms=[G[0], 0, 0],
-            include_pseudopotential=False,
-            include_coriolis_coupling=False,
-            logger=False
-        )[0].print_tables(print_intensities=False)
-        VPTRunner.construct(
-            mol,
-            2,
-            internals=test_internals,
-            kinetic_terms=[h2.G_terms[0], h2.G_terms[1], h2.G_terms[2]],
-            # potential_terms=[G[0], 0, 0],
-            include_pseudopotential=False,
-            include_coriolis_coupling=False,
-            logger=False
-        )[0].print_tables(print_intensities=False)
+        u1 = h1.get_VPT_expansions({'pseudopotential': 1})['pseudopotential']
+        print(u1)
+        u2 = h2.pseudopotential_term[1]
+        print(u2)
+
 
     @inactiveTest
     def test_HOHNoKE(self):

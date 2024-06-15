@@ -393,6 +393,8 @@ class MolecularNormalModes(CoordinateSystem):
                 return self.molecule.internal_coordinates
             else:
                 return self.molecule.coords
+        else:
+            return self._origin
 
     def embed(self, frame):
         """

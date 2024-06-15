@@ -39,35 +39,34 @@ class FranckCondonModel:
         self.logger = logger
 
     @classmethod
-    def from_files(cls, gs_file, es_file, mass_weight=True, logger=None):
+    def from_files(cls, gs_file, es_file, embed=True, mass_weight=True, logger=None):
         from ..Molecools import Molecule
         return cls.from_mols(
             Molecule.from_file(gs_file),
             Molecule.from_file(es_file),
+            embed=embed,
             mass_weight=mass_weight,
             logger=logger
         )
 
     @classmethod
-    def from_mols(cls, gs, es, mass_weight=True, logger=None):
-        gs = gs.get_embedded_molecule()
-        es = es.get_embedded_molecule(ref=gs)
+    def from_mols(cls, gs, es, embed=True, mass_weight=True, logger=None):
+        gg = gs.normal_modes.modes.basis.to_new_modes()
+        ee = es.normal_modes.modes.basis.to_new_modes()
 
         return cls(
-            gs.normal_modes.modes.basis.to_new_modes(),
-            es.normal_modes.modes.basis.to_new_modes(),
+            gg, ee,
+            embed=embed,
             mass_weight=mass_weight,
             logger=logger
         )
 
-    def get_overlaps(self,
-                     excitations, *, ground_states=None
-                     ):
+    def get_overlaps(self, excitations, *, ground_states=None):
         return self.get_fcfs(
             self.gs_nms, self.es_nms,
             excitations,
             ground_states=ground_states,
-            embed=False,
+            embed=True,
             mass_weight=False
         )
 
@@ -360,23 +359,47 @@ class FranckCondonModel:
     def get_overlap_gaussian_data(self,
                                   freqs_gs, modes_gs, inv_gs, center_gs,
                                   freqs_es, modes_es, inv_es, center_es,
-                                  rotation_method='default'
+                                  rotation_method='default',
+                                  order='gs'
                                   ):
 
+        gs_order = order == 'gs'
         if rotation_method == 'least-squares':
             # use least squares to express ground state modes as LCs of excited state modes
-            ls_tf = np.linalg.inv(modes_es.T @ modes_es) @ modes_es.T @ modes_gs
+            if gs_order:
+                m1 = modes_es
+                m2 = modes_gs
+            else:
+                m1 = modes_gs
+                m2 = modes_es
+            ls_tf = np.linalg.inv(m1.T @ m1) @ m1.T @ m2
             U, s, V = np.linalg.svd(ls_tf)
             L = U @ V  # Unitary version of a Duschinsky matrix
             L = L.T
+            if gs_order:
+                L_g = L
+                L_e = np.eye(L_g.shape[0])
+            else:
+                L_e = L
+                L_g = np.eye(L_e.shape[0])
         else:
-            L = inv_gs @ modes_es
-            # Linv = inv_es @ modes_gs
+            if gs_order:
+                L_g = inv_es @ modes_gs
+                L_e = np.eye(L_g.shape[0])
+            else:
+                L_e = inv_gs @ modes_es
+                L_g = np.eye(L_e.shape[0])
 
 
         # find displacement vector (center of gs ground state in this new basis)
         # modes_gs = modes_es @ L
-        dx = inv_es @ (center_gs - center_es)
+
+        if gs_order:
+            dx_g = (center_gs - center_es) @ modes_es
+            dx_e = np.zeros(dx_g.shape)
+        else:
+            dx_g = (center_es - center_gs) @ modes_gs
+            dx_e = np.zeros(dx_g.shape)
         # c_gs = inv_es @ (center_gs - center_es)
 
         # raise Exception(c_gs)
@@ -391,24 +414,26 @@ class FranckCondonModel:
         # raise Exception(c_gs)
 
         # inverse covariance matrices in this coordinate system
-        Z_gs = (L.T @ np.diag(freqs_gs) @ L)
-        Z_es = np.diag(freqs_es)
+        Z_gs = (L_g @ np.diag(freqs_gs) @ L_g.T)
+        Z_es = (L_e @ np.diag(freqs_es) @ L_e.T)
         Z_c = Z_gs + Z_es
 
-        S_c = (L.T @ np.diag(1/ (freqs_gs)) @ L) + np.diag(1/(freqs_es))
+        S_gs = (L_g @ np.diag(1/freqs_gs) @ L_g.T)
+        S_es = (L_e @ np.diag(1/freqs_es) @ L_e.T)
+        S_c = S_gs + S_es
 
         norm_gs = np.prod(np.power(freqs_gs, 1/4))
         norm_es = np.prod(np.power(freqs_es, 1/4))
         prefactor = (
                 norm_gs * norm_es / np.power(np.pi, len(freqs_es) / 2)
-                * np.exp(-1/2 * np.dot(dx, np.dot(np.linalg.inv(S_c), dx)))
+                * np.exp(-1/2 * np.dot(dx_g+dx_e, np.dot(np.linalg.inv(S_c), dx_g+dx_e))) # one of these is always zero
         )
         # prefactor = 1
 
         alphas_c, modes_c = np.linalg.eigh(Z_c)
-        center = np.linalg.inv(Z_c) @ (Z_es @ dx)
+        center = np.linalg.inv(Z_c) @ (Z_es @ dx_e + Z_gs @ dx_g)
 
-        return (alphas_c, modes_c, center, prefactor), (L, np.zeros(dx.shape)), (np.eye(L.shape[0]), dx)
+        return (alphas_c, modes_c, center, prefactor), (L_g, dx_g), (L_e, dx_e)
 
     @classmethod
     def eval_fcf_overlaps(self,
@@ -458,8 +483,8 @@ class FranckCondonModel:
 
         # raise Exception(shift_es, shift_gs, c_gs)
 
-        Q_gs = (modes_c.T @ L_gs)
-        Q_es = (modes_c.T @ L_es)
+        Q_gs = (modes_c @ L_gs)
+        Q_es = (modes_c @ L_es)
 
         polys1 = [
             HermiteProductPolynomial.from_quanta(eg, freqs_gs).shift(shift_gs)
@@ -519,11 +544,14 @@ class FranckCondonModel:
         gs = Molecule(['H'] * len(masses), gs_nms.origin, masses=masses)
 
         embedding = gs.get_embedding_data(es_nms.origin)
-        # raise Exception(embedding)
         ref_coords = embedding.reference_data.coords
-        ref_mat = np.tensordot(
-            gs_nms.matrix.reshape((-1,) + ref_coords.shape), embedding.reference_data.axes,
-            axes=[-1, 0]
+        ref_mat = np.moveaxis(
+            np.tensordot(
+                embedding.reference_data.axes,
+                gs_nms.matrix.reshape(ref_coords.shape + (-1,)),
+                axes=[0, 1]
+            ),
+            0, 1
         ).reshape(gs_nms.matrix.shape)
         gs_modes = NormalModes(
             gs_nms.basis,
@@ -533,14 +561,19 @@ class FranckCondonModel:
             masses=gs_nms.masses
         )
 
-        emb_coords = embedding.coord_data.coords[0] @ embedding.rotations[0].T
-        emb_mat = np.tensordot(
+        rot = embedding.rotations[0]
+        emb_coords = (embedding.coord_data.coords[0]) @ rot.T
+        emb_mat = np.moveaxis(
             np.tensordot(
-                es_nms.matrix.reshape((-1,) + emb_coords.shape), embedding.coord_data.axes[0],
-                axes=[-1, 0]
+                rot,
+                np.tensordot(
+                    embedding.coord_data.axes[0],
+                    es_nms.matrix.reshape(emb_coords.shape + (-1,)),
+                    axes=[0, 1]
+                ),
+                axes=[1, 0]
             ),
-            embedding.rotations[0],
-            axes=[-1, 1]
+            0, 1
         ).reshape(es_nms.matrix.shape)
         es_modes = NormalModes(
             gs_modes.basis,
@@ -574,7 +607,8 @@ class FranckCondonModel:
             mat,
             inverse=inv,
             origin=origin,
-            freqs=nms.freqs
+            freqs=nms.freqs,
+            masses=np.ones(len(masses))
         )
 
     @classmethod

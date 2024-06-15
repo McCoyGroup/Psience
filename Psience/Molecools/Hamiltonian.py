@@ -419,36 +419,46 @@ class PseudopotentialExpansion:
         self.g_expansion = g_expansion
 
     @classmethod
+    def lambda_expansion(cls,
+                        G_expansion, G_inv,
+                        I0_expansion, I0_inv,
+                        order):
+
+        g_exp = [np.trace(t, axis1=-1, axis2=-2) for t in nput.tensordot_deriv(G_expansion[1:], G_inv, order)]
+        i_exp = [np.trace(t, axis1=-1, axis2=-2) for t in nput.tensordot_deriv(I0_expansion[1:], I0_inv, order)]
+        return [ti - tg for ti,tg in zip(i_exp, g_exp)]
+
+    @classmethod
     def get_U(cls, G_expansion, I0_expansion):
+
         QG = G_expansion
         QI0 = I0_expansion
-        n = len(QG)
+        n = len(QG) - 1
         order = n - 2
 
         QU = nput.matinv_deriv(QI0, n)
-        U_det = nput.matdet_deriv(QU, n)
-        G_det = nput.matdet_deriv(QG, n)
-        Qig = nput.scalarprod_deriv(U_det, G_det, n)
-        Qg = nput.scalarinv_deriv(Qig, n)
+        QiG = nput.matinv_deriv(G_expansion, n)
 
-        # Pseudopotential is given by
-        #   1/g (G[0]<.>g[2] + Tr(G[1]<3,1>g[1]) - 3/4 1/g (g[1]<1,2>g[1]<1,2>G[0]) )
-        terms_1 = nput.tensordot_deriv(QG, Qg[2:], order, axes=[[0, 1], [0, 1]])
-        terms_2 = nput.tensordot_deriv(QG[1:], Qg[1:], order, axes=[2, 0])
-        terms_3 = nput.scalarprod_deriv(
-            Qig,
-            nput.tensordot_deriv(
-                Qg[1:],
-                nput.tensordot_deriv(Qg[1:], Qg, order, axes=[0, 1]),
-                order, axes=[0, 1]
-            ),
-            order
+        L = cls.lambda_expansion(
+            QG, QiG,
+            QI0, QU,
+            order + 1
         )
-        t = [
-            t1 + np.trace(t2, axis2=-2, axis1=-1) - 3 / 4 * t3
-            for t1, t2, t3 in zip(terms_1, terms_2, terms_3)
+
+        LxL = nput.tensorprod_deriv(L, L, order)
+
+        inner_exp = [
+            l1 + 1/4*l2
+            for l1, l2 in zip(L[1:], LxL)
         ]
-        return nput.scalarprod_deriv(Qig, t, order=order)
+        G_contract = nput.tensordot_deriv(G_expansion, inner_exp, order, axes=[[0, 1], [0, 1]])
+        QG_contract = [
+            np.trace(g, axis1=-1, axis2=-2) for g in
+            nput.tensordot_deriv(G_expansion[1:], L, order, axes=[2, 0])
+        ]
+
+        return [g1 + g2 for g1, g2 in zip(G_contract, QG_contract)]
+        # return nput.scalarprod_deriv(Qig, t, order=order)
 
     def get_terms(self, order, transformation=None):
         if transformation is not None:

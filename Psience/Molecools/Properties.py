@@ -392,7 +392,7 @@ class StructuralProperties:
                 if reset_com:
                     transf = MolecularTransformation(com, crd_rot, rot.T, ref_rot.T, -ref_com)
                 else:
-                    transf = MolecularTransformation(crd_rot, rot.T, ref_rot.T)
+                    transf = MolecularTransformation(crd_rot, rot.T, ref_rot.T, -ref_com)
             else:
                 if reset_com:
                     transf = MolecularTransformation(ref_com, ref_rot, rot, crd_rot.T, -com)
@@ -1845,6 +1845,16 @@ class PotentialSurfaceManager(PropertyManager):
 class NormalModesManager(PropertyManager):
     def __init__(self, mol, normal_modes=None):
         super().__init__(mol)
+        if isinstance(normal_modes, dict):
+            normal_modes = MolecularVibrations(
+                mol,
+                MolecularNormalModes(mol,
+                                     normal_modes['matrix'],
+                                     freqs=normal_modes['freqs'],
+                                     inverse=normal_modes.get('inverse', None),
+                                     origin=normal_modes.get('origin', None)
+                                     )
+            )
         self._modes = normal_modes
         self._freqs = None # implementation detail
 
