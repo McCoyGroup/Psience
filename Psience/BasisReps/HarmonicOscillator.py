@@ -261,7 +261,7 @@ class HarmonicOscillatorRaisingLoweringPolyTerms:
         prefactor = cls.binom(a + b, a)
         coeffs = prefactor * cls.get_reduced_raising_lowering_coeffs(a, b)
         if shift != 0:
-            coeffs = DensePolynomial._compute_shifted_coeffs(coeffs, shift)
+            coeffs = DensePolynomial.compute_shifted_coeffs(coeffs, shift)
         return coeffs
 
     @classmethod
@@ -572,7 +572,7 @@ class HarmonicOscillatorMatrixGenerator:
                 if isinstance(base_coeffs, (int, float, np.integer, np.floating)):
                     self._poly_cache[(delta, shift)] = base_coeffs
                 else:
-                    self._poly_cache[(delta, shift)] = DensePolynomial._compute_shifted_coeffs(base_coeffs, shift=shift)
+                    self._poly_cache[(delta, shift)] = DensePolynomial.compute_shifted_coeffs(base_coeffs, shift=shift)
             else:
                 self._poly_cache[(delta, shift)] = self._poly_cache[delta]
         return self._poly_cache[(delta, shift)]
@@ -582,7 +582,7 @@ class HarmonicOscillatorMatrixGenerator:
     def get_poly_coeffs(cls, terms, delta, shift=0):
         coeffs = cls._get_poly_coeffs(terms, delta)
         if shift != 0:
-            coeffs = DensePolynomial._compute_shifted_coeffs(coeffs, shift=shift)
+            coeffs = DensePolynomial.compute_shifted_coeffs(coeffs, shift=shift)
         return coeffs
 
     @classmethod

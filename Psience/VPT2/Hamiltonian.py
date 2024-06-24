@@ -395,7 +395,7 @@ class PerturbationTheoryHamiltonian:
                             Z[zero_sel] = 0.
 
                         z_exp = ['x', 'p'] + ['x' for _ in range(oz)] + ['x', 'p']
-                        Z = iphase * self.basis.representation(*z_exp,
+                        Z = iphase / (np.math.factorial(oz)) * self.basis.representation(*z_exp,
                                                                coeffs=Z,
                                                                name='Coriolis({})'.format(oz),
                                                                **self.operator_settings
