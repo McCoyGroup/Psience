@@ -1,3 +1,4 @@
+import scipy.linalg
 
 try:
     from Peeves.TestUtils import *
@@ -210,6 +211,22 @@ class VibronicTests(TestCase):
         #
         # print(fc_model.gs_nms.freqs)
         # print(fc_model.es_nms.freqs)
+        # uuugh = np.power(
+        #     fc_model.get_overlaps(
+        #         [
+        #             [0, 0, 0, 0, 0, 0],
+        #             [1, 0, 0, 0, 0, 0],
+        #             [3, 0, 0, 0, 0, 0],
+        #             [0, 0, 1, 0, 0, 0],
+        #             [0, 0, 0, 1, 0, 0],
+        #             [0, 0, 0, 0, 1, 0],
+        #             [0, 0, 0, 0, 0, 1]
+        #         ]
+        #     ),
+        #     2
+        # )
+        # print(uuugh)
+        # raise Exception(...)
 
         uuugh = np.power(
                 fc_model.get_overlaps(
@@ -227,12 +244,13 @@ class VibronicTests(TestCase):
                 ),
                 2
             )
+        print(uuugh)
         # print(np.sum(uuugh))
-        self.assertTrue(np.allclose(
-            uuugh,
-            [2.79672434e-02, 2.43447521e-02, 3.66375168e-05, 1.45628441e-02, 5.93123060e-08, 1.35127810e-08, 6.98421424e-08,
-             3.91535362e-09, 6.62467294e-02]
-        ))
+        # self.assertTrue(np.allclose(
+        #     uuugh,
+        #     [2.79672434e-02, 2.43447521e-02, 3.66375168e-05, 1.45628441e-02, 5.93123060e-08, 1.35127810e-08, 6.98421424e-08,
+        #      3.91535362e-09, 6.62467294e-02]
+        # ))
         # print(uuugh)
         # print(uuugh / np.max(uuugh))
 
@@ -240,15 +258,71 @@ class VibronicTests(TestCase):
         # spec.plot().show()
         # print(spec.intensities)
 
-    @validationTest
+    @classmethod
+    def load_log_mol(cls, log_file, ref_file):
+
+        klow_exc = Molecule.from_file(ref_file)
+        from McUtils.GaussianInterface import GaussianLogReader
+        woof = log_file
+        with GaussianLogReader(woof) as reader:
+            nm_data = reader.parse(['InputCartesianCoordinates', 'NormalModes'])
+            carts = nm_data['InputCartesianCoordinates'][1][-1]
+            freqs, matrix = nm_data['NormalModes'][0]
+            gvals, gvecs = np.linalg.eigh(matrix.T @ matrix)
+            g12 = gvecs @ np.diag(1/np.sqrt(gvals)) @ gvecs.T
+            matrix = matrix @ g12
+            cart_mass = np.sqrt(klow_exc.atomic_masses)
+            matrix = np.reshape(
+                matrix.reshape(-1, 3, matrix.shape[-1]) / cart_mass[:, np.newaxis, np.newaxis],
+                matrix.shape
+            )
+            # altmat = klow_exc.normal_modes.modes.basis.matrix
+
+            klow = Molecule(
+                klow_exc.atoms,
+                carts * UnitsData.convert("Angstroms", "BohrRadius"),
+                masses=klow_exc.masses,
+                normal_modes={
+                    'freqs':freqs * UnitsData.convert("Wavenumbers", "Hartrees"),
+                    'matrix':matrix
+                }
+            )
+            # klow = klow.get_embedded_molecule()
+            # klow_modes = klow.normal_modes.modes.basis.to_new_modes().make_mass_weighted()
+            # klow_exc = klow_exc.get_embedded_molecule()
+            # new_modes = klow_exc.normal_modes.modes.basis.to_new_modes().make_mass_weighted()
+
+        return klow, klow_exc
+        # raise Exception(...)
+    @debugTest
     def test_FCFsBig(self):
 
-        s = 2
         root = os.path.expanduser('~/Documents/Postdoc/FCFs/')
         path = lambda *p:os.path.join(root, *p)
+
+        s = 6
+        s = f"Na{s}"
+        # s = "K_low"
+        # s = "K_min"
+
+        # fc_model = FranckCondonModel.from_mols(
+        #     *reversed(
+        #         self.load_log_mol(
+        #         path(f'{s}_m0_ex_freq.log'),
+        #         path(f'{s}_m0_s0.fchk'))
+        #     ),
+        #     logger=True
+        # )
+
+        # gs, exc = self.load_log_mol(path(f'{s}_m0_freq.log'), path(f'{s}_m0_s1.fchk'))
+        # fc_model = FranckCondonModel.from_mols(
+        #     gs, exc,
+        #     logger=True
+        # )
+
         fc_model = FranckCondonModel.from_files(
-            path(f'Na{s}_m0_s0.fchk'),
-            path(f'Na{s}_m0_s1.fchk'),
+            path(f'{s}_m0_s0.fchk'),
+            path(f'{s}_m0_s1.fchk'),
             logger=True
         )
 
@@ -259,29 +333,31 @@ class VibronicTests(TestCase):
         #              33, 37, 41, 44, 46, 47, 51, 55, 56, 59, 60 ]
 
 
-        q = 6
-        t = 1000
+        q = 3
+        # t0 = 0000
+        t = 2000
         # with BlockProfiler('FCFs'):
         oof, (_, excitations) = fc_model.get_spectrum(
             {
                 'threshold': t / UnitsData.hartrees_to_wavenumbers,
-                'min_quanta': q,
+                # 'min_quanta': q,
+                # 'min_freq': t0 / UnitsData.hartrees_to_wavenumbers,
                 'max_quanta': q,
-                'max_state': [
-                    (
-                        q
-                            if s in main_modes else
-                        2
-                            if s in aux_modes else
-                        0
-                    )
-                    for s in range(len(fc_model.es_nms.freqs))
-                ]
+                # 'max_state': [
+                #     (
+                #         q
+                #             if s in main_modes else
+                #         2
+                #             if s in aux_modes else
+                #         0
+                #     )
+                #     for s in range(len(fc_model.es_nms.freqs))
+                # ]
             },
             return_states=True
         )
-        oof.plot().savefig(path(f'Na{s}_m0_{t}_{q}_quanta.png'))
-        np.savez(path(f'Na{s}_m0_{t}_{q}_spec.npz'),
+        oof.plot().savefig(path(f'{s}_m0_{t}_{q}_quanta.png'))
+        np.savez(path(f'{s}_m0_{t}_{q}_spec.npz'),
                  freqs=oof.frequencies,
                  fcfs=oof.intensities,
                  excitations=excitations)

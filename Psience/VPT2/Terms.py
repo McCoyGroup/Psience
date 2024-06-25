@@ -1969,8 +1969,8 @@ class KineticTerms(ExpansionTerms):
                 # YQ_derivs = self.get_cartesians_by_internals(order=order + 1) # really dYdR derivatives
             # RQ = dot(YQ, RY)
 
-            # term_getter = TensorDerivativeConverter(YQ_derivs, QY_derivs).terms
-            term_getter = TensorDerivativeConverter([np.eye(9,9), 0, 0], QY_derivs).terms
+            term_getter = TensorDerivativeConverter(YQ_derivs, QY_derivs).terms
+            # term_getter = TensorDerivativeConverter([np.eye(9,9), 0, 0], QY_derivs).terms
             term_getter.v_name = 'Y'
             J = term_getter.XV(1)
             G_terms = [J.dot(J, 1, 1)]
@@ -1978,8 +1978,6 @@ class KineticTerms(ExpansionTerms):
                 g_cur = G_terms[-1].dQ()#.simplify(check_arrays=True)
                 G_terms.append(g_cur)
             terms = [x.array for x in G_terms]
-            if order == 2:
-                print("!", terms[2][0, 0])
             #
             # """
             # [[-0.0e+00  3.9e-07  8.8e-07]
@@ -1998,7 +1996,7 @@ class KineticTerms(ExpansionTerms):
             # # print(
             # #     [q.shape for q in QY_derivs],
             # #     [g.shape for g in terms])
-            terms = [terms[0]] + TensorDerivativeConverter.convert_fast(YQ_derivs, terms[1:], val_axis=0)
+            # terms = [terms[0]] + TensorDerivativeConverter.convert_fast(YQ_derivs, terms[1:], val_axis=0)
             # terms = [
             #     np.tensordot(np.tensordot(t, RQ, axes=[-2, 0]), RQ, axes=[-2, 0])
             #     for t in terms

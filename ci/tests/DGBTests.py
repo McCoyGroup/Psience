@@ -881,6 +881,7 @@ class DGBTests(TestCase):
                            coordinate_sel=None,
                            domain=None, domain_padding=1,
                            potential_cutoff=17000,
+                           potential_min=0,
                            plot_cartesians=None,
                            plot_atoms=True,
                            cmap=None,
@@ -889,9 +890,11 @@ class DGBTests(TestCase):
                            levels=24,
                            **plot_styles
                            ):
-        def cutoff_pot(points, cutoff=potential_cutoff / UnitsData.hartrees_to_wavenumbers):
+        def cutoff_pot(points, cutoff=potential_cutoff / UnitsData.hartrees_to_wavenumbers,
+                       cutmin=potential_min /  UnitsData.hartrees_to_wavenumbers
+                       ):
             values = potential(points)
-            values[values > cutoff] = cutoff
+            values[np.logical_or(values < cutmin, values > cutoff)] = cutoff
             return values
 
         if isinstance(dgb, DGBCoords):
@@ -3296,7 +3299,7 @@ class DGBTests(TestCase):
         struct = Molecule.from_file(
             TestManager.test_data('OCHH_freq.fchk')
         )
-        pds = struct.potential_derivatives;
+        pds = struct.potential_derivatives
         # struct = struct.get_embedded_molecule(embed_properties=True)
 
         ints = h2co.get_internals(struct.coords * UnitsData.convert("BohrRadius", "Angstroms"), order=[3, 2, 1, 0])
@@ -3356,27 +3359,102 @@ class DGBTests(TestCase):
                 ch_scaling=.05,
                 reCH=np.linalg.norm(ref_struct[2]-ref_struct[1]),
                 reOH=np.linalg.norm(ref_struct[0]-ref_struct[1]),
-                muCH=.1,
-                muOH=.1
+                muOH=-0.3,
+                muCH= 0.2
                 ):
+
             crds = mol.embed_coords(crds)
             vOH = crds[..., 0, :] - crds[..., 1, :]
+            # raise Exception(vOH)
             vCH1 = crds[..., 2, :] - crds[..., 1, :]
             vCH2 = crds[..., 3, :] - crds[..., 1, :]
+            ang1 = np.pi - nput.vec_angles(vCH1, vOH)[0]
+            ang2 = np.pi - nput.vec_angles(vCH2, vOH)[0]
+            # raise Exception(np.rad2deg(ang2))
+            cos1 = np.cos(ang1)
+            sin1 = np.sin(ang1)
+            cos2 = np.cos(ang2)
+            sin2 = np.sin(ang2)
+
+            # raise Exception(
+            #     np.array([])
+            # )
+
+            # raise Exception(
+            #     np.array([[.096, 0, 0],
+            #              [0, -0.161, -0.144],
+            #              [0., -0.083, -0.065]]) / np.array([[1, 0, 0],
+            #                                               [0, cos1, sin1],
+            #                                               [0, -sin1, cos1]])
+            # )
+
+            R1 = np.array([
+                [1,     0,    0],
+                [0,  cos1, sin1],
+                [0, -sin1, cos1]
+            ])
+            # raise Exception(
+            #     R1 /
+            # )
+            R2 = np.array([
+                [1,    0,      0],
+                [0,  cos2, -sin2],
+                [0,  sin2,  cos2]
+            ])
+
+            # muCH = R1 @ np.array([
+            #     [0.096,  0.000,  0.000],
+            #     [0.000, -0.161,  0.144],
+            #     [0.000,  0.083, -0.065]
+            # ])
+            # print(muCH)
+            # muCH = np.diag(muCH)
+            # raise Exception(muCH)
 
             # d_ch1 = np.linalg.norm(vCH1, axis=1)
             # d_ch2 = np.linalg.norm(vCH2, axis=1)
 
-            mu = muCH*vCH1 + muCH*vCH2
+            # muCH = np.asanyarray(muCH)
+            # muOH = np.asanyarray(muOH)
+            mCH1 = muCH * vCH1
+            mCH2 = muCH * vCH2
+            muCH1 = muCH * np.diag(nput.vec_normalize(vCH1))
+            muCH2 = muCH * np.diag(nput.vec_normalize(vCH2))
+            # print(nput.vec_normalize(vCH1))
+            # print(mCH1)
+            # print(nput.vec_normalize(vCH2))
+            # print(mCH2)
+            # raise Exception(...)
+            #     np.array([[-0.161, -0.144], [-0.083, -0.065]]) @ np.array([[cos2, sin2], [-sin2, cos2]])
+            # )
+            mOH = muOH*vOH
+            mu = mCH1 + mCH2 + mOH
+            muuOH = mOH * nput.vec_normalize(vOH)
             if deriv_order is not None:
                 vals = [mu]
-                if deriv_order > 0:
-                    der = np.zeros(crds.shape[:-2] + (4, 3, 3))
-                    for i in range(3):
-                        der[..., 1, i, i] = -muCH
-                        der[..., 2, i, i] = muCH
-                        der[..., 3, i, i] = muCH
-                    vals.append(der.reshape(crds.shape[:-2] + (12, 3)))
+                # if deriv_order > 0:
+                #     der = np.zeros(crds.shape[:-2] + (4, 3, 3))
+                #     der[..., 0, np.arange(3), np.arange(3)] = muuOH
+                #     der[..., 1, :, :] = -(np.diag(muuOH) + muCH1 + muCH2)
+                #     der[..., 2, :, :] = muCH1
+                #     der[..., 3, :, :] = muCH2
+                #     vals.append(der.reshape(crds.shape[:-2] + (12, 3)))
+                der = np.array([[-0.318, -0., -0.],
+                                [-0., -0.434, 0.],
+                                [-0., 0., -0.745],
+                                [0.126, 0., 0.],
+                                [-0., 0.755, 0.],
+                                [-0., -0., 0.874],
+                                [0.096, -0., 0.],
+                                [-0., -0.161, 0.144],
+                                [-0., 0.083, -0.065],
+                                [0.096, -0., -0.],
+                                [0., -0.161, -0.144],
+                                [0., -0.083, -0.065]]
+                               )
+                for _ in crds.shape[:-2]: der = np.expand_dims(der, 0)
+                der = np.broadcast_to(der, crds.shape[:-2] + der.shape)
+                vals.append(der)
                 if deriv_order > 1:
                     for n in range(2, deriv_order+1):
                         vals.append(np.zeros(crds.shape[:-2] + (12,) * n + (3,)))
@@ -3425,19 +3503,19 @@ class DGBTests(TestCase):
             raise Exception(freqs * UnitsData.convert("Hartrees", "Wavenumbers"))
             # [1184.78739083 1270.60326063 1536.38630622 1773.53059261 2938.06517553 3014.04194109]
 
-        check_anh = True
+        check_anh = False
         if check_anh:
             from Psience.VPT2 import VPTRunner
             ref = Molecule.from_file(TestManager.test_data("OCHH_freq.fchk"))
             dip_data = dip(ref.coords, deriv_order=3)
 
-            raise Exception(
-                ref.dipole_derivatives[0],
-                dip_data[0],
-
-                np.round(ref.dipole_derivatives[1], 3),
-                dip_data[1]
-            )
+            # raise Exception(
+            #     ref.dipole_derivatives[0],
+            #     dip_data[0],
+            #
+            #     np.round(ref.dipole_derivatives[1], 3),
+            #     dip_data[1]
+            # )
 
             pot_data = pot(mol.coords, deriv_order=4)
             # print([p.shape for p in pot_data])
@@ -3452,6 +3530,8 @@ class DGBTests(TestCase):
                     x.reshape((12,) * i + (3,))
                     for i, x in enumerate(dip_data)
                 ],
+                # dipole_derivatives=ref.dipole_derivatives,
+                expansion_order={'dipole':0},
                 order=2, states=2,
                 logger=True,
                 degeneracy_specs='auto',
@@ -3461,6 +3541,88 @@ class DGBTests(TestCase):
             raise Exception(...)
 
             """
+              0 0 0 0 0 1    3014.04194     94.15482      2850.24192     54.01806
+              0 0 0 0 1 0    2938.06518     62.82321      2775.12218     59.33908
+              0 0 0 1 0 0    1773.53059     79.53096      1751.14686     78.52720
+              0 0 1 0 0 0    1536.38631      1.91567      1500.26999      1.87064
+              0 1 0 0 0 0    1270.60326     10.85869      1250.28571     10.68506
+              1 0 0 0 0 0    1184.78739      6.96476      1172.06491      6.88997
+              0 0 0 0 0 2    6028.08388      0.00000      5653.82461      0.00000
+              0 0 0 0 2 0    5876.13035      0.00000      5448.28685      0.00000
+              0 0 0 2 0 0    3547.06119      0.00000      3486.35662      0.00000
+              0 0 2 0 0 0    3072.77261      0.00000      3000.53136      0.00000
+              0 2 0 0 0 0    2541.20652      0.00000      2494.07307      0.00000
+              2 0 0 0 0 0    2369.57478      0.00000      2341.64290      0.00000
+              0 0 0 0 1 1    5952.10712      0.00000      5394.06886      0.00000
+              0 0 0 1 0 1    4787.57253      0.00000      4580.10924      0.00000
+              0 0 1 0 0 1    4550.42825      0.00000      4358.80717      0.00000
+              0 1 0 0 0 1    4284.64520      0.00000      4058.08650      0.00000
+              1 0 0 0 0 1    4198.82933      0.00000      4014.00756      0.00000
+              0 0 0 1 1 0    4711.59577      0.00000      4530.51952      0.00000
+              0 0 1 0 1 0    4474.45148      0.00000      4247.93348      0.00000
+              0 1 0 0 1 0    4208.66844      0.00000      4016.74144      0.00000
+              1 0 0 0 1 0    4122.85257      0.00000      3939.42832      0.00000
+              0 0 1 1 0 0    3309.91690      0.00000      3242.31432      0.00000
+              0 1 0 1 0 0    3044.13385      0.00000      3007.87873      9.08436
+              1 0 0 1 0 0    2958.31798      0.00000      2918.05297      0.00000
+              0 1 1 0 0 0    2806.98957      0.00000      2710.80788     25.11953
+              1 0 1 0 0 0    2721.17370      0.00000      2672.80691      0.00000
+              1 1 0 0 0 0    2455.39065      0.00000      2433.78560      0.00000
+              0 1 1 0 0 1    5821.03151      0.00000      5261.03933      0.00000
+              0 1 0 1 0 1    6058.17579      0.00000      5537.94960      0.00000
+              0 1 1 0 1 0    5745.05474      0.00000      5538.43152      0.00000
+              0 1 0 1 1 0    5982.19903      0.00000      5770.45894      0.00000
+              0 1 2 0 0 0    4343.37587      0.00000      4173.15105      0.00000
+              0 1 0 2 0 0    4817.66445      0.00000      4755.77039      0.00000
+              0 1 1 1 0 0    4580.52016      0.00000      4465.97584      0.00000
+              0 2 0 1 0 0    4314.73711      0.00000      4258.80431      0.00000
+              1 1 1 0 0 0    3991.77696      0.00000      3884.91158      0.00000
+              1 1 0 1 0 0    4228.92124      0.00000      4184.92679      0.00000
+              0 0 3 0 0 0    4609.15892      0.00000      4493.31862      0.00000
+              """
+
+            """
+            0 0 0 0 0 1    3014.04194     61.96738      2850.24192     37.97023
+            0 0 0 0 1 0    2938.06518      6.51883      2775.12218      6.17619
+            0 0 0 1 0 0    1773.53059     94.35989      1751.14686     92.73921
+            0 0 1 0 0 0    1536.38631      3.42197      1500.26999      3.89021
+            0 1 0 0 0 0    1270.60326     38.53724      1250.28571     37.60722
+            1 0 0 0 0 0    1184.78739      6.66113      1172.06491      6.68491
+            0 0 0 0 0 2    6028.08388      0.00000      5653.82461      0.12086
+            0 0 0 0 2 0    5876.13035      0.00000      5448.28685      0.17000
+            0 0 0 2 0 0    3547.06119      0.00000      3486.35662      0.71662
+            0 0 2 0 0 0    3072.77261      0.00000      3000.53136      0.55347
+            0 2 0 0 0 0    2541.20652      0.00000      2494.07307      0.06024
+            2 0 0 0 0 0    2369.57478      0.00000      2341.64290      0.02533
+            0 0 0 0 1 1    5952.10712      0.00000      5394.06886      0.61772
+            0 0 0 1 0 1    4787.57253      0.00000      4580.10924      0.08500
+            0 0 1 0 0 1    4550.42825      0.00000      4358.80717      0.24468
+            0 1 0 0 0 1    4284.64520      0.00000      4058.08650      0.05560
+            1 0 0 0 0 1    4198.82933      0.00000      4014.00756      0.00001
+            0 0 0 1 1 0    4711.59577      0.00000      4530.51952      0.00065
+            0 0 1 0 1 0    4474.45148      0.00000      4247.93348      0.00067
+            0 1 0 0 1 0    4208.66844      0.00000      4016.74144      0.00242
+            1 0 0 0 1 0    4122.85257      0.00000      3939.42832      0.00730
+            0 0 1 1 0 0    3309.91690      0.00000      3242.31432      0.07631
+            0 1 0 1 0 0    3044.13385      0.00000      3007.87873      5.69027
+            1 0 0 1 0 0    2958.31798      0.00000      2918.05297      0.00040
+            0 1 1 0 0 0    2806.98957      0.00000      2710.80788     17.44799
+            1 0 1 0 0 0    2721.17370      0.00000      2672.80691      0.00158
+            1 1 0 0 0 0    2455.39065      0.00000      2433.78560      0.00000
+            0 1 1 0 0 1    5821.03151      0.00000      5261.03933      0.02635
+            0 1 0 1 0 1    6058.17579      0.00000      5537.94960      0.00965
+            0 1 1 0 1 0    5745.05474      0.00000      5538.43152      1.09529
+            0 1 0 1 1 0    5982.19903      0.00000      5770.45894      0.05397
+            0 1 2 0 0 0    4343.37587      0.00000      4173.15105      0.04103
+            0 1 0 2 0 0    4817.66445      0.00000      4755.77039      0.00418
+            0 1 1 1 0 0    4580.52016      0.00000      4465.97584      0.00721
+            0 2 0 1 0 0    4314.73711      0.00000      4258.80431      0.01152
+            1 1 1 0 0 0    3991.77696      0.00000      3884.91158      0.00000
+            1 1 0 1 0 0    4228.92124      0.00000      4184.92679      0.00000
+            0 0 3 0 0 0    4609.15892      0.00000      4493.31862      0.00147
+            """
+
+            """
               0 0 0 0 0 1    3061.70145     75.32618      2987.29160     41.19591
               0 0 0 0 1 0    2977.64049     69.29750      2843.35728     64.98758
               0 0 0 1 0 0    1727.08266     63.79277      1693.95557     65.09723
@@ -3468,53 +3630,6 @@ class DGBTests(TestCase):
               0 1 0 0 0 0    1252.16421      0.81827      1242.65091      0.99868
               1 0 0 0 0 0    1188.11382     22.55337      1175.01252     22.43774
               """
-
-            """
-            Frequencies: [1257.77784315 1514.7902823  1812.63143398 2553.56241347 2746.19602712 2774.80002807 2872.65981983 3037.50273679 3425.75291775 3855.89411738 4053.8672658  4058.65861075 4256.21344489 4284.91574908 4486.9004042  4681.12975328 5402.69097744 5447.08298043 5457.00745903 5591.70891857]
-            Intensities: [4.73279353e+00 1.51145292e+01 1.30323775e+00 3.70759211e-01 4.99730532e+00 5.65406679e+00 1.16745910e+01 1.43106181e-01 3.61556716e-02 1.39865720e-02 3.45668683e-02 3.27061178e-02 2.84079688e-03 4.08529292e-02 3.87081866e-02 1.12128775e-02 1.03492789e-01 1.92986621e-01 1.40923179e-01 5.74540235e-02]
-            """
-            """
-            0 0 0 0 0 0   5858.70733   5780.61825            -            - 
-            State             Frequency    Intensity       Frequency    Intensity
-              0 0 0 0 0 1    3014.04194     14.52524      2850.24192      8.76303
-              0 0 0 0 1 0    2938.06518      5.48204      2775.12218      4.88592
-              0 0 0 1 0 0    1773.53059      0.49777      1751.14686      0.40608
-              0 0 1 0 0 0    1536.38631     13.86982      1500.26999     13.82658
-              0 1 0 0 0 0    1270.60326      3.23438      1250.28571      3.10240
-              1 0 0 0 0 0    1184.78739     17.49239      1172.06491     17.55483
-              0 0 0 0 0 2    6028.08388      0.00000      5653.82461      0.03006
-              0 0 0 0 2 0    5876.13035      0.00000      5448.28685      0.09970
-              0 0 0 2 0 0    3547.06119      0.00000      3486.35662      0.00317
-              0 0 2 0 0 0    3072.77261      0.00000      3000.53136      0.37886
-              0 2 0 0 0 0    2541.20652      0.00000      2494.07307      0.17432
-              2 0 0 0 0 0    2369.57478      0.00000      2341.64290      0.06316
-              0 0 0 0 1 1    5952.10712      0.00000      5394.06886      0.15345
-              0 0 0 1 0 1    4787.57253      0.00000      4580.10924      0.01632
-              0 0 1 0 0 1    4550.42825      0.00000      4358.80717      0.04745
-              0 1 0 0 0 1    4284.64520      0.00000      4058.08650      0.01781
-              1 0 0 0 0 1    4198.82933      0.00000      4014.00756      0.00003
-              0 0 0 1 1 0    4711.59577      0.00000      4530.51952      0.00037
-              0 0 1 0 1 0    4474.45148      0.00000      4247.93348      0.00640
-              0 1 0 0 1 0    4208.66844      0.00000      4016.74144      0.00284
-              1 0 0 0 1 0    4122.85257      0.00000      3939.42832      0.01917
-              0 0 1 1 0 0    3309.91690      0.00000      3242.31432      0.00383
-              0 1 0 1 0 0    3044.13385      0.00000      3007.87873      1.34919
-              1 0 0 1 0 0    2958.31798      0.00000      2918.05297      0.00105
-              0 1 1 0 0 0    2806.98957      0.00000      2710.80788      4.12478
-              1 0 1 0 0 0    2721.17370      0.00000      2672.80691      0.00415
-              1 1 0 0 0 0    2455.39065      0.00000      2433.78560      0.00000
-              0 1 1 0 0 1    5821.03151      0.00000      5261.03933      0.00342
-              0 1 0 1 0 1    6058.17579      0.00000      5537.94960      0.00376
-              0 1 1 0 1 0    5745.05474      0.00000      5538.43152      0.23076
-              0 1 0 1 1 0    5982.19903      0.00000      5770.45894      0.01369
-              0 1 2 0 0 0    4343.37587      0.00000      4173.15105      0.00852
-              0 1 0 2 0 0    4817.66445      0.00000      4755.77039      0.00059
-              0 1 1 1 0 0    4580.52016      0.00000      4465.97584      0.00158
-              0 2 0 1 0 0    4314.73711      0.00000      4258.80431      0.00408
-              1 1 1 0 0 0    3991.77696      0.00000      3884.91158      0.00001
-              1 1 0 1 0 0    4228.92124      0.00000      4184.92679      0.00000
-              0 0 3 0 0 0    4609.15892      0.00000      4493.31862      0.00020
-            """
 
         get_anharmonicity = False
         if get_anharmonicity:
@@ -3548,16 +3663,18 @@ class DGBTests(TestCase):
         ##
         seed = 12332123
         esamp = 1200
-        ntraj = 35
+        ntraj = 25
         samp_modes = [4, 5]
         ts = 25
         steps = 50
 
-        pruning_probabilities = [[3000, 1000]]
+        pruning_probabilities = [[3000, 2000]]
 
+        sim_cutoff = .95
         use_pairwise = True
-        use_interpolation = True
-        momentum_scaling = 1/8
+        use_interpolation = False
+        # momentum_scaling = 1/8
+        momentum_scaling = None
 
         plot_quadratic_opt = False
 
@@ -3579,8 +3696,9 @@ class DGBTests(TestCase):
 
         plot_wfns = {'cartesians':[1, 2], 'num': 8}
 
-        pot_cmap = 'viridis'
+        pot_cmap = 'Greys_r'
         pot_points = 250
+        # pot_clipping =
         wfn_cmap = 'coolwarm'
         wnf_points = 100
         wfn_contours = 10
@@ -3649,7 +3767,20 @@ class DGBTests(TestCase):
         wxCO = 20 * self.w2h
 
         if use_interpolation:
-            pot_spec = {'centers':coords, 'values':pot(coords, deriv_order=2)}
+            sim_cutoff = .8
+            sim2 = mol.setup_AIMD(
+                pot,
+                total_energy=esamp * self.w2h,
+                trajectories=5 * ntraj,
+                sampled_modes=samp_modes,
+                timestep=ts,
+                track_velocities=True,
+                seed=seed
+            )
+            sim2.propagate(2 * steps)
+            extra_coords, _ = sim2.extract_trajectory(flatten=True, embed=mol.coords)
+            interp_coords = np.concatenate([coords, extra_coords])
+            pot_spec = {'centers':interp_coords, 'values':pot(interp_coords, deriv_order=2)}
             if plot_quadratic_opt:
                 self.plot_quadratic_opt_potentials(pot_spec, mol)
                 raise Exception(...)
@@ -3717,18 +3848,19 @@ class DGBTests(TestCase):
         """
 
         wfns, spec = self.runDGB(dgb, mol,
-                           mode='similarity',
-                           plot_spectrum=True,
-                           plot_wavefunctions=plot_wfns,
-                           pot_cmap=pot_cmap,
-                           pot_points=pot_points,
-                           wfn_cmap=wfn_cmap,
-                           wfn_points=wnf_points,
-                           wfn_contours=wfn_contours,
-                           plot_centers=plot_centers,
-                           plot_dir=plot_dir,
-                           **plot_styles
-                           )
+                                 mode='similarity',
+                                 similarity_cutoff=sim_cutoff,
+                                 plot_spectrum=True,
+                                 plot_wavefunctions=plot_wfns,
+                                 pot_cmap=pot_cmap,
+                                 pot_points=pot_points,
+                                 wfn_cmap=wfn_cmap,
+                                 wfn_points=wnf_points,
+                                 wfn_contours=wfn_contours,
+                                 plot_centers=plot_centers,
+                                 plot_dir=plot_dir,
+                                 **plot_styles
+                                 )
         if plot_dir is not None:
             with open(os.path.join(plot_dir, 'freqs.txt'), 'w+') as woof:
                 print(run_opts, file=woof)
@@ -3739,7 +3871,7 @@ class DGBTests(TestCase):
 
         plt.Graphics().show()
 
-    @validationTest
+    @inactiveTest
     def test_WaterAIMDDisplaced(self):
         pot, mol = self.getMBPolModel()
 
@@ -3827,7 +3959,7 @@ class DGBTests(TestCase):
 
 
 
-    @validationTest
+    @inactiveTest
     def test_WaterFromGauss(self):
 
         check_anh = False

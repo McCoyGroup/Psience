@@ -40,11 +40,11 @@ class VPT2Tests(TestCase):
     #         # logger=True
     #     )
 
-    @validationTest
+    @debugTest
     def test_AnalyticPTOperators(self):
 
-        internals = False
-        vpt2 = AnalyticPerturbationTheorySolver.from_order(2, internals=internals)
+        internals = True
+        vpt2 = AnalyticPerturbationTheorySolver.from_order(2, internals=internals, logger=True)
         # print(
         #     vpt2.hamiltonian_expansion[2].get_poly_terms([])
         # )
@@ -72,8 +72,34 @@ class VPT2Tests(TestCase):
         #                     ).prune_operators([(1, 1)]).print_tree()
         # raise Exception(...)
 
+        Y1 = vpt2.wavefunction_correction(1)
         PH1 = vpt2.wavefunction_correction(1).expressions[0]
+        # H2 = vpt2.hamiltonian_expansion[2]
+        # raise Exception(
+        #     H2.get_poly_terms((1, 1, 1, 1))
+        #                 )
         E2 = vpt2.energy_correction(2)
+        E4 = vpt2.energy_correction(4, intermediate_normalization=True)
+        O2 = vpt2.overlap_correction(2)
+        Y3 = vpt2.wavefunction_correction(3)
+        M3 = vpt2.operator_correction(3)
+        M2 = vpt2.operator_correction(2)
+        woof = M2([1, 1], simplify=True)
+        # (E2 * O2)([])
+        # print(Y1([-1, -1, -1]))
+        # raise Exception(...)
+
+        # woof = E2([], simplify=True)
+        # woof.expr.print_tree()
+        #
+        # raise Exception(...)
+
+        # with BlockProfiler("wtf"):
+        # woof = M3([1, 1], simplify=True)
+            # woof2 = Y3([-2, 1], simplify=True)
+        # print(woof)
+
+        raise Exception(...)
 
         # # pt_shit = H1PH1.get_poly_terms((4,)).combine()
         # pt_shit = PH1((1,), simplify=False).expr.combine()
@@ -156,20 +182,20 @@ class VPT2Tests(TestCase):
             water_expansion = [
                 [V[0]/2,  G[0]/2],
                 [
-                    # np.zeros(V[1].shape),
-                    np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0)/np.math.factorial(3)/6,
-                    # np.zeros(V[1].shape),
-                    -np.moveaxis(G[1], -1, 0)/2
-                        if isinstance(G[1], np.ndarray) else
-                    np.zeros(V[1].shape)
+                    np.zeros(V[1].shape),
+                    # np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0)/np.math.factorial(3)/6,
+                    np.zeros(V[1].shape),
+                    # -np.moveaxis(G[1], -1, 0)/2
+                    #     if isinstance(G[1], np.ndarray) else
+                    # np.zeros(V[1].shape)
                 ],
                 [
                     # np.zeros(V[2].shape),
                     V[2]/24,
-                    # np.zeros(V[2].shape),
-                    -np.moveaxis(G[2], -1, 0)/4
-                        if isinstance(G[2], np.ndarray) else
                     np.zeros(V[2].shape),
+                    # -np.moveaxis(G[2], -1, 0)/4
+                    #     if isinstance(G[2], np.ndarray) else
+                    # np.zeros(V[2].shape),
                     # 0
                     U[0]/8
                 ]
@@ -179,11 +205,11 @@ class VPT2Tests(TestCase):
             water_expansion = [
                 [V[0] / 2, G[0] / 2],
                 [
-                    np.zeros(V[1].shape),
-                    # np.sum(
-                    #     [V[1].transpose(p) for p in itertools.permutations([0, 1, 2])],
-                    #     axis=0
-                    # ) / np.math.factorial(3) / 6,
+                    # np.zeros(V[1].shape),
+                    np.sum(
+                        [V[1].transpose(p) for p in itertools.permutations([0, 1, 2])],
+                        axis=0
+                    ) / np.math.factorial(3) / 6,
                     0 # G
                 ],
                 [
@@ -197,135 +223,46 @@ class VPT2Tests(TestCase):
                     U[0] / 8 # Watson
                 ]
             ]
-        # raise Exception(
-        #     -.25 * np.array([
-        #         Z[0][0, 0, 2, 2],
-        #         Z[0][0, 2, 0, 2],
-        #         Z[0][0, 2, 2, 0],
-        #         Z[0][2, 0, 0, 2],
-        #         Z[0][2, 0, 2, 0],
-        #         Z[0][2, 2, 0, 0]
-        #     ]) * 219475
-        # )
-        # raise Exception(
-        #     -.25*np.array([
-        #             Z[0][0, 0, 2, 2],
-        #             Z[0][0, 2, 0, 2],
-        #             Z[0][0, 2, 2, 0],
-        #             Z[0][2, 0, 0, 2],
-        #             Z[0][2, 0, 2, 0],
-        #             Z[0][2, 2, 0, 0]
-        #     ]) * 219475
-        # )
+
+        runner, _ =  VPTRunner.construct(
+            TestManager.test_data(file_name),
+            1,
+            internals=(
+                [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+                    if internals else
+                None
+            ),
+            potential_terms=[
+                water_expansion[0][0] * 2,
+                water_expansion[1][0] * 6,
+                water_expansion[2][0] * 24
+            ],
+            kinetic_terms=[
+                water_expansion[0][1] * 2,
+                water_expansion[1][1] * 2,
+                water_expansion[2][1] * 4
+            ],
+            coriolis_terms=[-water_expansion[2][3]],
+            pseudopotential_terms=[water_expansion[2][4] * 8],
+            # include_pseudopotential=False,
+            logger=False,
+            zero_element_warning=False
+            # mode_selection=[0, 1]
+        )
 
         water_freqs = ham.modes.freqs
 
-        # raise Exception(list(sorted([
-        #     [p, np.linalg.norm((np.transpose(water_expansion[2][3], p) - water_expansion[2][3]).flatten())]
-        #     for p in itertools.permutations([0, 1, 2, 3])
-        #     ],
-        #     key=lambda x:x[1]
-        # )))
-
-        # solver = runner.hamiltonian.get_solver(runner.states.state_list)
-        # raise Exception(
-        #     solver.representations[1].todense()[0][:4],
-        #     solver.flat_total_space.excitations[:4]
-        # )
-
-        # wfns = runner.get_wavefunctions()
-
-        # ham.G_terms = [
-        #     G[0],
-        #     # G[1],
-        #     np.zeros(G[1].shape),
-        #     # G[2]
-        #     np.zeros(G[2].shape),
-        # ]
-        # ham.V_terms = [
-        #     V[0],
-        #     # np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0) / np.math.factorial(3),
-        #     np.zeros(V[1].shape),
-        #     V[2],
-        #     # np.zeros(V[2].shape)
-        # ]
-        # ham.coriolis_terms = [
-        #     np.zeros(V[2].shape)
-        #     # (Z[0] + np.transpose(Z[0], [0, 3, 2, 1])) / 2
-        # ]
-        # ham.pseudopotential_term = [0]
-        runner.print_tables(print_intensities=False)
-        """
-        :: State    <0|dH(2)|0>  <0|dH(1)|1> 
-          0 0 0      0.00000   -141.74965
-          0 0 1      0.00000   -514.12544
-          0 1 0      0.00000   -509.59810
-          1 0 0      0.00000   -165.17359
-  
-        :: State    <0|dH(2)|0>  <0|dH(1)|1> 
-          0 0 0     81.09533   -156.70145
-          0 0 1    276.68965   -545.08549
-          0 1 0    281.61581   -538.53511
-          1 0 0     88.49014   -213.67502
-          
-        :: State    <0|dH(2)|0>  <0|dH(1)|1>  # Cartesians
-          0 0 0     42.02414   -117.62974
-          0 0 1    199.53514   -467.93034
-          0 1 0    195.87334   -452.78667
-          1 0 0    -32.13943    -93.04841
-        >>--------------------------------------------------<<
-        >>------------------------- States Energies -------------------------
-        :: State     Harmonic   Anharmonic     Harmonic   Anharmonic
-                       ZPE          ZPE    Frequency    Frequency
-        0 0 0   4681.56362   4605.95750            -            - 
-        0 0 1            -            -   3937.52464   3744.73491 
-        0 1 0            -            -   3803.29958   3621.98639 
-        1 0 0            -            -   1622.30304   1572.72428 
-        >>--------------------------------------------------<<
-        """
-
-        # V1 = water_expansion[1][0]
-        # G1 = water_expansion[1][1]
-        # print(G[1]/2)
-        # print(G1)
-        # raise Exception(...)
-
-        # raise Exception(
-        #     wfns.corrs.wfn_corrections[1].todense()[0][:4],
-        #     wfns.corrs.total_basis.excitations[:4],
-        #     -7.14635718e-03 * water_freqs[0],
-        #     -5.83925920e-03 * water_freqs[0],
-        #     0.02061049 * water_freqs[0],
-        #     (
-        #             V1[0, 0, 0]*1.060660171779821
-        #             +(V1[0, 1, 1] + V1[0, 2, 2])*1.060660171779821
-        #             + G1[0, 0, 0]*-0.35355339
-        #             + (G1[1, 0, 1] + G1[2, 0, 2])*-0.35355339
-        #     ) / water_freqs[0]
-        #     # # wfns.corrs.wfn_corrections[1].todense()[0, 1],
-        #     # # should be .005839259198189573
-        #     # V[1][0, 0, 0]/water_freqs[0]*1.06066017
-        #     # # + G[1][0, 0, 0]/water_freqs[0]*-0.35355339
-        #     # + (V[1][0, 1, 1] + V[1][0, 2, 2])/water_freqs[0]*0.70710678*.5
-        #     # # + (G[1][0, 1, 1] + G[1][0, 2, 2])/water_freqs[0]*0.70710678*-.5
-        # )
-        # 0.02819074222400865, -0.035337103975354986, [-0.00758025182870669, -0.027756852139690837]
-
-        # wfns = runner.get_wavefunctions()
-        # Y1 = vpt2.wavefunction_correction(1)
-        # raise Exception(
-        #     wfns.corrs.wfn_corrections[1].todense()[0][:10],
-        #     wfns.corrs.total_basis.excitations[:10],
-        #     Y1([3,]).evaluate([0, 0, 0], water_expansion, water_freqs),
-        #     Y1([2, 1]).evaluate([0, 0, 0], water_expansion, water_freqs),
-        # )
-
-        with np.printoptions(linewidth=1e8):
-            jesus_fuck = E2([])
-            # jesus_fuck.expr.print_tree()
-            corr = jesus_fuck.evaluate([0, 0, 0], water_expansion, water_freqs, verbose=True) * UnitsData.convert("Hartrees", "Wavenumbers")
-        print(corr)
-        raise Exception(corr)
+        jesus_fuck = E2([])
+        # jesus_fuck.expr.print_tree()
+        corr0 = jesus_fuck.evaluate([0, 0, 0], water_expansion, water_freqs, verbose=False) * UnitsData.convert("Hartrees", "Wavenumbers")
+        print(corr0)
+        corr = jesus_fuck.evaluate([0, 0, 1], water_expansion, water_freqs, verbose=False) * UnitsData.convert("Hartrees", "Wavenumbers")
+        print(corr - corr0)
+        corr = jesus_fuck.evaluate([0, 1, 0], water_expansion, water_freqs, verbose=False) * UnitsData.convert("Hartrees", "Wavenumbers")
+        print(corr - corr0)
+        corr = jesus_fuck.evaluate([1, 0, 0], water_expansion, water_freqs, verbose=False) * UnitsData.convert("Hartrees", "Wavenumbers")
+        print(corr - corr0)
+        raise Exception(...)
             # vpt2.energy_correction(2).expressions[1].changes[()]
 
         raise Exception(
@@ -448,7 +385,7 @@ class VPT2Tests(TestCase):
 
         # raise Exception(op.poly_sum())
 
-    @debugTest
+    @validationTest
     def test_NewEmbedding(self):
         file_name = "HOH_freq.fchk"
         test_internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
@@ -463,6 +400,7 @@ class VPT2Tests(TestCase):
             internals=test_internals
         )#.get_embedded_molecule()
         h1 = mol.hamiltonian
+
         runner1, _ = VPTRunner.construct(
             mol,
             2,
@@ -471,7 +409,7 @@ class VPT2Tests(TestCase):
         )
         h2 = runner1.hamiltonian
 
-        t1 = h1.G_terms
+        t1 = h1.gmatrix_expansion()
         t2 = h2.G_terms
 
         # print(t1.embedding.embedding.coords)
@@ -527,43 +465,79 @@ class VPT2Tests(TestCase):
         # raise Exception(...)
         # QY_derivs = self.get_modes_by_cartesians(order=order + 1)
         # YQ_derivs = self.get_cartesians_by_modes(order=order + 1)
-        g1 = h1.get_VPT_expansions({'kinetic':2})['kinetic']
-        g2 = h2.G_terms.base_terms
-        t2.base_terms.gmatrix_tolerance = None
-        t2.base_terms.freq_tolerance = None
+        # g1 = h1.get_VPT_expansions({'kinetic':2})['kinetic']
+        # g2 = h2.G_terms.base_terms
+        # t2.base_terms.gmatrix_tolerance = None
+        # t2.base_terms.freq_tolerance = None
 
-        print(np.round(g1[1][0] - g2[1][0], 8))
-        print("_"*20)
-        print(np.round(g1[2][0, 0], 8))
-        print("_"*20)
-        print(np.round(g2[2][0, 0], 8))
-        # print(np.round(g2[1][0], 8))
-        # g2.get_terms(2)
-        # print(g1[2] - g2[2])
+        # print(np.round(g1[1][0] - g2[1][0], 8))
+        # print("_"*20)
+        # print(np.round(g1[2][0, 0], 8))
+        # print("_"*20)
+        # print(np.round(g2[2][0, 0], 8))
+        # # print(np.round(g2[1][0], 8))
+        # # g2.get_terms(2)
+        # # print(g1[2] - g2[2])
+        #
+        # raise Exception(...)
 
-        raise Exception(...)
+        # G = g1
+        # VPTRunner.construct(
+        #     mol,
+        #     2,
+        #     internals=test_internals,
+        #     kinetic_terms=G,
+        #     # potential_terms=[G[0], 0, 0],
+        #     include_pseudopotential=False,
+        #     include_coriolis_coupling=False,
+        #     logger=False
+        # )[0].print_tables(print_intensities=False)
+        # VPTRunner.construct(
+        #     mol,
+        #     2,
+        #     internals=test_internals,
+        #     kinetic_terms=[h2.G_terms[0], h2.G_terms[1], h2.G_terms[2]],
+        #     # potential_terms=[G[0], 0, 0],
+        #     include_pseudopotential=False,
+        #     include_coriolis_coupling=False,
+        #     logger=False
+        # )[0].print_tables(print_intensities=False)
 
-        G = g1
-        VPTRunner.construct(
-            mol,
-            2,
-            internals=test_internals,
-            kinetic_terms=G,
-            # potential_terms=[G[0], 0, 0],
-            include_pseudopotential=False,
-            include_coriolis_coupling=False,
-            logger=False
-        )[0].print_tables(print_intensities=False)
-        VPTRunner.construct(
-            mol,
-            2,
-            internals=test_internals,
-            kinetic_terms=[h2.G_terms[0], h2.G_terms[1], h2.G_terms[2]],
-            # potential_terms=[G[0], 0, 0],
-            include_pseudopotential=False,
-            include_coriolis_coupling=False,
-            logger=False
-        )[0].print_tables(print_intensities=False)
+        import itertools
+        from McUtils.Zachary import TensorDerivativeConverter
+        # def symm(a, k):
+        #     n = 0
+        #     t = 0
+        #     for p in itertools.permutations(range(k)):
+        #         n += 1
+        #         t += a.transpose(p + tuple(range(k, a.ndim)))
+        #     return t / n
+        #
+        # u1 = h1.get_VPT_expansions({'potential': 3})['potential']
+        # print(u1[-1])
+        # u2 = h2.V_terms[1]
+        # print(u2)
+
+        gg = h1.gmatrix_expansion(dimensionless=True)
+        ke, ki = h1.get_kinetic_optmizing_transformation(2, dimensionless=True)
+        woof = gg.get_terms(2, transformation=(ke, ki))
+        print(woof[0])
+        print(woof[1])
+
+        # ki = nput.inverse_transformation(ke, 2)
+        # for t in nput.tensor_reexpand(ki, ke, 2):
+        #     print(np.round(t, 8))
+        # for t in nput.tensor_reexpand(ke, ki, 2):
+        #     print(np.round(t, 8))
+
+        # woof = gg.reexpress(2, ke, ki)
+        # print(woof[0])
+        # print(woof[1])
+
+
+
+
+
 
     @inactiveTest
     def test_HOHNoKE(self):

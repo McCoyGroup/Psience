@@ -3,7 +3,7 @@ __all__ = [
     "MolecularHamiltonian"
 ]
 
-import numpy as np
+import numpy as np, itertools
 import McUtils.Numputils as nput
 from McUtils.Combinatorics import UniquePermutations
 from McUtils.Zachary import TensorDerivativeConverter
@@ -39,37 +39,203 @@ class MolecularHamiltonian:
             order = {
                 'potential':n,
                 'kinetic':n,
-                'pseudopotential':n-2,
             }
             if carts:
                 order['coriolis'] = n-2
+                order['watson'] = n-2
+            else:
+                order['pseudopotential'] = n-2
 
-        if coordinate_transformation is not None:
-            if isinstance(coordinate_transformation[0][0], (int, float, np.integer, np.floating)):
-                coordinate_transformation = (
-                    coordinate_transformation,
-                    nput.matinv_deriv(coordinate_transformation, len(coordinate_transformation))
-                )
+        coordinate_transformation = self.prep_transformation(coordinate_transformation)
 
         expansions = {}
         for k,o in order.items():
+            post_processor = None
             if k == 'kinetic':
-                generator = GMatrixExpansion(embedding)
+                generator = self.gmatrix_expansion(embedding=embedding)
             elif k == 'potential':
-                generator = ScalarExpansion(embedding, self.potential.derivatives)
+                # ders = self.potential.derivatives
+                # if np.sum(np.abs(ders[0])) > 1e-8: ...
+                generator = self.potential_expansion(embedding=embedding, exclude_gradient=True)
+                post_processor = lambda exp: exp[1:]
             elif k == 'coriolis':
-                generator = CoriolisRotationExpansion(embedding)
+                generator = self.coriolis_expansion(embedding=embedding)
             elif k == 'pseudopotential':
-                generator = PseudopotentialExpansion(GMatrixExpansion(embedding))
+                generator = self.pseudopotential_expansion(embedding)
+            elif k == 'watson':
+                generator = self.watson_expansion(embedding)
             else:
                 raise ValueError("don't know what to do with key {}".format(k))
-            expansions[k] = generator.get_terms(o, transformation=coordinate_transformation)
+            terms = generator.get_terms(o, transformation=coordinate_transformation)
+            if post_processor is not None:
+                terms = post_processor(terms)
+            expansions[k] = terms
 
         return expansions
 
-    @property
-    def G_terms(self):
-        return GMatrixExpansion(ModeEmbedding(self.embedding, self.modes, dimensionless=True))
+    @classmethod
+    def prep_transformation(cls, coordinate_transformation):
+        if coordinate_transformation is not None:
+            if nput.is_numeric(coordinate_transformation[0][0][0]):
+                coordinate_transformation = (
+                    coordinate_transformation,
+                    nput.inverse_transformation(coordinate_transformation, len(coordinate_transformation))
+                )
+
+        return coordinate_transformation
+
+    def get_embedding(self, dimensionless=False):
+        return ModeEmbedding(self.embedding, self.modes, dimensionless=dimensionless)
+
+    def potential_expansion(self,
+                            order=None,
+                            *,
+                            dimensionless=False,
+                            embedding=None,
+                            exclude_gradient=False,
+                            ):
+        if embedding is None:
+            embedding = self.get_embedding(dimensionless=dimensionless)
+
+        ders = self.potential.derivatives
+        if exclude_gradient:
+            ders = [0] + ders[1:]
+
+        exp = ScalarExpansion(embedding, ders)
+        if order is not None:
+            exp = exp.get_terms(order)
+        return exp
+    def get_potential_optmizing_transformation(self,
+                                               order,
+                                               *,
+                                               dimensionless=False,
+                                               embedding=None,
+                                               exclude_gradient=True,
+                                               ):
+        return nput.optimizing_transformation(
+            self.potential_expansion(order,
+                                     dimensionless=dimensionless,
+                                     embedding=embedding,
+                                     exclude_gradient=exclude_gradient
+                                     ),
+            order
+        )
+
+    def _get_ke_expansion(self, cls,
+                          order=None,
+                          *,
+                          dimensionless=False,
+                          embedding=None
+                          ):
+        if embedding is None:
+            embedding = self.get_embedding(dimensionless=dimensionless)
+
+        exp = cls(embedding)
+        if order is not None:
+            exp = exp.get_terms(order)
+        return exp
+    def gmatrix_expansion(self,
+                          order=None,
+                          *,
+                          dimensionless=False,
+                          embedding=None
+                          ) -> "GMatrixExpansion|np.ndarray":
+        return self._get_ke_expansion(GMatrixExpansion,
+                                      order=order,
+                                      dimensionless=dimensionless,
+                                      embedding=embedding
+                                      )
+    def get_kinetic_optmizing_transformation(self,
+                                             order,
+                                             *,
+                                             dimensionless=False,
+                                             embedding=None
+                                             ):
+        g = self.gmatrix_expansion(dimensionless=dimensionless, embedding=embedding) #type:GMatrixExpansion
+        G_r = g.get_terms(order)
+
+        w = np.diag(G_r[0])
+        # Q = [v]
+        # R = [v.T]
+
+        # Q0 = Q[0]
+        # R0 = R[0]
+        # G0 = G_r[0]
+        Q = [np.eye(len(w))]
+        R = [np.eye(len(w))]
+
+        # w = w
+        G_partial = None
+        for o in range(1, order + 1):
+            G_rem, G_partial = g.reexpress_G(G_r, Q, R,
+                                             order=[o],
+                                             # GR_expansion=G_partial,
+                                             return_GR=True
+                                             )
+            # G_partial = G_partial[:-1]
+            # w = w[np.newaxis]
+            ggg = (
+                          G_rem[-1] + G_rem[-1].transpose(1, 0, 2)
+                   ) / 4
+            # print(ggg - ggg.transpose(1, 0, 2))
+            # raise ValueError("wtf")
+            new_R = -ggg / (w[:, np.newaxis, np.newaxis] + w[np.newaxis, :, np.newaxis])
+            # for i in range(o+1):
+            #     new_R = np.tensordot(w, new_R)
+            # print(w.shape)
+            # print(new_R - np.transpose(new_R, (1, 0, 2)))
+            # raise Exception(...)
+            R = R + [new_R]
+
+            print(new_R - new_R.transpose(1, 0, 2))
+
+            Q = nput.inverse_transformation(R, [o], reverse_expansion=Q)
+            print("="*50)
+            G_rem2, G_partial = g.reexpress_G(G_r[:1], Q, R,
+                                             order=[o],
+                                             # GR_expansion=G_partial,
+                                             return_GR=True
+                                             )
+            # print(G_rem[-1])
+            print(G_rem2[-1] + G_rem2[-1].transpose(1, 0, 2))
+
+            raise Exception("???")
+
+        return Q, R
+
+    def pseudopotential_expansion(self,
+                          order=None,
+                          *,
+                          dimensionless=False,
+                          embedding=None
+                          ):
+        return self._get_ke_expansion(PseudopotentialExpansion,
+                                      order=order,
+                                      dimensionless=dimensionless,
+                                      embedding=embedding
+                                      )
+    def coriolis_expansion(self,
+                          order=None,
+                          *,
+                          dimensionless=False,
+                          embedding=None
+                          ):
+        return self._get_ke_expansion(CoriolisRotationExpansion,
+                                      order=order,
+                                      dimensionless=dimensionless,
+                                      embedding=embedding
+                                      )
+    def watson_expansion(self,
+                          order=None,
+                          *,
+                          dimensionless=False,
+                          embedding=None
+                          ):
+        return self._get_ke_expansion(ReciprocalInertiaExpansion,
+                                      order=order,
+                                      dimensionless=dimensionless,
+                                      embedding=embedding
+                                      )
 
 class ScalarOperatorManager:
     def __init__(self, manager_or_derivs):
@@ -81,6 +247,22 @@ class ScalarOperatorManager:
             return self.manager.derivatives
         else:
             return self.manager
+
+class PotentialManager(ScalarOperatorManager):
+    def __init__(self, manager_or_derivs, modes:NormalModesManager):
+        super().__init__(manager_or_derivs)
+        modes = modes.modes
+        if modes is not None:
+            modes = modes.basis.to_new_modes().make_dimensionless()
+        self.modes = modes
+
+    @property
+    def derivatives(self):
+        if hasattr(self.manager, 'derivatives'):
+            derivs = self.manager.derivatives
+        else:
+            derivs = self.manager
+        return self.canonicalize_derivs(derivs)
 
 class ModeEmbedding:
     """
@@ -94,8 +276,8 @@ class ModeEmbedding:
                  dimensionless=False
                  ):
         self.embedding = embedding
-        modes = modes.modes
         self.mass_weighted = mass_weight or dimensionless
+        modes = modes.modes
         if modes is not None:
             modes = modes.basis.to_new_modes()
             if dimensionless:
@@ -227,7 +409,7 @@ class ModeEmbedding:
 
 class ScalarExpansion:
     """
-    A helper class that can transform scalar derivatives from Cartesians to internals
+    A helper class that can transform scalar derivatives from Cartesians (or Cartesian modes) to internals
     """
     def __init__(self,
                  embedding:ModeEmbedding,
@@ -236,7 +418,45 @@ class ScalarExpansion:
         self.embedding = embedding
         self.derivs = derivs
 
-    def get_terms(self, order=None, *, derivs=None):
+    def canonicalize_derivs(self, derivs, symmetrize=True):
+        if self.embedding.modes is None: return derivs
+        in_modes = False
+        for d in derivs:
+            if not nput.is_zero(d):
+                in_modes = d.shape[0] != d.shape[-1]
+                if in_modes: break
+        YX = self.embedding.mw_inverse()
+        if in_modes:
+            QX = self.embedding.modes.inverse @ YX
+            Qq = np.diag(1/np.sqrt(self.embedding.modes.freqs))
+            _ = []
+            for d in derivs:
+                if not nput.is_zero(d):
+                    for j in range(d.ndim):
+                        if d.shape[j] == QX.shape[1]:
+                            d = np.tensordot(QX, d, axes=[1, j])
+                        else:
+                            d = np.tensordot(Qq, d, axes=[1, j])
+                        d = np.moveaxis(d, 0, j)
+                    # # symmetrize d
+                    if symmetrize:
+                        n = 0
+                        t = 0
+                        for p in itertools.permutations(range(d.ndim-1)):
+                            n += 1
+                            t += d.transpose(p + (d.ndim-1,))
+                        d = t / n
+                _.append(d)
+            derivs = _
+        else:
+            derivs = nput.tensor_reexpand([YX], derivs, len(derivs))
+        return derivs
+
+    def get_terms(self, order=None, *, derivs=None, transformation=None):
+        if transformation is not None:
+            forward_derivs, reverse_derivs = MolecularHamiltonian.prep_transformation(transformation)
+            V = self.get_terms(order, derivs=derivs)
+            return nput.tensor_reexpand(forward_derivs, V, order, axes=[-1, 0])
 
         if derivs is None:
             derivs = self.derivs
@@ -245,6 +465,8 @@ class ScalarExpansion:
         if len(derivs) < order:
             derivs = tuple(derivs) + (0,) * (order - len(derivs))
 
+        derivs = self.canonicalize_derivs(derivs)
+
         zero_derivs = 0
         for d in derivs:
             if isinstance(d, (int, np.integer, float, np.floating)) and d == 0:
@@ -252,41 +474,19 @@ class ScalarExpansion:
             else:
                 break
 
-        QX = self.embedding.get_cartesians_by_internals(order=order-zero_derivs)
-        terms = TensorDerivativeConverter.convert_fast(QX, derivs).convert(order=order)  # , check_arrays=True)
+        QX = self.embedding.get_cartesians_by_internals(order=order - zero_derivs)
+        real_ders = [d for d in derivs if not nput.is_zero(d)]
+        if self.embedding.modes is not None and (
+                real_ders[0].shape[0] == self.embedding.modes.matrix.shape[1]
+        ):
+            XQ = self.embedding.modes.matrix
+            QX = nput.tensor_reexpand(QX, [XQ], order - zero_derivs, axes=[-1, 0])
+        else:
+            YX = self.embedding.mw_inverse()
+            QX = [np.tensordot(q, YX, axes=[-1, 0]) for q in QX]
 
-        return terms
-
-    # @classmethod
-    # def get_optimized_coordinates(cls, V_expansion, order=2):
-    #     V = [0] + V_expansion
-    #     w = np.diag(V[1])
-    #     forward_derivs = [np.eye(V[1].shape[0])]
-    #     reverse_derivs = [np.eye(V[1].shape[0])]
-    #
-    #     w = w[np.newaxis, :]
-    #     for o in range(1, order + 1):
-    #         V_rem = TensorDerivativeConverter.convert_fast(forward_derivs, V,
-    #                                                        order=o+2, val_axis=0
-    #                                                        )[-1]
-    #         w = w[np.newaxis]
-    #         new_Q = -V_rem / ((o+2)*w)
-    #         forward_derivs = forward_derivs + [new_Q]
-    #         new_R = -nput.tensordot_deriv(forward_derivs, reverse_derivs + [0], o)[-1]
-    #         reverse_derivs = reverse_derivs + [new_R]
-    #
-    #     return forward_derivs, reverse_derivs
-    #
-    # def optimize_coordinates(self, order=2):
-    #     V = list(reversed([self[o] for o in range(order, -1, -1)]))
-    #     RX = self.get_cartesians_by_internals(order=order, strip_embedding=True)
-    #     XR = self.get_internals_by_cartesians(order=order, strip_embedding=True)
-    #     QR, RQ = self.get_potential_optimized_coordinates(V, order=order)
-    #
-    #     QX = TensorDerivativeConverter.convert_fast(QR, RX)
-    #     XQ = TensorDerivativeConverter.convert_fast(XR, RQ)
-    #
-    #     return (QR, RQ), (QX, XQ)
+        # return TensorDerivativeConverter(QX, derivs).convert()
+        return nput.tensor_reexpand(QX, derivs, order, axes=[-1, 0])
 
 class GMatrixExpansion:
     # I thought about having this be a generic "tensor product" expansion, but this is cleaner
@@ -295,7 +495,7 @@ class GMatrixExpansion:
 
     def get_terms(self, order, transformation=None):
         if transformation is not None:
-            forward_derivs, reverse_derivs = transformation
+            forward_derivs, reverse_derivs = MolecularHamiltonian.prep_transformation(transformation)
             return self.reexpress(order, forward_derivs, reverse_derivs)
         XQ = self.embedding.get_internals_by_cartesians(order=order+1)
         XG = nput.tensordot_deriv(XQ, XQ, order, axes=[0, 0])#, identical=False)
@@ -308,9 +508,10 @@ class GMatrixExpansion:
 
     @classmethod
     def _dRGQ_partition_contrib(cls, partition, R, G):
+        print(partition)
         r1, r2, s = partition
-        if s - 1 >= len(G): return 0
-        if r1 - 1 >= len(R) or r2 - 1 >= len(R): return 0
+        if s >= len(G): return 0
+        if r1 >= len(R) or r2 >= len(R): return 0
 
         base_term = G[s]
         if isinstance(base_term, (int, float, np.integer, np.floating)) and base_term == 0:
@@ -323,8 +524,8 @@ class GMatrixExpansion:
         a = base_term.ndim - 2
         for r in [r1, r2]:
             d = R[r]
-            if isinstance(d, (int, float, np.integer, np.floating)) and d == 0:
-                return 0
+            if nput.is_zero(d): return 0
+
             if r == 0:
                 base_term = np.moveaxis(base_term, a, -1)
             else:
@@ -389,7 +590,13 @@ class GMatrixExpansion:
         return total_cont
 
     @classmethod
-    def reexpress_G(self, G_expansion, forward_derivs, reverse_derivs, order=2):
+    def reexpress_G(self,
+                    G_expansion, forward_derivs, reverse_derivs,
+                    order,
+                    *,
+                    GR_expansion=None,
+                    return_GR=False
+                    ):
         """
         Apply a coordinate transformation to the G-matrix
 
@@ -402,9 +609,37 @@ class GMatrixExpansion:
         Q = forward_derivs
         G = G_expansion
 
-        G_R = [self._dRGQ_derivs(R, G, o) for o in range(1, order+1)]
+        if nput.is_numeric(order): order = list(range(order+1))
+        m = max(order)
 
-        return [G[0]] + nput.tensor_reexpand(Q, G_R, order=order, axes=[-1, 0])
+        G_R = GR_expansion
+        if G_R is None:
+            G_R = [self._dRGQ_derivs(R, G, o) for o in range(1, m+1)]
+
+        if len(G_R) < m:
+            G_R = G_R + [self._dRGQ_derivs(R, G, o) for o in range(len(G_R)+1, m+1)]
+
+        rexpansion = nput.tensor_reexpand(Q,
+                                          G_R,
+                                          order=[o for o in order if o > 0],
+                                          axes=[-1, 0]
+                                          )
+        G_Q = []
+        n = 0
+        G0 = None
+        for o in order:
+            if o == 0:
+                if G0 is None:
+                    G0 = reverse_derivs[0] @ G[0] @ reverse_derivs[0].T
+                G_Q.append(G0)
+            else:
+                G_Q.append(rexpansion[n])
+                n += 1
+
+        if return_GR:
+            return G_Q, G_R
+        else:
+            return G_Q
 
     def reexpress(self, order, forward_derivs, reverse_derivs):
         return self.reexpress_G(
@@ -415,44 +650,56 @@ class GMatrixExpansion:
         )
 
 class PseudopotentialExpansion:
-    def __init__(self, g_expansion:GMatrixExpansion):
+    def __init__(self, g_expansion:"ModeEmbedding|GMatrixExpansion"):
+        if not isinstance(g_expansion, GMatrixExpansion):
+            g_expansion = GMatrixExpansion(g_expansion)
         self.g_expansion = g_expansion
 
     @classmethod
+    def lambda_expansion(cls,
+                        G_expansion, G_inv,
+                        I0_expansion, I0_inv,
+                        order):
+
+        g_exp = [np.trace(t, axis1=-1, axis2=-2) for t in nput.tensordot_deriv(G_expansion[1:], G_inv, order)]
+        i_exp = [np.trace(t, axis1=-1, axis2=-2) for t in nput.tensordot_deriv(I0_expansion[1:], I0_inv, order)]
+        return [ti - tg for ti,tg in zip(i_exp, g_exp)]
+
+    @classmethod
     def get_U(cls, G_expansion, I0_expansion):
+
         QG = G_expansion
         QI0 = I0_expansion
-        n = len(QG)
+        n = len(QG) - 1
         order = n - 2
 
         QU = nput.matinv_deriv(QI0, n)
-        U_det = nput.matdet_deriv(QU, n)
-        G_det = nput.matdet_deriv(QG, n)
-        Qig = nput.scalarprod_deriv(U_det, G_det, n)
-        Qg = nput.scalarinv_deriv(Qig, n)
+        QiG = nput.matinv_deriv(G_expansion, n)
 
-        # Pseudopotential is given by
-        #   1/g (G[0]<.>g[2] + Tr(G[1]<3,1>g[1]) - 3/4 1/g (g[1]<1,2>g[1]<1,2>G[0]) )
-        terms_1 = nput.tensordot_deriv(QG, Qg[2:], order, axes=[[0, 1], [0, 1]])
-        terms_2 = nput.tensordot_deriv(QG[1:], Qg[1:], order, axes=[2, 0])
-        terms_3 = nput.scalarprod_deriv(
-            Qig,
-            nput.tensordot_deriv(
-                Qg[1:],
-                nput.tensordot_deriv(Qg[1:], Qg, order, axes=[0, 1]),
-                order, axes=[0, 1]
-            ),
-            order
+        L = cls.lambda_expansion(
+            QG, QiG,
+            QI0, QU,
+            order + 1
         )
-        t = [
-            t1 + np.trace(t2, axis2=-2, axis1=-1) - 3 / 4 * t3
-            for t1, t2, t3 in zip(terms_1, terms_2, terms_3)
+
+        LxL = nput.tensorprod_deriv(L, L, order)
+
+        inner_exp = [
+            l1 + 1/4*l2
+            for l1, l2 in zip(L[1:], LxL)
         ]
-        return nput.scalarprod_deriv(Qig, t, order=order)
+        G_contract = nput.tensordot_deriv(G_expansion, inner_exp, order, axes=[[0, 1], [0, 1]])
+        QG_contract = [
+            np.trace(g, axis1=-1, axis2=-2) for g in
+            nput.tensordot_deriv(G_expansion[1:], L, order, axes=[2, 0])
+        ]
+
+        return [g1 + g2 for g1, g2 in zip(G_contract, QG_contract)]
+        # return nput.scalarprod_deriv(Qig, t, order=order)
 
     def get_terms(self, order, transformation=None):
         if transformation is not None:
-            forward_derivs, reverse_derivs = transformation
+            forward_derivs, reverse_derivs = MolecularHamiltonian.prep_transformation(transformation)
             return self.reexpress(order, forward_derivs, reverse_derivs)
 
         # build setup terms, need to go 2 orders past the nominal order
@@ -489,7 +736,7 @@ class ZetaExpansion:
     def get_terms(self, order, transformation=None):
         QY = self.embedding.get_cartesians_by_internals(order=order)
         if transformation is not None:
-            forward_derivs, reverse_derivs = transformation
+            forward_derivs, reverse_derivs = MolecularHamiltonian.prep_transformation(transformation)
             QY = nput.tensor_reexpand(forward_derivs, QY, order)
 
         B_e, eigs = self.embedding.get_inertial_frame()
@@ -527,7 +774,7 @@ class ReciprocalInertiaExpansion:
     def get_terms(self, order, transformation=None):
         I0, a = self.embedding.get_inertia_tensor_expansion(order=1)
         if transformation is not None:
-            forward_derivs, reverse_derivs = transformation
+            forward_derivs, reverse_derivs = MolecularHamiltonian.prep_transformation(transformation)
             a = nput.tensor_reexpand(forward_derivs, [a], 1)[0]
         u = np.linalg.inv(I0)
 
