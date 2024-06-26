@@ -8,12 +8,14 @@ from McUtils.Data import UnitsData, AtomData
 from McUtils.Scaffolding import ParameterManager, Logger
 from McUtils.Zachary import FiniteDifferenceDerivative
 from McUtils.Extensions import ModuleLoader
+import McUtils.Numputils as nput
 
 from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis, BasisStateSpaceFilter, SelectionRuleStateSpace
 from ..Molecools import Molecule
 
 from .DegeneracySpecs import DegeneracySpec
 from .Hamiltonian import PerturbationTheoryHamiltonian
+from .Analytic import PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver
 
 __all__ = [
     "VPTRunner",
@@ -22,10 +24,11 @@ __all__ = [
     "VPTStateMaker",
     "VPTHamiltonianOptions",
     "VPTRuntimeOptions",
-    "VPTSolverOptions"
+    "VPTSolverOptions",
+    "AnalyticVPTRunner"
 ]
 
-__reload_hook__ = ["..BasisReps", "..Molecools", ".DegeneracySpecs", ".Hamiltonian", ".StateFilters"]
+__reload_hook__ = ["..BasisReps", "..Molecools", ".DegeneracySpecs", ".Hamiltonian", ".StateFilters", ".Analytic"]
 
 class VPTSystem:
     """
@@ -1039,6 +1042,17 @@ class VPTRunner:
         return self.hamiltonian.get_wavefunctions(
             self.states.state_list,
             initial_states=self.initial_states.state_list,
+            **pt_opts,
+            **self.runtime_opts.solver_opts
+        )
+
+    def get_solver(self):
+        pt_opts = self.pt_opts.opts.copy()
+        if 'degenerate_states' not in pt_opts:
+            pt_opts['degenerate_states'] = self.states.degenerate_states
+        return self.hamiltonian.get_solver(
+            self.states.state_list,
+            # initial_states=self.initial_states.state_list,
             **pt_opts,
             **self.runtime_opts.solver_opts
         )
@@ -2217,3 +2231,149 @@ class AnneInputHelpers:
     #     return results
 
 VPTRunner.helpers = AnneInputHelpers
+
+
+class AnalyticVPTRunner:
+
+    def __init__(self, expansions, order=None, freqs=None, internals=True, logger=None,
+                 hamiltonian=None, checkpoint=None):
+        # self.expansions = expansions
+        # if order is None: order = len(expansions) - 1
+        self.order = order
+        # if freqs is None: freqs = 2*np.diag(expansions[0][0])
+        # self.freqs = freqs
+        self.ham = hamiltonian
+        self.eval = PerturbationTheoryEvaluator(
+            AnalyticPerturbationTheorySolver.from_order(
+                order,
+                internals=internals,
+                logger=logger,
+                checkpoint=checkpoint
+            ),
+            expansions,
+            freqs=freqs
+        )
+
+    @classmethod
+    def from_hamiltonian(cls, ham, order, expansion_order=None, logger=None, checkpoint=None, **opts):
+        """
+        A driver powered by a classic PerturbationTheoryHamiltonian object
+
+        :param ham:
+        :return:
+        """
+        exp_orders = ham._get_expansion_orders(expansion_order, order)
+        exps = ham.get_perturbations(
+            exp_orders,
+            return_reps=False, **opts
+        )
+        internals = ham.molecule.internals is not None
+        _ = []
+        for n,e in enumerate(exps):
+            if n > 1:
+                if not internals:
+                    V, G, Z, W = e
+                    e = [V, G, 0, Z, W]
+            _.append(e)
+        exps = _
+        return cls(
+            exps,
+            order,
+            internals=internals,
+            hamiltonian=ham,
+            logger=ham.logger if logger is None else logger,
+            checkpoint=ham.checkpointer if checkpoint is None else checkpoint
+        )
+
+    @classmethod
+    def from_file(cls, file_name, order=2, **settings):
+        runner, _ = VPTRunner.construct(
+            file_name,
+            1,
+            order=order,
+            **settings
+        )
+
+        opts = runner.pt_opts.opts
+        return cls.from_hamiltonian(
+            runner.hamiltonian,
+            opts.get('order', order),
+            expansion_order=opts.get('expansion_order', None)
+        )
+
+    def get_energy_corrections(self, states, order=None, verbose=False):
+        state_space = VPTStateSpace(states)
+        return self.eval.get_energy_corrections(state_space.state_list,
+                                                order=order,
+                                                verbose=verbose)
+
+    # def get_diff_classes(self, inial):
+
+    def get_operator_corrections(self,
+                                 operator_expansion, states,
+                                 order=None, verbose=False
+                                 ):
+        state_space = VPTStateSpace(states)
+        return self.eval.get_operator_corrections(
+            operator_expansion, state_space.state_list,
+            order=order,
+            verbose=verbose)
+
+    def get_transition_moment_corrections(self, states, dipole_expansion=None,
+                                 order=None, verbose=False, axes=None):
+        if dipole_expansion is None:
+            dipole_expansion = self.ham.dipole_terms.get_terms(order)
+
+
+        corrs = []
+        if axes is None: axes = [0, 1, 2]
+        for x in axes:
+            corrs.append(
+                self.get_operator_corrections(dipole_expansion[x][1:], states, order=order, verbose=verbose)
+            )
+
+        return corrs
+
+    def get_spectrum(self, states, dipole_expansion=None, order=None, energy_order=None, verbose=True):
+        """
+
+        :param states:
+        :param dipole_expansion:
+        :param order:
+        :param energy_order:
+        :param verbose:
+        :return:
+        """
+
+        all_state = [[0, 0, 0], [1, 0, 0]]
+        engs = sum(self.get_energy_corrections(all_state, order=energy_order, verbose=verbose))
+        # freqs1 = engs[1:] - engs[0]
+        # raise Exception(
+        #     freqs1 * UnitsData.convert("Hartrees", "Wavenumbers")
+        # )
+
+        all_gs = nput.is_numeric(states[0][0])
+        base_corrs = self.get_transition_moment_corrections(states,
+                                                            axes=[2],
+                                                            dipole_expansion=dipole_expansion,
+                                                            order=order, verbose=verbose)
+        # raise Exception(...)
+        if energy_order is None: energy_order = order
+        specs = []
+        for n,initial_state in enumerate(base_corrs[0].initial_states):
+            print("_???"*20)
+            all_state = np.concatenate([[initial_state], base_corrs[0].final_states[n]], axis=0)
+            engs = sum(self.get_energy_corrections(all_state, order=energy_order, verbose=verbose))
+            freqs = engs[1:] - engs[0]
+            raise Exception(
+                # freqs1 * UnitsData.convert("Hartrees", "Wavenumbers"),
+                freqs * UnitsData.convert("Hartrees", "Wavenumbers")
+            )
+            tmoms = sum(np.sum(corr.corrections[n], axis=0)**2 for corr in base_corrs)
+            ints = freqs * tmoms
+            specs.append([
+                freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
+                ints * UnitsData.convert("OscillatorStrength", "KilometersPerMole")
+            ])
+        if all_gs: specs = specs[0]
+        return specs
