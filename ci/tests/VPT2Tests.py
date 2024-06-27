@@ -50,48 +50,171 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             internals=internals,
             logger=True,
-            # expansion_order={
-            #     'potential': 2,
-            #     'kinetic': 0,
-            #     'pseudopotential': 0,
-            #     'coriolis': 0,
-            #     'dipole':0
-            # }
+            mixed_derivative_handling_mode='averaged',
+            expansion_order={
+                # 'potential': 2,
+                'kinetic': 0,
+                'pseudopotential': 0,
+                # 'coriolis': 0,
+                # 'dipole':2
+            }
+            , mode_selection=[0]
         )
+        t = driver.eval.expansions[2][0]
+        # t[0, 0, 0] = 0
+        # for p in itertools.permutations([0, 2, 2]):
+        #     t[p] = 0
+        # for j,k in itertools.permutations(range(1, 3), 2):
+        #     for p in itertools.permutations([0, j, k]):
+        #         t[p] = 0
+        #     for p in itertools.permutations([0, j, j]):
+        #         t[p] = 0
+        dips = driver.ham.dipole_terms.get_terms(2)
+        # # raise Exception(dips[2][3])
+        # for a in range(3):
+        #     b = dips[a][1]
+        #     for j in range(1, 3): b[j] = 0
+        #     b = dips[a][2]
+        #     b[:] = 0
+        #     # for j,k in itertools.permutations([0, 1, 2], 2):
+        #     #     b[j,k] = 0
+        #     #     if j!=0: b[j, j] = 0
+        #     b = dips[a][3]
+        #     b[:] = 0
+        #     # for j, k in itertools.permutations(range(1, 3), 2):
+        #     #     for p in itertools.permutations([0, 0, j]):
+        #     #         b[p] = 0
+        #     #     for p in itertools.permutations([j, j, k]):
+        #     #         b[p] = 0
+        #     #     for p in itertools.permutations([0, j, k]):
+        #     #         b[p] = 0
+        #     #     for p in itertools.permutations([0, j, j]):
+        #     #         b[p] = 0
+        # # raise Exception(dips[2][3])
 
-        # runner, _ = VPTRunner.construct(
-        #     TestManager.test_data(file_name),
-        #     [[0, 0, 0], [1, 0, 0]],
-        #     internals=internals,
-        #     logger=False,
-        #     zero_element_warning=False,
-        #     expansion_order={
-        #         'potential':2,
-        #         'kinetic':0,
-        #         'pseudopotential':0,
-        #         'coriolis':0
-        #     }
-        #     # mode_selection=[0, 1]
+        runner, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            # [[0, 0, 0], [1, 0, 0], [0, 2, 0]],
+            [[0], [1], [2], [3]],
+            mode_selection=[0],
+            # [[0, 0], [1, 0], [0, 1], [0, 3]],
+            # mode_selection=[0, 1],
+            internals=internals,
+            logger=False,
+            zero_element_warning=False,
+            potential_terms=[
+                2*driver.eval.expansions[0][0],
+                6*driver.eval.expansions[1][0],
+                24*driver.eval.expansions[2][0]
+            ],
+            dipole_terms=dips,
+            expansion_order={
+                # 'potential':2,
+                'kinetic':0,
+                'pseudopotential':0,
+                # 'coriolis':0
+                # 'dipole':2
+            }
+        )
+        # runner.print_tables(print_intensities=True)
+
+        # wfns = runner.get_wavefunctions()
+        # print(wfns.corrs.wfn_corrections[2].todense()[:, :4])
+        # solver = runner.get_solver()
+        # subblock = solver.representations[1].todense()[:3, :3]
+        # print(subblock)
+        # """
+        # [[0.00000000e+00 4.43301277e-05 1.70140851e-04]
+        #  [4.43301277e-05 0.00000000e+00 0.00000000e+00]
+        #  [1.70140851e-04 0.00000000e+00 0.00000000e+00]]
+        #  """
+        # """
+        # [[ 0.00000000e+00  4.40312175e-03 -7.67254942e-03  2.31547973e-02  2.55419636e-10 -1.03650601e-02 -1.03294141e-09  1.88443241e-03  6.04255928e-03 -3.53552108e-11  3.88232675e-02 -2.66004584e-10  1.55788647e-01 -4.67088914e-10  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00]
+        # [-4.40312175e-03  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00 -3.36407818e-02  2.90614670e-03  9.17809745e-03  1.28625106e-01 -3.13161948e-09 -4.07064827e-10 -1.53450988e-02 -1.79528108e-02 -1.78910700e-09  2.31547973e-02  2.55419636e-10  2.66498988e-03  8.54546928e-03 -3.76187290e-10 -3.53552108e-11  3.88232675e-02  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00]]
+        # """
+        # """
+        # [[ 0.         -0.02061049  0.07149664]
+        #  [ 0.02061049  0.          0.        ]
+        #  [-0.07149664  0.          0.        ]
+        #  [-0.0231548   0.          0.        ]]
+        #  """
+        # corrs = driver.eval.get_wavefunction_corrections([[1, 0, 0], [0, 2, 0]], order=2, verbose=True)
+        # corrs = driver.eval.get_wavefunction_corrections([[1], [2], [3]], order=2, verbose=True)
+        # -0.00312126
+
+        # woof = driver.eval.solver.overlap_correction(2)
+        woof = driver.eval.solver.wavefunction_correction(1)
+        # exprs = woof.expressions[0].base.gen1.get_poly_terms([3])
+        # exprs2 = woof.expressions[0].base.gen2.get_poly_terms([-3], shift=[3])
+        # print(exprs)
+        # print(exprs2)
+        # print(exprs.mul_along(exprs2, (0,)))
+        # print(woof.expressions[0].get_poly_terms([]))
+        # print(woof.expressions[0].base.get_poly_terms([]))
+        H1 = driver.eval.solver.hamiltonian_expansion[1]
+        # print(
+        #     # woof.get_poly_terms([3], shift=[-3]).format_expr(),
+        #     woof.get_poly_terms([1]).format_expr(),
+        #     # woof.get_poly_terms([3]).format_expr(),
         # )
-        # runner.print_tables(print_intensities=False)
+        # raise Exception(...)
+        from Psience.Psience.VPT2.Analytic import PerturbationTheoryTermProduct, FlippedPerturbationTheoryTerm
+        loof = FlippedPerturbationTheoryTerm(woof)
+        print(
+            loof.get_poly_terms([-3], shift=[3])
+            # PerturbationTheoryTermProduct.get_poly_product_terms(
+            #     H1, H1,
+            #     [3], [-3],
+            #     [0], [0], None
+            # ).format_expr()
+
+        )
+        # print(
+        #     woof.get_poly_terms([3]).format_expr()
+        # )
+        # print(
+        #     PerturbationTheoryTermProduct.get_poly_product_terms(
+        #         woof, loof,
+        #         [3], [-3],
+        #         [0], [0], None
+        #     ).format_expr()
+        # )
+        raise Exception(...)
+        # print(
+        #     exprs.evaluate([[0]], driver.eval.expansions, driver.eval.freqs,
+        #                                      log_scaled=False,
+        #                                      verbose=True
+        #                                      )
+        # )
+        # raise Exception(...)
+
+        # corrs = driver.eval.get_overlap_corrections([[0, 0]], order=2, verbose=True)
+        -0.00042679
+        corrs = driver.eval.get_overlap_corrections([[0]], order=2, verbose=True)
+        # corrs = driver.eval.get_wavefunction_corrections([[1, 0], [0, 1], [0, 3]], order=1, verbose=True)
+        raise Exception(
+            corrs
+        )
 
         # driver.eval.expansions[2][0] = 0
-        corrs = driver.get_energy_corrections(
-                [[0, 0, 0], [1, 0, 0]],
-                verbose=True
-            )
-        ugh = sum(corrs) * UnitsData.convert("Hartrees", "Wavenumbers")
-        raise Exception(
-            corrs[1] * UnitsData.convert("Hartrees", "Wavenumbers"),
-            ugh[0],
-            ugh[1] - ugh[0]
-        )
+        # corrs = driver.get_energy_corrections(
+        #         [[0, 0, 0], [1, 0, 0]],
+        #         verbose=True
+        #     )
+        # ugh = sum(corrs) * UnitsData.convert("Hartrees", "Wavenumbers")
+        # raise Exception(
+        #     corrs[1] * UnitsData.convert("Hartrees", "Wavenumbers"),
+        #     ugh[0],
+        #     ugh[1] - ugh[0]
+        # )
 
         raise Exception(
-            67.45626 /
-                (1622.30303 * UnitsData.convert("Wavenumbers", "Hartrees")) /
-                UnitsData.convert("OscillatorStrength", "KilometersPerMole"),
-            driver.get_spectrum([[1, 0, 0]])
+            # 67.45626 /
+            #     (1622.30303 * UnitsData.convert("Wavenumbers", "Hartrees")) /
+            #     UnitsData.convert("OscillatorStrength", "KilometersPerMole"),
+            # 68.23142,
+            65.34622,
+            driver.get_spectrum([[1, 0, 0]], dipole_expansion=dips)
             # driver.get_transition_moment_corrections([[1, 0, 0]], order=0)[2].corrections[0][0]**2
         )
 

@@ -539,7 +539,7 @@ class HarmonicOscillatorMatrixGenerator:
         if abs(delta) > len(terms):
             return 0
         if len(terms) == 0:
-            return [1] # just the constant overlap term
+            return np.array([1]) # just the constant overlap term
         # we know we need to change by delta
         # over
         if terms not in cls._size_blocks_cache:

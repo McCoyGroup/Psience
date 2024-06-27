@@ -2235,11 +2235,12 @@ VPTRunner.helpers = AnneInputHelpers
 
 class AnalyticVPTRunner:
 
-    def __init__(self, expansions, order=None, freqs=None, internals=True, logger=None,
+    def __init__(self, expansions, order=None, expansion_order=None, freqs=None, internals=True, logger=None,
                  hamiltonian=None, checkpoint=None):
         # self.expansions = expansions
         # if order is None: order = len(expansions) - 1
         self.order = order
+        self.expansion_order = expansion_order
         # if freqs is None: freqs = 2*np.diag(expansions[0][0])
         # self.freqs = freqs
         self.ham = hamiltonian
@@ -2281,6 +2282,7 @@ class AnalyticVPTRunner:
             order,
             internals=internals,
             hamiltonian=ham,
+            expansion_order=exp_orders,
             logger=ham.logger if logger is None else logger,
             checkpoint=ham.checkpointer if checkpoint is None else checkpoint
         )
@@ -2322,8 +2324,10 @@ class AnalyticVPTRunner:
     def get_transition_moment_corrections(self, states, dipole_expansion=None,
                                  order=None, verbose=False, axes=None):
         if dipole_expansion is None:
+            if order is None:
+                if self.expansion_order is not None:
+                    order = self.expansion_order.get('dipole', None)
             dipole_expansion = self.ham.dipole_terms.get_terms(order)
-
 
         corrs = []
         if axes is None: axes = [0, 1, 2]
@@ -2345,8 +2349,8 @@ class AnalyticVPTRunner:
         :return:
         """
 
-        all_state = [[0, 0, 0], [1, 0, 0]]
-        engs = sum(self.get_energy_corrections(all_state, order=energy_order, verbose=verbose))
+        # all_state = [[0, 0, 0], [1, 0, 0]]
+        # engs = sum(self.get_energy_corrections(all_state, order=energy_order, verbose=verbose))
         # freqs1 = engs[1:] - engs[0]
         # raise Exception(
         #     freqs1 * UnitsData.convert("Hartrees", "Wavenumbers")
@@ -2361,14 +2365,13 @@ class AnalyticVPTRunner:
         if energy_order is None: energy_order = order
         specs = []
         for n,initial_state in enumerate(base_corrs[0].initial_states):
-            print("_???"*20)
             all_state = np.concatenate([[initial_state], base_corrs[0].final_states[n]], axis=0)
-            engs = sum(self.get_energy_corrections(all_state, order=energy_order, verbose=verbose))
+            engs = sum(self.get_energy_corrections(all_state, order=energy_order, verbose=False))
             freqs = engs[1:] - engs[0]
-            raise Exception(
-                # freqs1 * UnitsData.convert("Hartrees", "Wavenumbers"),
-                freqs * UnitsData.convert("Hartrees", "Wavenumbers")
-            )
+            # raise Exception(
+            #     # freqs1 * UnitsData.convert("Hartrees", "Wavenumbers"),
+            #     freqs * UnitsData.convert("Hartrees", "Wavenumbers")
+            # )
             tmoms = sum(np.sum(corr.corrections[n], axis=0)**2 for corr in base_corrs)
             ints = freqs * tmoms
             specs.append([

@@ -148,8 +148,36 @@ class ProductPTPolynomial:
     def __repr__(self):
         return "{}(<{}>)".format("Poly", ",".join(str(c) for c in self.order))
 
+    @classmethod
+    def format_simple_poly(cls, coeffs, idx):
+        var = "n[{}]".format(idx)
+        return "+".join(k for k in [
+            "{}{}".format(
+                ("" if c == 1 else "-" if c == -1 else c),
+                "" if i == 0 else
+                var if i == 1 else
+                var + "^{}".format(i)
+            ) for i, c in enumerate(coeffs)
+            if c != 0
+        ] if len(k) > 0)
+    def format_expr(self):
+        subpolys = [
+            self.format_simple_poly(c, i) for i,c in enumerate(self.coeffs)
+        ]
+        subpolys = ["({})".format(s) if "+" in s else s for s in subpolys]
+        c = self.prefactor
+        return "{}{}".format(
+            ("" if c == 1 else "-" if c == -1 else "{}*".format(c)),
+            "".join(s for s in subpolys if len(s) > 0)
+        )
+
     def permute(self, new_inds):
-        return type(self)([self.coeffs[i] for i in new_inds], prefactor=self.prefactor)
+        rem = ProductPTPolynomial.fast_ind_remainder(len(self.coeffs), new_inds)
+        # print(new_inds, len(self.coeffs))
+        return type(self)(
+            [self.coeffs[i] for i in new_inds if i < len(self.coeffs)] + [self.coeffs[j] for j in rem],
+            prefactor=self.prefactor
+        )
 
     def constant_rescale(self):
         """
@@ -281,6 +309,8 @@ class ProductPTPolynomial:
         return new
 
     def shift(self, shift):
+        if len(shift) < len(self.coeffs):
+            shift = list(shift) + [0] * (len(self.coeffs) - len(shift))
         if self._idx is not None:
             base_shift = self._idx[-1]
             new_shift = tuple(s + k for s,k in zip(base_shift, shift)) + base_shift[len(shift):]
@@ -294,7 +324,7 @@ class ProductPTPolynomial:
         )
 
     def __mul__(self, other):
-        if isinstance(other, (int, float, np.integer, np.floating)):
+        if nput.is_numeric(other):
             return self.scale(other)
         else:
             raise NotImplementedError("subtle")
@@ -372,7 +402,6 @@ class ProductPTPolynomial:
             chunks = chunks[0]
         else:
             chunks = np.array([])
-        # print("...", n, diff, np.setdiff1d(np.arange(n), diff), "->", chunks)
         return chunks
     def mul_along(self, other:'ProductPTPolynomial', inds, remainder=None, mapping=None):
         # print(">>>", 1)
@@ -533,6 +562,15 @@ class ProductPTPolynomialSum:
             "+".join("{}{}".format(k,f) for k,f in form_counts.items())
         )
 
+    def format_expr(self):
+        base_sum = "+".join(p.format_expr() for p in self.polys)
+        if self.prefactor != 1:
+            if "+" in self.polys: base_sum = "({})".format(base_sum)
+            if self.prefactor == -1:
+                base_sum = "-"+base_sum
+            else:
+                base_sum = "{}*{}".format(self.prefactor, base_sum)
+        return base_sum
     @property
     def order(self):
         if self._order is None:
@@ -636,7 +674,7 @@ class ProductPTPolynomialSum:
             new = type(self)(
                 [
                     poly.mul_along(other, inds, remainder=remainder, mapping=mapping) # how is this supposed to work?
-                    for poly in self.polys # the fuck is inds supposed to mean here...????
+                    for poly in self.polys
                 ],
                 prefactor=self.prefactor
             )
@@ -695,6 +733,8 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly):
     def __init__(self, terms: dict, prefactor=1, canonicalize=True, reduced=False):
         super().__init__(terms, prefactor=prefactor, canonicalize=canonicalize)
         self.reduced = reduced
+        for k in self.terms:
+            if any(all(s == 0 for s in sk) for sk in k): raise ValueError("huh")
 
     @classmethod
     def format_key(self, key):
@@ -715,6 +755,39 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly):
             sums.append("{}{}".format(v, self.format_key(k_prod)))
         return "ESum({})".format("+".join(sums) if len(sums) < 3 else "\n      +".join(sums))
 
+    @classmethod
+    def format_energy_prod_key(cls, key):
+        substr = [
+            "+".join(
+                "{s}w[{i}]".format(s=("" if s == 1 else "-" if s == -1 else s), i=i)
+                for i, s in enumerate(k)
+            )
+            for k in key
+        ]
+        bb = "*".join(
+            ("({})" if len(s) > 3 else "{}").format(s)
+            for s in substr
+        )
+        return ("({})" if "*" in bb else "{}").format(bb)
+
+    def format_expr(self):
+        """
+        Formats in a Mathematica-ingestible format
+        :return:
+        """
+        keys = []
+        substrings = []
+        for k,poly in self.terms.items():
+            keys.append(self.format_energy_prod_key(k))
+            substrings.append(poly.format_expr())
+
+        join = " + " if sum(len(x) for x in substrings) < 80 else "\n  + "
+        key_prods = [
+            ("({})/{}" if "+" in s else "{}/{}").format(s, k)
+            for k,s in zip(keys, substrings)
+        ]
+        return join.join(key_prods)
+
     @staticmethod
     def shift_key(key, shift):
         return tuple(
@@ -722,13 +795,12 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly):
             for ksum in key
         )
     def shift(self, shift):
-        return type(self)(
-            {
-                # k: p.shift(shift) for k,p in self.terms.items()
-                self.shift_key(k, shift): p.shift(shift) for k,p in self.terms.items()
-            },
-            prefactor=self.prefactor
-        )
+        new_terms = {}
+        for k,p in self.terms.items():
+            k2 = self.shift_key(k, shift)
+            if all(any(s != 0 for s in sk) for sk in k2):
+                new_terms[k2] = p.shift(shift)
+        return type(self)(new_terms, prefactor=self.prefactor)
 
     def sort(self):
         return type(self)(
@@ -739,11 +811,17 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly):
         )
 
     def _permute_changes(self, changes, new_inds):
+        rem = ProductPTPolynomial.fast_ind_remainder(len(changes), new_inds)
         new = tuple(
             changes[i]
                 if i < len(changes) else
             0
             for i in new_inds
+        ) + tuple(
+            changes[i]
+                if i < len(changes) else
+            0
+            for i in rem
         )
         for j in range(1, len(new)+1):
             if new[-j] != 0:
@@ -751,6 +829,7 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly):
         else:
             j = 1 # just to shut the IDE up...
         new = new[:len(new) - (j-1)]
+        # print(new_inds, changes, "->>", new)
         return new
     def permute(self, new_inds):
         new_terms = {}
@@ -772,8 +851,26 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly):
                 for tt1, tt2 in zip(t1, t2)
             )
 
+    @staticmethod
+    def find_term_scaling(key):
+        new_keys = []
+        new_scalings = []
+        for k in key:
+            s = np.gcd.reduce(k)
+            new_scalings.append(s)
+            new_keys.append([kk/s for kk in k])
+
+        return tuple(new_keys), np.prod(new_scalings)
+
+    # def factor_energies(self):
+    #     ...
+
+
     def combine_energies(self):
-        base_keys = list(self.terms.keys())
+        # terms = self.factor_energies()
+        terms = self.terms
+
+        base_keys = list(terms.keys())
         elim_pos = set()
         merges = set()
         unmerged = set()
@@ -796,9 +893,9 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly):
             if k1 in unmerged or k2 in unmerged:
                 raise ValueError('fuck')
             # print(self.terms[k2].prefactor, self.terms[k2].scale(-1))
-            new_terms[k1] = self.terms[k1] + self.terms[k2].scale(-1)
+            new_terms[k1] = terms[k1] + terms[k2].scale(-1)
         for k in unmerged:
-            new_terms[k] = self.terms[k]
+            new_terms[k] = terms[k]
 
         return new_terms
 
@@ -823,18 +920,20 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly):
     @staticmethod
     def _permute_idx(idx, inds, mapping=None): # TODO: could be sped up quite a bit...
         if len(inds) == 0: return idx
-
         if not nput.is_numeric(inds[0]):
             inds = inds[1] # we remap the right inds
         if mapping is None: mapping = {}
-        max_remapping = mapping.get(len(idx), len(idx))
+        if not isinstance(inds, tuple): inds = tuple(inds)
+        max_remapping = max(max(inds + (0,)) + 1, len(idx))
         rem = ProductPTPolynomial.fast_ind_remainder(max_remapping, inds)
-        return tuple(
+        new = tuple(
             (idx[inds[i]] if inds[i] < len(idx) else 0)
                 if i < len(inds) else
             (idx[rem[i - len(inds)]] if rem[i - len(inds)] < len(idx) else 0)
             for i in range(max_remapping)
         )
+        if all(n == 0 for n in new): raise ValueError(idx, inds, mapping, new)
+        return new
         # if mapping is not None:
         #     pidx = tuple(mapping.get(k, k) for k in idx)
         # else:
@@ -952,11 +1051,12 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly):
         self._inds_map = {} if inds_map is None else inds_map
         self.reduced = reduced
 
+    tensor_ids = ["V", "G", "U", "Z", "W", "M"]
     @classmethod
-    def format_key(self, key):
+    def format_key(cls, key):
         return "".join([
             "{}[{}]{}".format(
-                ["V", "G", "V'", "Z", "U", "M"][k[1]],  # we explicitly split Coriolis and Watson terms out
+                cls.tensor_ids[k[1]],  # we explicitly split Coriolis and Watson terms out
                 k[0],
                 k[2:]
             )
@@ -967,6 +1067,34 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly):
         for k_prod,v in self.terms.items():
             sums.append("{}{}".format(v, self.format_key(k_prod)))
         return "TSum({})".format("+".join(sums) if len(sums) < 3 else "\n      +".join(sums))
+
+    @classmethod
+    def format_tensor_key(cls, key):
+        return "".join([
+            "{}[{}][{}]".format(
+                cls.tensor_ids[k[1]],  # we explicitly split Coriolis and Watson terms out
+                k[0],
+                ", ".join(str(i) for i in k[2:])
+            )
+            for k in key
+        ])
+    def format_expr(self):
+        """
+        Formats in a Mathematica-ingestible format
+        :return:
+        """
+        keys = []
+        substrings = []
+        for k,esum in self.terms.items():
+            keys.append(self.format_tensor_key(k))
+            substrings.append(esum.format_expr())
+
+        join = " + " if sum(len(x) for x in substrings) < 80 else "\n  + "
+        key_prods = [
+            ("{}*({})" if "+" in s else "{}*{}").format(k,s)
+            for k,s in zip(keys, substrings)
+        ]
+        return join.join(key_prods)
 
     def print_tree(self):
         for k,esum in self.terms.items():
@@ -1101,6 +1229,30 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly):
 
         return new_terms
 
+    @classmethod
+    def reindex_terms(cls, terms):
+        new_terms = {}
+        for k,v in terms.items():
+            ind_vars = [iii for kk in k for iii in kk[2:]]
+            if len(ind_vars) == 0:
+                new_terms[k] = v
+                continue
+            perm = np.unique(ind_vars)
+            if len(perm) == perm[-1] + 1:
+                new_terms[k] = v
+                continue
+            submap = np.argsort(perm) # just to remap things down
+            mapping = dict(zip(perm, submap))
+            new_key = tuple(kk[:2] + tuple(mapping[iii] for iii in kk[2:]) for kk in k)
+            new_terms[new_key] = v.permute(perm)
+            # if perm[-1] == 3:
+            #     print("-"*25)
+            #     print(k, new_key)
+            #     print(perm)
+            #     print(v)
+            #     print(new_terms[new_key])
+            #     raise Exception(...)
+        return new_terms
     def combine(self, combine_coeffs=False, combine_subterms=True, combine_energies=True):
         if self.reduced: return self
         new_terms = {}
@@ -1109,6 +1261,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly):
             raise NotImplementedError("coeff combining too subtle for current evaluator strategy")
 
         base_terms = self.combine_terms() if combine_coeffs else self.terms
+        base_terms = self.reindex_terms(base_terms)
         for k,p in base_terms.items():
             if combine_subterms and isinstance(p, ProductPTPolynomialSum):
                 p = p.combine()
@@ -1181,7 +1334,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly):
 
         # we multiply indices on the left with the corresponding indices on the right
         left_fixed_inds, right_fixed_inds = [tuple(x) for x in inds]
-        left_remainder_inds = np.arange(num_fixed, num_left)
+        left_remainder_inds = ProductPTPolynomial.fast_ind_remainder(num_left, left_fixed_inds)
         right_remainder_inds = ProductPTPolynomial.fast_ind_remainder(num_right, right_fixed_inds)
 
         # we take every possible combo of remaining indices from left and right
@@ -1199,10 +1352,10 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly):
                     right_mapping[k] = j + num_left
 
                 new_key = tuple(
-                    t[:2] + tuple(left_mapping[k] for k in t[2:])
+                    t[:2] + tuple(left_mapping.get(k, k) for k in t[2:])
                     for t in k1
                 ) + tuple(
-                    t[:2] + tuple(right_mapping[k] for k in t[2:])
+                    t[:2] + tuple(right_mapping.get(k, k) for k in t[2:])
                     for t in k2
                 )
                 # print(">>>", k1, k2, inds, new_key)
@@ -1334,6 +1487,25 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly):
                 prefactor=self.prefactor
             )
 
+# class SqrtShiftedPoly:
+#     def __init__(self, poly_obj, start, end):
+#         self.poly_obj = poly_obj
+#         self.start = start
+#         self.end = end
+#
+#     def __repr__(self):
+#         return "{}({}, {})".format("SqS", (self.start, self.end), self.poly_obj)
+#     def format_expr(self):
+#         """
+#         Formats in a Mathematica-ingestible format
+#         :return:
+#         """
+#         base_expr = self.poly_obj.format_expr()
+#         sqrt_exprs = self.format_sqrt_expr(s, e, i)
+#         return
+
+
+
 class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
     """
     A generic version of one of the three terms in
@@ -1400,7 +1572,7 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                     terms = self._raw_changes.get(changes, None)
                     if not isinstance(terms, (PTTensorCoeffProductSum, int, np.integer)):
                         terms = sum(
-                            term.get_poly_terms(changes, shift=shift)
+                            term.get_poly_terms(changes, shift=None)
                             for term in self.expressions
                         )
                         self._raw_changes[changes] = terms
@@ -1417,19 +1589,8 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                                 base = {}
                             base[changes] = terms
                             chk[key] = base
-            # if shift is not None and len(shift) > 0 and not nput.is_numeric(terms):
-            #     # if len(shift) == 0:
-            #     #     print("fuck")
-            #     #     raise Exception(...)
-            #     terms = terms.shift(shift)
-            #     # print("  .", [type(t) for t in terms.terms.keys()])
-            #     # print(terms.terms)
-            #     # shift = tuple(shift)
-            #     # t = self._cache.get((changes, shift), None)
-            #     # if t is None:
-            #     #     t = terms.shift(shift)
-            #     #     self._cache[(changes, shift)] = t
-            #     # terms = t
+            if shift is not None and len(shift) > 0 and not nput.is_numeric(terms):
+                terms = terms.shift(shift)
             end = time.time()
             # self.logger.log_print('terms: {t}', t=terms)
             self.logger.log_print('took {e:.3f}s', e=end-start)
@@ -1903,39 +2064,46 @@ class OperatorCorrection(PerturbationTheoryTerm):
         O = self.parent.overlap_correction
         LO = lambda o:FlippedPerturbationTheoryTerm.lookup(O(o))
 
-        exprs = [M[k]] + [
-            L(k-i) * M[i]
-            for i in range(0, k)
-        ] + [
-            M[i] * W(k-i)
-            for i in range(0, k)
-        ] + [
-            L(i) * M[k-i-j] * W(j)
-            for i in range(1, k)
-            for j in range(1, k-i+1)
-        ]
-        if not self.intermediate_normalization:
-            exprs = exprs + [
-                LO(k-i) * M[i]
-                for i in range(0, k)
-                if k - i > 1
-            ] + [
-                M[i] * O(k-i)
-                for i in range(0, k)
-                if k - i > 1
-            ] + [
-                LO(i) * M[k-i-j] * W(j)
-                for i in range(2, k)
-                for j in range(1, k-i+1)
-            ] + [
-                L(i) * M[k-i-j] * O(j)
-                for i in range(1, k)
-                for j in range(2, k-i+1)
-            ] + [
-                LO(i) * M[k-i-j] * O(j)
-                for i in range(2, k)
-                for j in range(2, k-i+1)
-            ]
+        exprs = (
+                [M[k]]
+                + [
+                    L(k - i) * M[i]
+                    for i in range(0, k)
+                ]
+                + [
+                    M[i] * W(k - i)
+                    for i in range(0, k)
+                ]
+                + [
+                    L(i) * M[k - i - j] * W(j)
+                    for i in range(1, k)
+                    for j in range(1, k - i + 1)
+                ]
+        )
+        if False and not self.intermediate_normalization:
+            exprs = exprs + (
+                    [
+                        LO(k - i) * M[i]
+                        for i in range(0, k)
+                        if k - i > 1
+                    ] + [
+                        M[i] * O(k - i)
+                        for i in range(0, k)
+                        if k - i > 1
+                    ] + [
+                        LO(i) * M[k - i - j] * W(j)
+                        for i in range(2, k)
+                        for j in range(1, k - i + 1)
+                    ] + [
+                        L(i) * M[k - i - j] * O(j)
+                        for i in range(1, k)
+                        for j in range(2, k - i + 1)
+                    ] + [
+                        LO(i) * M[k - i - j] * O(j)
+                        for i in range(2, k)
+                        for j in range(2, k - i + 1)
+                    ]
+            )
 
         return exprs
 
@@ -2029,7 +2197,6 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
         arr_1 = np.asanyarray(change_1)
         arr_2 = np.asanyarray(change_2)
 
-        # print("?????", arr_2)
         change_map = cls._change_map
         for overlaps in range(1, min(l1, l2) + 1):
             # TODO: handle overlap == len(term_2) -> not sure if I've done this or not?
@@ -2126,6 +2293,55 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
     def get_expressions(self):
         raise NotImplementedError("shouldn't need this here...")
 
+    @classmethod
+    def get_poly_product_terms(cls,
+                               gen1, gen2, change_1, change_2,
+                               src_inds, target_inds, reorg
+                               ):
+        polys_1 = gen1.get_poly_terms(change_1)
+        if isinstance(polys_1, PerturbationTheoryExpressionEvaluator): polys_1 = polys_1.expr
+        if nput.is_numeric(polys_1):
+            if polys_1 == 0:
+                return 0
+            else:
+                raise ValueError("not sure how we got a number here...")
+        # if simplify:
+        #     polys_1 = polys_1.combine()
+        # we note that src_inds defines how we permute the change_2 inds so...I guess target_inds
+        # tells us how we'd permute the inds of change_1?
+        # if shift is not None:
+        #     change_shift = change_1 + shift
+        # else:
+        #     change_shift = change_1
+        # change_shift = [change_shift[i] for i in target_inds]
+
+        polys_2 = gen2.get_poly_terms(change_2, shift=change_1)
+        if isinstance(polys_2, PerturbationTheoryExpressionEvaluator): polys_2 = polys_2.expr
+        if nput.is_numeric(polys_2):
+            if polys_2 == 0:
+                return 0
+            else:
+                raise ValueError("not sure how we got a number here...")
+        # polys_2 = polys_2.shift(shift)
+        print("1", polys_1.format_expr())
+        print("2", polys_2.format_expr())
+
+        base_polys = polys_1.mul_along(polys_2, [src_inds, target_inds], remainder=None, mapping=None)
+
+        # sqrt_contrib_2 = HarmonicOscillatorRaisingLoweringPolyTerms.get_direction_change_poly(change_2, change_1)
+        # if sqrt_contrib_2 is not None:
+        #     # need to permute
+        #     sqrttoooo = [[1]] * len(change_1)  # number of terms in base_polys????
+        #     for i, c in zip(target_inds, sqrt_contrib_2):
+        #         sqrttoooo[i] = c
+        #     base_polys = base_polys.mul_simple(ProductPTPolynomial(sqrttoooo))
+
+        if reorg is not None:
+            base_polys = base_polys.permute(reorg)
+
+        return base_polys
+
+
     def get_poly_terms(self, changes, allowed_paths=None, shift=None, simplify=True):
         t = tuple(changes)
         shift = tuple(shift) if shift is not None else None
@@ -2139,45 +2355,16 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                 if allowed_paths is not None and (change_1, change_2) not in allowed_paths:
                     continue
 
-                # squish = [c1 + c2 for c1, c2 in zip(target_inds, src_inds)]
-                # print(changes, "->", [squish[r] for r in reorg])
+                new_polys = self.get_poly_product_terms(
+                    self.gen1, self.gen2, change_1, change_2,
+                    src_inds, target_inds, reorg
+                )
+                if nput.is_zero(new_polys): continue
 
-                polys_1 = self.gen1.get_poly_terms(change_1, shift=shift)
-                if isinstance(polys_1, PerturbationTheoryExpressionEvaluator): polys_1 = polys_1.expr
-                if nput.is_numeric(polys_1):
-                    if polys_1 == 0:
-                        continue
-                    else:
-                        raise ValueError("not sure how we got a number here...")
-                if simplify:
-                    polys_1 = polys_1.combine()
-                # we note that src_inds defines how we permute the change_2 inds so...I guess target_inds
-                # tells us how we'd permute the inds of change_1?
                 if shift is not None:
-                    change_shift = change_1 + shift
-                else:
-                    change_shift = change_1
-                change_shift = [change_shift[i] for i in target_inds]
+                    new_polys = new_polys.shift(shift)
 
-                polys_2 = self.gen2.get_poly_terms(change_2, shift=change_shift)
-                if isinstance(polys_2, PerturbationTheoryExpressionEvaluator): polys_2 = polys_2.expr
-                if nput.is_numeric(polys_2):
-                    if polys_2 == 0:
-                        continue
-                    else:
-                        raise ValueError("not sure how we got a number here...")
-                if simplify:
-                    polys_2 = polys_2.combine()
-                # polys_2 = polys_2.shift(shift)
-
-                base_polys = polys_1.mul_along(polys_2, target_inds, remainder=None, mapping=None)
-                # base_polys = base_polys.shift(shift)
-                # print("="*50)
-                # print(reorg)
-                # print(base_polys)
-                # base_polys = base_polys.permute(reorg)
-
-                poly_changes += base_polys
+                poly_changes += new_polys
 
             self.changes[t] = poly_changes
             base_changes = poly_changes
@@ -2226,6 +2413,7 @@ class FlippedPerturbationTheoryTerm(PerturbationTheoryTerm):
         if len(changes) < len(shift):
             changes = list(changes) + [0]*(len(changes) - len(shift))
         shift = [s+c for s,c in zip(shift, changes)]
+        print(flip_changes, shift)
         return self.base.get_poly_terms(flip_changes, shift)
 
 class PerturbationTheoryExpressionEvaluator:
@@ -2244,7 +2432,6 @@ class PerturbationTheoryExpressionEvaluator:
         coeff_tensor = coeffs[coeff_indices[0]][coeff_indices[1]] # order then identity
         if nput.is_zero(coeff_tensor): return 0
 
-        # print(free, fixed, coeff_indices)
         idx = tuple(perm[i] for i in coeff_indices[2:])
         if len(idx) > 0:
             return coeff_tensor[idx]
@@ -2284,6 +2471,8 @@ class PerturbationTheoryExpressionEvaluator:
             return np.ones(substates.shape[0])
         else:
 
+            # if len(change) != len(poly.coeffs): raise ValueError(change, poly)
+
             poly_factor = np.prod(
                 [
                     np.dot(c[np.newaxis, :], np.power(s[np.newaxis, :], np.arange(len(c))[:, np.newaxis]))
@@ -2291,23 +2480,20 @@ class PerturbationTheoryExpressionEvaluator:
                 ],
                 axis=0
             )
-            if not nput.is_numeric(poly_factor): poly_factor = poly_factor[0]
-            sqrt_factor = np.sqrt(
-                np.prod(
-                    [
-                        n + i
-                        for n, delta in zip(substates.T, change)
-                        for i in range(
+            if not nput.is_numeric(poly_factor): poly_factor = poly_factor[0] # we padded for the dot products
+            shifts_sqrts = [
+                    np.prod(
+                        n[:, np.newaxis] + np.arange(
                             delta + 1 if delta < 0 else 1,
                             1 if delta < 0 else delta + 1
-                        )
-                    ],
-                    axis=-1
-                )
-            )
+                        )[np.newaxis, :],
+                        axis=-1
+                    )
+                    for n, delta in zip(substates.T, change)
+                ]
+            sqrt_factor = np.sqrt(np.prod(shifts_sqrts, axis=0))
 
             ct = poly.prefactor * poly_factor * sqrt_factor
-            # print("---->", state.shape, substates.shape, poly_factor.shape, sqrt_factor.shape, ct.shape)
             return ct
 
     @classmethod
@@ -2321,8 +2507,9 @@ class PerturbationTheoryExpressionEvaluator:
 
         # print(energy_changes)
 
-
         ec_pad = max(len(e) for e in energy_changes)
+        if len(full_inds) < ec_pad:
+            full_inds = list(full_inds) + list(ProductPTPolynomial.fast_ind_remainder(ec_pad, full_inds))
         ec = np.array([list(e) + [0]*(ec_pad - len(e)) for e in energy_changes])
         full_inds = full_inds[:ec.shape[1]]
         freq_pulls = np.array([freqs[p[full_inds,],] for p in perms])
@@ -2330,8 +2517,9 @@ class PerturbationTheoryExpressionEvaluator:
         return np.prod(np.dot(freq_pulls, ec.T), axis=-1)
 
     def _eval_perm(self, subset, state, perms, coeffs, freqs,
-                   cind_sets, zero_cutoff, eval_cache, verbose, logger):
+                   cind_sets, zero_cutoff, eval_cache, verbose, logger, log_scaled):
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
+        log_scaling = 219475.6 if log_scaled else 1
         #TODO: use combinatorics to skip some duplicate evaluations over permutations
 
         # print("?", cind_sets)
@@ -2367,6 +2555,7 @@ class PerturbationTheoryExpressionEvaluator:
         if len(good_pref) == 0 or len(good_pref[0]) == 0: return contrib
         prefac_groups = nput.group_by(good_pref[0], good_pref[1])[0] # group perms by corresponding cinds
 
+        # with logger.block(tag='fs: {fs}', fs=full_set):
         for g,pi in zip(*prefac_groups):
             prefacs = prefactors[pi,][:, g]
             g_key = cind_sets[g]
@@ -2378,35 +2567,35 @@ class PerturbationTheoryExpressionEvaluator:
             ):
                 subexpr = self.expr.terms[g_key]
                 if isinstance(subexpr, PTEnergyChangeProductSum):
-                    subcontrib = 0
+                    subcontrib = np.zeros([len(state), len(perms)])
                     for echanges, polys in subexpr.terms.items():
-                        energy_factors = self._compute_energy_weights(echanges, freqs, full_set, perms[pi,])
-                        # TODO: check size of energy factor
-                        with logger.block(tag="scaling: {s}", s=polys.prefactor if hasattr(polys, 'polys') else 1,
-                                                 log_level=log_level):
+                        with logger.block(tag="{e} * {p}",
+                                          e=PTEnergyChangeProductSum.format_key(echanges),
+                                          p=polys,
+                                          log_level=log_level):
+                            energy_factors = self._compute_energy_weights(echanges, freqs, full_set, perms[pi,])
+                            # TODO: check size of energy factor
                             poly_factor = self._eval_poly(state, self.num_fixed, subset, polys, self.change, verbose, logger)
-                        if not nput.is_zero(poly_factor):
-                            scaled_contrib = poly_factor[:, np.newaxis] / energy_factors[np.newaxis, :]
-                            with logger.block(tag="{e}", e=PTEnergyChangeProductSum.format_key(echanges),
-                                              log_level=log_level):
+                            if not nput.is_zero(poly_factor):
+                                scaled_contrib = poly_factor[:, np.newaxis] / energy_factors[np.newaxis, :]
                                 logger.log_print("engs: {ef}", ef=energy_factors.squeeze(), log_level=log_level)
                                 logger.log_print("poly: {pf}", pf=poly_factor.squeeze(), log_level=log_level)
                                 logger.log_print("sc: {pf}",
-                                                 pf=(prefacs[:, np.newaxis]*scaled_contrib).squeeze()*219475.6,
+                                                 pf=(prefacs[np.newaxis, :]*scaled_contrib).squeeze()*log_scaling,
                                                  log_level=log_level)
 
                         subcontrib += scaled_contrib
                     subcontrib *= subexpr.prefactor
                 elif isinstance(subexpr, (ProductPTPolynomial, ProductPTPolynomialSum)):
                     subcontrib = self._eval_poly(state, self.num_fixed, subset, subexpr, self.change, verbose, logger)
+                    print(">>>1", subcontrib.shape, contrib.shape)
                     if not nput.is_zero(subcontrib):
                         subcontrib = subcontrib[:, np.newaxis]
                 else:
                     raise ValueError("how the hell did we end up with {}".format(subexpr))
 
                 val = prefacs[np.newaxis, :] * subcontrib
-                logger.log_print("contrib: {e}", e=val.squeeze()*219475.6,
-                                                 log_level=log_level)
+                logger.log_print("contrib: {e}", e=val.squeeze()*log_scaling, log_level=log_level)
                 contrib += val
             # base_prefactor = subexpr.prefactor
             # if isinstance(subexpr, ProductPTPolynomialSum):
@@ -2417,11 +2606,10 @@ class PerturbationTheoryExpressionEvaluator:
             #     poly_coeffs = subexpr.coeffs
             # print(poly_coeffs)
 
-        logger.log_print("{c}", c=contrib.squeeze() * 219475.6,
-                                                 log_level=log_level)
+            logger.log_print("{c}", c=contrib.squeeze() * log_scaling, log_level=log_level)
         return contrib
 
-    def evaluate(self, state, coeffs, freqs, perms=None, zero_cutoff=None, verbose=True):
+    def evaluate(self, state, coeffs, freqs, perms=None, zero_cutoff=None, verbose=False, log_scaled=True):
         # we do state-by-state evaluation for now although we will at some
         # point need to do this in batches
 
@@ -2464,13 +2652,13 @@ class PerturbationTheoryExpressionEvaluator:
                     if free_inds == 0:
                         with logger.block(tag="()", log_level=log_level):
                             contrib += self._eval_perm((), state, perms, coeffs, freqs, cind_sets, zero_cutoff, eval_cache,
-                                                       verbose, logger)
+                                                       verbose, logger, log_scaled)
                     else:
                         for subset in itertools.combinations(range(self.num_fixed, ndim), r=free_inds):
                             for subperm in itertools.permutations(subset):
                                 with logger.block(tag="{s}", s=subperm, log_level=log_level):
                                     contrib += self._eval_perm(subperm, state, perms, coeffs, freqs, cind_sets, zero_cutoff, eval_cache,
-                                                               verbose, logger)
+                                                               verbose, logger, log_scaled)
                     # raise Exception(cind_sets)
             res = self.expr.prefactor * contrib
 
@@ -2514,7 +2702,7 @@ class PerturbationTheoryEvaluator:
         ]
 
         corrs = [
-            evaluator.evaluate(states, expansions, freqs, verbose=verbose)
+            evaluator.evaluate(states, expansions, freqs, verbose=verbose, log_scaled=True)
             for evaluator in energy_evaluators
         ]
 
@@ -2530,7 +2718,7 @@ class PerturbationTheoryEvaluator:
         ]
 
         corrs = [
-            evaluator.evaluate(states, expansions, freqs, verbose=verbose)
+            evaluator.evaluate(states, expansions, freqs, verbose=verbose, log_scaled=False)
             for evaluator in overlap_evaluators
         ]
 
@@ -2564,11 +2752,55 @@ class PerturbationTheoryEvaluator:
         base_change = np.pad(change, [0, len(initial) - len(change)])
         return np.array([initial + base_change[p] for p in perms])
 
-
     PTCorrections = collections.namedtuple("PTCorrections",
-                                        ['initial_states', 'final_states', 'corrections']
-                                        )
-    def get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+                                           ['initial_states', 'final_states', 'corrections']
+                                           )
+    def _reformat_corrections(self, states, order, corrs, change_map):
+        # reshape to allow for better manipulation
+        final_corrs = [
+            [[] for _ in range(order + 1)]
+            for _ in range(len(states))
+        ]
+        final_states = [
+            []
+            for _ in range(len(states))
+        ]
+        for change, corr_block in corrs.items():
+            for n, s in enumerate(states):
+                for o, c in enumerate(corr_block):
+                    final_corrs[n][o].append(c)
+                finals = self.get_finals(s, change, change_map[change])
+                final_states[n].append(finals)
+
+        for n, cb in enumerate(final_corrs):
+            for o, c in enumerate(cb):
+                cb[o] = np.concatenate(c, axis=1)
+
+        for n, s in enumerate(final_states):
+            final_states[n] = np.concatenate(s, axis=0)
+
+        return self.PTCorrections(states, final_states, [np.concatenate(c, axis=0).T for c in final_corrs])
+
+    def _build_corrections(self, corr_gen, states, expansions, order, change_map, freqs, verbose):
+        corrs = {}
+        for o in range(order + 1):
+            generator = corr_gen(o)
+            for change, perms in change_map.items():
+                corr_block = corrs.get(change, [])
+                corrs[change] = corr_block
+                expr = generator(change)
+                gen_corrs = expr.evaluate(
+                    states,
+                    expansions,
+                    freqs,
+                    perms=perms,
+                    verbose=verbose,
+                    log_scaled=False
+                )
+                corr_block.append(gen_corrs)
+        return corrs
+
+    def get_state_by_state_corrections(self, generator, states, order=None, expansions=None, freqs=None, verbose=False):
         if expansions is None: expansions = self.expansions
         if freqs is None: freqs = self.freqs
         if order is None: order = len(self.expansions) - 1
@@ -2580,58 +2812,21 @@ class PerturbationTheoryEvaluator:
             ]
         states, change_map = self.get_diff_map(states)
 
-        corrs = {}
-        for o in range(order+1):
-            generator = self.solver.wavefunction_correction(o)
-            for change, perms in change_map.items():
-                corr_block = corrs.get(change, [])
-                corrs[change] = corr_block
-                expr = generator(change)
-                gen_corrs = expr.evaluate(
-                        states,
-                        expansions,
-                        freqs,
-                        perms=perms,
-                        verbose=verbose
-                        )
-                corr_block.append(gen_corrs)
+        corrs = self._build_corrections(generator, states, expansions, order, change_map, freqs, verbose)
+        return self._reformat_corrections(states, order, corrs, change_map)
 
-        # reshape to allow for better manipulation
-        final_corrs = [
-            [[] for _ in range(order+1)]
-            for _ in range(len(states))
-        ]
-        final_states = [
-            []
-            for _ in range(len(states))
-        ]
-        for change, corr_block in corrs.items():
-            for n,s in enumerate(states):
-                for o,c in enumerate(corr_block):
-                    final_corrs[n][o].append(c)
-                finals = self.get_finals(s, change, change_map[change])
-                final_states[n].append(finals)
+    def get_matrix_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+        gen = lambda o: self.solver.hamiltonian_expansion[o]
+        return self.get_state_by_state_corrections(gen, states,
+                                                   order=order, expansions=expansions, freqs=freqs, verbose=verbose)
 
-        for n,cb in enumerate(final_corrs):
-            for o,c in enumerate(cb):
-                cb[o] = np.concatenate(c, axis=0)
-
-        for n,s in enumerate(final_states):
-            final_states[n] = np.concatenate(s, axis=0)
-
-        return self.PTCorrections(states, final_states, final_corrs)
+    def get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+        return self.get_state_by_state_corrections(self.solver.wavefunction_correction, states,
+                                                   order=order, expansions=expansions, freqs=freqs, verbose=verbose)
 
     def get_operator_corrections(self, operator_expansion, states, order=None, expansions=None, freqs=None, verbose=False):
         if expansions is None: expansions = self.expansions
-        if freqs is None: freqs = self.freqs
         if order is None: order = len(operator_expansion) - 1
-
-        all_gs = nput.is_numeric(states[0][0])
-        if all_gs:
-            states = [
-                [[0] * len(states[0]), states]
-            ]
-        states, change_map = self.get_diff_map(states)
 
         exps = []
         for base, op in zip(expansions, operator_expansion):
@@ -2640,43 +2835,5 @@ class PerturbationTheoryEvaluator:
                 base + [0] * (5 - len(base)) + [op]
             )
 
-        corrs = {}
-        for o in range(order+1):
-            generator = self.solver.operator_correction(o)
-            for change, perms in change_map.items():
-                corr_block = corrs.get(change, [])
-                corrs[change] = corr_block
-                expr = generator(change)
-                gen_corrs = expr.evaluate(
-                        states,
-                        exps,
-                        freqs,
-                        perms=perms,
-                        verbose=verbose
-                        )
-                corr_block.append(gen_corrs)
-
-        # reshape to allow for better manipulation
-        final_corrs = [
-            [[] for _ in range(order+1)]
-            for _ in range(len(states))
-        ]
-        final_states = [
-            []
-            for _ in range(len(states))
-        ]
-        for change, corr_block in corrs.items():
-            for n,s in enumerate(states):
-                for o,c in enumerate(corr_block):
-                    final_corrs[n][o].append(c)
-                finals = self.get_finals(s, change, change_map[change])
-                final_states[n].append(finals)
-
-        for n,cb in enumerate(final_corrs):
-            for o,c in enumerate(cb):
-                cb[o] = np.concatenate(c, axis=0)
-
-        for n,s in enumerate(final_states):
-            final_states[n] = np.concatenate(s, axis=0)
-
-        return self.PTCorrections(states, final_states, final_corrs)
+        return self.get_state_by_state_corrections(self.solver.operator_correction, states,
+                                                   order=order, expansions=exps, freqs=freqs, verbose=verbose)
