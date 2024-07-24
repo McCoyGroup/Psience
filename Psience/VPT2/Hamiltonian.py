@@ -4,7 +4,7 @@ Provides support for build perturbation theory Hamiltonians
 
 import numpy as np, itertools, time
 
-from McUtils.Numputils import SparseArray, vec_outer
+import McUtils.Numputils as nput
 from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer, ParameterManager
 from McUtils.Parallelizers import Parallelizer
 from McUtils.Combinatorics import CompleteSymmetricGroupSpace
@@ -237,17 +237,17 @@ class PerturbationTheoryHamiltonian:
         def adjust_base_term(self, V):
             return V
     class CoriolisTermGetter(TermGetter):
-        def take_mode_subset(self, Z, sel):
-            if sel is None:
-                return Z
-            else:
-                zz = []
-                for z in zz:
-
-                    for i in range(z.ndim):
-                        z = np.take(z, self.mode_selection, axis=i)
-                    zz.append(z)
-                return zz
+        # def take_mode_subset(self, Z, sel):
+        #     if sel is None or nput.is_zero(Z):
+        #         return Z
+        #     else:
+        #         if isinstance(Z, np.ndarray) and Z.ndim ==
+        #         zz = Z
+        #         for z in zz:
+        #             for i in range(z.ndim):
+        #                 z = np.take(z, self.mode_selection, axis=i)
+        #             zz.append(z)
+        #         return zz
         def adjust_base_term(self, Z):
             Z = Z[0, 0] + Z[1, 1] + Z[2, 2]
             return Z
@@ -609,7 +609,7 @@ class PerturbationTheoryHamiltonian:
 
         e_harm = np.tensordot(freqs, states, axes=[0, 1])
 
-        outer_states = vec_outer(states, states)
+        outer_states = nput.vec_outer(states, states)
 
         if x_mat.ndim > 2:
             weights = np.full(x_mat[0].shape, 1/2)

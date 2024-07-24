@@ -1168,7 +1168,7 @@ class ContractedOperator(Operator):
 
     def _get_element_block(self, idx, parallelizer=None, check_orthogonality=True, memory_constrained=False):
         c = self.coeffs
-        if not isinstance(c, (int, np.integer, float, np.floating)):
+        if not nput.is_numeric(c):
             # takes an (e.g.) 5-dimensional SparseTensor and turns it into a contracted 2D one
             axes = self.axes
             if axes is None:

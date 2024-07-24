@@ -918,7 +918,7 @@ class MolecularProperties:
         """
         m1 = ref_mol._atomic_masses()
         m2 = mol._atomic_masses()
-        if not np.all(m1 == m2):
+        if not np.allclose(m1, m2, rtol=1e-4):
             raise ValueError("Eckart reference has different masses from scan ({}) vs. ({})".format(
                 m1,
                 m2
