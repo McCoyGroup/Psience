@@ -102,7 +102,7 @@ class VPT2Tests(TestCase):
         #     # for j in range(2, 4):
         #     #     dips[a][j][:] = 0
 
-            dips[a][1][:] = 0
+            # dips[a][1][:] = 0
             # b = dips[a][1]
             # for j in range(1, 3): b[j] = 0
             # b = dips[a][2]
@@ -110,7 +110,7 @@ class VPT2Tests(TestCase):
             #     b[j,k] = 0
             # for j in range(1, 3):
             #     b[j, j] = 0
-            # dips[a][2][:] = 0
+            dips[a][2][:] = 0
             dips[a][3][:] = 0
             # b = dips[a][3]
             # for j, k in itertools.permutations(range(1, 3), 2):
@@ -243,11 +243,11 @@ class VPT2Tests(TestCase):
         # raise Exception(...)
 
 
-        # corrs = driver.get_energy_corrections(
-        #         states,
-        #         verbose=True
-        #     )
-        # ugh = sum(corrs) * UnitsData.convert("Hartrees", "Wavenumbers")
+        corrs = driver.get_energy_corrections(
+                states,
+                verbose=False
+            )
+        ugh = sum(corrs) * UnitsData.convert("Hartrees", "Wavenumbers")
         # raise Exception(
         #     corrs[0].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
         #     corrs[1].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
@@ -258,23 +258,16 @@ class VPT2Tests(TestCase):
         #     self.assertAlmostEquals(ugh[0][0], 4605.96833306)
         #     self.assertAlmostEquals(ugh[1][0] - ugh[0][0], 1571.96615004)
 
-        """
-        >>------------------------- IR Data -------------------------
-:: Initial State: 0 0 0 
-                   Harmonic                  Anharmonic
-State       Frequency    Intensity       Frequency    Intensity
-  0 0 1    3937.52463      0.00000      3746.39286      0.00464
-  0 2 0    7606.59913      0.00000      7156.18313      0.00000
->>--------------------------------------------------<<
-"""
         raise Exception(
             # 67.45626 /
             #     (1622.30303 * UnitsData.convert("Wavenumbers", "Hartrees")) /
             #     UnitsData.convert("OscillatorStrength", "KilometersPerMole"),
             # 68.23142,
             # 65.34622,
-            driver.get_spectrum(states[1:2], axes=[2], dipole_expansion=dips,
-                                # terms=[(0, 0, 2)]
+            driver.get_spectrum(states[1:2],
+                                # axes=[2],
+                                dipole_expansion=dips,
+                                # terms=[(1, 1, 0)]
                                 )
             # driver.get_transition_moment_corrections([[1, 0, 0]], order=0)[2].corrections[0][0]**2
         )
