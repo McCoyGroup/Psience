@@ -99,6 +99,17 @@ class PerturbationTheoryHamiltonian:
         self.molecule = molecule
         if modes is None:
             modes = molecule.normal_modes.modes
+        if isinstance(mode_selection, dict):
+            submodes = mode_selection.get('modes', None)
+            if submodes is not None:
+                modes = modes[submodes]
+            rephase = mode_selection.get('rephase', True)
+            if rephase:
+                phases = self.molecule.normal_modes.get_fchk_normal_mode_rephasing(modes.basis)
+                if phases is not None:
+                    modes = modes.rotate(phases)
+            mode_selection = mode_selection.get('derivatives', None)
+
         if mode_selection is not None:
             mode_selection = tuple(mode_selection)
         mode_n = modes.basis.matrix.shape[1] if mode_selection is None else len(mode_selection)
@@ -111,6 +122,7 @@ class PerturbationTheoryHamiltonian:
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.integer)) else tuple(n_quanta)
         self.modes = modes
         self.mode_selection = mode_selection
+
 
         expansion_options['logger'] = self.logger
         expansion_options['checkpointer'] = self.results if self.results is not None else self.checkpointer

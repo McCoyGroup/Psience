@@ -140,7 +140,13 @@ class VPTSystem:
         :rtype:
         """
         if self.mode_selection is not None:
-            return len(self.mode_selection)
+            if isinstance(self.mode_selection, dict):
+                mode_spec = self.mode_selection.get('derivatives', None)
+                if mode_spec is None:
+                    mode_spec = self.mode_selection.get('modes', None)
+            else:
+                mode_spec = self.mode_selection
+            return len(mode_spec)
         else:
             return len(self.mol.normal_modes.modes.freqs)
 
@@ -2308,37 +2314,65 @@ class AnalyticVPTRunner:
         return self.eval.get_energy_corrections(state_space.state_list,
                                                 order=order,
                                                 verbose=verbose)
+    def get_overlap_corrections(self,
+                                     states,
+                                     order=None, verbose=False
+                                     ):
+        state_space = VPTStateSpace(states)
+        return self.eval.get_overlap_corrections(
+            state_space.state_list,
+            order=order,
+            verbose=verbose
+        )
+    def get_wavefunction_corrections(self,
+                                     states,
+                                     order=None, verbose=False
+                                     ):
+        state_space = VPTStateSpace(states)
+        return self.eval.get_wavefunction_corrections(
+            state_space.state_list,
+            order=order,
+            verbose=verbose
+        )
 
     # def get_diff_classes(self, inial):
 
     def get_operator_corrections(self,
                                  operator_expansion, states,
-                                 order=None, verbose=False
+                                 order=None, terms=None, verbose=False
                                  ):
         state_space = VPTStateSpace(states)
         return self.eval.get_operator_corrections(
             operator_expansion, state_space.state_list,
-            order=order,
+            order=order, terms=terms,
             verbose=verbose)
 
+
+
     def get_transition_moment_corrections(self, states, dipole_expansion=None,
-                                 order=None, verbose=False, axes=None):
+                                 order=None, terms=None, verbose=False, axes=None):
         if dipole_expansion is None:
             if order is None:
                 if self.expansion_order is not None:
                     order = self.expansion_order.get('dipole', None)
             dipole_expansion = self.ham.dipole_terms.get_terms(order)
 
+
         corrs = []
         if axes is None: axes = [0, 1, 2]
         for x in axes:
             corrs.append(
-                self.get_operator_corrections(dipole_expansion[x][1:], states, order=order, verbose=verbose)
+                self.get_operator_corrections(
+                    [x/np.math.factorial(i+1) for i,x in enumerate(dipole_expansion[x][1:])],
+                    states, order=order, verbose=verbose, terms=terms
+                )
             )
 
         return corrs
 
-    def get_spectrum(self, states, dipole_expansion=None, order=None, energy_order=None, verbose=True):
+    def get_spectrum(self, states, dipole_expansion=None, order=None, energy_order=None, axes=None,
+                     terms=None,
+                     verbose=True):
         """
 
         :param states:
@@ -2349,7 +2383,7 @@ class AnalyticVPTRunner:
         :return:
         """
 
-        # all_state = [[0, 0, 0], [1, 0, 0]]
+        # all_state = [[0, 0, 0], [0, 0, 1]]
         # engs = sum(self.get_energy_corrections(all_state, order=energy_order, verbose=verbose))
         # freqs1 = engs[1:] - engs[0]
         # raise Exception(
@@ -2358,25 +2392,21 @@ class AnalyticVPTRunner:
 
         all_gs = nput.is_numeric(states[0][0])
         base_corrs = self.get_transition_moment_corrections(states,
-                                                            axes=[2],
+                                                            axes=axes,
                                                             dipole_expansion=dipole_expansion,
-                                                            order=order, verbose=verbose)
-        # raise Exception(...)
+                                                            order=order, terms=terms, verbose=verbose)
         if energy_order is None: energy_order = order
         specs = []
         for n,initial_state in enumerate(base_corrs[0].initial_states):
             all_state = np.concatenate([[initial_state], base_corrs[0].final_states[n]], axis=0)
             engs = sum(self.get_energy_corrections(all_state, order=energy_order, verbose=False))
             freqs = engs[1:] - engs[0]
-            # raise Exception(
-            #     # freqs1 * UnitsData.convert("Hartrees", "Wavenumbers"),
-            #     freqs * UnitsData.convert("Hartrees", "Wavenumbers")
-            # )
-            tmoms = sum(np.sum(corr.corrections[n], axis=0)**2 for corr in base_corrs)
+            tmoms = sum(np.sum(corr.corrections[n], axis=1)**2 for corr in base_corrs)
             ints = freqs * tmoms
             specs.append([
                 freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
                 ints * UnitsData.convert("OscillatorStrength", "KilometersPerMole")
             ])
         if all_gs: specs = specs[0]
+
         return specs

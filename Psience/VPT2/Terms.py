@@ -2314,8 +2314,6 @@ class CoriolisTerm(ExpansionTerms):
             for n in range(J.shape[0])
         )
 
-        # raise Exception(np.round(zeta, 3))
-
         return zeta, B_e
 
     def get_zetas(self):
@@ -2887,7 +2885,10 @@ class DipoleTerms(ExpansionTerms):
                                                   values_name="U"
                                                   ).convert(order=order)  # , check_arrays=True)
                 terms = list(terms)
-                if order > 1:
+                if (
+                        self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled
+                        and order > 1
+                ):
                     v2 = terms[1]
                     # Gaussian gives slightly different constants
                     # depending on whether the analytic or numerical derivs
@@ -2911,7 +2912,6 @@ class DipoleTerms(ExpansionTerms):
                                 )
                             )
 
-                if order > 2:
                     v3 = terms[2]
                     for i in range(v3.shape[0]):
                         r = range(v3.shape[0])

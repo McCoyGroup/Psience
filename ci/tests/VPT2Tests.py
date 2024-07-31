@@ -46,10 +46,10 @@ class VPT2Tests(TestCase):
         internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
         internals = None
         file_name = 'HOH_freq.fchk'
-        states = [[0, 0, 0], [1, 0, 0], [0, 2, 0]]
-        mode_selection = None
-        # states = [[0], [1]]#, [2], [3]]
-        # mode_selection = [0]
+        # states = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 2, 0]]
+        # mode_selection = None
+        states = [[0], [1], [3]]#, [2], [3]]
+        mode_selection = [0]
         # states = [[0, 0], [1, 0]]#, [0, 1], [0, 3]]
         # mode_selection = [0, 1]
 
@@ -64,9 +64,10 @@ class VPT2Tests(TestCase):
                 # 'kinetic': 0,
                 # 'pseudopotential': 0,
                 # 'coriolis': 0,
-                # 'dipole':2
+                # 'dipole':0
             }
         )
+
         # driver.eval.expansions[2][0] = 0
         #
         # driver.eval.freqs = np.array([500, 1500]) * UnitsData.convert("Wavenumbers", "Hartrees")
@@ -82,10 +83,6 @@ class VPT2Tests(TestCase):
         # for p in itertools.permutations([0, 0, 1]):
         #     t[p] = 100 * UnitsData.convert("Wavenumbers", "Hartrees")
 
-        """
-        -174.36706
-        """
-
         # t[0, 0, 0] = 0
         # for p in itertools.permutations([0, 2, 2]):
         #     t[p] = 0
@@ -94,28 +91,46 @@ class VPT2Tests(TestCase):
         #         t[p] = 0
         #     for p in itertools.permutations([0, j, j]):
         #         t[p] = 0
-        dips = driver.ham.dipole_terms.get_terms(2)
+        dips = [list(dd) for dd in driver.ham.dipole_terms.get_terms(2)]
         # # raise Exception(dips[2][3])
-        # for a in range(3):
-        #     b = dips[a][1]
-        #     for j in range(1, 3): b[j] = 0
-        #     b = dips[a][2]
-        #     b[:] = 0
-        #     # for j,k in itertools.permutations([0, 1, 2], 2):
-        #     #     b[j,k] = 0
-        #     #     if j!=0: b[j, j] = 0
-        #     b = dips[a][3]
-        #     b[:] = 0
-        #     # for j, k in itertools.permutations(range(1, 3), 2):
-        #     #     for p in itertools.permutations([0, 0, j]):
-        #     #         b[p] = 0
-        #     #     for p in itertools.permutations([j, j, k]):
-        #     #         b[p] = 0
-        #     #     for p in itertools.permutations([0, j, k]):
-        #     #         b[p] = 0
-        #     #     for p in itertools.permutations([0, j, j]):
-        #     #         b[p] = 0
-        # # raise Exception(dips[2][3])
+        for a in range(3):
+            dips[a][0] = 0
+            if a < 2:
+                dips[a][1][:] = 0
+                dips[a][2][:] = 0
+                dips[a][3][:] = 0
+        #     # for j in range(2, 4):
+        #     #     dips[a][j][:] = 0
+
+            dips[a][1][:] = 0
+            # b = dips[a][1]
+            # for j in range(1, 3): b[j] = 0
+            # b = dips[a][2]
+            # for j,k in itertools.permutations([0, 1, 2], 2):
+            #     b[j,k] = 0
+            # for j in range(1, 3):
+            #     b[j, j] = 0
+            # dips[a][2][:] = 0
+            dips[a][3][:] = 0
+            # b = dips[a][3]
+            # for j, k in itertools.permutations(range(1, 3), 2):
+            #     for p in itertools.permutations([0, 0, j]):
+            #         b[p] = 0
+            #     for p in itertools.permutations([j, j, k]):
+            #         b[p] = 0
+            #     for p in itertools.permutations([0, j, k]):
+            #         b[p] = 0
+            #     for p in itertools.permutations([0, j, j]):
+            #         b[p] = 0
+        # raise Exception(dips[2][3])
+
+        # raise Exception(
+        #     driver.eval.solver.operator_correction(2).expressions[2].get_poly_terms([1]).format_expr()
+        # )
+
+        # raise Exception(
+        #     driver.eval.solver.operator_correction(2).expressions[3].get_poly_terms([1]).format_expr()
+        # )
 
         runner, _ = VPTRunner.construct(
             TestManager.test_data(file_name),
@@ -140,15 +155,18 @@ class VPT2Tests(TestCase):
             pseudopotential_terms=[8*driver.eval.expansions[2][4]],
             dipole_terms=dips
         )
-        # runner.print_tables(print_intensities=True)
+        runner.print_tables(print_intensities=True)
 
         """
-        1 0 0    1622.30304     67.45626      1571.96615     68.27080
-        0 2 0    7606.59913      0.00000      7156.18313      0.31500
+        >>------------------------- IR Data -------------------------
+        :: Initial State: 0 0 0 
+                           Harmonic                  Anharmonic
+        State       Frequency    Intensity       Frequency    Intensity
+          0 0 1    3937.52463      0.00000      3746.39286      0.00464
+          0 2 0    7606.59913      0.00000      7156.18313      0.00000
+        >>--------------------------------------------------<<
         """
 
-        # wfns = runner.get_wavefunctions()
-        # print(wfns.corrs.wfn_corrections[2].todense()[:, :4])
         # solver = runner.get_solver()
         # subblock = solver.representations[1].todense()[:3, :3]
         # print(subblock)
@@ -167,12 +185,28 @@ class VPT2Tests(TestCase):
         #  [-0.07149664  0.          0.        ]
         #  [-0.0231548   0.          0.        ]]
         #  """
-        # corrs = driver.eval.get_wavefunction_corrections([[1, 0, 0], [0, 2, 0]], order=2, verbose=True)
+
+        # print(
+        #     driver.eval.solver.overlap_correction(2).expressions[0].base.gen2.get_poly_terms([-1], shift=[1]).format_expr(),
+        #     driver.eval.solver.overlap_correction(2).expressions[0].base.gen1.get_poly_terms([1]).format_expr()
+        #     #S[n_0,-1]*(V[1][0, 0, 0]*(1.0607n[0])/(-w[0]) + V[1][0, 1, 1]*((1.0607*(1.0)(1.0+2.0n[1]))/(-w[0]+0w[1])))
+        # )
+        # raise Exception(...)
+
+        # wfns = runner.get_wavefunctions()
+        # corrs = driver.eval.get_wavefunction_corrections(states, order=1, verbose=True)
+        # corrs = driver.eval.get_overlap_corrections(states, order=2, verbose=True)
+        # print(wfns.corrs.wfn_corrections[1].todense()[:, :7])
+        # print(wfns.corrs.wfn_corrections[2].todense()[:, :7])
+        # print(corrs)
+        # raise Exception(...)
+
         # corrs = driver.eval.get_wavefunction_corrections([[1], [2], [3]], order=2, verbose=True)
-        # -0.00312126
+        # -0.00312126"""
 
         # woof = driver.eval.solver.overlap_correction(2)
-        # # woof = driver.eval.solver.wavefunction_correction(1)
+        # woof = driver.get_wavefunction_corrections(states, order=2)
+        # raise Exception(woof)
         # H1 = driver.eval.solver.hamiltonian_expansion[1]
         # # raise Exception(
         # #     H1.get_poly_terms([-1], shift=[1]).format_expr()
@@ -208,27 +242,40 @@ class VPT2Tests(TestCase):
         #
         # raise Exception(...)
 
-        corrs = driver.get_energy_corrections(
-                states,
-                verbose=True
-            )
-        ugh = sum(corrs) * UnitsData.convert("Hartrees", "Wavenumbers")
+
+        # corrs = driver.get_energy_corrections(
+        #         states,
+        #         verbose=True
+        #     )
+        # ugh = sum(corrs) * UnitsData.convert("Hartrees", "Wavenumbers")
         # raise Exception(
         #     corrs[0].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
         #     corrs[1].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
         #     ugh[0],
         #     ugh[1] - ugh[0]
         # )
-        self.assertAlmostEquals(ugh[0][0], 4605.96833306)
-        self.assertAlmostEquals(ugh[1][0] - ugh[0][0], 1571.96615004)
+        # if mode_selection is not None and len(mode_selection) == 3:
+        #     self.assertAlmostEquals(ugh[0][0], 4605.96833306)
+        #     self.assertAlmostEquals(ugh[1][0] - ugh[0][0], 1571.96615004)
 
+        """
+        >>------------------------- IR Data -------------------------
+:: Initial State: 0 0 0 
+                   Harmonic                  Anharmonic
+State       Frequency    Intensity       Frequency    Intensity
+  0 0 1    3937.52463      0.00000      3746.39286      0.00464
+  0 2 0    7606.59913      0.00000      7156.18313      0.00000
+>>--------------------------------------------------<<
+"""
         raise Exception(
             # 67.45626 /
             #     (1622.30303 * UnitsData.convert("Wavenumbers", "Hartrees")) /
             #     UnitsData.convert("OscillatorStrength", "KilometersPerMole"),
             # 68.23142,
             # 65.34622,
-            driver.get_spectrum([[1, 0, 0]], dipole_expansion=dips)
+            driver.get_spectrum(states[1:2], axes=[2], dipole_expansion=dips,
+                                # terms=[(0, 0, 2)]
+                                )
             # driver.get_transition_moment_corrections([[1, 0, 0]], order=0)[2].corrections[0][0]**2
         )
 
@@ -242,6 +289,36 @@ class VPT2Tests(TestCase):
         )
 
         raise Exception(specs)
+
+    @validationTest
+    def test_GaussianSelectAnharmonicVPT(self):
+
+        file_name = os.path.expanduser("~/Desktop/freq_anion.fchk")
+        VPTRunner.run_simple(file_name,
+                             2,
+                             mode_selection={
+                                 "modes": np.array([108 - 21, 108 - 20, 108 - 19, 108 - 1]),
+                                 # "derivatives": [0, 1, 2]
+                             },
+                             degeneracy_specs=[
+                                 [
+                                     [0, 0, 0, 1],
+                                     [0, 0, 2, 0],
+                                     [0, 2, 0, 0],
+                                     [2, 0, 0, 0],
+                                     [0, 1, 1, 0],
+                                     [1, 0, 1, 0],
+                                     [1, 1, 0, 0]
+                                 ]
+                             ]
+                             )
+        # print(
+        #     woof.hamiltonian.V_terms[2] * 219475.6
+        # )
+        # raise Exception(
+        #     runner.hamiltonian.molecule
+        # )
+
 
     @validationTest
     def test_NewEmbedding(self):

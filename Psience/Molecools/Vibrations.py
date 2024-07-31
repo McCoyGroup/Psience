@@ -214,9 +214,9 @@ class MolecularVibrations:
         :rtype:
         """
 
-        if isinstance(item, int):
+        if nput.is_numeric(item):
             item = (item,)
-        elif not isinstance(item[0], int):
+        elif not nput.is_numeric(item[0]):
             item = tuple(item[0])
 
         m = self._basis[item]
