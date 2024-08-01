@@ -265,38 +265,37 @@ class HarmonicOscillatorRaisingLoweringPolyTerms:
         return coeffs
 
     @classmethod
-    def get_direction_change_poly(cls, delta, shift):
-        if not isinstance(delta, (int, np.integer)):
-            return [cls.get_direction_change_poly(d, s) for d,s in zip(delta, shift)]
+    def get_direction_change_poly(cls, delta, shift, baseline=0):
+        if not nput.is_numeric(delta):
+            if nput.is_numeric(baseline): baseline = [baseline] * len(shift)
+            return [cls.get_direction_change_poly(d, s, b) for d,s,b in zip(delta, shift, baseline)]
 
-        sqrt_contrib = [1]
+        sqrt_contrib = np.array([1])
         if delta != 0:
             dir_change = np.sign(delta) == -np.sign(shift)  # avoid the zero case
             if dir_change:
-                sqrt_contrib = HarmonicOscillatorRaisingLoweringPolyTerms.get_sqrt_remainder_coeffs(delta, shift)
+                sqrt_contrib = cls.get_sqrt_remainder_coeffs(delta, shift, baseline)
         return sqrt_contrib
 
     @classmethod
-    def get_sqrt_remainder_coeffs(cls, delta, k):
+    def get_sqrt_remainder_coeffs(cls, delta, prev, baseline=0):
         # provides rising or falling coeffs with a starting shift
-        # by essentially only providing rising coeffs but
-        # shifting appropriately
-        d = min(abs(delta), abs(k))
-        if delta == 0:
-            return 1
+        # by essentially only providing rising coeffs but shifting appropriately
+        d = min(abs(delta), abs(prev))
+        if delta == 0: return 1
         elif delta < 0:
-            # we're falling towards zero from above, so we shift our starting point
+            # we're falling towards the baseline from above, so we shift our starting point
             # and swap the ordering so we can use a rising fac instead
-            k = k - d
+            prev = prev - d
         # because of the asymmetry of falling and rising
-        # we shift our starting point
-        k = k + 1
+        # we shift our starting point, and then adjust for the baseline shift
+        k = prev + 1 + baseline
         if k == 0:
             return np.array([ np.abs(cls.s1(d, j)) for j in range(0, d + 1) ])
         else:
             return np.array([
                 sum(
-                    cls.binom(j, l) * np.abs(cls.s1(d, j)) * (k**(j-l))
+                    cls.binom(j, l) * np.abs(cls.s1(d, j)) * (k ** (j - l))
                     for j in range(l, d+1)
                 )
                 for l in range(0, d+1)
@@ -539,7 +538,7 @@ class HarmonicOscillatorMatrixGenerator:
         if abs(delta) > len(terms):
             return 0
         if len(terms) == 0:
-            return [1] # just the constant overlap term
+            return np.array([1]) # just the constant overlap term
         # we know we need to change by delta
         # over
         if terms not in cls._size_blocks_cache:

@@ -40,8 +40,8 @@ setup(
     # Customize MANIFEST.in if the general case does not suit your needs
     # Comment out this line to prevent the files from being packaged with your software
     # include_package_data=True
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     install_requires=[
-        'mccoygroup-mcutils>=0.1.2.1'
+        'mccoygroup-mcutils>=0.1.2.2'
     ]
 )

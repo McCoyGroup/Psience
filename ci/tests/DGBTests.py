@@ -3354,27 +3354,54 @@ class DGBTests(TestCase):
                     derivs[n] = np.moveaxis(d * (w2h * a2b**(n+1)), -1, 0)
                 pot_vals = [pot_vals] + derivs
             return pot_vals
+
+        ref_dip0 = np.array([ 1.94509054e-10, -1.61826704e-10, -9.28736197e-01])
+        ref_dip = np.array([[-0.318, -0., -0.],
+                            [-0., -0.434, 0.],
+                            [-0., 0., -0.745],
+                            [0.126, 0., 0.],
+                            [-0., 0.755, 0.],
+                            [-0., -0., 0.874],
+                            [0.096, -0., 0.],
+                            [-0., -0.161, 0.144],
+                            [-0., 0.083, -0.065],
+                            [0.096, -0., -0.],
+                            [0., -0.161, -0.144],
+                            [0., -0.083, -0.065]
+                            ])
         def dip(crds,
                 deriv_order=None,
-                ch_scaling=.05,
-                reCH=np.linalg.norm(ref_struct[2]-ref_struct[1]),
-                reOH=np.linalg.norm(ref_struct[0]-ref_struct[1]),
-                muOH=-0.3,
-                muCH= 0.2
+                ref_dip=ref_dip
                 ):
-
             crds = mol.embed_coords(crds)
+            dx = (crds - mol.coords[np.newaxis]).reshape(-1, 12)
+            mu = ref_dip0[np.newaxis] + dx @ ref_dip
+            if deriv_order is not None:
+                vals = [mu]
+                if deriv_order > 0:
+                    der = ref_dip
+                    for _ in crds.shape[:-2]: der = np.expand_dims(der, 0)
+                    der = np.broadcast_to(der, crds.shape[:-2] + der.shape)
+                    vals.append(der)
+
+                if deriv_order > 1:
+                    for n in range(2, deriv_order + 1):
+                        vals.append(np.zeros(crds.shape[:-2] + (12,) * n + (3,)))
+            else:
+                vals = mu
+            return vals
+
             vOH = crds[..., 0, :] - crds[..., 1, :]
             # raise Exception(vOH)
             vCH1 = crds[..., 2, :] - crds[..., 1, :]
             vCH2 = crds[..., 3, :] - crds[..., 1, :]
-            ang1 = np.pi - nput.vec_angles(vCH1, vOH)[0]
-            ang2 = np.pi - nput.vec_angles(vCH2, vOH)[0]
+            # ang1 = np.pi - nput.vec_angles(vCH1, vOH)[0]
+            # ang2 = np.pi - nput.vec_angles(vCH2, vOH)[0]
             # raise Exception(np.rad2deg(ang2))
-            cos1 = np.cos(ang1)
-            sin1 = np.sin(ang1)
-            cos2 = np.cos(ang2)
-            sin2 = np.sin(ang2)
+            # cos1 = np.cos(ang1)
+            # sin1 = np.sin(ang1)
+            # cos2 = np.cos(ang2)
+            # sin2 = np.sin(ang2)
 
             # raise Exception(
             #     np.array([])
@@ -3388,19 +3415,27 @@ class DGBTests(TestCase):
             #                                               [0, -sin1, cos1]])
             # )
 
-            R1 = np.array([
-                [1,     0,    0],
-                [0,  cos1, sin1],
-                [0, -sin1, cos1]
-            ])
+            # R1 = np.array([
+            #     [1,     0,    0],
+            #     [0,  cos1, sin1],
+            #     [0, -sin1, cos1]
+            # ])
+            # R1 = np.zeros((len(cos1), 3, 3))
+            # R1[:, 0, 0] = 1
+            # R1[:, 1, 1] = cos1; R1[:, 1, 2] = sin1
+            # R1[:, 2, 2] = cos1; R1[:, 2, 1] = -sin1
             # raise Exception(
             #     R1 /
             # )
-            R2 = np.array([
-                [1,    0,      0],
-                [0,  cos2, -sin2],
-                [0,  sin2,  cos2]
-            ])
+            # R2 = np.array([
+            #     [1,    0,      0],
+            #     [0,  cos2, -sin2],
+            #     [0,  sin2,  cos2]
+            # ])
+            # R2 = np.zeros((len(cos2), 3, 3))
+            # R2[:, 0, 0] = 1
+            # R2[:, 1, 1] = cos2; R2[:, 1, 2] = sin2
+            # R2[:, 2, 2] = cos2; R2[:, 2, 1] = -sin2
 
             # muCH = R1 @ np.array([
             #     [0.096,  0.000,  0.000],
@@ -3432,29 +3467,16 @@ class DGBTests(TestCase):
             muuOH = mOH * nput.vec_normalize(vOH)
             if deriv_order is not None:
                 vals = [mu]
-                # if deriv_order > 0:
+                if deriv_order > 0:
                 #     der = np.zeros(crds.shape[:-2] + (4, 3, 3))
                 #     der[..., 0, np.arange(3), np.arange(3)] = muuOH
                 #     der[..., 1, :, :] = -(np.diag(muuOH) + muCH1 + muCH2)
                 #     der[..., 2, :, :] = muCH1
                 #     der[..., 3, :, :] = muCH2
                 #     vals.append(der.reshape(crds.shape[:-2] + (12, 3)))
-                der = np.array([[-0.318, -0., -0.],
-                                [-0., -0.434, 0.],
-                                [-0., 0., -0.745],
-                                [0.126, 0., 0.],
-                                [-0., 0.755, 0.],
-                                [-0., -0., 0.874],
-                                [0.096, -0., 0.],
-                                [-0., -0.161, 0.144],
-                                [-0., 0.083, -0.065],
-                                [0.096, -0., -0.],
-                                [0., -0.161, -0.144],
-                                [0., -0.083, -0.065]]
-                               )
-                for _ in crds.shape[:-2]: der = np.expand_dims(der, 0)
-                der = np.broadcast_to(der, crds.shape[:-2] + der.shape)
-                vals.append(der)
+                    for _ in crds.shape[:-2]: der = np.expand_dims(der, 0)
+                    der = np.broadcast_to(der, crds.shape[:-2] + der.shape)
+                    vals.append(der)
                 if deriv_order > 1:
                     for n in range(2, deriv_order+1):
                         vals.append(np.zeros(crds.shape[:-2] + (12,) * n + (3,)))
@@ -3506,7 +3528,7 @@ class DGBTests(TestCase):
         check_anh = False
         if check_anh:
             from Psience.VPT2 import VPTRunner
-            ref = Molecule.from_file(TestManager.test_data("OCHH_freq.fchk"))
+            ref = Molecule.from_file(TestManager.test_data("OCHH_freq.fchk")).get_embedded_molecule(ref=mol)
             dip_data = dip(ref.coords, deriv_order=3)
 
             # raise Exception(
@@ -3668,13 +3690,13 @@ class DGBTests(TestCase):
         ts = 25
         steps = 50
 
-        pruning_probabilities = [[3000, 2000]]
+        pruning_probabilities = [[3000, 500]]
 
-        sim_cutoff = .95
+        sim_cutoff = .99
         use_pairwise = True
-        use_interpolation = False
-        # momentum_scaling = 1/8
-        momentum_scaling = None
+        # use_interpolation = False; momentum_scaling = None
+        use_interpolation = False; momentum_scaling = None#1/8
+
 
         plot_quadratic_opt = False
 
@@ -3955,9 +3977,6 @@ class DGBTests(TestCase):
 
         # print("ZPE:", wfns.energies[0] * UnitsData.hartrees_to_wavenumbers, file=woof)
         # print("Freqs:", wfns.frequencies() * UnitsData.hartrees_to_wavenumbers, file=woof)
-
-
-
 
     @inactiveTest
     def test_WaterFromGauss(self):

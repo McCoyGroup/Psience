@@ -40,350 +40,234 @@ class VPT2Tests(TestCase):
     #         # logger=True
     #     )
 
-    @debugTest
+    @inactiveTest
     def test_AnalyticPTOperators(self):
 
-        internals = True
-        vpt2 = AnalyticPerturbationTheorySolver.from_order(2, internals=internals, logger=True)
-        # print(
-        #     vpt2.hamiltonian_expansion[2].get_poly_terms([])
-        # )
-        # raise Exception(...)
+        internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        internals = None
+        file_name = 'HOH_freq.fchk'
+        # states = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 2, 0]]
+        # mode_selection = None
+        # states = [[0], [1], [2], [3], [4]]
+        # mode_selection = [0]
+        states = [[0, 0], [1, 0], [0, 1]]
+        mode_selection = [0, 1]
+
+        driver = AnalyticVPTRunner.from_file(
+            TestManager.test_data(file_name),
+            mode_selection=mode_selection,
+            internals=internals,
+            logger=True,
+            mixed_derivative_handling_mode='averaged',
+            expansion_order = {
+                # 'potential': 2,
+                # 'kinetic': 0,
+                # 'pseudopotential': 0,
+                # 'coriolis': 0,
+                # 'dipole':0
+            }
+        )
+
+        # for p in itertools.permutations([0, 0, 1]):
+        #     driver.eval.expansions[1][0][p] = 0
+        driver.eval.expansions[1][0][1, 1, 1] = 0
+        for p in itertools.permutations([0, 1, 1]):
+            driver.eval.expansions[1][0][p] = 0
+        # driver.eval.expansions[2][0][:] = 1
         #
-        # H1PH1 = vpt2.energy_correction(2).expressions[1]
-        #
-        # H1 = vpt2.hamiltonian_expansion[1]
-        # H1H1 = H1*H1
+        # driver.eval.freqs = np.array([500, 3000]) * UnitsData.convert("Wavenumbers", "Hartrees")
+        # driver.eval.expansions[0][0] = np.diag(driver.eval.freqs / 2)
+        # driver.eval.expansions[0][1] = np.diag(driver.eval.freqs / 2)
+        # t = driver.eval.expansions[1][0]
+        # # for p in itertools.permutations([0, 0, 1]):
+        # #     t[p] = 0
+        # t[0, 0, 0] = 0
+        # t[1, 1, 1] = 0
+        # for p in itertools.permutations([0, 1, 1]):
+        #     t[p] = 0
+        # for p in itertools.permutations([0, 0, 1]):
+        #     t[p] = 100 * UnitsData.convert("Wavenumbers", "Hartrees")
 
-        """
-        ==================== V[1](0, 0, 0)V[1](0, 0, 0) 1 ====================
-  :: 1
-   > 1 [array([0.   , 0.   , 0.   , 1.125])]
-   > 1.1249999999999993 [array([1., 3., 3., 1.])]
-   > 0.7499999999999996 [array([1.        , 1.83333333, 1.        , 0.16666667])]
-   > 1 [array([ 0.   ,  0.25 , -0.375,  0.125])]
-   """
+        # t[0, 0, 0] = 0
+        # for p in itertools.permutations([0, 2, 2]):
+        #     t[p] = 0
+        # for j,k in itertools.permutations(range(1, 3), 2):
+        #     for p in itertools.permutations([0, j, k]):
+        #         t[p] = 0
+        #     for p in itertools.permutations([0, j, j]):
+        #         t[p] = 0
 
-        # H1H1.get_poly_terms([],
-        #                     # allowed_paths=[
-        #                     #     ((1,), (-1,)),
-        #                     #     ((3,), (-3,))
-        #                     # ]
-        #                     ).prune_operators([(1, 1)]).print_tree()
-        # raise Exception(...)
+        dips = [list(dd) for dd in driver.ham.dipole_terms.get_terms(2)]
+        # # # raise Exception(dips[2][3])
+        for a in range(3):
+            dips[a][0] = 0
+            if a < 2:
+                dips[a][1][:] = 0
+                dips[a][2][:] = 0
+                dips[a][3][:] = 0
+        #     # for j in range(2, 4):
+        #     #     dips[a][j][:] = 0
 
-        Y1 = vpt2.wavefunction_correction(1)
-        PH1 = vpt2.wavefunction_correction(1).expressions[0]
-        # H2 = vpt2.hamiltonian_expansion[2]
-        # raise Exception(
-        #     H2.get_poly_terms((1, 1, 1, 1))
-        #                 )
-        E2 = vpt2.energy_correction(2)
-        E4 = vpt2.energy_correction(4, intermediate_normalization=True)
-        O2 = vpt2.overlap_correction(2)
-        Y3 = vpt2.wavefunction_correction(3)
-        M3 = vpt2.operator_correction(3)
-        M2 = vpt2.operator_correction(2)
-        woof = M2([1, 1], simplify=True)
-        # (E2 * O2)([])
-        # print(Y1([-1, -1, -1]))
-        # raise Exception(...)
+            # dips[a][1][:] = 0
+            dips[a][1][0] = 0
+            dips[a][1][1] = 1
+            #-1.06750815e-05
+            # for j in range(1, 3): b[j] = 0
+            # b = dips[a][2]
+            # for j,k in itertools.permutations([0, 1, 2], 2):
+            #     b[j,k] = 0
+            # for j in range(1, 3):
+            #     b[j, j] = 0
+            # dips[a][2][:] = 0
+            # dips[a][2][0, 1] = 0
+            # dips[a][2][1, 0] = 0
+            # dips[a][2][0, 0] = 0
+            # dips[a][2][1, 1] = 0
+            # dips[a][3][:] = 0
+            # b = dips[a][3]
+            # for j, k in itertools.permutations(range(1, 3), 2):
+            #     for p in itertools.permutations([0, 0, j]):
+            #         b[p] = 0
+            #     for p in itertools.permutations([j, j, k]):
+            #         b[p] = 0
+            #     for p in itertools.permutations([0, j, k]):
+            #         b[p] = 0
+            #     for p in itertools.permutations([0, j, j]):
+            #         b[p] = 0
+        # raise Exception(dips[2][3])
 
-        # woof = E2([], simplify=True)
-        # woof.expr.print_tree()
-        #
-        # raise Exception(...)
-
-        # with BlockProfiler("wtf"):
-        # woof = M3([1, 1], simplify=True)
-            # woof2 = Y3([-2, 1], simplify=True)
-        # print(woof)
-
-        raise Exception(...)
-
-        # # pt_shit = H1PH1.get_poly_terms((4,)).combine()
-        # pt_shit = PH1((1,), simplify=False).expr.combine()
-
-        # raise Exception(
-        #     PH1.get_poly_terms((1,)).terms[((1,0, 0, 0, 0),)].terms[((1,),)].coeffs
-        # )
-
-        # pt_shit = E2.expressions[1]([], simplify=False).expr
-        # raise Exception(pt_shit)
-
-        # subpoly = pt_shit.terms[((1, 1, 0, 2, 1), (1, 1, 1, 0, 2))].combine(combine_energies=False).terms[((1, 1, 1),)]
-        # for p in subpoly.polys:
-        #     print(p.prefactor, p.coeffs)
-        # raise Exception(...)
-
-        # h3_poly = vpt2.hamiltonian_expansion[1]([3]).expr.terms[((1, 0, 0, 0, 0),)]
-        # raise Exception(
-        #     h3_poly.prefactor,
-        #     h3_poly.coeffs
-        # )
-        # with np.printoptions(linewidth=1e8):
-        #     pt_shit = H1H1([]).expr
-        #     pt_shit.print_tree()
-        #
-        # raise Exception(...)
-
-        # # raise Exception(
-        # #     Y1.get_poly_terms((1,))
-        # #     # [
-        # #     #     [p.prefactor for p in psum.polys]
-        # #     #     for psum in h1y1.get_poly_terms(()).terms.values()
-        # #     # ]
-        # # )
-        #
-        # h1y1 = E2.expressions[1]
-        # # raise Exception(h1y1, h1y1.gen2, h1y1.gen2.expressions)
-        #
-        # raise Exception(
-        #     h1y1.get_poly_terms(()).combine()
-        #     # [
-        #     #     [p.prefactor for p in psum.polys]
-        #     #     for psum in h1y1.get_poly_terms(()).terms.values()
-        #     # ]
-        # )
-
-        # for _ in vpt2.energy_correction(2).expressions[1].changes[()]:
-        #     print(_)
-
-        # test_sum = list(jesus_fuck.terms.values())[1]
-        # # for poly in test_sum.polys:
-        # #     print(poly.coeffs)
-        # raise Exception(test_sum, test_sum.combine())
-        # raise Exception(test_sum.polys[0].combine(test_sum.polys[1]).coeffs)
-
-
-        # load H20 parameters...
-        file_name = "HOH_freq.fchk"
-        from Psience.BasisReps import HarmonicOscillatorMatrixGenerator
-        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'rho'
         runner, _ = VPTRunner.construct(
             TestManager.test_data(file_name),
-            1,
-            internals=(
-                [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
-                    if internals else
-                None
-            ),
+            np.array(states),
+            mode_selection=np.arange(len(mode_selection)) if mode_selection is not None else mode_selection,
+            internals=internals,
             logger=False,
-            zero_element_warning=False
-            # mode_selection=[0, 1]
-        )
-        ham = runner.hamiltonian
-        V = ham.V_terms
-        G = ham.G_terms
-        U = ham.pseudopotential_term
-        g2 = G[2]
-
-        if internals:
-            water_expansion = [
-                [V[0]/2,  G[0]/2],
-                [
-                    np.zeros(V[1].shape),
-                    # np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0)/np.math.factorial(3)/6,
-                    np.zeros(V[1].shape),
-                    # -np.moveaxis(G[1], -1, 0)/2
-                    #     if isinstance(G[1], np.ndarray) else
-                    # np.zeros(V[1].shape)
-                ],
-                [
-                    # np.zeros(V[2].shape),
-                    V[2]/24,
-                    np.zeros(V[2].shape),
-                    # -np.moveaxis(G[2], -1, 0)/4
-                    #     if isinstance(G[2], np.ndarray) else
-                    # np.zeros(V[2].shape),
-                    # 0
-                    U[0]/8
-                ]
-            ]
-        else:
-            Z = ham.coriolis_terms
-            water_expansion = [
-                [V[0] / 2, G[0] / 2],
-                [
-                    # np.zeros(V[1].shape),
-                    np.sum(
-                        [V[1].transpose(p) for p in itertools.permutations([0, 1, 2])],
-                        axis=0
-                    ) / np.math.factorial(3) / 6,
-                    0 # G
-                ],
-                [
-                    # np.zeros(V[2].shape),
-                    V[2] / 24,
-                    0, # G
-                    0, # V'
-                    # np.zeros(V[2].shape),
-                    -Z[0],
-                    # 0
-                    U[0] / 8 # Watson
-                ]
-            ]
-
-        runner, _ =  VPTRunner.construct(
-            TestManager.test_data(file_name),
-            1,
-            internals=(
-                [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
-                    if internals else
-                None
-            ),
+            zero_element_warning=False,
+            corrected_fundamental_frequencies=driver.eval.freqs,
             potential_terms=[
-                water_expansion[0][0] * 2,
-                water_expansion[1][0] * 6,
-                water_expansion[2][0] * 24
+                2*driver.eval.expansions[0][0],
+                6*driver.eval.expansions[1][0],
+                24*driver.eval.expansions[2][0]
             ],
             kinetic_terms=[
-                water_expansion[0][1] * 2,
-                water_expansion[1][1] * 2,
-                water_expansion[2][1] * 4
+                2*driver.eval.expansions[0][1],
+                2*driver.eval.expansions[1][1],
+                4*driver.eval.expansions[2][1]
             ],
-            coriolis_terms=[-water_expansion[2][3]],
-            pseudopotential_terms=[water_expansion[2][4] * 8],
-            # include_pseudopotential=False,
-            logger=False,
-            zero_element_warning=False
-            # mode_selection=[0, 1]
+            include_coriolis_coupling=internals is not None,
+            coriolis_terms=[driver.eval.expansions[2][3]],
+            pseudopotential_terms=[8*driver.eval.expansions[2][4]],
+            dipole_terms=dips
+        )
+        runner.print_tables(print_intensities=True)
+
+        # wfns = runner.get_wavefunctions()
+        # solver = runner.get_solver()
+        # reps = solver.get_VPT_representations()
+        # corrs = driver.get_matrix_corrections(states)
+        # # print(wfns.corrs.wfn_corrections[2].todense()[:, :7])
+        # print(reps[2].todense())
+        # print(corrs)
+        # print(driver.eval.expansions[2][0])
+        # raise Exception(...)
+
+        # corrs = driver.eval.get_wavefunction_corrections(states, order=2, verbose=True)
+        # # corrs = driver.eval.get_overlap_corrections(states, order=2, verbose=True)
+        # print(wfns.corrs.wfn_corrections[1].todense()[:, :7])
+        # print(wfns.corrs.wfn_corrections[2].todense()[:, :7])
+        # print(corrs)
+        # raise Exception(...)
+
+
+        corrs = driver.get_energy_corrections(
+                states,
+                verbose=False
+            )
+        ugh = sum(corrs) * UnitsData.convert("Hartrees", "Wavenumbers")
+        # raise Exception(
+        #     corrs[0].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
+        #     corrs[1].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
+        #     ugh[0],
+        #     ugh[1] - ugh[0]
+        # )
+        # if mode_selection is not None and len(mode_selection) == 3:
+        #     self.assertAlmostEquals(ugh[0][0], 4605.96833306)
+        #     self.assertAlmostEquals(ugh[1][0] - ugh[0][0], 1571.96615004)
+
+        print(
+            driver.get_transition_moment_corrections(
+                [states[1]],
+                axes=[2],
+                dipole_expansion=dips,
+                terms=[(1, 0, 1)],
+                verbose=True
+            )
         )
 
-        water_freqs = ham.modes.freqs
+        """
+:: Initial State: 0 0 
+State  <0|M(0)|0>       <0|M(1)|0>       <0|M(0)|1>       <1|M(0)|0>       <0|M(2)|0>       <0|M(1)|1>       <0|M(0)|2>       <1|M(1)|0>       <1|M(0)|1>       <2|M(0)|0>      
+  0 0   0.00000000e+00   3.14230844e-03   4.57996193e-04   4.57996193e-04   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00
+  1 0  -5.06717599e-02   0.00000000e+00   0.00000000e+00   0.00000000e+00  -4.59933666e-04  -1.12603731e-04   1.06695598e-04  -1.32514233e-04  -3.26867682e-04  -4.63951399e-04
+  """
 
-        jesus_fuck = E2([])
-        # jesus_fuck.expr.print_tree()
-        corr0 = jesus_fuck.evaluate([0, 0, 0], water_expansion, water_freqs, verbose=False) * UnitsData.convert("Hartrees", "Wavenumbers")
-        print(corr0)
-        corr = jesus_fuck.evaluate([0, 0, 1], water_expansion, water_freqs, verbose=False) * UnitsData.convert("Hartrees", "Wavenumbers")
-        print(corr - corr0)
-        corr = jesus_fuck.evaluate([0, 1, 0], water_expansion, water_freqs, verbose=False) * UnitsData.convert("Hartrees", "Wavenumbers")
-        print(corr - corr0)
-        corr = jesus_fuck.evaluate([1, 0, 0], water_expansion, water_freqs, verbose=False) * UnitsData.convert("Hartrees", "Wavenumbers")
-        print(corr - corr0)
         raise Exception(...)
-            # vpt2.energy_correction(2).expressions[1].changes[()]
-
-        raise Exception(
-            AnalyticPerturbationTheoryDriver.from_order(2).energy_correction_driver(
-                2
-            ).get_poly_evaluator(
-                [ # tensor coeffs
-                    [
-                        np.eye(3),
-                        np.eye(3),
-                    ],
-                    [
-                        np.ones((3, 3, 3)),
-                        np.ones((3, 3, 3))
-                    ],
-                    [
-                        np.ones((3, 3, 3, 3)),
-                        np.ones((3, 3, 3, 3)),
-                        1
-                    ]
-                ],
-                [1, 1, 1] # freqs
-            )
-        )
-
-        corrections = AnalyticPTCorrectionGenerator([
+        #     np.array(
+        #         driver.get_spectrum(
+        #             states,
+        #             axes=[2],
+        #             dipole_expansion=dips,
+        #             # terms=[(0, 1, 1), (1, 1, 0)]
+        #         )
+        #     ).T
+        #     # driver.get_transition_moment_corrections(
+        #     #     states[1:2],
+        #     #     axes=[2],
+        #     #     dipole_expansion=dips,
+        #     #     terms=[(1, 1, 0)],
+        #     #     verbose=True
+        #     # )
+        # )
+        specs = driver.get_spectrum(
             [
-                ['x', 'x', 'x'],
-                ['p', 'x', 'p']
+                # [0, 0, 0],
+                [1, 0, 0]
+                # [0, 0, 1]
             ],
-            # ['x'],
-            [
-                ['x', 'x', 'x'],
-                ['p', 'x', 'p']
-            ]
-        ]).get_correction([2])
-
-        v1 = np.ones((3, 3, 3))
-        g1 = np.ones((3, 3, 3))
-
-        return corrections.evaluate([0, 0, 0], [[v1, g1], [v1, g1]], [1, 1, 1], 1)
-
-        raise Exception(corrections)
-
-        coeffs = np.array([
-            TensorCoeffPoly({((1, 0, 0),):2, ((0, 1, 0),):1}),
-            TensorCoeffPoly({((0, 0, 1),):1}),
-        ], dtype=object)
-
-        # new_b_poly = np.dot(
-        #             [[1, 3], [2, 1]],
-        #             coeffs
-        #         )
-        # raise Exception(
-        #     np.dot(
-        #         [[-1, 3], [2, -1]],
-        #         np.dot(
-        #             [[1, 3], [2, 1]],
-        #             coeffs
-        #         )
-        #     )/5
-        # )
-
-        # from Psience.AnalyticModels import AnalyticModel
-        #
-        # AnalyticModel(
-        #     [
-        #         AnalyticModel.r(0, 1),
-        #
-        #         ]
-        # ).g()
-
-
-
-
-        from McUtils.Zachary import DensePolynomial
-
-        shifted = DensePolynomial([
-            [1, 2, 3, 4, 5],
-            [1, -2, 0, 6, 8]
-        ]).shift([2, 3])
-
-        # raise Exception(shifted.deriv(1).coeffs)
-
-        self.assertTrue(
-            np.allclose(
-                shifted.coeffs,
-                [
-                    [2157., 2716., 1281., 268., 21.],
-                    [ 805., 1024.,  486., 102.,  8.]
-                ]
-            )
+            order=0
         )
 
-        #
-        new = DensePolynomial(coeffs)*DensePolynomial(coeffs)
-        raise Exception(new)
+        raise Exception(specs)
 
- #        """
- #        DensePolynomial([TensorCoeffPoly({((1, 0, 0), (1, 0, 0)): 4, ((0, 1, 0), (1, 0, 0)): 4, ((0, 1, 0), (0, 1, 0)): 1},1)
- # TensorCoeffPoly({((0, 0, 1), (0, 1, 0)): 2, ((0, 0, 1), (1, 0, 0)): 4},1)
- # TensorCoeffPoly({((0, 0, 1), (0, 0, 1)): 1},1)], 1)"""
+    @validationTest
+    def test_GaussianSelectAnharmonicVPT(self):
 
+        file_name = os.path.expanduser("~/Desktop/freq_anion.fchk")
+        VPTRunner.run_simple(file_name,
+                             2,
+                             mode_selection={
+                                 "modes": np.array([108 - 21, 108 - 20, 108 - 19, 108 - 1]),
+                                 # "derivatives": [0, 1, 2]
+                             },
+                             degeneracy_specs=[
+                                 [
+                                     [0, 0, 0, 1],
+                                     [0, 0, 2, 0],
+                                     [0, 2, 0, 0],
+                                     [2, 0, 0, 0],
+                                     [0, 1, 1, 0],
+                                     [1, 0, 1, 0],
+                                     [1, 1, 0, 0]
+                                 ]
+                             ]
+                             )
+        # print(
+        #     woof.hamiltonian.V_terms[2] * 219475.6
+        # )
         # raise Exception(
-        #     PTPoly(coeffs)*
-        #     PTPoly(coeffs)
+        #     runner.hamiltonian.molecule
         # )
 
-        base_classes = RaisingLoweringClasses(14, [2, 4, 2])
-        print(list(base_classes))
-        # op = AnalyticPTOperator(['x', 'x', 'x'])
-        #
-        #
-        # op = PTOperator(
-        #     ["x", "x", "x"],
-        #     ["x", "x"],
-        #     ["x", "x", "x"],
-        #     3
-        # )
-
-        # raise Exception(op.poly_sum())
 
     @validationTest
     def test_NewEmbedding(self):

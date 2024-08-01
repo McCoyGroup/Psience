@@ -5,6 +5,7 @@ Provides classes that manage molecular vibrations
 import numpy as np, scipy.linalg as slag
 from McUtils.Coordinerds import CoordinateSystem, CoordinateSet
 from McUtils.Data import AtomData, UnitsData
+import McUtils.Numputils as nput
 
 from .MoleculeInterface import AbstractMolecule
 from .Transformations import MolecularTransformation
@@ -213,9 +214,9 @@ class MolecularVibrations:
         :rtype:
         """
 
-        if isinstance(item, int):
+        if nput.is_numeric(item):
             item = (item,)
-        elif not isinstance(item[0], int):
+        elif not nput.is_numeric(item[0]):
             item = tuple(item[0])
 
         m = self._basis[item]
@@ -596,9 +597,9 @@ class MolecularNormalModes(CoordinateSystem):
         :rtype:
         """
 
-        if isinstance(item, int):
+        if nput.is_numeric(item):
             item = (item,)
-        elif not isinstance(item[0], int):
+        elif not nput.is_numeric(item[0]):
             item = tuple(item[0])
 
         sub_modes = self.matrix[:, item]

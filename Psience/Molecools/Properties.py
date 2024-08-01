@@ -918,7 +918,7 @@ class MolecularProperties:
         """
         m1 = ref_mol._atomic_masses()
         m2 = mol._atomic_masses()
-        if not np.all(m1 == m2):
+        if not np.allclose(m1, m2, rtol=1e-4):
             raise ValueError("Eckart reference has different masses from scan ({}) vs. ({})".format(
                 m1,
                 m2
@@ -2029,15 +2029,10 @@ class NormalModesManager(PropertyManager):
                                        )
 
         return vibs
-    def get_fchk_normal_mode_rephasing(self, modes=None):
-        """
-        Returns the necessary rephasing to make the numerical dipole derivatives
-        agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
-        :return:
-        :rtype:
-        """
 
-        d1_analytic = self.mol.dipole_surface.derivatives
+    @classmethod
+    def get_dipole_derivative_based_rephasing(cls, modes, analytic_dipoles, numerical_dipoles):
+        d1_analytic = analytic_dipoles
         if d1_analytic is None:
             return None
         else:
@@ -2046,7 +2041,7 @@ class NormalModesManager(PropertyManager):
             d1_analytic = d1_analytic[1]
             if d1_analytic is None:
                 return None
-        d1_numerical = self.mol.dipole_surface.numerical_derivatives
+        d1_numerical = numerical_dipoles
         if d1_numerical is None:
             return None
         else:
@@ -2056,21 +2051,14 @@ class NormalModesManager(PropertyManager):
             if d1_numerical is None:
                 return None
 
-        # if not isinstance(d1_analytic, np.ndarray):
-        #     d1_analytic = d1_analytic.array
-        # if not isinstance(d1_numerical, np.ndarray):
-        #     d1_numerical = d1_numerical.first_derivatives
-
-        # raise Exception(d1_analytic.shape, d1_numerical.shape
-
-        if modes is None:
-            modes = self.modes.basis # in dimensionless coordinates
-
         mode_basis = modes.matrix
         rot_analytic = np.dot(d1_analytic.T, mode_basis)
         # normalize
         rot_analytic = rot_analytic / np.linalg.norm(rot_analytic, axis=0)[np.newaxis, :]
         d1_numerical = d1_numerical / np.linalg.norm(d1_numerical, axis=1)[:, np.newaxis]
+
+        if d1_numerical.shape[0] != rot_analytic.shape[1]:  # mismatched derivs.
+            return None
 
         # we assume that these should be the same up to a rephasing
         # so we the inner product matrix
@@ -2083,7 +2071,7 @@ class NormalModesManager(PropertyManager):
         if len(rot_pos) > 0:
             rot_pos = rot_pos[0]
 
-        if len(rot_pos) == 1: # one mode is messed up but we just have to roll with it...
+        if len(rot_pos) == 1:  # one mode is messed up but we just have to roll with it...
             rot_pos = ()
 
         rephasing_matrix = np.zeros_like(h_mat)
@@ -2102,6 +2090,19 @@ class NormalModesManager(PropertyManager):
                 rephasing_matrix[np.ix_(rot_pos, rot_pos)] = subrot
 
         return rephasing_matrix.T
+    def get_fchk_normal_mode_rephasing(self, modes=None):
+        """
+        Returns the necessary rephasing to make the numerical dipole derivatives
+        agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
+        :return:
+        :rtype:
+        """
+
+        return self.get_dipole_derivative_based_rephasing(
+            self.modes.basis if modes is None else modes,
+            self.mol.dipole_surface.derivatives,
+            self.mol.dipole_surface.numerical_derivatives
+        )
 
     def apply_transformation(self, transf):
         # self.modes # load in for some reason?
