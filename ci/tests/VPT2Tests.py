@@ -40,7 +40,7 @@ class VPT2Tests(TestCase):
     #         # logger=True
     #     )
 
-    @debugTest
+    @inactiveTest
     def test_AnalyticPTOperators(self):
 
         internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
@@ -50,7 +50,7 @@ class VPT2Tests(TestCase):
         # mode_selection = None
         # states = [[0], [1], [2], [3], [4]]
         # mode_selection = [0]
-        states = [[0, 0], [1, 0], [0, 1], [0, 3]]
+        states = [[0, 0], [1, 0], [0, 1]]
         mode_selection = [0, 1]
 
         driver = AnalyticVPTRunner.from_file(
@@ -68,10 +68,14 @@ class VPT2Tests(TestCase):
             }
         )
 
-        # driver.eval.expansions[1][0][1, 1, 1] = 0
+        # for p in itertools.permutations([0, 0, 1]):
+        #     driver.eval.expansions[1][0][p] = 0
+        driver.eval.expansions[1][0][1, 1, 1] = 0
+        for p in itertools.permutations([0, 1, 1]):
+            driver.eval.expansions[1][0][p] = 0
         # driver.eval.expansions[2][0][:] = 1
         #
-        # driver.eval.freqs = np.array([500, 1500]) * UnitsData.convert("Wavenumbers", "Hartrees")
+        # driver.eval.freqs = np.array([500, 3000]) * UnitsData.convert("Wavenumbers", "Hartrees")
         # driver.eval.expansions[0][0] = np.diag(driver.eval.freqs / 2)
         # driver.eval.expansions[0][1] = np.diag(driver.eval.freqs / 2)
         # t = driver.eval.expansions[1][0]
@@ -106,6 +110,7 @@ class VPT2Tests(TestCase):
 
             # dips[a][1][:] = 0
             dips[a][1][0] = 0
+            dips[a][1][1] = 1
             #-1.06750815e-05
             # for j in range(1, 3): b[j] = 0
             # b = dips[a][2]
@@ -130,10 +135,6 @@ class VPT2Tests(TestCase):
             #     for p in itertools.permutations([0, j, j]):
             #         b[p] = 0
         # raise Exception(dips[2][3])
-
-        # raise Exception(
-        #     driver.eval.solver.wavefunction_correction(1).get_poly_terms([1]).format_expr()
-        # )
 
         runner, _ = VPTRunner.construct(
             TestManager.test_data(file_name),

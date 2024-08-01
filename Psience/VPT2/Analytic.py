@@ -23,7 +23,7 @@ __all__ = [
 ]
 
 
-_DEBUG_PRINT = False # statements will be moved into a proper logger later
+_DEBUG_PRINT = True # statements will be moved into a proper logger later
 
 # class DefaultObject:
 #     def __repr__(self): return "default"
