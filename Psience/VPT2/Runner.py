@@ -2309,6 +2309,21 @@ class AnalyticVPTRunner:
             expansion_order=opts.get('expansion_order', None)
         )
 
+    def evaluate_expressions(self, states, exprs, operator_expansions=None, verbose=False):
+        state_space = VPTStateSpace(states)
+        return self.eval.evaluate_expressions(
+            state_space.state_list,
+            exprs,
+            operator_expansions=operator_expansions,
+            verbose=verbose
+        )
+
+    def get_matrix_corrections(self, states, order=None, verbose=False):
+        state_space = VPTStateSpace(states)
+        return self.eval.get_matrix_corrections(state_space.state_list,
+                                                order=order,
+                                                verbose=verbose)
+
     def get_energy_corrections(self, states, order=None, verbose=False):
         state_space = VPTStateSpace(states)
         return self.eval.get_energy_corrections(state_space.state_list,
@@ -2345,8 +2360,8 @@ class AnalyticVPTRunner:
         return self.eval.get_operator_corrections(
             operator_expansion, state_space.state_list,
             order=order, terms=terms,
-            verbose=verbose)
-
+            verbose=verbose
+        )
 
 
     def get_transition_moment_corrections(self, states, dipole_expansion=None,
@@ -2399,9 +2414,10 @@ class AnalyticVPTRunner:
         specs = []
         for n,initial_state in enumerate(base_corrs[0].initial_states):
             all_state = np.concatenate([[initial_state], base_corrs[0].final_states[n]], axis=0)
-            engs = sum(self.get_energy_corrections(all_state, order=energy_order, verbose=False))
-            freqs = engs[1:] - engs[0]
-            tmoms = sum(np.sum(corr.corrections[n], axis=1)**2 for corr in base_corrs)
+            engs = np.sum(self.get_energy_corrections(all_state, order=energy_order, verbose=False), axis=0)
+            freqs = (engs[1:] - engs[0])[:, 0] #TODO: figure out why we have too much shape
+            tmoms = np.sum([np.sum(corr.corrections[n], axis=1)**2 for corr in base_corrs], axis=0)
+            # print(tmoms.shape, freqs.shape)
             ints = freqs * tmoms
             specs.append([
                 freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
