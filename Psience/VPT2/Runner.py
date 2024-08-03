@@ -2240,9 +2240,13 @@ VPTRunner.helpers = AnneInputHelpers
 
 
 class AnalyticVPTRunner:
-
     def __init__(self, expansions, order=None, expansion_order=None, freqs=None, internals=True, logger=None,
-                 hamiltonian=None, checkpoint=None):
+                 hamiltonian=None, checkpoint=None,
+                 allowed_terms=None,
+                 allowed_coefficients=None,
+                 disallowed_coefficients=None,
+                 allowed_energy_changes=None
+                 ):
         # self.expansions = expansions
         # if order is None: order = len(expansions) - 1
         self.order = order
@@ -2255,14 +2259,23 @@ class AnalyticVPTRunner:
                 order,
                 internals=internals,
                 logger=logger,
-                checkpoint=checkpoint
+                checkpoint=checkpoint,
+                allowed_terms=allowed_terms,
+                allowed_coefficients=allowed_coefficients,
+                disallowed_coefficients=disallowed_coefficients,
+                allowed_energy_changes=allowed_energy_changes
             ),
             expansions,
             freqs=freqs
         )
 
     @classmethod
-    def from_hamiltonian(cls, ham, order, expansion_order=None, logger=None, checkpoint=None, **opts):
+    def from_hamiltonian(cls, ham, order, expansion_order=None, logger=None, checkpoint=None,
+                         allowed_terms=None,
+                         allowed_coefficients=None,
+                         disallowed_coefficients=None,
+                         allowed_energy_changes=None,
+                         **opts):
         """
         A driver powered by a classic PerturbationTheoryHamiltonian object
 
@@ -2290,11 +2303,20 @@ class AnalyticVPTRunner:
             hamiltonian=ham,
             expansion_order=exp_orders,
             logger=ham.logger if logger is None else logger,
-            checkpoint=ham.checkpointer if checkpoint is None else checkpoint
+            checkpoint=ham.checkpointer if checkpoint is None else checkpoint,
+            allowed_terms=allowed_terms,
+            allowed_coefficients=allowed_coefficients,
+            disallowed_coefficients=disallowed_coefficients,
+            allowed_energy_changes=allowed_energy_changes
         )
 
     @classmethod
-    def from_file(cls, file_name, order=2, **settings):
+    def from_file(cls, file_name, order=2,
+                  allowed_terms=None,
+                  allowed_coefficients=None,
+                  disallowed_coefficients=None,
+                  allowed_energy_changes=None,
+                  **settings):
         runner, _ = VPTRunner.construct(
             file_name,
             1,
@@ -2306,7 +2328,11 @@ class AnalyticVPTRunner:
         return cls.from_hamiltonian(
             runner.hamiltonian,
             opts.get('order', order),
-            expansion_order=opts.get('expansion_order', None)
+            expansion_order=opts.get('expansion_order', None),
+            allowed_terms=allowed_terms,
+            allowed_coefficients=allowed_coefficients,
+            disallowed_coefficients=disallowed_coefficients,
+            allowed_energy_changes=allowed_energy_changes
         )
 
     def evaluate_expressions(self, states, exprs, operator_expansions=None, verbose=False):
@@ -2339,6 +2365,16 @@ class AnalyticVPTRunner:
             order=order,
             verbose=verbose
         )
+    def get_full_wavefunction_corrections(self,
+                                     states,
+                                     order=None, verbose=False
+                                     ):
+        state_space = VPTStateSpace(states)
+        return self.eval.get_full_wavefunction_corrections(
+            state_space.state_list,
+            order=order,
+            verbose=verbose
+        )
     def get_wavefunction_corrections(self,
                                      states,
                                      order=None, verbose=False
@@ -2354,18 +2390,17 @@ class AnalyticVPTRunner:
 
     def get_operator_corrections(self,
                                  operator_expansion, states,
-                                 order=None, terms=None, verbose=False
+                                 order=None, terms=None, verbose=False,  **opts
                                  ):
         state_space = VPTStateSpace(states)
         return self.eval.get_operator_corrections(
             operator_expansion, state_space.state_list,
             order=order, terms=terms,
-            verbose=verbose
+            verbose=verbose, **opts
         )
 
 
-    def get_transition_moment_corrections(self, states, dipole_expansion=None,
-                                 order=None, terms=None, verbose=False, axes=None):
+    def get_transition_moment_corrections(self, states, dipole_expansion=None, order=None, axes=None, **opts):
         if dipole_expansion is None:
             if order is None:
                 if self.expansion_order is not None:
@@ -2379,7 +2414,7 @@ class AnalyticVPTRunner:
             corrs.append(
                 self.get_operator_corrections(
                     [x/np.math.factorial(i+1) for i,x in enumerate(dipole_expansion[x][1:])],
-                    states, order=order, verbose=verbose, terms=terms
+                    states, order=order, **opts
                 )
             )
 

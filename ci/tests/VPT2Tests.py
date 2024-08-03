@@ -40,7 +40,7 @@ class VPT2Tests(TestCase):
     #         # logger=True
     #     )
 
-    @inactiveTest
+    @debugTest
     def test_AnalyticPTOperators(self):
 
         internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
@@ -48,9 +48,9 @@ class VPT2Tests(TestCase):
         file_name = 'HOH_freq.fchk'
         # states = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 2, 0]]
         # mode_selection = None
-        # states = [[0], [1], [2], [3], [4]]
+        # states = [[x] for x in range(7)]
         # mode_selection = [0]
-        states = [[0, 0], [1, 0], [0, 1]]
+        states = [[0, 0], [1, 0], [0, 1], [2, 0], [0, 2], [1, 1]]
         mode_selection = [0, 1]
 
         driver = AnalyticVPTRunner.from_file(
@@ -62,20 +62,52 @@ class VPT2Tests(TestCase):
             expansion_order = {
                 # 'potential': 2,
                 # 'kinetic': 0,
-                # 'pseudopotential': 0,
-                # 'coriolis': 0,
+                'pseudopotential': 0,
+                'coriolis': 0,
                 # 'dipole':0
-            }
+            },
+            # allowed_coefficients=[
+            #     (0, 5, 0), (0, 5, 1),
+            #     (1, 0, 0, 0, 1),
+            #     (1, 0, 0, 1, 1),
+            # ],
+            # disallowed_coefficients=[
+            #     (1, 0, 0, 0, 0),
+            #     (1, 0, 1, 1, 1),
+            #     (1, 0, 0, 1, 2),
+            #     (1, 0, 1, 1, 2),
+            #     (1, 0, 0, 2, 2),
+            #     (1, 0, 1, 2, 2),
+            #     (1, 0, 0, 3, 3),
+            #     (1, 0, 0, 0, 2),
+            #     (1, 0, 0, 0, 3),
+            #     (1, 0, 1, 3, 3),
+            #     (1, 0, 2, 3, 3),
+            # ]
         )
 
-        # for p in itertools.permutations([0, 0, 1]):
+        # raise Exception(
+        #     driver.eval.solver.operator_correction(2, allowed_terms=[(1, 0, 1)]).expressions[0].gen2.get_poly_terms([-1, -1])
+        # )
+
+
+        # driver.eval.expansions[1][0][0, 1, 1] = 1/driver.eval.expansions[1][0][0, 0, 1]#V[1](0, 0, 1)V[1](0, 1, 1)
+        # driver.eval.expansions[1][0][0, 0, 0] = 0
+        # driver.eval.expansions[1][0][1, 1, 1] = 0
+        # 3.9477276e-06
+        # for p in itertools.permutations([0, 0, 1]): # -6.30287372e-06
         #     driver.eval.expansions[1][0][p] = 0
-        driver.eval.expansions[1][0][1, 1, 1] = 0
-        for p in itertools.permutations([0, 1, 1]):
-            driver.eval.expansions[1][0][p] = 0
+        # for p in itertools.permutations([0, 1, 1]): # -1.41858369e-05
+        #     driver.eval.expansions[1][0][p] = 0
+        # driver.eval.expansions[1][0][:] = 0
         # driver.eval.expansions[2][0][:] = 1
-        #
-        # driver.eval.freqs = np.array([500, 3000]) * UnitsData.convert("Wavenumbers", "Hartrees")
+
+        # -6.30287372e-06
+        # -1.62206517e-05 Y[1]([2 1])[[0 1]]xM[0]*/Y[1]([-1 -1])[[0 1]]
+        # -1.41858369e-05 Y[1]([2 1])[[0 1]]xM[0]*/Y[1]([-1 -1])[[1 0]]
+
+        # driver.eval.freqs = np.array([.0005, .003]) #* UnitsData.convert("Wavenumbers", "Hartrees")
+        # driver.eval.freqs = driver.eval.freqs * 250
         # driver.eval.expansions[0][0] = np.diag(driver.eval.freqs / 2)
         # driver.eval.expansions[0][1] = np.diag(driver.eval.freqs / 2)
         # t = driver.eval.expansions[1][0]
@@ -105,12 +137,14 @@ class VPT2Tests(TestCase):
                 dips[a][1][:] = 0
                 dips[a][2][:] = 0
                 dips[a][3][:] = 0
+                continue
         #     # for j in range(2, 4):
         #     #     dips[a][j][:] = 0
 
+
             # dips[a][1][:] = 0
             dips[a][1][0] = 0
-            dips[a][1][1] = 1
+            # dips[a][1][1] = 1
             #-1.06750815e-05
             # for j in range(1, 3): b[j] = 0
             # b = dips[a][2]
@@ -161,32 +195,54 @@ class VPT2Tests(TestCase):
         )
         runner.print_tables(print_intensities=True)
 
-        # wfns = runner.get_wavefunctions()
+        # raise Exception(...)
+
         # solver = runner.get_solver()
         # reps = solver.get_VPT_representations()
-        # corrs = driver.get_matrix_corrections(states)
-        # # print(wfns.corrs.wfn_corrections[2].todense()[:, :7])
-        # print(reps[2].todense())
-        # print(corrs)
-        # print(driver.eval.expansions[2][0])
+        # H1_mat = reps[1].todense()
+        # H1_gen = driver.eval.solver.hamiltonian_expansion[1]
+        # for ccccc in (H1_gen * H1_gen).changes[(1, 1)]:
+        #     if (
+        #             (len(ccccc[0]), len(ccccc[1])) in {
+        #                 (1, 2), (2, 1)
+        #             }
+        #     ):
+        #             print(ccccc)
+        # raise Exception(...)
+        # corrs = driver.evaluate_expressions(
+        #     states[-1:],
+        #     [H1_gen*H1_gen],
+        #     verbose=True
+        # )
+        # # 4.90359849e-07
+        # # 1.12500000e+01
+        # # print((H1_mat@H1_mat)[0])
+        # print(corrs.corrections[0])
         # raise Exception(...)
 
+        # for change in driver.eval.solver.operator_correction(2, allowed_terms=[(1, 0,1 )]).expressions[0].changes[(1,)]:
+        #     print(change[:2])
+        # raise Exception(...)
+
+
+        # wfns = runner.get_wavefunctions()
         # corrs = driver.eval.get_wavefunction_corrections(states, order=2, verbose=True)
         # # corrs = driver.eval.get_overlap_corrections(states, order=2, verbose=True)
-        # print(wfns.corrs.wfn_corrections[1].todense()[:, :7])
-        # print(wfns.corrs.wfn_corrections[2].todense()[:, :7])
-        # print(corrs)
+        # print(wfns.corrs.wfn_corrections[1].todense())#[:, :7])
+        # print(wfns.corrs.wfn_corrections[2].todense())#[:, :7])
+        # with np.printoptions(precision=None):
+        #     print(corrs.corrections[0])
         # raise Exception(...)
 
 
-        corrs = driver.get_energy_corrections(
-                states,
-                verbose=False
-            )
-        ugh = sum(corrs) * UnitsData.convert("Hartrees", "Wavenumbers")
+        # corrs = driver.get_energy_corrections(
+        #         states,
+        #         verbose=False
+        #     )
+        # ugh = sum(corrs) * UnitsData.convert("Hartrees", "Wavenumbers")
         # raise Exception(
-        #     corrs[0].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
-        #     corrs[1].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
+        #     # corrs[0].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
+        #     # corrs[1].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
         #     ugh[0],
         #     ugh[1] - ugh[0]
         # )
@@ -194,15 +250,24 @@ class VPT2Tests(TestCase):
         #     self.assertAlmostEquals(ugh[0][0], 4605.96833306)
         #     self.assertAlmostEquals(ugh[1][0] - ugh[0][0], 1571.96615004)
 
-        print(
-            driver.get_transition_moment_corrections(
-                [states[1]],
-                axes=[2],
-                dipole_expansion=dips,
-                terms=[(1, 0, 1)],
-                verbose=True
-            )
-        )
+        # raise Exception(
+        #     driver.get_spectrum(
+        #         states,
+        #         axes=[2],
+        #         dipole_expansion=dips,
+        #         # terms=[(0, 1, 1), (1, 1, 0)]
+        #     )
+        # )
+
+        # print(
+        #     driver.get_transition_moment_corrections(
+        #         states[1:2],
+        #         axes=[2],
+        #         dipole_expansion=dips,
+        #         terms=[(1, 0, 1)],
+        #         verbose=True
+        #     )[0].corrections[0]
+        # )
 
         """
 :: Initial State: 0 0 
@@ -211,33 +276,29 @@ State  <0|M(0)|0>       <0|M(1)|0>       <0|M(0)|1>       <1|M(0)|0>       <0|M(
   1 0  -5.06717599e-02   0.00000000e+00   0.00000000e+00   0.00000000e+00  -4.59933666e-04  -1.12603731e-04   1.06695598e-04  -1.32514233e-04  -3.26867682e-04  -4.63951399e-04
   """
 
-        raise Exception(...)
-        #     np.array(
-        #         driver.get_spectrum(
-        #             states,
-        #             axes=[2],
-        #             dipole_expansion=dips,
-        #             # terms=[(0, 1, 1), (1, 1, 0)]
-        #         )
-        #     ).T
-        #     # driver.get_transition_moment_corrections(
-        #     #     states[1:2],
-        #     #     axes=[2],
-        #     #     dipole_expansion=dips,
-        #     #     terms=[(1, 1, 0)],
-        #     #     verbose=True
-        #     # )
-        # )
-        specs = driver.get_spectrum(
-            [
-                # [0, 0, 0],
-                [1, 0, 0]
-                # [0, 0, 1]
-            ],
-            order=0
+        """
+        :: Initial State: 0 0 
+                 Harmonic                  Anharmonic
+State     Frequency    Intensity       Frequency    Intensity
+  1 0    1622.30304      0.00000      1584.23673      0.01827
+  0 1    3803.29957      4.14283      3705.16107      3.34603
+  2 0    3244.60607      0.00000      3140.43913      1.10535
+  0 2    7606.59913      0.00000      7322.21562      0.30238
+  1 1    5425.60260      0.00000      5269.33382      0.19100
+  """
+
+        # raise Exception(...)
+        raise Exception(
+            np.array(
+                driver.get_spectrum(
+                    states,
+                    axes=[2],
+                    dipole_expansion=dips,
+                    # terms=[(0, 1, 1), (1, 1, 0)]
+                )
+            ).T
         )
 
-        raise Exception(specs)
 
     @validationTest
     def test_GaussianSelectAnharmonicVPT(self):
