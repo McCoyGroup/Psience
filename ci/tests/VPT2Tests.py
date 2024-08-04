@@ -50,7 +50,7 @@ class VPT2Tests(TestCase):
         # mode_selection = None
         # states = [[x] for x in range(7)]
         # mode_selection = [0]
-        states = [[0, 0], [1, 0], [0, 1], [2, 0], [0, 2], [1, 1]]
+        states = [[0, 0], [1, 0], [0, 1]]#, [2, 0], [0, 2], [1, 1]]
         mode_selection = [0, 1]
 
         driver = AnalyticVPTRunner.from_file(
@@ -72,8 +72,8 @@ class VPT2Tests(TestCase):
             #     (1, 0, 0, 1, 1),
             # ],
             # disallowed_coefficients=[
-            #     (1, 0, 0, 0, 0),
-            #     (1, 0, 1, 1, 1),
+            #     # (1, 0, 0, 0, 0),
+            #     # (1, 0, 1, 1, 1),
             #     (1, 0, 0, 1, 2),
             #     (1, 0, 1, 1, 2),
             #     (1, 0, 0, 2, 2),
@@ -83,6 +83,13 @@ class VPT2Tests(TestCase):
             #     (1, 0, 0, 0, 3),
             #     (1, 0, 1, 3, 3),
             #     (1, 0, 2, 3, 3),
+            #     (2, 4, 0, 0, 0, 0),
+            #     (2, 4, 0, 0, 1, 1),
+            #     (2, 4, 1, 1, 0, 0),
+            #     (2, 4, 0, 1, 0, 1),
+            #     (2, 4, 1, 0, 1, 0),
+            #     (2, 4, 1, 0, 0, 1),
+            #     (2, 4, 0, 1, 1, 0)
             # ]
         )
 
@@ -91,16 +98,28 @@ class VPT2Tests(TestCase):
         # )
 
 
-        # driver.eval.expansions[1][0][0, 1, 1] = 1/driver.eval.expansions[1][0][0, 0, 1]#V[1](0, 0, 1)V[1](0, 1, 1)
+        # # driver.eval.expansions[1][0][0, 1, 1] = 1/driver.eval.expansions[1][0][0, 0, 1]#V[1](0, 0, 1)V[1](0, 1, 1)
         # driver.eval.expansions[1][0][0, 0, 0] = 0
         # driver.eval.expansions[1][0][1, 1, 1] = 0
-        # 3.9477276e-06
-        # for p in itertools.permutations([0, 0, 1]): # -6.30287372e-06
+        # for p in itertools.permutations([0, 0, 1]):
         #     driver.eval.expansions[1][0][p] = 0
-        # for p in itertools.permutations([0, 1, 1]): # -1.41858369e-05
+        # for p in itertools.permutations([0, 1, 1]):
         #     driver.eval.expansions[1][0][p] = 0
-        # driver.eval.expansions[1][0][:] = 0
-        # driver.eval.expansions[2][0][:] = 1
+        # # driver.eval.expansions[1][0][:] = 0
+        # # driver.eval.expansions[2][0][:] = 0
+
+
+        ## TODO: LEAVE THIS IN TO GET AGREEMENT WITH PREVIOUS VPT
+        v4 = np.zeros_like(driver.eval.expansions[2][0])
+        for i,j in itertools.combinations(range(len(states[0])), 2):
+            for p in itertools.permutations([i, i, j, j]):
+                v4[p] = driver.eval.expansions[2][0][p]
+        driver.eval.expansions[2][0][:] = v4
+
+        # 1.57484786e-04
+
+        driver.eval.expansions[2][0][:] = 0
+
 
         # -6.30287372e-06
         # -1.62206517e-05 Y[1]([2 1])[[0 1]]xM[0]*/Y[1]([-1 -1])[[0 1]]
@@ -143,8 +162,8 @@ class VPT2Tests(TestCase):
 
 
             # dips[a][1][:] = 0
-            dips[a][1][0] = 0
-            # dips[a][1][1] = 1
+            # dips[a][1][0] = 0
+            # dips[a][1][1] = 0
             #-1.06750815e-05
             # for j in range(1, 3): b[j] = 0
             # b = dips[a][2]
@@ -201,22 +220,22 @@ class VPT2Tests(TestCase):
         # reps = solver.get_VPT_representations()
         # H1_mat = reps[1].todense()
         # H1_gen = driver.eval.solver.hamiltonian_expansion[1]
-        # for ccccc in (H1_gen * H1_gen).changes[(1, 1)]:
-        #     if (
-        #             (len(ccccc[0]), len(ccccc[1])) in {
-        #                 (1, 2), (2, 1)
-        #             }
-        #     ):
-        #             print(ccccc)
-        # raise Exception(...)
+        # # for ccccc in (H1_gen * H1_gen).changes[(1, 1)]:
+        # #     if (
+        # #             (len(ccccc[0]), len(ccccc[1])) in {
+        # #                 (1, 2), (2, 1)
+        # #             }
+        # #     ):
+        # #             print(ccccc)
+        # # raise Exception(...)
         # corrs = driver.evaluate_expressions(
-        #     states[-1:],
+        #     states,
         #     [H1_gen*H1_gen],
         #     verbose=True
         # )
         # # 4.90359849e-07
         # # 1.12500000e+01
-        # # print((H1_mat@H1_mat)[0])
+        # print((H1_mat@H1_mat)[0])
         # print(corrs.corrections[0])
         # raise Exception(...)
 
@@ -226,18 +245,19 @@ class VPT2Tests(TestCase):
 
 
         # wfns = runner.get_wavefunctions()
-        # corrs = driver.eval.get_wavefunction_corrections(states, order=2, verbose=True)
-        # # corrs = driver.eval.get_overlap_corrections(states, order=2, verbose=True)
+        # corrs = driver.eval.get_full_wavefunction_corrections(states, order=2, verbose=True)
+        # # corrs = driver.eval.get_overlap_corrections(states[:1], order=2, verbose=True)
         # print(wfns.corrs.wfn_corrections[1].todense())#[:, :7])
         # print(wfns.corrs.wfn_corrections[2].todense())#[:, :7])
         # with np.printoptions(precision=None):
         #     print(corrs.corrections[0])
+        #     # print(corrs)
         # raise Exception(...)
 
 
         # corrs = driver.get_energy_corrections(
         #         states,
-        #         verbose=False
+        #         verbose=True
         #     )
         # ugh = sum(corrs) * UnitsData.convert("Hartrees", "Wavenumbers")
         # raise Exception(
@@ -259,33 +279,36 @@ class VPT2Tests(TestCase):
         #     )
         # )
 
-        # print(
-        #     driver.get_transition_moment_corrections(
-        #         states[1:2],
-        #         axes=[2],
-        #         dipole_expansion=dips,
-        #         terms=[(1, 0, 1)],
-        #         verbose=True
-        #     )[0].corrections[0]
-        # )
+        print(
+            driver.get_transition_moment_corrections(
+                states[1:2],
+                axes=[2],
+                dipole_expansion=dips,
+                terms=[(1, 0, 1)],
+                verbose=True
+            )[0].corrections[0]
+        )
 
         """
-:: Initial State: 0 0 
-State  <0|M(0)|0>       <0|M(1)|0>       <0|M(0)|1>       <1|M(0)|0>       <0|M(2)|0>       <0|M(1)|1>       <0|M(0)|2>       <1|M(1)|0>       <1|M(0)|1>       <2|M(0)|0>      
-  0 0   0.00000000e+00   3.14230844e-03   4.57996193e-04   4.57996193e-04   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00
-  1 0  -5.06717599e-02   0.00000000e+00   0.00000000e+00   0.00000000e+00  -4.59933666e-04  -1.12603731e-04   1.06695598e-04  -1.32514233e-04  -3.26867682e-04  -4.63951399e-04
-  """
-
-        """
+               >>------------------------- Z Dipole Contributions -------------------------
         :: Initial State: 0 0 
-                 Harmonic                  Anharmonic
-State     Frequency    Intensity       Frequency    Intensity
-  1 0    1622.30304      0.00000      1584.23673      0.01827
-  0 1    3803.29957      4.14283      3705.16107      3.34603
-  2 0    3244.60607      0.00000      3140.43913      1.10535
-  0 2    7606.59913      0.00000      7322.21562      0.30238
-  1 1    5425.60260      0.00000      5269.33382      0.19100
-  """
+        State  <0|M(0)|0>       <0|M(1)|0>       <0|M(0)|1>       <1|M(0)|0>       <0|M(2)|0>       <0|M(1)|1>       <0|M(0)|2>       <1|M(1)|0>       <1|M(0)|1>       <2|M(0)|0>      
+          0 0   0.00000000e+00   3.14230844e-03   4.57996193e-04   4.57996193e-04   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00
+          1 0  -5.06717599e-02   0.00000000e+00   0.00000000e+00   0.00000000e+00  -4.59933666e-04  -1.12603731e-04   1.06695598e-04  -1.32514233e-04  -3.26867682e-04  -4.63951399e-04
+          0 1  -8.20141871e-03   0.00000000e+00   0.00000000e+00   0.00000000e+00  -1.35251159e-05   4.33872389e-04   4.33778607e-04   2.95943803e-04  -3.19611708e-05  -1.83614002e-04
+        >>--------------------------------------------------<<
+        >>------------------------- IR Data -------------------------
+        :: Initial State: 0 0 
+                         Harmonic                  Anharmonic
+        State     Frequency    Intensity       Frequency    Intensity
+          1 0    1622.30304     67.45626      1584.23673     69.53482
+          0 1    3803.29957      4.14283      3705.16107      3.16859
+        >>--------------------------------------------------<<
+        """
+
+        raise Exception(...)
+
+
 
         # raise Exception(...)
         raise Exception(
