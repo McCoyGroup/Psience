@@ -1596,7 +1596,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         if self._ndim is None:
             self._ndim = max(len(self.get_inds(coeff_inds)) for coeff_inds in self.terms.keys())
         return self._ndim
-    def audit(self, target=None, ignore_constants=True):
+    def audit(self, target=None, required_dimension=None, ignore_constants=True):
         """
         Checks to ensure that the number of dimensions aligns with
         the number of indices in the tensor coefficients
@@ -1605,6 +1605,12 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         """
         for coeff_indices,poly_stuff in self.terms.items():
             num_inds = len(self.get_inds(coeff_indices))
+            if required_dimension is not None:
+                _, counts = self.coeff_product_inds(coeff_indices, return_counts=True)
+                for c, d in zip(counts, required_dimension):
+                    if c < d or (c%2 != d%2): raise ValueError("bad indices {} for change order {}".format(
+                        coeff_indices, required_dimension
+                    ))
             if target is not None and num_inds < target: raise ValueError("too few indices ({}) for changes ({}) in {}".format(
                 num_inds, target, poly_stuff
             ))
@@ -1640,13 +1646,17 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
 
     def permute(self, new_inds, check_perm=True):
         new_terms = {}
+        inv_map = np.argsort(new_inds)
         for coeff_inds,polys in self.terms.items():
             new_key = tuple(
-                ci[:2] + tuple(new_inds[j] if j < len(new_inds) else j for j in ci[2:])
+                ci[:2] + tuple(
+                    inv_map[j] if j < len(new_inds) else j
+                    for j in ci[2:]
+                )
                 for ci in coeff_inds
             )
             new_terms[new_key] = polys.permute(new_inds, check_perm=check_perm)
-        return self.mutate(new_terms)
+        return self.mutate(new_terms, canonicalize=True)
 
     def _check_equiv(self, k1, k2):
         if len(k1) != len(k2):
@@ -1719,7 +1729,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             raise NotImplementedError("coeff combining too subtle for current evaluator strategy")
 
         base_terms = self.combine_terms() if combine_coeffs else self.terms
-        base_terms = self.reindex_terms(base_terms)
+        # base_terms = self.reindex_terms(base_terms)
         for k,p in base_terms.items():
             if combine_subterms and isinstance(p, ProductPTPolynomialSum):
                 p = p.combine()
@@ -1800,20 +1810,49 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
 
         # we multiply indices on the left with the corresponding indices on the right
         left_fixed_inds, right_fixed_inds = [tuple(x) for x in inds]
-        left_remainder_inds, right_remainder_inds = [tuple(y) for y in remainder]
-        test_num_left = len(left_remainder_inds) + len(left_fixed_inds)
-        if test_num_left < num_left:
-            left_remainder_inds = left_remainder_inds + tuple(range(test_num_left, num_left))
-        test_num_right = len(right_remainder_inds) + len(right_fixed_inds)
-        if test_num_right < num_right:
-            right_remainder_inds = right_remainder_inds + tuple(range(test_num_right, num_right))
+        left_fixed_remainder, right_fixed_remainder = [tuple(y) for y in remainder]
+
+        # there may be indices that are not specified in the overlap or remainder blocks
+        # which need to be distributed over all specified indices
+        left_float_remainder = tuple(range(len(left_fixed_inds) + len(left_fixed_remainder), num_left))
+        right_float_remainder = tuple(range(len(right_fixed_inds) + len(right_fixed_remainder), num_right))
+
+        left_remainder_inds = left_fixed_remainder + left_float_remainder
+        right_remainder_inds = right_fixed_remainder + right_float_remainder
 
         base_dim = num_left + num_right - num_fixed
 
         # we take every possible combo of remaining indices from left and right
-        max_mult = min(num_right - num_fixed, num_left - num_fixed) # the max number of extra axes to align
-        if min_dim is not None:
-            max_mult = min(base_dim - min_dim, max_mult)
+        max_mult = min(
+            num_right - num_fixed,
+            num_left - num_fixed
+        ) # the max number of extra axes to align
+        # if min_dim is not None:
+        #     max_mult = min(base_dim - min_dim, max_mult)
+
+        # def _build_remapping(fixed_inds, remainder_inds, float_inds, num_pad_rem, num_pad_float):
+        #     mapping = {k:i for i,k in enumerate(fixed_inds)}
+        #     rem_pad = len(fixed_inds) + rem_pad
+        #     for i,k in enumerate(remainder_inds):
+        #         if mapping[k] = i + len(fixed_inds) + rem_pad
+        #     for i,k in enumerate(float_inds):
+        #
+        #     mapping = {k:padding+i for i,k in enumerate(fixed_inds)}
+
+
+        # for debug purposes we construct the total order we'd expect to have
+        _, left_order = self.coeff_product_inds(k1, return_counts=True)
+        _, right_order = self.coeff_product_inds(k2, return_counts=True)
+        total_order = [
+            left_order[i] + right_order[j]
+            for i,j in zip(left_fixed_inds, right_fixed_inds)
+        ] + [
+            left_order[i]
+            for i in left_fixed_remainder
+        ] + [
+            right_order[j]
+            for j in right_fixed_remainder
+        ]
 
         log_level = Logger.LogLevel.Normal if _DEBUG_PRINT else Logger.LogLevel.MoreDebug
         logger = PerturbationTheoryTerm.default_logger()
@@ -1859,16 +1898,18 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
 
                         true_index = (
                                 [0] * num_fixed  # the first indices don't need to be reordered
-                                + [1] * len(remainder[0])
-                                + [3] * (num_left - num_fixed - len(remainder[0]))
-                                + [2] * len(remainder[1])
-                                + [3] * (num_right - num_fixed - len(remainder[1]))
+                                + [1] * len(left_fixed_remainder)
+                                + [3] * len(left_float_remainder)
+                                + [2] * len(right_fixed_remainder)
+                                + [3] * len(right_float_remainder)
                         )
-                        perm = np.argsort(true_index)  # gives the position each final index should map to
+                        perm = np.argsort(true_index)  # gives the position each current index should map to
+                        inv_perm = np.argsort(perm) # gives the position each final index should map from
+
                         new_poly = new_poly.permute(perm)
                         old_key = new_key
                         new_key = tuple(
-                            ci[:2] + tuple(perm[i] for i in ci[2:])
+                            ci[:2] + tuple(inv_perm[i] for i in ci[2:])
                             for ci in new_key
                         )
                         if (
@@ -1885,6 +1926,18 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                          preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
                                          log_level=log_level
                                          )
+
+                    _, counts = self.coeff_product_inds(new_key, return_counts=True)
+                    for c, d in zip(counts, total_order):
+                        if c < d or (c % 2 != d % 2): raise ValueError(
+                            "bad indices {} for expected order {}".format(
+                                new_key, total_order
+                            ))
+                    for c in counts[len(total_order):]:
+                        if (c % 2 != 0): raise ValueError(
+                            "bad indices {} for expected order {}".format(
+                                new_key, total_order
+                            ))
 
                     yield new_key, new_poly#.ensure_dimension(total_dimension)
                 else:
@@ -1990,7 +2043,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                             1 if i < len(remainder[0]) else # left remainder before right remainder
                                             2 if j < len(remainder[1]) else
                                             3
-                                            for i,j in zip(left_choice_x, right_choice_x)
+                                            for i,j in zip(left_choice_x, right_perm_x)
                                         ]
                                         + [
                                             1 if i < len(remainder[0]) else
@@ -2004,10 +2057,11 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                         ]
                                     )
                                     perm = np.argsort(true_index) # gives the position each final index should map to
+                                    inv_perm = np.argsort(perm)
                                     new_poly = new_poly.permute(perm)
                                     old_key = new_key
                                     new_key = tuple(
-                                        ci[:2] + tuple(perm[i] for i in ci[2:])
+                                        ci[:2] + tuple(inv_perm[i] for i in ci[2:])
                                         for ci in new_key
                                     )
                                     if (
@@ -2024,6 +2078,18 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                                      preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
                                                      log_level=log_level
                                                      )
+
+                                _, counts = self.coeff_product_inds(new_key, return_counts=True)
+                                for c, d in zip(counts, total_order):
+                                    if c < d or (c % 2 != d % 2): raise ValueError(
+                                        "bad indices {} for expected order {}".format(
+                                            new_key, total_order
+                                        ))
+                                for c in counts[len(total_order):]:
+                                    if (c % 2 != 0): raise ValueError(
+                                        "bad indices {} for expected order {}".format(
+                                            new_key, total_order
+                                        ))
 
                                 yield new_key, new_poly#.ensure_dimension(total_dimension)
 
@@ -2045,8 +2111,8 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             ci[:2] + tuple(mapping[i] if i < len(mapping) else i for i in ci[2:])
             for ci in k
         )
-    def mul_along(self, other:'PolynomialInterface', inds, remainder=None, min_dim=None, mapping=None,
-                  baseline=None):
+    def mul_along(self, other:'PolynomialInterface', inds, remainder=None, min_dim=None,
+                  mapping=None, baseline=None):
         """
         We multiply every subpoly along the given indices, transposing the appropriate tensor indices
 
@@ -2217,7 +2283,17 @@ class SqrtChangePoly(PolynomialInterface):
         return len(self.poly_change)
     def audit(self, target=None, ignore_constants=True):
         try:
-            return self.poly_obj.audit(target=self.ndim, ignore_constants=ignore_constants)
+            if isinstance(self.poly_obj, PTTensorCoeffProductSum):
+                return self.poly_obj.audit(
+                    target=self.ndim,
+                    required_dimension=[abs(c) for c in self.poly_change],
+                    ignore_constants=ignore_constants
+                )
+            else:
+                return self.poly_obj.audit(
+                    target=self.ndim,
+                    ignore_constants=ignore_constants
+                )
         except ValueError:
             raise ValueError("bad poly found in {}".format(self.short_repr()))
     def ensure_dimension(self, ndim):
@@ -2377,7 +2453,7 @@ class SqrtChangePoly(PolynomialInterface):
             if np.any(np.sort(perm) != np.arange(len(perm))):
                 raise ValueError("bad permutation {}")
 
-        return self.mutate(
+        new = self.mutate(
             self.poly_obj.permute(perm, check_perm=check_perm),
             [self.poly_change[c] for c in perm],
             [
@@ -2385,6 +2461,13 @@ class SqrtChangePoly(PolynomialInterface):
                 if c < len(self.poly_change)
             ]
         )
+        try:
+            new.audit()
+        except ValueError:
+            raise ValueError("bad permutation {} for {}".format(
+                perm, self
+            ))
+        return new
 
     def filter_coefficients(self, terms, mode='match'):
         return self.mutate(self.poly_obj.filter_coefficients(terms, mode=mode))
@@ -4595,6 +4678,8 @@ class PerturbationTheoryExpressionEvaluator:
             for perm in perms
         ])
 
+        # logger.log_print("{c}", c=list(zip(prefactors[0], cind_sets)))
+
         contrib = np.zeros([len(state), len(perms)])
         for cinds in cinds_remapped:
             eval_cache[cinds] = eval_cache.get(cinds, 0) + 1
@@ -4690,7 +4775,6 @@ class PerturbationTheoryExpressionEvaluator:
         if nput.is_zero(expr):
             res = np.zeros([len(state), len(perms)])
         else:
-
             # max_order = None
             free_ind_groups = {}
             for coeff_indices, poly_terms in expr.terms.items():
@@ -4728,7 +4812,8 @@ class PerturbationTheoryExpressionEvaluator:
                     else:
                         for subset in itertools.combinations(range(num_fixed, ndim), r=free_inds):
                             for subperm in itertools.permutations(subset):
-                                with logger.block(tag="{s}", s=subperm, log_level=log_level):
+                                with logger.block(tag="{b} + {s}", b=tuple(range(num_fixed)), s=subperm,
+                                                  log_level=log_level):
                                     contrib += cls._eval_perm(
                                         expr, change, baseline_shift,
                                         subperm, state, perms, coeffs, freqs,
@@ -4859,10 +4944,10 @@ class PerturbationTheoryEvaluator:
             states.append(initial)
             finals = np.asanyarray(finals)
             diffs = finals - initial[np.newaxis, :]
-            sort_keys = -(10*np.abs(diffs) - np.sign(diffs))
-            perms = np.argsort(sort_keys, axis=1)
+            perms = PerturbationTheoryTerm.change_sort(diffs)
             sort_diffs = nput.vector_take(diffs, perms, shared=1)
-            for ch, perm_blocks in zip(*nput.group_by(np.argsort(perms, axis=1), sort_diffs)[0]):
+            # raise Exception(sort_diffs, perms)
+            for ch, perm_blocks in zip(*nput.group_by(perms, sort_diffs)[0]):
                 ch = tuple(ch[ch != 0])
                 change_perms[ch] = change_perms.get(ch, [])
                 change_perms[ch].append(perm_blocks)
@@ -4871,12 +4956,13 @@ class PerturbationTheoryEvaluator:
             pblock = np.unique(np.concatenate(pblock, axis=0), axis=0)
             change_perms[ch] = pblock
 
+
         return np.array(states), change_perms
 
     @staticmethod
     def get_finals(initial, change, perms):
         base_change = np.pad(change, [0, len(initial) - len(change)])
-        changes = nput.vector_take(base_change, perms)
+        changes = nput.vector_take(base_change, np.argsort(perms, axis=1))
         return np.asanyarray(initial)[np.newaxis] + changes
 
     PTCorrections = collections.namedtuple("PTCorrections",

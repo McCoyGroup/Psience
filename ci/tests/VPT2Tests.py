@@ -59,6 +59,16 @@ class VPT2Tests(TestCase):
         # states = [[0, 0], [1, 0], [0, 1], [2, 0], [0, 2], [1, 1]]
         # mode_selection = [0, 1]
 
+        """
+        Exception: [
+         [0.00000000e+00 0.00000000e+00]
+         [1.56220010e+03 6.81079235e+01]
+         [3.52600182e+03 3.09491041e+00]
+         [3.63769558e+03 7.22786799e-06]
+         [6.86775499e+03 3.02301574e-01]
+        ]
+ """
+
         driver = AnalyticVPTRunner.from_file(
             TestManager.test_data(file_name),
             mode_selection=mode_selection,
@@ -125,11 +135,22 @@ class VPT2Tests(TestCase):
         # # driver.eval.expansions[1][0][0, 1, 1] = 1/driver.eval.expansions[1][0][0, 0, 1]#V[1](0, 0, 1)V[1](0, 1, 1)
         # driver.eval.expansions[1][0][0, 0, 0] = 0
         # driver.eval.expansions[1][0][1, 1, 1] = 0
-        # for p in itertools.permutations([0, 0, 1]): # (0, 0, 2) works with just this
+        # driver.eval.expansions[1][0][2, 2, 2] = 0
+        # for p in itertools.permutations([0, 1, 2]):
         #     driver.eval.expansions[1][0][p] = 0
-        # for p in itertools.permutations([0, 1, 1]): # (0, 0, 2) works with just this
+        # for p in itertools.permutations([0, 0, 2]):
         #     driver.eval.expansions[1][0][p] = 0
-        # # driver.eval.expansions[1][0][:] = 0
+        # for p in itertools.permutations([0, 2, 2]):
+        #     driver.eval.expansions[1][0][p] = 0
+        # for p in itertools.permutations([0, 0, 1]):
+        #     driver.eval.expansions[1][0][p] = 0
+        # for p in itertools.permutations([0, 1, 1]):
+        #     driver.eval.expansions[1][0][p] = 0
+        # for p in itertools.permutations([1, 1, 2]):
+        #     driver.eval.expansions[1][0][p] = 0
+        # for p in itertools.permutations([1, 2, 2]): # (0, 0, 2) works with just this
+        #     driver.eval.expansions[1][0][p] = 0
+        # driver.eval.expansions[1][0][:] = 0
         # # driver.eval.expansions[2][0][:] = 0
 
 
@@ -185,8 +206,9 @@ class VPT2Tests(TestCase):
         #     #     dips[a][j][:] = 0
 
             # dips[a][1][:] = 0
-            # dips[a][1][0] = 1
+            # dips[a][1][0] = 0
             # dips[a][1][1] = 0
+            # dips[a][1][2] = 0
             #-1.06750815e-05
             # for j in range(1, 3): b[j] = 0
             # b = dips[a][2]
@@ -259,15 +281,15 @@ class VPT2Tests(TestCase):
 
         # wfns = runner.get_wavefunctions()
         # corrs = driver.eval.get_full_wavefunction_corrections(
-        #     # [[[0, 1], states]],
-        #     [[[1, 0], [[0, 1]]]],
+        #     states,
         #     order=2, verbose=True)
-        # # corrs = driver.eval.get_overlap_corrections(states[:1], order=2, verbose=True)
+        # corrs = driver.eval.get_overlap_corrections(states, order=2, verbose=True)
         # print(wfns.corrs.wfn_corrections[1].todense())#[:, :7])
         # print(wfns.corrs.wfn_corrections[2].todense())#[:, :7])
         # with np.printoptions(precision=None):
-        #     print(corrs.corrections[0])
-        #     # print(corrs)
+        #     # print(corrs.final_states[0])
+        #     # print(corrs.corrections[0])
+        #     print(corrs)
         # raise Exception(...)
 
 
@@ -291,9 +313,7 @@ class VPT2Tests(TestCase):
         #         states[1:2],
         #         axes=[2],
         #         dipole_expansion=dips,
-        #         # terms=[(2, 0, 0)], # 3.97415956e-06 # WORKS
-        #         # terms=[(2, 0, 0)], #
-        #         terms=[(1, 0, 1)],
+        #         # terms=[(2, 0, 0)],
         #         verbose=True
         #     )[0].corrections[0]
         # )
