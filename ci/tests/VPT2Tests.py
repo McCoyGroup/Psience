@@ -40,18 +40,24 @@ class VPT2Tests(TestCase):
     #         # logger=True
     #     )
 
+    """
+      1 0 0    1622.30304     67.45626      1562.20010     68.10792
+  0 1 0    3803.29957      4.14283      3526.00182      3.09491
+  0 0 1    3937.52463      0.00000      3637.69557      0.00001
+  0 2 0    7606.59913      0.00000      6867.75498      0.30230
+  """
     @debugTest
     def test_AnalyticPTOperators(self):
 
         internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
         internals = None
         file_name = 'HOH_freq.fchk'
-        # states = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 2, 0]]
-        # mode_selection = None
+        states = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 2, 0]]
+        mode_selection = None
         # states = [[x] for x in range(7)]
         # mode_selection = [0]
-        states = [[0, 0], [1, 0], [0, 1]]#, [2, 0], [0, 2], [1, 1]]
-        mode_selection = [0, 1]
+        # states = [[0, 0], [1, 0], [0, 1], [2, 0], [0, 2], [1, 1]]
+        # mode_selection = [0, 1]
 
         driver = AnalyticVPTRunner.from_file(
             TestManager.test_data(file_name),
@@ -65,45 +71,63 @@ class VPT2Tests(TestCase):
                 'pseudopotential': 0,
                 'coriolis': 0,
                 # 'dipole':0
-            },
+            }
+            , intermediate_normalization=False
             # allowed_coefficients=[
             #     (0, 5, 0), (0, 5, 1),
             #     (1, 0, 0, 0, 1),
             #     (1, 0, 0, 1, 1),
             # ],
-            # disallowed_coefficients=[
-            #     # (1, 0, 0, 0, 0),
-            #     # (1, 0, 1, 1, 1),
-            #     (1, 0, 0, 1, 2),
-            #     (1, 0, 1, 1, 2),
-            #     (1, 0, 0, 2, 2),
-            #     (1, 0, 1, 2, 2),
-            #     (1, 0, 0, 3, 3),
-            #     (1, 0, 0, 0, 2),
-            #     (1, 0, 0, 0, 3),
-            #     (1, 0, 1, 3, 3),
-            #     (1, 0, 2, 3, 3),
-            #     (2, 4, 0, 0, 0, 0),
-            #     (2, 4, 0, 0, 1, 1),
-            #     (2, 4, 1, 1, 0, 0),
-            #     (2, 4, 0, 1, 0, 1),
-            #     (2, 4, 1, 0, 1, 0),
-            #     (2, 4, 1, 0, 0, 1),
-            #     (2, 4, 0, 1, 1, 0)
-            # ]
+            # , disallowed_coefficients=[
+            #                             # (1, 0, 0, 0, 0),
+            #                             # (1, 0, 1, 1, 1),
+            #                             # (1, 0, 0, 0, 2),
+            #                             # (1, 0, 0, 1, 2),
+            #                             # (1, 0, 1, 1, 2),
+            #                             # (1, 0, 0, 2, 2),
+            #                             # (1, 0, 1, 2, 2),
+            #                             (1, 0, 0, 0, 3),
+            #                             (1, 0, 0, 1, 3),
+            #                             (1, 0, 1, 1, 3),
+            #                             (1, 0, 1, 2, 3),
+            #                             (1, 0, 0, 3, 3),
+            #                             (1, 0, 1, 3, 3),
+            #                             (1, 0, 2, 3, 3)
+            #                         ] + [
+            #                             (2, 0, 0, 0, 0, 0),
+            #                             (2, 0, 0, 0, 0, 1),
+            #                             (2, 0, 0, 0, 1, 1),
+            #                             (2, 0, 0, 1, 1, 1),
+            #                             (2, 0, 0, 0, 0, 2),
+            #                             (2, 0, 0, 0, 2, 2),
+            #                             (2, 0, 0, 1, 2, 2)
+            #                         ] + [
+            #                             (2, 3) + p
+            #                             for p in itertools.chain(
+            #                                 itertools.permutations([0, 0, 0, 0]),
+            #                                 itertools.permutations([0, 0, 0, 1]),
+            #                                 itertools.permutations([0, 0, 1, 1]),
+            #                                 itertools.permutations([0, 1, 1, 1]),
+            #                                 itertools.permutations([0, 1, 2, 2]),
+            #                                 itertools.permutations([1, 1, 1, 2]),
+            #                                 itertools.permutations([1, 1, 2, 2]),
+            #                                 itertools.permutations([1, 2, 2, 2])
+            #                             )
+            #                         ]
         )
 
         # raise Exception(
         #     driver.eval.solver.operator_correction(2, allowed_terms=[(1, 0, 1)]).expressions[0].gen2.get_poly_terms([-1, -1])
         # )
 
+        # 6.39298795e-05
 
         # # driver.eval.expansions[1][0][0, 1, 1] = 1/driver.eval.expansions[1][0][0, 0, 1]#V[1](0, 0, 1)V[1](0, 1, 1)
         # driver.eval.expansions[1][0][0, 0, 0] = 0
         # driver.eval.expansions[1][0][1, 1, 1] = 0
-        # for p in itertools.permutations([0, 0, 1]):
+        # for p in itertools.permutations([0, 0, 1]): # (0, 0, 2) works with just this
         #     driver.eval.expansions[1][0][p] = 0
-        # for p in itertools.permutations([0, 1, 1]):
+        # for p in itertools.permutations([0, 1, 1]): # (0, 0, 2) works with just this
         #     driver.eval.expansions[1][0][p] = 0
         # # driver.eval.expansions[1][0][:] = 0
         # # driver.eval.expansions[2][0][:] = 0
@@ -118,7 +142,7 @@ class VPT2Tests(TestCase):
 
         # 1.57484786e-04
 
-        driver.eval.expansions[2][0][:] = 0
+        # driver.eval.expansions[2][0][:] = 0
 
 
         # -6.30287372e-06
@@ -160,9 +184,8 @@ class VPT2Tests(TestCase):
         #     # for j in range(2, 4):
         #     #     dips[a][j][:] = 0
 
-
             # dips[a][1][:] = 0
-            # dips[a][1][0] = 0
+            # dips[a][1][0] = 1
             # dips[a][1][1] = 0
             #-1.06750815e-05
             # for j in range(1, 3): b[j] = 0
@@ -210,7 +233,8 @@ class VPT2Tests(TestCase):
             include_coriolis_coupling=internals is not None,
             coriolis_terms=[driver.eval.expansions[2][3]],
             pseudopotential_terms=[8*driver.eval.expansions[2][4]],
-            dipole_terms=dips
+            dipole_terms=dips,
+            intermediate_normalization=False
         )
         runner.print_tables(print_intensities=True)
 
@@ -220,21 +244,11 @@ class VPT2Tests(TestCase):
         # reps = solver.get_VPT_representations()
         # H1_mat = reps[1].todense()
         # H1_gen = driver.eval.solver.hamiltonian_expansion[1]
-        # # for ccccc in (H1_gen * H1_gen).changes[(1, 1)]:
-        # #     if (
-        # #             (len(ccccc[0]), len(ccccc[1])) in {
-        # #                 (1, 2), (2, 1)
-        # #             }
-        # #     ):
-        # #             print(ccccc)
-        # # raise Exception(...)
         # corrs = driver.evaluate_expressions(
         #     states,
         #     [H1_gen*H1_gen],
         #     verbose=True
         # )
-        # # 4.90359849e-07
-        # # 1.12500000e+01
         # print((H1_mat@H1_mat)[0])
         # print(corrs.corrections[0])
         # raise Exception(...)
@@ -243,9 +257,11 @@ class VPT2Tests(TestCase):
         #     print(change[:2])
         # raise Exception(...)
 
-
         # wfns = runner.get_wavefunctions()
-        # corrs = driver.eval.get_full_wavefunction_corrections(states, order=2, verbose=True)
+        # corrs = driver.eval.get_full_wavefunction_corrections(
+        #     # [[[0, 1], states]],
+        #     [[[1, 0], [[0, 1]]]],
+        #     order=2, verbose=True)
         # # corrs = driver.eval.get_overlap_corrections(states[:1], order=2, verbose=True)
         # print(wfns.corrs.wfn_corrections[1].todense())#[:, :7])
         # print(wfns.corrs.wfn_corrections[2].todense())#[:, :7])
@@ -270,47 +286,19 @@ class VPT2Tests(TestCase):
         #     self.assertAlmostEquals(ugh[0][0], 4605.96833306)
         #     self.assertAlmostEquals(ugh[1][0] - ugh[0][0], 1571.96615004)
 
-        # raise Exception(
-        #     driver.get_spectrum(
-        #         states,
+        # print(
+        #     driver.get_transition_moment_corrections(
+        #         states[1:2],
         #         axes=[2],
         #         dipole_expansion=dips,
-        #         # terms=[(0, 1, 1), (1, 1, 0)]
-        #     )
+        #         # terms=[(2, 0, 0)], # 3.97415956e-06 # WORKS
+        #         # terms=[(2, 0, 0)], #
+        #         terms=[(1, 0, 1)],
+        #         verbose=True
+        #     )[0].corrections[0]
         # )
-
-        print(
-            driver.get_transition_moment_corrections(
-                states[1:2],
-                axes=[2],
-                dipole_expansion=dips,
-                terms=[(1, 0, 1)],
-                verbose=True
-            )[0].corrections[0]
-        )
-
-        """
-               >>------------------------- Z Dipole Contributions -------------------------
-        :: Initial State: 0 0 
-        State  <0|M(0)|0>       <0|M(1)|0>       <0|M(0)|1>       <1|M(0)|0>       <0|M(2)|0>       <0|M(1)|1>       <0|M(0)|2>       <1|M(1)|0>       <1|M(0)|1>       <2|M(0)|0>      
-          0 0   0.00000000e+00   3.14230844e-03   4.57996193e-04   4.57996193e-04   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00
-          1 0  -5.06717599e-02   0.00000000e+00   0.00000000e+00   0.00000000e+00  -4.59933666e-04  -1.12603731e-04   1.06695598e-04  -1.32514233e-04  -3.26867682e-04  -4.63951399e-04
-          0 1  -8.20141871e-03   0.00000000e+00   0.00000000e+00   0.00000000e+00  -1.35251159e-05   4.33872389e-04   4.33778607e-04   2.95943803e-04  -3.19611708e-05  -1.83614002e-04
-        >>--------------------------------------------------<<
-        >>------------------------- IR Data -------------------------
-        :: Initial State: 0 0 
-                         Harmonic                  Anharmonic
-        State     Frequency    Intensity       Frequency    Intensity
-          1 0    1622.30304     67.45626      1584.23673     69.53482
-          0 1    3803.29957      4.14283      3705.16107      3.16859
-        >>--------------------------------------------------<<
-        """
-
-        raise Exception(...)
-
-
-
         # raise Exception(...)
+
         raise Exception(
             np.array(
                 driver.get_spectrum(
