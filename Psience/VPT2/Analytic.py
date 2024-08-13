@@ -1769,6 +1769,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         return (p_sorts[0],) + tuple(rest_sorts) + (p_sorts[1],)
     @staticmethod
     def _coriolis_symmetrizer(idx): # second and last are momenta and everything else is x
+        # return idx
         # symmetry of the Coriolis term is obviously weird since it's not even Hermitian???
         if idx[1] > idx[-1] or (idx[1] == idx[-1] and idx[0] > idx[2]): # only case where we can flip stuff around...
             rest = idx[-2:1:-1] + (idx[0],)
@@ -3881,30 +3882,6 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                                 total_sorts
                             ))
 
-        # other_changes = self._get_changes()
-        # for k,v in other_changes.items():
-        #     print("?"*20, k, "?"*20)
-        #     # for s in v:
-        #     #     cccc1 = s[0]; cccc2 = s[1]
-        #     #     for n in new_changes[k]:
-        #     #         if (
-        #     #                 len(n[0]) == len(cccc1)
-        #     #             and len(n[1]) == len(cccc2)
-        #     #             and np.all(n[0] == cccc1)
-        #     #             and np.all(n[1] == cccc2)
-        #     #         ):
-        #     #             # print("old", s)
-        #     #             # print("new", n)
-        #     #             break
-        #     #     else:
-        #     #         raise ValueError(s)
-        #
-        #     if len(v) != len(new_changes[k]): raise ValueError(
-        #         k, len(new_changes[k]), len(v)
-        #     )
-        #     for _ in v: print("old", _)
-        #     for _ in new_changes[k]: print("new", _)
-
         return new_changes
 
     def _get_changes(self):
@@ -4604,7 +4581,7 @@ class PerturbationTheoryExpressionEvaluator:
                 substates = substates + baseline_shift[np.newaxis]
 
             if substates.shape[-1] == 0:
-                return np.ones(substates.shape[0])
+                poly_evals.append(np.ones(substates.shape[0]))
             else:
                 # if len(change) != len(poly.coeffs): raise ValueError(change, poly)
                 poly_factor = np.prod(
@@ -4629,7 +4606,7 @@ class PerturbationTheoryExpressionEvaluator:
 
                 ct = poly.prefactor * poly_factor * sqrt_factor
                 poly_evals.append(ct)
-            return np.moveaxis(np.array(poly_evals), 0, 1)
+        return np.moveaxis(np.array(poly_evals), 0, 1)
 
     @classmethod
     def _compute_energy_weights(cls, energy_changes, freqs, full_inds, perms):
@@ -4731,7 +4708,7 @@ class PerturbationTheoryExpressionEvaluator:
                                       p=subexpr,
                                       preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
                                       log_level=log_level):
-                        subcontrib = cls._eval_poly(state, num_fixed, subset, perms[pi],
+                        subcontrib = cls._eval_poly(state, num_fixed, subset, perms[pi,],
                                                     subexpr, change, baseline_shift,
                                                     verbose, logger)
                         # if not nput.is_zero(subcontrib):
@@ -4905,7 +4882,7 @@ class PerturbationTheoryEvaluator:
         self.freqs = freqs
 
     def get_energy_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
-        if expansions is None: expansions = self.expansions
+        expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(self.expansions) - 1
 
@@ -4920,10 +4897,22 @@ class PerturbationTheoryEvaluator:
 
         return corrs
 
-    def get_overlap_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+    def _prep_expansions(self, expansions):
+        #TODO: check symmetry of G-matrix before manipulating
         if expansions is None: expansions = self.expansions
+        return [
+            [
+                tensor
+                    if i != 1 else
+                ( np.moveaxis(tensor, -1, 0) if not nput.is_numeric(tensor) else tensor )
+                for i,tensor in enumerate(order_expansion)
+            ]
+            for order_expansion in expansions
+        ]
+    def get_overlap_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+        expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
-        if order is None: order = len(self.expansions) - 1
+        if order is None: order = len(expansions) - 1
 
         overlap_evaluators = [
             self.solver.overlap_correction(o)([]) for o in range(2, order + 1)
@@ -5024,9 +5013,9 @@ class PerturbationTheoryEvaluator:
                                        terms=None, epaths=None,
                                        expansions=None, freqs=None, verbose=False,
                                        allowed_coefficients=None, disallowed_coefficients=None):
-        if expansions is None: expansions = self.expansions
+        expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
-        if order is None: order = len(self.expansions) - 1
+        if order is None: order = len(expansions) - 1
 
         all_gs = nput.is_numeric(states[0][0])
         if all_gs:
@@ -5053,6 +5042,7 @@ class PerturbationTheoryEvaluator:
 
     def _prep_operator_expansion(self, expansions, operator_expansion):
         if expansions is None: expansions = self.expansions
+        # expansions = self._prep_expansions(expansions)
         # if order is None: order = len(operator_expansion) - 1
 
         exps = []
@@ -5065,10 +5055,14 @@ class PerturbationTheoryEvaluator:
         return exps
     def get_operator_corrections(self, operator_expansion, states, order=None, expansions=None, freqs=None,
                                  terms=None, verbose=False, **opts):
-        if expansions is None: expansions = self.expansions
+        # if expansions is None: expansions = self.expansions
         if order is None: order = len(operator_expansion) - 1
 
         exps = self._prep_operator_expansion(expansions, operator_expansion)
+        # raise Exception(
+        #     exps[2][1][0, 1, 1, 0],
+        #     exps[2][1][1, 0, 0, 1]
+        # )
 
         return self.get_state_by_state_corrections(self.solver.operator_correction, states, order=order,
                                                    expansions=exps, freqs=freqs, terms=terms,
@@ -5079,7 +5073,7 @@ class PerturbationTheoryEvaluator:
         expansions = (
             self._prep_operator_expansion(expansions, operator_expansions)
                 if operator_expansions is not None else
-            expansions
+            expansions #self._prep_expansions(expansions)
         )
         return self.get_state_by_state_corrections(
             lambda i, **kw: exprs[i],

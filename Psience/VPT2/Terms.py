@@ -1666,10 +1666,10 @@ class PotentialTerms(ExpansionTerms):
                     and order > 3
             ):
                 ## TODO: figure out a way to make this work
-                raise NotImplementedError("haven't included translation/rotation modes needed to make this work correctly")
+                # raise NotImplementedError("haven't included translation/rotation modes needed to make this work correctly")
 
                 # raise NotImplementedError("different methods for handling mixed derivatives need patching")
-                xQ = self.matrix.inverse
+                xQ = self.modes.inverse
                 x_derivs = [xQ] + [0] * (order - 1)
                 cart_terms = TensorDerivativeConverter(x_derivs, V_derivs, mixed_terms=[
                     [None, v] for v in V_derivs[2:]
@@ -1679,7 +1679,7 @@ class PotentialTerms(ExpansionTerms):
                 v4 = cart_terms[3]
                 # transform, resymmetrize, and then go to internals
                 if mixed_derivs and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
-                    v3 = terms[2]
+                    # v3 = terms[2]
                     for i in range(v3.shape[0]):
                         if (
                                 self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
@@ -1700,9 +1700,9 @@ class PotentialTerms(ExpansionTerms):
                         else:
                             raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(
                                 self.mixed_derivative_handling_mode))
-                    terms[2] = v3
+                    cart_terms[2] = v3
                 if mixed_derivs and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
-                    v4 = terms[3]
+                    v4 = cart_terms[3]
                     for i in range(v4.shape[0]):
                         if (
                                 self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
@@ -1732,7 +1732,7 @@ class PotentialTerms(ExpansionTerms):
                         else:
                             raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(
                                 self.mixed_derivative_handling_mode))
-                    terms[3] = v4
+                    cart_terms[3] = v4
                 for i in range(v4.shape[0]):
                     for j in range(i+1, v4.shape[0]):
                         for k in range(j+1, v4.shape[0]):
@@ -1760,14 +1760,6 @@ class PotentialTerms(ExpansionTerms):
                     v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
                 terms[3] = v4
                 mixed_derivs = False
-                #   0 0 0 0 0 0     80.93408   -156.52080
-                #   0 0 0 0 0 1    231.69991   -345.26155
-                #
-                #   0 0 0 0 0 0     89.28303   -156.52080
-                #   0 0 0 0 0 1    255.14930   -345.26168
-                #
-                #   0 0 0 0 0 0    109.70479   -156.52080
-                #   0 0 0 0 0 1    265.62694   -345.26168
             else:
 
                 x_derivs = self.get_cartesians_by_modes(order=order-1)

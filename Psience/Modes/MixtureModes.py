@@ -3,6 +3,7 @@ Provides support for handling modes that arise from
 """
 
 import numpy as np
+import McUtils.Numputils as nput
 from McUtils.Coordinerds import CoordinateSystem
 
 # from .MoleculeInterface import AbstractMolecule
@@ -24,9 +25,16 @@ class MixtureModes(CoordinateSystem):
                  origin=None,
                  masses=None,
                  inverse=None,
-                 name=None
+                 name=None,
                  ):
-        coeffs = np.asanyarray(coeffs)
+        if (
+                isinstance(coeffs, np.ndarray) or
+                (not nput.is_numeric(coeffs[0]) and nput.is_numeric(coeffs[0][0]))
+        ):
+            coeffs = [coeffs]
+        coeffs = [np.asanyarray(c) for c in coeffs]
+        full_coeffs = coeffs
+        coeffs = coeffs[0]
 
         super().__init__(
             matrix=coeffs,
@@ -38,6 +46,8 @@ class MixtureModes(CoordinateSystem):
         )
         self.freqs = freqs
         self.masses = masses
+        self._extended_coeffs = full_coeffs
+        self._inverse_coeffs = None
 
     def __getitem__(self, item):
         """
@@ -114,19 +124,18 @@ class MixtureModes(CoordinateSystem):
         )
         carts = carts + origin[np.newaxis]
         return carts
+
+    @property
+    def total_transformation(self):
+        return self._extended_coeffs
+    @property
+    def inverse_transformation(self):
+        if self._inverse_coeffs is None:
+            self._inverse_coeffs = nput.inverse_transformation(self.total_transformation,
+                                                               len(self.total_transformation),
+                                                               reverse_expansion=[self.inverse])
+        return self._inverse_coeffs
     def embed_derivs(self, derivs):
-        fshape = derivs[0].ndim
-        _ = []
-        for n, d in enumerate(derivs):
-            for j in range(n):
-                d = np.tensordot(d, self.matrix, axes=[fshape, 0])
-            _.append(d)
-        return _
+        return nput.tensor_reexpand(self.total_transformation, derivs)
     def unembed_derivs(self, derivs):
-        fshape = derivs[0].ndim
-        _ = []
-        for n, d in enumerate(derivs):
-            for j in range(n):
-                d = np.tensordot(d, self.inverse, axes=[fshape, 0])
-            _.append(d)
-        return _
+        return nput.tensor_reexpand(self.inverse_transformation, derivs)

@@ -2175,7 +2175,7 @@ class LocalTests(TestCase):
         1 1 0            -            -   4982.51639   4665.46163 
         """
 
-    @debugTest#(log_file='~/Documents/Postdoc/local_VPT/hexamer_mbe_rocks.txt')
+    @validationTest#(log_file='~/Documents/Postdoc/local_VPT/hexamer_mbe_rocks.txt')
     def test_WaterHexamerMBPol(self):
         hexamer_base_coords = np.array([
             [-0.35921654,  0.66032868,  1.70403349],
@@ -2354,3 +2354,41 @@ class LocalTests(TestCase):
                 make_oblique=False,
                 monomer=i
             )
+
+    @debugTest
+    def test_Localizers(self):
+
+        mol = Molecule.from_file(
+            TestManager.test_data('HOONO_freq.fchk'),
+        )
+
+        fig = mol.plot(backend='vtk')[0]
+        fig.show()
+
+        raise Exception(...)
+
+        # trms = mol.translation_rotation_modes[1][0]
+        # base_F = mol.potential_derivatives[1]
+        # base_G = mol.g_matrix
+        # g12 = scipy.linalg.fractional_matrix_power(base_G, 1/2)
+        # g12i = scipy.linalg.fractional_matrix_power(base_G, -1/2)
+        # proj = (np.eye(trms.shape[0]) - trms @ trms.T) @ g12
+        # # base_modes
+        # # print(trms.shape)
+        # proj_F = proj @ base_F @ proj.T
+        # print(proj_F)
+        # # raise Exception(
+        # #     mol.normal_modes.modes.freqs**2,
+        # #     np.linalg.eigh(proj_F)[0][6:]
+        # # )
+        # # print(base_G)
+        # # print(base_F)
+        # print("="*50)
+
+        base_modes = mol.normal_modes.modes.basis.to_new_modes()
+        new_modes = LocalizedModes.localize_by_masses(base_modes, [0])
+        final_freqs = np.array(
+            # [base_modes.freqs*219475.6]
+            [n.freqs*219475.6 for n in new_modes]
+        )
+        print(final_freqs.T.tolist())

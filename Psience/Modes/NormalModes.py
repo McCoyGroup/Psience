@@ -1,5 +1,5 @@
 
-import numpy as np, scipy.linalg as slag, itertools
+import numpy as np, scipy.linalg as slag, itertools, collections
 
 from McUtils.Data import AtomData, UnitsData
 import McUtils.Numputils as nput
@@ -16,6 +16,7 @@ __reload_hook__ = [".MixtureModes"]
 class NormalModes(MixtureModes):
     name="NormalModes"
 
+    ModeData = collections.namedtuple("ModeData", ['freqs', 'modes', 'inverse'])
     default_zero_freq_cutoff = 2.5e-4 # 50 wavenumbers...
     @classmethod
     def get_normal_modes(cls,
@@ -97,7 +98,7 @@ class NormalModes(MixtureModes):
         modes = modes[:, sorting]
         inv = inv[sorting, :]
 
-        return freqs, modes, inv
+        return cls.ModeData(freqs, modes, inv)
     @classmethod
     def from_fg(cls,
                 basis,
