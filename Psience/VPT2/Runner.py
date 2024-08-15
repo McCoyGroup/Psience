@@ -2334,6 +2334,48 @@ class AnalyticVPTRunner:
         )
 
     @classmethod
+    def construct(cls,
+                  system,
+                  states=None,
+                  *,
+                  order=2,
+                  allowed_terms=None,
+                  allowed_coefficients=None,
+                  disallowed_coefficients=None,
+                  allowed_energy_changes=None,
+                  **settings
+                  ):
+
+            runner, _ = VPTRunner.construct(
+                system,
+                1,
+                order=order,
+                **settings
+            )
+
+            if states is not None:
+                if nput.is_numeric(states):
+                    states = VPTStateSpace.from_system_and_quanta(runner.system, states)
+                elif not isinstance(states, VPTStateSpace):
+                    states = VPTStateSpace(states, system=runner.system)
+                states = states.state_list
+
+            opts = runner.pt_opts.opts
+            new = cls.from_hamiltonian(
+                runner.hamiltonian,
+                opts.get('order', order),
+                expansion_order=opts.get('expansion_order', None),
+                allowed_terms=allowed_terms,
+                allowed_coefficients=allowed_coefficients,
+                disallowed_coefficients=disallowed_coefficients,
+                allowed_energy_changes=allowed_energy_changes
+            )
+            if states is not None:
+                return new, states
+            else:
+                return new
+
+    @classmethod
     def from_file(cls, file_name, order=2,
                   allowed_terms=None,
                   allowed_coefficients=None,
@@ -2358,22 +2400,65 @@ class AnalyticVPTRunner:
             allowed_energy_changes=allowed_energy_changes
         )
 
-    def construct_classic_runner(self, system, states, **opts):
+    def construct_classic_runner(self, system, states, logger=None,
+                                 corrected_fundamental_frequencies=None,
+                                 potential_terms=None,
+                                 kinetic_terms=None,
+                                 coriolis_terms=None,
+                                 pseudopotential_terms=None,
+                                 dipole_terms=None, **opts):
         return VPTRunner.construct(
             system, states,
-            corrected_fundamental_frequencies=self.eval.freqs,
-            potential_terms=[
-                2 * self.eval.expansions[0][0],
-                6 * self.eval.expansions[1][0],
-                24 * self.eval.expansions[2][0]
-            ],
-            kinetic_terms=[
-                2 * self.eval.expansions[0][1],
-                2 * self.eval.expansions[1][1],
-                4 * self.eval.expansions[2][1]
-            ],
-            coriolis_terms=[self.eval.expansions[2][3]],
-            pseudopotential_terms=[8 * self.eval.expansions[2][2]],
+            corrected_fundamental_frequencies=(
+                self.eval.freqs
+                    if corrected_fundamental_frequencies is None else
+                corrected_fundamental_frequencies
+            ),
+            potential_terms=(
+                [
+                    np.math.factorial(i + 2) * e[0]
+                    for i, e in enumerate(self.eval.expansions)
+                ]
+                    if potential_terms is None else
+                potential_terms
+            ),
+            kinetic_terms=(
+                [
+                    (2 * np.math.factorial(i)) * e[1]
+                    for i, e in enumerate(self.eval.expansions)
+                ]
+                    if kinetic_terms is None else
+                kinetic_terms
+            ),
+            coriolis_terms=(
+                (
+                    [
+                        # self.eval.expansions[2][3],
+                        (np.math.factorial(i)) * e[3]
+                        for i, e in enumerate(self.eval.expansions[2:])
+                    ]
+                        if self.ham.molecule.internals is None else
+                    None
+                )
+                    if coriolis_terms is None else
+                coriolis_terms
+            ),
+            pseudopotential_terms=(
+                [
+                    (8 * np.math.factorial(i)) * (
+                        e[4] if self.ham.molecule.internals is None else e[2]
+                    )
+                    for i, e in enumerate(self.eval.expansions[2:])
+                ]
+                    if pseudopotential_terms is None else
+                pseudopotential_terms
+            ),
+            dipole_terms=(
+                self.ham.dipole_terms.get_terms(len(self.eval.expansions) - 1)
+                    if dipole_terms is None else
+                dipole_terms
+            ),
+            logger=self.ham.logger if logger is None else logger,
             **opts
             # dipole_terms=dips,
             # intermediate_normalization=False
@@ -2470,9 +2555,10 @@ class AnalyticVPTRunner:
 
         return corrs
 
-    def get_spectrum(self, states, dipole_expansion=None, order=None, energy_order=None, axes=None,
+    def get_spectrum(self, states,
+                     dipole_expansion=None, order=None, energy_order=None, axes=None,
                      terms=None,
-                     verbose=True):
+                     verbose=False):
         """
 
         :param states:
@@ -2511,3 +2597,36 @@ class AnalyticVPTRunner:
         if all_gs: specs = specs[0]
 
         return specs
+
+    @classmethod
+    def run_simple(cls,
+                   system,
+                   states,
+                   # corrected_fundamental_frequencies=None,
+                   calculate_intensities=True,
+                   # plot_spectrum=False,
+                   operators=None,
+                   verbose=False,
+                   return_runner=False,
+                   return_states=False,
+                   **opts
+                   ):
+
+        runner, states = cls.construct(system, states, **opts)
+
+        if calculate_intensities:
+            spec_data = runner.get_spectrum(states, verbose=verbose)
+        else:
+            spec_data = runner.get_freqs(states, verbose=verbose) * UnitsData.convert("Hartrees", "Wavenumbers")
+
+        res = []
+        if return_runner:
+            res.append(runner)
+        if return_states:
+            res.append(states)
+        res.append(spec_data)
+
+        if len(res) == 1:
+            return res[0]
+        else:
+            return tuple(res)
