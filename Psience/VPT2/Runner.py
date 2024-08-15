@@ -2343,6 +2343,7 @@ class AnalyticVPTRunner:
                   allowed_coefficients=None,
                   disallowed_coefficients=None,
                   allowed_energy_changes=None,
+                  mixed_derivative_handling_mode='numerical',
                   **settings
                   ):
 
@@ -2350,6 +2351,7 @@ class AnalyticVPTRunner:
                 system,
                 1,
                 order=order,
+                mixed_derivative_handling_mode=mixed_derivative_handling_mode,
                 **settings
             )
 

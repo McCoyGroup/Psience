@@ -1613,8 +1613,8 @@ class PotentialTerms(ExpansionTerms):
                         v3[i, :, :] = v3[:, :, i] = v3[:, i, :] = np.average(
                             [
                                 v3[i, :, :],
-                                v3[:, :, i],
-                                v3[:, i, :]
+                                v3[:, :, i]
+                                # v3[:, i, :]
                             ],
                             axis=0
                         )

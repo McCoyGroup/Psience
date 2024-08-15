@@ -25,7 +25,7 @@ __all__ = [
     # 'RaisingLoweringClasses'
 ]
 
-_DEBUG_PRINT = False # statements will be moved into a proper logger later
+_DEBUG_PRINT = True # statements will be moved into a proper logger later
 _PERMUTE_CHANGES = False # for debug purposes
 _PERMUTE_FINALS = False
 _TAKE_UNIQUE_CHANGES = False
@@ -1046,9 +1046,9 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             self._ndim = len(next(iter(terms.keys()))[0]) # we assume all of these have the same length
         super().__init__(terms, prefactor=1, canonicalize=canonicalize)
         self.reduced = reduced
-        if canonicalize:
-            for k in terms:
-                if any(all(s == 0 for s in sk) for sk in k): raise ValueError("huh")
+        # if canonicalize:
+        #     for k in terms:
+        #         if any(all(s == 0 for s in sk) for sk in k): raise ValueError("huh")
         # self.audit()
 
     def mutate(self, terms:dict=default, prefactor:'Any'=default,  canonicalize:'Any'=default, reduced:'Any'=default):
@@ -1145,18 +1145,18 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         new_terms = {}
         for k, p in self.terms.items():
             k2 = self.shift_key(k, shift)
-            if all(any(s != 0 for s in sk) for sk in k2):
-                new_terms[k2] = p
-        if len(new_terms) == 0:
-            raise ValueError(self.terms, shift)
+            # if all(any(s != 0 for s in sk) for sk in k2):
+            new_terms[k2] = p
+        # if len(new_terms) == 0:
+        #     raise ValueError(self.terms, shift)
         return self.mutate(new_terms)
     def shift(self, shift, shift_energies=False):
         new_terms = {}
         for k,p in self.terms.items():
             if shift_energies:
                 k2 = self.shift_key(k, shift)
-                if all(any(s != 0 for s in sk) for sk in k2):
-                    new_terms[k2] = p.shift(shift)
+                # if all(any(s != 0 for s in sk) for sk in k2):
+                new_terms[k2] = p.shift(shift)
             else:
                 new_terms[k] = p.shift(shift)
         return self.mutate(new_terms)
@@ -1914,7 +1914,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
 
         return new_key, new_poly
     def _generate_direct_product_values(self,
-                                        inds, remainder, min_dim, baseline,
+                                        inds, remainder, index_classes, baseline,
                                         k1, k2, poly_1, poly_2
                                         ):
 
@@ -2006,6 +2006,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                 # To do this, for now we filter out "bad" combinations from the full set of possibilities
                 # by noting that for any given choice of
 
+                uidx_left, uidx_right = index_classes
                 for nx_left in range(max(mul_size-num_free_left, 0), min(num_defd_left, num_free_right, mul_size)+1):
                     # m = how many terms to take from the defined remainder
                     subsize = mul_size - nx_left
@@ -2015,6 +2016,13 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                     left_specd_rem = PerturbationTheoryTermProduct.get_combination_comp(num_defd_left, nx_left)
                     left_float_choice = np.arange(num_defd_left, num_defd_left+subsize)
                     left_float_rem = np.arange(num_defd_left+subsize, len(left_remainder_inds))
+
+                    # we now need to reduce over the unique index classes
+                    if len(uidx_left) > 0:
+                        uchoice_left = nput.vector_take(uidx_left, left_specd_choice)
+                        _, uinds_left = np.unique(uchoice_left, axis=0, return_index=True)
+                        left_specd_choice = left_specd_choice[uinds_left,]
+                        left_specd_rem = left_specd_rem[uinds_left,]
 
                     combo_inds_left = np.concatenate([
                         left_specd_choice,
@@ -2041,6 +2049,13 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                         right_specd_rem = PerturbationTheoryTermProduct.get_combination_comp(num_defd_right, nx_right)
                         right_float_choice = np.arange(num_muld_right, num_muld_right+sub_subsize)
                         right_float_rem = np.arange(num_muld_right+sub_subsize, len(right_remainder_inds))
+
+                        # we now need to reduce over the unique index classes
+                        if len(uidx_right) > 0:
+                            uchoice_right = nput.vector_take(uidx_right, right_specd_choice)
+                            _, uinds_right = np.unique(uchoice_right, axis=0, return_index=True)
+                            right_specd_choice = right_specd_choice[uinds_right,]
+                            right_specd_rem = right_specd_rem[uinds_right,]
 
                         # finally we build out these indices
                         combo_inds_right = np.concatenate([
@@ -2235,7 +2250,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             ci[:2] + tuple(mapping[i] if i < len(mapping) else i for i in ci[2:])
             for ci in k
         )
-    def mul_along(self, other:'PolynomialInterface', inds, remainder=None, min_dim=None,
+    def mul_along(self, other:'PolynomialInterface', inds, remainder=None, index_classes=None,
                   mapping=None, baseline=None):
         """
         We multiply every subpoly along the given indices, transposing the appropriate tensor indices
@@ -2251,7 +2266,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             new = self.direct_multiproduct(
                 other,
                 lambda *kargs: self._generate_direct_product_values(inds, remainder,
-                                                                    min_dim, baseline,
+                                                                    index_classes, baseline,
                                                                     *kargs
                                                                     )
             )
@@ -2753,7 +2768,10 @@ class SqrtChangePoly(PolynomialInterface):
                 new_poly = new_self.mul_along(
                     other_poly,
                     [list(range(len(self_inds))), other_inds],
-                    min_dim=len(final_changes),
+                    index_classes=[
+                        np.asanyarray(self.poly_change), #TODO: check if the shift needs to be included...
+                        np.asanyarray(other.poly_change)
+                    ],
                     remainder=[
                         np.arange(len(self_inds), len(self_remainder) + len(self_inds)),
                         other_remainder
@@ -2765,8 +2783,8 @@ class SqrtChangePoly(PolynomialInterface):
                 new_poly = self.poly_obj.mul_along(
                     other_poly,
                     [self_inds, other_inds],
+                    index_classes=[np.asanyarray(self.poly_change), np.asanyarray(other.poly_change)],
                     remainder=[self_remainder, other_remainder],
-                    min_dim=len(final_changes),
                     baseline=baseline
                 )
 
@@ -2990,7 +3008,7 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                     end = time.time()
                     # self.logger.log_print('terms: {t}', t=terms)
                     self.logger.log_print('took {e:.3f}s', e=end - start, log_level=log_level)
-                terms = terms.permute(change_perm)
+                terms = terms.permute(np.argsort(change_perm))
 
         return terms
 
@@ -3305,7 +3323,7 @@ class PerturbationOperator(PerturbationTheoryTerm):
         return "{}|".format(self.subterm)
 
     def get_changes(self) -> 'dict[tuple[int], Any]':
-        return {k:None for k in self.subterm.changes if k != ()}
+        return {k:None for k in self.subterm.changes}# if k != ()}
     def get_core_poly(self, changes, shift=None):
         base_term = self.subterm.get_core_poly(changes)
         if isinstance(base_term, PolynomialInterface):
@@ -3344,19 +3362,18 @@ class PerturbationOperator(PerturbationTheoryTerm):
             base_term = base_term.mul_simple(prefactor)
         return base_term
     def get_poly_terms(self, changes, shift=None, **opts) -> 'SqrtChangePoly':
-        # with self.debug_logging():
-        if shift is not None: # TODO: remove contextual energy baseline
-            final_change = tuple(c + s for c, s in zip(changes, shift))
-        else:
-            final_change = tuple(changes)
-        final_change = tuple(c for c in final_change if c != 0)
-        if len(final_change) == 0:
-            return 0
+        # if shift is not None: # TODO: remove contextual energy baseline
+        #     final_change = tuple(c + s for c, s in zip(changes, shift))
+        # else:
+        #     final_change = tuple(changes)
+        # final_change = tuple(c for c in final_change if c != 0)
+        # if len(final_change) == 0:
+        #     return 0
 
         return super().get_poly_terms(changes, shift=shift, **opts)
 
 
-class ShiftedEnergyBaseline(PerturbationTheoryTerm):
+class _ShiftedEnergyBaseline(PerturbationTheoryTerm):
     def __init__(self, base_term:'PerturbationTheoryTerm'):
         super().__init__(logger=base_term.logger)
         self.base = base_term
@@ -3372,11 +3389,14 @@ class ShiftedEnergyBaseline(PerturbationTheoryTerm):
 
     def get_core_poly(self, changes, shift=None) -> 'SqrtChangePoly':
         base_term = self.base.get_poly_terms(changes, shift=shift)
-        eshift = [-2*c for c in changes]
-        if shift is not None:
-            raise NotImplementedError(...)
-        return base_term.shift_energies(eshift)
-
+        if shift is None:
+            final_state = changes
+        else:
+            if len(shift) < len(changes):
+                shift = list(shift) + [0] * (len(changes) - len(shift))
+            final_state = [c + s for c,s in zip(changes, shift)]
+        # eshift = [-2*c for c in zip(changes, [0] * )
+        return base_term.shift_energies([-c for c in final_state])
 
 class ShiftedEnergyBaseline(PerturbationTheoryTerm):
     """
@@ -3948,8 +3968,17 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                             np.arange(inds_2.shape[0], dtype=int),
                             indexing='ij'
                         )]
+                        upairs = set()
                         for pad_change, initial_sort, nz, x1, x2 in zip(new_change, initial_sortings, nonzero_counts,
                                                                         inds_1_inds, inds_2_inds):
+                            ch2_test = np.array([ch2[i2] for i2 in inds_2[x2]])
+                            ch2_sort = self.change_sort(ch2_test)
+                            test_key = (
+                                tuple(ch1[inds_1[x1][s]] for s in ch2_sort),
+                                tuple(ch2_test[s] for s in ch2_sort)
+                            )
+                            if test_key in upairs: continue
+                            upairs.add(test_key)
                             # we have to handle two combinatoric problems, now
                             # firstly, we need to make sure that combinations like
                             #    2  1 -1
@@ -3987,6 +4016,7 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                             # treated as unique
                             # And for the _product_ elements, we assign a value based on the left and right
                             # indices
+                            inv_sort = np.argsort(initial_sort)
                             perm_blocks = []
                             product_inds = []
                             proxy_idx = 0# UniquePermutations expects largest to smallest...
@@ -4006,7 +4036,7 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                                 product_inds
                                 + [proxy_left] * (n1 - os)
                                 + [proxy_right] * (n2 - os)
-                            )[initial_sort]
+                            )
                             for p,v in zip(ind_blocks, block_vals):
                                 # if v == 0:
                                 #     perm_blocks.append([p])
@@ -4384,29 +4414,30 @@ class PerturbationTheoryExpressionEvaluator:
                 if isinstance(subexpr, PTEnergyChangeProductSum):
                     subcontrib = np.zeros([len(state), len(pi)])
                     for echanges, polys in subexpr.terms.items():
-                        with logger.block(tag="{e} * {p}",
-                                          preformatter=lambda **vars: dict(
-                                              vars,
-                                              e="E-["+PTEnergyChangeProductSum.format_energy_prod_key(vars['e']) + "]",
-                                              p=vars['p'].format_expr()
-                                          ),
-                                          pf=subexpr.prefactor,
-                                          e=echanges,
-                                          p=polys,
-                                          log_level=log_level):
-                            energy_factors = cls._compute_energy_weights(echanges, freqs, full_set, perms[pi,])
-                            # TODO: check size of energy factor
-                            poly_factor = cls._eval_poly(state, num_fixed, subset, perms[pi,],
-                                                         polys, change, baseline_shift, verbose, logger)
-                            if not nput.is_zero(poly_factor):
-                                scaled_contrib = poly_factor / energy_factors[np.newaxis, :]
-                                logger.log_print("engs: {ef}", ef=energy_factors.squeeze(), log_level=log_level)
-                                logger.log_print("poly: {pf}", pf=poly_factor.squeeze(), log_level=log_level)
-                                logger.log_print("sc: {pf}",
-                                                 pf=(prefacs[np.newaxis, :]*scaled_contrib).squeeze()*log_scaling,
-                                                 log_level=log_level)
+                        if all(any(e != 0 for e in ech) for ech in echanges):
+                            with logger.block(tag="{e} * {p}",
+                                              preformatter=lambda **vars: dict(
+                                                  vars,
+                                                  e="E-["+PTEnergyChangeProductSum.format_energy_prod_key(vars['e']) + "]",
+                                                  p=vars['p'].format_expr()
+                                              ),
+                                              pf=subexpr.prefactor,
+                                              e=echanges,
+                                              p=polys,
+                                              log_level=log_level):
+                                energy_factors = cls._compute_energy_weights(echanges, freqs, full_set, perms[pi,])
+                                # TODO: check size of energy factor
+                                poly_factor = cls._eval_poly(state, num_fixed, subset, perms[pi,],
+                                                             polys, change, baseline_shift, verbose, logger)
+                                if not nput.is_zero(poly_factor):
+                                    scaled_contrib = poly_factor / energy_factors[np.newaxis, :]
+                                    logger.log_print("engs: {ef}", ef=energy_factors.squeeze(), log_level=log_level)
+                                    logger.log_print("poly: {pf}", pf=poly_factor.squeeze(), log_level=log_level)
+                                    logger.log_print("sc: {pf}",
+                                                     pf=(prefacs[np.newaxis, :]*scaled_contrib).squeeze()*log_scaling,
+                                                     log_level=log_level)
 
-                        subcontrib += scaled_contrib
+                            subcontrib += scaled_contrib
                     subcontrib *= subexpr.prefactor
                 elif isinstance(subexpr, (ProductPTPolynomial, ProductPTPolynomialSum)):
                     with logger.block(tag="{p}",

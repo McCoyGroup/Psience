@@ -67,54 +67,49 @@ class VPT2Tests(TestCase):
             internals=internals,
             logger=True,
             mixed_derivative_handling_mode='averaged',
-            # expansion_order = {
-            #     'coriolis':0,
-            #     'pseudopotential':0
-            # }
+            expansion_order = {
+                'coriolis':0,
+                'pseudopotential':0
+            }
         )
 
-        # np.random.seed(1233232123)
-        # driver.eval.expansions[2][0][:] = 0
-        # v3 = driver.eval.expansions[1][0]
-        # for i in itertools.combinations(range(3), 1):
-        #     for p in itertools.permutations([i, i, i]):
-        #         # pass
-        #         v3[p] = 0  # 1e-5
-        # # for i, j in itertools.combinations(range(1, 2), 2):
-        # for i, j in [
-        #     [0, 1],
-        #     [1, 2],
-        #     [0, 2]
-        # ]:
-        #     for p in itertools.permutations([i, i, j]):
-        #         # pass
-        #         v3[p] = 0
-        #     for p in itertools.permutations([i, j, j]):
-        #         # pass
-        #         v3[p] = 0
-        # for i, j in [
-        #     [0, 1],
-        #     [1, 2],
-        #     [0, 2]
-        # ]:
-        #     c = np.random.uniform(1e-4, 7e-4, 1)
-        #     for p in itertools.permutations([i, i, j]):
-        #         # pass
-        #         v3[p] = c  # 1e-5
-        # for i, j in [
-        #     [0, 1],
-        #     [1, 2],
-        #     [0, 2]
-        # ]:
-        #     c = np.random.uniform(1e-4, 7e-4, 1)
-        #     for p in itertools.permutations([i, j, j]):
-        #         # pass
-        #         v3[p] = c
-        # for i, j, k in itertools.combinations(range(3), 3):
-        #     for p in itertools.permutations([i, j, k]):
-        #         pass
-        #         # v3[p] = 1e-4
-        #         v3[p] = 0
+        np.random.seed(1233232123)
+        driver.eval.expansions[2][0][:] = 0
+        v3 = driver.eval.expansions[1][0]
+        for i in itertools.combinations(range(3), 1):
+            for p in itertools.permutations([i, i, i]):
+                # pass
+                v3[p] = 0  # 1e-5
+        for i, j in itertools.combinations(range(3), 2):
+            for p in itertools.permutations([i, i, j]):
+                # pass
+                v3[p] = 0
+            for p in itertools.permutations([i, j, j]):
+                # pass
+                v3[p] = 0
+        for i, j in [
+            # [0, 1],
+            # [1, 2],
+            [0, 2]
+        ]:
+            c = np.random.uniform(1e-4, 7e-4, 1)
+            for p in itertools.permutations([i, i, j]):
+                # pass
+                v3[p] = c  # 1e-5
+        for i, j in [
+            # [0, 1],
+            # [1, 2],
+            # [0, 2]
+        ]:
+            c = np.random.uniform(1e-4, 7e-4, 1)
+            for p in itertools.permutations([i, j, j]):
+                # pass
+                v3[p] = c
+        for i, j, k in itertools.combinations(range(3), 3):
+            for p in itertools.permutations([i, j, k]):
+                # pass
+                v3[p] = v3[p] * 50
+                # v3[p] = 0
 
         # driver.eval.expansions[1][0][:] = 0
         # driver.eval.expansions[1][1][:] = 0
@@ -135,9 +130,14 @@ class VPT2Tests(TestCase):
                 dips[a][2][:] = 0
                 dips[a][3][:] = 0
                 continue
+            dips[a][1][:] = 0
+            dips[a][1][1] = .5
+            # dips[a][2][:] = 5e-2
             # dips[a][1][0] = 5e-1
             # dips[a][1][1] = 1e-1
             # dips[a][1][2] = 2e-1
+
+            dips[a][2][:] = 0
 
         runner, _ = driver.construct_classic_runner(
             TestManager.test_data(file_name),
@@ -149,6 +149,14 @@ class VPT2Tests(TestCase):
             dipole_terms=dips
         )
 
+        # corrs = driver.eval.solver.wavefunction_correction(2)
+        # poly = corrs.get_poly_terms([2], shift=[1])
+        # print("?"*50)
+        # print(
+        #     poly.format_expr()
+        # )
+        # raise Exception(...)
+
         # freqs = np.sum(
         #     driver.get_energy_corrections(states, verbose=True),
         #     axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
@@ -157,43 +165,35 @@ class VPT2Tests(TestCase):
         #
         # raise Exception(...)
 
-        spec = driver.get_spectrum(
-            states,
-            # axes=[2],
-            dipole_expansion=dips,
-            verbose=False
-        )
-        runner.print_tables(print_intensities=True)
-        print(np.array(spec).T)
-        raise Exception(...)
+        # spec = driver.get_spectrum(
+        #     states,
+        #     axes=[2],
+        #     dipole_expansion=dips,
+        #     verbose=True
+        # )
+        # runner.print_tables(print_intensities=True)
+        # print(np.array(spec).T)
+        # raise Exception(...)
 
-        corrs_a = driver.get_transition_moment_corrections(
+        corr_list = [
+            driver.get_transition_moment_corrections(
                 states[1:2],
                 axes=[2],
                 dipole_expansion=dips,
-                terms=[(0, 0, 2)],
+                terms=[t],
                 verbose=True
             )[0].corrections[0]
-        corrs_b = driver.get_transition_moment_corrections(
-            states[1:2],
-            axes=[2],
-            dipole_expansion=dips,
-            terms=[(1, 0, 1)],
-            verbose=True
-        )[0].corrections[0]
-        corrs_c  = driver.get_transition_moment_corrections(
-            states[1:2],
-            axes=[2],
-            dipole_expansion=dips,
-            terms=[(2, 0, 0)],
-            verbose=True
-        )[0].corrections[0]
+            for t in [
+                # (0, 1, 1),
+                (0, 0, 2),
+                # (1, 1, 0),
+                # (1, 0, 1),
+                # (2, 0, 0)
+            ]
+        ]
         runner.print_tables(print_intensities=True)
-        print(
-            corrs_a[0, 2],
-            corrs_b[0, 2],
-            corrs_c[0, 2]
-        )
+        print(*[c[0, 2] for c in corr_list])
+        print(driver.eval.freqs)
         raise Exception(...)
 
         # solver = runner.get_solver()
@@ -209,17 +209,13 @@ class VPT2Tests(TestCase):
         # print(corrs.corrections[0])
         # raise Exception(...)
 
-        # for change in driver.eval.solver.operator_correction(2, allowed_terms=[(1, 0,1 )]).expressions[0].changes[(1,)]:
-        #     print(change[:2])
-        # raise Exception(...)
-
         # wfns = runner.get_wavefunctions()
         # corrs = driver.eval.get_full_wavefunction_corrections(
         #     states,
         #     order=2,
         #     verbose=True
         # )
-        # # corrs = driver.eval.get_overlap_corrections(states, order=2, verbose=True)
+        # corrs = driver.eval.get_overlap_corrections(states, order=2, verbose=True)
         # print(wfns.corrs.wfn_corrections[1].todense())#[:, :7])
         # print(wfns.corrs.wfn_corrections[2].todense())#[:, :7])
         # with np.printoptions(precision=None):
@@ -251,24 +247,24 @@ class VPT2Tests(TestCase):
                 # [0, 1, 0],
                 # [0, 1, 1]
 
-                [0, 0, 0, 0],
-                [1, 0, 0, 0],
-                [0, 1, 0, 0],
-                [0, 0, 1, 0],
-                [0, 0, 1, 1]
+                # [0, 0, 0, 0],
+                # [1, 0, 0, 0],
+                # [0, 1, 0, 0],
+                # [0, 0, 1, 0],
+                # [0, 0, 1, 1]
 
                 # [0, 0, 0, 0, 0],
                 # [1, 0, 0, 0, 0],
                 # [0, 1, 0, 0, 0]
 
-                # [0, 0, 0, 0, 0, 0],
-                # [1, 0, 0, 0, 0, 0],
-                # [0, 0, 0, 0, 0, 1],
-                # [1, 0, 0, 0, 0, 1],
-                # [0, 1, 0, 0, 0, 1],
+                [0, 0, 0, 0, 0, 0],
+                [1, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 1],
+                [0, 1, 0, 0, 0, 1],
             ],
-            mode_selection=[1, 2, 3, 4],
-            # mode_selection=[5, 4, 3, 2, 1, 0],
+            # mode_selection=[2, 1, 3, 4],
+            mode_selection=[5, 4, 3, 2, 1, 0],
             # internals=internals,
             logger=True,
             mixed_derivative_handling_mode='averaged',
@@ -276,45 +272,145 @@ class VPT2Tests(TestCase):
             # return_runner=True,
             # return_states=True,
             # calculate_intensities=False
+            # expansion_order = {
+            #     'coriolis':0,
+            #     'pseudopotential':0
+            # }
         )
 
-        dips = [list(dd) for dd in runner.ham.dipole_terms.get_terms(2)]
-        for a in range(3):
-            dips[a][0] = 0
-            if a < 2:
-                dips[a][1][:] = 0
-                dips[a][2][:] = 0
-                dips[a][3][:] = 0
-                continue
-            # dips[a][1][0] = 5e-1
-            # dips[a][1][1] = 1e-1
-            # dips[a][1][2] = 2e-1
+        # runner.eval.expansions[2][0][:] = 0
+        # v3 = runner.eval.expansions[1][0]
+        # # v3[:] = 1e-4
+        #
+        # np.random.seed(1233232123)
+        # # runner.eval.expansions[2][0][:] = 0
+        # v3 = runner.eval.expansions[1][0]
+        # for i in itertools.combinations(range(4), 1):
+        #     if i not in []:
+        #         for p in itertools.permutations([i, i, i]):
+        #             # pass
+        #             v3[p] = 0  # 1e-5
+        # for i, j in itertools.combinations(range(4), 2):
+        #     # pass
+        #     if [i, j] not in [
+        #         # [0, 1],
+        #         [0, 2],
+        #         # [0, 3],
+        #         # [1, 2],
+        #         # [1, 3],
+        #         # [2, 3]
+        #     ]:
+        #         for p in itertools.permutations([i, i, j]):
+        #             # pass
+        #             v3[p] = 0
+        #     if [i, j] not in [
+        #         # [0, 1]
+        #     ]:
+        #         for p in itertools.permutations([i, j, j]):
+        #             # pass
+        #             v3[p] = 0
+        # for i, j, k in itertools.combinations(range(4), 3):
+        #     if [i, j, k] in [
+        #         [0, 1, 2],
+        #         # [0, 1, 3],
+        #         # [0, 2, 3],
+        #         # [1, 2, 3]
+        #     ]:
+        #         s = v3[i, j, k] * 25
+        #     else:
+        #         s = 0
+        #     for p in itertools.permutations([i, j, k]):
+        #         # pass
+        #         v3[p] = s
+        #         # v3[p] = 0
+        #
+        # dips = [list(dd) for dd in runner.ham.dipole_terms.get_terms(2)]
+        # for a in range(3):
+        #     dips[a][0] = 0
+        #     if a < 2:
+        #         dips[a][1][:] = 0
+        #         dips[a][2][:] = 0
+        #         dips[a][3][:] = 0
+        #         continue
+        #     dips[a][1][:] = 0
+        #     dips[a][1][1] = 5e-1
+        #     # dips[a][1][0] = 5e-1
+        #     # dips[a][1][1] = 1e-1
+        #     # dips[a][1][2] = 2e-1
+        #
+        #     # for i,j in [
+        #     #     [0, 1],
+        #     #     [1, 2],
+        #     #     [0, 2],
+        #     #     [0, 3]
+        #     # ]:
+        #     #     dips[a][2][i, j] = 0
+        #     #     dips[a][2][j, i] = 0
+        #     # # for i,i,j,j in itertools.permutations()
+        #     # dips[a][3][:] = 0
+
 
         # v3 = runner.eval.expansions[1][0]
         # for p in itertools.permutations([0, 1, 2]):
         #     v3[p] = 1e-5
-
-        spec = runner.get_spectrum(states,
-                                   axes=[2],
-                                   dipole_expansion=dips,
-                                   verbose=False)
-        # spec = runner.get_freqs(states) * UnitsData.convert("Hartrees", "Wavenumbers")
-
 
         og, _ = runner.construct_classic_runner(
             TestManager.test_data(file_name),
             states,
             mode_selection=np.arange(len(states[0])),
             # internals=internals,
-            zero_element_warning=False,
-            dipole_terms=dips,
+            # zero_element_warning=False,
+            # dipole_terms=dips,
             logger=False
             # degeneracy_specs='auto'
             # dipole_terms=dips
         )
-        og.print_tables(print_intensities=True)
 
+        # freqs = np.sum(
+        #     runner.get_energy_corrections(states, order=2, verbose=True),
+        #     axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
+        # og.print_tables(print_intensities=False)
+        # print(freqs[0], freqs[1:]-freqs[0])
+        #
+        # raise Exception(...)
+
+        # corr_list = [
+        #     runner.get_transition_moment_corrections(
+        #         states[1:2],
+        #         axes=[2],
+        #         dipole_expansion=dips,
+        #         terms=[t],
+        #         verbose=True
+        #     )[0].corrections[0]
+        #     for t in [
+        #         # (0, 1, 1),
+        #         # (0, 0, 2),
+        #         # (1, 1, 0),
+        #         # (1, 0, 1),
+        #         (2, 0, 0)
+        #     ]
+        # ]
+        # og.print_tables(print_intensities=True)
+        # print(*[c[0, 2] for c in corr_list])
+        # raise Exception(...)
+
+        spec = runner.get_spectrum(states,
+                                   # axes=[2],
+                                   # dipole_expansion=dips,
+                                   verbose=False)
+        og.print_tables(print_intensities=True)
         print(np.array(spec).T)
+        raise Exception(...)
+
+        corrs_a = runner.get_transition_moment_corrections(
+            states[1:2],
+            axes=[2],
+            # dipole_expansion=dips,
+            # terms=[(1, 1, 0)],
+            verbose=True
+        )[0].corrections[0]
+        og.print_tables(print_intensities=True)
+        print(corrs_a[0, 2])
 
     @validationTest
     def test_AnalyticHOONO(self):
