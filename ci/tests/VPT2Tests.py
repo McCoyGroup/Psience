@@ -40,7 +40,7 @@ class VPT2Tests(TestCase):
     #         # logger=True
     #     )
 
-    @validationTest
+    @debugTest
     def test_HOHAnalytic(self):
 
         # internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
@@ -49,11 +49,11 @@ class VPT2Tests(TestCase):
         states = [
             [0, 0, 0],
             [1, 0, 0],
-            # [0, 1, 0], [0, 0, 1],
-            # [1, 1, 0],
-            # [1, 0, 1],
-            # [0, 1, 1],
-            # [0, 2, 0]
+            [0, 1, 0], [0, 0, 1],
+            [1, 1, 0],
+            [1, 0, 1],
+            [0, 1, 1],
+            [0, 2, 0]
         ]
         mode_selection = None
         # states = [[x] for x in range(7)]
@@ -78,8 +78,8 @@ class VPT2Tests(TestCase):
         v3 = driver.eval.expansions[1][0]
         for i in itertools.combinations(range(3), 1):
             for p in itertools.permutations([i, i, i]):
-                # pass
-                v3[p] = 0  # 1e-5
+                pass
+                # v3[p] = 0  # 1e-5
         for i, j in itertools.combinations(range(3), 2):
             for p in itertools.permutations([i, i, j]):
                 # pass
@@ -88,18 +88,19 @@ class VPT2Tests(TestCase):
                 # pass
                 v3[p] = 0
         for i, j in [
-            # [0, 1],
-            # [1, 2],
+            [0, 1],
+            [1, 2],
             [0, 2]
         ]:
-            c = np.random.uniform(1e-4, 7e-4, 1)
+            # c = np.random.uniform(1e-4, 7e-4, 1)
+            c = 1e-5
             for p in itertools.permutations([i, i, j]):
                 # pass
                 v3[p] = c  # 1e-5
         for i, j in [
-            # [0, 1],
-            # [1, 2],
-            # [0, 2]
+            [0, 1],
+            [1, 2],
+            [0, 2]
         ]:
             c = np.random.uniform(1e-4, 7e-4, 1)
             for p in itertools.permutations([i, j, j]):
@@ -108,7 +109,8 @@ class VPT2Tests(TestCase):
         for i, j, k in itertools.combinations(range(3), 3):
             for p in itertools.permutations([i, j, k]):
                 # pass
-                v3[p] = v3[p] * 50
+                v3[p] = 1e-5
+                # v3[p] = v3[p] * 50
                 # v3[p] = 0
 
         # driver.eval.expansions[1][0][:] = 0
@@ -130,14 +132,16 @@ class VPT2Tests(TestCase):
                 dips[a][2][:] = 0
                 dips[a][3][:] = 0
                 continue
-            dips[a][1][:] = 0
-            dips[a][1][1] = .5
+            # dips[a][1][:] = 0
+            # dips[a][1][1] = .5
+            dips[a][1][:] = .5
             # dips[a][2][:] = 5e-2
             # dips[a][1][0] = 5e-1
             # dips[a][1][1] = 1e-1
             # dips[a][1][2] = 2e-1
 
-            dips[a][2][:] = 0
+            # dips[a][2][:] = 0
+            # dips[a][3][:] = 0
 
         runner, _ = driver.construct_classic_runner(
             TestManager.test_data(file_name),
@@ -165,35 +169,45 @@ class VPT2Tests(TestCase):
         #
         # raise Exception(...)
 
-        # spec = driver.get_spectrum(
-        #     states,
-        #     axes=[2],
-        #     dipole_expansion=dips,
-        #     verbose=True
-        # )
-        # runner.print_tables(print_intensities=True)
-        # print(np.array(spec).T)
-        # raise Exception(...)
+        spec = driver.get_spectrum(
+            states,
+            axes=[2],
+            dipole_expansion=dips,
+            verbose=True
+        )
+        runner.print_tables(print_intensities=True)
+        print(np.array(spec).T)
+        raise Exception(...)
 
+        tt = [
+            (0, 1, 0),
+            (0, 0, 1),
+            (1, 0, 0),
+            (0, 2, 0),
+            (0, 1, 1),
+            (0, 0, 2),
+            (1, 1, 0),
+            (1, 0, 1),
+            (2, 0, 0)
+        ]
         corr_list = [
             driver.get_transition_moment_corrections(
-                states[1:2],
+                states,#[1:2],
                 axes=[2],
                 dipole_expansion=dips,
                 terms=[t],
                 verbose=True
             )[0].corrections[0]
-            for t in [
-                # (0, 1, 1),
-                (0, 0, 2),
-                # (1, 1, 0),
-                # (1, 0, 1),
-                # (2, 0, 0)
-            ]
+            for t in tt
         ]
         runner.print_tables(print_intensities=True)
-        print(*[c[0, 2] for c in corr_list])
-        print(driver.eval.freqs)
+        corrs_array = np.array([c[:, sum(t)] for c,t in zip(corr_list, tt)])
+        print(corrs_array.T)
+        # for state_array in corrs_array.T:
+        #     print(s)
+        # print(*[c[:, 2] for c in corr_list])
+        # for f in driver.eval.freqs:
+        #     print(f)
         raise Exception(...)
 
         # solver = runner.get_solver()
@@ -224,7 +238,7 @@ class VPT2Tests(TestCase):
         #     print(corrs)
         # raise Exception(...)
 
-    @debugTest
+    @validationTest
     def test_AnalyticOCHH(self):
 
         file_name = "OCHH_freq.fchk"
