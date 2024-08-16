@@ -40,7 +40,7 @@ class VPT2Tests(TestCase):
     #         # logger=True
     #     )
 
-    @debugTest
+    @validationTest
     def test_HOHAnalytic(self):
 
         # internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
@@ -67,51 +67,51 @@ class VPT2Tests(TestCase):
             internals=internals,
             logger=True,
             mixed_derivative_handling_mode='averaged',
-            expansion_order = {
-                'coriolis':0,
-                'pseudopotential':0
-            }
+            # expansion_order = {
+            #     'coriolis':0,
+            #     'pseudopotential':0
+            # }
         )
 
-        np.random.seed(1233232123)
-        driver.eval.expansions[2][0][:] = 0
-        v3 = driver.eval.expansions[1][0]
-        for i in itertools.combinations(range(3), 1):
-            for p in itertools.permutations([i, i, i]):
-                pass
-                # v3[p] = 0  # 1e-5
-        for i, j in itertools.combinations(range(3), 2):
-            for p in itertools.permutations([i, i, j]):
-                # pass
-                v3[p] = 0
-            for p in itertools.permutations([i, j, j]):
-                # pass
-                v3[p] = 0
-        for i, j in [
-            [0, 1],
-            [1, 2],
-            [0, 2]
-        ]:
-            # c = np.random.uniform(1e-4, 7e-4, 1)
-            c = 1e-5
-            for p in itertools.permutations([i, i, j]):
-                # pass
-                v3[p] = c  # 1e-5
-        for i, j in [
-            [0, 1],
-            [1, 2],
-            [0, 2]
-        ]:
-            c = np.random.uniform(1e-4, 7e-4, 1)
-            for p in itertools.permutations([i, j, j]):
-                # pass
-                v3[p] = c
-        for i, j, k in itertools.combinations(range(3), 3):
-            for p in itertools.permutations([i, j, k]):
-                # pass
-                v3[p] = 1e-5
-                # v3[p] = v3[p] * 50
-                # v3[p] = 0
+        # np.random.seed(1233232123)
+        # driver.eval.expansions[2][0][:] = 0
+        # v3 = driver.eval.expansions[1][0]
+        # for i in itertools.combinations(range(3), 1):
+        #     for p in itertools.permutations([i, i, i]):
+        #         pass
+        #         # v3[p] = 0  # 1e-5
+        # for i, j in itertools.combinations(range(3), 2):
+        #     for p in itertools.permutations([i, i, j]):
+        #         # pass
+        #         v3[p] = 0
+        #     for p in itertools.permutations([i, j, j]):
+        #         # pass
+        #         v3[p] = 0
+        # for i, j in [
+        #     [0, 1],
+        #     [1, 2],
+        #     [0, 2]
+        # ]:
+        #     # c = np.random.uniform(1e-4, 7e-4, 1)
+        #     c = 1e-5
+        #     for p in itertools.permutations([i, i, j]):
+        #         # pass
+        #         v3[p] = c  # 1e-5
+        # for i, j in [
+        #     [0, 1],
+        #     [1, 2],
+        #     [0, 2]
+        # ]:
+        #     c = np.random.uniform(1e-4, 7e-4, 1)
+        #     for p in itertools.permutations([i, j, j]):
+        #         # pass
+        #         v3[p] = c
+        # for i, j, k in itertools.combinations(range(3), 3):
+        #     for p in itertools.permutations([i, j, k]):
+        #         # pass
+        #         v3[p] = 1e-5
+        #         # v3[p] = v3[p] * 50
+        #         # v3[p] = 0
 
         # driver.eval.expansions[1][0][:] = 0
         # driver.eval.expansions[1][1][:] = 0
@@ -124,24 +124,24 @@ class VPT2Tests(TestCase):
         # #         G2[p] = 0
         # # driver.eval.expansions[2][1][0, 0, 0, 0] = 0
 
-        dips = [list(dd) for dd in driver.ham.dipole_terms.get_terms(2)]
-        for a in range(3):
-            dips[a][0] = 0
-            if a < 2:
-                dips[a][1][:] = 0
-                dips[a][2][:] = 0
-                dips[a][3][:] = 0
-                continue
-            # dips[a][1][:] = 0
-            # dips[a][1][1] = .5
-            dips[a][1][:] = .5
-            # dips[a][2][:] = 5e-2
-            # dips[a][1][0] = 5e-1
-            # dips[a][1][1] = 1e-1
-            # dips[a][1][2] = 2e-1
-
-            # dips[a][2][:] = 0
-            # dips[a][3][:] = 0
+        # dips = [list(dd) for dd in driver.ham.dipole_terms.get_terms(2)]
+        # for a in range(3):
+        #     dips[a][0] = 0
+        #     if a < 2:
+        #         dips[a][1][:] = 0
+        #         dips[a][2][:] = 0
+        #         dips[a][3][:] = 0
+        #         continue
+        #     # dips[a][1][:] = 0
+        #     # dips[a][1][1] = .5
+        #     dips[a][1][:] = .5
+        #     # dips[a][2][:] = 5e-2
+        #     # dips[a][1][0] = 5e-1
+        #     # dips[a][1][1] = 1e-1
+        #     # dips[a][1][2] = 2e-1
+        #
+        #     # dips[a][2][:] = 0
+        #     # dips[a][3][:] = 0
 
         runner, _ = driver.construct_classic_runner(
             TestManager.test_data(file_name),
@@ -150,7 +150,7 @@ class VPT2Tests(TestCase):
             internals=internals,
             logger=False,
             zero_element_warning=False,
-            dipole_terms=dips
+            # dipole_terms=dips
         )
 
         # corrs = driver.eval.solver.wavefunction_correction(2)
@@ -171,8 +171,8 @@ class VPT2Tests(TestCase):
 
         spec = driver.get_spectrum(
             states,
-            axes=[2],
-            dipole_expansion=dips,
+            # axes=[2],
+            # dipole_expansion=dips,
             verbose=True
         )
         runner.print_tables(print_intensities=True)
@@ -251,8 +251,6 @@ class VPT2Tests(TestCase):
         #     mixed_derivative_handling_mode='averaged'
         # )
 
-
-
         runner, states = AnalyticVPTRunner.construct(
             TestManager.test_data(file_name),
             [
@@ -291,82 +289,6 @@ class VPT2Tests(TestCase):
             #     'pseudopotential':0
             # }
         )
-
-        # runner.eval.expansions[2][0][:] = 0
-        # v3 = runner.eval.expansions[1][0]
-        # # v3[:] = 1e-4
-        #
-        # np.random.seed(1233232123)
-        # # runner.eval.expansions[2][0][:] = 0
-        # v3 = runner.eval.expansions[1][0]
-        # for i in itertools.combinations(range(4), 1):
-        #     if i not in []:
-        #         for p in itertools.permutations([i, i, i]):
-        #             # pass
-        #             v3[p] = 0  # 1e-5
-        # for i, j in itertools.combinations(range(4), 2):
-        #     # pass
-        #     if [i, j] not in [
-        #         # [0, 1],
-        #         [0, 2],
-        #         # [0, 3],
-        #         # [1, 2],
-        #         # [1, 3],
-        #         # [2, 3]
-        #     ]:
-        #         for p in itertools.permutations([i, i, j]):
-        #             # pass
-        #             v3[p] = 0
-        #     if [i, j] not in [
-        #         # [0, 1]
-        #     ]:
-        #         for p in itertools.permutations([i, j, j]):
-        #             # pass
-        #             v3[p] = 0
-        # for i, j, k in itertools.combinations(range(4), 3):
-        #     if [i, j, k] in [
-        #         [0, 1, 2],
-        #         # [0, 1, 3],
-        #         # [0, 2, 3],
-        #         # [1, 2, 3]
-        #     ]:
-        #         s = v3[i, j, k] * 25
-        #     else:
-        #         s = 0
-        #     for p in itertools.permutations([i, j, k]):
-        #         # pass
-        #         v3[p] = s
-        #         # v3[p] = 0
-        #
-        # dips = [list(dd) for dd in runner.ham.dipole_terms.get_terms(2)]
-        # for a in range(3):
-        #     dips[a][0] = 0
-        #     if a < 2:
-        #         dips[a][1][:] = 0
-        #         dips[a][2][:] = 0
-        #         dips[a][3][:] = 0
-        #         continue
-        #     dips[a][1][:] = 0
-        #     dips[a][1][1] = 5e-1
-        #     # dips[a][1][0] = 5e-1
-        #     # dips[a][1][1] = 1e-1
-        #     # dips[a][1][2] = 2e-1
-        #
-        #     # for i,j in [
-        #     #     [0, 1],
-        #     #     [1, 2],
-        #     #     [0, 2],
-        #     #     [0, 3]
-        #     # ]:
-        #     #     dips[a][2][i, j] = 0
-        #     #     dips[a][2][j, i] = 0
-        #     # # for i,i,j,j in itertools.permutations()
-        #     # dips[a][3][:] = 0
-
-
-        # v3 = runner.eval.expansions[1][0]
-        # for p in itertools.permutations([0, 1, 2]):
-        #     v3[p] = 1e-5
 
         og, _ = runner.construct_classic_runner(
             TestManager.test_data(file_name),
@@ -426,7 +348,7 @@ class VPT2Tests(TestCase):
         og.print_tables(print_intensities=True)
         print(corrs_a[0, 2])
 
-    @validationTest
+    @debugTest
     def test_AnalyticHOONO(self):
 
         file_name = "HOONO_freq.fchk"
@@ -441,33 +363,33 @@ class VPT2Tests(TestCase):
 
         runner, states = AnalyticVPTRunner.construct(
             TestManager.test_data(file_name),
-            1,
-            mode_selection=[8, 7, 6],
+            2,
+            # mode_selection=[8, 7, 6],
             # internals=internals,
             logger=True,
             mixed_derivative_handling_mode='averaged',
-            expansion_order = {
-                'coriolis':0,
-                'pseudopotential':0
-            },
+            # expansion_order = {
+            #     'coriolis':0,
+            #     'pseudopotential':0
+            # },
             # return_runner=True,
             # return_states=True,
             # calculate_intensities=False
         )
 
-        runner.eval.expansions[2][0][:] = 0
-        v3 = runner.eval.expansions[1][0]
-        for i in itertools.combinations(range(3), 1):
-            for p in itertools.permutations([i, i, i]):
-                v3[p] = 0#1e-5
-        for i,j in itertools.combinations(range(3), 2):
-            for p in itertools.permutations([i, i, j]):
-                v3[p] = 0#1e-5
-            for p in itertools.permutations([i, j, j]):
-                v3[p] = 0
-        for i,j,k in itertools.combinations(range(3), 3):
-            for p in itertools.permutations([i, j, k]):
-                v3[p] = 1e-4
+        # runner.eval.expansions[2][0][:] = 0
+        # v3 = runner.eval.expansions[1][0]
+        # for i in itertools.combinations(range(3), 1):
+        #     for p in itertools.permutations([i, i, i]):
+        #         v3[p] = 0#1e-5
+        # for i,j in itertools.combinations(range(3), 2):
+        #     for p in itertools.permutations([i, i, j]):
+        #         v3[p] = 0#1e-5
+        #     for p in itertools.permutations([i, j, j]):
+        #         v3[p] = 0
+        # for i,j,k in itertools.combinations(range(3), 3):
+        #     for p in itertools.permutations([i, j, k]):
+        #         v3[p] = 1e-4
 
         # spec = runner.get_freqs(states) * UnitsData.convert("Hartrees", "Wavenumbers")
 
@@ -482,10 +404,9 @@ class VPT2Tests(TestCase):
             # dipole_terms=dips
         )
 
-
         spec = runner.get_spectrum(states, verbose=False)
         # freqs = np.sum(runner.get_energy_corrections(states, verbose=True), axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
-        og.print_tables(print_intensities=True)
+        # og.print_tables(print_intensities=True)
         # print(freqs[0], freqs[1:]-freqs[0])
         print(np.array(spec).T)
 

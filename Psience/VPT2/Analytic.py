@@ -26,6 +26,7 @@ __all__ = [
 ]
 
 _DEBUG_PRINT = False # statements will be moved into a proper logger later
+_DEBUG_AUDIT = False
 _PERMUTE_CHANGES = False # for debug purposes
 _PERMUTE_FINALS = False
 _TAKE_UNIQUE_CHANGES = False
@@ -123,8 +124,8 @@ class AnalyticPerturbationTheorySolver:
 
     _op_maps = {}
     def get_correction(self, key, cls, order, **kw):
-        k = (key, order)
-        corr = self._op_maps.get(k, None)
+        corr_key = (cls, order)
+        corr = self._op_maps.get(corr_key, None)
         if corr is None:
             for k,v in [
                 ["logger", self.logger],
@@ -138,7 +139,7 @@ class AnalyticPerturbationTheorySolver:
                 if kw.get(k, None) is None:
                     kw[k] = v
             corr = cls(self, order, **kw)
-            self._op_maps[k] = corr
+            self._op_maps[corr_key] = corr
         return corr
 
     def shifted_hamiltonian_correction(self, order, **kw):
@@ -2635,12 +2636,13 @@ class SqrtChangePoly(PolynomialInterface):
                 if c < len(self.poly_change)
             ]
         )
-        try:
-            new.audit()
-        except ValueError:
-            raise ValueError("bad permutation {} for {}".format(
-                perm, self
-            ))
+        if _DEBUG_AUDIT:
+            try:
+                new.audit()
+            except ValueError:
+                raise ValueError("bad permutation {} for {}".format(
+                    perm, self
+                ))
         return new
 
     def filter_coefficients(self, terms, mode='match'):
@@ -3046,7 +3048,7 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
         return terms
 
     def __call__(self, changes, shift=None, coeffs=None, freqs=None, check_sorting=True, simplify=None, return_evaluator=True):
-        with self.logger.block(tag="Building evaluator {}[{}]".format(self, changes)):
+        with self.logger.block(tag="Building evaluator {}[{}]".format(self, changes, id(self))):
             if coeffs is not None:
                 raise NotImplementedError(...)
             if freqs is not None:
@@ -3057,20 +3059,23 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                 changes = tuple(changes[p] for p in perm)
             change_key = changes if (shift is None or all(s==0 for s in shift)) else (changes, shift)
             terms = self.changes.get(change_key, None)
+            start = time.time()
             if not isinstance(terms, SqrtChangePoly):
-                if nput.is_numeric(terms): return terms
-
-                terms = self.changes.get(changes, 0)
-                if not (isinstance(terms, SqrtChangePoly) or nput.is_numeric(terms)):
-                    terms = self.get_poly_terms(changes, shift=None)
-                    if simplify and not nput.is_zero(terms):
-                        terms = terms.combine()#.sort()
-                    self.changes[changes] = terms
-                if shift is not None:
-                    raise NotImplementedError("reshifting not supported yet...")
-                    self.changes[change_key] = terms
+                if not nput.is_numeric(terms):
+                    terms = self.changes.get(changes, 0)
+                    if not (isinstance(terms, SqrtChangePoly) or nput.is_numeric(terms)):
+                        terms = self.get_poly_terms(changes, shift=None)
+                        if simplify and not nput.is_zero(terms):
+                            terms = terms.combine()#.sort()
+                        self.changes[changes] = terms
+                    if shift is not None:
+                        raise NotImplementedError("reshifting not supported yet...")
+                        self.changes[change_key] = terms
             if perm is not None and not nput.is_numeric(terms):
                 terms = terms.permute(np.argsort(perm))
+            end = time.time()
+            # self.logger.log_print('terms: {t}', t=terms)
+            self.logger.log_print('took {e:.3f}s', e=end - start)
             if return_evaluator:
                 return PerturbationTheoryExpressionEvaluator(self, terms, changes, logger=self.logger)
             else:
@@ -4131,10 +4136,12 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                     return 0
                 else:
                     raise ValueError("not sure how we got a number here...")
-            try:
-                polys_1.audit()
-            except:
-                raise ValueError(polys_1, gen1, change_1)
+
+            if _DEBUG_AUDIT:
+                try:
+                    polys_1.audit()
+                except:
+                    raise ValueError(polys_1, gen1, change_1)
             if simplify:
                 polys_1 = polys_1.combine()#.sort()
                 if nput.is_numeric(polys_1):
@@ -4163,7 +4170,8 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                 else:
                     raise ValueError("not sure how we got a number here...")
 
-            polys_2.audit()
+            if _DEBUG_AUDIT:
+                polys_2.audit()
             if simplify:
                 polys_2 = polys_2.combine()#.sort()
             if nput.is_numeric(polys_2):
@@ -4191,13 +4199,14 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
             for i in target_inds[0]: baseline[i] = 0
             base_polys = polys_1.mul_along(polys_2, target_inds, remainder=remainder_inds, baseline=baseline)
 
-            try:
-                base_polys.audit()
-            except ValueError as e:
-                raise ValueError("bad polynomial found in the evaluation of {}[{}][{}]x{}[{}][{}]".format(
-                    gen1, change_1, target_inds[0],
-                    gen2, change_2, target_inds[1]
-                )) from e
+            if _DEBUG_AUDIT:
+                try:
+                    base_polys.audit()
+                except ValueError as e:
+                    raise ValueError("bad polynomial found in the evaluation of {}[{}][{}]x{}[{}][{}]".format(
+                        gen1, change_1, target_inds[0],
+                        gen2, change_2, target_inds[1]
+                    )) from e
 
             if reorgs is not None:
                 _ = base_polys.permute(reorgs[0])
@@ -4238,13 +4247,14 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                 # except:
                 #     raise Exception(change_1, change_2, src_inds, target_inds, reorg)
                 if nput.is_zero(new_polys): continue
-                try:
-                    new_polys.audit()
-                except ValueError:
-                    raise Exception("found bad polynomial in evaluating {}[{}[{}]]x{}[{}[{}]]".format(
-                        self.gen1, change_1, contact_1,
-                        self.gen2, change_2, contact_2
-                    ))
+                if _DEBUG_AUDIT:
+                    try:
+                        new_polys.audit()
+                    except ValueError:
+                        raise Exception("found bad polynomial in evaluating {}[{}[{}]]x{}[{}[{}]]".format(
+                            self.gen1, change_1, contact_1,
+                            self.gen2, change_2, contact_2
+                        ))
 
                 # if isinstance(new_polys, SqrtChangePoly):
                 #     new_polys = new_polys.canonical_sort()
@@ -4753,10 +4763,11 @@ class PerturbationTheoryEvaluator:
 
         return self.PTCorrections(states, final_states, [np.concatenate(c, axis=0).T for c in final_corrs])
 
-    def _build_corrections(self, corr_gen, states, expansions, order,
+    @staticmethod
+    def _build_corrections(corr_gen, states, expansions, order,
                            terms, allowed_coefficients, disallowed_coefficients,
                            epaths,
-                           change_map, freqs, verbose):
+                           change_map, freqs, verbose, logger):
         corrs = {}
         for o in range(order + 1):
             generator = corr_gen(o, allowed_terms=terms,
@@ -4767,25 +4778,33 @@ class PerturbationTheoryEvaluator:
             for change, perms in change_map.items():
                 corr_block = corrs.get(change, [])
                 corrs[change] = corr_block
-                expr = generator(change)
-                gen_corrs = expr.evaluate(
-                    states,
-                    expansions,
-                    freqs,
-                    perms=perms,
-                    verbose=verbose,
-                    log_scaled=False
-                )
+                with logger.block(tag="Getting corrections at order {o}", o=o):
+                    expr = generator(change)
+                    with logger.block(tag="evaluating..."):
+                        start = time.time()
+                        gen_corrs = expr.evaluate(
+                            states,
+                            expansions,
+                            freqs,
+                            perms=perms,
+                            verbose=verbose,
+                            log_scaled=False
+                        )
+                        end = time.time()
+                        logger.log_print('took {e:.3f}s', e=end - start)
                 corr_block.append(gen_corrs)
         return corrs
 
     def get_state_by_state_corrections(self, generator, states, order=None,
                                        terms=None, epaths=None,
                                        expansions=None, freqs=None, verbose=False,
-                                       allowed_coefficients=None, disallowed_coefficients=None):
+                                       allowed_coefficients=None, disallowed_coefficients=None,
+                                       logger=None):
         expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(expansions) - 1
+        if logger is None: logger=self.solver.logger
+        logger = Logger.lookup(logger)
 
         all_gs = nput.is_numeric(states[0][0])
         if all_gs:
@@ -4796,7 +4815,7 @@ class PerturbationTheoryEvaluator:
 
         corrs = self._build_corrections(generator, states, expansions, order,
                                         terms, allowed_coefficients, disallowed_coefficients,
-                                        epaths, change_map, freqs, verbose)
+                                        epaths, change_map, freqs, verbose, logger)
         return self._reformat_corrections(states, order, corrs, change_map)
 
     def get_matrix_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
