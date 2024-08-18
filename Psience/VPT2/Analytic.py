@@ -4584,9 +4584,10 @@ class PerturbationTheoryExpressionEvaluator:
     @classmethod
     def _eval_perm(cls, expr, change, baseline_shift,
                    max_order,
-                   subset, state, perms, coeffs, freqs, cind_sets, num_fixed,
+                   subset, state, perms, freqs, cind_sets, ctensors,
+                   num_fixed,
                    ustate_data,
-                   zero_cutoff, counts_cache, poly_cache,
+                   zero_cutoff, counts_cache, poly_cache, facs,
                    verbose, logger, log_scaled):
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
         log_scaling = 219475.6 if log_scaled else 1
@@ -4596,39 +4597,70 @@ class PerturbationTheoryExpressionEvaluator:
 
         free = subset
         fixed = num_fixed
+
         cinds_remapped = [
             tuple(
-                # we need to avoid doing the exact same term twice, _but_ order matters
-                # so we can't sort the tuples
-                PTTensorCoeffProductSum._symmetrize(
-                    ci[:2] + tuple(free[j - fixed] if j >= fixed and len(free) > j - fixed else j for j in ci[2:])
-                )
+                # don't need to symmetrize now that we
+                # just loop over combinations (which are ordered)
+                (ci[:2], tuple(free[j - fixed] if j >= fixed else j for j in ci[2:]))
                 for ci in cinds
             )
             for cinds in cind_sets
         ]
-        prefactors = np.array([
-            [
-                np.prod([cls._extract_coeffs(coeffs, ci, perm) for ci in cinds])
-                    if counts_cache.get(cinds, 0) < np.math.factorial(len(cinds)) else # should cache, avoid retesting...
-                0
-                for cinds in cinds_remapped
-            ]
-            for perm in perms
-        ])
 
-        # logger.log_print("{c}", c=list(zip(prefactors[0], cind_sets)))
+        # compute prefactor products with fast exiting
         contrib = np.zeros([len(state), len(perms)])
-        for cinds in cinds_remapped:
-            counts_cache[cinds] = counts_cache.get(cinds, 0) + 1
-        good_pref = np.where(np.abs(prefactors) > zero_cutoff) # don't bother to include useless terms
-        if len(good_pref) == 0 or len(good_pref[0]) == 0: return contrib
-        prefac_groups = nput.group_by(good_pref[0], good_pref[1])[0] # group perms by corresponding cinds
+        nevals = 0
+        eval_perms = np.empty(len(perms)*len(cinds_remapped), dtype=int)
+        eval_cinds = np.empty(len(perms)*len(cinds_remapped), dtype=int)
+        prefactors = np.empty(len(perms)*len(cinds_remapped), dtype=float)
+        for j,cinds in enumerate(cinds_remapped):
+            cur_hits = counts_cache.get(cinds, 0)
+            if cur_hits < facs[len(cinds)]:
+                counts_cache[cinds] = cur_hits + 1
+                prod = np.ones(len(perms), dtype=float)
+                good_perms = np.full(len(perms), True)
+                for t,(_,ind) in zip(ctensors[j],cinds):
+                    if len(ind) == 0:
+                        base_val = t
+                        if abs(base_val) < zero_cutoff:
+                            good_perms[:] = False
+                            break
+                        else:
+                            prod *= base_val
+                    else:
+                        still_good = False
+                        for i, m in enumerate(good_perms):
+                            if m:
+                                still_good = True
+                                perm = perms[i]
+                                idx = tuple(perm[x] for x in ind)
+                                base_val = t[idx]
+                                prod[i] *= base_val
+                                if abs(prod[i]) < zero_cutoff: # we assume monotonic b.c. small corrections
+                                    good_perms[i] = False
+                        if not still_good:
+                            break
+                for i, m in enumerate(good_perms):
+                    if m:
+                        eval_perms[nevals] = i
+                        eval_cinds[nevals] = j
+                        prefactors[nevals] = prod[i]
+                        nevals += 1
 
-        # with logger.block(tag='fs: {fs}', fs=full_set):
-        for g,pi in zip(*prefac_groups):
-            prefacs = prefactors[pi,][:, g]
-            g_key = cind_sets[g]
+        if nevals == 0: return contrib
+
+        # # logger.log_print("{c}", c=list(zip(prefactors[0], cind_sets)))
+        # contrib = np.zeros([len(state), len(perms)])
+        # for cinds in cinds_remapped:
+        #     counts_cache[cinds] = counts_cache.get(cinds, 0) + 1
+        # good_pref = np.where(np.abs(prefactors) > zero_cutoff) # don't bother to include useless terms
+        # if len(good_pref) == 0 or len(good_pref[0]) == 0: return contrib
+        (groups, group_inds), _ = nput.group_by(np.arange(nevals), eval_cinds[:nevals])
+        for cind_group,val_group in zip(groups, group_inds):
+            prefacs = prefactors[val_group,]
+            pi = eval_perms[val_group,]
+            g_key = cind_sets[cind_group]
 
             perm_states = np.moveaxis(nput.vector_take(state, perms[pi,]), 0, 1)
             perm_substates = []
@@ -4710,6 +4742,18 @@ class PerturbationTheoryExpressionEvaluator:
                              preformatter=lambda **vars: dict(vars, c=vars['c'].squeeze() * log_scaling),
                              log_level=log_level)
         return contrib
+
+    @classmethod
+    def _prep_coeff_data(cls, cind_sets, coeffs):
+        final_tensors = []
+        final_cinds = []
+        for cinds in cind_sets:
+            tensors = [coeffs[ci[0]][ci[1]] for ci in cinds]
+            if any(nput.is_zero(t) for t in tensors): continue
+            # indices = [ (ci[:2], ci[:2]) for ci in cinds ]
+            final_tensors.append(tensors)
+            final_cinds.append(cinds)
+        return final_tensors, final_cinds
 
     @classmethod
     def _get_max_order(cls, expr):
@@ -4797,14 +4841,22 @@ class PerturbationTheoryExpressionEvaluator:
                     # now we iterate over every subset of inds (outside of the fixed ones)
                     # excluding replacement (since that corresponds to a different coeff/poly)
 
+                    tensors,cind_specs = cls._prep_coeff_data(cind_sets, coeffs)
+
+                    facs = [
+                        np.math.factorial(n)
+                        for n in range(max(len(cinds) for cinds in cind_specs)+1)
+                    ]
+
                     if free_inds == 0:
                         with logger.block(tag="()", log_level=log_level):
                             contrib += cls._eval_perm(
                                 expr, change, baseline_shift, max_order,
-                                (), state, perms, coeffs, freqs,
-                                cind_sets, num_fixed, ustate_data,
+                                (), state, perms,
+                                freqs, cind_specs, tensors,
+                                num_fixed, ustate_data,
                                 zero_cutoff,
-                                counts_cache, poly_cache,
+                                counts_cache, poly_cache, facs,
                                 verbose, logger, log_scaled
                             )
                     else:
@@ -4815,9 +4867,11 @@ class PerturbationTheoryExpressionEvaluator:
                                               log_level=log_level):
                                 contrib += cls._eval_perm(
                                     expr, change, baseline_shift, max_order,
-                                    subperm, state, perms, coeffs, freqs,
-                                    cind_sets, num_fixed, ustate_data,
-                                    zero_cutoff, counts_cache, poly_cache,
+                                    subperm, state, perms,
+                                    freqs, cind_specs, tensors,
+                                    num_fixed, ustate_data,
+                                    zero_cutoff,
+                                    counts_cache, poly_cache, facs,
                                     verbose, logger, log_scaled
                                 )
                     # raise Exception(cind_sets)

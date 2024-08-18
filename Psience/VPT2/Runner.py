@@ -2490,7 +2490,7 @@ class AnalyticVPTRunner:
                                                 verbose=verbose)
     def get_freqs(self, states, order=None, verbose=False):
         corrs = self.get_energy_corrections(states, order=order, verbose=verbose)
-        engs = np.sum(corrs, axis=0)
+        engs = np.sum(corrs, axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
         freqs = (engs[1:] - engs[0])[:, 0]  # TODO: figure out why we have too much shape
         return engs[0], freqs
 
