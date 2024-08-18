@@ -1,9 +1,8 @@
 """
 Stores all of the terms used inside the VPT2 representations
 """
-import itertools
 
-import numpy as np, functools as fp, itertools as ip, time, enum
+import numpy as np, functools as fp, itertools, time, enum
 
 from McUtils.Numputils import SparseArray, levi_cevita3
 import McUtils.Numputils as nput
@@ -449,7 +448,7 @@ class ExpansionTerms:
             weights = np.ones(s)
             all_inds = list(range(len(s)))
             for i in range(2, order + 1):
-                for inds in ip.combinations(all_inds, i):
+                for inds in itertools.combinations(all_inds, i):
                     # define a diagonal slice through
                     sel = tuple(slice(None, None, None) if a not in inds else np.arange(s[a]) for a in all_inds)
                     weights[sel] = 1 / np.math.factorial(i)
@@ -1556,130 +1555,57 @@ class PotentialTerms(ExpansionTerms):
         if logger is None:
             logger = self.logger
 
-        logger.log_print('calculating potential derivatives')
+        with logger.block(tag='calculating potential derivatives'):
+            start = time.time()
 
-        if order is None:
-            order = len(self.v_derivs)
-        else:
-            order += 2
-
-        if self.allow_higher_potential_terms and len(self.v_derivs) < order:
-            self.v_derivs = tuple(self.v_derivs) + (0,) * order
-
-        grad = self.v_derivs[0]
-        if self.grad_tolerance is not None:
-            if np.linalg.norm(grad) > self.grad_tolerance:
-                # add some logger stuff...
-                logger.log_print(
-                    "WARNING: gradient norm is {n}",
-                    n=np.linalg.norm(grad)
-                )
-        grad = np.zeros(grad.shape)
-        V_derivs = [grad] + list(self.v_derivs[1:])
-        # hess = self.v_derivs[1]
-
-        # raise Exception([x.shape for x in self.v_derivs])
-
-        # Use the Molecule's coordinates which know about their embedding by default
-        intcds = self.internal_coordinates
-        direct_prop = (
-                self.direct_propagate_cartesians
-                and not (isinstance(self.direct_propagate_cartesians, str) and self.direct_propagate_cartesians == 'dipoles')
-        )
-        mixed_derivs = self.mixed_derivs
-        if intcds is None or direct_prop:
-            # this is nice because it eliminates most of the terms in the expansion
-            xQ = self.modes.inverse
-            x_derivs = [xQ] + [0] * (order-1)
-            # terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=False, mixed_XQ=self.mixed_derivs)
-            if mixed_derivs:
-                terms = TensorDerivativeConverter(x_derivs, V_derivs, mixed_terms=[
-                    [None, v] for v in V_derivs[2:]
-                ]).convert(order=order)#, check_arrays=True)
+            if order is None:
+                order = len(self.v_derivs)
             else:
-                terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
+                order += 2
 
+            if self.allow_higher_potential_terms and len(self.v_derivs) < order:
+                self.v_derivs = tuple(self.v_derivs) + (0,) * order
 
-            if mixed_derivs and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
-                v3 = terms[2]
-                for i in range(v3.shape[0]):
-                    if (
-                            self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
-                    ):
-                        v3[:, :, i] = v3[:, i, :] = v3[i, :, :]
-                    elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
-                        v3[i, :, :] = v3[:, :, i]
-                    elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
-                        v3[i, :, :] = v3[:, :, i] = v3[:, i, :] = np.average(
-                            [
-                                v3[i, :, :],
-                                v3[:, :, i]
-                                # v3[:, i, :]
-                            ],
-                            axis=0
-                        )
-                        # v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
-                    else:
-                        raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(
-                            self.mixed_derivative_handling_mode))
-                terms[2] = v3
-            if mixed_derivs and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
-                v4 = terms[3]
-                for i in range(v4.shape[0]):
-                    if (
-                            self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
-                    ):
-                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
-                    elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
-                        r = range(i, v4.shape[0])
-                        v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[i, i, r, r] = v4[r, r, i, i]
-                    elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
-                        r = range(i, v4.shape[0])
-                        v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[i, i, r, r] = v4[r, r, i, i] = np.average(
-                            [
-                                # v4[i, r, i, r],
-                                # v4[i, r, r, i],
-                                # v4[r, i, r, i],
-                                # v4[r, i, i, r],
-                                v4[i, i, r, r],
-                                v4[r, r, i, i]
-                                ],
-                            axis=0
-                        )
-                        # v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
-                    else:
-                        raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(self.mixed_derivative_handling_mode))
-                terms[3] = v4
-        elif self._check_internal_modes() and not self._check_mode_terms():
-            raise NotImplementedError("...")
-            # It should be very rare that we are actually able to make it here
-            terms = []
-            RQ = self.modes.inverse
-            for v in V_derivs:
-                for j in range(v.ndim):
-                    v = np.tensordot(RQ, v, axes=[1, -1])
-                terms.append(v)
-        else:
-            if ( # handle mixed derivative resymmetrization
-                    mixed_derivs
-                    and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled
-                    and order > 3
-            ):
-                ## TODO: figure out a way to make this work
-                # raise NotImplementedError("haven't included translation/rotation modes needed to make this work correctly")
+            logger.log_print("prepping grad...")
+            grad = self.v_derivs[0]
+            if self.grad_tolerance is not None:
+                if np.linalg.norm(grad) > self.grad_tolerance:
+                    # add some logger stuff...
+                    logger.log_print(
+                        "WARNING: gradient norm is {n}",
+                        n=np.linalg.norm(grad)
+                    )
+            grad = np.zeros(grad.shape)
+            V_derivs = [grad] + list(self.v_derivs[1:])
+            # hess = self.v_derivs[1]
 
-                # raise NotImplementedError("different methods for handling mixed derivatives need patching")
+            # raise Exception([x.shape for x in self.v_derivs])
+
+            # Use the Molecule's coordinates which know about their embedding by default
+            intcds = self.internal_coordinates
+            direct_prop = (
+                    self.direct_propagate_cartesians
+                    and not (isinstance(self.direct_propagate_cartesians, str) and self.direct_propagate_cartesians == 'dipoles')
+            )
+            mixed_derivs = self.mixed_derivs
+            if intcds is None or direct_prop:
+
+                logger.log_print("Cartesian transformation...")
+                # this is nice because it eliminates most of the terms in the expansion
                 xQ = self.modes.inverse
-                x_derivs = [xQ] + [0] * (order - 1)
-                cart_terms = TensorDerivativeConverter(x_derivs, V_derivs, mixed_terms=[
-                    [None, v] for v in V_derivs[2:]
-                ]).convert(order=order)
-                # provides the derivatives expressed with respect to the Cartesian normal modes
-                v3 = cart_terms[2]
-                v4 = cart_terms[3]
-                # transform, resymmetrize, and then go to internals
+                x_derivs = [xQ] + [0] * (order-1)
+                # terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=False, mixed_XQ=self.mixed_derivs)
+                if mixed_derivs:
+                    terms = TensorDerivativeConverter(x_derivs, V_derivs, mixed_terms=[
+                        [None, v] for v in V_derivs[2:]
+                    ]).convert(order=order)#, check_arrays=True)
+                else:
+                    terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
+
+                if mixed_derivs:
+                    logger.log_print("handling mixed derivative symmetry ({mode})...", mode=self.mixed_derivative_handling_mode)
                 if mixed_derivs and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
-                    # v3 = terms[2]
+                    v3 = terms[2]
                     for i in range(v3.shape[0]):
                         if (
                                 self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
@@ -1691,8 +1617,8 @@ class PotentialTerms(ExpansionTerms):
                             v3[i, :, :] = v3[:, :, i] = v3[:, i, :] = np.average(
                                 [
                                     v3[i, :, :],
-                                    v3[:, :, i],
-                                    v3[:, i, :]
+                                    v3[:, :, i]
+                                    # v3[:, i, :]
                                 ],
                                 axis=0
                             )
@@ -1700,24 +1626,20 @@ class PotentialTerms(ExpansionTerms):
                         else:
                             raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(
                                 self.mixed_derivative_handling_mode))
-                    cart_terms[2] = v3
+                    terms[2] = v3
                 if mixed_derivs and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
-                    v4 = cart_terms[3]
+                    v4 = terms[3]
                     for i in range(v4.shape[0]):
                         if (
                                 self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
                         ):
-                            v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i,
-                                                                                                                 i, :,
-                                                                                                                 :]
+                            v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
                         elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
                             r = range(i, v4.shape[0])
-                            v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[i, i, r, r] = v4[
-                                r, r, i, i]
+                            v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[i, i, r, r] = v4[r, r, i, i]
                         elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
                             r = range(i, v4.shape[0])
-                            v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[i, i, r, r] = v4[
-                                r, r, i, i] = np.average(
+                            v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[i, i, r, r] = v4[r, r, i, i] = np.average(
                                 [
                                     # v4[i, r, i, r],
                                     # v4[i, r, r, i],
@@ -1725,30 +1647,197 @@ class PotentialTerms(ExpansionTerms):
                                     # v4[r, i, i, r],
                                     v4[i, i, r, r],
                                     v4[r, r, i, i]
-                                ],
+                                    ],
                                 axis=0
                             )
                             # v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
                         else:
-                            raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(
-                                self.mixed_derivative_handling_mode))
-                    cart_terms[3] = v4
-                for i in range(v4.shape[0]):
-                    for j in range(i+1, v4.shape[0]):
-                        for k in range(j+1, v4.shape[0]):
-                            for l in range(k+1, v4.shape[0]):
-                                # if (i != j and i != k and i != l and j != k and j != l and k != l ): # all different
-                                for p in itertools.permutations([i, j, k, l]):
-                                    v4[p] = 0
-                for i in range(v4.shape[0]):
-                    v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+                            raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(self.mixed_derivative_handling_mode))
+                    terms[3] = v4
+            elif self._check_internal_modes() and not self._check_mode_terms():
+                raise NotImplementedError("...")
+                # It should be very rare that we are actually able to make it here
+                terms = []
+                RQ = self.modes.inverse
+                for v in V_derivs:
+                    for j in range(v.ndim):
+                        v = np.tensordot(RQ, v, axes=[1, -1])
+                    terms.append(v)
+            else:
+                if ( # handle mixed derivative resymmetrization
+                        mixed_derivs
+                        and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled
+                        and order > 3
+                ):
+                    ## TODO: figure out a way to make this work
+                    # raise NotImplementedError("haven't included translation/rotation modes needed to make this work correctly")
 
-                qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(cart_terms)-1)
-                terms = TensorDerivativeConverter(
-                    qQ_derivs + [0],  # pad for the zeroed out gradient term
-                    cart_terms
-                ).convert(order=order)
+                    # raise NotImplementedError("different methods for handling mixed derivatives need patching")
+                    xQ = self.modes.inverse
+                    x_derivs = [xQ] + [0] * (order - 1)
+                    cart_terms = TensorDerivativeConverter(x_derivs, V_derivs, mixed_terms=[
+                        [None, v] for v in V_derivs[2:]
+                    ]).convert(order=order)
+                    # provides the derivatives expressed with respect to the Cartesian normal modes
+                    v3 = cart_terms[2]
+                    v4 = cart_terms[3]
+                    # transform, resymmetrize, and then go to internals
+                    if mixed_derivs and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
+                        # v3 = terms[2]
+                        for i in range(v3.shape[0]):
+                            if (
+                                    self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
+                            ):
+                                v3[:, :, i] = v3[:, i, :] = v3[i, :, :]
+                            elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                                v3[i, :, :] = v3[:, :, i]
+                            elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
+                                v3[i, :, :] = v3[:, :, i] = v3[:, i, :] = np.average(
+                                    [
+                                        v3[i, :, :],
+                                        v3[:, :, i],
+                                        v3[:, i, :]
+                                    ],
+                                    axis=0
+                                )
+                                # v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+                            else:
+                                raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(
+                                    self.mixed_derivative_handling_mode))
+                        cart_terms[2] = v3
+                    if mixed_derivs and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
+                        v4 = cart_terms[3]
+                        for i in range(v4.shape[0]):
+                            if (
+                                    self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical
+                            ):
+                                v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i,
+                                                                                                                     i, :,
+                                                                                                                     :]
+                            elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                                r = range(i, v4.shape[0])
+                                v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[i, i, r, r] = v4[
+                                    r, r, i, i]
+                            elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
+                                r = range(i, v4.shape[0])
+                                v4[i, r, i, r] = v4[i, r, r, i] = v4[r, i, r, i] = v4[r, i, i, r] = v4[i, i, r, r] = v4[
+                                    r, r, i, i] = np.average(
+                                    [
+                                        # v4[i, r, i, r],
+                                        # v4[i, r, r, i],
+                                        # v4[r, i, r, i],
+                                        # v4[r, i, i, r],
+                                        v4[i, i, r, r],
+                                        v4[r, r, i, i]
+                                    ],
+                                    axis=0
+                                )
+                                # v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+                            else:
+                                raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(
+                                    self.mixed_derivative_handling_mode))
+                        cart_terms[3] = v4
+                    for i in range(v4.shape[0]):
+                        for j in range(i+1, v4.shape[0]):
+                            for k in range(j+1, v4.shape[0]):
+                                for l in range(k+1, v4.shape[0]):
+                                    # if (i != j and i != k and i != l and j != k and j != l and k != l ): # all different
+                                    for p in itertools.permutations([i, j, k, l]):
+                                        v4[p] = 0
+                    for i in range(v4.shape[0]):
+                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+
+                    qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(cart_terms)-1)
+                    terms = TensorDerivativeConverter(
+                        qQ_derivs + [0],  # pad for the zeroed out gradient term
+                        cart_terms
+                    ).convert(order=order)
+                    v4 = terms[3]
+                    for i in range(v4.shape[0]):
+                        for j in range(i+1, v4.shape[0]):
+                            for k in range(j+1, v4.shape[0]):
+                                for l in range(k+1, v4.shape[0]):
+                                    # if (i != j and i != k and i != l and j != k and j != l and k != l ): # all different
+                                    for p in itertools.permutations([i, j, k, l]):
+                                        v4[p] = 0
+                    for i in range(v4.shape[0]):
+                        v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
+                    terms[3] = v4
+                    mixed_derivs = False
+                else:
+
+                    x_derivs = self.get_cartesians_by_modes(order=order-1)
+                    # raise Exception(x_derivs[1])
+                    x_derivs = list(x_derivs) + [0] # gradient term never matters
+
+                    if mixed_derivs:
+                        if order > 4 and not self.allow_higher_potential_terms:
+                            raise ValueError("don't currently have things tested for expansions beyond 4th V derivatives with mixed derivatives") #TODO: relax this once we have more flexible input determination
+                        # terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=True, mixed_XQ=self.mixed_derivs)
+
+                        # since the normal modes are expressed over
+                        # different sets of coordinates the fourth mixed deriv
+                        # terms need to be partially corrected
+                        qQ, qQQ = self.get_cartesian_modes_by_internal_modes(2)
+                        f43 = np.tensordot(qQQ, V_derivs[2], axes=[2, 0])
+                        fourths = V_derivs[3] + f43
+                        V_derivs = V_derivs[:3] + [fourths] + V_derivs[4:]
+
+                        terms = TensorDerivativeConverter(x_derivs, V_derivs,
+                                                          mixed_terms=[
+                                                              [None, v] for v in V_derivs[2:]
+                                                          ]
+                                                          ).convert(order=order)  # , check_arrays=True)
+                    else:
+                        terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
+
+                if self.hessian_tolerance is not None:
+                        xQ2 = self.modes.inverse
+                        _, v2x, = TensorDerivativeConverter((xQ2, 0), V_derivs).convert(order=2)
+                        v2 = terms[1]
+                        v2_diff = v2 - v2x
+                        if np.max(np.abs(v2_diff)) > self.hessian_tolerance:
+                            new_freqs = np.diag(v2)*UnitsData.convert("Hartrees", "Wavenumbers")
+                            old_freqs = np.diag(v2x)*UnitsData.convert("Hartrees", "Wavenumbers")
+                            zero_pos_new = np.where(np.abs(new_freqs) < 1.0e-10)
+                            zero_pos_old = np.where(np.abs(old_freqs) < 1.0e-10)
+                            if len(zero_pos_new) > 0 and (
+                                len(zero_pos_old) == 0
+                                or len(zero_pos_old[0]) != len(zero_pos_new[0])
+                            ):
+                                raise PerturbationTheoryException(
+                                    (
+                                        "Encountered zero frequencies in internal normal mode Hessian that aren't in Cartesian normal mode Hessian."
+                                        " Cartesian frequencies are \n{}\n but internals are \n{}\n"
+                                        " This often indicates a planar dihedral angle where the derivatives are ill-defined.\n"
+                                        " Try using dummy atoms to create a proper 3D structure.\n"
+                                    ).format(
+                                        old_freqs,
+                                        new_freqs
+                                    )
+                                )
+                            else:
+                                raise PerturbationTheoryException(
+                                    (
+                                        "Internal normal mode Hessian differs from Cartesian normal mode Hessian."
+                                        " Cartesian frequencies are \n{}\n, internals are \n{}\n"
+                                        " This often indicates issues with the derivatives.\n"
+                                        " (YQ min/max: {} {} generally in the 10s for well-behaved systems)\n"
+                                        " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)"
+                                     ).format(
+                                        old_freqs,
+                                        new_freqs,
+                                        np.min(x_derivs[0]), np.max(x_derivs[0]),
+                                        np.min(x_derivs[1]), np.max(x_derivs[1])
+                                    )
+                                )
+
+            if mixed_derivs and order > 3:
                 v4 = terms[3]
+                # we assume we only got second derivs in Q_i Q_i
+                # at this point, then, we should be able to fill in the terms we know are missing
+                if not isinstance(v4, np.ndarray):
+                    v4 = v4.asarray()
                 for i in range(v4.shape[0]):
                     for j in range(i+1, v4.shape[0]):
                         for k in range(j+1, v4.shape[0]):
@@ -1756,50 +1845,44 @@ class PotentialTerms(ExpansionTerms):
                                 # if (i != j and i != k and i != l and j != k and j != l and k != l ): # all different
                                 for p in itertools.permutations([i, j, k, l]):
                                     v4[p] = 0
+                                # v4[i, j, k, l] = 0
+                                # v4[i, j, k, l] = 0
+                                # v4[i, j, k, l] = 0
+                                # v4[i, j, k, l] = 0
                 for i in range(v4.shape[0]):
                     v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
                 terms[3] = v4
-                mixed_derivs = False
-            else:
 
-                x_derivs = self.get_cartesians_by_modes(order=order-1)
-                # raise Exception(x_derivs[1])
-                x_derivs = list(x_derivs) + [0] # gradient term never matters
+            if intcds is not None and self.backpropagate_internals:
+                # need to internal mode terms and
+                # convert them back to Cartesian mode ones...
+                Qq_derivs = self.get_internal_modes_by_cartesian_modes(len(terms) - 1)
+                terms = TensorDerivativeConverter(
+                    Qq_derivs + [0], # pad for the zeroed out gradient term
+                    terms
+                ).convert(order=order)
+            elif intcds is not None and direct_prop:
+                # need to internal mode terms and
+                # convert them back to Cartesian mode ones...
+                qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(terms) - 1)
+                terms = TensorDerivativeConverter(
+                    qQ_derivs + [0],  # pad for the zeroed out gradient term
+                    terms
+                ).convert(order=order)
 
-                if mixed_derivs:
-                    if order > 4 and not self.allow_higher_potential_terms:
-                        raise ValueError("don't currently have things tested for expansions beyond 4th V derivatives with mixed derivatives") #TODO: relax this once we have more flexible input determination
-                    # terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=True, mixed_XQ=self.mixed_derivs)
-
-                    # since the normal modes are expressed over
-                    # different sets of coordinates the fourth mixed deriv
-                    # terms need to be partially corrected
-                    qQ, qQQ = self.get_cartesian_modes_by_internal_modes(2)
-                    f43 = np.tensordot(qQQ, V_derivs[2], axes=[2, 0])
-                    fourths = V_derivs[3] + f43
-                    V_derivs = V_derivs[:3] + [fourths] + V_derivs[4:]
-
-                    terms = TensorDerivativeConverter(x_derivs, V_derivs,
-                                                      mixed_terms=[
-                                                          [None, v] for v in V_derivs[2:]
-                                                      ]
-                                                      ).convert(order=order)  # , check_arrays=True)
-                else:
-                    terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
-
-            if self.hessian_tolerance is not None:
+                if self.hessian_tolerance is not None:
                     xQ2 = self.modes.inverse
                     _, v2x, = TensorDerivativeConverter((xQ2, 0), V_derivs).convert(order=2)
                     v2 = terms[1]
                     v2_diff = v2 - v2x
                     if np.max(np.abs(v2_diff)) > self.hessian_tolerance:
-                        new_freqs = np.diag(v2)*UnitsData.convert("Hartrees", "Wavenumbers")
-                        old_freqs = np.diag(v2x)*UnitsData.convert("Hartrees", "Wavenumbers")
+                        new_freqs = np.diag(v2) * UnitsData.convert("Hartrees", "Wavenumbers")
+                        old_freqs = np.diag(v2x) * UnitsData.convert("Hartrees", "Wavenumbers")
                         zero_pos_new = np.where(np.abs(new_freqs) < 1.0e-10)
                         zero_pos_old = np.where(np.abs(old_freqs) < 1.0e-10)
                         if len(zero_pos_new) > 0 and (
-                            len(zero_pos_old) == 0
-                            or len(zero_pos_old[0]) != len(zero_pos_new[0])
+                                len(zero_pos_old) == 0
+                                or len(zero_pos_old[0]) != len(zero_pos_new[0])
                         ):
                             raise PerturbationTheoryException(
                                 (
@@ -1820,7 +1903,7 @@ class PotentialTerms(ExpansionTerms):
                                     " This often indicates issues with the derivatives.\n"
                                     " (YQ min/max: {} {} generally in the 10s for well-behaved systems)\n"
                                     " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)"
-                                 ).format(
+                                ).format(
                                     old_freqs,
                                     new_freqs,
                                     np.min(x_derivs[0]), np.max(x_derivs[0]),
@@ -1828,111 +1911,36 @@ class PotentialTerms(ExpansionTerms):
                                 )
                             )
 
-        if mixed_derivs and order > 3:
-            v4 = terms[3]
-            # we assume we only got second derivs in Q_i Q_i
-            # at this point, then, we should be able to fill in the terms we know are missing
-            if not isinstance(v4, np.ndarray):
-                v4 = v4.asarray()
-            for i in range(v4.shape[0]):
-                for j in range(i+1, v4.shape[0]):
-                    for k in range(j+1, v4.shape[0]):
-                        for l in range(k+1, v4.shape[0]):
-                            # if (i != j and i != k and i != l and j != k and j != l and k != l ): # all different
-                            for p in itertools.permutations([i, j, k, l]):
-                                v4[p] = 0
-                            # v4[i, j, k, l] = 0
-                            # v4[i, j, k, l] = 0
-                            # v4[i, j, k, l] = 0
-                            # v4[i, j, k, l] = 0
-            for i in range(v4.shape[0]):
-                v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = v4[i, i, :, :]
-            terms[3] = v4
+            # drop the gradient term as that is all zeros
+            terms = terms[1:]
 
-        if intcds is not None and self.backpropagate_internals:
-            # need to internal mode terms and
-            # convert them back to Cartesian mode ones...
-            Qq_derivs = self.get_internal_modes_by_cartesian_modes(len(terms) - 1)
-            terms = TensorDerivativeConverter(
-                Qq_derivs + [0], # pad for the zeroed out gradient term
-                terms
-            ).convert(order=order)
-        elif intcds is not None and direct_prop:
-            # need to internal mode terms and
-            # convert them back to Cartesian mode ones...
-            qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(terms) - 1)
-            terms = TensorDerivativeConverter(
-                qQ_derivs + [0],  # pad for the zeroed out gradient term
-                terms
-            ).convert(order=order)
+            try:
+                self.checkpointer['potential_terms'] = terms
+            except (OSError, KeyError):
+                pass
 
-            if self.hessian_tolerance is not None:
-                xQ2 = self.modes.inverse
-                _, v2x, = TensorDerivativeConverter((xQ2, 0), V_derivs).convert(order=2)
-                v2 = terms[1]
-                v2_diff = v2 - v2x
-                if np.max(np.abs(v2_diff)) > self.hessian_tolerance:
-                    new_freqs = np.diag(v2) * UnitsData.convert("Hartrees", "Wavenumbers")
-                    old_freqs = np.diag(v2x) * UnitsData.convert("Hartrees", "Wavenumbers")
-                    zero_pos_new = np.where(np.abs(new_freqs) < 1.0e-10)
-                    zero_pos_old = np.where(np.abs(old_freqs) < 1.0e-10)
-                    if len(zero_pos_new) > 0 and (
-                            len(zero_pos_old) == 0
-                            or len(zero_pos_old[0]) != len(zero_pos_new[0])
-                    ):
-                        raise PerturbationTheoryException(
-                            (
-                                "Encountered zero frequencies in internal normal mode Hessian that aren't in Cartesian normal mode Hessian."
-                                " Cartesian frequencies are \n{}\n but internals are \n{}\n"
-                                " This often indicates a planar dihedral angle where the derivatives are ill-defined.\n"
-                                " Try using dummy atoms to create a proper 3D structure.\n"
-                            ).format(
-                                old_freqs,
-                                new_freqs
-                            )
+            logger.log_print("checking Hessian...")
+            if self.hessian_tolerance is not None and np.linalg.norm(np.abs(terms[0] - np.diag(np.diag(terms[0])))) > self.hessian_tolerance:
+                raise ValueError("F-matrix is not diagonal (got {})".format(terms[0]))
+
+            new_freqs = np.diag(terms[0])
+            old_freqs = self.modes.freqs
+            # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
+            if self.freq_tolerance is not None:
+                if np.max(np.abs(new_freqs - old_freqs)) > self.freq_tolerance:
+                    raise PerturbationTheoryException(
+                        "Force constants in normal modes don't return frequencies along diagonal;"
+                        " this likely indicates issues with the mass-weighting"
+                        " got \n{}\n but expected \n{}\n".format(
+                            new_freqs*UnitsData.convert("Hartrees", "Wavenumbers"),
+                            old_freqs*UnitsData.convert("Hartrees", "Wavenumbers")
                         )
-                    else:
-                        raise PerturbationTheoryException(
-                            (
-                                "Internal normal mode Hessian differs from Cartesian normal mode Hessian."
-                                " Cartesian frequencies are \n{}\n, internals are \n{}\n"
-                                " This often indicates issues with the derivatives.\n"
-                                " (YQ min/max: {} {} generally in the 10s for well-behaved systems)\n"
-                                " (YQQ min/max: {} {} generally in the 10s for well-behaved systems)"
-                            ).format(
-                                old_freqs,
-                                new_freqs,
-                                np.min(x_derivs[0]), np.max(x_derivs[0]),
-                                np.min(x_derivs[1]), np.max(x_derivs[1])
-                            )
-                        )
-
-        # drop the gradient term as that is all zeros
-        terms = terms[1:]
-
-        try:
-            self.checkpointer['potential_terms'] = terms
-        except (OSError, KeyError):
-            pass
-
-        if self.hessian_tolerance is not None and np.linalg.norm(np.abs(terms[0] - np.diag(np.diag(terms[0])))) > self.hessian_tolerance:
-            raise ValueError("F-matrix is not diagonal (got {})".format(terms[0]))
-
-        new_freqs = np.diag(terms[0])
-        old_freqs = self.modes.freqs
-        # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
-        if self.freq_tolerance is not None:
-            if np.max(np.abs(new_freqs - old_freqs)) > self.freq_tolerance:
-                raise PerturbationTheoryException(
-                    "Force constants in normal modes don't return frequencies along diagonal;"
-                    " this likely indicates issues with the mass-weighting"
-                    " got \n{}\n but expected \n{}\n".format(
-                        new_freqs*UnitsData.convert("Hartrees", "Wavenumbers"),
-                        old_freqs*UnitsData.convert("Hartrees", "Wavenumbers")
                     )
-                )
 
-        return terms
+            end = time.time()
+            logger.log_print('took {e:.3f}s...', e=end-start)
+
+            return terms
 
     @classmethod
     def get_potential_optimized_coordinates(cls, V_expansion, order=2):
@@ -1995,128 +2003,132 @@ class KineticTerms(ExpansionTerms):
 
         if logger is None:
             logger = self.logger
-        logger.log_print('calculating G-matrix derivatives')
+        with logger.block(tag='calculating G-matrix derivatives'):
+            start = time.time()
 
-        dot = DumbTensor._dot
-        shift = DumbTensor._shift
-        intcds = self.internal_coordinates
-        if self.use_cartesian_kinetic_energy or intcds is None or self.backpropagate_internals:
-            # this is nice because it eliminates a lot of terms in the expansion
-            J = self.modes.matrix
-            G = dot(J, J, axes=[[0, 0]])
-            if order == 0:
-                terms = [G]
+            dot = DumbTensor._dot
+            shift = DumbTensor._shift
+            intcds = self.internal_coordinates
+            if self.use_cartesian_kinetic_energy or intcds is None or self.backpropagate_internals:
+                # this is nice because it eliminates a lot of terms in the expansion
+                J = self.modes.matrix
+                G = dot(J, J, axes=[[0, 0]])
+                if order == 0:
+                    terms = [G]
+                else:
+                    terms = [G] + [0]*(order)
+                G_terms = None
             else:
-                terms = [G] + [0]*(order)
-            G_terms = None
-        else:
-            # should work this into the new layout
-            uses_internal_modes = self._check_internal_modes()
-            if uses_internal_modes:
-                QY_derivs = self.get_internals_by_cartesians(order=order + 1) # really dRdY derivatives
-                YQ_derivs = self.get_cartesians_by_internals(order=order + 1) # really dYdR derivatives
+                # should work this into the new layout
+                uses_internal_modes = self._check_internal_modes()
+                if uses_internal_modes:
+                    QY_derivs = self.get_internals_by_cartesians(order=order + 1) # really dRdY derivatives
+                    YQ_derivs = self.get_cartesians_by_internals(order=order + 1) # really dYdR derivatives
+                else:
+                    QY_derivs = self.get_modes_by_cartesians(order=order+1)
+                    YQ_derivs = self.get_cartesians_by_modes(order=order+1)
+                    # QY_derivs = self.get_internals_by_cartesians(order=order + 1) # really dRdY derivatives
+                    # YQ_derivs = self.get_cartesians_by_internals(order=order + 1) # really dYdR derivatives
+                # RQ = dot(YQ, RY)
+
+                term_getter = TensorDerivativeConverter(YQ_derivs, QY_derivs).terms
+                # term_getter = TensorDerivativeConverter([np.eye(9,9), 0, 0], QY_derivs).terms
+                term_getter.v_name = 'Y'
+                J = term_getter.XV(1)
+                G_terms = [J.dot(J, 1, 1)]
+                for i in range(1, order+1):
+                    g_cur = G_terms[-1].dQ()#.simplify(check_arrays=True)
+                    G_terms.append(g_cur)
+                terms = [x.array for x in G_terms]
+                #
+                # """
+                # [[-0.0e+00  3.9e-07  8.8e-07]
+                #  [ 3.9e-07 -0.0e+00  8.8e-07]
+                #  [ 8.8e-07  8.8e-07  0.0e+00]]
+                #  """
+                #
+                # """
+                # [[-3.800e-07 -3.142e-05  0.000e+00]
+                #  [-3.142e-05  1.843e-05 -0.000e+00]
+                #  [ 0.000e+00 -0.000e+00 -1.198e-05]]
+                # """
+                #
+                # QR_derivs = self.get_internals_by_internal_modes(order=order+1)
+                # RQ = self.get_internal_modes_by_internals(order=1)[0]
+                # # print(
+                # #     [q.shape for q in QY_derivs],
+                # #     [g.shape for g in terms])
+                # terms = [terms[0]] + TensorDerivativeConverter.convert_fast(YQ_derivs, terms[1:], val_axis=0)
+                # terms = [
+                #     np.tensordot(np.tensordot(t, RQ, axes=[-2, 0]), RQ, axes=[-2, 0])
+                #     for t in terms
+                # ]
+                # print(terms[0])
+
+                if uses_internal_modes:
+                    QR = self.modes.matrix
+                    RQ = self.modes.inverse
+                    for i,g in enumerate(terms):
+                        for j in range(2):
+                            g = np.tensordot(QR, g, axes=[0, -1])
+                        for j in range(i):
+                            g = np.tensordot(RQ, g, axes=[1, -1])
+                        terms[i] = g
+
+                for i,t in enumerate(terms):
+                    if i == 0:
+                        if self.gmatrix_tolerance is not None and np.linalg.norm(np.abs(terms[0] - np.diag(np.diag(terms[0])))) > self.gmatrix_tolerance:
+                            raise ValueError("G-matrix is not diagonal (got {})".format(terms[0]))
+                        continue
+                    m = np.max(np.abs(t))
+                    if m > self.g_derivative_threshold:
+                        # print(G_terms[i])
+                        self.logger.log_print("WARNING: max of d^{i}G/dQ^{i} is {m}", i=i, m=m)
+
+                # QY, QYY, QYYY = QY_derivs[:3]
+                # YQ, YQQ, YQQQ = YQ_derivs[:3]
+                # G = dot(QY, QY, axes=[[0, 0]])
+                #
+                # GQ = dot(YQ, QYY, QY, axes=[[1, 0], [1, 0]]) + dot(YQ, dot(QY, QYY, axes=[[0, 0]]), axes=[[-1, 1]])
+                # GQQ = (
+                #         dot(YQQ, QYY, QY, axes=[[-1, 0], [2, 0]])
+                #         + dot(YQQ, dot(QY, QYY, axes=[[0, 0]]), axes=[[-1, 1]])
+                #         + dot(YQ, dot(YQ, QYYY, QY, axes=[[-1, 0], [1, 0]]), axes=[[1, 1]])
+                #         + dot(YQ, dot(YQ, dot(QY, QYYY, axes=[[0, 0]]), axes=[[1, 1]]), axes=[[1, 2]])
+                #         + dot(YQ, dot(YQ, QYY, QYY, axes=[[-1, 0], [1, 1]]), axes=[[1, 2]])
+                #         + dot(YQ, dot(YQ, QYY, QYY, axes=[[-1, 0], [1, 1]]), axes=[[1, 2]]).transpose((0, 1, 3, 2))
+                #         # + dot(YQ, dot(YQ, dot(QYY, QYY, axes=[[0, 0]]), axes=[[-1, 0]]), axes=[[1, 2]])
+                # )
+
+            if return_expressions:
+                G_terms = terms, G_terms
             else:
-                QY_derivs = self.get_modes_by_cartesians(order=order+1)
-                YQ_derivs = self.get_cartesians_by_modes(order=order+1)
-                # QY_derivs = self.get_internals_by_cartesians(order=order + 1) # really dRdY derivatives
-                # YQ_derivs = self.get_cartesians_by_internals(order=order + 1) # really dYdR derivatives
-            # RQ = dot(YQ, RY)
+                G_terms = terms
 
-            term_getter = TensorDerivativeConverter(YQ_derivs, QY_derivs).terms
-            # term_getter = TensorDerivativeConverter([np.eye(9,9), 0, 0], QY_derivs).terms
-            term_getter.v_name = 'Y'
-            J = term_getter.XV(1)
-            G_terms = [J.dot(J, 1, 1)]
-            for i in range(1, order+1):
-                g_cur = G_terms[-1].dQ()#.simplify(check_arrays=True)
-                G_terms.append(g_cur)
-            terms = [x.array for x in G_terms]
-            #
-            # """
-            # [[-0.0e+00  3.9e-07  8.8e-07]
-            #  [ 3.9e-07 -0.0e+00  8.8e-07]
-            #  [ 8.8e-07  8.8e-07  0.0e+00]]
-            #  """
-            #
-            # """
-            # [[-3.800e-07 -3.142e-05  0.000e+00]
-            #  [-3.142e-05  1.843e-05 -0.000e+00]
-            #  [ 0.000e+00 -0.000e+00 -1.198e-05]]
-            # """
-            #
-            # QR_derivs = self.get_internals_by_internal_modes(order=order+1)
-            # RQ = self.get_internal_modes_by_internals(order=1)[0]
-            # # print(
-            # #     [q.shape for q in QY_derivs],
-            # #     [g.shape for g in terms])
-            # terms = [terms[0]] + TensorDerivativeConverter.convert_fast(YQ_derivs, terms[1:], val_axis=0)
-            # terms = [
-            #     np.tensordot(np.tensordot(t, RQ, axes=[-2, 0]), RQ, axes=[-2, 0])
-            #     for t in terms
-            # ]
-            # print(terms[0])
-
-            if uses_internal_modes:
-                QR = self.modes.matrix
-                RQ = self.modes.inverse
-                for i,g in enumerate(terms):
-                    for j in range(2):
-                        g = np.tensordot(QR, g, axes=[0, -1])
-                    for j in range(i):
-                        g = np.tensordot(RQ, g, axes=[1, -1])
-                    terms[i] = g
-
-            for i,t in enumerate(terms):
-                if i == 0:
-                    if self.gmatrix_tolerance is not None and np.linalg.norm(np.abs(terms[0] - np.diag(np.diag(terms[0])))) > self.gmatrix_tolerance:
-                        raise ValueError("G-matrix is not diagonal (got {})".format(terms[0]))
-                    continue
-                m = np.max(np.abs(t))
-                if m > self.g_derivative_threshold:
-                    # print(G_terms[i])
-                    self.logger.log_print("WARNING: max of d^{i}G/dQ^{i} is {m}", i=i, m=m)
-
-            # QY, QYY, QYYY = QY_derivs[:3]
-            # YQ, YQQ, YQQQ = YQ_derivs[:3]
-            # G = dot(QY, QY, axes=[[0, 0]])
-            #
-            # GQ = dot(YQ, QYY, QY, axes=[[1, 0], [1, 0]]) + dot(YQ, dot(QY, QYY, axes=[[0, 0]]), axes=[[-1, 1]])
-            # GQQ = (
-            #         dot(YQQ, QYY, QY, axes=[[-1, 0], [2, 0]])
-            #         + dot(YQQ, dot(QY, QYY, axes=[[0, 0]]), axes=[[-1, 1]])
-            #         + dot(YQ, dot(YQ, QYYY, QY, axes=[[-1, 0], [1, 0]]), axes=[[1, 1]])
-            #         + dot(YQ, dot(YQ, dot(QY, QYYY, axes=[[0, 0]]), axes=[[1, 1]]), axes=[[1, 2]])
-            #         + dot(YQ, dot(YQ, QYY, QYY, axes=[[-1, 0], [1, 1]]), axes=[[1, 2]])
-            #         + dot(YQ, dot(YQ, QYY, QYY, axes=[[-1, 0], [1, 1]]), axes=[[1, 2]]).transpose((0, 1, 3, 2))
-            #         # + dot(YQ, dot(YQ, dot(QYY, QYY, axes=[[0, 0]]), axes=[[-1, 0]]), axes=[[1, 2]])
-            # )
-
-        if return_expressions:
-            G_terms = terms, G_terms
-        else:
-            G_terms = terms
-
-        if self.freq_tolerance is not None and self.check_input_gmatrix:
-            real_freqs = np.diag(G_terms[0])
-            nominal_freqs = self.modes.freqs
-            # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
-            if self.freq_tolerance is not None:
-                if np.max(np.abs(nominal_freqs - real_freqs)) > self.freq_tolerance:
-                    raise PerturbationTheoryException(
-                        "Input frequencies aren't obtained when transforming the G matrix;"
-                        " this likely indicates issues with the input mode vectors"
-                        " got \n{}\n but expected \n{}\n".format(
-                            real_freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
-                            nominal_freqs * UnitsData.convert("Hartrees", "Wavenumbers")
+            if self.freq_tolerance is not None and self.check_input_gmatrix:
+                real_freqs = np.diag(G_terms[0])
+                nominal_freqs = self.modes.freqs
+                # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
+                if self.freq_tolerance is not None:
+                    if np.max(np.abs(nominal_freqs - real_freqs)) > self.freq_tolerance:
+                        raise PerturbationTheoryException(
+                            "Input frequencies aren't obtained when transforming the G matrix;"
+                            " this likely indicates issues with the input mode vectors"
+                            " got \n{}\n but expected \n{}\n".format(
+                                real_freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
+                                nominal_freqs * UnitsData.convert("Hartrees", "Wavenumbers")
+                            )
                         )
-                    )
 
-        try:
-            self.checkpointer['gmatrix_terms'] = G_terms
-        except (OSError, KeyError):
-            pass
+            try:
+                self.checkpointer['gmatrix_terms'] = G_terms
+            except (OSError, KeyError):
+                pass
 
-        return G_terms
+            end = time.time()
+            logger.log_print("took {e:.3f}s...", e=end-start)
+
+            return G_terms
 
     @classmethod
     def _dRGQ_partition_contrib(cls, partition, R, G):
@@ -2759,67 +2771,133 @@ class DipoleTerms(ExpansionTerms):
             if d.shape != (modes_n,) * len(d.shape):
                 return False
         return True
-    def get_terms(self, order=None):
+    def get_terms(self, order=None, logger=None):
 
-        if self._check_mode_terms():
-            return self.derivs[1:]
+        if logger is None: logger = self.logger
+        with logger.block(tag='calculating dipole derivatives'):
+            start = time.time()
 
-        if order is None:
-            order = len(self.derivs) - 1
-        else:
-            order += 1
+            if self._check_mode_terms():
+                return self.derivs[1:]
 
-        v0 = self.derivs[0]
-        # grad = self.derivs[1]
-        # seconds = self.derivs[2]
-        # thirds = self.derivs[3]
+            if order is None:
+                order = len(self.derivs) - 1
+            else:
+                order += 1
 
-        # Use the Molecule's coordinates which know about their embedding by default
-        intcds = self.internal_coordinates
-        direct_prop = (
-                self.direct_propagate_cartesians
-                and not (isinstance(self.direct_propagate_cartesians, str) and self.direct_propagate_cartesians == 'potential')
-        )
-        mixed_derivs = self.mixed_derivs
-        if intcds is None or direct_prop:# or not self.non_degenerate:
-            # this is nice because it eliminates most of terms in the expansion
-            xQ = self.modes.inverse
-            x_derivs = [xQ] + [0] * (order-1)
-            mu_derivs = self.derivs[1:]
-        else:
-            x_derivs = self.get_cartesians_by_modes(order=order)
+            v0 = self.derivs[0]
+            # grad = self.derivs[1]
+            # seconds = self.derivs[2]
+            # thirds = self.derivs[3]
 
-            mu_derivs = self.derivs[1:]
+            # Use the Molecule's coordinates which know about their embedding by default
+            intcds = self.internal_coordinates
+            direct_prop = (
+                    self.direct_propagate_cartesians
+                    and not (isinstance(self.direct_propagate_cartesians, str) and self.direct_propagate_cartesians == 'potential')
+            )
+            mixed_derivs = self.mixed_derivs
+            if intcds is None or direct_prop:# or not self.non_degenerate:
+                # this is nice because it eliminates most of terms in the expansion
+                xQ = self.modes.inverse
+                x_derivs = [xQ] + [0] * (order-1)
+                mu_derivs = self.derivs[1:]
+            else:
+                x_derivs = self.get_cartesians_by_modes(order=order)
 
-            if len(mu_derivs) > 2:
-                qQ, qQQ = self.get_cartesian_modes_by_internal_modes(2)
-                f43 = np.tensordot(qQQ, mu_derivs[1], axes=[2, 0])
-                mu_derivs = list(mu_derivs)
-                mu_derivs[2] = mu_derivs[2] + f43
+                mu_derivs = self.derivs[1:]
 
-        mu = [None]*3
-        for coord in range(3):
+                if len(mu_derivs) > 2:
+                    qQ, qQQ = self.get_cartesian_modes_by_internal_modes(2)
+                    f43 = np.tensordot(qQQ, mu_derivs[1], axes=[2, 0])
+                    mu_derivs = list(mu_derivs)
+                    mu_derivs[2] = mu_derivs[2] + f43
 
-            u_derivs = [d[..., coord] for d in mu_derivs]
-            if mixed_derivs:
-                mixed_terms = [
-                    [u_derivs[1]],  # dVdQXX
-                    [u_derivs[2]]  # dVdQQXX
-                ]
-                if intcds is not None:
-                    if (  # handle mixed derivative resymmetrization
+            mu = [None]*3
+            for coord in range(3):
+
+                u_derivs = [d[..., coord] for d in mu_derivs]
+                if mixed_derivs:
+                    mixed_terms = [
+                        [u_derivs[1]],  # dVdQXX
+                        [u_derivs[2]]  # dVdQQXX
+                    ]
+                    if intcds is not None:
+                        if (  # handle mixed derivative resymmetrization
+                                self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled
+                                and order > 1
+                        ):
+                            # d^2X/dQ^2@dU/dX + dX/dQ@dU/dQdX
+                            xQ = self.modes.inverse
+                            v1, v2, v3 = TensorDerivativeConverter(
+                                [xQ] + [0] * (order-1),
+                                u_derivs,
+                                mixed_terms=mixed_terms,
+                                values_name="U"
+                            ).convert(order=3)  # , check_arrays=True)
+
+                            # Gaussian gives slightly different constants
+                            # depending on whether the analytic or numerical derivs
+                            # were transformed
+                            for i in range(v2.shape[0]):
+                                if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
+                                    v2[i, :] = v2[:, i] = v2[i, :]
+                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                                    v2[i, :] = v2[:, i] = v2[:, i]
+                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
+                                    v2[i, :] = v2[:, i] = np.average(
+                                        [
+                                            v2[i, :], v2[:, i]
+                                        ],
+                                        axis=0
+                                    )
+                                else:
+                                    raise ValueError(
+                                        "don't know what to do with `mixed_derivative_handling_mode` {} ".format(
+                                            self.mixed_derivative_handling_mode
+                                        )
+                                    )
+                            for i in range(v3.shape[0]):
+                                r = range(v3.shape[0])
+                                if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
+                                    v3[r, i, r] = v3[r, r, i] = v3[i, r, r]
+                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                                    v3[i, r, r] = v3[r, r, i]
+                                elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
+                                    v3[r, i, r] = v3[r, r, i] = v3[i, r, r] = np.average(
+                                        [
+                                            v3[r, r, i],
+                                            v3[i, r, i]
+                                        ],
+                                        axis=0
+                                    )
+                                else:
+                                    raise ValueError(
+                                        "don't know what to do with `mixed_derivative_handling_mode` {} ".format(
+                                            self.mixed_derivative_handling_mode
+                                        )
+                                    )
+
+                            Qx = self.modes.matrix
+                            v1, v2, v3 = TensorDerivativeConverter(
+                                [Qx] + [0] * (order - 1),
+                                [v1, v2, v3],
+                                values_name="U"
+                            ).convert(order=3)  # , check_arrays=True)
+                            u_derivs = [v1, v2, v3]
+                            mixed_terms = None
+
+                    # d^2X/dQ^2@dU/dX + dX/dQ@dU/dQdX
+                    terms = TensorDerivativeConverter(x_derivs, u_derivs,
+                                                      mixed_terms=mixed_terms,
+                                                      values_name="U"
+                                                      ).convert(order=order)  # , check_arrays=True)
+                    terms = list(terms)
+                    if (
                             self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled
                             and order > 1
                     ):
-                        # d^2X/dQ^2@dU/dX + dX/dQ@dU/dQdX
-                        xQ = self.modes.inverse
-                        v1, v2, v3 = TensorDerivativeConverter(
-                            [xQ] + [0] * (order-1),
-                            u_derivs,
-                            mixed_terms=mixed_terms,
-                            values_name="U"
-                        ).convert(order=3)  # , check_arrays=True)
-
+                        v2 = terms[1]
                         # Gaussian gives slightly different constants
                         # depending on whether the analytic or numerical derivs
                         # were transformed
@@ -2841,6 +2919,8 @@ class DipoleTerms(ExpansionTerms):
                                         self.mixed_derivative_handling_mode
                                     )
                                 )
+
+                        v3 = terms[2]
                         for i in range(v3.shape[0]):
                             r = range(v3.shape[0])
                             if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
@@ -2862,141 +2942,80 @@ class DipoleTerms(ExpansionTerms):
                                     )
                                 )
 
-                        Qx = self.modes.matrix
-                        v1, v2, v3 = TensorDerivativeConverter(
-                            [Qx] + [0] * (order - 1),
-                            [v1, v2, v3],
-                            values_name="U"
-                        ).convert(order=3)  # , check_arrays=True)
-                        u_derivs = [v1, v2, v3]
-                        mixed_terms = None
+                    if order > 2:
+                        v3 = terms[2]
+                        if self.mixed_derivs:  # and intcds is None:
+                            # Gaussian gives slightly different constants
+                            # depending on whether the analytic or numerical derivs
+                            # were transformed
+                            # we assume we only got second derivs in Q_i Q_i
+                            # at this point, then, we should be able to fill in the terms we know are missing
+                            if not isinstance(v3, np.ndarray):
+                                v3 = v3.asarray()
+                                terms[2] = v3
+                            for i in range(v3.shape[0]):
+                                for j in range(i + 1, v3.shape[0]):
+                                    for k in range(j + 1, v3.shape[0]):
+                                        # if (i != j and i != k and i != l and j != k and j != l and k != l ): # all different
+                                        for p in itertools.permutations([i, j, k]):
+                                            v3[p] = 0
 
-                # d^2X/dQ^2@dU/dX + dX/dQ@dU/dQdX
-                terms = TensorDerivativeConverter(x_derivs, u_derivs,
-                                                  mixed_terms=mixed_terms,
-                                                  values_name="U"
-                                                  ).convert(order=order)  # , check_arrays=True)
-                terms = list(terms)
-                if (
-                        self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled
-                        and order > 1
-                ):
-                    v2 = terms[1]
-                    # Gaussian gives slightly different constants
-                    # depending on whether the analytic or numerical derivs
-                    # were transformed
-                    for i in range(v2.shape[0]):
-                        if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
-                            v2[i, :] = v2[:, i] = v2[i, :]
-                        elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
-                            v2[i, :] = v2[:, i] = v2[:, i]
-                        elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
-                            v2[i, :] = v2[:, i] = np.average(
-                                [
-                                    v2[i, :], v2[:, i]
-                                ],
-                                axis=0
-                            )
-                        else:
-                            raise ValueError(
-                                "don't know what to do with `mixed_derivative_handling_mode` {} ".format(
-                                    self.mixed_derivative_handling_mode
-                                )
-                            )
+                            # if self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
+                            #     for i in range(v3.shape[0]):
+                            #         if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
+                            #             r = np.arange(i, v3.shape[0])
+                            #             v3[i, i, r] = v3[i, r, i] = v3[r, i, i] = v3[i, i, r]
+                            #         elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
+                            #             r = np.arange(i, v3.shape[0])
+                            #             # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
+                            #             v3[i, i, r] = v3[i, r, i] = v3[r, i, i] = v3[r, i, i]
+                            #             # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[:, :, i]
+                            #         elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
+                            #             r = np.arange(i, v3.shape[0])
+                            #             v3[i, i, r] = v3[i, r, i] = v3[r, i, i] = v3[r, i, i] = np.average(
+                            #                 [
+                            #                     v3[i, i, r],
+                            #                     v3[r, i, i]
+                            #                 ],
+                            #                 axis=0
+                            #             )
+                            #         else:
+                            #             raise ValueError(
+                            #                 "don't know what to do with `mixed_derivative_handling_mode` {} ".format(
+                            #                     self.mixed_derivative_handling_mode
+                            #                 )
+                            #             )
 
-                    v3 = terms[2]
-                    for i in range(v3.shape[0]):
-                        r = range(v3.shape[0])
-                        if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
-                            v3[r, i, r] = v3[r, r, i] = v3[i, r, r]
-                        elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
-                            v3[i, r, r] = v3[r, r, i]
-                        elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
-                            v3[r, i, r] = v3[r, r, i] = v3[i, r, r] = np.average(
-                                [
-                                    v3[r, r, i],
-                                    v3[i, r, i]
-                                ],
-                                axis=0
-                            )
-                        else:
-                            raise ValueError(
-                                "don't know what to do with `mixed_derivative_handling_mode` {} ".format(
-                                    self.mixed_derivative_handling_mode
-                                )
-                            )
+                    if intcds is not None and self.backpropagate_internals:
+                        # need to internal mode terms and
+                        # convert them back to Cartesian mode ones...
+                        Qq_derivs = self.get_internal_modes_by_cartesian_modes(len(terms))
+                        terms = TensorDerivativeConverter(
+                            Qq_derivs,
+                            terms
+                        ).convert(order=len(terms))
+                    elif intcds is not None and direct_prop:
+                        qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(terms))
+                        terms = TensorDerivativeConverter(
+                            qQ_derivs,
+                            terms
+                        ).convert(order=len(terms))
 
-                if order > 2:
-                    v3 = terms[2]
-                    if self.mixed_derivs:  # and intcds is None:
-                        # Gaussian gives slightly different constants
-                        # depending on whether the analytic or numerical derivs
-                        # were transformed
-                        # we assume we only got second derivs in Q_i Q_i
-                        # at this point, then, we should be able to fill in the terms we know are missing
-                        if not isinstance(v3, np.ndarray):
-                            v3 = v3.asarray()
-                            terms[2] = v3
-                        for i in range(v3.shape[0]):
-                            for j in range(i + 1, v3.shape[0]):
-                                for k in range(j + 1, v3.shape[0]):
-                                    # if (i != j and i != k and i != l and j != k and j != l and k != l ): # all different
-                                    for p in itertools.permutations([i, j, k]):
-                                        v3[p] = 0
-
-                        # if self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled:
-                        #     for i in range(v3.shape[0]):
-                        #         if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Numerical:
-                        #             r = np.arange(i, v3.shape[0])
-                        #             v3[i, i, r] = v3[i, r, i] = v3[r, i, i] = v3[i, i, r]
-                        #         elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Analytical:
-                        #             r = np.arange(i, v3.shape[0])
-                        #             # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[i, :, :]
-                        #             v3[i, i, r] = v3[i, r, i] = v3[r, i, i] = v3[r, i, i]
-                        #             # v3[i, :, :] = v3[:, i, :] = v3[:, :, i] = v3[:, :, i]
-                        #         elif self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Averaged:
-                        #             r = np.arange(i, v3.shape[0])
-                        #             v3[i, i, r] = v3[i, r, i] = v3[r, i, i] = v3[r, i, i] = np.average(
-                        #                 [
-                        #                     v3[i, i, r],
-                        #                     v3[r, i, i]
-                        #                 ],
-                        #                 axis=0
-                        #             )
-                        #         else:
-                        #             raise ValueError(
-                        #                 "don't know what to do with `mixed_derivative_handling_mode` {} ".format(
-                        #                     self.mixed_derivative_handling_mode
-                        #                 )
-                        #             )
-
-                if intcds is not None and self.backpropagate_internals:
-                    # need to internal mode terms and
-                    # convert them back to Cartesian mode ones...
-                    Qq_derivs = self.get_internal_modes_by_cartesian_modes(len(terms))
-                    terms = TensorDerivativeConverter(
-                        Qq_derivs,
-                        terms
-                    ).convert(order=len(terms))
-                elif intcds is not None and direct_prop:
-                    qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(terms))
-                    terms = TensorDerivativeConverter(
-                        qQ_derivs,
-                        terms
-                    ).convert(order=len(terms))
-
-            else:
-                terms = TensorDerivativeConverter(x_derivs, u_derivs).convert(order=order)  # , check_arrays=True)
+                else:
+                    terms = TensorDerivativeConverter(x_derivs, u_derivs).convert(order=order)  # , check_arrays=True)
 
 
-            mu[coord] = (self.derivs[0][coord],) + tuple(terms)
+                mu[coord] = (self.derivs[0][coord],) + tuple(terms)
 
 
-        with self.checkpointer:
-            try:
-                self.checkpointer['dipole_terms'] = {'x':mu[0], 'y':mu[1], 'z':mu[2]}
-            except (OSError, KeyError):
-                pass
+            with self.checkpointer:
+                try:
+                    self.checkpointer['dipole_terms'] = {'x':mu[0], 'y':mu[1], 'z':mu[2]}
+                except (OSError, KeyError):
+                    pass
+
+            end = time.time()
+            logger.log_print("took {e:.3f}s", e=end-start)
 
         return mu
 

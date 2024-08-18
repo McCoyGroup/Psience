@@ -2339,6 +2339,7 @@ class AnalyticVPTRunner:
                   states=None,
                   *,
                   order=2,
+                  expressions_file=None,
                   allowed_terms=None,
                   allowed_coefficients=None,
                   disallowed_coefficients=None,
@@ -2366,6 +2367,7 @@ class AnalyticVPTRunner:
             new = cls.from_hamiltonian(
                 runner.hamiltonian,
                 opts.get('order', order),
+                checkpoint=expressions_file,
                 expansion_order=opts.get('expansion_order', None),
                 allowed_terms=allowed_terms,
                 allowed_coefficients=allowed_coefficients,
@@ -2490,7 +2492,7 @@ class AnalyticVPTRunner:
         corrs = self.get_energy_corrections(states, order=order, verbose=verbose)
         engs = np.sum(corrs, axis=0)
         freqs = (engs[1:] - engs[0])[:, 0]  # TODO: figure out why we have too much shape
-        return freqs
+        return engs[0], freqs
 
     def get_overlap_corrections(self,
                                      states,
@@ -2619,7 +2621,10 @@ class AnalyticVPTRunner:
         if calculate_intensities:
             spec_data = runner.get_spectrum(states, verbose=verbose)
         else:
-            spec_data = runner.get_freqs(states, verbose=verbose) * UnitsData.convert("Hartrees", "Wavenumbers")
+            spec_data = [
+                f * UnitsData.convert("Hartrees", "Wavenumbers")
+                for f in runner.get_freqs(states, verbose=verbose)
+            ]
 
         res = []
         if return_runner:

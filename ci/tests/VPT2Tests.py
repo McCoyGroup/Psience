@@ -280,6 +280,7 @@ class VPT2Tests(TestCase):
             # internals=internals,
             logger=True,
             mixed_derivative_handling_mode='averaged',
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.json")
             # verbose=False,
             # return_runner=True,
             # return_states=True,
@@ -290,17 +291,17 @@ class VPT2Tests(TestCase):
             # }
         )
 
-        og, _ = runner.construct_classic_runner(
-            TestManager.test_data(file_name),
-            states,
-            mode_selection=np.arange(len(states[0])),
-            # internals=internals,
-            # zero_element_warning=False,
-            # dipole_terms=dips,
-            logger=False
-            # degeneracy_specs='auto'
-            # dipole_terms=dips
-        )
+        # og, _ = runner.construct_classic_runner(
+        #     TestManager.test_data(file_name),
+        #     states,
+        #     mode_selection=np.arange(len(states[0])),
+        #     # internals=internals,
+        #     # zero_element_warning=False,
+        #     # dipole_terms=dips,
+        #     logger=False
+        #     # degeneracy_specs='auto'
+        #     # dipole_terms=dips
+        # )
 
         # freqs = np.sum(
         #     runner.get_energy_corrections(states, order=2, verbose=True),
@@ -330,11 +331,20 @@ class VPT2Tests(TestCase):
         # print(*[c[0, 2] for c in corr_list])
         # raise Exception(...)
 
-        spec = runner.get_spectrum(states,
-                                   # axes=[2],
-                                   # dipole_expansion=dips,
-                                   verbose=False)
-        og.print_tables(print_intensities=True)
+        """
+        [[0.00000000e+00 0.00000000e+00]
+         [2.95841647e+03 4.25354381e+01]
+         [1.16546081e+03 2.23531719e+01]
+         [4.10424899e+03 2.04935052e-11]
+         [4.00233916e+03 4.76888568e-03]]
+         """
+
+        with BlockProfiler():
+            spec = runner.get_spectrum(states,
+                                       # axes=[2],
+                                       # dipole_expansion=dips,
+                                       verbose=False)
+        # og.print_tables(print_intensities=True)
         print(np.array(spec).T)
         raise Exception(...)
 
@@ -377,6 +387,10 @@ class VPT2Tests(TestCase):
             # calculate_intensities=False
         )
 
+        # raise Exception(
+        #     runner.get_freqs(states)[1] * UnitsData.convert("Hartrees", "Wavenumbers")
+        # )
+
         # runner.eval.expansions[2][0][:] = 0
         # v3 = runner.eval.expansions[1][0]
         # for i in itertools.combinations(range(3), 1):
@@ -404,10 +418,13 @@ class VPT2Tests(TestCase):
             # dipole_terms=dips
         )
 
-        spec = runner.get_spectrum(states, verbose=False)
         # freqs = np.sum(runner.get_energy_corrections(states, verbose=True), axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
-        # og.print_tables(print_intensities=True)
+        # from Peeves import Timer
+        # with Timer():
+        #     og.print_tables(print_intensities=True)
         # print(freqs[0], freqs[1:]-freqs[0])
+        with BlockProfiler():
+            spec = runner.get_spectrum(states, verbose=False)
         print(np.array(spec).T)
 
 
@@ -417,7 +434,7 @@ class VPT2Tests(TestCase):
         file_name = os.path.expanduser("~/Desktop/freq_anion.fchk")
         mol = Molecule.from_file(file_name)
         surf = mol.potential_derivatives
-        modes = mol.normal_modes.modes.basis.to_new_modes().make_dimensionless()
+        modes = mol.normal_modes.modes.basis#.to_new_modes().make_dimensionless()
         tf = modes.matrix
         submodes = np.array([108-21, 108-20, 108-19, 108-1])
         dim = np.diag(1/np.sqrt(modes.freqs[submodes,]))
@@ -438,24 +455,49 @@ class VPT2Tests(TestCase):
                 full_deriv[mode_setter] = d
                 derivs.append(full_deriv)
 
-        print([d.shape for d in derivs])
+        # print([d.shape for d in mol.dipole_derivatives])
+        # raise Exception(...)
+        dips = []
+        for n,d in enumerate(mol.dipole_derivatives):
+            if n < 2:
+                dips.append(d)
+            else:
+                full_deriv = np.zeros((len(modes.freqs),) * (n - 1) + (tf.shape[0],3))
+                mode_setter = tuple(
+                    np.expand_dims(submodes,
+                                   list(range(i)) + list(range(i+1, n - 1))
+                                   )
+                    for i in range(n - 1)
+                ) + (slice(None), slice(None))
+                print(mode_setter, d.shape, full_deriv.shape)
+                full_deriv[mode_setter] = d
+                dips.append(full_deriv)
 
         state = VPTStateMaker(108)
-        freqs = AnalyticVPTRunner.run_simple(
+        spec = AnalyticVPTRunner.run_simple(
             file_name,
             [
                 state(),
-                state(108 - 21),
-                state(108 - 20),
-                state(108 - 19),
+                state(21),
+                state(20),
+                state(19),
             ],
             potential_derivatives=derivs,
+            dipole_derivatives=dips,
             calculate_intensities=False,
             logger=True,
             verbose=False
         )
 
-        raise Exception(freqs)
+        print(spec)
+
+        # print(np.array(spec).T)
+
+        # with BlockProfiler():
+        #     spec = runner.get_spectrum(states, verbose=False)
+        # print(np.array(spec).T)
+
+        raise Exception(...)
 
         VPTRunner.run_simple(file_name,
                              2,
